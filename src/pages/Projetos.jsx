@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
 import { Ic, Z, Modal } from '../ui';
 import { R$, N } from '../engine';
@@ -1518,6 +1518,149 @@ function TabProducao({ data, notify }) {
 }
 
 // ═══════════════════════════════════════════════════════
+// TAB PORTAL — Mensagens do portal público do cliente
+// ═══════════════════════════════════════════════════════
+function TabPortalMsgs({ data, notify }) {
+    const [msgs, setMsgs] = useState([]);
+    const [text, setText] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [sending, setSending] = useState(false);
+    const chatRef = useRef(null);
+
+    const load = useCallback(async () => {
+        try {
+            const res = await api.get(`/projetos/${data.id}/mensagens-portal`);
+            setMsgs(res);
+        } catch { /* silently */ }
+        finally { setLoading(false); }
+    }, [data.id]);
+
+    useEffect(() => { load(); }, [load]);
+    useEffect(() => {
+        if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    }, [msgs]);
+
+    // Auto-refresh a cada 10s
+    useEffect(() => {
+        const i = setInterval(load, 10000);
+        return () => clearInterval(i);
+    }, [load]);
+
+    const enviar = async () => {
+        if (!text.trim()) return;
+        setSending(true);
+        try {
+            await api.post(`/projetos/${data.id}/mensagens-portal`, { conteudo: text.trim() });
+            setText('');
+            load();
+            notify('Mensagem enviada!');
+        } catch { notify('Erro ao enviar mensagem'); }
+        finally { setSending(false); }
+    };
+
+    const portalUrl = data.token ? `${window.location.origin}/portal/${data.token}` : null;
+    const naoLidas = msgs.filter(m => m.autor_tipo === 'cliente' && !m.lida).length;
+
+    return (
+        <div>
+            {/* Portal Link */}
+            <div className="glass-card p-4 mb-5" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Link do Portal do Cliente</div>
+                    {portalUrl ? (
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontFamily: 'monospace', background: 'var(--bg-muted)', padding: '4px 8px', borderRadius: 6, maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }}>{portalUrl}</span>
+                            <button onClick={() => { navigator.clipboard.writeText(portalUrl); notify('Link copiado!'); }}
+                                className={Z.btn2} style={{ fontSize: 11, padding: '4px 10px' }}>
+                                <CopyIcon size={11} /> Copiar
+                            </button>
+                        </div>
+                    ) : (
+                        <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Este projeto não possui token de portal. Gere um link do portal nas configurações.</p>
+                    )}
+                </div>
+                {naoLidas > 0 && (
+                    <div style={{ background: '#ef444415', border: '1px solid #ef444430', borderRadius: 10, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#ef4444' }}>{naoLidas} mensage{naoLidas === 1 ? 'm' : 'ns'} não lida{naoLidas === 1 ? '' : 's'}</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Chat */}
+            <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Ic.Message />
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Mensagens do Portal</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({msgs.length})</span>
+                </div>
+
+                <div ref={chatRef} style={{ maxHeight: 450, minHeight: 200, overflowY: 'auto', padding: 20, background: 'var(--bg-muted)' }}>
+                    {loading ? (
+                        <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Carregando...</div>
+                    ) : msgs.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 13 }}>
+                            <Ic.Message />
+                            <p style={{ marginTop: 8 }}>Nenhuma mensagem no portal ainda</p>
+                            <p style={{ fontSize: 11 }}>O cliente pode enviar mensagens pelo link do portal</p>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {msgs.map(m => {
+                                const isCliente = m.autor_tipo === 'cliente';
+                                return (
+                                    <div key={m.id} style={{ display: 'flex', justifyContent: isCliente ? 'flex-start' : 'flex-end' }}>
+                                        <div style={{
+                                            maxWidth: '70%',
+                                            background: isCliente ? 'var(--bg-card)' : 'var(--primary)',
+                                            color: isCliente ? 'var(--text-primary)' : '#fff',
+                                            border: isCliente ? '1px solid var(--border)' : 'none',
+                                            borderRadius: isCliente ? '4px 16px 16px 16px' : '16px 4px 16px 16px',
+                                            padding: '10px 14px',
+                                            boxShadow: '0 1px 3px rgba(0,0,0,.08)',
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                                                <span style={{ fontSize: 11, fontWeight: 700, opacity: isCliente ? 1 : 0.85 }}>
+                                                    {m.autor_nome || (isCliente ? 'Cliente' : 'Equipe')}
+                                                </span>
+                                                {isCliente && !m.lida && (
+                                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+                                                )}
+                                            </div>
+                                            <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{m.conteudo}</p>
+                                            <div style={{ fontSize: 10, marginTop: 4, opacity: 0.6, textAlign: 'right' }}>
+                                                {new Date(m.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} {new Date(m.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* Input */}
+                <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+                    <input
+                        type="text"
+                        value={text}
+                        onChange={e => setText(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviar()}
+                        placeholder="Responder ao cliente..."
+                        disabled={sending || !data.token}
+                        className={Z.inp}
+                        style={{ flex: 1 }}
+                    />
+                    <button onClick={enviar} disabled={sending || !text.trim() || !data.token}
+                        className={Z.btn} style={{ fontSize: 12, padding: '8px 16px', opacity: (sending || !text.trim()) ? 0.5 : 1 }}>
+                        <Ic.Send /> Enviar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════
 // DETALHE DO PROJETO (com tabs)
 // ═══════════════════════════════════════════════════════
 function ProjetoDetalhe({ proj, onBack, orcs, notify, reload }) {
@@ -1548,6 +1691,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload }) {
         { id: 'financeiro', label: 'Financeiro', icon: <DollarSign size={14} /> },
         { id: 'estoque', label: 'Recursos', icon: <Package size={14} /> },
         { id: 'arquivos', label: 'Arquivos', icon: <Ic.FolderOpen /> },
+        { id: 'portal', label: 'Portal', icon: <Ic.Message /> },
     ];
 
     return (
@@ -1597,6 +1741,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload }) {
             {tab === 'financeiro' && <TabFinanceiro data={data} notify={notify} />}
             {tab === 'estoque' && <TabEstoque data={data} notify={notify} />}
             {tab === 'arquivos' && <TabArquivos data={data} notify={notify} />}
+            {tab === 'portal' && <TabPortalMsgs data={data} notify={notify} />}
         </div>
     );
 }

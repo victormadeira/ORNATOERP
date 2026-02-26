@@ -477,6 +477,58 @@ const migrations = [
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
     atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
+
+  // ═══ Fase 7: CRM Histórico + Notas ═══
+  `CREATE TABLE IF NOT EXISTS cliente_notas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id),
+    titulo TEXT DEFAULT '',
+    conteudo TEXT NOT NULL,
+    cor TEXT DEFAULT '#3b82f6',
+    fixado INTEGER DEFAULT 0,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS cliente_interacoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id),
+    tipo TEXT NOT NULL DEFAULT 'nota',
+    descricao TEXT NOT NULL,
+    data DATETIME DEFAULT CURRENT_TIMESTAMP,
+    meta TEXT DEFAULT '{}',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // Campos extras em clientes
+  `ALTER TABLE clientes ADD COLUMN origem TEXT DEFAULT 'manual'`,
+  `ALTER TABLE clientes ADD COLUMN indicado_por TEXT DEFAULT ''`,
+  `ALTER TABLE clientes ADD COLUMN data_nascimento DATE`,
+  // Documentos do cliente
+  `CREATE TABLE IF NOT EXISTS cliente_documentos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id),
+    nome TEXT NOT NULL,
+    tipo TEXT DEFAULT 'documento',
+    url TEXT NOT NULL,
+    tamanho INTEGER DEFAULT 0,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ═══ Portal v2: Mensagens bidirecionais ═══
+  `CREATE TABLE IF NOT EXISTS portal_mensagens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projeto_id INTEGER NOT NULL REFERENCES projetos(id) ON DELETE CASCADE,
+    token TEXT NOT NULL,
+    autor_tipo TEXT NOT NULL DEFAULT 'cliente',
+    autor_nome TEXT DEFAULT '',
+    conteudo TEXT NOT NULL,
+    lida INTEGER DEFAULT 0,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // Portal v2: token no projeto para facilitar lookup
+  "ALTER TABLE projetos ADD COLUMN portal_notif_email TEXT DEFAULT ''",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
@@ -503,6 +555,13 @@ const indexes = [
   "CREATE INDEX IF NOT EXISTS idx_montador_fotos_token ON montador_fotos(token_id)",
   // Aditivos
   "CREATE INDEX IF NOT EXISTS idx_orc_parent ON orcamentos(parent_orc_id)",
+  // CRM Histórico
+  "CREATE INDEX IF NOT EXISTS idx_cliente_notas ON cliente_notas(cliente_id)",
+  "CREATE INDEX IF NOT EXISTS idx_cliente_interacoes ON cliente_interacoes(cliente_id, data)",
+  "CREATE INDEX IF NOT EXISTS idx_cliente_docs ON cliente_documentos(cliente_id)",
+  // Portal v2
+  "CREATE INDEX IF NOT EXISTS idx_portal_mensagens_projeto ON portal_mensagens(projeto_id)",
+  "CREATE INDEX IF NOT EXISTS idx_portal_mensagens_token ON portal_mensagens(token)",
 ];
 for (const sql of indexes) {
   try { db.exec(sql); } catch (_) { }

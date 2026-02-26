@@ -1,7 +1,12 @@
-import { useState, useEffect } from 'react';
-import { MapPin, Phone, Mail, Calendar, MessageSquare, Lock, CheckCircle2, Printer, PauseCircle, Clock, Play, AlertCircle, ArrowRight } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { MapPin, Phone, Mail, Calendar, MessageSquare, Lock, CheckCircle2, Printer, PauseCircle, Clock, Play, AlertCircle, Send, User } from 'lucide-react';
 
 const dtFmt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+const timeFmt = (s) => {
+    if (!s) return '';
+    const d = new Date(s);
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+};
 
 const mkStatusEtapa = (accent) => ({
     nao_iniciado: { label: 'Não iniciado', color: '#94a3b8', Icon: PauseCircle },
@@ -34,7 +39,6 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
     const today = Date.now();
     const todayPct = Math.min(100, Math.max(0, (today - minMs) / totalMs * 100));
 
-    // Labels de meses
     const months = [];
     let cur = new Date(minMs);
     cur.setDate(1);
@@ -49,7 +53,6 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
 
     return (
         <div style={{ overflowX: 'auto', marginTop: 8 }}>
-            {/* Cabeçalho de meses */}
             <div style={{
                 position: 'relative', height: 24,
                 background: primary,
@@ -64,13 +67,11 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                 ))}
             </div>
 
-            {/* Barras */}
             <div style={{
                 position: 'relative', background: '#fff',
                 border: '1px solid #e2e8f0', borderTop: 'none',
                 borderRadius: '0 0 8px 8px', minWidth: 400
             }}>
-                {/* Linha do hoje */}
                 <div style={{
                     position: 'absolute', left: `${todayPct}%`,
                     top: 0, bottom: 0, width: 2,
@@ -106,7 +107,6 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                 })}
             </div>
 
-            {/* Legenda */}
             <div style={{ display: 'flex', gap: 14, marginTop: 10, flexWrap: 'wrap' }}>
                 {Object.entries(mkStatusEtapa(accent)).map(([k, v]) => (
                     <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#64748b' }}>
@@ -114,6 +114,170 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                         {v.label}
                     </div>
                 ))}
+            </div>
+        </div>
+    );
+}
+
+// ─── Chat de mensagens do portal ──────────────
+function PortalChat({ token, mensagens: initialMsgs, accent, primary, clienteNome }) {
+    const [msgs, setMsgs] = useState(initialMsgs || []);
+    const [text, setText] = useState('');
+    const [nome, setNome] = useState(() => localStorage.getItem('portal_nome') || '');
+    const [sending, setSending] = useState(false);
+    const [showNome, setShowNome] = useState(!localStorage.getItem('portal_nome'));
+    const chatRef = useRef(null);
+
+    useEffect(() => {
+        if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    }, [msgs]);
+
+    // Poll for new messages every 15 seconds
+    useEffect(() => {
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/projetos/portal/${token}`);
+                const data = await res.json();
+                if (data?.projeto?.mensagens) setMsgs(data.projeto.mensagens);
+            } catch { /* silently fail */ }
+        }, 15000);
+        return () => clearInterval(interval);
+    }, [token]);
+
+    const enviar = async () => {
+        if (!text.trim()) return;
+        if (showNome && !nome.trim()) return;
+
+        if (showNome) {
+            localStorage.setItem('portal_nome', nome.trim());
+            setShowNome(false);
+        }
+
+        setSending(true);
+        try {
+            const res = await fetch(`/api/projetos/portal/${token}/mensagens`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ autor_nome: nome.trim() || clienteNome || 'Cliente', conteudo: text.trim() })
+            });
+            const msg = await res.json();
+            if (msg.id) {
+                setMsgs(prev => [...prev, msg]);
+                setText('');
+            }
+        } catch { /* error */ }
+        finally { setSending(false); }
+    };
+
+    return (
+        <div style={{ background: '#fff', padding: '24px 32px', borderBottom: '1px solid #e2e8f0' }}>
+            <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <MessageSquare size={16} style={{ color: accent }} /> Mensagens
+            </h2>
+
+            {/* Chat area */}
+            <div ref={chatRef} style={{
+                maxHeight: 360, minHeight: 120, overflowY: 'auto',
+                background: '#f8fafc', borderRadius: 12,
+                padding: 16, marginBottom: 16,
+                border: '1px solid #e2e8f0'
+            }}>
+                {msgs.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '32px 0', color: '#94a3b8', fontSize: 13 }}>
+                        <MessageSquare size={28} style={{ margin: '0 auto 8px', opacity: 0.4 }} />
+                        <p>Envie uma mensagem para a equipe</p>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {msgs.map(m => {
+                            const isEquipe = m.autor_tipo === 'equipe';
+                            return (
+                                <div key={m.id} style={{
+                                    display: 'flex',
+                                    justifyContent: isEquipe ? 'flex-start' : 'flex-end',
+                                }}>
+                                    <div style={{
+                                        maxWidth: '75%',
+                                        background: isEquipe ? '#fff' : `${accent}15`,
+                                        border: isEquipe ? '1px solid #e2e8f0' : `1px solid ${accent}30`,
+                                        borderRadius: isEquipe ? '4px 16px 16px 16px' : '16px 4px 16px 16px',
+                                        padding: '10px 14px',
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                            <div style={{
+                                                width: 20, height: 20, borderRadius: '50%',
+                                                background: isEquipe ? `${primary}15` : `${accent}20`,
+                                                color: isEquipe ? primary : accent,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontSize: 9, fontWeight: 700, flexShrink: 0
+                                            }}>
+                                                {isEquipe ? (m.autor_nome || 'E')[0].toUpperCase() : <User size={10} />}
+                                            </div>
+                                            <span style={{ fontSize: 11, fontWeight: 700, color: isEquipe ? primary : accent }}>
+                                                {m.autor_nome || (isEquipe ? 'Equipe' : 'Você')}
+                                            </span>
+                                            <span style={{ fontSize: 10, color: '#94a3b8' }}>{timeFmt(m.criado_em)}</span>
+                                        </div>
+                                        <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap' }}>
+                                            {m.conteudo}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
+            {/* Nome input (first message only) */}
+            {showNome && (
+                <div style={{ marginBottom: 10 }}>
+                    <input
+                        type="text"
+                        value={nome}
+                        onChange={e => setNome(e.target.value)}
+                        placeholder="Seu nome..."
+                        style={{
+                            width: '100%', padding: '10px 14px',
+                            border: '1px solid #e2e8f0', borderRadius: 10,
+                            fontSize: 13, outline: 'none', background: '#fff',
+                            boxSizing: 'border-box'
+                        }}
+                        onFocus={e => e.target.style.borderColor = accent}
+                        onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                    />
+                </div>
+            )}
+
+            {/* Message input */}
+            <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                    type="text"
+                    value={text}
+                    onChange={e => setText(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviar()}
+                    placeholder="Digite sua mensagem..."
+                    disabled={sending}
+                    style={{
+                        flex: 1, padding: '10px 14px',
+                        border: '1px solid #e2e8f0', borderRadius: 10,
+                        fontSize: 13, outline: 'none', background: '#fff',
+                    }}
+                    onFocus={e => e.target.style.borderColor = accent}
+                    onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                />
+                <button
+                    onClick={enviar}
+                    disabled={sending || !text.trim()}
+                    style={{
+                        background: accent, color: '#fff', border: 'none',
+                        padding: '10px 18px', borderRadius: 10, cursor: 'pointer',
+                        fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6,
+                        opacity: (sending || !text.trim()) ? 0.5 : 1,
+                    }}
+                >
+                    <Send size={14} /> Enviar
+                </button>
             </div>
         </div>
     );
@@ -163,6 +327,7 @@ export default function PortalCliente({ token }) {
     const { projeto, empresa } = data;
     const etapas = projeto.etapas || [];
     const ocorrencias = projeto.ocorrencias || [];
+    const mensagens = projeto.mensagens || [];
     const concluidasPct = etapas.length
         ? Math.round(etapas.filter(e => e.status === 'concluida').length / etapas.length * 100)
         : 0;
@@ -276,13 +441,11 @@ export default function PortalCliente({ token }) {
                 <div style={{ background: '#fff', padding: '24px 32px', borderBottom: '1px solid #e2e8f0' }}>
                     <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}><Calendar size={16} style={{ color: accent }} /> Cronograma</h2>
 
-                    {/* Gantt */}
                     <GanttPublic etapas={etapas} primary={primary} accent={accent} />
 
-                    {/* Lista de etapas */}
                     {etapas.length > 0 && (
                         <div style={{ marginTop: 24, display: 'grid', gap: 8 }}>
-                            {etapas.map((e, i) => {
+                            {etapas.map((e) => {
                                 const st = STATUS_ETAPA[e.status] || STATUS_ETAPA.pendente;
                                 return (
                                     <div key={e.id} style={{
@@ -348,6 +511,17 @@ export default function PortalCliente({ token }) {
                         </div>
                     </div>
                 )}
+
+                {/* ─── Chat de Mensagens (Portal v2) ──────────── */}
+                <div className="no-print">
+                    <PortalChat
+                        token={token}
+                        mensagens={mensagens}
+                        accent={accent}
+                        primary={primary}
+                        clienteNome={projeto.cliente_nome}
+                    />
+                </div>
 
                 {/* ─── Rodapé ─────────────────────────────────── */}
                 <div style={{

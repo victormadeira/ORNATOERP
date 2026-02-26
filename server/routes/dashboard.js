@@ -449,4 +449,135 @@ router.get('/financeiro', requireAuth, (req, res) => {
     }
 });
 
+// ═══════════════════════════════════════════════════════
+// GET /api/dashboard/relatorio/:tipo — Relatórios exportáveis
+// ═══════════════════════════════════════════════════════
+router.get('/relatorio/:tipo', requireAuth, (req, res) => {
+    const { tipo } = req.params;
+    const { periodo_inicio, periodo_fim } = req.query;
+    const inicio = periodo_inicio || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+    const fim = periodo_fim || new Date().toISOString().slice(0, 10);
+
+    try {
+        switch (tipo) {
+            case 'clientes': {
+                const rows = db.prepare(`
+                    SELECT c.id, c.nome, c.tel, c.email, c.cidade, c.estado, c.tipo_pessoa, c.cpf, c.cnpj, c.arq, c.origem, c.criado_em,
+                           COUNT(DISTINCT o.id) as total_orcamentos,
+                           COUNT(DISTINCT CASE WHEN o.kb_col IN ('ok','prod','mont') THEN o.id END) as aprovados,
+                           COALESCE(SUM(CASE WHEN o.kb_col IN ('ok','prod','mont') THEN o.valor_venda ELSE 0 END), 0) as total_faturado,
+                           COUNT(DISTINCT p.id) as total_projetos
+                    FROM clientes c
+                    LEFT JOIN orcamentos o ON o.cliente_id = c.id AND o.tipo != 'aditivo'
+                    LEFT JOIN projetos p ON p.cliente_id = c.id
+                    GROUP BY c.id
+                    ORDER BY total_faturado DESC
+                `).all();
+                res.json({ tipo: 'clientes', periodo: { inicio, fim }, dados: rows });
+                break;
+            }
+
+            case 'orcamentos': {
+                const rows = db.prepare(`
+                    SELECT o.id, o.numero, o.cliente_nome, o.ambiente, o.valor_venda, o.custo_material,
+                           o.kb_col, o.tipo, o.criado_em, o.atualizado_em,
+                           u.nome as vendedor,
+                           o.parent_orc_id
+                    FROM orcamentos o
+                    LEFT JOIN users u ON o.user_id = u.id
+                    WHERE o.criado_em BETWEEN ? AND ? || ' 23:59:59'
+                    ORDER BY o.criado_em DESC
+                `).all(inicio, fim);
+                res.json({ tipo: 'orcamentos', periodo: { inicio, fim }, dados: rows });
+                break;
+            }
+
+            case 'projetos': {
+                const rows = db.prepare(`
+                    SELECT p.id, p.nome, p.status, p.data_inicio, p.data_vencimento,
+                           o.cliente_nome, o.valor_venda, o.custo_material, o.numero as orc_numero,
+                           COALESCE((SELECT SUM(cr.valor) FROM contas_receber cr WHERE cr.projeto_id = p.id AND cr.status = 'pago'), 0) as recebido,
+                           COALESCE((SELECT SUM(cr.valor) FROM contas_receber cr WHERE cr.projeto_id = p.id AND cr.status = 'pendente'), 0) as a_receber,
+                           COALESCE((SELECT SUM(d.valor) FROM despesas_projeto d WHERE d.projeto_id = p.id), 0) as despesas,
+                           (SELECT COUNT(*) FROM etapas_projeto e WHERE e.projeto_id = p.id) as total_etapas,
+                           (SELECT COUNT(*) FROM etapas_projeto e WHERE e.projeto_id = p.id AND e.status = 'concluida') as etapas_concluidas,
+                           p.criado_em
+                    FROM projetos p
+                    LEFT JOIN orcamentos o ON o.id = p.orc_id
+                    WHERE p.criado_em BETWEEN ? AND ? || ' 23:59:59'
+                    ORDER BY p.criado_em DESC
+                `).all(inicio, fim);
+                res.json({ tipo: 'projetos', periodo: { inicio, fim }, dados: rows });
+                break;
+            }
+
+            case 'financeiro': {
+                const receber = db.prepare(`
+                    SELECT cr.id, cr.descricao, cr.valor, cr.data_vencimento, cr.data_pagamento,
+                           cr.status, cr.meio_pagamento as forma_pagamento, p.nome as projeto_nome
+                    FROM contas_receber cr
+                    LEFT JOIN projetos p ON p.id = cr.projeto_id
+                    WHERE cr.data_vencimento BETWEEN ? AND ?
+                    ORDER BY cr.data_vencimento ASC
+                `).all(inicio, fim);
+
+                const pagar = db.prepare(`
+                    SELECT cp.id, cp.descricao, cp.valor, cp.data_vencimento, cp.data_pagamento,
+                           cp.status, cp.categoria, cp.fornecedor
+                    FROM contas_pagar cp
+                    WHERE cp.data_vencimento BETWEEN ? AND ?
+                    ORDER BY cp.data_vencimento ASC
+                `).all(inicio, fim);
+
+                const despesas = db.prepare(`
+                    SELECT d.id, d.descricao, d.valor, d.data, d.categoria, d.fornecedor,
+                           p.nome as projeto_nome
+                    FROM despesas_projeto d
+                    LEFT JOIN projetos p ON p.id = d.projeto_id
+                    WHERE d.data BETWEEN ? AND ?
+                    ORDER BY d.data ASC
+                `).all(inicio, fim);
+
+                const totalReceber = receber.reduce((s, r) => s + (r.valor || 0), 0);
+                const totalRecebido = receber.filter(r => r.status === 'pago').reduce((s, r) => s + (r.valor || 0), 0);
+                const totalPagar = pagar.reduce((s, r) => s + (r.valor || 0), 0);
+                const totalPago = pagar.filter(r => r.status === 'pago').reduce((s, r) => s + (r.valor || 0), 0);
+                const totalDespesas = despesas.reduce((s, r) => s + (r.valor || 0), 0);
+
+                res.json({
+                    tipo: 'financeiro', periodo: { inicio, fim },
+                    resumo: { totalReceber, totalRecebido, totalPagar, totalPago, totalDespesas, saldo: totalRecebido - totalPago - totalDespesas },
+                    contas_receber: receber,
+                    contas_pagar: pagar,
+                    despesas,
+                });
+                break;
+            }
+
+            case 'produtividade': {
+                const rows = db.prepare(`
+                    SELECT u.id as colaborador_id, u.nome as colaborador_nome,
+                           COUNT(DISTINCT ah.projeto_id) as projetos_trabalhados,
+                           COALESCE(SUM(ah.horas), 0) as total_horas,
+                           COALESCE(SUM(ah.horas * u.valor_hora), 0) as custo_total
+                    FROM colaboradores u
+                    LEFT JOIN apontamentos_horas ah ON ah.colaborador_id = u.id
+                        AND ah.data BETWEEN ? AND ?
+                    WHERE u.ativo = 1
+                    GROUP BY u.id
+                    ORDER BY total_horas DESC
+                `).all(inicio, fim);
+                res.json({ tipo: 'produtividade', periodo: { inicio, fim }, dados: rows });
+                break;
+            }
+
+            default:
+                res.status(400).json({ error: 'Tipo de relatório inválido' });
+        }
+    } catch (err) {
+        console.error('Relatório error:', err);
+        res.status(500).json({ error: 'Erro ao gerar relatório' });
+    }
+});
+
 export default router;

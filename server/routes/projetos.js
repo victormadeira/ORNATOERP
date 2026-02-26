@@ -43,6 +43,14 @@ router.get('/portal/:token', (req, res) => {
         'SELECT nome, telefone, email, cidade, estado, cnpj, logo_header_path, proposta_cor_primaria, proposta_cor_accent FROM empresa_config WHERE id = 1'
     ).get() || {};
 
+    // Portal v2: mensagens do chat
+    const mensagens = db.prepare(`
+        SELECT id, autor_tipo, autor_nome, conteudo, criado_em
+        FROM portal_mensagens
+        WHERE projeto_id = ? AND token = ?
+        ORDER BY criado_em ASC
+    `).all(proj.id, req.params.token);
+
     res.json({
         projeto: {
             id: proj.id,
@@ -54,9 +62,66 @@ router.get('/portal/:token', (req, res) => {
             cliente_nome: proj.cliente_nome,
             etapas,
             ocorrencias,
+            mensagens,
         },
         empresa,
     });
+});
+
+// ═══════════════════════════════════════════════════
+// POST /api/projetos/portal/:token/mensagens — cliente envia mensagem (público)
+// ═══════════════════════════════════════════════════
+router.post('/portal/:token/mensagens', (req, res) => {
+    const { token } = req.params;
+    const { autor_nome, conteudo } = req.body;
+
+    if (!conteudo || !conteudo.trim()) return res.status(400).json({ error: 'Mensagem obrigatória' });
+
+    const proj = db.prepare('SELECT id FROM projetos WHERE token = ?').get(token);
+    if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
+
+    const r = db.prepare(`
+        INSERT INTO portal_mensagens (projeto_id, token, autor_tipo, autor_nome, conteudo)
+        VALUES (?, ?, 'cliente', ?, ?)
+    `).run(proj.id, token, (autor_nome || '').trim() || 'Cliente', conteudo.trim());
+
+    const msg = db.prepare('SELECT * FROM portal_mensagens WHERE id = ?').get(r.lastInsertRowid);
+    res.status(201).json(msg);
+});
+
+// ═══════════════════════════════════════════════════
+// GET /api/projetos/:id/mensagens-portal — listar mensagens do portal (auth)
+// ═══════════════════════════════════════════════════
+router.get('/:id/mensagens-portal', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    const mensagens = db.prepare(`
+        SELECT * FROM portal_mensagens WHERE projeto_id = ? ORDER BY criado_em ASC
+    `).all(id);
+    res.json(mensagens);
+});
+
+// ═══════════════════════════════════════════════════
+// POST /api/projetos/:id/mensagens-portal — equipe responde (auth)
+// ═══════════════════════════════════════════════════
+router.post('/:id/mensagens-portal', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    const { conteudo } = req.body;
+    if (!conteudo || !conteudo.trim()) return res.status(400).json({ error: 'Mensagem obrigatória' });
+
+    const proj = db.prepare('SELECT id, token FROM projetos WHERE id = ?').get(id);
+    if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
+    if (!proj.token) return res.status(400).json({ error: 'Projeto sem token de portal' });
+
+    const r = db.prepare(`
+        INSERT INTO portal_mensagens (projeto_id, token, autor_tipo, autor_nome, conteudo)
+        VALUES (?, ?, 'equipe', ?, ?)
+    `).run(proj.id, proj.token, req.user.nome, conteudo.trim());
+
+    // Marcar mensagens do cliente como lidas
+    db.prepare(`UPDATE portal_mensagens SET lida = 1 WHERE projeto_id = ? AND autor_tipo = 'cliente' AND lida = 0`).run(proj.id);
+
+    const msg = db.prepare('SELECT * FROM portal_mensagens WHERE id = ?').get(r.lastInsertRowid);
+    res.status(201).json(msg);
 });
 
 // ═══════════════════════════════════════════════════

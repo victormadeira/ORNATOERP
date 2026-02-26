@@ -16,6 +16,7 @@ import Estoque from './pages/Estoque';
 import ItemBuilder from './pages/ItemBuilder';
 import Mensagens from './pages/Mensagens';
 import AssistenteIA from './pages/AssistenteIA';
+import Relatorios from './pages/Relatorios';
 
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente } = useAuth();
@@ -106,6 +107,7 @@ export default function App() {
         { id: "estoque", lb: "Gestão de Recursos", ic: Ic.Briefcase },
         { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
+        { id: "relatorios", lb: "Relatórios", ic: Ic.BarChart },
         { id: "cfg", lb: "Config & Taxas", ic: Ic.Gear },
     ];
 
@@ -122,7 +124,7 @@ export default function App() {
     const renderPage = () => {
         switch (pg) {
             case "dash": return <Dash nav={nav} notify={notify} />;
-            case "cli": return <Cli clis={clis} reload={loadClis} notify={notify} />;
+            case "cli": return <Cli clis={clis} reload={loadClis} notify={notify} nav={nav} />;
             case "cat": return <Cat />;
             case "orcs": return <Orcs orcs={orcs} nav={nav} reload={loadOrcs} notify={notify} />;
             case "novo": return <Novo clis={clis} taxas={taxas} editOrc={editOrc} nav={nav} reload={reload} notify={notify} />;
@@ -132,6 +134,7 @@ export default function App() {
             case "whatsapp": return <Mensagens notify={notify} />;
             case "assistente": return <AssistenteIA notify={notify} />;
             case "catalogo_itens": return <ItemBuilder notify={notify} />;
+            case "relatorios": return <Relatorios notify={notify} />;
             case "cfg": return <Cfg taxas={taxas} reload={loadTaxas} notify={notify} />;
             case "users": return isAdmin ? <Users notify={notify} meUser={user} /> : <Dash nav={nav} notify={notify} />;
             default: return <Dash nav={nav} notify={notify} />;
