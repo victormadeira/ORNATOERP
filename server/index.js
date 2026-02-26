@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/auth.js';
 import clientesRoutes from './routes/clientes.js';
 import orcamentosRoutes from './routes/orcamentos.js';
@@ -28,11 +29,15 @@ import { iniciarAutomacoes } from './services/automacoes.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// ═══ Rate Limiters ═══════════════════════════════════════════════════
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Muitas tentativas. Tente novamente em 15 minutos.' }, standardHeaders: true, legacyHeaders: false });
+const publicLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, message: { error: 'Limite de requisições excedido.' }, standardHeaders: true, legacyHeaders: false });
+
 // ═══ Webhook ANTES do CORS (Evolution API envia de origem externa) ═══
 app.use('/api/webhook', express.json(), webhookRoutes);
 
-// ═══ Landing/Leads ANTES do CORS (endpoints públicos) ═══
-app.use('/api/leads', express.json(), landingRoutes);
+// ═══ Landing/Leads ANTES do CORS (endpoints públicos com rate limit) ═══
+app.use('/api/leads', publicLimiter, express.json(), landingRoutes);
 
 app.use(cors({ origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5175', 'http://127.0.0.1:5175'] }));
 app.use(express.json({ limit: '20mb' }));
@@ -40,6 +45,8 @@ app.use(express.json({ limit: '20mb' }));
 // ═══════════════════════════════════════════════════════
 // ROTAS
 // ═══════════════════════════════════════════════════════
+app.use('/api/auth/login', loginLimiter);
+app.use('/api/auth/register', loginLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/orcamentos', orcamentosRoutes);

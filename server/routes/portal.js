@@ -148,22 +148,14 @@ router.get('/public/:token', async (req, res) => {
 
     db.prepare('UPDATE portal_tokens SET ultimo_acesso = CURRENT_TIMESTAMP WHERE token = ?').run(token);
 
-    // Retornar dados
+    // Retornar dados (single query para empresa_config)
+    const emp = db.prepare('SELECT nome, proposta_cor_primaria, proposta_cor_accent FROM empresa_config WHERE id = 1').get();
     res.json({
         html_proposta: portalToken.html_proposta || '',
         nivel: portalToken.nivel || 'geral',
-        empresa_nome: (() => {
-            const emp = db.prepare('SELECT nome, proposta_cor_primaria, proposta_cor_accent FROM empresa_config WHERE id = 1').get();
-            return emp?.nome || 'Marcenaria';
-        })(),
-        cor_primaria: (() => {
-            const emp = db.prepare('SELECT proposta_cor_primaria FROM empresa_config WHERE id = 1').get();
-            return emp?.proposta_cor_primaria || '#1B2A4A';
-        })(),
-        cor_accent: (() => {
-            const emp = db.prepare('SELECT proposta_cor_accent FROM empresa_config WHERE id = 1').get();
-            return emp?.proposta_cor_accent || '#C9A96E';
-        })(),
+        empresa_nome: emp?.nome || 'Marcenaria',
+        cor_primaria: emp?.proposta_cor_primaria || '#1B2A4A',
+        cor_accent: emp?.proposta_cor_accent || '#C9A96E',
         numero: orc.numero || '',
         cliente_nome: orc.cliente_nome || '',
     });

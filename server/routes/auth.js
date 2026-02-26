@@ -36,6 +36,13 @@ router.post('/register', requireAuth, requireRole('admin'), (req, res) => {
     const { nome, email, senha, role } = req.body;
     if (!nome || !email || !senha) return res.status(400).json({ error: 'Nome, email e senha obrigatórios' });
 
+    // Validação de email
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Formato de e-mail inválido' });
+
+    // Validação de senha
+    if (senha.length < 6) return res.status(400).json({ error: 'Senha deve ter no mínimo 6 caracteres' });
+    if (senha.length > 128) return res.status(400).json({ error: 'Senha muito longa' });
+
     const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
     if (exists) return res.status(409).json({ error: 'Email já cadastrado' });
 
@@ -78,7 +85,11 @@ router.put('/users/:id', requireAuth, requireRole('admin'), (req, res) => {
 
     const updates = [];
     const params = [];
-    if (role !== undefined) { updates.push('role = ?'); params.push(role); }
+    if (role !== undefined) {
+        const validRoles = ['admin', 'gerente', 'vendedor'];
+        if (!validRoles.includes(role)) return res.status(400).json({ error: 'Role inválido' });
+        updates.push('role = ?'); params.push(role);
+    }
     if (ativo !== undefined) { updates.push('ativo = ?'); params.push(ativo); }
     if (nome !== undefined) { updates.push('nome = ?'); params.push(nome); }
     if (permissions !== undefined) {
@@ -109,7 +120,8 @@ router.delete('/users/:id', requireAuth, requireRole('admin'), (req, res) => {
     const user = db.prepare('SELECT id FROM users WHERE id = ?').get(id);
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
-    db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    // Soft delete — desativa ao invés de remover para preservar dados vinculados
+    db.prepare('UPDATE users SET ativo = 0, email = email || \'_deleted_\' || id WHERE id = ?').run(id);
     res.json({ ok: true });
 });
 
@@ -119,6 +131,7 @@ router.delete('/users/:id', requireAuth, requireRole('admin'), (req, res) => {
 router.put('/password', requireAuth, (req, res) => {
     const { senhaAtual, novaSenha } = req.body;
     if (!senhaAtual || !novaSenha) return res.status(400).json({ error: 'Senhas obrigatórias' });
+    if (novaSenha.length < 6) return res.status(400).json({ error: 'Nova senha deve ter no mínimo 6 caracteres' });
 
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
     if (!bcrypt.compareSync(senhaAtual, user.senha_hash)) {

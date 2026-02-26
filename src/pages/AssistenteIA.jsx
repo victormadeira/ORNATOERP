@@ -13,9 +13,9 @@ import {
 // ═══════════════════════════════════════════════════════
 
 const PRIO_COLORS = {
-    alta: { bg: '#ef444420', color: '#ef4444', border: '#ef444440', label: '🔴 Alta' },
-    media: { bg: '#f59e0b20', color: '#f59e0b', border: '#f59e0b40', label: '🟡 Média' },
-    baixa: { bg: '#22c55e20', color: '#22c55e', border: '#22c55e40', label: '🟢 Baixa' },
+    alta: { bg: '#ef444420', color: '#ef4444', border: '#ef444440', label: 'Alta' },
+    media: { bg: '#f59e0b20', color: '#f59e0b', border: '#f59e0b40', label: 'Media' },
+    baixa: { bg: '#22c55e20', color: '#22c55e', border: '#22c55e40', label: 'Baixa' },
 };
 
 const CTX_TIPOS = [
@@ -89,7 +89,7 @@ export default function AssistenteIA({ notify }) {
         setLoading(true);
         try {
             const r = await api.post('/ia/gerar-followups');
-            notify?.(`✨ ${r.gerados} sugestão(ões) gerada(s)!`);
+            notify?.(`${r.gerados} sugestao(oes) gerada(s)!`);
             loadFollowups();
         } catch (e) {
             notify?.(e.error || 'Erro ao gerar follow-ups. Verifique a configuração da IA.');
@@ -100,7 +100,7 @@ export default function AssistenteIA({ notify }) {
     const markFollowup = async (id, status) => {
         await api.put(`/ia/followups/${id}`, { status });
         setFollowups(prev => prev.filter(f => f.id !== id));
-        notify?.(status === 'feito' ? '✅ Marcado como feito' : '❌ Ignorado');
+        notify?.(status === 'feito' ? 'Marcado como feito' : 'Ignorado');
     };
 
     // ═══ Chat CRM ═══
@@ -178,7 +178,7 @@ export default function AssistenteIA({ notify }) {
             });
             setShowSalvarGerado(false);
             setSalvarTitulo('');
-            notify?.('✅ Conteúdo salvo!');
+            notify?.('Conteudo salvo!');
             loadMktConteudos();
         } catch (e) { notify?.(e.error || 'Erro ao salvar'); }
     };
@@ -188,7 +188,7 @@ export default function AssistenteIA({ notify }) {
             await api.put(`/ia/marketing/${id}`, mktEditData);
             setMktEditId(null);
             loadMktConteudos();
-            notify?.('✅ Atualizado!');
+            notify?.('Atualizado!');
         } catch (e) { notify?.(e.error || 'Erro ao atualizar'); }
     };
 
@@ -203,7 +203,7 @@ export default function AssistenteIA({ notify }) {
     const copyToClipboard = (text, id) => {
         navigator.clipboard.writeText(text).then(() => {
             setCopiedId(id);
-            notify?.('📋 Copiado!');
+            notify?.('Copiado!');
             setTimeout(() => setCopiedId(null), 2000);
         });
     };
@@ -320,7 +320,7 @@ export default function AssistenteIA({ notify }) {
                                                 </div>
                                             )}
                                             <div style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.5 }}>
-                                                💡 {f.mensagem}
+                                                {f.mensagem}
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -566,9 +566,9 @@ export default function AssistenteIA({ notify }) {
                             <div>
                                 <label className={Z.lbl}>Tipo de conteúdo</label>
                                 <select className={Z.inp} value={mktForm.tipo} onChange={e => setMktForm(f => ({ ...f, tipo: e.target.value }))}>
-                                    <option value="post_instagram">📸 Post Instagram</option>
-                                    <option value="copy_anuncio">🎯 Copy para Anúncio</option>
-                                    <option value="descricao_projeto">📝 Descrição de Projeto</option>
+                                    <option value="post_instagram">Post Instagram</option>
+                                    <option value="copy_anuncio">Copy para Anúncio</option>
+                                    <option value="descricao_projeto">Descrição de Projeto</option>
                                 </select>
                             </div>
                             <div>
@@ -753,12 +753,12 @@ export default function AssistenteIA({ notify }) {
                                                         </span>
                                                         {c.plataforma && (
                                                             <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'capitalize' }}>
-                                                                📱 {c.plataforma.replace('_', ' ')}
+                                                                {c.plataforma.replace('_', ' ')}
                                                             </span>
                                                         )}
                                                         {c.data_publicar && (
                                                             <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                                                                📅 {new Date(c.data_publicar + 'T12:00').toLocaleDateString('pt-BR')}
+                                                                {new Date(c.data_publicar + 'T12:00').toLocaleDateString('pt-BR')}
                                                             </span>
                                                         )}
                                                     </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Lock, Link as LinkIcon, Printer, CheckCircle2 } from 'lucide-react';
+import { Lock, Link as LinkIcon, Printer, CheckCircle2, FileText } from 'lucide-react';
 
 // ── ProposalPublic — exibe a proposta como clone do PDF + tracking ───────────
 export default function ProposalPublic({ token }) {
@@ -113,7 +113,7 @@ export default function ProposalPublic({ token }) {
     if (!html) return (
         <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,-apple-system,sans-serif' }}>
             <div style={{ textAlign: 'center', maxWidth: 450, padding: 32 }}>
-                <div style={{ width: 64, height: 64, background: '#fef3c7', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 28 }}>📄</div>
+                <div style={{ width: 64, height: 64, background: '#fef3c7', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}><FileText size={28} style={{ color: '#92400e' }} /></div>
                 <h2 style={{ color: '#1e293b', marginBottom: 8 }}>Proposta pendente</h2>
                 <p style={{ color: '#64748b', fontSize: 14, lineHeight: 1.6 }}>
                     Esta proposta ainda não foi publicada. Solicite ao responsável que gere a proposta novamente para disponibilizar o conteúdo neste link.

@@ -103,7 +103,7 @@ export default function MontadorUpload({ token }) {
                 </div>
                 {fotos > 0 && (
                     <div style={{ fontSize: 12, color: '#22c55e', fontWeight: 600, marginTop: 8 }}>
-                        ✅ {fotos} foto(s) enviada(s) nesta sessão
+                        {fotos} foto(s) enviada(s) nesta sessão
                     </div>
                 )}
             </div>

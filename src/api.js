@@ -18,7 +18,13 @@ async function request(method, path, body = null) {
     };
     if (body) opts.body = JSON.stringify(body);
     const res = await fetch(`${BASE}${path}`, opts);
-    const data = await res.json();
+    let data;
+    try {
+        data = await res.json();
+    } catch {
+        if (!res.ok) throw { status: res.status, error: `Erro ${res.status}: ${res.statusText}` };
+        return {};
+    }
     if (!res.ok) throw { status: res.status, ...data };
     return data;
 }

@@ -3,7 +3,7 @@ import { Z, Ic } from '../ui';
 import api from '../api';
 import { useAuth } from '../auth';
 import { DEFAULT_CONTRATO_TEMPLATE } from './ContratoHtml';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot } from 'lucide-react';
 
 const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
@@ -993,10 +993,10 @@ export default function Cfg({ taxas, reload, notify }) {
                             <div className="mt-5 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
                                 <div className="flex gap-2 flex-wrap">
                                     <button onClick={checkWaStatus} disabled={waChecking} className={Z.btn2}>
-                                        {waChecking ? '⏳ Verificando...' : '🔍 Verificar Conexão'}
+                                        {waChecking ? <><RefreshCw size={12} className="animate-spin" style={{ display: 'inline', marginRight: 4 }} /> Verificando...</> : <><Search size={12} style={{ display: 'inline', marginRight: 4 }} /> Verificar Conexão</>}
                                     </button>
                                     <button onClick={getWaQR} className={Z.btn2}>
-                                        📱 Obter QR Code
+                                        <Smartphone size={12} style={{ display: 'inline', marginRight: 4 }} /> Obter QR Code
                                     </button>
                                 </div>
 
@@ -1075,27 +1075,27 @@ export default function Cfg({ taxas, reload, notify }) {
                             <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Funcionalidades</h3>
                             <div className="flex flex-col gap-2 text-[11px]" style={{ color: 'var(--text-muted)', lineHeight: 1.7 }}>
                                 <div className="flex items-start gap-2">
-                                    <span style={{ color: '#22c55e' }}>✓</span>
+                                    <Check size={12} style={{ color: '#22c55e', flexShrink: 0 }} />
                                     <span>Receber mensagens em tempo real</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <span style={{ color: '#22c55e' }}>✓</span>
+                                    <Check size={12} style={{ color: '#22c55e', flexShrink: 0 }} />
                                     <span>Resposta automática por IA</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <span style={{ color: '#22c55e' }}>✓</span>
+                                    <Check size={12} style={{ color: '#22c55e', flexShrink: 0 }} />
                                     <span>Escalação para atendente humano</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <span style={{ color: '#22c55e' }}>✓</span>
+                                    <Check size={12} style={{ color: '#22c55e', flexShrink: 0 }} />
                                     <span>Notas internas por conversa</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <span style={{ color: '#22c55e' }}>✓</span>
+                                    <Check size={12} style={{ color: '#22c55e', flexShrink: 0 }} />
                                     <span>Vinculação automática com clientes CRM</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <span style={{ color: '#22c55e' }}>✓</span>
+                                    <Check size={12} style={{ color: '#22c55e', flexShrink: 0 }} />
                                     <span>Sugestão de resposta por IA</span>
                                 </div>
                             </div>
@@ -1223,11 +1223,11 @@ export default function Cfg({ taxas, reload, notify }) {
                                 {/* Testar Conexão */}
                                 <div className="flex gap-2 flex-wrap items-center">
                                     <button onClick={testIA} disabled={iaTesting} className={Z.btn2}>
-                                        {iaTesting ? '⏳ Testando...' : '🧪 Testar Conexão IA'}
+                                        {iaTesting ? <><RefreshCw size={12} className="animate-spin" style={{ display: 'inline', marginRight: 4 }} /> Testando...</> : <><FlaskConical size={12} style={{ display: 'inline', marginRight: 4 }} /> Testar Conexão IA</>}
                                     </button>
                                     {iaTestResult && (
-                                        <span className="text-xs font-semibold" style={{ color: iaTestResult.ok ? '#22c55e' : '#ef4444' }}>
-                                            {iaTestResult.ok ? '✅' : '❌'} {iaTestResult.msg}
+                                        <span className="text-xs font-semibold flex items-center gap-1" style={{ color: iaTestResult.ok ? '#22c55e' : '#ef4444' }}>
+                                            {iaTestResult.ok ? <CheckCircle2 size={14} /> : <XCircle size={14} />} {iaTestResult.msg}
                                         </span>
                                     )}
                                 </div>
@@ -1253,7 +1253,7 @@ export default function Cfg({ taxas, reload, notify }) {
                                 </div>
                                 <div>
                                     <div className="font-bold mb-1" style={{ color: 'var(--text-secondary)' }}>Sugestão de Resposta</div>
-                                    Na tela de chat, o atendente pode clicar em "✨ Sugerir" para a IA gerar uma sugestão de resposta baseada no contexto da conversa.
+                                    Na tela de chat, o atendente pode clicar em "Sugerir" para a IA gerar uma sugestão de resposta baseada no contexto da conversa.
                                 </div>
                                 <div>
                                     <div className="font-bold mb-1" style={{ color: 'var(--text-secondary)' }}>Assistente CRM</div>
@@ -1284,14 +1284,14 @@ export default function Cfg({ taxas, reload, notify }) {
                             <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Provedores Suportados</h3>
                             <div className="flex flex-col gap-2">
                                 <div className="flex items-center gap-3 p-2 rounded-lg" style={{ background: emp.ia_provider === 'anthropic' ? 'var(--bg-muted)' : 'transparent', border: emp.ia_provider === 'anthropic' ? '1px solid var(--border)' : '1px solid transparent' }}>
-                                    <div style={{ fontSize: 20 }}>🧠</div>
+                                    <Brain size={20} style={{ color: 'var(--text-secondary)' }} />
                                     <div>
                                         <div className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>Anthropic</div>
                                         <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Claude Sonnet 4, Haiku 4</div>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 p-2 rounded-lg" style={{ background: emp.ia_provider === 'openai' ? 'var(--bg-muted)' : 'transparent', border: emp.ia_provider === 'openai' ? '1px solid var(--border)' : '1px solid transparent' }}>
-                                    <div style={{ fontSize: 20 }}>🤖</div>
+                                    <Bot size={20} style={{ color: 'var(--text-secondary)' }} />
                                     <div>
                                         <div className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>OpenAI</div>
                                         <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>GPT-4o, GPT-4o Mini, GPT-4.1</div>

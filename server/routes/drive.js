@@ -92,7 +92,15 @@ router.post('/projeto/:id/upload', requireAuth, (req, res) => {
 // GET /api/drive/arquivo/:projeto_id/:filename — servir arquivo
 // ═══════════════════════════════════════════════════
 router.get('/arquivo/:projeto_id/:filename', (req, res) => {
-    const filePath = path.join(UPLOADS_DIR, `projeto_${req.params.projeto_id}`, decodeURIComponent(req.params.filename));
+    const projeto_id = String(req.params.projeto_id).replace(/[^a-zA-Z0-9_-]/g, '');
+    const filename = path.basename(decodeURIComponent(req.params.filename));
+    const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, filename);
+
+    // Proteção contra path traversal
+    const resolved = path.resolve(filePath);
+    if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) {
+        return res.status(403).json({ error: 'Acesso negado' });
+    }
 
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado' });
 
@@ -113,7 +121,14 @@ router.get('/arquivo/:projeto_id/:filename', (req, res) => {
 // DELETE /api/drive/arquivo/:projeto_id/:filename — excluir arquivo
 // ═══════════════════════════════════════════════════
 router.delete('/arquivo/:projeto_id/:filename', requireAuth, (req, res) => {
-    const filePath = path.join(UPLOADS_DIR, `projeto_${req.params.projeto_id}`, decodeURIComponent(req.params.filename));
+    const projeto_id = String(req.params.projeto_id).replace(/[^a-zA-Z0-9_-]/g, '');
+    const filename = path.basename(decodeURIComponent(req.params.filename));
+    const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, filename);
+
+    const resolved = path.resolve(filePath);
+    if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) {
+        return res.status(403).json({ error: 'Acesso negado' });
+    }
 
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado' });
 

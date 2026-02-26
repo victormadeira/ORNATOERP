@@ -8,7 +8,7 @@ import {
     Package, PlusCircle, Trash2, Receipt, AlertTriangle, Clock,
     ArrowUpCircle, ArrowDownCircle, BarChart3,
     Scissors, Layers, Ruler, ClipboardList, ShoppingCart,
-    ChevronDown, ChevronRight, Printer
+    ChevronDown, ChevronRight, Printer, X as XIcon, Pencil, Clipboard
 } from 'lucide-react';
 
 // ─── Helpers ──────────────────────────────────────
@@ -774,8 +774,8 @@ function TabFinanceiro({ data, notify }) {
                                             <span>Venc.: {dtFmt(cr.data_vencimento)}</span>
                                             {cr.meio_pagamento && <span>• {cr.meio_pagamento}</span>}
                                             {cr.status === 'pago' && cr.data_pagamento && <span style={{ color: '#22c55e', fontWeight: 600 }}>Pago em {dtFmt(cr.data_pagamento)}</span>}
-                                            {vencida && <span style={{ color: '#ef4444', fontWeight: 600 }}>⚠ Vencida</span>}
-                                            {proxima && <span style={{ color: '#f59e0b', fontWeight: 600 }}>⏰ Vencendo</span>}
+                                            {vencida && <span style={{ color: '#ef4444', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><AlertTriangle size={11} /> Vencida</span>}
+                                            {proxima && <span style={{ color: '#f59e0b', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} /> Vencendo</span>}
                                         </div>
                                     </div>
                                     <div style={{ fontWeight: 700, fontSize: 15, color: cr.status === 'pago' ? '#22c55e' : vencida ? '#ef4444' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cr.valor)}</div>
@@ -1055,8 +1055,8 @@ function TabArquivos({ data, notify }) {
                                                 autoFocus
                                                 placeholder="Nome do montador"
                                             />
-                                            <button onClick={() => saveMontadorNome(link.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px', color: '#22c55e' }} title="Salvar">✓</button>
-                                            <button onClick={() => { setEditingMontador(null); setEditMontadorNome(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px', color: '#ef4444' }} title="Cancelar">✕</button>
+                                            <button onClick={() => saveMontadorNome(link.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: '#22c55e' }} title="Salvar"><CheckIcon size={14} /></button>
+                                            <button onClick={() => { setEditingMontador(null); setEditMontadorNome(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: '#ef4444' }} title="Cancelar"><XIcon size={14} /></button>
                                         </div>
                                     ) : (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1065,7 +1065,7 @@ function TabArquivos({ data, notify }) {
                                                 onClick={() => { setEditingMontador(link.id); setEditMontadorNome(link.nome_montador); }}
                                                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: '0 4px', opacity: 0.5, color: 'var(--text)' }}
                                                 title="Editar nome"
-                                            >✏️</button>
+                                            ><Pencil size={12} /></button>
                                             {!link.ativo && <span style={{ color: '#ef4444', fontSize: 11, marginLeft: 4 }}>Desativado</span>}
                                         </div>
                                     )}
@@ -1074,7 +1074,7 @@ function TabArquivos({ data, notify }) {
                                     </div>
                                 </div>
                                 <button onClick={() => copyMontadorLink(link.token)} className={Z.btn2} style={{ fontSize: 11, padding: '4px 10px' }}>
-                                    {copiedLink === link.token ? '✅ Copiado!' : '📋 Copiar Link'}
+                                    {copiedLink === link.token ? <><CheckIcon size={12} /> Copiado!</> : <><Clipboard size={12} /> Copiar Link</>}
                                 </button>
                                 <button onClick={() => toggleMontadorLink(link.id)} className={Z.btn2} style={{ fontSize: 11, padding: '4px 10px', color: link.ativo ? '#f59e0b' : '#22c55e' }}>
                                     {link.ativo ? 'Desativar' : 'Ativar'}

@@ -562,6 +562,21 @@ const indexes = [
   // Portal v2
   "CREATE INDEX IF NOT EXISTS idx_portal_mensagens_projeto ON portal_mensagens(projeto_id)",
   "CREATE INDEX IF NOT EXISTS idx_portal_mensagens_token ON portal_mensagens(token)",
+  // Performance indexes
+  "CREATE INDEX IF NOT EXISTS idx_orcamentos_user ON orcamentos(user_id)",
+  "CREATE INDEX IF NOT EXISTS idx_orcamentos_cliente ON orcamentos(cliente_id)",
+  "CREATE INDEX IF NOT EXISTS idx_orcamentos_kbcol ON orcamentos(kb_col)",
+  "CREATE INDEX IF NOT EXISTS idx_orcamentos_atualizado ON orcamentos(atualizado_em)",
+  "CREATE INDEX IF NOT EXISTS idx_projetos_user ON projetos(user_id)",
+  "CREATE INDEX IF NOT EXISTS idx_projetos_orc ON projetos(orc_id)",
+  "CREATE INDEX IF NOT EXISTS idx_projetos_cliente ON projetos(cliente_id)",
+  "CREATE INDEX IF NOT EXISTS idx_projetos_status ON projetos(status)",
+  "CREATE INDEX IF NOT EXISTS idx_clientes_user ON clientes(user_id)",
+  "CREATE INDEX IF NOT EXISTS idx_contas_pagar_status_venc ON contas_pagar(status, data_vencimento)",
+  "CREATE INDEX IF NOT EXISTS idx_contas_receber_status ON contas_receber(status, data_vencimento)",
+  "CREATE INDEX IF NOT EXISTS idx_contas_receber_projeto ON contas_receber(projeto_id)",
+  "CREATE INDEX IF NOT EXISTS idx_despesas_projeto ON despesas_projeto(projeto_id)",
+  "CREATE INDEX IF NOT EXISTS idx_etapas_projeto ON etapas_projeto(projeto_id)",
 ];
 for (const sql of indexes) {
   try { db.exec(sql); } catch (_) { }

@@ -1634,7 +1634,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 {pagamento.blocos.length > 0 && (
                                     <div className="mt-1.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>
                                         <span className={Math.abs(somaBlocos - 100) < 0.01 ? 'text-green-400' : 'text-red-400'}>
-                                            Parcelas: {N(somaBlocos, 0)}% {Math.abs(somaBlocos - 100) < 0.01 ? '✓' : '≠ 100%'}
+                                            Parcelas: {N(somaBlocos, 0)}% {Math.abs(somaBlocos - 100) < 0.01 ? 'OK' : '≠ 100%'}
                                         </span>
                                     </div>
                                 )}
@@ -1809,7 +1809,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     {new Date(v.acessado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                                 <span style={{ color: 'var(--text-primary)' }}>
-                                                    {v.dispositivo === 'Mobile' ? '📱' : '🖥️'} {v.navegador} · {v.os_name}
+                                                    {v.dispositivo === 'Mobile' ? <Smartphone size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> : <Monitor size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />}{v.navegador} · {v.os_name}
                                                 </span>
                                                 <span style={{ color: 'var(--text-muted)' }}>
                                                     {v.cidade || v.ip_cliente}
@@ -1871,7 +1871,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             {pagamento.blocos.length > 0 && (
                                 <span className={`text-xs font-bold px-2 py-0.5 rounded ${Math.abs(somaBlocos - 100) < 0.01 ? 'text-green-400' : 'text-red-400'}`}
                                     style={{ background: Math.abs(somaBlocos - 100) < 0.01 ? 'rgba(74,222,128,0.1)' : 'rgba(239,68,68,0.1)' }}>
-                                    Σ {N(somaBlocos, 1)}% {Math.abs(somaBlocos - 100) < 0.01 ? '✓' : '≠ 100'}
+                                    Σ {N(somaBlocos, 1)}% {Math.abs(somaBlocos - 100) < 0.01 ? 'OK' : '≠ 100'}
                                 </span>
                             )}
                             <button onClick={addBloco} className={`${Z.btn} text-xs py-1.5 px-3`}>

@@ -4,14 +4,15 @@ import api from '../api';
 import { useAuth } from '../auth';
 import {
     MessageCircle, Send, Lock, Bot, Sparkles, User, Phone,
-    Search, MoreVertical, ArrowLeft, Link2, RefreshCw
+    Search, MoreVertical, ArrowLeft, Link2, RefreshCw, Check, CheckCheck
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════
 // PÁGINA DE MENSAGENS — Chat WhatsApp integrado
 // ═══════════════════════════════════════════════════════
 
-const STATUS_LABELS = { ia: '🤖 IA', humano: '👤 Humano', fechado: '🔒 Fechado' };
+const STATUS_LABELS = { ia: 'IA', humano: 'Humano', fechado: 'Fechado' };
+const STATUS_ICONS = { ia: <Bot size={12} />, humano: <User size={12} />, fechado: <Lock size={12} /> };
 const STATUS_COLORS = {
     ia: { bg: '#8b5cf620', color: '#8b5cf6', border: '#8b5cf640' },
     humano: { bg: '#22c55e20', color: '#22c55e', border: '#22c55e40' },
@@ -236,8 +237,8 @@ export default function Mensagens({ notify }) {
                                                     fontSize: 12, color: 'var(--text-muted)',
                                                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200,
                                                 }}>
-                                                    {c.ultima_msg_remetente === 'ia' && '🤖 '}
-                                                    {c.ultima_msg_remetente === 'usuario' && '✓ '}
+                                                    {c.ultima_msg_remetente === 'ia' && <Bot size={10} style={{ display: 'inline', marginRight: 3, verticalAlign: 'middle' }} />}
+                                                    {c.ultima_msg_remetente === 'usuario' && <Check size={10} style={{ display: 'inline', marginRight: 3, verticalAlign: 'middle' }} />}
                                                     {(c.ultima_msg || '').slice(0, 50)}
                                                 </span>
                                                 <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
@@ -255,7 +256,7 @@ export default function Mensagens({ notify }) {
                                                         fontSize: 9, padding: '1px 6px', borderRadius: 99,
                                                         background: sc.bg, color: sc.color, fontWeight: 600,
                                                     }}>
-                                                        {c.status === 'ia' ? '🤖' : c.status === 'humano' ? '👤' : '🔒'}
+                                                        {STATUS_ICONS[c.status] || <User size={10} />}
                                                     </span>
                                                 </div>
                                             </div>
@@ -329,7 +330,7 @@ export default function Mensagens({ notify }) {
                                         cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
                                     }}
                                 >
-                                    {STATUS_LABELS[activeConvData?.status] || '👤 Humano'}
+                                    {STATUS_ICONS[activeConvData?.status] || <User size={12} />} {STATUS_LABELS[activeConvData?.status] || 'Humano'}
                                 </button>
                             </div>
 
@@ -403,7 +404,7 @@ export default function Mensagens({ notify }) {
                                                     {formatTime(m.criado_em)}
                                                     {m.direcao === 'saida' && !isInterno && (
                                                         <span style={{ marginLeft: 4 }}>
-                                                            {m.status_envio === 'lido' ? '✓✓' : m.status_envio === 'entregue' ? '✓✓' : '✓'}
+                                                            {m.status_envio === 'lido' ? <CheckCheck size={12} style={{ display: 'inline', color: '#53bdeb' }} /> : m.status_envio === 'entregue' ? <CheckCheck size={12} style={{ display: 'inline' }} /> : <Check size={12} style={{ display: 'inline' }} />}
                                                         </span>
                                                     )}
                                                 </div>

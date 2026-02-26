@@ -1,10 +1,11 @@
 import express from 'express';
 import db from '../db.js';
+import { requireAuth } from '../auth.js';
 
 const router = express.Router();
 
 // Listar itens do catálogo (caixas e componentes)
-router.get('/', (req, res) => {
+router.get('/', requireAuth, (req, res) => {
     try {
         const { tipo } = req.query;
         let rows;
@@ -27,7 +28,7 @@ router.get('/', (req, res) => {
 });
 
 // Criar novo item (caixa ou componente)
-router.post('/', (req, res) => {
+router.post('/', requireAuth, (req, res) => {
     try {
         const { tipo_item, ...rest } = req.body;
         const userId = req.user?.id || 1;
@@ -43,7 +44,7 @@ router.post('/', (req, res) => {
 });
 
 // Atualizar item existente
-router.put('/:id', (req, res) => {
+router.put('/:id', requireAuth, (req, res) => {
     try {
         const { tipo_item, ...rest } = req.body;
         const nome = rest.nome || '';
@@ -58,7 +59,7 @@ router.put('/:id', (req, res) => {
 });
 
 // Excluir item
-router.delete('/:id', (req, res) => {
+router.delete('/:id', requireAuth, (req, res) => {
     try {
         db.prepare('DELETE FROM modulos_custom WHERE id = ?').run(req.params.id);
         res.json({ message: 'Item removido' });

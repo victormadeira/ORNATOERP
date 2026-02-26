@@ -311,8 +311,8 @@ export default function Estoque({ notify }) {
                         </select>
                         <select className={Z.inp} style={{ width: 'auto', minWidth: 140, fontSize: 13 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
                             <option value="">Todos os status</option>
-                            <option value="baixo">⚠ Baixo / Zerado</option>
-                            <option value="ok">✓ Estoque OK</option>
+                            <option value="baixo">Baixo / Zerado</option>
+                            <option value="ok">Estoque OK</option>
                         </select>
                     </div>
 

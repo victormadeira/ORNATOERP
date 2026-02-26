@@ -224,14 +224,25 @@ router.put('/:id', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════
 router.delete('/:id', requireAuth, (req, res) => {
     const id = parseInt(req.params.id);
-    db.prepare('DELETE FROM despesas_projeto WHERE projeto_id = ?').run(id);
-    db.prepare('DELETE FROM contas_receber WHERE projeto_id = ?').run(id);
-    db.prepare('DELETE FROM movimentacoes_estoque WHERE projeto_id = ?').run(id);
-    db.prepare('DELETE FROM montador_tokens WHERE projeto_id = ?').run(id);
-    db.prepare('DELETE FROM etapas_projeto WHERE projeto_id = ?').run(id);
-    db.prepare('DELETE FROM ocorrencias_projeto WHERE projeto_id = ?').run(id);
-    db.prepare('DELETE FROM projetos WHERE id = ?').run(id);
-    res.json({ ok: true });
+    if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+    try {
+        const deleteProjeto = db.transaction(() => {
+            db.prepare('DELETE FROM portal_mensagens WHERE projeto_id = ?').run(id);
+            db.prepare('DELETE FROM despesas_projeto WHERE projeto_id = ?').run(id);
+            db.prepare('DELETE FROM contas_receber WHERE projeto_id = ?').run(id);
+            db.prepare('DELETE FROM movimentacoes_estoque WHERE projeto_id = ?').run(id);
+            db.prepare('DELETE FROM montador_tokens WHERE projeto_id = ?').run(id);
+            db.prepare('DELETE FROM etapas_projeto WHERE projeto_id = ?').run(id);
+            db.prepare('DELETE FROM ocorrencias_projeto WHERE projeto_id = ?').run(id);
+            db.prepare('DELETE FROM projetos WHERE id = ?').run(id);
+        });
+        deleteProjeto();
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('Erro ao excluir projeto:', err);
+        res.status(500).json({ error: 'Erro ao excluir projeto' });
+    }
 });
 
 // ═══════════════════════════════════════════════════
