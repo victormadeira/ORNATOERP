@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Environment variables
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Uploads (user content)
+uploads/
+
+# Logs
+*.log
+
+# Old system references (large)
+ref-sistema-antigo/
+.sistema-antigo/
+
+# Agent/Claude files
+.agent/
+.claude/

@@ -1,0 +1,215 @@
+import { Router } from 'express';
+import db from '../db.js';
+import { requireAuth } from '../auth.js';
+import { randomBytes } from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
+
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const router = Router();
+
+// ═══════════════════════════════════════════════════
+// POST /api/montador/gerar-link/:projeto_id — gerar link público
+// ═══════════════════════════════════════════════════
+router.post('/gerar-link/:projeto_id', requireAuth, (req, res) => {
+    const projeto_id = parseInt(req.params.projeto_id);
+    const { nome_montador } = req.body;
+
+    const proj = db.prepare('SELECT id, nome FROM projetos WHERE id = ?').get(projeto_id);
+    if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
+
+    const token = randomBytes(16).toString('hex');
+
+    db.prepare(`
+        INSERT INTO montador_tokens (projeto_id, token, nome_montador)
+        VALUES (?, ?, ?)
+    `).run(projeto_id, token, nome_montador || 'Montador');
+
+    res.json({ token, url: `/montador/${token}` });
+});
+
+// ═══════════════════════════════════════════════════
+// GET /api/montador/links/:projeto_id — listar links do projeto
+// ═══════════════════════════════════════════════════
+router.get('/links/:projeto_id', requireAuth, (req, res) => {
+    const projeto_id = parseInt(req.params.projeto_id);
+    const links = db.prepare(`
+        SELECT mt.*, p.nome as projeto_nome
+        FROM montador_tokens mt
+        JOIN projetos p ON p.id = mt.projeto_id
+        WHERE mt.projeto_id = ?
+        ORDER BY mt.criado_em DESC
+    `).all(projeto_id);
+    res.json(links);
+});
+
+// ═══════════════════════════════════════════════════
+// PUT /api/montador/toggle/:id — ativar/desativar link
+// ═══════════════════════════════════════════════════
+router.put('/toggle/:id', requireAuth, (req, res) => {
+    const token = db.prepare('SELECT * FROM montador_tokens WHERE id = ?').get(parseInt(req.params.id));
+    if (!token) return res.status(404).json({ error: 'Link não encontrado' });
+
+    db.prepare('UPDATE montador_tokens SET ativo = ? WHERE id = ?').run(token.ativo ? 0 : 1, token.id);
+    res.json({ ok: true, ativo: !token.ativo });
+});
+
+// ═══════════════════════════════════════════════════
+// PUT /api/montador/link/:id — editar nome do montador
+// ═══════════════════════════════════════════════════
+router.put('/link/:id', requireAuth, (req, res) => {
+    const { nome_montador } = req.body;
+    if (!nome_montador?.trim()) return res.status(400).json({ error: 'Nome obrigatório' });
+    const token = db.prepare('SELECT * FROM montador_tokens WHERE id = ?').get(parseInt(req.params.id));
+    if (!token) return res.status(404).json({ error: 'Link não encontrado' });
+    db.prepare('UPDATE montador_tokens SET nome_montador = ? WHERE id = ?').run(nome_montador.trim(), token.id);
+    res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════
+// DELETE /api/montador/link/:id — excluir link
+// ═══════════════════════════════════════════════════
+router.delete('/link/:id', requireAuth, (req, res) => {
+    db.prepare('DELETE FROM montador_tokens WHERE id = ?').run(parseInt(req.params.id));
+    res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════
+// GET /api/montador/public/:token — info pública (sem auth)
+// ═══════════════════════════════════════════════════
+router.get('/public/:token', (req, res) => {
+    const tokenRow = db.prepare(`
+        SELECT mt.*, p.nome as projeto_nome, p.id as projeto_id
+        FROM montador_tokens mt
+        JOIN projetos p ON p.id = mt.projeto_id
+        WHERE mt.token = ?
+    `).get(req.params.token);
+
+    if (!tokenRow) return res.status(404).json({ error: 'Link inválido ou expirado' });
+    if (!tokenRow.ativo) return res.status(403).json({ error: 'Este link foi desativado' });
+
+    const empresa = db.prepare(
+        'SELECT nome, logo_header_path, proposta_cor_primaria, proposta_cor_accent FROM empresa_config WHERE id = 1'
+    ).get() || {};
+
+    // Buscar ambientes do orçamento vinculado ao projeto
+    let ambientes = [];
+    const proj = db.prepare('SELECT orc_id FROM projetos WHERE id = ?').get(tokenRow.projeto_id);
+    if (proj && proj.orc_id) {
+        const orc = db.prepare('SELECT mods_json, ambiente FROM orcamentos WHERE id = ?').get(proj.orc_id);
+        if (orc) {
+            try {
+                const mods = orc.mods_json ? JSON.parse(orc.mods_json) : [];
+                const ambSet = new Set();
+                // mods é array; cada item pode ter .ambientes[]
+                for (const mod of (Array.isArray(mods) ? mods : [mods])) {
+                    if (Array.isArray(mod.ambientes)) {
+                        for (const amb of mod.ambientes) {
+                            if (amb.nome) ambSet.add(amb.nome);
+                        }
+                    }
+                }
+                if (orc.ambiente) ambSet.add(orc.ambiente);
+                ambientes = [...ambSet];
+            } catch (e) {
+                ambientes = [];
+            }
+        }
+    }
+
+    res.json({
+        projeto_nome: tokenRow.projeto_nome,
+        nome_montador: tokenRow.nome_montador,
+        empresa_nome: empresa.nome || '',
+        empresa_logo: empresa.logo_header_path || '',
+        cor_primaria: empresa.proposta_cor_primaria || '#1B2A4A',
+        cor_accent: empresa.proposta_cor_accent || '#C9A96E',
+        ambientes,
+    });
+});
+
+// ═══════════════════════════════════════════════════
+// POST /api/montador/public/:token/upload — upload de foto (sem auth)
+// ═══════════════════════════════════════════════════
+router.post('/public/:token/upload', (req, res) => {
+    const tokenRow = db.prepare(`
+        SELECT mt.*, p.id as projeto_id
+        FROM montador_tokens mt
+        JOIN projetos p ON p.id = mt.projeto_id
+        WHERE mt.token = ? AND mt.ativo = 1
+    `).get(req.params.token);
+
+    if (!tokenRow) return res.status(403).json({ error: 'Link inválido ou desativado' });
+
+    const { filename, data, ambiente } = req.body;
+    if (!filename || !data) return res.status(400).json({ error: 'Filename e data obrigatórios' });
+
+    // Salvar na pasta do projeto, subpasta montador
+    const montadorDir = path.join(UPLOADS_DIR, `projeto_${tokenRow.projeto_id}`, 'montador');
+    if (!fs.existsSync(montadorDir)) fs.mkdirSync(montadorDir, { recursive: true });
+
+    // Nome do arquivo: timestamp + nome original sanitizado
+    const timestamp = Date.now();
+    const safeName = `${timestamp}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const filePath = path.join(montadorDir, safeName);
+
+    const base64Data = data.includes(',') ? data.split(',')[1] : data;
+    fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+
+    // Registrar foto na tabela montador_fotos
+    db.prepare(`
+        INSERT INTO montador_fotos (projeto_id, token_id, nome_montador, ambiente, filename)
+        VALUES (?, ?, ?, ?, ?)
+    `).run(tokenRow.projeto_id, tokenRow.id, tokenRow.nome_montador, ambiente || '', safeName);
+
+    res.json({ ok: true, nome: safeName });
+});
+
+// ═══════════════════════════════════════════════════
+// GET /api/montador/fotos/:projeto_id — listar fotos do projeto (autenticado)
+// ═══════════════════════════════════════════════════
+router.get('/fotos/:projeto_id', requireAuth, (req, res) => {
+    const projeto_id = parseInt(req.params.projeto_id);
+    const fotos = db.prepare(`
+        SELECT id, nome_montador, ambiente, filename, criado_em
+        FROM montador_fotos
+        WHERE projeto_id = ?
+        ORDER BY criado_em DESC
+    `).all(projeto_id);
+
+    const result = fotos.map(f => ({
+        ...f,
+        url: `/api/drive/arquivo/${projeto_id}/montador/${f.filename}`,
+    }));
+
+    res.json(result);
+});
+
+// ═══════════════════════════════════════════════════
+// GET /api/montador/public/:token/fotos — listar fotos do token (sem auth)
+// ═══════════════════════════════════════════════════
+router.get('/public/:token/fotos', (req, res) => {
+    const tokenRow = db.prepare(`
+        SELECT mt.*
+        FROM montador_tokens mt
+        WHERE mt.token = ? AND mt.ativo = 1
+    `).get(req.params.token);
+
+    if (!tokenRow) return res.status(403).json({ error: 'Link inválido ou desativado' });
+
+    const fotos = db.prepare(`
+        SELECT id, ambiente, filename, criado_em
+        FROM montador_fotos
+        WHERE token_id = ?
+        ORDER BY criado_em DESC
+    `).all(tokenRow.id);
+
+    res.json(fotos);
+});
+
+export default router;

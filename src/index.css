@@ -1,0 +1,256 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ─── Theme Variables ─── */
+:root {
+  --primary: #1379F0;
+  --primary-hover: #0B63D4;
+  --primary-light: #EBF5FF;
+
+  /* Light Mode (default) */
+  --bg-body: #F8FAFC;
+  --bg-sidebar: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-input: #FFFFFF;
+  --bg-hover: #F1F5F9;
+  --bg-muted: #F1F5F9;
+
+  --border: #E2E8F0;
+  --border-hover: #CBD5E1;
+  --border-input: #CBD5E1;
+
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+  --text-on-primary: #FFFFFF;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+
+  --success: #16A34A;
+  --danger: #DC2626;
+  --warning: #F59E0B;
+}
+
+.dark {
+  --bg-body: #0F172A;
+  --bg-sidebar: #1E293B;
+  --bg-card: #1E293B;
+  --bg-input: #0F172A;
+  --bg-hover: #334155;
+  --bg-muted: #1E293B;
+
+  --border: #334155;
+  --border-hover: #475569;
+  --border-input: #475569;
+
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-on-primary: #FFFFFF;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+}
+
+/* ─── Base ─── */
+body {
+  background-color: var(--bg-body);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  margin: 0;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+/* ─── Cards ─── */
+.glass-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  box-shadow: var(--shadow-card);
+  transition: all 0.2s ease;
+}
+
+.glass-card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.glass-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+}
+
+/* ─── Buttons ─── */
+.btn-primary {
+  background: var(--primary);
+  color: var(--text-on-primary);
+  font-weight: 600;
+  font-family: var(--font-sans);
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  border: none;
+  font-size: 0.875rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+  box-shadow: var(--shadow-card);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+
+.btn-danger:hover {
+  background: rgba(220, 38, 38, 0.06);
+  border-color: rgba(220, 38, 38, 0.3);
+}
+
+/* ─── Inputs ─── */
+.input-glass {
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  color: var(--text-primary);
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease;
+  outline: none;
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+}
+
+.input-glass:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(19, 121, 240, 0.1);
+}
+
+.input-glass::placeholder {
+  color: var(--text-muted);
+}
+
+/* ─── Labels ─── */
+.label-text {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 0.375rem;
+  display: block;
+  font-family: var(--font-sans);
+}
+
+/* ─── Table ─── */
+.th-glass {
+  background: var(--bg-muted);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.625rem 1rem;
+  font-family: var(--font-sans);
+}
+
+.td-glass {
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}
+
+/* ─── Animations ─── */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.25s ease both;
+}
+
+/* ─── Selection ─── */
+::selection {
+  background: rgba(19, 121, 240, 0.2);
+  color: var(--text-primary);
+}
