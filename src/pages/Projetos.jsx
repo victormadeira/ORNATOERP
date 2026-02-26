@@ -202,7 +202,7 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
                 etapas: etapas.filter(e => e.nome.trim()).map(e => ({ nome: e.nome, data_inicio: e.data_inicio || null, data_vencimento: e.data_vencimento || null }))
             });
             onClose();
-        } catch { setErr('Erro ao salvar'); } finally { setSaving(false); }
+        } catch (ex) { setErr(ex?.error || ex?.message || 'Erro ao salvar projeto'); } finally { setSaving(false); }
     };
 
     return (
@@ -270,12 +270,12 @@ function EditEtapaModal({ etapa, etapas, users, onSave, onClose }) {
                 data_inicio: dataInicio || null,
                 data_vencimento: dataVencimento || null,
                 status, responsavel_id: responsavelId || null,
-                progresso: parseInt(progresso),
+                progresso: parseInt(progresso) || 0,
                 dependencia_id: dependenciaId || null,
             });
             onSave();
             onClose();
-        } catch { /* ignore */ }
+        } catch (ex) { console.error('Erro ao salvar etapa:', ex); }
         finally { setSaving(false); }
     };
 
@@ -599,9 +599,9 @@ function TabFinanceiro({ data, notify }) {
     const [newCR, setNewCR] = useState({ descricao: '', valor: '', data_vencimento: '', meio_pagamento: '' });
 
     const loadAll = useCallback(() => {
-        api.get(`/financeiro/${data.id}/resumo`).then(setResumo).catch(() => {});
-        api.get(`/financeiro/${data.id}/despesas`).then(setDespesas).catch(() => {});
-        api.get(`/financeiro/${data.id}/receber`).then(setContas).catch(() => {});
+        api.get(`/financeiro/${data.id}/resumo`).then(setResumo).catch(() => setResumo(null));
+        api.get(`/financeiro/${data.id}/despesas`).then(setDespesas).catch(() => setDespesas([]));
+        api.get(`/financeiro/${data.id}/receber`).then(setContas).catch(() => setContas([]));
     }, [data.id]);
 
     useEffect(() => { loadAll(); }, [loadAll]);
@@ -629,7 +629,7 @@ function TabFinanceiro({ data, notify }) {
     const delCR = (id) => { if (window.confirm('Excluir conta?')) api.del(`/financeiro/receber/${id}`).then(loadAll); };
 
     const importarParcelas = () => {
-        api.post(`/financeiro/${data.id}/importar-parcelas`).then(r => { loadAll(); notify(`${r.parcelas_criadas} parcelas importadas!`); })
+        api.post(`/financeiro/${data.id}/importar-parcelas`).then(r => { loadAll(); notify(`${r?.parcelas_criadas || 0} parcelas importadas!`); })
             .catch(e => notify(e.error || 'Erro ao importar'));
     };
 
@@ -1172,7 +1172,7 @@ function TabProducao({ data, notify }) {
         </div>
     );
 
-    const { resumo, chapas, ferragens, fita, bom, pecas } = prodData;
+    const { resumo = {}, chapas, ferragens, fita, bom, pecas } = prodData || {};
 
     // Agrupar peças por material
     const pecasPorMaterial = {};
@@ -1530,8 +1530,8 @@ function TabPortalMsgs({ data, notify }) {
     const load = useCallback(async () => {
         try {
             const res = await api.get(`/projetos/${data.id}/mensagens-portal`);
-            setMsgs(res);
-        } catch { /* silently */ }
+            setMsgs(Array.isArray(res) ? res : []);
+        } catch { setMsgs([]); }
         finally { setLoading(false); }
     }, [data.id]);
 
@@ -1762,7 +1762,12 @@ export default function Projetos({ orcs, notify }) {
 
     useEffect(() => { load(); }, [load]);
 
-    const handleCreate = async (payload) => { await api.post('/projetos', payload); load(); notify('Projeto criado com sucesso!'); };
+    const handleCreate = async (payload) => {
+        const res = await api.post('/projetos', payload);
+        if (res?.error) throw res;
+        load();
+        notify('Projeto criado com sucesso!');
+    };
     const handleDelete = (proj) => {
         if (!window.confirm(`Excluir projeto "${proj.nome}"? Esta ação não pode ser desfeita.`)) return;
         api.del(`/projetos/${proj.id}`).then(() => { load(); notify('Projeto excluído'); }).catch(() => notify('Erro ao excluir'));

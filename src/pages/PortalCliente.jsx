@@ -123,9 +123,9 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
 function PortalChat({ token, mensagens: initialMsgs, accent, primary, clienteNome }) {
     const [msgs, setMsgs] = useState(initialMsgs || []);
     const [text, setText] = useState('');
-    const [nome, setNome] = useState(() => localStorage.getItem('portal_nome') || '');
+    const [nome, setNome] = useState(() => localStorage.getItem(`portal_nome_${token}`) || clienteNome || '');
     const [sending, setSending] = useState(false);
-    const [showNome, setShowNome] = useState(!localStorage.getItem('portal_nome'));
+    const [editandoNome, setEditandoNome] = useState(false);
     const chatRef = useRef(null);
 
     useEffect(() => {
@@ -146,12 +146,10 @@ function PortalChat({ token, mensagens: initialMsgs, accent, primary, clienteNom
 
     const enviar = async () => {
         if (!text.trim()) return;
-        if (showNome && !nome.trim()) return;
+        if (!nome.trim()) return;
 
-        if (showNome) {
-            localStorage.setItem('portal_nome', nome.trim());
-            setShowNome(false);
-        }
+        // Salvar nome específico por projeto
+        localStorage.setItem(`portal_nome_${token}`, nome.trim());
 
         setSending(true);
         try {
@@ -229,25 +227,38 @@ function PortalChat({ token, mensagens: initialMsgs, accent, primary, clienteNom
                 )}
             </div>
 
-            {/* Nome input (first message only) */}
-            {showNome && (
-                <div style={{ marginBottom: 10 }}>
+            {/* Nome do remetente */}
+            <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                {editandoNome ? (
                     <input
                         type="text"
                         value={nome}
                         onChange={e => setNome(e.target.value)}
+                        onBlur={() => { if (nome.trim()) setEditandoNome(false); }}
+                        onKeyDown={e => { if (e.key === 'Enter' && nome.trim()) setEditandoNome(false); }}
                         placeholder="Seu nome..."
+                        autoFocus
                         style={{
-                            width: '100%', padding: '10px 14px',
-                            border: '1px solid #e2e8f0', borderRadius: 10,
-                            fontSize: 13, outline: 'none', background: '#fff',
+                            flex: 1, padding: '8px 12px',
+                            border: '1px solid #e2e8f0', borderRadius: 8,
+                            fontSize: 12, outline: 'none', background: '#fff',
                             boxSizing: 'border-box'
                         }}
                         onFocus={e => e.target.style.borderColor = accent}
-                        onBlur={e => e.target.style.borderColor = '#e2e8f0'}
                     />
-                </div>
-            )}
+                ) : (
+                    <button
+                        onClick={() => setEditandoNome(true)}
+                        style={{
+                            background: 'none', border: '1px dashed #cbd5e1', borderRadius: 8,
+                            padding: '6px 12px', fontSize: 12, color: '#64748b', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', gap: 6,
+                        }}
+                    >
+                        <User size={12} /> {nome || 'Definir nome'} <span style={{ fontSize: 10, color: '#94a3b8' }}>(clique para alterar)</span>
+                    </button>
+                )}
+            </div>
 
             {/* Message input */}
             <div style={{ display: 'flex', gap: 8 }}>

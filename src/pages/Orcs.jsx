@@ -410,7 +410,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                     </span>
                                                     {o.tipo === 'aditivo' && o.parent_orc_id && parentMap[o.parent_orc_id] && (
                                                         <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
-                                                            → ref. {parentMap[o.parent_orc_id].numero || `#${o.parent_orc_id}`}
+                                                            → ref. {parentMap[o.parent_orc_id]?.numero || `#${o.parent_orc_id}`}
                                                         </span>
                                                     )}
                                                 </span>

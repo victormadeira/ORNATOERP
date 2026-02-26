@@ -150,7 +150,7 @@ export default function Kb({ orcs, reload, notify, nav }) {
         try {
             const result = await api.put(`/orcamentos/${orcId}/kanban`, { kb_col: col });
             reload();
-            if (result.projeto_criado) notify('Projeto criado automaticamente!');
+            if (result?.projeto_criado) notify('Projeto criado automaticamente!');
             if (col === 'arquivo') notify('Orcamento arquivado');
             if (col === 'perdido') notify('Orcamento marcado como perdido');
         } catch (ex) { notify(ex.error || "Erro"); }

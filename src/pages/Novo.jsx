@@ -982,17 +982,23 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
     // ── Aprovar orçamento ──────────────────────────────────────────────────
     const validarAprovacao = () => {
-        const erros = [];
-        if (!cid) erros.push('Cliente não selecionado');
-        if (ambientes.every(a => {
-            if (a.tipo === 'manual') return (a.linhas || []).length === 0;
-            return a.itens.length === 0 && (a.paineis || []).length === 0;
-        })) erros.push('Nenhum item no orçamento');
-        if (pvComDesconto <= 0) erros.push('Valor do orçamento é zero');
-        if (pagamento.blocos.length === 0) erros.push('Condições de pagamento não definidas');
-        const somaBlocos = pagamento.blocos.reduce((s, b) => s + (Number(b.percentual) || 0), 0);
-        if (pagamento.blocos.length > 0 && Math.abs(somaBlocos - 100) > 0.01) erros.push(`Parcelas somam ${N(somaBlocos, 0)}% (devem somar 100%)`);
-        return erros;
+        try {
+            const erros = [];
+            if (!cid) erros.push('Cliente não selecionado');
+            if (!ambientes || ambientes.length === 0 || ambientes.every(a => {
+                if (a.tipo === 'manual') return (a.linhas || []).length === 0;
+                return (a.itens || []).length === 0 && (a.paineis || []).length === 0;
+            })) erros.push('Nenhum item no orçamento');
+            if (!pvComDesconto || pvComDesconto <= 0) erros.push('Valor do orçamento é zero');
+            const blocos = pagamento?.blocos || [];
+            if (blocos.length === 0) erros.push('Condições de pagamento não definidas');
+            const somaBlocos = blocos.reduce((s, b) => s + (Number(b.percentual) || 0), 0);
+            if (blocos.length > 0 && Math.abs(somaBlocos - 100) > 0.01) erros.push(`Parcelas somam ${N(somaBlocos, 0)}% (devem somar 100%)`);
+            return erros;
+        } catch (ex) {
+            console.error('Erro em validarAprovacao:', ex);
+            return ['Erro interno de validação — tente salvar e reabrir o orçamento'];
+        }
     };
 
     const aprovarOrcamento = async () => {
@@ -1087,14 +1093,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 <div className="flex gap-2">
                     {editOrc?.id && PRE_APPROVE_COLS.includes(editOrc.kb_col) && (
                         <button
-                            onClick={() => {
-                                const erros = validarAprovacao();
-                                if (erros.length > 0) {
-                                    setShowAprovarModal(true);
-                                } else {
-                                    setShowAprovarModal(true);
-                                }
-                            }}
+                            onClick={() => setShowAprovarModal(true)}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition-all"
                             style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', boxShadow: '0 2px 8px rgba(22,163,74,0.3)' }}
                         >
@@ -2328,7 +2327,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             <div className="flex justify-between"><span>Cliente:</span><strong>{clis.find(c => c.id === parseInt(cid))?.nome || '—'}</strong></div>
                                             <div className="flex justify-between"><span>Projeto:</span><strong>{projeto || editOrc?.numero || '—'}</strong></div>
                                             <div className="flex justify-between"><span>Valor:</span><strong style={{ color: 'var(--primary)' }}>{R$(pvComDesconto)}</strong></div>
-                                            <div className="flex justify-between"><span>Parcelas:</span><strong>{pagamento.blocos.length} bloco(s)</strong></div>
+                                            <div className="flex justify-between"><span>Parcelas:</span><strong>{(pagamento?.blocos || []).length} bloco(s)</strong></div>
                                         </div>
                                         <button
                                             onClick={aprovarOrcamento}
