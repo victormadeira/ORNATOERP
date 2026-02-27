@@ -31,6 +31,9 @@ import { iniciarAutomacoes } from './services/automacoes.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust proxy (Nginx reverse proxy envia X-Forwarded-For)
+app.set('trust proxy', 1);
+
 // ═══ Rate Limiters ═══════════════════════════════════════════════════
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Muitas tentativas. Tente novamente em 15 minutos.' }, standardHeaders: true, legacyHeaders: false });
 const publicLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, message: { error: 'Limite de requisições excedido.' }, standardHeaders: true, legacyHeaders: false });
