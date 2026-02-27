@@ -258,3 +258,103 @@ body {
   background: rgba(19, 121, 240, 0.2);
   color: var(--text-primary);
 }
+
+/* ─── Print ─── */
+@media print {
+  @page {
+    margin: 10mm 8mm;
+    size: A4;
+  }
+
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Force light mode for print */
+  :root, .dark {
+    --bg-body: #FFFFFF !important;
+    --bg-sidebar: #FFFFFF !important;
+    --bg-card: #FFFFFF !important;
+    --bg-input: #FFFFFF !important;
+    --bg-hover: #F1F5F9 !important;
+    --bg-muted: #F1F5F9 !important;
+    --border: #E2E8F0 !important;
+    --border-hover: #CBD5E1 !important;
+    --text-primary: #0F172A !important;
+    --text-secondary: #475569 !important;
+    --text-muted: #64748B !important;
+  }
+
+  body {
+    background: white !important;
+    color: #0F172A !important;
+    font-size: 11px !important;
+  }
+
+  /* Hide sidebar, topbar, and navigation */
+  aside {
+    display: none !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  /* Main area full width */
+  main {
+    overflow: visible !important;
+    position: static !important;
+  }
+
+  main > div:first-child {
+    position: static !important;
+  }
+
+  /* Cards */
+  .glass-card {
+    box-shadow: none !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 6px !important;
+    break-inside: avoid;
+  }
+
+  .glass-card:hover {
+    box-shadow: none !important;
+  }
+
+  /* Table headers */
+  .th-glass {
+    background: #F1F5F9 !important;
+    color: #475569 !important;
+    font-size: 10px !important;
+    padding: 5px 8px !important;
+  }
+
+  .td-glass {
+    color: #0F172A !important;
+    border-bottom: 1px solid #E2E8F0 !important;
+    font-size: 11px !important;
+    padding: 4px 8px !important;
+  }
+
+  /* Buttons */
+  .btn-primary, .btn-secondary, .btn-danger {
+    display: none !important;
+  }
+
+  /* Remove animations */
+  .animate-fade-up {
+    animation: none !important;
+  }
+
+  /* Scrollbar hide */
+  ::-webkit-scrollbar {
+    display: none !important;
+  }
+}

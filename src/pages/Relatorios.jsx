@@ -231,13 +231,33 @@ export default function Relatorios({ notify }) {
     return (
         <div className={Z.pg}>
             <style>{`
+                .print-only { display: none; }
                 @media print {
                     .no-print { display: none !important; }
                     .print-only { display: block !important; }
-                    body { background: white !important; }
-                    .glass-card { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
+
+                    /* Topbar hide */
+                    main > .sticky { display: none !important; }
+
+                    /* Report page full width, no padding constraints */
+                    .report-content { max-width: 100% !important; padding: 0 !important; }
+
+                    /* Summary cards: preserve colored text */
+                    .report-summary-card {
+                        border: 1px solid #E2E8F0 !important;
+                        box-shadow: none !important;
+                        break-inside: avoid;
+                    }
+
+                    /* Tables: compact, clean */
+                    table { font-size: 10px !important; border-collapse: collapse !important; width: 100% !important; }
+                    table th { background: #F1F5F9 !important; color: #475569 !important; font-size: 9px !important; padding: 4px 6px !important; }
+                    table td { padding: 3px 6px !important; font-size: 10px !important; color: #0F172A !important; border-bottom: 1px solid #E2E8F0 !important; }
+                    table tr:nth-child(even) td { background: #F8FAFC !important; }
+
+                    /* Section headers */
+                    .report-section-title { color: #0F172A !important; font-size: 13px !important; margin-bottom: 6px !important; }
                 }
-                .print-only { display: none; }
             `}</style>
 
             {/* Header */}
@@ -318,13 +338,14 @@ export default function Relatorios({ notify }) {
             {data && !loading && data.tipo !== 'financeiro' && (
                 <div>
                     {/* Print Header */}
-                    <div className="print-only" style={{ marginBottom: 20 }}>
-                        <h2 style={{ fontSize: 18, fontWeight: 700 }}>
+                    <div className="print-only" style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '2.5px solid #1379F0' }}>
+                        <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1379F0', marginBottom: 3 }}>
                             Relatório de {reportCfg?.label}
                         </h2>
-                        <p style={{ fontSize: 12, color: '#64748b' }}>
+                        <p style={{ fontSize: 11, color: '#64748b' }}>
                             {reportCfg?.usePeriodo !== false ? `Período: ${dtFmt(data.periodo?.inicio)} a ${dtFmt(data.periodo?.fim)}` : 'Todos os registros'}
                             {' · '}{data.dados?.length || 0} registros
+                            {' · '}Emitido em {new Date().toLocaleDateString('pt-BR')}
                         </p>
                     </div>
 
@@ -372,10 +393,11 @@ export default function Relatorios({ notify }) {
             {data && !loading && data.tipo === 'financeiro' && (
                 <div>
                     {/* Print Header */}
-                    <div className="print-only" style={{ marginBottom: 20 }}>
-                        <h2 style={{ fontSize: 18, fontWeight: 700 }}>Relatório Financeiro</h2>
-                        <p style={{ fontSize: 12, color: '#64748b' }}>
+                    <div className="print-only" style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '2.5px solid #1379F0' }}>
+                        <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1379F0', marginBottom: 3 }}>Relatório Financeiro</h2>
+                        <p style={{ fontSize: 11, color: '#64748b' }}>
                             Período: {dtFmt(data.periodo?.inicio)} a {dtFmt(data.periodo?.fim)}
+                            {' · '}Emitido em {new Date().toLocaleDateString('pt-BR')}
                         </p>
                     </div>
 
@@ -389,8 +411,8 @@ export default function Relatorios({ notify }) {
                             { label: 'Despesas', value: R$(data.resumo?.totalDespesas), color: '#8b5cf6' },
                             { label: 'Saldo', value: R$(data.resumo?.saldo), color: data.resumo?.saldo >= 0 ? '#22c55e' : '#ef4444' },
                         ].map((c, i) => (
-                            <div key={i} className="glass-card p-3 text-center">
-                                <div className="text-[10px] font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>{c.label}</div>
+                            <div key={i} className="glass-card report-summary-card p-3 text-center">
+                                <div className="text-[10px] font-semibold mb-1" style={{ color: '#64748b' }}>{c.label}</div>
                                 <div className="text-base font-bold" style={{ color: c.color }}>{c.value}</div>
                             </div>
                         ))}
@@ -399,7 +421,7 @@ export default function Relatorios({ notify }) {
                     {/* Contas a Receber */}
                     {data.contas_receber?.length > 0 && (
                         <div className="mb-6">
-                            <h3 className="text-sm font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
+                            <h3 className="text-sm font-bold mb-3 report-section-title" style={{ color: 'var(--text-primary)' }}>
                                 Contas a Receber ({data.contas_receber.length})
                             </h3>
                             <div className="glass-card !p-0 overflow-hidden">
@@ -432,7 +454,7 @@ export default function Relatorios({ notify }) {
                     {/* Contas a Pagar */}
                     {data.contas_pagar?.length > 0 && (
                         <div className="mb-6">
-                            <h3 className="text-sm font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
+                            <h3 className="text-sm font-bold mb-3 report-section-title" style={{ color: 'var(--text-primary)' }}>
                                 Contas a Pagar ({data.contas_pagar.length})
                             </h3>
                             <div className="glass-card !p-0 overflow-hidden">

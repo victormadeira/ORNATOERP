@@ -357,7 +357,7 @@ export default function App() {
             {/* Main */}
             <main className="flex-1 relative overflow-y-auto overflow-x-hidden">
                 {/* Top bar */}
-                <div className="sticky top-0 z-10 flex items-center justify-between px-3 md:px-6 h-[52px]" style={{ background: 'var(--bg-body)', borderBottom: '1px solid var(--border)' }}>
+                <div className="sticky top-0 z-10 flex items-center justify-between px-3 md:px-6 h-[52px] no-print" style={{ background: 'var(--bg-body)', borderBottom: '1px solid var(--border)' }}>
                     <div className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text-muted)' }}>
                         {isMobile && (
                             <button onClick={() => setMobileOpen(true)} className="p-1.5 mr-1 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
