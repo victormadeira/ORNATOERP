@@ -25,7 +25,7 @@ router.get('/', requireAuth, (req, res) => {
         ORDER BY
             CASE WHEN nl.id IS NULL THEN 0 ELSE 1 END,
             n.criado_em DESC
-        LIMIT 50
+        LIMIT 25
     `).all(req.user.id);
 
     const nao_lidas = db.prepare(`

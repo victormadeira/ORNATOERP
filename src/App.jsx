@@ -563,7 +563,7 @@ export default function App() {
                                                     )}
                                                     <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
                                                         {n.criado_em ? (() => {
-                                                            const diff = Date.now() - new Date(n.criado_em).getTime();
+                                                            const diff = Date.now() - new Date(n.criado_em + 'Z').getTime();
                                                             const min = Math.floor(diff / 60000);
                                                             if (min < 1) return 'Agora';
                                                             if (min < 60) return `Há ${min}min`;

@@ -1939,7 +1939,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             <div key={i} className="flex items-center justify-between text-[10px] px-2 py-1 rounded"
                                                 style={{ background: v.is_new_visit ? 'rgba(59,130,246,0.05)' : 'transparent' }}>
                                                 <span style={{ color: 'var(--text-muted)' }}>
-                                                    {new Date(v.acessado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                                    {new Date(v.acessado_em + 'Z').toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                                 <span style={{ color: 'var(--text-primary)' }}>
                                                     {v.dispositivo === 'Mobile' ? <Smartphone size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> : <Monitor size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />}{v.navegador} · {v.os_name}

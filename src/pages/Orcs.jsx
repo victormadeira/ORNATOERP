@@ -142,8 +142,8 @@ ${modsHtml}
 </html>`;
 }
 
-const dt = (s) => s ? new Date(s).toLocaleDateString('pt-BR') : '—';
-const dtHr = (s) => s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+const dt = (s) => s ? new Date(s + 'Z').toLocaleDateString('pt-BR') : '—';
+const dtHr = (s) => s ? new Date(s + 'Z').toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
 
 // Formatar user-agent em string legível
 function parseUA(ua = '') {
@@ -186,7 +186,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
     // ─── Helper: dias atrás ──────────────────────────────────
     const diasAtras = (dateStr) => {
         if (!dateStr) return Infinity;
-        return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+        return Math.floor((Date.now() - new Date(dateStr + 'Z').getTime()) / 86400000);
     };
 
     // ─── Filtros ───────────────────────────────────────────

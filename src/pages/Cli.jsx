@@ -25,7 +25,7 @@ const dtFmtFull = (s) => {
 };
 const timeSince = (s) => {
     if (!s) return '';
-    const d = new Date(s);
+    const d = new Date(s + 'Z');
     const now = new Date();
     const diff = Math.floor((now - d) / 1000);
     if (diff < 60) return 'agora mesmo';

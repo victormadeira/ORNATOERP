@@ -4,7 +4,7 @@ import { MapPin, Phone, Mail, Calendar, MessageSquare, Lock, CheckCircle2, Print
 const dtFmt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const timeFmt = (s) => {
     if (!s) return '';
-    const d = new Date(s);
+    const d = new Date(s + 'Z');
     return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 };
 
@@ -507,7 +507,7 @@ function PortalGaleria({ token, accent, primary }) {
                         }}>
                             <span style={{ fontSize: 10, color: '#fff', opacity: 0.9, display: 'flex', alignItems: 'center', gap: 3 }}>
                                 <ZoomIn size={10} />
-                                {new Date(f.criado_em).toLocaleDateString('pt-BR')}
+                                {new Date(f.criado_em + 'Z').toLocaleDateString('pt-BR')}
                             </span>
                             {!filtroAmb && f.ambiente && (
                                 <span style={{ fontSize: 9, color: '#fff', background: 'rgba(255,255,255,0.2)', padding: '1px 6px', borderRadius: 6, fontWeight: 600 }}>
@@ -602,7 +602,7 @@ function PortalGaleria({ token, accent, primary }) {
                             <span style={{ opacity: 0.7 }}>por {fotosFiltradas[lightbox].nome_montador}</span>
                         )}
                         <span style={{ opacity: 0.5 }}>
-                            {new Date(fotosFiltradas[lightbox].criado_em).toLocaleDateString('pt-BR')}
+                            {new Date(fotosFiltradas[lightbox].criado_em + 'Z').toLocaleDateString('pt-BR')}
                         </span>
                     </div>
                 </div>
