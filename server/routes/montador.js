@@ -176,7 +176,7 @@ router.post('/public/:token/upload', (req, res) => {
 router.get('/fotos/:projeto_id', requireAuth, (req, res) => {
     const projeto_id = parseInt(req.params.projeto_id);
     const fotos = db.prepare(`
-        SELECT id, nome_montador, ambiente, filename, criado_em
+        SELECT id, nome_montador, ambiente, filename, visivel_portal, criado_em
         FROM montador_fotos
         WHERE projeto_id = ?
         ORDER BY criado_em DESC
@@ -188,6 +188,79 @@ router.get('/fotos/:projeto_id', requireAuth, (req, res) => {
     }));
 
     res.json(result);
+});
+
+// ═══════════════════════════════════════════════════
+// PUT /api/montador/fotos/:id/portal — toggle visibilidade no portal (auth)
+// ═══════════════════════════════════════════════════
+router.put('/fotos/:id/portal', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    const foto = db.prepare('SELECT * FROM montador_fotos WHERE id = ?').get(id);
+    if (!foto) return res.status(404).json({ error: 'Foto não encontrada' });
+
+    const novoValor = foto.visivel_portal ? 0 : 1;
+    db.prepare('UPDATE montador_fotos SET visivel_portal = ? WHERE id = ?').run(novoValor, id);
+    res.json({ ok: true, visivel_portal: novoValor });
+});
+
+// ═══════════════════════════════════════════════════
+// PUT /api/montador/fotos/portal-lote/:projeto_id — toggle em lote (auth)
+// ═══════════════════════════════════════════════════
+router.put('/fotos/portal-lote/:projeto_id', requireAuth, (req, res) => {
+    const projeto_id = parseInt(req.params.projeto_id);
+    const { ids, visivel } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'IDs obrigatórios' });
+
+    const stmt = db.prepare('UPDATE montador_fotos SET visivel_portal = ? WHERE id = ? AND projeto_id = ?');
+    const run = db.transaction(() => {
+        for (const id of ids) stmt.run(visivel ? 1 : 0, id, projeto_id);
+    });
+    run();
+    res.json({ ok: true, atualizados: ids.length });
+});
+
+// ═══════════════════════════════════════════════════
+// POST /api/montador/fotos/:projeto_id/upload — upload de foto pelo admin (auth)
+// ═══════════════════════════════════════════════════
+router.post('/fotos/:projeto_id/upload', requireAuth, (req, res) => {
+    const projeto_id = parseInt(req.params.projeto_id);
+    const { filename, data, ambiente } = req.body;
+    if (!filename || !data) return res.status(400).json({ error: 'Filename e data obrigatórios' });
+
+    const montadorDir = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, 'montador');
+    if (!fs.existsSync(montadorDir)) fs.mkdirSync(montadorDir, { recursive: true });
+
+    const timestamp = Date.now();
+    const safeName = `${timestamp}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const filePath = path.join(montadorDir, safeName);
+
+    const base64Data = data.includes(',') ? data.split(',')[1] : data;
+    fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+
+    db.prepare(`
+        INSERT INTO montador_fotos (projeto_id, token_id, nome_montador, ambiente, filename)
+        VALUES (?, NULL, ?, ?, ?)
+    `).run(projeto_id, req.user.nome || 'Equipe', ambiente || '', safeName);
+
+    res.json({ ok: true, nome: safeName });
+});
+
+// ═══════════════════════════════════════════════════
+// DELETE /api/montador/fotos/:id — excluir foto (auth)
+// ═══════════════════════════════════════════════════
+router.delete('/fotos/:id', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    const foto = db.prepare('SELECT * FROM montador_fotos WHERE id = ?').get(id);
+    if (!foto) return res.status(404).json({ error: 'Foto não encontrada' });
+
+    // Excluir arquivo do disco
+    const filePath = path.join(UPLOADS_DIR, `projeto_${foto.projeto_id}`, 'montador', foto.filename);
+    if (fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch { /* arquivo pode já ter sido removido */ }
+    }
+
+    db.prepare('DELETE FROM montador_fotos WHERE id = ?').run(id);
+    res.json({ ok: true });
 });
 
 // ═══════════════════════════════════════════════════

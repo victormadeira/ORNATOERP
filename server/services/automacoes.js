@@ -1,7 +1,8 @@
 import db from '../db.js';
+import { createNotification } from './notificacoes.js';
 
 // ═══════════════════════════════════════════════════════
-// AUTOMAÇÕES — Follow-up WhatsApp + Notificações
+// AUTOMAÇÕES — Follow-up WhatsApp + Recorrência Financeira
 // ═══════════════════════════════════════════════════════
 
 const REGRAS = [
@@ -89,8 +90,95 @@ async function enviarWhatsApp(url, instanceName, apiKey, phone, text) {
     }
 }
 
+// ═══════════════════════════════════════════════════════
+// RECORRÊNCIA — Gerar contas a pagar recorrentes
+// ═══════════════════════════════════════════════════════
+
+function calcProximaData(dataAtual, frequencia) {
+    const d = new Date(dataAtual + 'T12:00:00');
+    switch (frequencia) {
+        case 'semanal': d.setDate(d.getDate() + 7); break;
+        case 'quinzenal': d.setDate(d.getDate() + 15); break;
+        case 'mensal': d.setMonth(d.getMonth() + 1); break;
+        case 'bimestral': d.setMonth(d.getMonth() + 2); break;
+        case 'trimestral': d.setMonth(d.getMonth() + 3); break;
+        case 'anual': d.setFullYear(d.getFullYear() + 1); break;
+        default: d.setMonth(d.getMonth() + 1); break;
+    }
+    return d.toISOString().slice(0, 10);
+}
+
+function gerarContasRecorrentes() {
+    try {
+        // Buscar contas recorrentes cujo vencimento é em até 7 dias (ou já passou)
+        // e que NÃO têm uma próxima conta já gerada com vencimento posterior
+        const recorrentes = db.prepare(`
+            SELECT cp.* FROM contas_pagar cp
+            WHERE cp.recorrente = 1
+            AND cp.frequencia != ''
+            AND cp.data_vencimento <= date('now', '+7 days')
+            AND NOT EXISTS (
+                SELECT 1 FROM contas_pagar cp2
+                WHERE cp2.recorrente = 1
+                AND cp2.frequencia = cp.frequencia
+                AND cp2.descricao = cp.descricao
+                AND cp2.data_vencimento > cp.data_vencimento
+                AND (
+                    cp2.recorrencia_pai_id = cp.id
+                    OR cp2.recorrencia_pai_id = cp.recorrencia_pai_id
+                    OR (cp.recorrencia_pai_id IS NULL AND cp2.recorrencia_pai_id = cp.id)
+                )
+            )
+        `).all();
+
+        let geradas = 0;
+        const stmt = db.prepare(`
+            INSERT INTO contas_pagar (user_id, descricao, valor, data_vencimento, categoria, fornecedor,
+                                      meio_pagamento, projeto_id, observacao, recorrente, frequencia, recorrencia_pai_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+        `);
+
+        for (const cp of recorrentes) {
+            const proximaData = calcProximaData(cp.data_vencimento, cp.frequencia);
+            const paiId = cp.recorrencia_pai_id || cp.id;
+
+            // Verificar se já existe conta com essa data para o mesmo "grupo"
+            const jaExiste = db.prepare(`
+                SELECT id FROM contas_pagar
+                WHERE recorrencia_pai_id = ? AND data_vencimento = ?
+            `).get(paiId, proximaData);
+
+            if (jaExiste) continue;
+
+            stmt.run(
+                cp.user_id, cp.descricao, cp.valor, proximaData, cp.categoria,
+                cp.fornecedor || '', cp.meio_pagamento || '',
+                cp.projeto_id, cp.observacao || '',
+                cp.frequencia, paiId
+            );
+
+            // Criar notificação
+            const FREQ_LABELS = { semanal: 'semanal', quinzenal: 'quinzenal', mensal: 'mensal', bimestral: 'bimestral', trimestral: 'trimestral', anual: 'anual' };
+            createNotification(
+                'recorrencia_gerada',
+                `Conta recorrente gerada: ${cp.descricao}`,
+                `R$ ${cp.valor.toFixed(2)} · Vence em ${proximaData} · ${FREQ_LABELS[cp.frequencia] || cp.frequencia}`,
+                cp.id, 'contas_pagar'
+            );
+
+            geradas++;
+        }
+
+        if (geradas > 0) {
+            console.log(`  💰 Recorrência: ${geradas} conta(s) a pagar gerada(s)`);
+        }
+    } catch (err) {
+        console.error('Erro ao gerar contas recorrentes:', err.message);
+    }
+}
+
 export function iniciarAutomacoes() {
-    console.log('  ⚡ Automações de follow-up ativadas (intervalo: 1h)');
+    console.log('  ⚡ Automações de follow-up + recorrência ativadas (intervalo: 1h)');
 
     // Executar a cada hora
     const interval = setInterval(executarRegras, 60 * 60 * 1000);
@@ -102,9 +190,12 @@ export function iniciarAutomacoes() {
 }
 
 async function executarRegras() {
+    // ─── Recorrência financeira (sempre roda, independente de WhatsApp) ───
+    gerarContasRecorrentes();
+
+    // ─── Follow-ups WhatsApp (só se configurado) ───
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
     if (!emp?.wa_instance_url || !emp?.wa_api_key) {
-        // WhatsApp não configurado, skip silencioso
         return;
     }
 

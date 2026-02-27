@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './auth';
 import api from './api';
 import { Ic, Z } from './ui';
+import { AlertTriangle, Clock, CheckCircle2, Folder, BarChart2, AlertCircle, DollarSign, Calendar, Bell } from 'lucide-react';
 import LoginPage from './pages/Login';
 import Dash from './pages/Dash';
 import Cli from './pages/Cli';
@@ -17,6 +18,7 @@ import ItemBuilder from './pages/ItemBuilder';
 import Mensagens from './pages/Mensagens';
 import AssistenteIA from './pages/AssistenteIA';
 import Relatorios from './pages/Relatorios';
+import Financeiro from './pages/Financeiro';
 
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente } = useAuth();
@@ -28,9 +30,9 @@ export default function App() {
     const [orcs, setOrcs] = useState([]);
     const [taxas, setTaxas] = useState({ imp: 8, com: 10, mont: 12, lucro: 20, frete: 2, mdo: 350, inst: 180 });
     const [editOrc, setEditOrc] = useState(null);
-    const [lembretes, setLembretes] = useState({ vencidas: 0, proximas_7dias: 0, total: 0, itens: [] });
-    const [showLembretes, setShowLembretes] = useState(false);
-    const lembretesRef = useRef(null);
+    const [notifs, setNotifs] = useState({ notificacoes: [], nao_lidas: 0 });
+    const [showNotifs, setShowNotifs] = useState(false);
+    const notifsRef = useRef(null);
     const [waUnread, setWaUnread] = useState(0);
     const [logoSistema, setLogoSistema] = useState(() => localStorage.getItem('logo_sistema') || '');
     const [empNome, setEmpNome] = useState(() => localStorage.getItem('emp_nome') || 'Ornato');
@@ -45,7 +47,7 @@ export default function App() {
     const loadClis = useCallback(() => { if (user) api.get('/clientes').then(setClis).catch(() => { }); }, [user]);
     const loadOrcs = useCallback(() => { if (user) api.get('/orcamentos').then(setOrcs).catch(() => { }); }, [user]);
     const loadTaxas = useCallback(() => { if (user) api.get('/config').then(setTaxas).catch(() => { }); }, [user]);
-    const loadLembretes = useCallback(() => { if (user) api.get('/financeiro/lembretes').then(setLembretes).catch(() => { }); }, [user]);
+    const loadNotifs = useCallback(() => { if (user) api.get('/notificacoes').then(setNotifs).catch(() => { }); }, [user]);
     const loadWaUnread = useCallback(() => { if (user) api.get('/whatsapp/nao-lidas').then(d => setWaUnread(d.total)).catch(() => { }); }, [user]);
     const loadEmpresa = useCallback(() => {
         if (user) api.get('/config/empresa').then(d => {
@@ -58,26 +60,58 @@ export default function App() {
         }).catch(() => {});
     }, [user]);
 
-    useEffect(() => { loadClis(); loadOrcs(); loadTaxas(); loadLembretes(); loadWaUnread(); loadEmpresa(); }, [loadClis, loadOrcs, loadTaxas, loadLembretes, loadWaUnread, loadEmpresa]);
+    useEffect(() => { loadClis(); loadOrcs(); loadTaxas(); loadNotifs(); loadWaUnread(); loadEmpresa(); }, [loadClis, loadOrcs, loadTaxas, loadNotifs, loadWaUnread, loadEmpresa]);
 
-    // Atualizar lembretes a cada 60s e WhatsApp a cada 15s
+    // Atualizar notificações a cada 60s e WhatsApp a cada 15s
     useEffect(() => {
         if (!user) return;
-        const i1 = setInterval(loadLembretes, 60000);
+        const i1 = setInterval(loadNotifs, 60000);
         const i2 = setInterval(loadWaUnread, 15000);
         return () => { clearInterval(i1); clearInterval(i2); };
-    }, [user, loadLembretes, loadWaUnread]);
+    }, [user, loadNotifs, loadWaUnread]);
 
-    // Fechar popup de lembretes ao clicar fora
+    // Fechar popup de notificações ao clicar fora
     useEffect(() => {
         const handleClick = (e) => {
-            if (lembretesRef.current && !lembretesRef.current.contains(e.target)) setShowLembretes(false);
+            if (notifsRef.current && !notifsRef.current.contains(e.target)) setShowNotifs(false);
         };
         document.addEventListener('mousedown', handleClick);
         return () => document.removeEventListener('mousedown', handleClick);
     }, []);
 
-    const reload = () => { loadClis(); loadOrcs(); loadTaxas(); loadLembretes(); };
+    // Marcar UMA notificação como lida
+    const markNotifRead = (id) => {
+        api.put(`/notificacoes/${id}/lida`).catch(() => {});
+        setNotifs(prev => ({
+            ...prev,
+            notificacoes: prev.notificacoes.map(n => n.id === id ? { ...n, lida: 1 } : n),
+            nao_lidas: Math.max(0, prev.nao_lidas - 1),
+        }));
+    };
+
+    // Marcar TODAS como lidas
+    const markAllRead = () => {
+        api.put('/notificacoes/lidas').catch(() => {});
+        setNotifs(prev => ({
+            ...prev,
+            notificacoes: prev.notificacoes.map(n => ({ ...n, lida: 1 })),
+            nao_lidas: 0,
+        }));
+    };
+
+    // Navegar a partir de notificação
+    const goToNotif = (n) => {
+        if (!n.lida) markNotifRead(n.id);
+        setShowNotifs(false);
+        if (n.referencia_tipo === 'contas_pagar' || n.tipo?.startsWith('pagar_')) nav('financeiro');
+        else if (n.referencia_tipo === 'contas_receber' || n.tipo?.startsWith('financeiro')) nav('proj');
+        else if (n.referencia_tipo === 'projeto') nav('proj');
+        else if (n.referencia_tipo === 'orcamento') nav('orcs');
+        else if (n.referencia_tipo === 'estoque') nav('estoque');
+        else nav('dash');
+    };
+
+    const reload = () => { loadClis(); loadOrcs(); loadTaxas(); loadNotifs(); };
 
     const nav = (p, orc) => {
         if (p === "novo" && orc !== undefined) setEditOrc(orc);
@@ -105,6 +139,7 @@ export default function App() {
         { id: "kb", lb: "Pipeline CRM", ic: Ic.Kb },
         { id: "proj", lb: "Projetos", ic: Ic.Briefcase },
         { id: "estoque", lb: "Gestão de Recursos", ic: Ic.Briefcase },
+        { id: "financeiro", lb: "Financeiro", ic: Ic.Dollar },
         { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
         { id: "relatorios", lb: "Relatórios", ic: Ic.BarChart },
@@ -129,8 +164,9 @@ export default function App() {
             case "orcs": return <Orcs orcs={orcs} nav={nav} reload={loadOrcs} notify={notify} />;
             case "novo": return <Novo clis={clis} taxas={taxas} editOrc={editOrc} nav={nav} reload={reload} notify={notify} />;
             case "kb": return <Kb orcs={orcs} reload={loadOrcs} notify={notify} nav={nav} />;
-            case "proj": return <Projetos orcs={orcs} notify={notify} />;
+            case "proj": return <Projetos orcs={orcs} notify={notify} user={user} />;
             case "estoque": return <Estoque notify={notify} />;
+            case "financeiro": return <Financeiro notify={notify} user={user} nav={nav} />;
             case "whatsapp": return <Mensagens notify={notify} />;
             case "assistente": return <AssistenteIA notify={notify} />;
             case "catalogo_itens": return <ItemBuilder notify={notify} />;
@@ -141,10 +177,22 @@ export default function App() {
         }
     };
 
-    // Badge count helpers
-    const hasVencidas = lembretes.vencidas > 0;
-    const hasProximas = lembretes.proximas_7dias > 0;
-    const badgeColor = hasVencidas ? '#ef4444' : hasProximas ? '#f59e0b' : null;
+    // Notificação tipo → ícone + cor
+    const NOTIF_STYLE = {
+        financeiro_vencido:  { icon: <AlertTriangle size={14} />, color: '#ef4444', bg: '#fef2f2' },
+        financeiro_proximo:  { icon: <Clock size={14} />, color: '#f59e0b', bg: '#fffbeb' },
+        orcamento_aprovado:  { icon: <CheckCircle2 size={14} />, color: '#22c55e', bg: '#f0fdf4' },
+        projeto_criado:      { icon: <Folder size={14} />, color: '#3b82f6', bg: '#eff6ff' },
+        projeto_status:      { icon: <BarChart2 size={14} />, color: '#8b5cf6', bg: '#f5f3ff' },
+        estoque_baixo:       { icon: <AlertCircle size={14} />, color: '#f97316', bg: '#fff7ed' },
+        pagar_vencido:       { icon: <AlertTriangle size={14} />, color: '#ef4444', bg: '#fef2f2' },
+        pagar_proximo:       { icon: <DollarSign size={14} />, color: '#f59e0b', bg: '#fffbeb' },
+        recorrencia_gerada:  { icon: <Calendar size={14} />, color: '#8b5cf6', bg: '#f5f3ff' },
+    };
+    const getNotifStyle = (tipo) => NOTIF_STYLE[tipo] || { icon: <Bell size={14} />, color: 'var(--primary)', bg: 'var(--bg-hover)' };
+    const notifBadgeColor = notifs.nao_lidas > 0
+        ? (notifs.notificacoes.some(n => !n.lida && (n.tipo === 'financeiro_vencido' || n.tipo === 'pagar_vencido')) ? '#ef4444' : '#3b82f6')
+        : null;
 
     return (
         <div className="flex h-screen w-full overflow-hidden" style={{ background: 'var(--bg-body)', color: 'var(--text-primary)' }}>
@@ -172,9 +220,10 @@ export default function App() {
                     {mn.map(m => {
                         const active = pg === m.id;
                         const I = m.ic;
-                        // Badge no menu Projetos se tem contas vencidas
-                        const showBadge = (m.id === 'proj' && hasVencidas && !active) || (m.id === 'whatsapp' && waUnread > 0 && !active);
-                        const badgeNum = m.id === 'whatsapp' ? waUnread : lembretes.vencidas;
+                        const vencidasReceberCount = notifs.notificacoes.filter(n => !n.lida && n.tipo === 'financeiro_vencido').length;
+                        const vencidasPagarCount = notifs.notificacoes.filter(n => !n.lida && n.tipo === 'pagar_vencido').length;
+                        const showBadge = (m.id === 'proj' && vencidasReceberCount > 0 && !active) || (m.id === 'financeiro' && vencidasPagarCount > 0 && !active) || (m.id === 'whatsapp' && waUnread > 0 && !active);
+                        const badgeNum = m.id === 'whatsapp' ? waUnread : m.id === 'financeiro' ? vencidasPagarCount : vencidasReceberCount;
                         const badgeBg = m.id === 'whatsapp' ? '#22c55e' : '#ef4444';
                         return (
                             <button key={m.id} onClick={() => nav(m.id)}
@@ -268,85 +317,118 @@ export default function App() {
                             }}>{waUnread}</span>
                         </button>
                     )}
-                    {/* Lembretes Badge na Top Bar */}
-                    {lembretes.total > 0 && (
-                        <div ref={lembretesRef} style={{ position: 'relative' }}>
-                            <button
-                                onClick={() => setShowLembretes(!showLembretes)}
-                                style={{
-                                    position: 'relative', background: 'none', border: 'none', cursor: 'pointer',
-                                    padding: 8, borderRadius: 10, transition: 'background 0.15s',
-                                    color: badgeColor || 'var(--text-muted)',
-                                }}
-                                className="hover:bg-[var(--bg-hover)]"
-                                title={`${lembretes.total} lembrete(s) financeiro(s)`}
-                            >
-                                <Ic.Bell />
+                    {/* Sininho de Notificações */}
+                    <div ref={notifsRef} style={{ position: 'relative' }}>
+                        <button
+                            onClick={() => setShowNotifs(!showNotifs)}
+                            style={{
+                                position: 'relative', background: 'none', border: 'none', cursor: 'pointer',
+                                padding: 8, borderRadius: 10, transition: 'background 0.15s',
+                                color: notifBadgeColor || 'var(--text-muted)',
+                            }}
+                            className="hover:bg-[var(--bg-hover)]"
+                            title={notifs.nao_lidas > 0 ? `${notifs.nao_lidas} notificação(ões) não lida(s)` : 'Notificações'}
+                        >
+                            <Ic.Bell />
+                            {notifs.nao_lidas > 0 && (
                                 <span style={{
                                     position: 'absolute', top: 4, right: 4,
                                     width: 16, height: 16, borderRadius: '50%',
-                                    background: badgeColor, color: '#fff',
+                                    background: notifBadgeColor, color: '#fff',
                                     fontSize: 9, fontWeight: 800,
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     border: '2px solid var(--bg-body)',
-                                }}>{lembretes.total}</span>
-                            </button>
+                                }}>{notifs.nao_lidas > 9 ? '9+' : notifs.nao_lidas}</span>
+                            )}
+                        </button>
 
-                            {/* Dropdown de Lembretes */}
-                            {showLembretes && (
-                                <div style={{
-                                    position: 'absolute', right: 0, top: '110%', zIndex: 50,
-                                    background: 'var(--bg-card)', border: '1px solid var(--border)',
-                                    borderRadius: 14, boxShadow: '0 12px 40px rgba(0,0,0,.18)',
-                                    minWidth: 340, maxHeight: 400, overflow: 'hidden',
-                                }}>
-                                    <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>Lembretes Financeiros</div>
-                                        <div style={{ display: 'flex', gap: 6 }}>
-                                            {hasVencidas && <span style={{ fontSize: 11, fontWeight: 700, background: '#fef2f2', color: '#ef4444', padding: '2px 8px', borderRadius: 10 }}>{lembretes.vencidas} vencida(s)</span>}
-                                            {hasProximas && <span style={{ fontSize: 11, fontWeight: 700, background: '#fffbeb', color: '#f59e0b', padding: '2px 8px', borderRadius: 10 }}>{lembretes.proximas_7dias} próxima(s)</span>}
-                                        </div>
+                        {/* Dropdown de Notificações */}
+                        {showNotifs && (
+                            <div style={{
+                                position: 'absolute', right: 0, top: '110%', zIndex: 50,
+                                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                                borderRadius: 14, boxShadow: '0 12px 40px rgba(0,0,0,.18)',
+                                minWidth: 370, maxHeight: 440, overflow: 'hidden',
+                            }}>
+                                {/* Header */}
+                                <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>Notificações</span>
+                                        {notifs.nao_lidas > 0 && (
+                                            <span style={{ fontSize: 11, fontWeight: 700, background: notifBadgeColor, color: '#fff', padding: '2px 8px', borderRadius: 10 }}>
+                                                {notifs.nao_lidas} nova{notifs.nao_lidas > 1 ? 's' : ''}
+                                            </span>
+                                        )}
                                     </div>
-                                    <div style={{ maxHeight: 320, overflowY: 'auto', padding: 8 }}>
-                                        {lembretes.itens.map((item, i) => {
-                                            const isVencida = item.tipo_alerta === 'vencida';
-                                            return (
-                                                <div key={item.id || i}
-                                                    onClick={() => { setShowLembretes(false); nav('proj'); }}
-                                                    style={{
-                                                        padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
-                                                        marginBottom: 4, transition: 'background 0.15s',
-                                                        background: isVencida ? '#fef2f220' : '#fffbeb20',
-                                                        borderLeft: `3px solid ${isVencida ? '#ef4444' : '#f59e0b'}`,
-                                                    }}
-                                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                                                    onMouseLeave={e => e.currentTarget.style.background = isVencida ? '#fef2f220' : '#fffbeb20'}
-                                                >
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                        <div>
-                                                            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>{item.descricao}</div>
-                                                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                                                                {item.projeto_nome} · Venc.: {item.data_vencimento ? new Date(item.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
-                                                            </div>
+                                    {notifs.nao_lidas > 0 && (
+                                        <button onClick={markAllRead}
+                                            style={{ fontSize: 11, fontWeight: 600, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                            Marcar todas como lidas
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Lista */}
+                                <div style={{ maxHeight: 340, overflowY: 'auto', padding: 6 }}>
+                                    {notifs.notificacoes.length === 0 ? (
+                                        <div style={{ padding: '24px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                                            Nenhuma notificação
+                                        </div>
+                                    ) : notifs.notificacoes.map(n => {
+                                        const st = getNotifStyle(n.tipo);
+                                        const isRead = !!n.lida;
+                                        return (
+                                            <div key={n.id}
+                                                onClick={() => goToNotif(n)}
+                                                style={{
+                                                    padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
+                                                    marginBottom: 3, transition: 'background 0.15s',
+                                                    display: 'flex', gap: 10, alignItems: 'flex-start',
+                                                    opacity: isRead ? 0.55 : 1,
+                                                    borderLeft: `3px solid ${st.color}`,
+                                                    background: isRead ? 'transparent' : `${st.bg}40`,
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = isRead ? 'transparent' : `${st.bg}40`}
+                                            >
+                                                <div style={{
+                                                    width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    background: st.bg, color: st.color,
+                                                }}>{st.icon}</div>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontWeight: isRead ? 500 : 700, fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.3 }}>
+                                                        {n.titulo}
+                                                    </div>
+                                                    {n.mensagem && (
+                                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.3 }}>
+                                                            {n.mensagem}
                                                         </div>
-                                                        <div style={{ fontWeight: 700, fontSize: 13, color: isVencida ? '#ef4444' : '#f59e0b', whiteSpace: 'nowrap' }}>
-                                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor || 0)}
-                                                        </div>
+                                                    )}
+                                                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                                                        {n.criado_em ? (() => {
+                                                            const diff = Date.now() - new Date(n.criado_em).getTime();
+                                                            const min = Math.floor(diff / 60000);
+                                                            if (min < 1) return 'Agora';
+                                                            if (min < 60) return `Há ${min}min`;
+                                                            const hrs = Math.floor(min / 60);
+                                                            if (hrs < 24) return `Há ${hrs}h`;
+                                                            const dias = Math.floor(hrs / 24);
+                                                            if (dias === 1) return 'Ontem';
+                                                            return `Há ${dias}d`;
+                                                        })() : ''}
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                    <div style={{ padding: '10px 18px', borderTop: '1px solid var(--border)', textAlign: 'center' }}>
-                                        <button onClick={() => { setShowLembretes(false); nav('proj'); }}
-                                            style={{ fontSize: 12, fontWeight: 600, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                                            Ver todos os projetos →
-                                        </button>
-                                    </div>
+                                                {!isRead && (
+                                                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: st.color, flexShrink: 0, marginTop: 6 }} />
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                            )}
-                        </div>
-                    )}
+                            </div>
+                        )}
+                    </div>
                     </div>
                 </div>
 

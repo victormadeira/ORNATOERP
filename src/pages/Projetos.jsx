@@ -6,9 +6,10 @@ import {
     User as UserIcon, Calendar as CalendarIcon, Copy as CopyIcon,
     Check as CheckIcon, DollarSign, TrendingUp, TrendingDown,
     Package, PlusCircle, Trash2, Receipt, AlertTriangle, Clock,
-    ArrowUpCircle, ArrowDownCircle, BarChart3,
+    ArrowUpCircle, ArrowDownCircle, BarChart3, Search,
     Scissors, Layers, Ruler, ClipboardList, ShoppingCart,
-    ChevronDown, ChevronRight, Printer, X as XIcon, Pencil, Clipboard
+    ChevronDown, ChevronRight, Printer, X as XIcon, Pencil, Clipboard,
+    Eye, EyeOff, Upload, Trash2 as Trash2Icon
 } from 'lucide-react';
 
 // ─── Helpers ──────────────────────────────────────
@@ -298,6 +299,7 @@ function EditEtapaModal({ etapa, etapas, users, onSave, onClose }) {
                     <div>
                         <label className={Z.lbl}>Status</label>
                         <select className={Z.inp} value={status} onChange={e => setStatus(e.target.value)}>
+                            <option value="pendente">Pendente</option>
                             <option value="nao_iniciado">Nao iniciado</option>
                             <option value="em_andamento">Em andamento</option>
                             <option value="concluida">Concluida</option>
@@ -593,15 +595,21 @@ function TabFinanceiro({ data, notify }) {
     const [resumo, setResumo] = useState(null);
     const [despesas, setDespesas] = useState([]);
     const [contas, setContas] = useState([]);
+    const [contasPagar, setContasPagar] = useState([]);
     const [showDespForm, setShowDespForm] = useState(false);
     const [showCRForm, setShowCRForm] = useState(false);
+    const [showCPForm, setShowCPForm] = useState(false);
     const [newDesp, setNewDesp] = useState({ descricao: '', valor: '', data: '', categoria: 'material', fornecedor: '' });
     const [newCR, setNewCR] = useState({ descricao: '', valor: '', data_vencimento: '', meio_pagamento: '' });
+    const [newCP, setNewCP] = useState({ descricao: '', valor: '', data_vencimento: '', categoria: 'material', fornecedor: '', meio_pagamento: '' });
+
+    const MEIOS_PAG = ['PIX', 'Boleto', 'TED', 'Cartão', 'Dinheiro'];
 
     const loadAll = useCallback(() => {
         api.get(`/financeiro/${data.id}/resumo`).then(setResumo).catch(() => setResumo(null));
         api.get(`/financeiro/${data.id}/despesas`).then(setDespesas).catch(() => setDespesas([]));
         api.get(`/financeiro/${data.id}/receber`).then(setContas).catch(() => setContas([]));
+        api.get(`/financeiro/pagar?projeto_id=${data.id}`).then(setContasPagar).catch(() => setContasPagar([]));
     }, [data.id]);
 
     useEffect(() => { loadAll(); }, [loadAll]);
@@ -632,6 +640,25 @@ function TabFinanceiro({ data, notify }) {
         api.post(`/financeiro/${data.id}/importar-parcelas`).then(r => { loadAll(); notify(`${r?.parcelas_criadas || 0} parcelas importadas!`); })
             .catch(e => notify(e.error || 'Erro ao importar'));
     };
+
+    const addContaPagar = () => {
+        if (!newCP.descricao || !newCP.valor) return;
+        api.post('/financeiro/pagar', { ...newCP, valor: parseFloat(newCP.valor), projeto_id: data.id })
+            .then(() => { loadAll(); setShowCPForm(false); setNewCP({ descricao: '', valor: '', data_vencimento: '', categoria: 'material', fornecedor: '', meio_pagamento: '' }); notify('Conta a pagar registrada'); })
+            .catch(() => notify('Erro ao registrar'));
+    };
+
+    const togglePagCP = (cp) => {
+        const novoStatus = cp.status === 'pago' ? 'pendente' : 'pago';
+        api.put(`/financeiro/pagar/${cp.id}`, {
+            descricao: cp.descricao, valor: cp.valor, data_vencimento: cp.data_vencimento,
+            status: novoStatus, data_pagamento: novoStatus === 'pago' ? new Date().toISOString().slice(0, 10) : null,
+            categoria: cp.categoria, fornecedor: cp.fornecedor || '', meio_pagamento: cp.meio_pagamento || '',
+            codigo_barras: cp.codigo_barras || '', projeto_id: cp.projeto_id || null, observacao: cp.observacao || '',
+        }).then(() => { loadAll(); notify(novoStatus === 'pago' ? 'Pago!' : 'Reaberto'); });
+    };
+
+    const delCP = (id) => { if (window.confirm('Excluir conta a pagar?')) api.del(`/financeiro/pagar/${id}`).then(loadAll); };
 
     const hoje = new Date().toISOString().slice(0, 10);
 
@@ -786,6 +813,84 @@ function TabFinanceiro({ data, notify }) {
                     </div>
                 )}
             </div>
+
+            {/* Contas a Pagar (vinculadas a este projeto) */}
+            <div className={Z.card} style={{ marginTop: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <h2 style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 7 }}><DollarSign size={16} color="#f59e0b" /> Contas a Pagar</h2>
+                    <button onClick={() => setShowCPForm(!showCPForm)} className={Z.btn2} style={{ fontSize: 12, padding: '6px 12px' }}><PlusCircle size={12} /> Adicionar</button>
+                </div>
+
+                {showCPForm && (
+                    <div style={{ background: 'var(--bg-muted)', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+                            <div><label className={Z.lbl}>Descrição *</label><input className={Z.inp} style={{ fontSize: 13 }} value={newCP.descricao} onChange={e => setNewCP(x => ({ ...x, descricao: e.target.value }))} placeholder="Ex: Compra de MDF" /></div>
+                            <div><label className={Z.lbl}>Valor (R$) *</label><input type="number" step="0.01" className={Z.inp} style={{ fontSize: 13 }} value={newCP.valor} onChange={e => setNewCP(x => ({ ...x, valor: e.target.value }))} /></div>
+                            <div><label className={Z.lbl}>Vencimento</label><input type="date" className={Z.inp} style={{ fontSize: 13 }} value={newCP.data_vencimento} onChange={e => setNewCP(x => ({ ...x, data_vencimento: e.target.value }))} /></div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+                            <div><label className={Z.lbl}>Categoria</label>
+                                <select className={Z.inp} style={{ fontSize: 13 }} value={newCP.categoria} onChange={e => setNewCP(x => ({ ...x, categoria: e.target.value }))}>
+                                    {CATEGORIAS_DESPESA.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                                </select>
+                            </div>
+                            <div><label className={Z.lbl}>Fornecedor</label><input className={Z.inp} style={{ fontSize: 13 }} value={newCP.fornecedor} onChange={e => setNewCP(x => ({ ...x, fornecedor: e.target.value }))} /></div>
+                            <div><label className={Z.lbl}>Meio Pagamento</label>
+                                <select className={Z.inp} style={{ fontSize: 13 }} value={newCP.meio_pagamento} onChange={e => setNewCP(x => ({ ...x, meio_pagamento: e.target.value }))}>
+                                    <option value="">Selecionar...</option>
+                                    {MEIOS_PAG.map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                            </div>
+                            <button onClick={addContaPagar} className={Z.btn} style={{ padding: '8px 14px', fontSize: 13 }}>Salvar</button>
+                        </div>
+                    </div>
+                )}
+
+                {contasPagar.length === 0 ? (
+                    <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nenhuma conta a pagar vinculada a este projeto.</p>
+                ) : (
+                    <div style={{ display: 'grid', gap: 8 }}>
+                        {contasPagar.map(cp => {
+                            const vencida = cp.status !== 'pago' && cp.data_vencimento && cp.data_vencimento < hoje;
+                            const proxima = cp.status !== 'pago' && cp.data_vencimento && !vencida && cp.data_vencimento <= new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+                            const bg = cp.status === 'pago' ? '#f0fdf4' : vencida ? '#fef2f2' : proxima ? '#fffbeb' : 'var(--bg-muted)';
+                            const borderColor = cp.status === 'pago' ? '#22c55e' : vencida ? '#ef4444' : proxima ? '#f59e0b' : 'var(--border)';
+                            const cat = catMap[cp.categoria] || { label: cp.categoria, color: '#94a3b8' };
+                            return (
+                                <div key={cp.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10, background: bg, border: `1px solid ${borderColor}30`, borderLeft: `4px solid ${borderColor}` }}>
+                                    <button onClick={() => togglePagCP(cp)} title={cp.status === 'pago' ? 'Reverter' : 'Marcar como pago'}
+                                        style={{ width: 24, height: 24, borderRadius: '50%', border: `2px solid ${borderColor}`, background: cp.status === 'pago' ? '#22c55e' : 'transparent', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {cp.status === 'pago' && <CheckIcon size={12} color="#fff" />}
+                                    </button>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontWeight: 600, fontSize: 14, textDecoration: cp.status === 'pago' ? 'line-through' : 'none', color: cp.status === 'pago' ? 'var(--text-muted)' : 'var(--text-primary)' }}>{cp.descricao}</div>
+                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                            <span>Venc.: {dtFmt(cp.data_vencimento)}</span>
+                                            <span style={{ fontSize: 10, background: `${cat.color}15`, color: cat.color, padding: '1px 6px', borderRadius: 8, fontWeight: 600 }}>{cat.label}</span>
+                                            {cp.fornecedor && <span>• {cp.fornecedor}</span>}
+                                            {cp.meio_pagamento && <span>• {cp.meio_pagamento}</span>}
+                                            {cp.status === 'pago' && cp.data_pagamento && <span style={{ color: '#22c55e', fontWeight: 600 }}>Pago em {dtFmt(cp.data_pagamento)}</span>}
+                                            {vencida && <span style={{ color: '#ef4444', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><AlertTriangle size={11} /> Vencida</span>}
+                                            {proxima && <span style={{ color: '#f59e0b', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} /> Vencendo</span>}
+                                        </div>
+                                    </div>
+                                    <div style={{ fontWeight: 700, fontSize: 15, color: cp.status === 'pago' ? '#22c55e' : vencida ? '#ef4444' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cp.valor)}</div>
+                                    <button onClick={() => delCP(cp.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4, opacity: 0.4 }}><Trash2 size={14} /></button>
+                                </div>
+                            );
+                        })}
+                        {/* Total */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderTop: '2px solid var(--border)', marginTop: 4 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
+                                Total pendente: {contasPagar.filter(c => c.status === 'pendente').length} conta(s)
+                            </span>
+                            <span style={{ fontSize: 15, fontWeight: 700, color: '#f59e0b' }}>
+                                {R$(contasPagar.filter(c => c.status === 'pendente').reduce((s, c) => s + (c.valor || 0), 0))}
+                            </span>
+                        </div>
+                    </div>
+                )}
+            </div>
         </>
     );
 }
@@ -793,12 +898,18 @@ function TabFinanceiro({ data, notify }) {
 // ═══════════════════════════════════════════════════════
 // TAB: ESTOQUE (comparativo orçado vs gasto)
 // ═══════════════════════════════════════════════════════
-function TabEstoque({ data, notify }) {
+function TabEstoque({ data, notify, user }) {
     const [comparativo, setComparativo] = useState(null);
     const [materiais, setMateriais] = useState([]);
     const [movs, setMovs] = useState([]);
     const [showForm, setShowForm] = useState(false);
     const [newMov, setNewMov] = useState({ material_id: '', quantidade: '', descricao: '' });
+    const [recalculando, setRecalculando] = useState(false);
+    const [searchMat, setSearchMat] = useState('');
+    const [showMatList, setShowMatList] = useState(false);
+    const matSearchRef = useRef(null);
+
+    const canDelete = user && (user.role === 'admin' || user.role === 'gerente');
 
     const loadAll = useCallback(() => {
         api.get(`/estoque/projeto/${data.id}/comparativo`).then(setComparativo).catch(() => {});
@@ -811,16 +922,59 @@ function TabEstoque({ data, notify }) {
     const registrarConsumo = () => {
         if (!newMov.material_id || !newMov.quantidade) return;
         api.post(`/estoque/projeto/${data.id}/consumir`, { material_id: parseInt(newMov.material_id), quantidade: parseFloat(newMov.quantidade), descricao: newMov.descricao })
-            .then(() => { loadAll(); setShowForm(false); setNewMov({ material_id: '', quantidade: '', descricao: '' }); notify('Consumo registrado'); })
+            .then(() => { loadAll(); setShowForm(false); setNewMov({ material_id: '', quantidade: '', descricao: '' }); setSearchMat(''); setShowMatList(false); notify('Consumo registrado'); })
             .catch(e => notify(e.error || 'Erro'));
     };
+
+    // Fechar lista de materiais ao clicar fora
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (matSearchRef.current && !matSearchRef.current.contains(e.target)) {
+                setShowMatList(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const recalcularOrcado = () => {
+        setRecalculando(true);
+        api.post(`/estoque/projeto/${data.id}/recalcular-orcado`)
+            .then(r => {
+                loadAll();
+                if (r.itens > 0) {
+                    notify(`Orçado recalculado (${r.itens} itens)`);
+                } else if (r.modulos === 0) {
+                    notify('Nenhum módulo configurado no orçamento. Adicione módulos aos ambientes para gerar o comparativo.');
+                } else {
+                    notify('Orçado recalculado — nenhum material encontrado nos módulos');
+                }
+            })
+            .catch(e => notify(e.error || 'Erro ao recalcular'))
+            .finally(() => setRecalculando(false));
+    };
+
+    const excluirMov = (mov) => {
+        if (!window.confirm(`Excluir movimentação de ${mov.quantidade} ${mov.unidade || 'un'} de ${mov.material_nome}? O estoque será revertido automaticamente.`)) return;
+        api.del(`/estoque/movimentacao/${mov.id}`)
+            .then(() => { loadAll(); notify('Movimentação excluída e estoque revertido'); })
+            .catch(e => notify(e.error || 'Erro ao excluir'));
+    };
+
+    const comparativoVazio = !comparativo || !comparativo.comparativo || comparativo.comparativo.length === 0;
+    const temOrcamento = data.orc_id;
 
     return (
         <>
             {/* Comparativo Orçado vs Gasto */}
-            {comparativo && comparativo.comparativo.length > 0 && (
+            {!comparativoVazio ? (
                 <div className={Z.card} style={{ marginBottom: 20 }}>
-                    <h2 style={{ fontWeight: 700, fontSize: 15, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 7 }}><BarChart3 size={16} /> Orçado vs Gasto</h2>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                        <h2 style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 7 }}><BarChart3 size={16} /> Orçado vs Gasto</h2>
+                        <button onClick={recalcularOrcado} disabled={recalculando} className={Z.btn2} style={{ fontSize: 11, padding: '5px 10px' }}>
+                            {recalculando ? 'Recalculando...' : '↻ Recalcular Orçado'}
+                        </button>
+                    </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
                         <div style={{ background: '#eff6ff', borderRadius: 10, padding: 14, textAlign: 'center' }}>
                             <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Orçado</div>
@@ -835,6 +989,12 @@ function TabEstoque({ data, notify }) {
                             <div style={{ fontSize: 18, fontWeight: 800, color: comparativo.totais.diferenca >= 0 ? '#22c55e' : '#ef4444' }}>{R$(comparativo.totais.diferenca)}</div>
                         </div>
                     </div>
+                    {comparativo.totais.orcado === 0 && comparativo.totais.gasto > 0 && (
+                        <div style={{ background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <AlertTriangle size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                            <span style={{ fontSize: 12, color: '#92400e' }}>Orçamento sem módulos configurados — valores orçados estão zerados. Configure os módulos no editor de orçamento e recalcule.</span>
+                        </div>
+                    )}
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                         <thead><tr>{['Material', 'Orçado', 'Gasto', 'Diferença'].map(h => <th key={h} className={Z.th} style={{ fontSize: 11 }}>{h}</th>)}</tr></thead>
                         <tbody>
@@ -849,7 +1009,18 @@ function TabEstoque({ data, notify }) {
                         </tbody>
                     </table>
                 </div>
-            )}
+            ) : temOrcamento ? (
+                <div className={Z.card} style={{ marginBottom: 20, textAlign: 'center', padding: 30 }}>
+                    <BarChart3 size={32} style={{ color: 'var(--text-muted)', marginBottom: 10 }} />
+                    <h2 style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>Comparativo Orçado vs Gasto</h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 14 }}>
+                        Este projeto possui orçamento vinculado. Clique para calcular o comparativo de materiais.
+                    </p>
+                    <button onClick={recalcularOrcado} disabled={recalculando} className={Z.btn} style={{ fontSize: 13, padding: '8px 18px' }}>
+                        {recalculando ? 'Calculando...' : 'Calcular Orçado'}
+                    </button>
+                </div>
+            ) : null}
 
             {/* Registrar Consumo */}
             <div className={Z.card} style={{ marginBottom: 20 }}>
@@ -858,27 +1029,83 @@ function TabEstoque({ data, notify }) {
                     <button onClick={() => setShowForm(!showForm)} className={Z.btn2} style={{ fontSize: 12, padding: '6px 12px' }}><PlusCircle size={12} /> Registrar consumo</button>
                 </div>
 
-                {showForm && (
-                    <div style={{ background: 'var(--bg-muted)', borderRadius: 10, padding: 14, marginBottom: 14 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
-                            <div><label className={Z.lbl}>Material</label>
-                                <select className={Z.inp} style={{ fontSize: 13 }} value={newMov.material_id} onChange={e => setNewMov(x => ({ ...x, material_id: e.target.value }))}>
-                                    <option value="">— Selecionar —</option>
-                                    {materiais.map(m => <option key={m.id} value={m.id}>{m.nome} ({m.unidade})</option>)}
-                                </select>
+                {showForm && (() => {
+                    const selectedMat = materiais.find(m => String(m.id) === String(newMov.material_id));
+                    const q = searchMat.toLowerCase();
+                    const filteredMat = materiais.filter(m =>
+                        !q || m.nome.toLowerCase().includes(q) || (m.cod || '').toLowerCase().includes(q)
+                    );
+                    return (
+                        <div style={{ background: 'var(--bg-muted)', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+                                <div style={{ position: 'relative' }} ref={matSearchRef}>
+                                    <label className={Z.lbl}>Material</label>
+                                    {selectedMat ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <div className={Z.inp} style={{ fontSize: 13, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'default' }}>
+                                                <span style={{ fontWeight: 600 }}>{selectedMat.nome} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({selectedMat.unidade})</span></span>
+                                                <button onClick={() => { setNewMov(x => ({ ...x, material_id: '' })); setSearchMat(''); setShowMatList(true); }}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0 2px', fontSize: 14, lineHeight: 1 }}
+                                                    title="Trocar material">&times;</button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div style={{ position: 'relative' }}>
+                                                <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                                                <input
+                                                    className={Z.inp}
+                                                    style={{ fontSize: 13, paddingLeft: 30 }}
+                                                    placeholder="Buscar material..."
+                                                    value={searchMat}
+                                                    onChange={e => { setSearchMat(e.target.value); setShowMatList(true); }}
+                                                    onFocus={() => setShowMatList(true)}
+                                                />
+                                            </div>
+                                            {showMatList && (
+                                                <div style={{
+                                                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                                                    background: '#fff', border: '1px solid var(--border)', borderRadius: 8,
+                                                    maxHeight: 200, overflowY: 'auto', boxShadow: '0 6px 20px rgba(0,0,0,0.15)',
+                                                    marginTop: 2
+                                                }}>
+                                                    {filteredMat.length === 0 ? (
+                                                        <div style={{ padding: '10px 12px', color: 'var(--text-muted)', fontSize: 12 }}>Nenhum material encontrado</div>
+                                                    ) : filteredMat.map(m => (
+                                                        <div key={m.id}
+                                                            onClick={() => { setNewMov(x => ({ ...x, material_id: String(m.id) })); setSearchMat(''); setShowMatList(false); }}
+                                                            style={{
+                                                                padding: '8px 12px', cursor: 'pointer', fontSize: 13,
+                                                                borderBottom: '1px solid #eee',
+                                                                background: '#fff',
+                                                                transition: 'background 0.1s'
+                                                            }}
+                                                            onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                                                            onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                                                        >
+                                                            <span style={{ fontWeight: 600 }}>{m.nome}</span>
+                                                            <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>({m.unidade})</span>
+                                                            {m.cod && <span style={{ color: 'var(--text-muted)', marginLeft: 6, fontSize: 11 }}>#{m.cod}</span>}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                                <div><label className={Z.lbl}>Quantidade</label><input type="number" step="0.01" className={Z.inp} style={{ fontSize: 13 }} value={newMov.quantidade} onChange={e => setNewMov(x => ({ ...x, quantidade: e.target.value }))} /></div>
+                                <div><label className={Z.lbl}>Descrição</label><input className={Z.inp} style={{ fontSize: 13 }} value={newMov.descricao} onChange={e => setNewMov(x => ({ ...x, descricao: e.target.value }))} placeholder="Opcional" /></div>
+                                <button onClick={registrarConsumo} className={Z.btn} style={{ padding: '8px 14px', fontSize: 13 }}>Salvar</button>
                             </div>
-                            <div><label className={Z.lbl}>Quantidade</label><input type="number" step="0.01" className={Z.inp} style={{ fontSize: 13 }} value={newMov.quantidade} onChange={e => setNewMov(x => ({ ...x, quantidade: e.target.value }))} /></div>
-                            <div><label className={Z.lbl}>Descrição</label><input className={Z.inp} style={{ fontSize: 13 }} value={newMov.descricao} onChange={e => setNewMov(x => ({ ...x, descricao: e.target.value }))} placeholder="Opcional" /></div>
-                            <button onClick={registrarConsumo} className={Z.btn} style={{ padding: '8px 14px', fontSize: 13 }}>Salvar</button>
                         </div>
-                    </div>
-                )}
+                    );
+                })()}
 
                 {movs.length === 0 ? (
                     <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nenhum consumo registrado neste projeto.</p>
                 ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                        <thead><tr>{['Data', 'Material', 'Qtd', 'Tipo', 'Descrição'].map(h => <th key={h} className={Z.th} style={{ fontSize: 11 }}>{h}</th>)}</tr></thead>
+                        <thead><tr>{['Data', 'Material', 'Qtd', 'Tipo', 'Valor Unit.', 'Descrição', ...(canDelete ? [''] : [])].map(h => <th key={h} className={Z.th} style={{ fontSize: 11 }}>{h}</th>)}</tr></thead>
                         <tbody>
                             {movs.map(m => (
                                 <tr key={m.id} style={{ borderTop: '1px solid var(--border)' }}>
@@ -886,7 +1113,17 @@ function TabEstoque({ data, notify }) {
                                     <td style={{ padding: '8px 12px', fontWeight: 600 }}>{m.material_nome}</td>
                                     <td style={{ padding: '8px 12px' }}>{m.quantidade} {m.unidade}</td>
                                     <td style={{ padding: '8px 12px' }}><span style={{ fontSize: 11, fontWeight: 600, color: m.tipo === 'entrada' ? '#22c55e' : '#ef4444' }}>{m.tipo === 'entrada' ? '↑ Entrada' : '↓ Saída'}</span></td>
+                                    <td style={{ padding: '8px 12px', fontSize: 12 }}>{m.valor_unitario ? R$(m.valor_unitario) : '—'}</td>
                                     <td style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>{m.descricao}</td>
+                                    {canDelete && (
+                                        <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                                            <button onClick={() => excluirMov(m)} title="Excluir movimentação" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', opacity: 0.6, transition: 'opacity 0.15s', padding: 4 }}
+                                                onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                                                onMouseLeave={e => e.currentTarget.style.opacity = 0.6}>
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
                         </tbody>
@@ -1087,14 +1324,50 @@ function TabArquivos({ data, notify }) {
 
             {/* Fotos do Montador */}
             <div className={Z.card} style={{ marginTop: 20 }}>
-                <h2 style={{ fontWeight: 700, fontSize: 15, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 7 }}><Ic.Image /> Fotos do Montador</h2>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                    <h2 style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 7, margin: 0 }}>
+                        <Ic.Image /> Fotos
+                        {montadorFotos.length > 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>
+                            ({montadorFotos.filter(f => f.visivel_portal).length} de {montadorFotos.length} no portal)
+                        </span>}
+                    </h2>
+                    <label className={Z.btn2} style={{ fontSize: 12, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                        <Upload size={13} /> Enviar Foto
+                        <input type="file" accept="image/*" multiple hidden onChange={async (e) => {
+                            const files = Array.from(e.target.files || []);
+                            if (!files.length) return;
+                            const uploads = [];
+                            for (const file of files) {
+                                const reader = new FileReader();
+                                uploads.push(new Promise((resolve) => {
+                                    reader.onload = async () => {
+                                        try {
+                                            await api.post(`/montador/fotos/${data.id}/upload`, {
+                                                filename: file.name,
+                                                data: reader.result,
+                                                ambiente: fotoFilter || '',
+                                            });
+                                        } catch { /* erro */ }
+                                        resolve();
+                                    };
+                                    reader.readAsDataURL(file);
+                                }));
+                            }
+                            Promise.all(uploads).then(() => {
+                                api.get(`/montador/fotos/${data.id}`).then(setMontadorFotos).catch(() => {});
+                                notify('Foto(s) enviada(s)!');
+                            });
+                            e.target.value = '';
+                        }} />
+                    </label>
+                </div>
 
                 {montadorFotos.length === 0 ? (
-                    <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nenhuma foto enviada ainda.</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nenhuma foto enviada ainda. Use o botao acima ou gere um link de montador.</p>
                 ) : (
                     <>
                         {/* Filter */}
-                        <div style={{ marginBottom: 14 }}>
+                        <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
                             <select className={Z.inp} style={{ fontSize: 13, maxWidth: 260 }} value={fotoFilter} onChange={e => setFotoFilter(e.target.value)}>
                                 <option value="">Todos os ambientes</option>
                                 {[...new Set(montadorFotos.map(f => f.ambiente).filter(Boolean))].map(amb => (
@@ -1106,12 +1379,25 @@ function TabArquivos({ data, notify }) {
                         {/* Grid */}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
                             {montadorFotos.filter(f => !fotoFilter || f.ambiente === fotoFilter).map(foto => (
-                                <div key={foto.id || foto.url} onClick={() => setFotoLightbox(foto)}
-                                    style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)', cursor: 'pointer', background: 'var(--bg-muted)', transition: 'transform 0.15s' }}
+                                <div key={foto.id || foto.url}
+                                    onClick={() => setFotoLightbox(foto)}
+                                    style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${foto.visivel_portal ? '#22c55e40' : 'var(--border)'}`, background: 'var(--bg-muted)', transition: 'transform 0.15s', position: 'relative', cursor: 'pointer' }}
                                     onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
                                     onMouseLeave={e => e.currentTarget.style.transform = ''}
                                 >
                                     <img src={`${API_BASE}${foto.url}`} alt="" style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block' }} />
+                                    {/* Badge visual (não clicável) */}
+                                    <div style={{
+                                        position: 'absolute', top: 6, right: 6,
+                                        background: foto.visivel_portal ? '#22c55e' : 'rgba(0,0,0,0.5)',
+                                        borderRadius: 6, padding: '3px 6px',
+                                        display: 'flex', alignItems: 'center', gap: 3,
+                                        color: '#fff', fontSize: 10, fontWeight: 600,
+                                        pointerEvents: 'none',
+                                    }}>
+                                        {foto.visivel_portal ? <Eye size={11} /> : <EyeOff size={11} />}
+                                        {foto.visivel_portal ? 'Portal' : 'Interno'}
+                                    </div>
                                     <div style={{ padding: '8px 10px' }}>
                                         {foto.nome_montador && <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 2 }}>{foto.nome_montador}</div>}
                                         {foto.ambiente && <span style={{ fontSize: 10, background: '#8b5cf615', color: '#8b5cf6', padding: '1px 7px', borderRadius: 8, fontWeight: 600 }}>{foto.ambiente}</span>}
@@ -1123,14 +1409,51 @@ function TabArquivos({ data, notify }) {
                     </>
                 )}
 
-                {/* Lightbox */}
+                {/* Lightbox / Modal com ações */}
                 {fotoLightbox && (
                     <Modal title={fotoLightbox.nome_montador ? `Foto - ${fotoLightbox.nome_montador}` : 'Foto'} close={() => setFotoLightbox(null)} w={800}>
                         <img src={`${API_BASE}${fotoLightbox.url}`} alt="" style={{ width: '100%', borderRadius: 8, maxHeight: '70vh', objectFit: 'contain' }} />
-                        <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: 12, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
-                            {fotoLightbox.nome_montador && <span>Montador: <b>{fotoLightbox.nome_montador}</b></span>}
+                        <div style={{ display: 'flex', gap: 12, marginTop: 12, fontSize: 12, color: 'var(--text-muted)', flexWrap: 'wrap', alignItems: 'center' }}>
+                            {fotoLightbox.nome_montador && <span>Por: <b>{fotoLightbox.nome_montador}</b></span>}
                             {fotoLightbox.ambiente && <span>Ambiente: <b>{fotoLightbox.ambiente}</b></span>}
                             {fotoLightbox.criado_em && <span>{new Date(fotoLightbox.criado_em).toLocaleString('pt-BR')}</span>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            {/* Excluir */}
+                            <button
+                                className={Z.btn2}
+                                style={{ fontSize: 11, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 4, color: '#ef4444', borderColor: '#ef444440' }}
+                                onClick={async () => {
+                                    if (!confirm('Excluir esta foto permanentemente?')) return;
+                                    try {
+                                        await api.del(`/montador/fotos/${fotoLightbox.id}`);
+                                        setMontadorFotos(prev => prev.filter(f => f.id !== fotoLightbox.id));
+                                        setFotoLightbox(null);
+                                        notify('Foto excluida');
+                                    } catch { notify('Erro ao excluir'); }
+                                }}
+                            >
+                                <Trash2 size={12} /> Excluir
+                            </button>
+                            {/* Toggle portal */}
+                            <button
+                                className={Z.btn2}
+                                style={{ fontSize: 11, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 4,
+                                    background: fotoLightbox.visivel_portal ? '#22c55e15' : undefined,
+                                    color: fotoLightbox.visivel_portal ? '#22c55e' : undefined,
+                                    borderColor: fotoLightbox.visivel_portal ? '#22c55e40' : undefined,
+                                }}
+                                onClick={async () => {
+                                    try {
+                                        const res = await api.put(`/montador/fotos/${fotoLightbox.id}/portal`);
+                                        const updated = { ...fotoLightbox, visivel_portal: res.visivel_portal };
+                                        setFotoLightbox(updated);
+                                        setMontadorFotos(prev => prev.map(f => f.id === fotoLightbox.id ? { ...f, visivel_portal: res.visivel_portal } : f));
+                                    } catch { /* erro */ }
+                                }}
+                            >
+                                {fotoLightbox.visivel_portal ? <><Eye size={12} /> Remover do portal</> : <><EyeOff size={12} /> Liberar no portal</>}
+                            </button>
                         </div>
                     </Modal>
                 )}
@@ -1663,7 +1986,7 @@ function TabPortalMsgs({ data, notify }) {
 // ═══════════════════════════════════════════════════════
 // DETALHE DO PROJETO (com tabs)
 // ═══════════════════════════════════════════════════════
-function ProjetoDetalhe({ proj, onBack, orcs, notify, reload }) {
+function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [editStatus, setEditStatus] = useState(false);
@@ -1739,7 +2062,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload }) {
             {tab === 'cronograma' && <TabCronograma data={data} load={load} notify={notify} users={users} />}
             {tab === 'producao' && <TabProducao data={data} notify={notify} />}
             {tab === 'financeiro' && <TabFinanceiro data={data} notify={notify} />}
-            {tab === 'estoque' && <TabEstoque data={data} notify={notify} />}
+            {tab === 'estoque' && <TabEstoque data={data} notify={notify} user={user} />}
             {tab === 'arquivos' && <TabArquivos data={data} notify={notify} />}
             {tab === 'portal' && <TabPortalMsgs data={data} notify={notify} />}
         </div>
@@ -1747,7 +2070,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload }) {
 }
 
 // ─── Página Principal ─────────────────────────────────
-export default function Projetos({ orcs, notify }) {
+export default function Projetos({ orcs, notify, user }) {
     const [projetos, setProjetos] = useState([]);
     const [selected, setSelected] = useState(null);
     const [showNew, setShowNew] = useState(false);
@@ -1773,7 +2096,7 @@ export default function Projetos({ orcs, notify }) {
         api.del(`/projetos/${proj.id}`).then(() => { load(); notify('Projeto excluído'); }).catch(() => notify('Erro ao excluir'));
     };
 
-    if (selected) return <ProjetoDetalhe proj={selected} onBack={() => setSelected(null)} orcs={orcs} notify={notify} reload={load} />;
+    if (selected) return <ProjetoDetalhe proj={selected} onBack={() => setSelected(null)} orcs={orcs} notify={notify} reload={load} user={user} />;
 
     const filtered = projetos.filter(p => {
         const q = search.toLowerCase();

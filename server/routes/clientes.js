@@ -297,8 +297,38 @@ router.delete('/:id', requireAuth, (req, res) => {
         return res.status(403).json({ error: 'Sem permissão' });
     }
 
-    db.prepare('DELETE FROM clientes WHERE id = ?').run(id);
-    res.json({ ok: true });
+    try {
+        const deleteCliente = db.transaction(() => {
+            // Limpar registros dependentes que não têm CASCADE
+            db.prepare('DELETE FROM ia_followups WHERE cliente_id = ?').run(id);
+            db.prepare('DELETE FROM chat_mensagens WHERE conversa_id IN (SELECT id FROM chat_conversas WHERE cliente_id = ?)').run(id);
+            db.prepare('DELETE FROM chat_conversas WHERE cliente_id = ?').run(id);
+            // Projetos vinculados (e seus dependentes)
+            const projetos = db.prepare('SELECT id FROM projetos WHERE cliente_id = ?').all(id);
+            for (const p of projetos) {
+                db.prepare('DELETE FROM portal_mensagens WHERE projeto_id = ?').run(p.id);
+                db.prepare('DELETE FROM despesas_projeto WHERE projeto_id = ?').run(p.id);
+                db.prepare('DELETE FROM contas_receber WHERE projeto_id = ?').run(p.id);
+                db.prepare('DELETE FROM contas_pagar WHERE projeto_id = ?').run(p.id);
+                db.prepare('DELETE FROM movimentacoes_estoque WHERE projeto_id = ?').run(p.id);
+                db.prepare('DELETE FROM montador_fotos WHERE projeto_id = ?').run(p.id);
+                db.prepare('DELETE FROM montador_tokens WHERE projeto_id = ?').run(p.id);
+                db.prepare('DELETE FROM apontamentos_horas WHERE projeto_id = ?').run(p.id);
+                db.prepare('DELETE FROM etapas_projeto WHERE projeto_id = ?').run(p.id);
+                db.prepare('DELETE FROM ocorrencias_projeto WHERE projeto_id = ?').run(p.id);
+            }
+            db.prepare('DELETE FROM projetos WHERE cliente_id = ?').run(id);
+            // Orçamentos vinculados
+            db.prepare('DELETE FROM orcamentos WHERE cliente_id = ?').run(id);
+            // Cliente e seus dependentes com CASCADE (notas, interações, documentos)
+            db.prepare('DELETE FROM clientes WHERE id = ?').run(id);
+        });
+        deleteCliente();
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('Erro ao excluir cliente:', err);
+        res.status(500).json({ error: 'Erro ao excluir cliente' });
+    }
 });
 
 // ═══════════════════════════════════════════════════════

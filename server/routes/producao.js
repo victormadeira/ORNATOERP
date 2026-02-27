@@ -82,7 +82,13 @@ function calcularListaCorte(mods, bib) {
     const ambientes = mods?.ambientes || [];
 
     for (const amb of ambientes) {
-        for (const mod of (amb.modulos || [])) {
+        // Suporta formato antigo (amb.modulos) e novo (amb.itens com caixaId)
+        const allMods = [
+            ...(amb.modulos || []),
+            ...(amb.itens || []).map(it => ({ ...it, tplId: it.tplId || it.caixaId })),
+        ];
+
+        for (const mod of allMods) {
             const modNome = mod.nome || 'Módulo';
             const dims = mod.dims || { l: 0, a: 0, p: 0 };
             const mats = mod.mats || {};
@@ -99,9 +105,9 @@ function calcularListaCorte(mods, bib) {
                 Li: dims.l - esp * 2, Ai: dims.a - esp * 2, Pi: dims.p,
             };
 
-            // Carregar definição da caixa
-            const caixaRow = db.prepare('SELECT json_data FROM modulos_custom WHERE id = ?').get(mod.tplId);
-            const caixaDef = caixaRow ? JSON.parse(caixaRow.json_data) : null;
+            // Carregar definição da caixa (DB atualizado > snapshot embutido)
+            const caixaRow = mod.tplId ? db.prepare('SELECT json_data FROM modulos_custom WHERE id = ?').get(mod.tplId) : null;
+            const caixaDef = caixaRow ? JSON.parse(caixaRow.json_data) : (mod.caixaDef || null);
             if (!caixaDef) continue;
 
             // ── Peças da caixa ──
@@ -488,3 +494,4 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 export default router;
+export { loadBiblioteca, calcularListaCorte };

@@ -89,6 +89,34 @@ router.post('/projeto/:id/upload', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// GET /api/drive/arquivo/:projeto_id/montador/:filename — servir foto do montador (público)
+// DEVE vir ANTES da rota genérica /:filename
+// ═══════════════════════════════════════════════════
+router.get('/arquivo/:projeto_id/montador/:filename', (req, res) => {
+    const projeto_id = String(req.params.projeto_id).replace(/[^a-zA-Z0-9_-]/g, '');
+    const filename = path.basename(decodeURIComponent(req.params.filename));
+    const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, 'montador', filename);
+
+    // Proteção contra path traversal
+    const resolved = path.resolve(filePath);
+    if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) {
+        return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado' });
+
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes = {
+        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif',
+        '.webp': 'image/webp',
+    };
+
+    res.setHeader('Content-Type', mimeTypes[ext] || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.sendFile(filePath);
+});
+
+// ═══════════════════════════════════════════════════
 // GET /api/drive/arquivo/:projeto_id/:filename — servir arquivo
 // ═══════════════════════════════════════════════════
 router.get('/arquivo/:projeto_id/:filename', (req, res) => {

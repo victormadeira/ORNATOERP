@@ -12,6 +12,10 @@ const MENUS = [
     { id: 'orcs',          label: 'Orçamentos',            desc: 'Criar e gerenciar orçamentos' },
     { id: 'kb',            label: 'Pipeline CRM',          desc: 'Funil de vendas Kanban' },
     { id: 'proj',          label: 'Projetos',              desc: 'Acompanhamento de projetos' },
+    { id: 'estoque',       label: 'Gestão de Recursos',    desc: 'Estoque, materiais e mão de obra' },
+    { id: 'whatsapp',      label: 'WhatsApp',              desc: 'Mensagens e atendimento' },
+    { id: 'assistente',    label: 'Assistente IA',         desc: 'Chat e assistente inteligente' },
+    { id: 'relatorios',    label: 'Relatórios',            desc: 'Relatórios e análises' },
     { id: 'cfg',           label: 'Config & Taxas',        desc: 'Configurações e taxas do sistema' },
 ];
 

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth } from '../auth.js';
 import { randomBytes } from 'crypto';
+import { createNotification, logActivity } from '../services/notificacoes.js';
 
 const router = Router();
 
@@ -66,6 +67,31 @@ router.get('/portal/:token', (req, res) => {
         },
         empresa,
     });
+});
+
+// ═══════════════════════════════════════════════════
+// GET /api/projetos/portal/:token/fotos — listar fotos do montador (público)
+// ═══════════════════════════════════════════════════
+router.get('/portal/:token/fotos', (req, res) => {
+    const proj = db.prepare(`
+        SELECT p.id FROM projetos p WHERE p.token = ?
+    `).get(req.params.token);
+
+    if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
+
+    const fotos = db.prepare(`
+        SELECT id, nome_montador, ambiente, filename, criado_em
+        FROM montador_fotos
+        WHERE projeto_id = ? AND visivel_portal = 1
+        ORDER BY criado_em DESC
+    `).all(proj.id);
+
+    const result = fotos.map(f => ({
+        ...f,
+        url: `/api/drive/arquivo/${proj.id}/montador/${f.filename}`,
+    }));
+
+    res.json(result);
 });
 
 // ═══════════════════════════════════════════════════
@@ -203,6 +229,10 @@ router.post('/', requireAuth, (req, res) => {
         );
     }
 
+    try {
+        logActivity(req.user.id, req.user.nome, 'criar', `Criou projeto "${nome.trim()}"`, projId, 'projeto');
+    } catch (_) { /* log não bloqueia */ }
+
     res.json({ id: projId, token });
 });
 
@@ -211,11 +241,34 @@ router.post('/', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════
 router.put('/:id', requireAuth, (req, res) => {
     const { nome, descricao, status, data_inicio, data_vencimento } = req.body;
+    const projId = parseInt(req.params.id);
+
+    // Buscar status anterior para detectar mudança
+    const anterior = db.prepare('SELECT status, nome FROM projetos WHERE id = ?').get(projId);
+
     db.prepare(`
         UPDATE projetos
         SET nome=?, descricao=?, status=?, data_inicio=?, data_vencimento=?, atualizado_em=CURRENT_TIMESTAMP
         WHERE id=?
-    `).run(nome, descricao || '', status, data_inicio || null, data_vencimento || null, parseInt(req.params.id));
+    `).run(nome, descricao || '', status, data_inicio || null, data_vencimento || null, projId);
+
+    try {
+        const label = nome || anterior?.nome || `#${projId}`;
+        if (status && anterior && status !== anterior.status) {
+            logActivity(req.user.id, req.user.nome, 'atualizar_status',
+                `Alterou status do projeto "${label}" de ${anterior.status} para ${status}`,
+                projId, 'projeto', { status_anterior: anterior.status, status_novo: status });
+            if (status === 'concluido' || status === 'atrasado') {
+                createNotification('projeto_status',
+                    `Projeto ${status === 'concluido' ? 'concluído' : 'atrasado'}: ${label}`,
+                    `Status alterado por ${req.user.nome}`,
+                    projId, 'projeto', '', req.user.id);
+            }
+        } else {
+            logActivity(req.user.id, req.user.nome, 'editar', `Editou projeto "${label}"`, projId, 'projeto');
+        }
+    } catch (_) { /* log não bloqueia */ }
+
     res.json({ ok: true });
 });
 
@@ -231,8 +284,11 @@ router.delete('/:id', requireAuth, (req, res) => {
             db.prepare('DELETE FROM portal_mensagens WHERE projeto_id = ?').run(id);
             db.prepare('DELETE FROM despesas_projeto WHERE projeto_id = ?').run(id);
             db.prepare('DELETE FROM contas_receber WHERE projeto_id = ?').run(id);
+            db.prepare('DELETE FROM contas_pagar WHERE projeto_id = ?').run(id);
             db.prepare('DELETE FROM movimentacoes_estoque WHERE projeto_id = ?').run(id);
+            db.prepare('DELETE FROM montador_fotos WHERE projeto_id = ?').run(id);
             db.prepare('DELETE FROM montador_tokens WHERE projeto_id = ?').run(id);
+            db.prepare('DELETE FROM apontamentos_horas WHERE projeto_id = ?').run(id);
             db.prepare('DELETE FROM etapas_projeto WHERE projeto_id = ?').run(id);
             db.prepare('DELETE FROM ocorrencias_projeto WHERE projeto_id = ?').run(id);
             db.prepare('DELETE FROM projetos WHERE id = ?').run(id);

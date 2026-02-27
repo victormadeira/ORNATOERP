@@ -48,7 +48,7 @@ function HeadlineMes({ data }) {
     return (
         <div className="glass-card" style={{
             padding: '22px 28px', marginBottom: 16,
-            background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--primary-light) 100%)',
+            background: 'var(--bg-card)',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap',
         }}>
             <div>
@@ -134,7 +134,7 @@ function FilaAtencao({ data, nav }) {
                             <XCircle size={10} style={{ display: 'inline', marginRight: 4, color: '#ef4444' }} /> Contas Vencidas
                         </div>
                         {data.contas_vencidas.map(c => (
-                            <div key={c.id} onClick={() => nav('proj')}
+                            <div key={c.id} onClick={() => nav('financeiro')}
                                 style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
                                 className="hover:bg-[var(--bg-hover)] transition-colors">
                                 <div style={{ minWidth: 0 }}>
@@ -365,15 +365,47 @@ function ProjetosAtivos({ data, total, nav }) {
     );
 }
 
-// ── TimelineRecente ──────────────────────────────────────
-const TIPO_CONFIG = {
-    orcamento: { icon: FileText, color: 'var(--primary)', label: 'Orcamento' },
-    pagamento: { icon: DollarSign, color: '#22c55e', label: 'Pagamento' },
-    projeto: { icon: Briefcase, color: '#f59e0b', label: 'Projeto' },
+// ── TimelineRecente (Log Real de Atividades) ────────────
+const ACAO_CONFIG = {
+    criar:               { icon: Plus,      color: '#22c55e', label: 'Criou' },
+    aprovar:             { icon: Check,     color: '#22c55e', label: 'Aprovou' },
+    mover_pipeline:      { icon: ArrowRight,color: '#3b82f6', label: 'Moveu' },
+    atualizar_status:    { icon: Activity,  color: '#8b5cf6', label: 'Status' },
+    editar:              { icon: Edit3,     color: '#3b82f6', label: 'Editou' },
+    pagar:               { icon: DollarSign,color: '#22c55e', label: 'Pagou' },
+    receber_pagamento:   { icon: DollarSign,color: '#16a34a', label: 'Recebeu' },
+    registrar_despesa:   { icon: DollarSign,color: '#f59e0b', label: 'Despesa' },
+    criar_conta_pagar:   { icon: DollarSign,color: '#ef4444', label: 'Conta' },
+    consumir_material:   { icon: Briefcase, color: '#f59e0b', label: 'Consumo' },
+    entrada_estoque:     { icon: Plus,      color: '#3b82f6', label: 'Entrada' },
+    excluir_movimentacao:{ icon: Trash2,    color: '#ef4444', label: 'Excluiu' },
 };
 
+function tempoRelativo(dateStr) {
+    if (!dateStr) return '';
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return 'Agora';
+    if (min < 60) return `Há ${min}min`;
+    const hrs = Math.floor(min / 60);
+    if (hrs < 24) return `Há ${hrs}h`;
+    const dias = Math.floor(hrs / 24);
+    if (dias === 1) return 'Ontem';
+    if (dias < 30) return `Há ${dias}d`;
+    return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
 function TimelineRecente({ data, nav }) {
-    if (!data || data.length === 0) return null;
+    if (!data || data.length === 0) return (
+        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Activity size={15} style={{ color: 'var(--primary)' }} /> Atividade Recente
+                </span>
+            </div>
+            <EmptyState icon={Activity} msg="Nenhuma atividade registrada ainda" />
+        </div>
+    );
 
     return (
         <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -384,55 +416,49 @@ function TimelineRecente({ data, nav }) {
             </div>
             <div style={{ padding: '4px 0' }}>
                 {data.map((ev, i) => {
-                    const cfg = TIPO_CONFIG[ev.tipo] || TIPO_CONFIG.orcamento;
+                    const cfg = ACAO_CONFIG[ev.acao] || { icon: Activity, color: 'var(--primary)', label: ev.acao };
                     const Icon = cfg.icon;
-                    const ts = ev.timestamp ? new Date(ev.timestamp) : null;
-                    const timeStr = ts ? ts.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + ts.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+                    const inicial = (ev.user_nome || '?')[0].toUpperCase();
 
-                    let desc = '';
-                    let valor = null;
-                    if (ev.tipo === 'orcamento') {
-                        desc = `${ev.cliente_nome || '—'} — ${ev.ambiente || 'Orcamento #' + (ev.numero || ev.id)}`;
-                        valor = ev.valor_venda;
-                    } else if (ev.tipo === 'pagamento') {
-                        desc = `${ev.descricao || 'Pagamento'} — ${ev.projeto_nome || ''}`;
-                        valor = ev.valor;
-                    } else if (ev.tipo === 'projeto') {
-                        desc = ev.nome || 'Projeto';
-                    }
-
-                    const clickTarget = ev.tipo === 'orcamento' ? () => nav('novo', ev)
-                        : ev.tipo === 'projeto' ? () => nav('proj')
-                        : () => nav('proj');
+                    const clickTarget = () => {
+                        if (ev.referencia_tipo === 'orcamento') nav('orcs');
+                        else if (ev.referencia_tipo === 'projeto') nav('proj');
+                        else if (ev.referencia_tipo === 'estoque') nav('estoque');
+                        else nav('dash');
+                    };
 
                     return (
-                        <div key={`${ev.tipo}-${ev.id}-${i}`} onClick={clickTarget}
+                        <div key={ev.id || `${ev.acao}-${i}`} onClick={clickTarget}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 12,
                                 padding: '10px 20px', cursor: 'pointer',
                                 borderBottom: i < data.length - 1 ? '1px solid var(--border)' : 'none',
                             }}
                             className="hover:bg-[var(--bg-hover)] transition-colors">
+                            {/* Avatar com inicial do usuário */}
                             <div style={{
                                 width: 32, height: 32, borderRadius: '50%',
-                                background: `${cfg.color}15`, color: cfg.color,
+                                background: `${cfg.color}18`, color: cfg.color,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                fontSize: 13, fontWeight: 800,
                             }}>
-                                <Icon size={14} />
+                                {inicial}
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{desc}</div>
-                                <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
+                                    {ev.descricao}
+                                </div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 }}>
                                     <span style={{
                                         fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 8,
                                         background: `${cfg.color}15`, color: cfg.color,
                                     }}>{cfg.label}</span>
-                                    {timeStr}
+                                    <span>{ev.user_nome}</span>
+                                    <span>·</span>
+                                    <span>{tempoRelativo(ev.criado_em)}</span>
                                 </div>
                             </div>
-                            {valor != null && (
-                                <span style={{ fontSize: 13, fontWeight: 700, color: cfg.color, flexShrink: 0 }}>{R$(valor)}</span>
-                            )}
+                            <Icon size={14} style={{ color: cfg.color, flexShrink: 0, opacity: 0.6 }} />
                         </div>
                     );
                 })}
@@ -726,6 +752,7 @@ export default function Dash({ nav, notify }) {
     const [err, setErr] = useState(false);
     const [tab, setTab] = useState('geral'); // 'geral' | 'financeiro'
     const [finLoading, setFinLoading] = useState(false);
+    const [atividades, setAtividades] = useState([]);
 
     const load = useCallback(() => {
         api.get('/dashboard').then(d => {
@@ -734,6 +761,8 @@ export default function Dash({ nav, notify }) {
         }).catch(() => {
             setErr(true);
         }).finally(() => setLoading(false));
+        // Carregar log real de atividades
+        api.get('/atividades?limit=10').then(setAtividades).catch(() => {});
     }, []);
 
     const loadFin = useCallback(() => {
@@ -853,7 +882,7 @@ export default function Dash({ nav, notify }) {
                             );
                         })}
                     </div>
-                    <TimelineRecente data={data.atividades} nav={nav} />
+                    <TimelineRecente data={atividades} nav={nav} />
                 </>
             )}
 

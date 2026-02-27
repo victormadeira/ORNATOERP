@@ -1,8 +1,101 @@
 import { Router } from 'express';
 import db from '../db.js';
-import { requireAuth } from '../auth.js';
+import { requireAuth, requireRole } from '../auth.js';
+import { loadBiblioteca, calcularListaCorte } from './producao.js';
+import { logActivity } from '../services/notificacoes.js';
 
 const router = Router();
+
+// ═══════════════════════════════════════════════════
+// HELPER — Sincronizar despesa consolidada de materiais
+// ═══════════════════════════════════════════════════
+function syncMaterialExpense(projeto_id) {
+    const MARKER = 'Materiais (consumo automático)';
+    // Calcular total gasto em materiais neste projeto
+    const result = db.prepare(`
+        SELECT COALESCE(SUM(m.quantidade * CASE WHEN m.valor_unitario > 0 THEN m.valor_unitario ELSE b.preco END), 0) as total
+        FROM movimentacoes_estoque m
+        JOIN biblioteca b ON b.id = m.material_id
+        WHERE m.projeto_id = ? AND m.tipo = 'saida'
+    `).get(projeto_id);
+    const total = Math.round((result?.total || 0) * 100) / 100;
+
+    const existing = db.prepare(
+        "SELECT id FROM despesas_projeto WHERE projeto_id = ? AND descricao = ?"
+    ).get(projeto_id, MARKER);
+
+    if (total > 0) {
+        if (existing) {
+            db.prepare('UPDATE despesas_projeto SET valor = ?, data = date(\'now\') WHERE id = ?').run(total, existing.id);
+        } else {
+            db.prepare(`
+                INSERT INTO despesas_projeto (projeto_id, descricao, valor, data, categoria, fornecedor, observacao, criado_por)
+                VALUES (?, ?, ?, date('now'), 'material', '', 'Gerado automaticamente pelo consumo de insumos', NULL)
+            `).run(projeto_id, MARKER, total);
+        }
+    } else if (existing) {
+        db.prepare('DELETE FROM despesas_projeto WHERE id = ?').run(existing.id);
+    }
+}
+
+// ═══════════════════════════════════════════════════
+// HELPER — Construir materiais_orcados a partir do BOM
+// ═══════════════════════════════════════════════════
+function buildMateriaisOrcados(orc_id) {
+    const orc = db.prepare('SELECT mods_json FROM orcamentos WHERE id = ?').get(orc_id);
+    if (!orc) return '[]';
+
+    const bib = loadBiblioteca();
+    let mods;
+    try { mods = JSON.parse(orc.mods_json || '{}'); } catch { return '[]'; }
+
+    const calc = calcularListaCorte(mods, bib);
+    if (!calc) return '[]';
+
+    const materiaisOrcados = [];
+
+    // Chapas
+    if (calc.chapas) {
+        Object.values(calc.chapas).forEach(c => {
+            const bibRow = db.prepare('SELECT id FROM biblioteca WHERE cod = ? AND ativo = 1').get(c.id);
+            if (bibRow) {
+                materiaisOrcados.push({
+                    material_id: bibRow.id, cod: c.id, nome: c.nome,
+                    unidade: 'chapa', quantidade: c.qtdChapas || 1,
+                    valor_unitario: c.preco || 0,
+                    valor: (c.qtdChapas || 1) * (c.preco || 0), tipo: 'chapa',
+                });
+            }
+        });
+    }
+
+    // Ferragens
+    if (calc.ferragens) {
+        Object.values(calc.ferragens).forEach(f => {
+            const bibRow = db.prepare('SELECT id FROM biblioteca WHERE cod = ? AND ativo = 1').get(f.id);
+            if (bibRow && f.qtd > 0) {
+                materiaisOrcados.push({
+                    material_id: bibRow.id, cod: f.id, nome: f.nome,
+                    unidade: f.un || 'un', quantidade: f.qtd,
+                    valor_unitario: f.preco || 0,
+                    valor: f.qtd * (f.preco || 0), tipo: 'ferragem',
+                });
+            }
+        });
+    }
+
+    // Fita de borda
+    if (calc.fita && calc.fita.metros > 0) {
+        materiaisOrcados.push({
+            material_id: null, cod: 'fita', nome: 'Fita de Borda',
+            unidade: 'm', quantidade: Math.ceil(calc.fita.metros),
+            valor_unitario: calc.fita.metros > 0 ? calc.fita.custo / calc.fita.metros : 0,
+            valor: calc.fita.custo || 0, tipo: 'fita',
+        });
+    }
+
+    return JSON.stringify(materiaisOrcados);
+}
 
 // ═══════════════════════════════════════════════════
 // GET /api/estoque — lista materiais com saldo
@@ -62,6 +155,13 @@ router.post('/entrada', requireAuth, (req, res) => {
         VALUES (?, 'entrada', ?, ?, ?, ?)
     `).run(material_id, quantidade, valor_unitario || 0, descricao || 'Entrada de material', req.user.id);
 
+    try {
+        const mat = db.prepare('SELECT nome FROM biblioteca WHERE id = ?').get(material_id);
+        logActivity(req.user.id, req.user.nome, 'entrada_estoque',
+            `Entrada de ${quantidade}x "${mat?.nome || material_id}" no estoque`,
+            material_id, 'estoque', { quantidade, valor_unitario });
+    } catch (_) { }
+
     res.json({ ok: true });
 });
 
@@ -69,7 +169,7 @@ router.post('/entrada', requireAuth, (req, res) => {
 // POST /api/estoque/saida — registrar saída
 // ═══════════════════════════════════════════════════
 router.post('/saida', requireAuth, (req, res) => {
-    const { material_id, quantidade, projeto_id, descricao } = req.body;
+    const { material_id, quantidade, projeto_id, descricao, forcar } = req.body;
     if (!material_id || !quantidade || quantidade <= 0) {
         return res.status(400).json({ error: 'Material e quantidade positiva obrigatórios' });
     }
@@ -77,15 +177,33 @@ router.post('/saida', requireAuth, (req, res) => {
     const existing = db.prepare('SELECT id, quantidade FROM estoque WHERE material_id = ?').get(material_id);
     if (!existing) return res.status(400).json({ error: 'Material não possui estoque cadastrado' });
 
-    // Atualizar saldo (permite ficar negativo para controle)
+    // Validar saldo suficiente (só permite negativo se forcar=true)
+    if (existing.quantidade < quantidade && !forcar) {
+        return res.status(400).json({
+            error: `Saldo insuficiente. Disponível: ${existing.quantidade}, solicitado: ${quantidade}`,
+            saldo_atual: existing.quantidade
+        });
+    }
+
     db.prepare('UPDATE estoque SET quantidade = quantidade - ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?')
         .run(quantidade, existing.id);
 
-    // Registrar movimentação
+    const mat = db.prepare('SELECT preco, nome FROM biblioteca WHERE id = ?').get(material_id);
+    const valorUnit = mat?.preco || 0;
+
     db.prepare(`
-        INSERT INTO movimentacoes_estoque (material_id, projeto_id, tipo, quantidade, descricao, criado_por)
-        VALUES (?, ?, 'saida', ?, ?, ?)
-    `).run(material_id, projeto_id || null, quantidade, descricao || 'Saída de material', req.user.id);
+        INSERT INTO movimentacoes_estoque (material_id, projeto_id, tipo, quantidade, valor_unitario, descricao, criado_por)
+        VALUES (?, ?, 'saida', ?, ?, ?, ?)
+    `).run(material_id, projeto_id || null, quantidade, valorUnit, descricao || 'Saída de material', req.user.id);
+
+    // Sincronizar despesa se vinculado a projeto
+    if (projeto_id) syncMaterialExpense(projeto_id);
+
+    try {
+        logActivity(req.user.id, req.user.nome, 'saida_estoque',
+            `Saída de ${quantidade}x "${mat?.nome || material_id}" do estoque`,
+            material_id, 'estoque', { quantidade, projeto_id: projeto_id || null });
+    } catch (_) { }
 
     res.json({ ok: true });
 });
@@ -181,20 +299,41 @@ router.post('/projeto/:id/consumir', requireAuth, (req, res) => {
         return res.status(400).json({ error: 'Material e quantidade positiva obrigatórios' });
     }
 
-    // Atualizar saldo
+    // Buscar preço atual do material para registrar valor_unitario
+    const mat = db.prepare('SELECT preco FROM biblioteca WHERE id = ?').get(material_id);
+    const valorUnit = mat?.preco || 0;
+
+    // Atualizar saldo (validar disponibilidade)
     const existing = db.prepare('SELECT id, quantidade FROM estoque WHERE material_id = ?').get(material_id);
     if (existing) {
+        if (existing.quantidade < quantidade) {
+            return res.status(400).json({
+                error: `Saldo insuficiente de "${db.prepare('SELECT nome FROM biblioteca WHERE id = ?').get(material_id)?.nome || material_id}". Disponível: ${existing.quantidade}, solicitado: ${quantidade}`,
+                saldo_atual: existing.quantidade
+            });
+        }
         db.prepare('UPDATE estoque SET quantidade = quantidade - ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?')
             .run(quantidade, existing.id);
     } else {
-        db.prepare('INSERT INTO estoque (material_id, quantidade) VALUES (?, ?)').run(material_id, -quantidade);
+        return res.status(400).json({ error: 'Material não possui estoque cadastrado. Registre uma entrada antes de consumir.' });
     }
 
-    // Registrar movimentação vinculada ao projeto
+    // Registrar movimentação vinculada ao projeto (agora com valor_unitario)
     db.prepare(`
-        INSERT INTO movimentacoes_estoque (material_id, projeto_id, tipo, quantidade, descricao, criado_por)
-        VALUES (?, ?, 'saida', ?, ?, ?)
-    `).run(material_id, projeto_id, quantidade, descricao || 'Consumo do projeto', req.user.id);
+        INSERT INTO movimentacoes_estoque (material_id, projeto_id, tipo, quantidade, valor_unitario, descricao, criado_por)
+        VALUES (?, ?, 'saida', ?, ?, ?, ?)
+    `).run(material_id, projeto_id, quantidade, valorUnit, descricao || 'Consumo do projeto', req.user.id);
+
+    // Sincronizar despesa consolidada de materiais no financeiro
+    syncMaterialExpense(projeto_id);
+
+    try {
+        const matInfo = db.prepare('SELECT nome FROM biblioteca WHERE id = ?').get(material_id);
+        const projInfo = db.prepare('SELECT nome FROM projetos WHERE id = ?').get(projeto_id);
+        logActivity(req.user.id, req.user.nome, 'consumir_material',
+            `Consumiu ${quantidade}x "${matInfo?.nome || material_id}" no projeto "${projInfo?.nome || projeto_id}"`,
+            projeto_id, 'projeto', { material_id, quantidade });
+    } catch (_) { }
 
     res.json({ ok: true });
 });
@@ -270,4 +409,77 @@ router.get('/projeto/:id/comparativo', requireAuth, (req, res) => {
     res.json({ comparativo, totais });
 });
 
+// ═══════════════════════════════════════════════════
+// DELETE /api/estoque/movimentacao/:id — excluir lançamento (gerente+ apenas)
+// ═══════════════════════════════════════════════════
+router.delete('/movimentacao/:id', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
+    const id = parseInt(req.params.id);
+    const mov = db.prepare('SELECT * FROM movimentacoes_estoque WHERE id = ?').get(id);
+    if (!mov) return res.status(404).json({ error: 'Movimentação não encontrada' });
+
+    // Reverter saldo do estoque
+    const existing = db.prepare('SELECT id FROM estoque WHERE material_id = ?').get(mov.material_id);
+    if (mov.tipo === 'saida') {
+        // Saída: devolver ao estoque
+        if (existing) {
+            db.prepare('UPDATE estoque SET quantidade = quantidade + ?, atualizado_em = CURRENT_TIMESTAMP WHERE material_id = ?')
+                .run(mov.quantidade, mov.material_id);
+        } else {
+            db.prepare('INSERT INTO estoque (material_id, quantidade) VALUES (?, ?)').run(mov.material_id, mov.quantidade);
+        }
+    } else if (mov.tipo === 'entrada') {
+        // Entrada: remover do estoque
+        if (existing) {
+            db.prepare('UPDATE estoque SET quantidade = quantidade - ?, atualizado_em = CURRENT_TIMESTAMP WHERE material_id = ?')
+                .run(mov.quantidade, mov.material_id);
+        }
+    }
+    // Ajustes: não reverter (complexo demais, snapshot já perdido)
+
+    // Excluir movimentação
+    db.prepare('DELETE FROM movimentacoes_estoque WHERE id = ?').run(id);
+
+    // Recalcular despesa consolidada se era vinculado a projeto
+    if (mov.projeto_id) {
+        syncMaterialExpense(mov.projeto_id);
+    }
+
+    try {
+        const matInfo = db.prepare('SELECT nome FROM biblioteca WHERE id = ?').get(mov.material_id);
+        logActivity(req.user.id, req.user.nome, 'excluir_movimentacao',
+            `Excluiu movimentação de ${mov.tipo} ${mov.quantidade}x "${matInfo?.nome || mov.material_id}"`,
+            mov.material_id, 'estoque', { tipo: mov.tipo, quantidade: mov.quantidade, projeto_id: mov.projeto_id });
+    } catch (_) { }
+
+    res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════
+// POST /api/estoque/projeto/:id/recalcular-orcado — recalcular BOM
+// ═══════════════════════════════════════════════════
+router.post('/projeto/:id/recalcular-orcado', requireAuth, (req, res) => {
+    const projeto_id = parseInt(req.params.id);
+    const proj = db.prepare('SELECT orc_id FROM projetos WHERE id = ?').get(projeto_id);
+    if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
+    if (!proj.orc_id) return res.status(400).json({ error: 'Projeto sem orçamento vinculado' });
+
+    try {
+        // Verificar se orçamento tem módulos configurados
+        const orc = db.prepare('SELECT mods_json FROM orcamentos WHERE id = ?').get(proj.orc_id);
+        let mods;
+        try { mods = JSON.parse(orc?.mods_json || '{}'); } catch { mods = {}; }
+        const ambientes = mods?.ambientes || [];
+        const totalModulos = ambientes.reduce((s, a) => s + (a.modulos || []).length, 0);
+
+        const materiaisJson = buildMateriaisOrcados(proj.orc_id);
+        db.prepare('UPDATE projetos SET materiais_orcados = ? WHERE id = ?').run(materiaisJson, projeto_id);
+        const itens = JSON.parse(materiaisJson);
+        res.json({ ok: true, itens: itens.length, ambientes: ambientes.length, modulos: totalModulos });
+    } catch (err) {
+        console.error('Erro ao recalcular BOM:', err);
+        res.status(500).json({ error: 'Erro ao calcular materiais do orçamento' });
+    }
+});
+
 export default router;
+export { buildMateriaisOrcados, syncMaterialExpense };

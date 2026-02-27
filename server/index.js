@@ -21,6 +21,8 @@ import recursosRoutes from './routes/recursos.js';
 import dashboardRoutes from './routes/dashboard.js';
 import landingRoutes from './routes/landing.js';
 import producaoRoutes from './routes/producao.js';
+import notificacoesRoutes from './routes/notificacoes.js';
+import atividadesRoutes from './routes/atividades.js';
 
 // Inicializa DB (efeito colateral — cria tabelas e seed)
 import './db.js';
@@ -39,7 +41,10 @@ app.use('/api/webhook', express.json(), webhookRoutes);
 // ═══ Landing/Leads ANTES do CORS (endpoints públicos com rate limit) ═══
 app.use('/api/leads', publicLimiter, express.json(), landingRoutes);
 
-app.use(cors({ origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5175', 'http://127.0.0.1:5175'] }));
+const corsOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
+    : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5175', 'http://127.0.0.1:5175'];
+app.use(cors({ origin: corsOrigins }));
 app.use(express.json({ limit: '20mb' }));
 
 // ═══════════════════════════════════════════════════════
@@ -65,6 +70,8 @@ app.use('/api/ia', iaRoutes);
 app.use('/api/recursos', recursosRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/producao', producaoRoutes);
+app.use('/api/notificacoes', notificacoesRoutes);
+app.use('/api/atividades', atividadesRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));

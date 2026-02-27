@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { MapPin, Phone, Mail, Calendar, MessageSquare, Lock, CheckCircle2, Printer, PauseCircle, Clock, Play, AlertCircle, Send, User } from 'lucide-react';
+import { MapPin, Phone, Mail, Calendar, MessageSquare, Lock, CheckCircle2, Printer, PauseCircle, Clock, Play, AlertCircle, Send, User, Camera, X, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
 
 const dtFmt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const timeFmt = (s) => {
@@ -294,6 +294,244 @@ function PortalChat({ token, mensagens: initialMsgs, accent, primary, clienteNom
     );
 }
 
+// ─── Galeria de fotos do portal ──────────────
+function PortalGaleria({ token, accent, primary }) {
+    const [fotos, setFotos] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [lightbox, setLightbox] = useState(null);
+    const [filtroAmb, setFiltroAmb] = useState('');
+
+    useEffect(() => {
+        fetch(`/api/projetos/portal/${token}/fotos`)
+            .then(r => r.json())
+            .then(d => { if (Array.isArray(d)) setFotos(d); })
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, [token]);
+
+    // Lista de ambientes únicos
+    const ambientes = [...new Set(fotos.map(f => f.ambiente || 'Geral').filter(Boolean))];
+
+    // Fotos filtradas pelo ambiente selecionado
+    const fotosFiltradas = filtroAmb
+        ? fotos.filter(f => (f.ambiente || 'Geral') === filtroAmb)
+        : fotos;
+
+    // Navegação do lightbox (navega dentro das filtradas)
+    const navLightbox = (dir) => {
+        if (lightbox === null) return;
+        const next = lightbox + dir;
+        if (next >= 0 && next < fotosFiltradas.length) setLightbox(next);
+    };
+
+    // Fechar com Escape, navegar com setas
+    useEffect(() => {
+        if (lightbox === null) return;
+        const handler = (e) => {
+            if (e.key === 'Escape') setLightbox(null);
+            if (e.key === 'ArrowLeft') navLightbox(-1);
+            if (e.key === 'ArrowRight') navLightbox(1);
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [lightbox, fotosFiltradas.length]);
+
+    if (loading) return null;
+    if (fotos.length === 0) return null;
+
+    return (
+        <div style={{ background: '#fff', padding: '24px 32px', borderBottom: '1px solid #e2e8f0' }}>
+            <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Camera size={16} style={{ color: accent }} /> Fotos da Montagem
+            </h2>
+            <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>
+                {fotosFiltradas.length} foto{fotosFiltradas.length !== 1 ? 's' : ''}
+                {filtroAmb ? ` em ${filtroAmb}` : ` registrada${fotos.length !== 1 ? 's' : ''}`}
+            </p>
+
+            {/* Filtro por ambiente (tabs) */}
+            {ambientes.length > 1 && (
+                <div style={{ display: 'flex', gap: 6, marginBottom: 18, flexWrap: 'wrap' }}>
+                    <button
+                        onClick={() => setFiltroAmb('')}
+                        style={{
+                            padding: '6px 14px', borderRadius: 99, fontSize: 12, fontWeight: 600,
+                            border: `1.5px solid ${!filtroAmb ? accent : '#e2e8f0'}`,
+                            background: !filtroAmb ? `${accent}15` : '#fff',
+                            color: !filtroAmb ? accent : '#64748b',
+                            cursor: 'pointer', transition: 'all 0.15s',
+                        }}
+                    >
+                        Todos ({fotos.length})
+                    </button>
+                    {ambientes.map(amb => {
+                        const count = fotos.filter(f => (f.ambiente || 'Geral') === amb).length;
+                        const active = filtroAmb === amb;
+                        return (
+                            <button
+                                key={amb}
+                                onClick={() => setFiltroAmb(active ? '' : amb)}
+                                style={{
+                                    padding: '6px 14px', borderRadius: 99, fontSize: 12, fontWeight: 600,
+                                    border: `1.5px solid ${active ? accent : '#e2e8f0'}`,
+                                    background: active ? `${accent}15` : '#fff',
+                                    color: active ? accent : '#64748b',
+                                    cursor: 'pointer', transition: 'all 0.15s',
+                                }}
+                            >
+                                {amb} ({count})
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Grid de fotos */}
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                gap: 10,
+            }}>
+                {fotosFiltradas.map((f, idx) => (
+                    <div
+                        key={f.id}
+                        onClick={() => setLightbox(idx)}
+                        style={{
+                            position: 'relative',
+                            paddingBottom: '100%',
+                            borderRadius: 10,
+                            overflow: 'hidden',
+                            cursor: 'pointer',
+                            background: '#f1f5f9',
+                            border: '1px solid #e2e8f0',
+                        }}
+                    >
+                        <img
+                            src={f.url}
+                            alt={f.ambiente || 'Foto'}
+                            loading="lazy"
+                            style={{
+                                position: 'absolute',
+                                top: 0, left: 0,
+                                width: '100%', height: '100%',
+                                objectFit: 'cover',
+                                transition: 'transform 0.2s',
+                            }}
+                            onMouseEnter={e => e.target.style.transform = 'scale(1.05)'}
+                            onMouseLeave={e => e.target.style.transform = 'scale(1)'}
+                        />
+                        <div style={{
+                            position: 'absolute', bottom: 0, left: 0, right: 0,
+                            background: 'linear-gradient(transparent, rgba(0,0,0,0.55))',
+                            padding: '18px 8px 6px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        }}>
+                            <span style={{ fontSize: 10, color: '#fff', opacity: 0.9, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                <ZoomIn size={10} />
+                                {new Date(f.criado_em).toLocaleDateString('pt-BR')}
+                            </span>
+                            {!filtroAmb && f.ambiente && (
+                                <span style={{ fontSize: 9, color: '#fff', background: 'rgba(255,255,255,0.2)', padding: '1px 6px', borderRadius: 6, fontWeight: 600 }}>
+                                    {f.ambiente}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* ─── Lightbox fullscreen ──────────── */}
+            {lightbox !== null && fotosFiltradas[lightbox] && (
+                <div
+                    onClick={() => setLightbox(null)}
+                    style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(0,0,0,0.92)',
+                        zIndex: 9999,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                >
+                    {/* Fechar */}
+                    <button
+                        onClick={() => setLightbox(null)}
+                        style={{
+                            position: 'absolute', top: 16, right: 16,
+                            background: 'rgba(255,255,255,0.15)', border: 'none',
+                            color: '#fff', borderRadius: '50%', width: 40, height: 40,
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            zIndex: 10,
+                        }}
+                    >
+                        <X size={20} />
+                    </button>
+
+                    {/* Navegação anterior */}
+                    {lightbox > 0 && (
+                        <button
+                            onClick={e => { e.stopPropagation(); navLightbox(-1); }}
+                            style={{
+                                position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
+                                background: 'rgba(255,255,255,0.15)', border: 'none',
+                                color: '#fff', borderRadius: '50%', width: 44, height: 44,
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}
+                        >
+                            <ChevronLeft size={24} />
+                        </button>
+                    )}
+
+                    {/* Foto */}
+                    <img
+                        src={fotosFiltradas[lightbox].url}
+                        alt=""
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            maxWidth: '90vw', maxHeight: '85vh',
+                            objectFit: 'contain', borderRadius: 8,
+                            boxShadow: '0 4px 30px rgba(0,0,0,0.5)',
+                        }}
+                    />
+
+                    {/* Navegação próxima */}
+                    {lightbox < fotosFiltradas.length - 1 && (
+                        <button
+                            onClick={e => { e.stopPropagation(); navLightbox(1); }}
+                            style={{
+                                position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
+                                background: 'rgba(255,255,255,0.15)', border: 'none',
+                                color: '#fff', borderRadius: '50%', width: 44, height: 44,
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}
+                        >
+                            <ChevronRight size={24} />
+                        </button>
+                    )}
+
+                    {/* Info da foto */}
+                    <div style={{
+                        position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)',
+                        background: 'rgba(0,0,0,0.6)', borderRadius: 10,
+                        padding: '8px 18px', color: '#fff', fontSize: 12,
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        whiteSpace: 'nowrap',
+                    }}>
+                        <span style={{ fontWeight: 700 }}>{lightbox + 1} / {fotosFiltradas.length}</span>
+                        {fotosFiltradas[lightbox].ambiente && (
+                            <span style={{ opacity: 0.7 }}>{fotosFiltradas[lightbox].ambiente}</span>
+                        )}
+                        {fotosFiltradas[lightbox].nome_montador && (
+                            <span style={{ opacity: 0.7 }}>por {fotosFiltradas[lightbox].nome_montador}</span>
+                        )}
+                        <span style={{ opacity: 0.5 }}>
+                            {new Date(fotosFiltradas[lightbox].criado_em).toLocaleDateString('pt-BR')}
+                        </span>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ─── Página pública do Portal do Cliente ──────────────
 export default function PortalCliente({ token }) {
     const [data, setData] = useState(null);
@@ -533,6 +771,9 @@ export default function PortalCliente({ token }) {
                         clienteNome={projeto.cliente_nome}
                     />
                 </div>
+
+                {/* ─── Galeria de Fotos ──────────────────────── */}
+                <PortalGaleria token={token} accent={accent} primary={primary} />
 
                 {/* ─── Rodapé ─────────────────────────────────── */}
                 <div style={{

@@ -2,6 +2,8 @@ import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth, canSeeAll } from '../auth.js';
 import { randomBytes } from 'crypto';
+import { buildMateriaisOrcados } from './estoque.js';
+import { createNotification, logActivity } from '../services/notificacoes.js';
 
 const router = Router();
 
@@ -329,49 +331,61 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
         if (orc.tipo === 'aditivo' && orc.parent_orc_id) {
             const projPai = db.prepare('SELECT id FROM projetos WHERE orc_id = ?').get(orc.parent_orc_id);
             if (projPai) {
-                // Gerar contas a receber vinculadas ao projeto do pai
-                try {
-                    const data = JSON.parse(orc.mods_json || '{}');
-                    const pagamento = data.pagamento || { desconto: { tipo: '%', valor: 0 }, blocos: [] };
-                    const desconto = pagamento.desconto?.valor || 0;
-                    const valorBase = orc.valor_venda || 0;
-                    const valorFinal = pagamento.desconto?.tipo === '%'
-                        ? valorBase * (1 - desconto / 100)
-                        : Math.max(0, valorBase - desconto);
+                // Gerar contas a receber vinculadas ao projeto do pai (evitar duplicatas)
+                const jaTemParcelas = db.prepare('SELECT id FROM contas_receber WHERE orc_id = ? AND auto_gerada = 1').get(orc.id);
+                if (!jaTemParcelas) {
+                    try {
+                        const data = JSON.parse(orc.mods_json || '{}');
+                        const pagamento = data.pagamento || { desconto: { tipo: '%', valor: 0 }, blocos: [] };
+                        const desconto = pagamento.desconto?.valor || 0;
+                        const valorBase = orc.valor_venda || 0;
+                        const valorFinal = pagamento.desconto?.tipo === '%'
+                            ? valorBase * (1 - desconto / 100)
+                            : Math.max(0, valorBase - desconto);
 
-                    if (pagamento.blocos && pagamento.blocos.length > 0 && valorFinal > 0) {
-                        const stmtCR = db.prepare(`
-                            INSERT INTO contas_receber (projeto_id, orc_id, descricao, valor, data_vencimento, meio_pagamento, auto_gerada)
-                            VALUES (?, ?, ?, ?, ?, ?, 1)
-                        `);
-                        const MEIO_LABEL = {
-                            pix: 'PIX', dinheiro: 'Dinheiro', cartao_credito: 'Cartão Crédito',
-                            cartao_debito: 'Cartão Débito', transferencia: 'Transferência',
-                            boleto: 'Boleto', cheque: 'Cheque',
-                        };
-                        const hoje = new Date();
-                        let parcNum = 0;
-                        for (const bloco of pagamento.blocos) {
-                            const valorBloco = valorFinal * ((bloco.percentual || 0) / 100);
-                            const nParcelas = Math.max(1, bloco.parcelas || 1);
-                            const valorParcela = Math.round((valorBloco / nParcelas) * 100) / 100;
+                        if (pagamento.blocos && pagamento.blocos.length > 0 && valorFinal > 0) {
+                            const stmtCR = db.prepare(`
+                                INSERT INTO contas_receber (projeto_id, orc_id, descricao, valor, data_vencimento, meio_pagamento, auto_gerada)
+                                VALUES (?, ?, ?, ?, ?, ?, 1)
+                            `);
+                            const MEIO_LABEL = {
+                                pix: 'PIX', dinheiro: 'Dinheiro', cartao_credito: 'Cartão Crédito',
+                                cartao_debito: 'Cartão Débito', transferencia: 'Transferência',
+                                boleto: 'Boleto', cheque: 'Cheque',
+                            };
+                            const hoje = new Date();
+                            let parcNum = 0;
+                            for (const bloco of pagamento.blocos) {
+                                const valorBloco = valorFinal * ((bloco.percentual || 0) / 100);
+                                const nParcelas = Math.max(1, bloco.parcelas || 1);
+                                const valorParcela = Math.round((valorBloco / nParcelas) * 100) / 100;
 
-                            for (let i = 0; i < nParcelas; i++) {
-                                parcNum++;
-                                const venc = new Date(hoje);
-                                venc.setMonth(venc.getMonth() + i);
-                                const descr = nParcelas > 1
-                                    ? `Aditivo ${orc.numero} – ${bloco.descricao || 'Parcela'} ${i + 1}/${nParcelas}`
-                                    : `Aditivo ${orc.numero} – ${bloco.descricao || `Pagamento ${parcNum}`}`;
-                                stmtCR.run(
-                                    projPai.id, orc.id, descr, valorParcela,
-                                    venc.toISOString().slice(0, 10),
-                                    MEIO_LABEL[bloco.meio] || bloco.meio || ''
-                                );
+                                for (let i = 0; i < nParcelas; i++) {
+                                    parcNum++;
+                                    const venc = new Date(hoje);
+                                    venc.setMonth(venc.getMonth() + i);
+                                    const descr = nParcelas > 1
+                                        ? `Aditivo ${orc.numero} – ${bloco.descricao || 'Parcela'} ${i + 1}/${nParcelas}`
+                                        : `Aditivo ${orc.numero} – ${bloco.descricao || `Pagamento ${parcNum}`}`;
+                                    stmtCR.run(
+                                        projPai.id, orc.id, descr, valorParcela,
+                                        venc.toISOString().slice(0, 10),
+                                        MEIO_LABEL[bloco.meio] || bloco.meio || ''
+                                    );
+                                }
                             }
                         }
+                    } catch (_) { /* erro ao importar parcelas do aditivo */ }
+                }
+
+                // Recalcular materiais_orcados do projeto pai (inclui aditivos)
+                try {
+                    const materiaisJson = buildMateriaisOrcados(orc.parent_orc_id);
+                    if (materiaisJson && materiaisJson !== '[]') {
+                        db.prepare('UPDATE projetos SET materiais_orcados = ? WHERE id = ?').run(materiaisJson, projPai.id);
                     }
-                } catch (_) { /* erro ao importar parcelas do aditivo */ }
+                } catch (_) { /* erro ao recalcular BOM */ }
+
                 projeto_criado = projPai.id;
             }
         } else {
@@ -406,6 +420,14 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
                 ];
                 const stmtE = db.prepare('INSERT INTO etapas_projeto (projeto_id, nome, ordem) VALUES (?, ?, ?)');
                 ETAPAS_PADRAO.forEach((nome, i) => stmtE.run(projId, nome, i));
+
+                // Popular materiais_orcados com BOM do orçamento
+                try {
+                    const materiaisJson = buildMateriaisOrcados(id);
+                    if (materiaisJson && materiaisJson !== '[]') {
+                        db.prepare('UPDATE projetos SET materiais_orcados = ? WHERE id = ?').run(materiaisJson, projId);
+                    }
+                } catch (_) { /* erro ao calcular BOM não impede criação */ }
 
                 // Auto-importar parcelas do pagamento como contas a receber
                 try {
@@ -453,6 +475,33 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
             }
         }
     }
+
+    // ═══ Log de atividade e notificações ═══
+    try {
+        const orc = db.prepare('SELECT numero, cliente_nome, ambiente, valor_venda FROM orcamentos WHERE id = ?').get(id);
+        const label = orc?.numero || `#${id}`;
+        const cliente = orc?.cliente_nome || '';
+
+        logActivity(req.user.id, req.user.nome, 'mover_pipeline',
+            `Moveu orçamento ${label} de ${cliente} para "${kb_col}"`,
+            id, 'orcamento', { old_col: existing.kb_col, new_col: kb_col });
+
+        if (kb_col === 'ok') {
+            createNotification('orcamento_aprovado',
+                `Orçamento aprovado: ${label}`,
+                `${cliente} · ${orc?.ambiente || 'Projeto'}`,
+                id, 'orcamento', cliente, req.user.id);
+        }
+        if (projeto_criado) {
+            createNotification('projeto_criado',
+                `Projeto criado: ${cliente || 'Novo projeto'}`,
+                `Criado automaticamente do orçamento ${label}`,
+                projeto_criado, 'projeto', cliente, req.user.id);
+            logActivity(req.user.id, req.user.nome, 'criar',
+                `Projeto criado automaticamente: ${cliente} (orç. ${label})`,
+                projeto_criado, 'projeto', { orc_id: id });
+        }
+    } catch (_) { /* log não bloqueia */ }
 
     res.json({ ok: true, projeto_criado });
 });

@@ -325,6 +325,7 @@ db.exec(`
     nome_montador TEXT DEFAULT '',
     ambiente TEXT DEFAULT '',
     filename TEXT NOT NULL,
+    visivel_portal INTEGER DEFAULT 0,
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -529,6 +530,65 @@ const migrations = [
   )`,
   // Portal v2: token no projeto para facilitar lookup
   "ALTER TABLE projetos ADD COLUMN portal_notif_email TEXT DEFAULT ''",
+  // ═══ Portal: controle de visibilidade das fotos ═══
+  "ALTER TABLE montador_fotos ADD COLUMN visivel_portal INTEGER DEFAULT 0",
+  // ═══ Sistema de Notificações ═══
+  `CREATE TABLE IF NOT EXISTS notificacoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT NOT NULL,
+    titulo TEXT NOT NULL,
+    mensagem TEXT DEFAULT '',
+    referencia_id INTEGER,
+    referencia_tipo TEXT,
+    referencia_extra TEXT DEFAULT '',
+    criado_por INTEGER REFERENCES users(id),
+    ativo INTEGER DEFAULT 1,
+    expira_em DATETIME,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS notificacoes_lidas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    notificacao_id INTEGER NOT NULL REFERENCES notificacoes(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    lida_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(notificacao_id, user_id)
+  )`,
+  // ═══ Log de Atividades ═══
+  `CREATE TABLE IF NOT EXISTS atividades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    user_nome TEXT NOT NULL,
+    acao TEXT NOT NULL,
+    descricao TEXT NOT NULL,
+    referencia_id INTEGER,
+    referencia_tipo TEXT,
+    detalhes TEXT DEFAULT '{}',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // ═══ Contas a Receber — Parcelamento + Boleto + NF ═══
+  "ALTER TABLE contas_receber ADD COLUMN codigo_barras TEXT DEFAULT ''",
+  "ALTER TABLE contas_receber ADD COLUMN nf_numero TEXT DEFAULT ''",
+  "ALTER TABLE contas_receber ADD COLUMN parcela_num INTEGER DEFAULT 0",
+  "ALTER TABLE contas_receber ADD COLUMN parcela_total INTEGER DEFAULT 0",
+  "ALTER TABLE contas_receber ADD COLUMN grupo_parcela_id INTEGER DEFAULT NULL",
+  // ═══ Contas a Pagar — Parcelamento ═══
+  "ALTER TABLE contas_pagar ADD COLUMN parcela_num INTEGER DEFAULT 0",
+  "ALTER TABLE contas_pagar ADD COLUMN parcela_total INTEGER DEFAULT 0",
+  "ALTER TABLE contas_pagar ADD COLUMN grupo_parcela_id INTEGER DEFAULT NULL",
+  // ═══ Contas a Pagar — Nota Fiscal ═══
+  "ALTER TABLE contas_pagar ADD COLUMN nf_numero TEXT DEFAULT ''",
+  "ALTER TABLE contas_pagar ADD COLUMN nf_chave TEXT DEFAULT ''",
+  // ═══ Contas a Pagar — Anexos ═══
+  `CREATE TABLE IF NOT EXISTS contas_pagar_anexos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conta_pagar_id INTEGER NOT NULL REFERENCES contas_pagar(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id),
+    nome TEXT NOT NULL,
+    tipo TEXT DEFAULT 'boleto',
+    filename TEXT NOT NULL,
+    tamanho INTEGER DEFAULT 0,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
@@ -577,6 +637,17 @@ const indexes = [
   "CREATE INDEX IF NOT EXISTS idx_contas_receber_projeto ON contas_receber(projeto_id)",
   "CREATE INDEX IF NOT EXISTS idx_despesas_projeto ON despesas_projeto(projeto_id)",
   "CREATE INDEX IF NOT EXISTS idx_etapas_projeto ON etapas_projeto(projeto_id)",
+  // Notificações + Atividades
+  "CREATE INDEX IF NOT EXISTS idx_notificacoes_ativo ON notificacoes(ativo, criado_em)",
+  "CREATE INDEX IF NOT EXISTS idx_notificacoes_ref ON notificacoes(referencia_tipo, referencia_id)",
+  "CREATE INDEX IF NOT EXISTS idx_notificacoes_lidas_user ON notificacoes_lidas(user_id)",
+  "CREATE INDEX IF NOT EXISTS idx_notificacoes_lidas_notif ON notificacoes_lidas(notificacao_id)",
+  "CREATE INDEX IF NOT EXISTS idx_atividades_criado ON atividades(criado_em)",
+  "CREATE INDEX IF NOT EXISTS idx_atividades_ref ON atividades(referencia_tipo, referencia_id)",
+  // Contas a Pagar v2
+  "CREATE INDEX IF NOT EXISTS idx_contas_pagar_grupo ON contas_pagar(grupo_parcela_id)",
+  "CREATE INDEX IF NOT EXISTS idx_contas_pagar_recorrencia ON contas_pagar(recorrencia_pai_id)",
+  "CREATE INDEX IF NOT EXISTS idx_contas_pagar_anexos ON contas_pagar_anexos(conta_pagar_id)",
 ];
 for (const sql of indexes) {
   try { db.exec(sql); } catch (_) { }
@@ -606,9 +677,11 @@ if (!empExists) {
 // ═══════════════════════════════════════════════════════
 const adminExists = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@admin.com');
 if (!adminExists) {
-  const hash = bcrypt.hashSync('admin123', 10);
+  const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
+  const hash = bcrypt.hashSync(adminPass, 10);
   db.prepare('INSERT INTO users (nome, email, senha_hash, role) VALUES (?, ?, ?, ?)').run('Administrador', 'admin@admin.com', hash, 'admin');
-  console.log('✓ Usuário admin criado: admin@admin.com / admin123');
+  if (adminPass === 'admin123') console.log('* Admin criado: admin@admin.com / admin123 (ALTERE em producao via ADMIN_PASSWORD env)');
+  else console.log('* Admin criado: admin@admin.com (senha via env)');
 }
 
 const configExists = db.prepare('SELECT id FROM config_taxas WHERE id = 1').get();
