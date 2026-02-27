@@ -1056,4 +1056,752 @@ if (caixaCount.c === 0) {
   }
 }
 
+// ═══════════════════════════════════════════════════════
+// SEED v3 — Biblioteca expandida + Catálogo completo
+// Baseado em análise de projetos reais (Arauco, Guararapes, Duratex)
+// Materiais genéricos 15mm + ferragens + módulos diversos
+// ═══════════════════════════════════════════════════════
+{
+  // ─── Materiais genéricos (chapas 15mm, R$0) ─────────────────────
+  const hasMatV3 = db.prepare("SELECT COUNT(*) as c FROM biblioteca WHERE cod = 'amad_medio'").get();
+  if (hasMatV3.c === 0) {
+    const matIns = db.prepare(
+      'INSERT INTO biblioteca (tipo, cod, nome, descricao, unidade, preco, espessura, largura, altura, perda_pct, preco_m2, fita_preco, categoria) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
+    );
+
+    // Chapas genéricas 15mm (preço R$0 — ajuste manual posterior)
+    const chapas = [
+      ['amad_medio',    'Amadeirado Médio 15mm',   'MDP/MDF Amadeirado Médio (ex: Louro Freijó, Carvalho Malva)'],
+      ['amad_claro',    'Amadeirado Claro 15mm',   'MDP/MDF Amadeirado Claro (ex: Areia, Lord, Sal Rosa)'],
+      ['amad_escuro',   'Amadeirado Escuro 15mm',  'MDP/MDF Amadeirado Escuro (ex: Nogueira, Gaia)'],
+      ['personalizado', 'Personalizado 15mm',       'Material personalizado (ex: Verde Floresta, cores especiais)'],
+      ['laca15',        'Laca 15mm',                'MDF para laqueamento (laca PU)'],
+      ['branco_ultra',  'Branco TX Ultra 15mm',     'MDP Branco TX Ultra'],
+      ['branco_tx15',   'Branco TX 15mm',           'MDP Branco TX'],
+      ['preto_tx',      'Preto TX 15mm',            'MDP Preto TX'],
+    ];
+    for (const [cod, nome, desc] of chapas) {
+      matIns.run('material', cod, nome, desc, 'chapa', 0, 15, 2750, 1850, 15, 0, 0, '');
+    }
+
+    // Acabamentos extras (encontrados nos projetos)
+    const acabamentos = [
+      ['palhinha',       'Palhinha Indiana Natural', 'Palhinha natural para portas e detalhes',     'm²', 0],
+      ['vidro_incol',    'Vidro Incolor 6mm',        'Vidro temperado incolor para portas',         'm²', 0],
+      ['vidro_refbronze','Vidro Reflecta Bronze',    'Vidro reflecta bronze para portas de correr', 'm²', 0],
+      ['muxarabi',       'Muxarabi MDF',             'Painel muxarabi decorativo em MDF',           'm²', 0],
+    ];
+    for (const [cod, nome, desc, un, preco] of acabamentos) {
+      const exists = db.prepare('SELECT id FROM biblioteca WHERE cod = ?').get(cod);
+      if (!exists) matIns.run('acabamento', cod, nome, desc, un, preco, 0, 0, 0, 0, 0, 0, '');
+    }
+
+    // Ferragens extras (genéricas R$0)
+    const ferr = [
+      ['corrPesada',    'Corrediça Pesada',          'Full extension carga pesada',       'par', 'corrediça'],
+      ['articulador',   'Articulador',                'Articulador porta suspensa',        'par', 'articulador'],
+      ['trilhoCorrer',  'Trilho Porta de Correr',     'Sistema porta de correr alumínio',  'un',  ''],
+      ['supPrat',       'Suporte Prateleira',          'Pino/suporte regulável prateleira', 'un',  ''],
+      ['puxSlim',       'Puxador Slim Embutir',        'Puxador slim embutido',             'un',  ''],
+      ['puxPonto',      'Puxador Ponto Redondo',       'Puxador ponto redondo',             'un',  ''],
+      ['lixeiraDesliz', 'Lixeira Deslizante',          'Lixeira deslizante embutida',       'un',  ''],
+      ['perfilLed',     'Perfil de LED',               'Perfil LED alumínio + fita',        'm',   ''],
+    ];
+    for (const [cod, nome, desc, un, cat] of ferr) {
+      const exists = db.prepare('SELECT id FROM biblioteca WHERE cod = ?').get(cod);
+      if (!exists) matIns.run('ferragem', cod, nome, desc, un, 0, 0, 0, 0, 0, 0, 0, cat);
+    }
+
+    // Acessórios extras
+    const acess = [
+      ['metalon2cm', 'Metalon 2cm Dourado Champanhe', 'Tubo metalon para pés, barras e cabideiros', 'm',  0],
+      ['divTalheres','Divisória para Talheres',         'Organizador de talheres para gaveta',        'un', 0],
+    ];
+    for (const [cod, nome, desc, un, preco] of acess) {
+      const exists = db.prepare('SELECT id FROM biblioteca WHERE cod = ?').get(cod);
+      if (!exists) matIns.run('acessorio', cod, nome, desc, un, preco, 0, 0, 0, 0, 0, 0, '');
+    }
+
+    console.log('[OK] Biblioteca v3: chapas genéricas 15mm + acabamentos + ferragens + acessórios');
+  }
+
+  // ─── Módulos expandidos (caixas + componentes) ────────────────────
+  const hasCatV3 = db.prepare("SELECT COUNT(*) as c FROM modulos_custom WHERE nome = 'Torre Quente'").get();
+  if (hasCatV3.c === 0) {
+    const ins = db.prepare('INSERT INTO modulos_custom (user_id, tipo_item, nome, json_data) VALUES (1, ?, ?, ?)');
+
+    // ── Peças padrão (caixaria completa) ──
+    const pecasPadrao = [
+      { id: 'le', nome: 'Lateral Esq.',  qtd: 1, calc: 'A*P',   mat: 'int',   fita: ['f'] },
+      { id: 'ld', nome: 'Lateral Dir.',  qtd: 1, calc: 'A*P',   mat: 'int',   fita: ['f'] },
+      { id: 'tp', nome: 'Topo',          qtd: 1, calc: 'Li*P',  mat: 'int',   fita: ['f'] },
+      { id: 'bs', nome: 'Base',          qtd: 1, calc: 'Li*P',  mat: 'int',   fita: ['f'] },
+      { id: 'fn', nome: 'Fundo',         qtd: 1, calc: 'Li*Ai', mat: 'fundo', fita: [] },
+    ];
+
+    // Variações sem fundo (módulos abertos atrás)
+    const pecasSemFundo = pecasPadrao.filter(p => p.id !== 'fn');
+
+    // ── Tamponamentos comuns ──
+    const tampFull = [
+      { id: 'te', nome: 'Tamp. Lat. Esq.',   face: 'lat_esq', calc: 'A*P',   mat: 'ext', fita: ['f','b'] },
+      { id: 'td', nome: 'Tamp. Lat. Dir.',   face: 'lat_dir', calc: 'A*P',   mat: 'ext', fita: ['f','b'] },
+      { id: 'tt', nome: 'Tamp. Topo',        face: 'topo',    calc: 'L*P',   mat: 'ext', fita: ['f'] },
+      { id: 'tb', nome: 'Rodapé/Base Vista', face: 'base',    calc: 'L*100', mat: 'ext', fita: ['f'] },
+    ];
+
+    const tampLaterais = [
+      { id: 'te', nome: 'Tamp. Lat. Esq.', face: 'lat_esq', calc: 'A*P', mat: 'ext', fita: ['f','b'] },
+      { id: 'td', nome: 'Tamp. Lat. Dir.', face: 'lat_dir', calc: 'A*P', mat: 'ext', fita: ['f','b'] },
+    ];
+
+    const tampBalcao = [
+      ...tampLaterais,
+      { id: 'tb', nome: 'Rodapé', face: 'base', calc: 'L*100', mat: 'ext', fita: ['f'] },
+    ];
+
+    const tampAereo = [
+      ...tampLaterais,
+      { id: 'tb', nome: 'Acab. Inferior', face: 'base', calc: 'L*P', mat: 'ext', fita: ['f'] },
+    ];
+
+    // ═══════════════════════════════════════════════════════
+    // NOVAS CAIXAS — baseadas em projetos reais analisados
+    // ═══════════════════════════════════════════════════════
+    const novasCaixas = [
+      // ─── COZINHA ───
+      {
+        nome: 'Torre Quente',
+        cat: 'cozinha', desc: 'Torre para forno e micro-ondas embutidos — nicho aberto no meio',
+        coef: 0.40,
+        pecas: pecasPadrao,
+        tamponamentos: tampFull,
+      },
+      {
+        nome: 'Nicho Microondas',
+        cat: 'cozinha', desc: 'Nicho para microondas embutido em armário suspenso',
+        coef: 0.20,
+        pecas: pecasSemFundo,
+        tamponamentos: tampLaterais,
+      },
+      {
+        nome: 'Nicho Eletro',
+        cat: 'cozinha', desc: 'Nicho para eletrodoméstico embutido (bebedouro, cafeteira, etc)',
+        coef: 0.22,
+        pecas: pecasSemFundo,
+        tamponamentos: tampLaterais,
+      },
+      {
+        nome: 'Balcão com Botijão',
+        cat: 'cozinha', desc: 'Balcão de cozinha com espaço para botijão de gás e lixeira embutida',
+        coef: 0.35,
+        pecas: pecasPadrao,
+        tamponamentos: tampBalcao,
+      },
+      {
+        nome: 'Ilha / Península',
+        cat: 'cozinha', desc: 'Ilha central ou península de cozinha com cooktop e cuba',
+        coef: 0.38,
+        pecas: pecasPadrao,
+        tamponamentos: [
+          ...tampLaterais,
+          { id: 'tf', nome: 'Tamp. Frontal',  face: 'frontal',  calc: 'L*A', mat: 'ext', fita: ['all'] },
+          { id: 'tr', nome: 'Tamp. Traseira', face: 'traseira', calc: 'L*A', mat: 'ext', fita: ['all'] },
+          { id: 'tto',nome: 'Tampo Superior',  face: 'topo',     calc: 'L*P', mat: 'ext', fita: ['f'] },
+        ],
+      },
+
+      // ─── SALA / LIVING ───
+      {
+        nome: 'Painel TV',
+        cat: 'sala', desc: 'Painel para TV — liso ou ripado, com cortes para pontos elétricos',
+        coef: 0.25,
+        pecas: [
+          { id: 'painel', nome: 'Painel',     qtd: 1, calc: 'L*A',  mat: 'int', fita: ['all'] },
+          { id: 'prat',   nome: 'Prateleira', qtd: 1, calc: 'L*P',  mat: 'int', fita: ['f'] },
+        ],
+        tamponamentos: [
+          { id: 'te', nome: 'Acabamento Painel', face: 'topo', calc: 'L*A', mat: 'ext', fita: ['all'] },
+        ],
+      },
+      {
+        nome: 'Rack TV',
+        cat: 'sala', desc: 'Rack suspenso ou apoiado sob painel TV — com portas e nichos',
+        coef: 0.28,
+        pecas: pecasPadrao,
+        tamponamentos: [
+          ...tampLaterais,
+          { id: 'tt', nome: 'Tampo', face: 'topo', calc: 'L*P', mat: 'ext', fita: ['f'] },
+        ],
+      },
+      {
+        nome: 'Aparador / Buffet',
+        cat: 'sala', desc: 'Módulo baixo tipo aparador, buffet ou credenza — com portas em palhinha',
+        coef: 0.30,
+        pecas: pecasPadrao,
+        tamponamentos: [
+          ...tampLaterais,
+          { id: 'tt', nome: 'Tampo Superior', face: 'topo', calc: 'L*P', mat: 'ext', fita: ['f'] },
+          { id: 'tb', nome: 'Rodapé',         face: 'base', calc: 'L*100', mat: 'ext', fita: ['f'] },
+        ],
+      },
+      {
+        nome: 'Estante / Armário com Nichos',
+        cat: 'sala', desc: 'Estante ou armário com nichos abertos e iluminados + portas inferiores',
+        coef: 0.32,
+        pecas: pecasPadrao,
+        tamponamentos: tampFull,
+      },
+      {
+        nome: 'Prateleira Avulsa',
+        cat: 'generico', desc: 'Prateleira individual fixada na parede — com bordas curvas',
+        coef: 0.15,
+        pecas: [
+          { id: 'prat', nome: 'Prateleira', qtd: 1, calc: 'L*P', mat: 'int', fita: ['f','b'] },
+        ],
+        tamponamentos: [
+          { id: 'te', nome: 'Acabamento', face: 'topo', calc: 'L*P', mat: 'ext', fita: ['all'] },
+        ],
+      },
+      {
+        nome: 'Painel Ripado',
+        cat: 'sala', desc: 'Painel ripado decorativo (2x2cm, 3x1cm, 4x2cm com 5mm de profundidade)',
+        coef: 0.30,
+        pecas: [
+          { id: 'painel', nome: 'Painel Base', qtd: 1, calc: 'L*A', mat: 'int', fita: [] },
+          { id: 'ripas',  nome: 'Ripas',       qtd: 1, calc: 'L*A', mat: 'ext', fita: [] },
+        ],
+        tamponamentos: [],
+      },
+      {
+        nome: 'Painel de Fechamento',
+        cat: 'generico', desc: 'Painel para fechamento (viga, escada, lateral) em L de 3cm',
+        coef: 0.20,
+        pecas: [
+          { id: 'painel', nome: 'Painel', qtd: 1, calc: 'L*A', mat: 'int', fita: ['all'] },
+        ],
+        tamponamentos: [
+          { id: 'te', nome: 'Acabamento', face: 'topo', calc: 'L*A', mat: 'ext', fita: ['all'] },
+        ],
+      },
+
+      // ─── QUARTO ───
+      {
+        nome: 'Cabeceira',
+        cat: 'quarto', desc: 'Painel cabeceira — ripado, liso ou com muxarabi',
+        coef: 0.22,
+        pecas: [
+          { id: 'painel', nome: 'Painel Cabeceira', qtd: 1, calc: 'L*A', mat: 'int', fita: ['all'] },
+        ],
+        tamponamentos: [
+          { id: 'te', nome: 'Acabamento Cabeceira', face: 'topo', calc: 'L*A', mat: 'ext', fita: ['all'] },
+        ],
+      },
+      {
+        nome: 'Cômoda',
+        cat: 'quarto', desc: 'Cômoda com gavetas — pés em metalon dourado champanhe',
+        coef: 0.28,
+        pecas: pecasPadrao,
+        tamponamentos: [
+          ...tampLaterais,
+          { id: 'tt', nome: 'Tampo', face: 'topo', calc: 'L*P', mat: 'ext', fita: ['f'] },
+          { id: 'tb', nome: 'Rodapé', face: 'base', calc: 'L*100', mat: 'ext', fita: ['f'] },
+        ],
+      },
+      {
+        nome: 'Mesa / Escrivaninha',
+        cat: 'quarto', desc: 'Mesa de estudo ou escrivaninha — com bordas curvas e gavetas',
+        coef: 0.28,
+        pecas: [
+          { id: 'tampo', nome: 'Tampo',        qtd: 1, calc: 'L*P',   mat: 'int', fita: ['all'] },
+          { id: 'le',    nome: 'Lateral Esq.',  qtd: 1, calc: 'A*P',   mat: 'int', fita: ['f'] },
+          { id: 'ld',    nome: 'Lateral Dir.',  qtd: 1, calc: 'A*P',   mat: 'int', fita: ['f'] },
+          { id: 'fn',    nome: 'Fundo/Costas',  qtd: 1, calc: 'Li*Ai', mat: 'fundo', fita: [] },
+        ],
+        tamponamentos: tampLaterais,
+      },
+      {
+        nome: 'Armário Suspenso Quarto',
+        cat: 'quarto', desc: 'Armário suspenso para quarto com prateleiras e portas',
+        coef: 0.25,
+        pecas: pecasPadrao,
+        tamponamentos: tampAereo,
+      },
+      {
+        nome: 'Guarda-Roupa',
+        cat: 'quarto', desc: 'Guarda-roupa com portas de correr em vidro ou MDF',
+        coef: 0.38,
+        pecas: pecasPadrao,
+        tamponamentos: tampFull,
+      },
+
+      // ─── BANHEIRO ───
+      {
+        nome: 'Gabinete Banheiro',
+        cat: 'banheiro', desc: 'Gabinete para banheiro ou lavabo — com gavetas e prateleira',
+        coef: 0.30,
+        pecas: pecasPadrao,
+        tamponamentos: tampBalcao,
+      },
+      {
+        nome: 'Painel Banheiro',
+        cat: 'banheiro', desc: 'Painel decorativo em L com prateleiras — banheiro social',
+        coef: 0.22,
+        pecas: [
+          { id: 'painel', nome: 'Painel', qtd: 1, calc: 'L*A', mat: 'int', fita: ['all'] },
+          { id: 'prat',   nome: 'Prateleira', qtd: 2, calc: 'L*P', mat: 'int', fita: ['f'] },
+        ],
+        tamponamentos: [
+          { id: 'te', nome: 'Acabamento', face: 'topo', calc: 'L*A', mat: 'ext', fita: ['all'] },
+        ],
+      },
+      {
+        nome: 'Espelheira',
+        cat: 'banheiro', desc: 'Armário espelheira suspenso com portas e prateleiras',
+        coef: 0.25,
+        pecas: pecasPadrao,
+        tamponamentos: tampAereo,
+      },
+
+      // ─── CLOSET / ROUPEIRO ───
+      {
+        nome: 'Armário em L',
+        cat: 'closet', desc: 'Armário de canto em L para roupeiro/closet — com cabideiro',
+        coef: 0.42,
+        pecas: pecasPadrao,
+        tamponamentos: tampFull,
+      },
+      {
+        nome: 'Coluna / Torre Closet',
+        cat: 'closet', desc: 'Coluna estreita tipo torre para closet ou despensa',
+        coef: 0.38,
+        pecas: pecasPadrao,
+        tamponamentos: tampFull,
+      },
+
+      // ─── ÁREA GOURMET ───
+      {
+        nome: 'Armário da Ilha Gourmet',
+        cat: 'gourmet', desc: 'Armário para ilha gourmet com gavetas e portas em palhinha',
+        coef: 0.35,
+        pecas: pecasPadrao,
+        tamponamentos: [
+          ...tampLaterais,
+          { id: 'tf', nome: 'Tamp. Frontal', face: 'frontal', calc: 'L*A', mat: 'ext', fita: ['all'] },
+          { id: 'tto',nome: 'Tampo',          face: 'topo',    calc: 'L*P', mat: 'ext', fita: ['f'] },
+        ],
+      },
+      {
+        nome: 'Painel da Viga',
+        cat: 'gourmet', desc: 'Revestimento de viga em MDF com frisos nos dois lados',
+        coef: 0.20,
+        pecas: [
+          { id: 'pain1', nome: 'Face Frontal', qtd: 1, calc: 'L*A', mat: 'int', fita: [] },
+          { id: 'pain2', nome: 'Face Traseira', qtd: 1, calc: 'L*A', mat: 'int', fita: [] },
+          { id: 'base',  nome: 'Base',          qtd: 1, calc: 'L*P', mat: 'int', fita: [] },
+        ],
+        tamponamentos: [],
+      },
+
+      // ─── LAVANDERIA ───
+      {
+        nome: 'Armário Lavanderia',
+        cat: 'lavanderia', desc: 'Armário para área de serviço com prateleiras internas',
+        coef: 0.25,
+        pecas: pecasPadrao,
+        tamponamentos: tampBalcao,
+      },
+
+      // ─── HOME OFFICE ───
+      {
+        nome: 'Home Office / Bancada',
+        cat: 'escritorio', desc: 'Bancada de trabalho com prateleiras e gavetas laterais',
+        coef: 0.30,
+        pecas: [
+          { id: 'tampo', nome: 'Tampo',        qtd: 1, calc: 'L*P',   mat: 'int', fita: ['all'] },
+          { id: 'le',    nome: 'Lateral Esq.',  qtd: 1, calc: 'A*P',   mat: 'int', fita: ['f'] },
+          { id: 'ld',    nome: 'Lateral Dir.',  qtd: 1, calc: 'A*P',   mat: 'int', fita: ['f'] },
+          { id: 'fn',    nome: 'Fundo/Costas',  qtd: 1, calc: 'Li*Ai', mat: 'fundo', fita: [] },
+        ],
+        tamponamentos: tampLaterais,
+      },
+
+      // ─── ESPECIAIS ───
+      {
+        nome: 'Móvel Curvo',
+        cat: 'especial', desc: 'Módulo com formas curvas — alta complexidade e avaria',
+        coef: 1.00,
+        pecas: pecasPadrao,
+        tamponamentos: tampFull,
+      },
+      {
+        nome: 'Canto (45° / L)',
+        cat: 'especial', desc: 'Módulo de canto — 45° ou formato L com corte especial',
+        coef: 0.45,
+        pecas: pecasPadrao,
+        tamponamentos: tampFull,
+      },
+      {
+        nome: 'Adega / Wine Bar',
+        cat: 'especial', desc: 'Módulo adega ou bar para vinhos com nichos',
+        coef: 0.35,
+        pecas: pecasPadrao,
+        tamponamentos: tampFull,
+      },
+      {
+        nome: 'Sapateira',
+        cat: 'closet', desc: 'Módulo sapateira com prateleiras inclinadas',
+        coef: 0.25,
+        pecas: pecasPadrao,
+        tamponamentos: tampBalcao,
+      },
+      {
+        nome: 'Geladeira / Forno Embutir',
+        cat: 'cozinha', desc: 'Nicho para geladeira ou forno embutido — aberto atrás',
+        coef: 0.30,
+        pecas: pecasSemFundo,
+        tamponamentos: tampLaterais,
+      },
+      {
+        nome: 'Armário Alto',
+        cat: 'generico', desc: 'Armário alto tipo roupeiro, despensa ou estante com portas',
+        coef: 0.35,
+        pecas: pecasPadrao,
+        tamponamentos: tampFull,
+      },
+      {
+        nome: 'Nicho Aberto Decorativo',
+        cat: 'generico', desc: 'Módulo nicho aberto para decoração — iluminado com LED',
+        coef: 0.20,
+        pecas: pecasSemFundo,
+        tamponamentos: tampLaterais,
+      },
+      {
+        nome: 'Espelho Orgânico',
+        cat: 'banheiro', desc: 'Espelho com borda orgânica em MDF — formato irregular',
+        coef: 0.30,
+        pecas: [
+          { id: 'borda', nome: 'Borda MDF', qtd: 1, calc: 'L*A', mat: 'int', fita: ['all'] },
+        ],
+        tamponamentos: [
+          { id: 'te', nome: 'Acabamento Borda', face: 'topo', calc: 'L*A', mat: 'ext', fita: ['all'] },
+        ],
+      },
+    ];
+
+    for (const cx of novasCaixas) {
+      ins.run('caixa', cx.nome, JSON.stringify(cx));
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // NOVOS COMPONENTES — baseados em projetos reais
+    // ═══════════════════════════════════════════════════════
+    const novosComps = [
+      // ─── PORTAS ───
+      {
+        nome: 'Porta Ripada',
+        cat: 'componente', desc: 'Porta com ripas decorativas (2x2cm ou 3x1cm, 5mm profundidade)',
+        coef: 0.20,
+        dimsAplicaveis: ['L'],
+        vars: [
+          { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
+          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+        ],
+        varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
+        pecas: [],
+        frente_externa: { ativa: true, id: 'porta', nome: 'Porta Ripada', calc: 'Lp*Ap', mat: 'ext_comp', fita: ['all'] },
+        sub_itens: [
+          { id: 'dob110', nome: 'Dobradiça 110°', ferrId: 'dob110', defaultOn: true, qtdFormula: 'nPortas*(Ap<=900?2:Ap<=1600?3:4)' },
+          { id: 'puxador', nome: 'Puxador', ferrId: 'pux128', defaultOn: true, qtdFormula: 'nPortas' },
+        ],
+      },
+      {
+        nome: 'Porta com Palhinha',
+        cat: 'componente', desc: 'Porta com detalhe em palhinha indiana natural',
+        coef: 0.25,
+        dimsAplicaveis: ['L'],
+        vars: [
+          { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
+          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+        ],
+        varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
+        pecas: [],
+        frente_externa: { ativa: true, id: 'porta', nome: 'Porta com Palhinha', calc: 'Lp*Ap', mat: 'ext_comp', fita: ['all'] },
+        sub_itens: [
+          { id: 'dob110', nome: 'Dobradiça 110°', ferrId: 'dob110', defaultOn: true, qtdFormula: 'nPortas*(Ap<=900?2:Ap<=1600?3:4)' },
+          { id: 'puxador', nome: 'Puxador Ponto', ferrId: 'puxPonto', defaultOn: true, qtdFormula: 'nPortas' },
+        ],
+      },
+      {
+        nome: 'Porta com Friso',
+        cat: 'componente', desc: 'Porta lisa com frisos de 5mm — estilo clássico',
+        coef: 0.18,
+        dimsAplicaveis: ['L'],
+        vars: [
+          { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
+          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+        ],
+        varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
+        pecas: [],
+        frente_externa: { ativa: true, id: 'porta', nome: 'Porta com Friso', calc: 'Lp*Ap', mat: 'ext_comp', fita: ['all'] },
+        sub_itens: [
+          { id: 'dob110', nome: 'Dobradiça 110°', ferrId: 'dob110', defaultOn: true, qtdFormula: 'nPortas*(Ap<=900?2:Ap<=1600?3:4)' },
+          { id: 'puxador', nome: 'Puxador Slim', ferrId: 'puxSlim', defaultOn: true, qtdFormula: 'nPortas' },
+        ],
+      },
+      {
+        nome: 'Porta com Vidro',
+        cat: 'componente', desc: 'Porta com vidro incolor 6mm temperado',
+        coef: 0.25,
+        dimsAplicaveis: ['L'],
+        vars: [
+          { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
+          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+        ],
+        varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
+        pecas: [],
+        frente_externa: { ativa: true, id: 'porta', nome: 'Porta com Vidro', calc: 'Lp*Ap', mat: 'ext_comp', fita: ['all'] },
+        sub_itens: [
+          { id: 'dob110', nome: 'Dobradiça 110°', ferrId: 'dob110', defaultOn: true, qtdFormula: 'nPortas*(Ap<=900?2:Ap<=1600?3:4)' },
+          { id: 'puxador', nome: 'Puxador Ponto', ferrId: 'puxPonto', defaultOn: true, qtdFormula: 'nPortas' },
+        ],
+      },
+      {
+        nome: 'Porta com Muxarabi',
+        cat: 'componente', desc: 'Porta com painel muxarabi decorativo em MDF',
+        coef: 0.30,
+        dimsAplicaveis: ['L'],
+        vars: [
+          { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
+          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+        ],
+        varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
+        pecas: [],
+        frente_externa: { ativa: true, id: 'porta', nome: 'Porta Muxarabi', calc: 'Lp*Ap', mat: 'ext_comp', fita: ['all'] },
+        sub_itens: [
+          { id: 'dob110', nome: 'Dobradiça 110°', ferrId: 'dob110', defaultOn: true, qtdFormula: 'nPortas*(Ap<=900?2:Ap<=1600?3:4)' },
+          { id: 'puxador', nome: 'Puxador', ferrId: 'pux128', defaultOn: true, qtdFormula: 'nPortas' },
+        ],
+      },
+      {
+        nome: 'Porta de Correr',
+        cat: 'componente', desc: 'Porta de correr com trilho em alumínio — vidro ou MDF',
+        coef: 0.22,
+        dimsAplicaveis: ['L'],
+        vars: [
+          { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 4, unit: 'un' },
+          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2600, unit: 'mm' },
+        ],
+        varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
+        pecas: [],
+        frente_externa: { ativa: true, id: 'porta', nome: 'Porta de Correr', calc: 'Lp*Ap', mat: 'ext_comp', fita: ['all'] },
+        sub_itens: [
+          { id: 'trilho', nome: 'Trilho Porta de Correr', ferrId: 'trilhoCorrer', defaultOn: true, qtdFormula: 'nPortas' },
+          { id: 'puxador', nome: 'Puxador', ferrId: 'pux128', defaultOn: true, qtdFormula: 'nPortas' },
+        ],
+      },
+      {
+        nome: 'Porta Basculante',
+        cat: 'componente', desc: 'Porta basculante com pistão a gás — aéreos e nichos',
+        coef: 0.18,
+        dimsAplicaveis: ['L'],
+        vars: [
+          { id: 'nPortas', label: 'Número de Portas', default: 1, min: 1, max: 4, unit: 'un' },
+          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 800, unit: 'mm' },
+        ],
+        varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
+        pecas: [],
+        frente_externa: { ativa: true, id: 'porta', nome: 'Porta Basculante', calc: 'Lp*Ap', mat: 'ext_comp', fita: ['all'] },
+        sub_itens: [
+          { id: 'pistao', nome: 'Pistão a Gás', ferrId: 'pistGas', defaultOn: true, qtdFormula: 'nPortas*2' },
+          { id: 'puxador', nome: 'Puxador Slim', ferrId: 'puxSlim', defaultOn: true, qtdFormula: 'nPortas' },
+        ],
+      },
+      {
+        nome: 'Porta Perfil Alumínio',
+        cat: 'componente', desc: 'Porta com perfil de alumínio e vidro — estilo moderno',
+        coef: 0.30,
+        dimsAplicaveis: ['L'],
+        vars: [
+          { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
+          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+        ],
+        varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
+        pecas: [],
+        frente_externa: { ativa: true, id: 'porta', nome: 'Porta Perfil Alumínio', calc: 'Lp*Ap', mat: 'ext_comp', fita: ['all'] },
+        sub_itens: [
+          { id: 'dob110', nome: 'Dobradiça 110°', ferrId: 'dob110', defaultOn: true, qtdFormula: 'nPortas*(Ap<=900?2:Ap<=1600?3:4)' },
+          { id: 'puxador', nome: 'Puxador', ferrId: 'pux128', defaultOn: true, qtdFormula: 'nPortas' },
+        ],
+      },
+      {
+        nome: 'Porta Provençal',
+        cat: 'componente', desc: 'Porta estilo provençal/clássico com molduras',
+        coef: 0.28,
+        dimsAplicaveis: ['L'],
+        vars: [
+          { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
+          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+        ],
+        varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
+        pecas: [],
+        frente_externa: { ativa: true, id: 'porta', nome: 'Porta Provençal', calc: 'Lp*Ap', mat: 'ext_comp', fita: ['all'] },
+        sub_itens: [
+          { id: 'dob110', nome: 'Dobradiça 110°', ferrId: 'dob110', defaultOn: true, qtdFormula: 'nPortas*(Ap<=900?2:Ap<=1600?3:4)' },
+          { id: 'puxador', nome: 'Puxador Ponto', ferrId: 'puxPonto', defaultOn: true, qtdFormula: 'nPortas' },
+        ],
+      },
+
+      // ─── GAVETAS ───
+      {
+        nome: 'Gavetão',
+        cat: 'componente', desc: 'Gaveta grande/profunda com corrediça pesada — para panelas e utensílios',
+        coef: 0.25,
+        dimsAplicaveis: ['L', 'P'],
+        vars: [
+          { id: 'ag', label: 'Altura do Gavetão', default: 250, min: 100, max: 600, unit: 'mm' },
+        ],
+        varsDeriv: { Lg: 'Li', Pg: 'P-50' },
+        pecas: [
+          { id: 'lat_e', nome: 'Lateral Esq.',   qtd: 1, calc: 'Pg*ag', mat: 'int',   fita: ['t','b','f'] },
+          { id: 'lat_d', nome: 'Lateral Dir.',   qtd: 1, calc: 'Pg*ag', mat: 'int',   fita: ['t','b','f'] },
+          { id: 'base',  nome: 'Base',           qtd: 1, calc: 'Lg*ag', mat: 'int',   fita: [] },
+          { id: 'fnd',   nome: 'Fundo',          qtd: 1, calc: 'Lg*Pg', mat: 'fundo', fita: [] },
+          { id: 'fi',    nome: 'Frente Interna', qtd: 1, calc: 'Lg*ag', mat: 'int',   fita: ['all'] },
+        ],
+        frente_externa: { ativa: true, id: 'fe', nome: 'Frente Externa', calc: 'Lg*ag', mat: 'ext_comp', fita: ['all'] },
+        sub_itens: [
+          { id: 'corrPesada', nome: 'Corrediça Pesada', ferrId: 'corrPesada', defaultOn: true },
+          { id: 'puxador', nome: 'Puxador', ferrId: 'pux160', defaultOn: true },
+        ],
+      },
+      {
+        nome: 'Gaveta Organizadora',
+        cat: 'componente', desc: 'Gaveta com divisórias internas para talheres e utensílios',
+        coef: 0.22,
+        dimsAplicaveis: ['L', 'P'],
+        vars: [
+          { id: 'ag', label: 'Altura da Gaveta', default: 120, min: 60, max: 250, unit: 'mm' },
+        ],
+        varsDeriv: { Lg: 'Li', Pg: 'P-50' },
+        pecas: [
+          { id: 'lat_e', nome: 'Lateral Esq.',   qtd: 1, calc: 'Pg*ag', mat: 'int',   fita: ['t','b','f'] },
+          { id: 'lat_d', nome: 'Lateral Dir.',   qtd: 1, calc: 'Pg*ag', mat: 'int',   fita: ['t','b','f'] },
+          { id: 'base',  nome: 'Base',           qtd: 1, calc: 'Lg*ag', mat: 'int',   fita: [] },
+          { id: 'fnd',   nome: 'Fundo',          qtd: 1, calc: 'Lg*Pg', mat: 'fundo', fita: [] },
+          { id: 'fi',    nome: 'Frente Interna', qtd: 1, calc: 'Lg*ag', mat: 'int',   fita: ['all'] },
+        ],
+        frente_externa: { ativa: true, id: 'fe', nome: 'Frente Externa', calc: 'Lg*ag', mat: 'ext_comp', fita: ['all'] },
+        sub_itens: [
+          { id: 'corrNorm', nome: 'Corrediça Normal', ferrId: 'corr400', defaultOn: true },
+          { id: 'divTalh',  nome: 'Divisória Talheres', ferrId: 'divTalheres', defaultOn: true },
+          { id: 'puxador',  nome: 'Puxador Slim', ferrId: 'puxSlim', defaultOn: true },
+        ],
+      },
+
+      // ─── PRATELEIRAS ───
+      {
+        nome: 'Prateleira com LED',
+        cat: 'componente', desc: 'Prateleira com perfil de LED embutido — iluminação indireta',
+        coef: 0.12,
+        dimsAplicaveis: ['L', 'P'],
+        vars: [],
+        varsDeriv: { Lpr: 'Li', Ppr: 'Pi' },
+        pecas: [
+          { id: 'prat', nome: 'Prateleira', qtd: 1, calc: 'Lpr*Ppr', mat: 'int', fita: ['f'] },
+        ],
+        frente_externa: { ativa: false },
+        sub_itens: [
+          { id: 'suporte', nome: 'Suporte de Prateleira', ferrId: 'supPrat', defaultOn: true, qtdFormula: '4' },
+          { id: 'led', nome: 'Perfil LED', ferrId: 'perfilLed', defaultOn: true, qtdFormula: 'Lpr/1000' },
+        ],
+      },
+      {
+        nome: 'Prateleira Borda Curva',
+        cat: 'componente', desc: 'Prateleira com bordas curvas arredondadas — estilo orgânico',
+        coef: 0.08,
+        dimsAplicaveis: ['L', 'P'],
+        vars: [],
+        varsDeriv: { Lpr: 'Li', Ppr: 'Pi' },
+        pecas: [
+          { id: 'prat', nome: 'Prateleira Borda Curva', qtd: 1, calc: 'Lpr*Ppr', mat: 'int', fita: ['all'] },
+        ],
+        frente_externa: { ativa: false },
+        sub_itens: [
+          { id: 'suporte', nome: 'Suporte Prateleira', ferrId: 'supPrat', defaultOn: true, qtdFormula: '4' },
+        ],
+      },
+
+      // ─── OUTROS COMPONENTES ───
+      {
+        nome: 'Nicho Aberto',
+        cat: 'componente', desc: 'Nicho aberto sem porta — decorativo ou funcional',
+        coef: 0.08,
+        dimsAplicaveis: ['L', 'A'],
+        vars: [],
+        varsDeriv: { Ln: 'Li', Pn: 'Pi' },
+        pecas: [
+          { id: 'prat', nome: 'Prateleira Nicho', qtd: 1, calc: 'Ln*Pn', mat: 'int', fita: ['f'] },
+        ],
+        frente_externa: { ativa: false },
+        sub_itens: [],
+      },
+      {
+        nome: 'Nicho Iluminado',
+        cat: 'componente', desc: 'Nicho aberto com perfil de LED embutido na parte superior',
+        coef: 0.12,
+        dimsAplicaveis: ['L', 'A'],
+        vars: [],
+        varsDeriv: { Ln: 'Li', Pn: 'Pi' },
+        pecas: [
+          { id: 'prat', nome: 'Prateleira Nicho', qtd: 1, calc: 'Ln*Pn', mat: 'int', fita: ['f'] },
+        ],
+        frente_externa: { ativa: false },
+        sub_itens: [
+          { id: 'led', nome: 'Perfil LED', ferrId: 'perfilLed', defaultOn: true, qtdFormula: 'Ln/1000' },
+        ],
+      },
+      {
+        nome: 'Maleiro',
+        cat: 'componente', desc: 'Compartimento superior com porta basculante — para malas e edredons',
+        coef: 0.15,
+        dimsAplicaveis: ['L'],
+        vars: [
+          { id: 'Am', label: 'Altura do Maleiro', default: 400, min: 200, max: 600, unit: 'mm' },
+        ],
+        varsDeriv: { Lm: 'Li', Pm: 'Pi' },
+        pecas: [
+          { id: 'base_m', nome: 'Base Maleiro', qtd: 1, calc: 'Lm*Pm', mat: 'int', fita: ['f'] },
+        ],
+        frente_externa: { ativa: true, id: 'porta_m', nome: 'Porta Maleiro', calc: 'Lm*Am', mat: 'ext_comp', fita: ['all'] },
+        sub_itens: [
+          { id: 'pistao', nome: 'Pistão a Gás', ferrId: 'pistGas', defaultOn: true, qtdFormula: '2' },
+        ],
+      },
+      {
+        nome: 'Lixeira Deslizante',
+        cat: 'componente', desc: 'Lixeira deslizante embutida em porta de armário',
+        coef: 0.10,
+        dimsAplicaveis: ['L'],
+        vars: [
+          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 900, unit: 'mm' },
+        ],
+        varsDeriv: { Lp: 'Li', Ap: 'A' },
+        pecas: [],
+        frente_externa: { ativa: true, id: 'porta', nome: 'Porta Lixeira', calc: 'Lp*Ap', mat: 'ext_comp', fita: ['all'] },
+        sub_itens: [
+          { id: 'dob110', nome: 'Dobradiça 110°', ferrId: 'dob110', defaultOn: true, qtdFormula: 'Ap<=900?2:3' },
+          { id: 'lixeira', nome: 'Lixeira Deslizante', ferrId: 'lixeiraDesliz', defaultOn: true },
+        ],
+      },
+    ];
+
+    for (const comp of novosComps) {
+      ins.run('componente', comp.nome, JSON.stringify(comp));
+    }
+
+    console.log(`[OK] Catálogo v3: ${novasCaixas.length} caixas + ${novosComps.length} componentes adicionados`);
+  }
+}
+
 export default db;
