@@ -32,12 +32,38 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
     if (dts.length < 2) return null;
 
     const toMs = d => new Date(d + 'T12:00:00').getTime();
-    const minMs = Math.min(...dts.map(toMs));
-    const maxMs = Math.max(...dts.map(toMs));
-    const totalMs = Math.max(maxMs - minMs, 86400000);
+    const DAY = 86400000;
+
+    // Auto-enquadramento: 2 dias antes, 7 dias depois
+    const rawMin = Math.min(...dts.map(toMs));
+    const rawMax = Math.max(...dts.map(toMs));
+    const minMs = rawMin - 2 * DAY;
+    const maxMs = rawMax + 7 * DAY;
+    const totalMs = Math.max(maxMs - minMs, DAY);
 
     const today = Date.now();
-    const todayPct = Math.min(100, Math.max(0, (today - minMs) / totalMs * 100));
+    const todayPct = ((today - minMs) / totalMs) * 100;
+    const showToday = todayPct >= -2 && todayPct <= 102;
+
+    // Grid lines
+    const spanDays = (rawMax - rawMin) / DAY;
+    const gridLines = [];
+    if (spanDays <= 60) {
+        let d = new Date(minMs);
+        d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
+        while (d.getTime() <= maxMs) {
+            const pct = (d.getTime() - minMs) / totalMs * 100;
+            if (pct > 0 && pct < 100) gridLines.push({ pct, label: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) });
+            d.setDate(d.getDate() + 7);
+        }
+    } else {
+        let d = new Date(minMs); d.setDate(1); d.setMonth(d.getMonth() + 1);
+        while (d.getTime() <= maxMs) {
+            const pct = (d.getTime() - minMs) / totalMs * 100;
+            if (pct > 0 && pct < 100) gridLines.push({ pct, label: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) });
+            d.setMonth(d.getMonth() + 1);
+        }
+    }
 
     const months = [];
     let cur = new Date(minMs);
@@ -51,19 +77,25 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
         cur.setMonth(cur.getMonth() + 1);
     }
 
+    const shortDt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
+    const STATUS = mkStatusEtapa(accent);
+
     return (
         <div style={{ overflowX: 'auto', marginTop: 8 }}>
             <div style={{
-                position: 'relative', height: 24,
+                position: 'relative', height: 30,
                 background: primary,
                 borderRadius: '8px 8px 0 0', minWidth: 400
             }}>
                 {months.map((m, i) => (
-                    <div key={i} style={{
+                    <div key={`m${i}`} style={{
                         position: 'absolute', left: `${m.pct}%`,
                         fontSize: 10, color: 'rgba(255,255,255,0.75)',
-                        padding: '5px 8px', fontWeight: 600, whiteSpace: 'nowrap'
+                        padding: '4px 8px', fontWeight: 600, whiteSpace: 'nowrap', top: 0
                     }}>{m.label}</div>
+                ))}
+                {gridLines.map((g, i) => (
+                    <div key={`g${i}`} style={{ position: 'absolute', left: `${g.pct}%`, bottom: 0, fontSize: 8, color: 'rgba(255,255,255,0.45)', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>{g.label}</div>
                 ))}
             </div>
 
@@ -72,18 +104,34 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                 border: '1px solid #e2e8f0', borderTop: 'none',
                 borderRadius: '0 0 8px 8px', minWidth: 400
             }}>
-                <div style={{
-                    position: 'absolute', left: `${todayPct}%`,
-                    top: 0, bottom: 0, width: 2,
-                    background: '#ef444450', zIndex: 2
-                }} />
+                {/* Grid lines */}
+                {gridLines.map((g, i) => (
+                    <div key={`gl${i}`} style={{ position: 'absolute', left: `${g.pct}%`, top: 0, bottom: 0, width: 1, background: '#e2e8f0', opacity: 0.6, zIndex: 0 }} />
+                ))}
+                {/* Today line */}
+                {showToday && (
+                    <div style={{
+                        position: 'absolute', left: `${todayPct}%`,
+                        top: 0, bottom: 0, width: 1.5,
+                        background: '#ef4444', zIndex: 3,
+                        boxShadow: '0 0 6px 1px rgba(239,68,68,0.45), 0 0 2px 0px rgba(239,68,68,0.7)',
+                    }} />
+                )}
 
                 {etapas.map((e, i) => {
-                    const s = e.data_inicio ? toMs(e.data_inicio) : minMs;
-                    const f = e.data_vencimento ? toMs(e.data_vencimento) : maxMs;
+                    if (!e.data_inicio && !e.data_vencimento) {
+                        return (
+                            <div key={e.id} style={{ position: 'relative', height: 40, borderBottom: i < etapas.length - 1 ? '1px solid #f1f5f9' : 'none', display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
+                                <span style={{ fontSize: 10, color: '#94a3b8', fontStyle: 'italic' }}>{e.nome}</span>
+                            </div>
+                        );
+                    }
+                    const s = e.data_inicio ? toMs(e.data_inicio) : toMs(e.data_vencimento);
+                    const f = e.data_vencimento ? toMs(e.data_vencimento) : toMs(e.data_inicio);
                     const left = Math.max(0, (s - minMs) / totalMs * 100);
-                    const width = Math.max(1.5, (f - s) / totalMs * 100);
-                    const color = mkStatusEtapa(accent)[e.status]?.color || '#94a3b8';
+                    const width = Math.max(1.5, (Math.max(f, s + DAY) - s) / totalMs * 100);
+                    const color = STATUS[e.status]?.color || '#94a3b8';
+                    const endLabel = shortDt(e.data_vencimento);
                     return (
                         <div key={e.id} style={{
                             position: 'relative', height: 40,
@@ -102,18 +150,25 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                     {e.nome}
                                 </span>
                             </div>
+                            {endLabel && (
+                                <span style={{ position: 'absolute', left: `${Math.min(96, left + width + 0.5)}%`, top: '50%', transform: 'translateY(-50%)', fontSize: 9, color: '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap', zIndex: 2 }}>{endLabel}</span>
+                            )}
                         </div>
                     );
                 })}
             </div>
 
             <div style={{ display: 'flex', gap: 14, marginTop: 10, flexWrap: 'wrap' }}>
-                {Object.entries(mkStatusEtapa(accent)).map(([k, v]) => (
+                {Object.entries(STATUS).filter(([k]) => k !== 'pendente').map(([k, v]) => (
                     <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#64748b' }}>
                         <div style={{ width: 12, height: 12, background: v.color, borderRadius: 3 }} />
                         {v.label}
                     </div>
                 ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#64748b' }}>
+                    <div style={{ width: 2, height: 12, background: '#ef4444', borderRadius: 1, boxShadow: '0 0 4px rgba(239,68,68,0.5)' }} />
+                    Hoje
+                </div>
             </div>
         </div>
     );
@@ -583,7 +638,9 @@ export default function PortalCliente({ token }) {
 
     const STATUS_ETAPA = mkStatusEtapa(accent);
     const STATUS_PROJ = mkStatusProj(accent);
-    const statusProj = STATUS_PROJ[projeto.status] || STATUS_PROJ.nao_iniciado;
+    // No portal, "atrasado" aparece como "em andamento" para o cliente
+    const portalStatus = projeto.status === 'atrasado' ? 'em_andamento' : projeto.status;
+    const statusProj = STATUS_PROJ[portalStatus] || STATUS_PROJ.nao_iniciado;
 
     return (
         <div style={{ minHeight: '100vh', background: '#f1f5f9', fontFamily: font, padding: '32px 16px' }}>

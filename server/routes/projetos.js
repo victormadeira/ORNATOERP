@@ -336,10 +336,63 @@ router.post('/:id/etapas', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// Helper: auto-atualizar status do projeto baseado nas etapas
+// ═══════════════════════════════════════════════════
+function autoUpdateProjectStatus(projetoId, userId, userName) {
+    try {
+        const projeto = db.prepare('SELECT id, nome, status FROM projetos WHERE id = ?').get(projetoId);
+        if (!projeto) return;
+
+        // Só age sobre nao_iniciado e em_andamento (respeita suspenso/atrasado como manuais)
+        const autoStatuses = ['nao_iniciado', 'em_andamento'];
+        if (!autoStatuses.includes(projeto.status)) return;
+
+        const etapas = db.prepare('SELECT status FROM etapas_projeto WHERE projeto_id = ?').all(projetoId);
+        if (etapas.length === 0) return;
+
+        const allDone = etapas.every(e => e.status === 'concluida');
+        const anyStarted = etapas.some(e => e.status === 'em_andamento' || e.status === 'concluida');
+
+        let newStatus = null;
+        if (allDone && projeto.status !== 'concluido') {
+            newStatus = 'concluido';
+        } else if (anyStarted && projeto.status === 'nao_iniciado') {
+            newStatus = 'em_andamento';
+        } else if (!anyStarted && !allDone && projeto.status === 'em_andamento') {
+            // Todas voltaram para nao_iniciado
+            const anyActive = etapas.some(e => e.status !== 'nao_iniciado' && e.status !== 'pendente');
+            if (!anyActive) newStatus = 'nao_iniciado';
+        }
+
+        if (newStatus) {
+            db.prepare('UPDATE projetos SET status = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?').run(newStatus, projetoId);
+            try {
+                logActivity(userId, userName, 'atualizar_status',
+                    `Status do projeto "${projeto.nome}" alterado automaticamente para ${newStatus}`,
+                    projetoId, 'projeto', { status_anterior: projeto.status, status_novo: newStatus, auto: true });
+                if (newStatus === 'concluido') {
+                    createNotification('projeto_status',
+                        `Projeto concluído: ${projeto.nome}`,
+                        'Todas as etapas foram concluídas',
+                        projetoId, 'projeto', '', userId);
+                }
+            } catch (_) { /* log não bloqueia */ }
+        }
+    } catch (err) {
+        console.error('autoUpdateProjectStatus error:', err);
+    }
+}
+
+// ═══════════════════════════════════════════════════
 // PUT /api/projetos/etapas/:etapa_id — atualizar etapa
 // ═══════════════════════════════════════════════════
 router.put('/etapas/:etapa_id', requireAuth, (req, res) => {
     const { nome, descricao, status, data_inicio, data_vencimento, ordem, responsavel_id, progresso, dependencia_id } = req.body;
+    const etapaId = parseInt(req.params.etapa_id);
+
+    // Buscar projeto_id antes de atualizar
+    const etapaRow = db.prepare('SELECT projeto_id FROM etapas_projeto WHERE id = ?').get(etapaId);
+
     db.prepare(`
         UPDATE etapas_projeto
         SET nome=?, descricao=?, status=?, data_inicio=?, data_vencimento=?, ordem=?, responsavel_id=?, progresso=?, dependencia_id=?
@@ -349,8 +402,14 @@ router.put('/etapas/:etapa_id', requireAuth, (req, res) => {
         data_inicio || null, data_vencimento || null,
         ordem ?? 0, responsavel_id || null,
         progresso ?? 0, dependencia_id || null,
-        parseInt(req.params.etapa_id)
+        etapaId
     );
+
+    // Auto-atualizar status do projeto
+    if (etapaRow) {
+        autoUpdateProjectStatus(etapaRow.projeto_id, req.user.id, req.user.nome);
+    }
+
     res.json({ ok: true });
 });
 

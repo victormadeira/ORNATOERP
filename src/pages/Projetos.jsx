@@ -25,8 +25,8 @@ const STATUS_PROJ = {
 };
 
 const STATUS_ETAPA = {
-    nao_iniciado: { label: 'Não iniciado', color: '#94a3b8' },
-    pendente:     { label: 'Pendente',     color: '#94a3b8' },
+    nao_iniciado: { label: 'Não iniciado', color: '#64748b' },
+    pendente:     { label: 'Pendente',     color: '#64748b' },
     em_andamento: { label: 'Em andamento', color: '#1379F0' },
     concluida:    { label: 'Concluída',    color: '#22c55e' },
     atrasada:     { label: 'Atrasada',     color: '#ef4444' },
@@ -72,13 +72,49 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
     );
 
     const toMs = d => new Date(d + 'T12:00:00').getTime();
-    const minMs = Math.min(...dts.map(toMs));
-    const maxMs = Math.max(...dts.map(toMs));
-    const totalMs = Math.max(maxMs - minMs, 86400000);
+    const DAY = 86400000;
+
+    // Auto-enquadramento: 2 dias antes, 7 dias depois
+    const rawMin = Math.min(...dts.map(toMs));
+    const rawMax = Math.max(...dts.map(toMs));
+    const minMs = rawMin - 2 * DAY;
+    const maxMs = rawMax + 7 * DAY;
+    const totalMs = Math.max(maxMs - minMs, DAY);
+
     const today = Date.now();
     const todayStr = new Date().toISOString().slice(0, 10);
-    const todayPct = Math.min(100, Math.max(0, (today - minMs) / totalMs * 100));
+    const todayPct = ((today - minMs) / totalMs) * 100;
+    const showToday = todayPct >= -2 && todayPct <= 102;
 
+    // Gerar marcações de datas (grid lines)
+    const spanDays = (rawMax - rawMin) / DAY;
+    const gridLines = [];
+    if (spanDays <= 60) {
+        // Linhas semanais (cada segunda-feira)
+        let d = new Date(minMs);
+        d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); // próxima segunda
+        while (d.getTime() <= maxMs) {
+            const pct = (d.getTime() - minMs) / totalMs * 100;
+            if (pct > 0 && pct < 100) {
+                gridLines.push({ pct, label: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) });
+            }
+            d.setDate(d.getDate() + 7);
+        }
+    } else {
+        // Linhas mensais (dia 1 de cada mês)
+        let d = new Date(minMs);
+        d.setDate(1);
+        d.setMonth(d.getMonth() + 1);
+        while (d.getTime() <= maxMs) {
+            const pct = (d.getTime() - minMs) / totalMs * 100;
+            if (pct > 0 && pct < 100) {
+                gridLines.push({ pct, label: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) });
+            }
+            d.setMonth(d.getMonth() + 1);
+        }
+    }
+
+    // Header: meses
     const months = [];
     let cur = new Date(minMs);
     cur.setDate(1);
@@ -99,28 +135,53 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
     };
 
     const minW = Math.round(600 * zoom);
+    const shortDt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
 
     return (
         <div style={{ overflowX: 'auto' }}>
-            {/* Timeline header */}
-            <div style={{ position: 'relative', height: 26, background: 'var(--bg-muted)', borderRadius: '6px 6px 0 0', border: '1px solid var(--border)', borderBottom: 'none', minWidth: minW }}>
+            {/* Timeline header with grid labels */}
+            <div style={{ position: 'relative', height: 32, background: 'var(--bg-muted)', borderRadius: '6px 6px 0 0', border: '1px solid var(--border)', borderBottom: 'none', minWidth: minW }}>
                 {months.map((m, i) => (
-                    <div key={i} style={{ position: 'absolute', left: `${m.pct}%`, fontSize: 10, color: 'var(--text-muted)', padding: '6px 6px', fontWeight: 600, whiteSpace: 'nowrap' }}>{m.label}</div>
+                    <div key={`m${i}`} style={{ position: 'absolute', left: `${m.pct}%`, fontSize: 10, color: 'var(--text-muted)', padding: '4px 6px', fontWeight: 700, whiteSpace: 'nowrap', top: 0 }}>{m.label}</div>
+                ))}
+                {gridLines.map((g, i) => (
+                    <div key={`g${i}`} style={{ position: 'absolute', left: `${g.pct}%`, bottom: 0, fontSize: 9, color: '#94a3b8', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>{g.label}</div>
                 ))}
             </div>
             {/* Bars container */}
             <div style={{ position: 'relative', border: '1px solid var(--border)', borderRadius: '0 0 6px 6px', background: 'var(--bg-card)', minWidth: minW }}>
-                {/* Today indicator */}
-                <div style={{ position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0, width: 2, background: '#ef4444', zIndex: 2, opacity: 0.6 }} />
+                {/* Grid lines verticais */}
+                {gridLines.map((g, i) => (
+                    <div key={`gl${i}`} style={{ position: 'absolute', left: `${g.pct}%`, top: 0, bottom: 0, width: 1, background: 'var(--border)', opacity: 0.5, zIndex: 0 }} />
+                ))}
+                {/* Today indicator — linha vermelha com glow */}
+                {showToday && (
+                    <div style={{
+                        position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0,
+                        width: 1.5, background: '#ef4444', zIndex: 4,
+                        boxShadow: '0 0 6px 1px rgba(239,68,68,0.45), 0 0 2px 0px rgba(239,68,68,0.7)',
+                    }} />
+                )}
                 {etapas.map((e, i) => {
-                    const s = e.data_inicio ? toMs(e.data_inicio) : minMs;
-                    const f = e.data_vencimento ? toMs(e.data_vencimento) : maxMs;
+                    if (!e.data_inicio && !e.data_vencimento) {
+                        // Sem datas — mostra como placeholder cinza
+                        return (
+                            <div key={e.id} style={{ position: 'relative', height: 44, borderBottom: i < etapas.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
+                                <span onClick={() => onEdit && onEdit(e)} style={{ fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', fontStyle: 'italic' }}>
+                                    {e.nome} — sem datas definidas
+                                </span>
+                            </div>
+                        );
+                    }
+                    const s = e.data_inicio ? toMs(e.data_inicio) : toMs(e.data_vencimento);
+                    const f = e.data_vencimento ? toMs(e.data_vencimento) : toMs(e.data_inicio);
                     const left = Math.max(0, (s - minMs) / totalMs * 100);
-                    const width = Math.max(1.5, (f - s) / totalMs * 100);
-                    const color = STATUS_ETAPA[e.status]?.color || '#94a3b8';
+                    const width = Math.max(1.5, (Math.max(f, s + DAY) - s) / totalMs * 100);
+                    const color = STATUS_ETAPA[e.status]?.color || '#64748b';
                     const progresso = e.progresso || 0;
                     const isOverdue = e.data_vencimento && e.data_vencimento < todayStr && e.status !== 'concluida';
                     const hasDep = e.dependencia_id && etapaMap[e.dependencia_id];
+                    const endLabel = shortDt(e.data_vencimento);
 
                     return (
                         <div key={e.id} style={{ position: 'relative', height: 44, borderBottom: i < etapas.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center' }}>
@@ -136,39 +197,45 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                                 title={`${e.nome}\n${dtFmt(e.data_inicio)} → ${dtFmt(e.data_vencimento)}\n${e.responsavel_nome || 'Sem responsável'}\nProgresso: ${progresso}%`}
                                 style={{
                                     position: 'absolute', left: `${left}%`, width: `${width}%`, height: 26,
-                                    background: `${color}20`, borderRadius: 5, overflow: 'hidden',
+                                    background: `${color}30`, borderRadius: 5, overflow: 'hidden',
                                     cursor: onEdit ? 'pointer' : 'default', transition: 'all 0.2s',
-                                    border: isOverdue ? `2px solid #ef4444` : `1px solid ${color}60`,
+                                    border: isOverdue ? `2px solid #ef4444` : `1.5px solid ${color}80`,
                                 }}
                             >
                                 {/* Progress fill */}
-                                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${progresso}%`, background: `${color}40`, transition: 'width 0.3s' }} />
-                                {/* Bar text — dark color for readability */}
-                                <span style={{ position: 'relative', zIndex: 1, fontSize: 11, fontWeight: 600, color: '#1e293b', padding: '0 8px', whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: '26px', display: 'block' }}>{e.nome}{progresso > 0 ? ` (${progresso}%)` : ''}</span>
+                                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${progresso}%`, background: `${color}50`, transition: 'width 0.3s' }} />
+                                {/* Bar text */}
+                                <span style={{ position: 'relative', zIndex: 1, fontSize: 11, fontWeight: 600, color: '#1e293b', padding: '0 8px', whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: '26px', display: 'block' }}>
+                                    {e.nome}{progresso > 0 ? ` (${progresso}%)` : ''}
+                                </span>
                             </div>
-                            {/* Responsavel initials circle */}
-                            {e.responsavel_nome && (
-                                <div style={{
-                                    position: 'absolute', left: `${Math.min(97, left + width + 0.5)}%`, top: '50%', transform: 'translateY(-50%)',
-                                    width: 22, height: 22, borderRadius: '50%', background: color, color: '#fff',
-                                    fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    zIndex: 3, border: '2px solid var(--bg-card)',
-                                }}>{getInitials(e.responsavel_nome)}</div>
-                            )}
+                            {/* Data final + initials after bar */}
+                            <div style={{ position: 'absolute', left: `${Math.min(97, left + width + 0.5)}%`, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 4, zIndex: 3 }}>
+                                {e.responsavel_nome && (
+                                    <div style={{
+                                        width: 22, height: 22, borderRadius: '50%', background: color, color: '#fff',
+                                        fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        border: '2px solid var(--bg-card)', flexShrink: 0,
+                                    }}>{getInitials(e.responsavel_nome)}</div>
+                                )}
+                                {endLabel && (
+                                    <span style={{ fontSize: 10, color: isOverdue ? '#ef4444' : '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap' }}>{endLabel}</span>
+                                )}
+                            </div>
                         </div>
                     );
                 })}
             </div>
             {/* Legend */}
             <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
-                {Object.entries(STATUS_ETAPA).map(([k, v]) => (
+                {Object.entries(STATUS_ETAPA).filter(([k]) => k !== 'pendente').map(([k, v]) => (
                     <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)' }}>
                         <div style={{ width: 12, height: 12, background: v.color, borderRadius: 3 }} />
                         {v.label}
                     </div>
                 ))}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)' }}>
-                    <div style={{ width: 3, height: 12, background: '#ef4444', borderRadius: 1 }} />
+                    <div style={{ width: 2, height: 12, background: '#ef4444', borderRadius: 1, boxShadow: '0 0 4px rgba(239,68,68,0.5)' }} />
                     Hoje
                 </div>
             </div>
@@ -356,9 +423,10 @@ function TabCronograma({ data, load, notify, users }) {
 
     const toggleEtapaStatus = (etapa) => {
         const order = ['nao_iniciado', 'em_andamento', 'concluida'];
-        const cur = (etapa.status === 'pendente' || !etapa.status) ? 'nao_iniciado' : etapa.status;
+        const cur = (!etapa.status || etapa.status === 'pendente') ? 'nao_iniciado' : etapa.status;
         const idx = order.indexOf(cur);
-        const next = order[(idx === -1 ? 1 : idx + 1) % order.length];
+        // pendente/nao_iniciado → em_andamento, em_andamento → concluida, concluida → nao_iniciado
+        const next = idx <= 0 ? 'em_andamento' : order[(idx + 1) % order.length];
         api.put(`/projetos/etapas/${etapa.id}`, { ...etapa, status: next }).then(load).catch(() => notify('Erro ao atualizar etapa'));
     };
 
