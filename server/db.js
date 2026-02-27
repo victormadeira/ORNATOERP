@@ -1106,6 +1106,7 @@ if (caixaCount.c === 0) {
       ['puxPonto',      'Puxador Ponto Redondo',       'Puxador ponto redondo',             'un',  ''],
       ['lixeiraDesliz', 'Lixeira Deslizante',          'Lixeira deslizante embutida',       'un',  ''],
       ['perfilLed',     'Perfil de LED',               'Perfil LED alumínio + fita',        'm',   ''],
+      ['tipOn',         'Tip-On (Fecho Toque)',        'Mecanismo push-to-open Blum/similar','un',  ''],
     ];
     for (const [cod, nome, desc, un, cat] of ferr) {
       const exists = db.prepare('SELECT id FROM biblioteca WHERE cod = ?').get(cod);
@@ -1487,6 +1488,52 @@ if (caixaCount.c === 0) {
           { id: 'te', nome: 'Acabamento Borda', face: 'topo', calc: 'L*A', mat: 'ext', fita: ['all'] },
         ],
       },
+      // ─── QUARTO — BASE CAMA ───
+      {
+        nome: 'Base Cama',
+        cat: 'quarto', desc: 'Base de cama com gavetas laterais — estrutura baixa rente ao chão',
+        coef: 0.35,
+        pecas: [
+          { id: 'lat_e', nome: 'Lateral Esq', qtd: 1, calc: 'P*A', mat: 'int', fita: ['f'] },
+          { id: 'lat_d', nome: 'Lateral Dir', qtd: 1, calc: 'P*A', mat: 'int', fita: ['f'] },
+          { id: 'cab', nome: 'Travessa Cabeceira', qtd: 1, calc: 'L*A', mat: 'int', fita: ['f'] },
+          { id: 'pes', nome: 'Travessa Pés', qtd: 1, calc: 'L*A', mat: 'int', fita: ['f'] },
+          { id: 'fundo', nome: 'Fundo Base', qtd: 1, calc: 'L*P', mat: 'fundo', fita: [] },
+          { id: 'trav_c', nome: 'Travessa Central', qtd: 1, calc: 'L*100', mat: 'int', fita: [] },
+          { id: 'div_gav', nome: 'Divisória Gavetas', qtd: 1, calc: 'P*A', mat: 'int', fita: [] },
+        ],
+        tamponamentos: [
+          { id: 'te', nome: 'Acab. Frontal', face: 'frente', calc: 'L*A', mat: 'ext', fita: ['f','t'] },
+          { id: 'tl', nome: 'Acab. Lateral Esq', face: 'lat_esq', calc: 'P*A', mat: 'ext', fita: ['f'] },
+          { id: 'tr', nome: 'Acab. Lateral Dir', face: 'lat_dir', calc: 'P*A', mat: 'ext', fita: ['f'] },
+          { id: 'tp', nome: 'Acab. Pés', face: 'tras', calc: 'L*A', mat: 'ext', fita: ['f'] },
+        ],
+      },
+      {
+        nome: 'Base Cama com Bicama',
+        cat: 'quarto', desc: 'Base de cama com gavetas + bicama deslizante inferior',
+        coef: 0.45,
+        pecas: [
+          { id: 'lat_e', nome: 'Lateral Esq', qtd: 1, calc: 'P*A', mat: 'int', fita: ['f'] },
+          { id: 'lat_d', nome: 'Lateral Dir', qtd: 1, calc: 'P*A', mat: 'int', fita: ['f'] },
+          { id: 'cab', nome: 'Travessa Cabeceira', qtd: 1, calc: 'L*A', mat: 'int', fita: ['f'] },
+          { id: 'pes', nome: 'Travessa Pés', qtd: 1, calc: 'L*A', mat: 'int', fita: ['f'] },
+          { id: 'fundo', nome: 'Fundo Base', qtd: 1, calc: 'L*P', mat: 'fundo', fita: [] },
+          { id: 'trav_c', nome: 'Travessa Central', qtd: 1, calc: 'L*100', mat: 'int', fita: [] },
+          { id: 'div_gav', nome: 'Divisória Gavetas', qtd: 1, calc: 'P*A', mat: 'int', fita: [] },
+          { id: 'bi_lat_e', nome: 'Bicama Lat Esq', qtd: 1, calc: 'P*(A*0.4)', mat: 'int', fita: ['f'] },
+          { id: 'bi_lat_d', nome: 'Bicama Lat Dir', qtd: 1, calc: 'P*(A*0.4)', mat: 'int', fita: ['f'] },
+          { id: 'bi_fundo', nome: 'Bicama Fundo', qtd: 1, calc: 'L*P', mat: 'fundo', fita: [] },
+          { id: 'bi_cab', nome: 'Bicama Cabeceira', qtd: 1, calc: 'L*(A*0.4)', mat: 'int', fita: ['f'] },
+        ],
+        tamponamentos: [
+          { id: 'te', nome: 'Acab. Frontal', face: 'frente', calc: 'L*A', mat: 'ext', fita: ['f','t'] },
+          { id: 'tl', nome: 'Acab. Lateral Esq', face: 'lat_esq', calc: 'P*A', mat: 'ext', fita: ['f'] },
+          { id: 'tr', nome: 'Acab. Lateral Dir', face: 'lat_dir', calc: 'P*A', mat: 'ext', fita: ['f'] },
+          { id: 'tp', nome: 'Acab. Pés', face: 'tras', calc: 'L*A', mat: 'ext', fita: ['f'] },
+          { id: 'bi_front', nome: 'Bicama Frontal', face: 'frente', calc: 'L*(A*0.4)', mat: 'ext', fita: ['f','t'] },
+        ],
+      },
     ];
 
     for (const cx of novasCaixas) {
@@ -1794,6 +1841,45 @@ if (caixaCount.c === 0) {
           { id: 'lixeira', nome: 'Lixeira Deslizante', ferrId: 'lixeiraDesliz', defaultOn: true },
         ],
       },
+      // ─── PORTA FECHO TOQUE (push-to-open) ───
+      {
+        nome: 'Porta Fecho Toque',
+        cat: 'componente', desc: 'Porta push-to-open sem puxador — abertura por toque/pressão',
+        coef: 0.18,
+        dimsAplicaveis: ['L'],
+        vars: [
+          { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
+          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+        ],
+        varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
+        pecas: [],
+        frente_externa: { ativa: true, id: 'porta', nome: 'Porta Fecho Toque', calc: 'Lp*Ap', mat: 'ext_comp', fita: ['all'] },
+        sub_itens: [
+          { id: 'dob110', nome: 'Dobradiça 110°', ferrId: 'dob110', defaultOn: true, qtdFormula: 'nPortas*(Ap<=900?2:Ap<=1600?3:4)' },
+          { id: 'tipOn', nome: 'Tip-On (Fecho Toque)', ferrId: 'tipOn', defaultOn: true, qtdFormula: 'nPortas' },
+        ],
+      },
+      // ─── CABECEIRA ESTOFADA ───
+      {
+        nome: 'Cabeceira Estofada',
+        cat: 'componente', desc: 'Painel cabeceira com estrutura MDF e revestimento estofado (espuma + tecido/couro)',
+        coef: 0.30,
+        dimsAplicaveis: ['L','A'],
+        vars: [
+          { id: 'Lc', label: 'Largura Cabeceira (mm)', default: 0, min: 500, max: 4000, unit: 'mm' },
+          { id: 'Ac', label: 'Altura Cabeceira (mm)', default: 0, min: 400, max: 1800, unit: 'mm' },
+        ],
+        varsDeriv: { Lc: 'L', Ac: 'A' },
+        pecas: [
+          { id: 'base_mdf', nome: 'Base MDF Cabeceira', qtd: 1, calc: 'Lc*Ac', mat: 'int', fita: [] },
+          { id: 'borda_sup', nome: 'Borda Superior', qtd: 1, calc: 'Lc*60', mat: 'int', fita: ['f'] },
+          { id: 'borda_lat', nome: 'Bordas Laterais', qtd: 2, calc: 'Ac*60', mat: 'int', fita: ['f'] },
+        ],
+        frente_externa: null,
+        sub_itens: [
+          { id: 'supPrat', nome: 'Suporte Parede', ferrId: 'supPrat', defaultOn: true, qtdFormula: 'Lc<=1500?2:Lc<=2500?3:4' },
+        ],
+      },
     ];
 
     for (const comp of novosComps) {
@@ -1801,6 +1887,313 @@ if (caixaCount.c === 0) {
     }
 
     console.log(`[OK] Catálogo v3: ${novasCaixas.length} caixas + ${novosComps.length} componentes adicionados`);
+  }
+
+  // ─── SEED v3.1 — Itens incrementais (Base Cama, Porta Fecho Toque, Cabeceira Estofada, Tip-On) ───
+  {
+    const hasBaseCama = db.prepare("SELECT COUNT(*) as c FROM modulos_custom WHERE nome = 'Base Cama'").get();
+    if (hasBaseCama.c === 0) {
+      const ins = db.prepare('INSERT INTO modulos_custom (user_id, tipo_item, nome, json_data) VALUES (1, ?, ?, ?)');
+
+      const caixasV31 = [
+        {
+          nome: 'Base Cama',
+          cat: 'quarto', desc: 'Base de cama com gavetas laterais — estrutura baixa rente ao chão',
+          coef: 0.35,
+          pecas: [
+            { id: 'lat_e', nome: 'Lateral Esq', qtd: 1, calc: 'P*A', mat: 'int', fita: ['f'] },
+            { id: 'lat_d', nome: 'Lateral Dir', qtd: 1, calc: 'P*A', mat: 'int', fita: ['f'] },
+            { id: 'cab', nome: 'Travessa Cabeceira', qtd: 1, calc: 'L*A', mat: 'int', fita: ['f'] },
+            { id: 'pes', nome: 'Travessa Pés', qtd: 1, calc: 'L*A', mat: 'int', fita: ['f'] },
+            { id: 'fundo', nome: 'Fundo Base', qtd: 1, calc: 'L*P', mat: 'fundo', fita: [] },
+            { id: 'trav_c', nome: 'Travessa Central', qtd: 1, calc: 'L*100', mat: 'int', fita: [] },
+            { id: 'div_gav', nome: 'Divisória Gavetas', qtd: 1, calc: 'P*A', mat: 'int', fita: [] },
+          ],
+          tamponamentos: [
+            { id: 'te', nome: 'Acab. Frontal', face: 'frente', calc: 'L*A', mat: 'ext', fita: ['f','t'] },
+            { id: 'tl', nome: 'Acab. Lateral Esq', face: 'lat_esq', calc: 'P*A', mat: 'ext', fita: ['f'] },
+            { id: 'tr', nome: 'Acab. Lateral Dir', face: 'lat_dir', calc: 'P*A', mat: 'ext', fita: ['f'] },
+            { id: 'tp', nome: 'Acab. Pés', face: 'tras', calc: 'L*A', mat: 'ext', fita: ['f'] },
+          ],
+        },
+        {
+          nome: 'Base Cama com Bicama',
+          cat: 'quarto', desc: 'Base de cama com gavetas + bicama deslizante inferior',
+          coef: 0.45,
+          pecas: [
+            { id: 'lat_e', nome: 'Lateral Esq', qtd: 1, calc: 'P*A', mat: 'int', fita: ['f'] },
+            { id: 'lat_d', nome: 'Lateral Dir', qtd: 1, calc: 'P*A', mat: 'int', fita: ['f'] },
+            { id: 'cab', nome: 'Travessa Cabeceira', qtd: 1, calc: 'L*A', mat: 'int', fita: ['f'] },
+            { id: 'pes', nome: 'Travessa Pés', qtd: 1, calc: 'L*A', mat: 'int', fita: ['f'] },
+            { id: 'fundo', nome: 'Fundo Base', qtd: 1, calc: 'L*P', mat: 'fundo', fita: [] },
+            { id: 'trav_c', nome: 'Travessa Central', qtd: 1, calc: 'L*100', mat: 'int', fita: [] },
+            { id: 'div_gav', nome: 'Divisória Gavetas', qtd: 1, calc: 'P*A', mat: 'int', fita: [] },
+            { id: 'bi_lat_e', nome: 'Bicama Lat Esq', qtd: 1, calc: 'P*(A*0.4)', mat: 'int', fita: ['f'] },
+            { id: 'bi_lat_d', nome: 'Bicama Lat Dir', qtd: 1, calc: 'P*(A*0.4)', mat: 'int', fita: ['f'] },
+            { id: 'bi_fundo', nome: 'Bicama Fundo', qtd: 1, calc: 'L*P', mat: 'fundo', fita: [] },
+            { id: 'bi_cab', nome: 'Bicama Cabeceira', qtd: 1, calc: 'L*(A*0.4)', mat: 'int', fita: ['f'] },
+          ],
+          tamponamentos: [
+            { id: 'te', nome: 'Acab. Frontal', face: 'frente', calc: 'L*A', mat: 'ext', fita: ['f','t'] },
+            { id: 'tl', nome: 'Acab. Lateral Esq', face: 'lat_esq', calc: 'P*A', mat: 'ext', fita: ['f'] },
+            { id: 'tr', nome: 'Acab. Lateral Dir', face: 'lat_dir', calc: 'P*A', mat: 'ext', fita: ['f'] },
+            { id: 'tp', nome: 'Acab. Pés', face: 'tras', calc: 'L*A', mat: 'ext', fita: ['f'] },
+            { id: 'bi_front', nome: 'Bicama Frontal', face: 'frente', calc: 'L*(A*0.4)', mat: 'ext', fita: ['f','t'] },
+          ],
+        },
+      ];
+
+      for (const cx of caixasV31) {
+        ins.run('caixa', cx.nome, JSON.stringify(cx));
+      }
+
+      const compsV31 = [
+        {
+          nome: 'Porta Fecho Toque',
+          cat: 'componente', desc: 'Porta push-to-open sem puxador — abertura por toque/pressão',
+          coef: 0.18,
+          dimsAplicaveis: ['L'],
+          vars: [
+            { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
+            { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+          ],
+          varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
+          pecas: [],
+          frente_externa: { ativa: true, id: 'porta', nome: 'Porta Fecho Toque', calc: 'Lp*Ap', mat: 'ext_comp', fita: ['all'] },
+          sub_itens: [
+            { id: 'dob110', nome: 'Dobradiça 110°', ferrId: 'dob110', defaultOn: true, qtdFormula: 'nPortas*(Ap<=900?2:Ap<=1600?3:4)' },
+            { id: 'tipOn', nome: 'Tip-On (Fecho Toque)', ferrId: 'tipOn', defaultOn: true, qtdFormula: 'nPortas' },
+          ],
+        },
+        {
+          nome: 'Cabeceira Estofada',
+          cat: 'componente', desc: 'Painel cabeceira com estrutura MDF e revestimento estofado (espuma + tecido/couro)',
+          coef: 0.30,
+          dimsAplicaveis: ['L','A'],
+          vars: [
+            { id: 'Lc', label: 'Largura Cabeceira (mm)', default: 0, min: 500, max: 4000, unit: 'mm' },
+            { id: 'Ac', label: 'Altura Cabeceira (mm)', default: 0, min: 400, max: 1800, unit: 'mm' },
+          ],
+          varsDeriv: { Lc: 'L', Ac: 'A' },
+          pecas: [
+            { id: 'base_mdf', nome: 'Base MDF Cabeceira', qtd: 1, calc: 'Lc*Ac', mat: 'int', fita: [] },
+            { id: 'borda_sup', nome: 'Borda Superior', qtd: 1, calc: 'Lc*60', mat: 'int', fita: ['f'] },
+            { id: 'borda_lat', nome: 'Bordas Laterais', qtd: 2, calc: 'Ac*60', mat: 'int', fita: ['f'] },
+          ],
+          frente_externa: null,
+          sub_itens: [
+            { id: 'supPrat', nome: 'Suporte Parede', ferrId: 'supPrat', defaultOn: true, qtdFormula: 'Lc<=1500?2:Lc<=2500?3:4' },
+          ],
+        },
+      ];
+
+      for (const comp of compsV31) {
+        ins.run('componente', comp.nome, JSON.stringify(comp));
+      }
+
+      console.log('[OK] Catálogo v3.1: 2 caixas (Base Cama) + 2 componentes (Porta Fecho Toque, Cabeceira Estofada) adicionados');
+    }
+
+    // Ferragem Tip-On
+    const hasTipOn = db.prepare("SELECT id FROM biblioteca WHERE cod = 'tipOn'").get();
+    if (!hasTipOn) {
+      db.prepare('INSERT INTO biblioteca (tipo, cod, nome, descricao, unidade, largura, altura, espessura, preco, preco_m2, ativo) VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 1)').run('ferragem', 'tipOn', 'Tip-On (Fecho Toque)', 'Mecanismo push-to-open Blum/similar', 'un');
+      console.log('[OK] Ferragem Tip-On adicionada');
+    }
+  }
+
+  // ─── SEED v3.2 — Forro, Cristaleira, Beliche, Despenseiro + componentes + ferragens ───
+  {
+    const hasForro = db.prepare("SELECT COUNT(*) as c FROM modulos_custom WHERE nome = 'Forro MDF'").get();
+    if (hasForro.c === 0) {
+      const ins = db.prepare('INSERT INTO modulos_custom (user_id, tipo_item, nome, json_data) VALUES (1, ?, ?, ?)');
+      const bibIns = db.prepare('INSERT INTO biblioteca (tipo, cod, nome, descricao, unidade, largura, altura, espessura, preco, preco_m2, ativo) VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 1)');
+
+      // ═══ NOVAS FERRAGENS / ACABAMENTOS ═══
+      const novasFerragens = [
+        ['puxCava',     'ferragem',   'Puxador Cava (Usinado)', 'Puxador cava 45° usinado no próprio MDF',       'un'],
+        ['corrOculta',  'ferragem',   'Corrediça Oculta',       'Corrediça oculta/telescópica soft-close',        'par'],
+      ];
+      for (const [cod, tipo, nome, desc, un] of novasFerragens) {
+        const exists = db.prepare('SELECT id FROM biblioteca WHERE cod = ?').get(cod);
+        if (!exists) bibIns.run(tipo, cod, nome, desc, un);
+      }
+
+      const novosAcab = [
+        ['vidro_refprata', 'acabamento', 'Vidro Reflecta Prata',  'Vidro reflecta prata 4mm', 'm2'],
+        ['vidro_espelho',  'acabamento', 'Espelho Prata Comum',   'Espelho prata comum colado em MDF', 'm2'],
+      ];
+      for (const [cod, tipo, nome, desc, un] of novosAcab) {
+        const exists = db.prepare('SELECT id FROM biblioteca WHERE cod = ?').get(cod);
+        if (!exists) bibIns.run(tipo, cod, nome, desc, un);
+      }
+
+      // ═══ NOVAS CAIXAS ═══
+      const caixasV32 = [
+        // ─── FORRO ───
+        {
+          nome: 'Forro MDF',
+          cat: 'especial', desc: 'Forro em painéis de MDF — fixado em réguas na estrutura do teto',
+          coef: 0.25,
+          pecas: [
+            { id: 'painel', nome: 'Painel Forro', qtd: 1, calc: 'L*P', mat: 'int', fita: [] },
+            { id: 'regua1', nome: 'Régua Suporte 1', qtd: 1, calc: 'L*60', mat: 'int', fita: ['f'] },
+            { id: 'regua2', nome: 'Régua Suporte 2', qtd: 1, calc: 'L*60', mat: 'int', fita: ['f'] },
+          ],
+          tamponamentos: [
+            { id: 'te', nome: 'Acab. Borda Frontal', face: 'frente', calc: 'L*60', mat: 'ext', fita: ['f'] },
+          ],
+        },
+        // ─── CRISTALEIRA ───
+        {
+          nome: 'Cristaleira',
+          cat: 'sala', desc: 'Cristaleira com portas de vidro e prateleiras internas — estilo vitrine',
+          coef: 0.40,
+          pecas: [
+            { id: 'le', nome: 'Lateral Esq.', qtd: 1, calc: 'A*P', mat: 'int', fita: ['f'] },
+            { id: 'ld', nome: 'Lateral Dir.', qtd: 1, calc: 'A*P', mat: 'int', fita: ['f'] },
+            { id: 'tp', nome: 'Topo',         qtd: 1, calc: 'Li*P', mat: 'int', fita: ['f'] },
+            { id: 'bs', nome: 'Base',         qtd: 1, calc: 'Li*P', mat: 'int', fita: ['f'] },
+            { id: 'fn', nome: 'Fundo',        qtd: 1, calc: 'Li*Ai', mat: 'fundo', fita: [] },
+            { id: 'prat', nome: 'Prateleiras', qtd: 3, calc: 'Li*Pi', mat: 'int', fita: ['f'] },
+          ],
+          tamponamentos: [
+            { id: 'tl', nome: 'Acab. Lateral Esq', face: 'lat_esq', calc: 'A*P', mat: 'ext', fita: ['f'] },
+            { id: 'tr', nome: 'Acab. Lateral Dir', face: 'lat_dir', calc: 'A*P', mat: 'ext', fita: ['f'] },
+            { id: 'tt', nome: 'Acab. Topo', face: 'topo', calc: 'L*P', mat: 'ext', fita: ['f'] },
+            { id: 'tb', nome: 'Rodapé', face: 'base', calc: 'L*100', mat: 'ext', fita: ['f'] },
+          ],
+        },
+        // ─── BELICHE / MEZZANINE ───
+        {
+          nome: 'Beliche / Mezzanine',
+          cat: 'quarto', desc: 'Beliche ou mezzanine em MDF — cama elevada com espaço inferior livre',
+          coef: 0.55,
+          pecas: [
+            { id: 'lat_e', nome: 'Lateral Esq', qtd: 1, calc: 'A*P', mat: 'int', fita: ['f'] },
+            { id: 'lat_d', nome: 'Lateral Dir', qtd: 1, calc: 'A*P', mat: 'int', fita: ['f'] },
+            { id: 'cab', nome: 'Cabeceira', qtd: 1, calc: 'L*A', mat: 'int', fita: ['f'] },
+            { id: 'pes', nome: 'Peseira', qtd: 1, calc: 'L*A', mat: 'int', fita: ['f'] },
+            { id: 'estrado', nome: 'Estrado/Base', qtd: 1, calc: 'L*P', mat: 'int', fita: [] },
+            { id: 'guard', nome: 'Grade Proteção', qtd: 1, calc: 'L*300', mat: 'int', fita: ['f','t'] },
+            { id: 'trav_e', nome: 'Travessa Estrutural', qtd: 2, calc: 'P*150', mat: 'int', fita: [] },
+          ],
+          tamponamentos: [
+            { id: 'te', nome: 'Acab. Frontal', face: 'frente', calc: 'L*A', mat: 'ext', fita: ['f'] },
+            { id: 'tl', nome: 'Acab. Lateral Esq', face: 'lat_esq', calc: 'A*P', mat: 'ext', fita: ['f'] },
+            { id: 'tr', nome: 'Acab. Lateral Dir', face: 'lat_dir', calc: 'A*P', mat: 'ext', fita: ['f'] },
+            { id: 'tp', nome: 'Acab. Traseiro', face: 'tras', calc: 'L*A', mat: 'ext', fita: ['f'] },
+          ],
+        },
+        // ─── ESCADA MDF (para beliche/mezzanine) ───
+        {
+          nome: 'Escada MDF',
+          cat: 'quarto', desc: 'Escada em MDF para beliche/mezzanine — degraus fixos laterais',
+          coef: 0.30,
+          pecas: [
+            { id: 'lat_e', nome: 'Lateral Esq', qtd: 1, calc: 'A*P', mat: 'int', fita: ['f'] },
+            { id: 'lat_d', nome: 'Lateral Dir', qtd: 1, calc: 'A*P', mat: 'int', fita: ['f'] },
+            { id: 'deg', nome: 'Degraus', qtd: 5, calc: 'Li*P', mat: 'int', fita: ['f'] },
+          ],
+          tamponamentos: [
+            { id: 'tl', nome: 'Acab. Lateral Esq', face: 'lat_esq', calc: 'A*P', mat: 'ext', fita: ['f'] },
+            { id: 'tr', nome: 'Acab. Lateral Dir', face: 'lat_dir', calc: 'A*P', mat: 'ext', fita: ['f'] },
+          ],
+        },
+        // ─── DESPENSEIRO ───
+        {
+          nome: 'Despenseiro',
+          cat: 'cozinha', desc: 'Armário alto tipo despenseiro com portas de giro e prateleiras — inclui espaço para gás',
+          coef: 0.38,
+          pecas: [
+            { id: 'le', nome: 'Lateral Esq.', qtd: 1, calc: 'A*P', mat: 'int', fita: ['f'] },
+            { id: 'ld', nome: 'Lateral Dir.', qtd: 1, calc: 'A*P', mat: 'int', fita: ['f'] },
+            { id: 'tp', nome: 'Topo', qtd: 1, calc: 'Li*P', mat: 'int', fita: ['f'] },
+            { id: 'bs', nome: 'Base', qtd: 1, calc: 'Li*P', mat: 'int', fita: ['f'] },
+            { id: 'fn', nome: 'Fundo', qtd: 1, calc: 'Li*Ai', mat: 'fundo', fita: [] },
+            { id: 'prat', nome: 'Prateleiras', qtd: 4, calc: 'Li*Pi', mat: 'int', fita: ['f'] },
+            { id: 'div', nome: 'Divisória Central', qtd: 1, calc: 'Ai*Pi', mat: 'int', fita: ['f'] },
+          ],
+          tamponamentos: [
+            { id: 'tl', nome: 'Acab. Lateral Esq', face: 'lat_esq', calc: 'A*P', mat: 'ext', fita: ['f'] },
+            { id: 'tr', nome: 'Acab. Lateral Dir', face: 'lat_dir', calc: 'A*P', mat: 'ext', fita: ['f'] },
+            { id: 'tt', nome: 'Acab. Topo', face: 'topo', calc: 'L*P', mat: 'ext', fita: ['f'] },
+            { id: 'tb', nome: 'Rodapé', face: 'base', calc: 'L*100', mat: 'ext', fita: ['f'] },
+          ],
+        },
+      ];
+
+      for (const cx of caixasV32) {
+        ins.run('caixa', cx.nome, JSON.stringify(cx));
+      }
+
+      // ═══ NOVOS COMPONENTES ═══
+      const compsV32 = [
+        // ─── GAVETA BASCULANTE ───
+        {
+          nome: 'Gaveta Basculante',
+          cat: 'componente', desc: 'Gaveta com abertura basculante (tomba para frente) — usa pistão a gás',
+          coef: 0.15,
+          dimsAplicaveis: ['L'],
+          vars: [
+            { id: 'Ag', label: 'Altura da Gaveta (mm)', default: 200, min: 100, max: 500, unit: 'mm' },
+          ],
+          varsDeriv: { Lg: 'Li', Ag: 'A', Pg: 'Pi' },
+          pecas: [
+            { id: 'frente', nome: 'Frente Basculante', qtd: 1, calc: 'Lg*Ag', mat: 'int', fita: ['all'] },
+            { id: 'fundo_g', nome: 'Fundo Gaveta', qtd: 1, calc: 'Lg*Pg', mat: 'fundo', fita: [] },
+          ],
+          frente_externa: { ativa: true, id: 'frente_basc', nome: 'Frente Basculante', calc: 'Lg*Ag', mat: 'ext_comp', fita: ['all'] },
+          sub_itens: [
+            { id: 'pistao', nome: 'Pistão a Gás', ferrId: 'pistGas', defaultOn: true, qtdFormula: '2' },
+          ],
+        },
+        // ─── SAPATEIRA INTERNA (componente) ───
+        {
+          nome: 'Sapateira Interna',
+          cat: 'componente', desc: 'Módulo interno sapateira com corrediça telescópica — bandeja inclinada',
+          coef: 0.12,
+          dimsAplicaveis: ['L'],
+          vars: [
+            { id: 'nBand', label: 'Nº Bandejas', default: 3, min: 1, max: 8, unit: 'un' },
+          ],
+          varsDeriv: { Ls: 'Li', Ps: 'Pi' },
+          pecas: [
+            { id: 'band', nome: 'Bandeja Sapateira', qtd: 1, calc: 'nBand*(Ls*Ps)', mat: 'int', fita: ['f'] },
+            { id: 'borda', nome: 'Borda Frontal', qtd: 1, calc: 'nBand*(Ls*50)', mat: 'int', fita: ['f'] },
+          ],
+          frente_externa: null,
+          sub_itens: [
+            { id: 'corrOculta', nome: 'Corrediça Oculta', ferrId: 'corrOculta', defaultOn: true, qtdFormula: 'nBand' },
+          ],
+        },
+        // ─── PORTA DE CORRER COM ESPELHO ───
+        {
+          nome: 'Porta de Correr com Espelho',
+          cat: 'componente', desc: 'Porta de correr com frente em espelho prata colado — comum em roupeiros',
+          coef: 0.25,
+          dimsAplicaveis: ['L'],
+          vars: [
+            { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 4, unit: 'un' },
+            { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 500, max: 2600, unit: 'mm' },
+          ],
+          varsDeriv: { Lp: 'L/nPortas+30', Ap: 'A' },
+          pecas: [
+            { id: 'base_porta', nome: 'Base MDF da Porta', qtd: 1, calc: 'nPortas*(Lp*Ap)', mat: 'int', fita: ['all'] },
+          ],
+          frente_externa: null,
+          sub_itens: [
+            { id: 'trilho', nome: 'Trilho de Correr', ferrId: 'trilhoCorrer', defaultOn: true, qtdFormula: '1' },
+          ],
+        },
+      ];
+
+      for (const comp of compsV32) {
+        ins.run('componente', comp.nome, JSON.stringify(comp));
+      }
+
+      console.log('[OK] Catálogo v3.2: 5 caixas + 3 componentes + 4 materiais/ferragens adicionados');
+    }
   }
 }
 

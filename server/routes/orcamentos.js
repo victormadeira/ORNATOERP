@@ -142,6 +142,143 @@ router.delete('/templates/:id', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// POST /api/orcamentos/importar — importar JSON gerado pela IA
+// Recebe formato simplificado e expande com catálogo real
+// ═══════════════════════════════════════════════════════
+router.post('/importar', requireAuth, (req, res) => {
+    try {
+        const { ambientes: ambientesIA } = req.body;
+        if (!ambientesIA || !Array.isArray(ambientesIA) || ambientesIA.length === 0) {
+            return res.status(400).json({ error: 'JSON inválido: campo "ambientes" (array) obrigatório' });
+        }
+
+        // Carregar catálogo completo
+        const caixasDB = db.prepare("SELECT id, nome, json_data FROM modulos_custom WHERE tipo_item='caixa'").all();
+        const compsDB = db.prepare("SELECT id, nome, json_data FROM modulos_custom WHERE tipo_item='componente'").all();
+
+        const findCaixa = (nome) => {
+            const n = (nome || '').toLowerCase().trim();
+            return caixasDB.find(c => c.nome.toLowerCase().trim() === n);
+        };
+        const findComp = (nome) => {
+            const n = (nome || '').toLowerCase().trim();
+            return compsDB.find(c => c.nome.toLowerCase().trim() === n);
+        };
+
+        const uid = () => Math.random().toString(36).slice(2, 10);
+        const warnings = [];
+        const ambientesConvertidos = [];
+
+        for (const ambIA of ambientesIA) {
+            const amb = {
+                id: uid(),
+                nome: ambIA.nome || `Ambiente ${ambientesConvertidos.length + 1}`,
+                tipo: 'calculadora',
+                itens: [],
+                paineis: [],
+            };
+
+            if (!ambIA.itens || !Array.isArray(ambIA.itens)) {
+                warnings.push(`Ambiente "${amb.nome}": sem itens`);
+                ambientesConvertidos.push(amb);
+                continue;
+            }
+
+            for (const itemIA of ambIA.itens) {
+                const cxRow = findCaixa(itemIA.caixa);
+                if (!cxRow) {
+                    warnings.push(`Caixa "${itemIA.caixa}" não encontrada no catálogo (ambiente: ${amb.nome})`);
+                    continue;
+                }
+                const caixaDef = { db_id: cxRow.id, ...JSON.parse(cxRow.json_data) };
+
+                const dims = {
+                    l: itemIA.largura || itemIA.L || 600,
+                    a: itemIA.altura || itemIA.A || 2200,
+                    p: itemIA.profundidade || itemIA.P || 550,
+                };
+
+                const item = {
+                    id: uid(),
+                    caixaId: cxRow.id,
+                    caixaDef: JSON.parse(JSON.stringify(caixaDef)),
+                    nome: itemIA.nome || caixaDef.nome,
+                    dims,
+                    qtd: itemIA.qtd || 1,
+                    mats: {
+                        matInt: itemIA.matInt || itemIA.material_interno || 'mdf18',
+                        matExt: itemIA.matExt || itemIA.material_externo || '',
+                    },
+                    componentes: [],
+                };
+
+                // Processar componentes
+                if (itemIA.componentes && Array.isArray(itemIA.componentes)) {
+                    for (const compIA of itemIA.componentes) {
+                        const cpRow = findComp(compIA.nome || compIA.componente);
+                        if (!cpRow) {
+                            warnings.push(`Componente "${compIA.nome || compIA.componente}" não encontrado (item: ${item.nome})`);
+                            continue;
+                        }
+                        const compDef = { db_id: cpRow.id, ...JSON.parse(cpRow.json_data) };
+
+                        // Montar vars do componente
+                        const vars = {};
+                        if (compIA.vars) {
+                            for (const [k, v] of Object.entries(compIA.vars)) { vars[k] = v; }
+                        } else {
+                            // Tentar mapear campos comuns
+                            if (compIA.nPortas) vars.nPortas = compIA.nPortas;
+                            if (compIA.Ap) vars.Ap = compIA.Ap;
+                            if (compIA.ag) vars.ag = compIA.ag;
+                            if (compIA.nBand) vars.nBand = compIA.nBand;
+                        }
+
+                        // Montar sub_itens (ativar/desativar ferragens)
+                        const subItens = {};
+                        (compDef.sub_itens || []).forEach(s => {
+                            subItens[s.id] = s.defaultOn;
+                        });
+                        // Permitir override
+                        if (compIA.subItens) {
+                            for (const [k, v] of Object.entries(compIA.subItens)) { subItens[k] = v; }
+                        }
+
+                        item.componentes.push({
+                            id: uid(),
+                            compId: cpRow.id,
+                            compDef: JSON.parse(JSON.stringify(compDef)),
+                            qtd: compIA.qtd || 1,
+                            vars,
+                            matExtComp: compIA.matExtComp || compIA.material_frente || '',
+                            subItens,
+                        });
+                    }
+                }
+
+                amb.itens.push(item);
+            }
+
+            ambientesConvertidos.push(amb);
+        }
+
+        res.json({
+            ok: true,
+            ambientes: ambientesConvertidos,
+            warnings,
+            stats: {
+                ambientes: ambientesConvertidos.length,
+                itens: ambientesConvertidos.reduce((s, a) => s + a.itens.length, 0),
+                componentes: ambientesConvertidos.reduce((s, a) => s + a.itens.reduce((s2, i) => s2 + i.componentes.length, 0), 0),
+            },
+        });
+    } catch (e) {
+        console.error('Erro ao importar:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
 // GET /api/orcamentos/:id
 // ═══════════════════════════════════════════════════════
 router.get('/:id', requireAuth, (req, res) => {

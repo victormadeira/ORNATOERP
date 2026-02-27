@@ -103,6 +103,10 @@ export default function Cfg({ taxas, reload, notify }) {
     const [waChecking, setWaChecking] = useState(false);
     const [iaTestResult, setIaTestResult] = useState(null);
     const [iaTesting, setIaTesting] = useState(false);
+    const [kbPrompt, setKbPrompt] = useState('');
+    const [kbStats, setKbStats] = useState(null);
+    const [kbLoading, setKbLoading] = useState(false);
+    const [kbCopied, setKbCopied] = useState(false);
     const [activeSection, setActiveSection] = useState('empresa');
     const [driveStatus, setDriveStatus] = useState(null);
     const [driveAuthCode, setDriveAuthCode] = useState('');
@@ -218,6 +222,23 @@ export default function Cfg({ taxas, reload, notify }) {
             setIaTestResult({ ok: true, msg: d.resposta || 'Conexão OK' });
         } catch (e) { setIaTestResult({ ok: false, msg: e.error || 'Erro ao conectar com IA' }); }
         setIaTesting(false);
+    };
+
+    const gerarBaseConhecimento = async () => {
+        setKbLoading(true); setKbCopied(false);
+        try {
+            const d = await api.get('/ia/base-conhecimento');
+            setKbPrompt(d.prompt);
+            setKbStats(d.stats);
+        } catch (e) { notify?.('Erro ao gerar base de conhecimento', 'error'); }
+        setKbLoading(false);
+    };
+
+    const copiarBaseConhecimento = () => {
+        navigator.clipboard.writeText(kbPrompt);
+        setKbCopied(true);
+        setTimeout(() => setKbCopied(false), 3000);
+        notify?.('Base de conhecimento copiada!', 'success');
     };
 
     const sectionBtn = (id, label, icon) => (
@@ -1404,15 +1425,63 @@ export default function Cfg({ taxas, reload, notify }) {
                         </div>
 
                         <div className={Z.card + ' mt-4'}>
-                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Base de Conhecimento</h3>
-                            <p className="text-[11px]" style={{ color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                                Para treinar a IA com informações específicas da sua empresa (FAQs, respostas padrão, políticas), acesse a página
-                                <strong> Assistente IA → Base de Conhecimento</strong>.
+                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>
+                                <Brain size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: '-2px' }} />
+                                Base de Conhecimento IA
+                            </h3>
+                            <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                                Gera automaticamente um prompt completo com todo o catálogo de caixas, componentes, materiais e ferragens cadastrados no sistema. Use para alimentar qualquer IA externa.
                             </p>
+
+                            <button onClick={gerarBaseConhecimento} disabled={kbLoading} className={Z.btn} style={{ width: '100%', justifyContent: 'center' }}>
+                                {kbLoading
+                                    ? <><RefreshCw size={13} className="animate-spin" style={{ display: 'inline', marginRight: 6 }} /> Gerando...</>
+                                    : <><Database size={13} style={{ display: 'inline', marginRight: 6 }} /> Gerar Base de Conhecimento</>
+                                }
+                            </button>
+
+                            {kbStats && (
+                                <div className="mt-3 flex gap-2 flex-wrap">
+                                    {[
+                                        { label: 'Caixas', val: kbStats.caixas, color: '#3b82f6' },
+                                        { label: 'Componentes', val: kbStats.componentes, color: '#8b5cf6' },
+                                        { label: 'Materiais', val: kbStats.materiais, color: '#22c55e' },
+                                    ].map(s => (
+                                        <span key={s.label} className="text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: s.color + '15', color: s.color, border: `1px solid ${s.color}30` }}>
+                                            {s.val} {s.label}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+
+                            {kbPrompt && (
+                                <div className="mt-3">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="text-[10px] font-bold uppercase" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>Prompt Gerado</label>
+                                        <button onClick={copiarBaseConhecimento} className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-md cursor-pointer" style={{ background: kbCopied ? '#22c55e15' : 'var(--bg-muted)', color: kbCopied ? '#22c55e' : 'var(--primary)', border: `1px solid ${kbCopied ? '#22c55e40' : 'var(--border)'}` }}>
+                                            {kbCopied ? <><Check size={11} /> Copiado!</> : <><Ic.Copy /> Copiar</>}
+                                        </button>
+                                    </div>
+                                    <textarea
+                                        readOnly
+                                        value={kbPrompt}
+                                        rows={8}
+                                        style={{
+                                            width: '100%', fontSize: 10, lineHeight: 1.5, padding: 10, borderRadius: 8,
+                                            resize: 'vertical', background: 'var(--bg-muted)', color: 'var(--text-secondary)',
+                                            border: '1px solid var(--border)', fontFamily: 'monospace',
+                                        }}
+                                    />
+                                    <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                        {(kbPrompt.length / 1000).toFixed(1)}K caracteres · Cole este prompt na IA de sua preferência
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="mt-3 rounded-lg p-2.5" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
                                 <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--text-secondary)' }}>
                                     <Ic.Sparkles />
-                                    <span>A IA usa automaticamente todos os dados do CRM + base de conhecimento</span>
+                                    <span>Atualiza automaticamente com base nos itens cadastrados</span>
                                 </div>
                             </div>
                         </div>

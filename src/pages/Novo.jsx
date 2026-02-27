@@ -9,7 +9,7 @@ import {
     FileText, BarChart3, FileSignature, Plus, ChevronDown, ChevronRight, Trash2, Copy,
     FolderOpen, Package, Settings, Layers, X, RefreshCw, Wrench, AlertTriangle, Box, Search,
     ToggleLeft, ToggleRight, Info, CreditCard, Eye, Globe, Monitor, Smartphone, Clock, ExternalLink, Share2,
-    Lock, Unlock, ShieldAlert, FilePlus2, CheckCircle,
+    Lock, Unlock, ShieldAlert, FilePlus2, CheckCircle, Upload, Brain, Sparkles,
 } from 'lucide-react';
 
 // ── Constantes ───────────────────────────────────────────────────────────────
@@ -658,6 +658,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [templateNome, setTemplateNome] = useState('');
     const [templateCategoria, setTemplateCategoria] = useState('');
     const [mkExpanded, setMkExpanded] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [importJson, setImportJson] = useState('');
+    const [importLoading, setImportLoading] = useState(false);
+    const [importResult, setImportResult] = useState(null);
 
     // Catálogo e biblioteca do banco
     const [caixas, setCaixas] = useState([]);
@@ -776,6 +780,27 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         if (a.id !== ambId) return a;
         const c = JSON.parse(JSON.stringify(a)); fn(c); return c;
     }));
+
+    // ── Importar JSON da IA ──────────────────────────────────────────────────
+    const importarJsonIA = async () => {
+        if (!importJson.trim()) { notify('Cole o JSON gerado pela IA'); return; }
+        setImportLoading(true); setImportResult(null);
+        try {
+            let parsed;
+            try { parsed = JSON.parse(importJson); } catch { notify('JSON inválido', 'error'); setImportLoading(false); return; }
+            // Aceitar { ambientes: [...] } ou diretamente [...]
+            const payload = Array.isArray(parsed) ? { ambientes: parsed } : parsed;
+            const resp = await api.post('/orcamentos/importar', payload);
+            if (resp.ok && resp.ambientes) {
+                setAmbientes(prev => [...prev, ...resp.ambientes]);
+                setImportResult(resp);
+                setImportJson('');
+                notify(`Importado: ${resp.stats.ambientes} ambiente(s), ${resp.stats.itens} item(s), ${resp.stats.componentes} componente(s)`);
+                setTimeout(() => { setShowImportModal(false); setImportResult(null); }, 2000);
+            }
+        } catch (e) { notify(e.error || 'Erro ao importar', 'error'); }
+        setImportLoading(false);
+    };
 
     const addAmbiente = async () => {
         if (!empresa) {
@@ -1258,6 +1283,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             {!readOnly && <div className="flex gap-2">
                                 {ambTemplates.length > 0 && <button onClick={() => setShowTipoAmbModal(true)} className={`${Z.btn2} text-xs py-1.5 px-3`} style={{ borderColor: '#16a34a40', color: '#16a34a' }}><FilePlus2 size={13} /> Templates</button>}
                                 <button onClick={addAmbiente} className={`${Z.btn} text-xs py-1.5 px-3`}><Plus size={13} /> Ambiente</button>
+                                <button onClick={() => { setShowImportModal(true); setImportResult(null); }} className={`${Z.btn2} text-xs py-1.5 px-3`} style={{ borderColor: '#8b5cf640', color: '#8b5cf6' }}><Sparkles size={13} /> Importar JSON IA</button>
                             </div>}
                         </div>
 
@@ -2219,6 +2245,76 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             )}
 
             {/* ── Modal: Tipo de Ambiente ── */}
+            {/* ─── Modal Importar JSON IA ──────────────────────── */}
+            {showImportModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}
+                    onClick={() => setShowImportModal(false)}>
+                    <div className="rounded-xl shadow-2xl w-full mx-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', maxWidth: 640 }}
+                        onClick={e => e.stopPropagation()}>
+                        <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
+                            <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                <Sparkles size={16} style={{ color: '#8b5cf6' }} /> Importar JSON da IA
+                            </h3>
+                            <button onClick={() => setShowImportModal(false)} className="p-1 rounded hover:bg-[var(--bg-hover)] cursor-pointer"><X size={16} /></button>
+                        </div>
+                        <div className="p-4">
+                            <p className="text-xs mb-3" style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                                Cole abaixo o JSON gerado pela IA. O sistema vai expandir automaticamente as caixas e componentes com base no catálogo cadastrado.
+                            </p>
+                            <textarea
+                                value={importJson}
+                                onChange={e => setImportJson(e.target.value)}
+                                rows={12}
+                                placeholder={'{\n  "ambientes": [\n    {\n      "nome": "Cozinha",\n      "itens": [\n        {\n          "caixa": "Caixa Baixa / Balcão",\n          "nome": "Armário Inferior Pia",\n          "L": 1200, "A": 800, "P": 550,\n          "matInt": "mdf18",\n          "componentes": [\n            { "nome": "Porta Fecho Toque", "qtd": 2 },\n            { "nome": "Gaveta", "qtd": 1, "vars": { "ag": 200 } }\n          ]\n        }\n      ]\n    }\n  ]\n}'}
+                                style={{
+                                    width: '100%', fontSize: 11, lineHeight: 1.5, padding: 12, borderRadius: 8,
+                                    resize: 'vertical', background: 'var(--bg-muted)', color: 'var(--text-primary)',
+                                    border: '1px solid var(--border)', fontFamily: 'monospace',
+                                }}
+                            />
+
+                            {importResult && (
+                                <div className="mt-3 p-3 rounded-lg" style={{ background: '#22c55e10', border: '1px solid #22c55e30' }}>
+                                    <div className="flex items-center gap-2 text-xs font-bold" style={{ color: '#22c55e' }}>
+                                        <CheckCircle size={14} /> Importado com sucesso!
+                                    </div>
+                                    <div className="flex gap-2 mt-2 flex-wrap">
+                                        {[
+                                            { label: 'Ambientes', val: importResult.stats.ambientes },
+                                            { label: 'Itens', val: importResult.stats.itens },
+                                            { label: 'Componentes', val: importResult.stats.componentes },
+                                        ].map(s => (
+                                            <span key={s.label} className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#22c55e15', color: '#22c55e' }}>
+                                                {s.val} {s.label}
+                                            </span>
+                                        ))}
+                                    </div>
+                                    {importResult.warnings?.length > 0 && (
+                                        <div className="mt-2">
+                                            {importResult.warnings.map((w, i) => (
+                                                <div key={i} className="text-[10px] flex items-center gap-1 mt-1" style={{ color: '#f59e0b' }}>
+                                                    <AlertTriangle size={10} /> {w}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="flex justify-end gap-2 mt-4">
+                                <button onClick={() => setShowImportModal(false)} className={Z.btn2}>Cancelar</button>
+                                <button onClick={importarJsonIA} disabled={importLoading || !importJson.trim()} className={Z.btn} style={{ background: '#8b5cf6' }}>
+                                    {importLoading
+                                        ? <><RefreshCw size={13} className="animate-spin" /> Processando...</>
+                                        : <><Upload size={13} /> Importar</>
+                                    }
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showTipoAmbModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}
                     onClick={() => setShowTipoAmbModal(false)}>
