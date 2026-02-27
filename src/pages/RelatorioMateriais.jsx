@@ -197,6 +197,13 @@ function TabelaFerragens({ fa }) {
 
 // ── buildRelatorioHtml — HTML string completa para Puppeteer ────────────────
 export function buildRelatorioHtml({ empresa, orcamento, ambientes, tot, taxas, pagamento, pvComDesconto, bib, padroes }) {
+    // Cores da configuração (mesmo padrão da Proposta)
+    const corPrimaria = empresa?.proposta_cor_primaria || '#1B2A4A';
+    const corAccent = empresa?.proposta_cor_accent || '#C9A96E';
+    const logoSrc = empresa?.logo_header_path || empresa?.logo || '';
+    const watermarkSrc = empresa?.logo_watermark_path || empresa?.logo_watermark || '';
+    const watermarkOpacity = empresa?.logo_watermark_opacity ?? 0.04;
+
     const ambReports = calcAmbReports(ambientes, bib, padroes);
     const ferrGroups = groupFerragens(tot.fa);
     const custoFerragens = Object.values(tot.fa).reduce((s, f) => s + f.preco * f.qtd, 0);
@@ -216,20 +223,20 @@ export function buildRelatorioHtml({ empresa, orcamento, ambientes, tot, taxas, 
     const renderChapasTable = (ca) => {
         const entries = Object.entries(ca);
         if (!entries.length) return '<p style="color:#999;font-size:12px">Sem chapas neste ambiente</p>';
-        return `<table style="width:100%;border-collapse:collapse;font-size:12px">
-            <thead><tr style="border-bottom:2px solid #ddd">
-                <th style="text-align:left;padding:5px 8px;color:#555">Material</th>
-                <th style="text-align:center;padding:5px 8px;color:#555">Esp.</th>
-                <th style="text-align:right;padding:5px 8px;color:#555">Área (m²)</th>
-                <th style="text-align:center;padding:5px 8px;color:#555">Chapas</th>
-                <th style="text-align:right;padding:5px 8px;color:#555">Unit.</th>
-                <th style="text-align:right;padding:5px 8px;color:#555;font-weight:700">Subtotal</th>
+        return `<table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead><tr style="background:${corPrimaria}0A;border-bottom:2px solid ${corPrimaria}30">
+                <th style="text-align:left;padding:6px 8px;color:${corPrimaria};font-size:10px;text-transform:uppercase;letter-spacing:.5px">Material</th>
+                <th style="text-align:center;padding:6px 8px;color:${corPrimaria};font-size:10px">Esp.</th>
+                <th style="text-align:right;padding:6px 8px;color:${corPrimaria};font-size:10px">Área (m²)</th>
+                <th style="text-align:center;padding:6px 8px;color:${corPrimaria};font-size:10px">Chapas</th>
+                <th style="text-align:right;padding:6px 8px;color:${corPrimaria};font-size:10px">Unit.</th>
+                <th style="text-align:right;padding:6px 8px;color:${corPrimaria};font-size:10px;font-weight:700">Subtotal</th>
             </tr></thead><tbody>
-            ${entries.map(([, c]) => `<tr style="border-bottom:1px solid #eee">
-                <td style="padding:5px 8px">${c.mat.nome}</td>
+            ${entries.map(([, c], i) => `<tr style="border-bottom:1px solid #eee;${i % 2 ? `background:${corPrimaria}04` : ''}">
+                <td style="padding:5px 8px;font-weight:500">${c.mat.nome}</td>
                 <td style="text-align:center;padding:5px 8px;color:#888">${c.mat.esp}mm</td>
                 <td style="text-align:right;padding:5px 8px">${N(c.area, 2)}</td>
-                <td style="text-align:center;padding:5px 8px;font-weight:600;color:#1a4fa0">${c.n}</td>
+                <td style="text-align:center;padding:5px 8px;font-weight:700;color:${corPrimaria}">${c.n}</td>
                 <td style="text-align:right;padding:5px 8px;color:#888">${R$(c.mat.preco)}</td>
                 <td style="text-align:right;padding:5px 8px;font-weight:600">${R$(c.n * c.mat.preco)}</td>
             </tr>`).join('')}
@@ -239,68 +246,76 @@ export function buildRelatorioHtml({ empresa, orcamento, ambientes, tot, taxas, 
     const renderFerrGroup = (name, items) => {
         if (!items.length) return '';
         const total = items.reduce((s, f) => s + f.preco * f.qtd, 0);
-        return `<div style="margin-bottom:12px">
-            <div style="font-size:11px;font-weight:700;color:#666;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">${name}</div>
-            <table style="width:100%;border-collapse:collapse;font-size:12px">
-            <thead><tr style="border-bottom:2px solid #ddd">
-                <th style="text-align:left;padding:5px 8px;color:#555">Item</th>
-                <th style="text-align:center;padding:5px 8px;color:#555">Qtd</th>
-                <th style="text-align:center;padding:5px 8px;color:#555">Un.</th>
-                <th style="text-align:right;padding:5px 8px;color:#555">Unit.</th>
-                <th style="text-align:right;padding:5px 8px;color:#555;font-weight:700">Subtotal</th>
+        return `<div style="margin-bottom:14px">
+            <div style="font-size:10px;font-weight:700;color:${corAccent};margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">${name}</div>
+            <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead><tr style="background:${corPrimaria}0A;border-bottom:2px solid ${corPrimaria}30">
+                <th style="text-align:left;padding:6px 8px;color:${corPrimaria};font-size:10px">Item</th>
+                <th style="text-align:center;padding:6px 8px;color:${corPrimaria};font-size:10px">Qtd</th>
+                <th style="text-align:center;padding:6px 8px;color:${corPrimaria};font-size:10px">Un.</th>
+                <th style="text-align:right;padding:6px 8px;color:${corPrimaria};font-size:10px">Unit.</th>
+                <th style="text-align:right;padding:6px 8px;color:${corPrimaria};font-size:10px;font-weight:700">Subtotal</th>
             </tr></thead><tbody>
-            ${items.map(f => `<tr style="border-bottom:1px solid #eee">
-                <td style="padding:5px 8px">${f.nome}</td>
+            ${items.map((f, i) => `<tr style="border-bottom:1px solid #eee;${i % 2 ? `background:${corPrimaria}04` : ''}">
+                <td style="padding:5px 8px;font-weight:500">${f.nome}</td>
                 <td style="text-align:center;padding:5px 8px;font-weight:600">${N(f.qtd, 0)}</td>
                 <td style="text-align:center;padding:5px 8px;color:#888">${f.un}</td>
                 <td style="text-align:right;padding:5px 8px;color:#888">${R$(f.preco)}</td>
                 <td style="text-align:right;padding:5px 8px;font-weight:600">${R$(f.preco * f.qtd)}</td>
             </tr>`).join('')}
             </tbody>
-            <tfoot><tr style="border-top:2px solid #ccc">
-                <td colspan="4" style="padding:5px 8px;font-weight:700;font-size:11px;color:#555">Subtotal ${name}</td>
-                <td style="text-align:right;padding:5px 8px;font-weight:700;color:#1a4fa0">${R$(total)}</td>
+            <tfoot><tr style="border-top:2px solid ${corPrimaria}30">
+                <td colspan="4" style="padding:5px 8px;font-weight:700;font-size:10px;color:${corPrimaria}">Subtotal ${name}</td>
+                <td style="text-align:right;padding:5px 8px;font-weight:700;color:${corPrimaria}">${R$(total)}</td>
             </tr></tfoot></table></div>`;
     };
 
     return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
 <style>
     * { margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
-    body { font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, sans-serif; color: #333; line-height: 1.5; font-size:12px; }
-    @page { margin:12mm 10mm; size:A4; }
+    body { font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, sans-serif; color: #333; line-height: 1.5; font-size:12px; position:relative; }
+    @page { margin:14mm 12mm; size:A4; }
     @media screen { body { padding:30px 40px; max-width:900px; margin:0 auto; } }
     @media print { .no-print { display:none !important; } body { padding:0; } }
-    .page { padding: 0; }
-    .header { display:flex; justify-content:space-between; align-items:center; padding-bottom:14px; border-bottom:2.5px solid #1a4fa0; margin-bottom:20px; }
+    .page { padding: 0; position:relative; }
+    .watermark { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:0; pointer-events:none; opacity:${watermarkOpacity}; }
+    .watermark img { width:340px; height:auto; }
+    .content { position:relative; z-index:1; }
+    .header { display:flex; justify-content:space-between; align-items:center; padding-bottom:14px; border-bottom:2.5px solid ${corPrimaria}; margin-bottom:20px; }
     .header-left { display:flex; align-items:center; gap:12px; }
     .header-right { text-align:right; font-size:11px; color:#666; }
-    .title { font-size:16px; font-weight:800; color:#1a4fa0; letter-spacing:0.3px; }
+    .title { font-size:16px; font-weight:800; color:${corPrimaria}; letter-spacing:0.3px; }
     .section { margin-bottom:20px; page-break-inside:avoid; }
-    .section-title { font-size:13px; font-weight:700; color:#1a4fa0; border-bottom:1.5px solid #d8e2f5; padding-bottom:5px; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
-    .amb-title { font-size:11px; font-weight:700; color:#374151; background:#f4f7ff; border:1px solid #d8e2f5; padding:5px 10px; border-radius:4px; margin-bottom:8px; }
+    .section-title { font-size:13px; font-weight:700; color:${corPrimaria}; border-bottom:1.5px solid ${corAccent}40; padding-bottom:5px; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+    .amb-title { font-size:11px; font-weight:700; color:${corPrimaria}; background:${corPrimaria}08; border:1px solid ${corPrimaria}20; border-left:3px solid ${corAccent}; padding:5px 10px; border-radius:0 4px 4px 0; margin-bottom:8px; }
     .summary-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-    .summary-box { background:#f4f7ff; border:1px solid #d8e2f5; border-radius:6px; padding:10px 12px; }
+    .summary-box { background:${corPrimaria}06; border:1px solid ${corPrimaria}18; border-radius:6px; padding:10px 12px; }
     .summary-label { font-size:9px; text-transform:uppercase; letter-spacing:0.8px; color:#64748b; margin-bottom:2px; font-weight:600; }
     .summary-value { font-size:15px; font-weight:700; color:#1e293b; }
-    .summary-value.primary { color:#1a4fa0; }
+    .summary-value.primary { color:${corPrimaria}; }
     .total-row { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #eee; font-size:11px; }
-    .total-row.final { border-top:2px solid #1a4fa0; border-bottom:none; padding-top:8px; font-size:13px; font-weight:700; }
+    .total-row.final { border-top:2.5px solid ${corPrimaria}; border-bottom:none; padding-top:8px; font-size:13px; font-weight:700; }
     .total-row .label { color:#555; }
     .total-row .value { font-weight:600; }
-    .footer { margin-top:24px; padding-top:10px; border-top:1px solid #e5e7eb; font-size:9px; color:#aaa; text-align:center; line-height:1.5; }
-    .print-btn { display:block; margin:20px auto 0; padding:10px 36px; background:#1a4fa0; color:#fff; border:none; border-radius:6px; font-size:13px; cursor:pointer; font-weight:bold; }
-    .print-btn:hover { background:#1555c0; }
-</style></head><body><div class="page">
+    .accent { color:${corAccent}; }
+    .primary { color:${corPrimaria}; }
+    table th { color:${corPrimaria}90; }
+    .footer { margin-top:24px; padding-top:10px; border-top:1px solid ${corPrimaria}20; font-size:9px; color:#aaa; text-align:center; line-height:1.5; }
+    .print-btn { display:block; margin:20px auto 0; padding:10px 36px; background:${corPrimaria}; color:#fff; border:none; border-radius:6px; font-size:13px; cursor:pointer; font-weight:bold; }
+    .print-btn:hover { opacity:0.9; }
+</style></head><body>
+${watermarkSrc ? `<div class="watermark"><img src="${watermarkSrc}" /></div>` : ''}
+<div class="page"><div class="content">
     <div class="header">
         <div class="header-left">
-            ${empresa?.logo_header_path ? `<img src="${empresa.logo_header_path}" style="height:40px;max-width:120px;object-fit:contain" />` : ''}
+            ${logoSrc ? `<img src="${logoSrc}" style="height:40px;max-width:120px;object-fit:contain" />` : ''}
             <div>
                 <div class="title">RELATÓRIO DE MATERIAIS</div>
                 <div style="font-size:11px;color:#666">${empresa?.nome || ''}</div>
             </div>
         </div>
         <div class="header-right">
-            <div style="font-weight:700">${orcamento?.numero || ''}</div>
+            <div style="font-weight:700;color:${corPrimaria}">${orcamento?.numero || ''}</div>
             <div>Cliente: ${orcamento?.cliente_nome || ''}</div>
             <div>Projeto: ${orcamento?.projeto || ''}</div>
             <div>${new Date().toLocaleDateString('pt-BR')}</div>
@@ -326,30 +341,30 @@ export function buildRelatorioHtml({ empresa, orcamento, ambientes, tot, taxas, 
     ${tot.ft > 0 ? `<div class="section">
         <div class="section-title">Fita de Borda</div>
         ${Object.keys(fitaByMatTotal).length > 0
-            ? `<table style="width:100%;border-collapse:collapse;font-size:12px">
-                <thead><tr style="background:#f5f5f5">
-                    <th style="text-align:left;padding:5px 8px;color:#555">Material</th>
-                    <th style="text-align:right;padding:5px 8px;color:#555">Metros</th>
-                    <th style="text-align:right;padding:5px 8px;color:#555">R$/m</th>
-                    <th style="text-align:right;padding:5px 8px;color:#555">Subtotal</th>
+            ? `<table style="width:100%;border-collapse:collapse;font-size:11px">
+                <thead><tr style="background:${corPrimaria}0A;border-bottom:2px solid ${corPrimaria}30">
+                    <th style="text-align:left;padding:6px 8px;color:${corPrimaria};font-size:10px">Material</th>
+                    <th style="text-align:right;padding:6px 8px;color:${corPrimaria};font-size:10px">Metros</th>
+                    <th style="text-align:right;padding:6px 8px;color:${corPrimaria};font-size:10px">R$/m</th>
+                    <th style="text-align:right;padding:6px 8px;color:${corPrimaria};font-size:10px">Subtotal</th>
                 </tr></thead>
                 <tbody>
-                ${Object.entries(fitaByMatTotal).map(([, v]) => `
-                    <tr style="border-bottom:1px solid #eee">
-                        <td style="padding:5px 8px">${v.matNome}</td>
+                ${Object.entries(fitaByMatTotal).map(([, v], i) => `
+                    <tr style="border-bottom:1px solid #eee;${i % 2 ? `background:${corPrimaria}04` : ''}">
+                        <td style="padding:5px 8px;font-weight:500">${v.matNome}</td>
                         <td style="text-align:right;padding:5px 8px">${N(v.metros, 1)} m</td>
-                        <td style="text-align:right;padding:5px 8px">${R$(v.preco)}</td>
+                        <td style="text-align:right;padding:5px 8px;color:#888">${R$(v.preco)}</td>
                         <td style="text-align:right;padding:5px 8px;font-weight:600">${R$(v.metros * v.preco)}</td>
                     </tr>`).join('')}
                 </tbody>
-                <tfoot><tr style="background:#f5f5f5;font-weight:700">
-                    <td style="padding:5px 8px">Total</td>
-                    <td style="text-align:right;padding:5px 8px">${N(tot.ft, 1)} m</td>
+                <tfoot><tr style="background:${corPrimaria}0A;border-top:2px solid ${corPrimaria}30;font-weight:700">
+                    <td style="padding:5px 8px;color:${corPrimaria}">Total</td>
+                    <td style="text-align:right;padding:5px 8px;color:${corPrimaria}">${N(tot.ft, 1)} m</td>
                     <td></td>
-                    <td style="text-align:right;padding:5px 8px">${R$(Object.values(fitaByMatTotal).reduce((s,v)=>s+v.metros*v.preco,0))}</td>
+                    <td style="text-align:right;padding:5px 8px;color:${corPrimaria}">${R$(Object.values(fitaByMatTotal).reduce((s,v)=>s+v.metros*v.preco,0))}</td>
                 </tr></tfoot>
                </table>`
-            : `<div style="font-size:13px;padding:8px 0">Total: <strong>${N(tot.ft, 1)} metros lineares</strong></div>`
+            : `<div style="font-size:12px;padding:8px 0">Total: <strong>${N(tot.ft, 1)} metros lineares</strong></div>`
         }
     </div>` : ''}
 
@@ -373,30 +388,30 @@ export function buildRelatorioHtml({ empresa, orcamento, ambientes, tot, taxas, 
 
     ${pagamento?.blocos?.length > 0 ? `<div class="section">
         <div class="section-title">Condições de Pagamento</div>
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead><tr style="border-bottom:2px solid #ddd">
-            <th style="text-align:left;padding:5px 8px;color:#555">Descrição</th>
-            <th style="text-align:center;padding:5px 8px;color:#555">%</th>
-            <th style="text-align:center;padding:5px 8px;color:#555">Meio</th>
-            <th style="text-align:center;padding:5px 8px;color:#555">Parcelas</th>
-            <th style="text-align:right;padding:5px 8px;color:#555">Valor</th>
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="background:${corPrimaria}0A;border-bottom:2px solid ${corPrimaria}30">
+            <th style="text-align:left;padding:6px 8px;color:${corPrimaria};font-size:10px">Descrição</th>
+            <th style="text-align:center;padding:6px 8px;color:${corPrimaria};font-size:10px">%</th>
+            <th style="text-align:center;padding:6px 8px;color:${corPrimaria};font-size:10px">Meio</th>
+            <th style="text-align:center;padding:6px 8px;color:${corPrimaria};font-size:10px">Parcelas</th>
+            <th style="text-align:right;padding:6px 8px;color:${corPrimaria};font-size:10px">Valor</th>
         </tr></thead><tbody>
-        ${pagamento.blocos.map(b => {
+        ${pagamento.blocos.map((b, i) => {
         const vb = pvComDesconto * (b.percentual || 0) / 100;
         const np = Math.max(1, b.parcelas || 1);
-        return `<tr style="border-bottom:1px solid #eee">
-                <td style="padding:5px 8px">${b.descricao || '—'}</td>
+        return `<tr style="border-bottom:1px solid #eee;${i % 2 ? `background:${corPrimaria}04` : ''}">
+                <td style="padding:5px 8px;font-weight:500">${b.descricao || '—'}</td>
                 <td style="text-align:center;padding:5px 8px">${b.percentual}%</td>
                 <td style="text-align:center;padding:5px 8px">${MEIO_LABEL[b.meio] || b.meio}</td>
                 <td style="text-align:center;padding:5px 8px">${np > 1 ? `${np}×` : 'À vista'}</td>
-                <td style="text-align:right;padding:5px 8px;font-weight:600">${np > 1 ? `${np}× ${R$(vb / np)}` : R$(vb)}</td>
+                <td style="text-align:right;padding:5px 8px;font-weight:600;color:${corPrimaria}">${np > 1 ? `${np}× ${R$(vb / np)}` : R$(vb)}</td>
             </tr>`;
     }).join('')}
         </tbody></table>
     </div>` : ''}
 
     <div class="footer">${empresa?.nome || ''} — ${empresa?.telefone || ''} — ${empresa?.email || ''} — Gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
-</div>
+</div></div>
 <button class="print-btn no-print" onclick="window.print()">Imprimir / Salvar PDF</button>
 </body></html>`;
 }
