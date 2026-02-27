@@ -21,7 +21,7 @@ import Relatorios from './pages/Relatorios';
 import Financeiro from './pages/Financeiro';
 
 export default function App() {
-    const { user, loading, logout, isAdmin, isGerente } = useAuth();
+    const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
     const [pg, setPg] = useState("dash");
     const [sb, setSb] = useState(true);
     const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
@@ -38,6 +38,7 @@ export default function App() {
     const [empNome, setEmpNome] = useState(() => localStorage.getItem('emp_nome') || 'Ornato');
     const [mobileOpen, setMobileOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+    const [showPerfil, setShowPerfil] = useState(false);
 
     // Detectar mobile via resize
     useEffect(() => {
@@ -297,12 +298,14 @@ export default function App() {
 
                     {(sb || isMobile) ? (
                         <div className="flex items-center gap-2.5 px-2.5 py-2">
-                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--primary)' }}>
-                                {user.nome?.[0]?.toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{user.nome}</div>
-                                <div className="text-[10px] capitalize" style={{ color: 'var(--text-muted)' }}>{user.role}</div>
+                            <div onClick={() => setShowPerfil(true)} className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer rounded-lg px-1 py-0.5 transition-colors hover:bg-[var(--bg-hover)]">
+                                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: 'var(--primary)' }}>
+                                    {user.nome?.[0]?.toUpperCase()}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{user.nome}</div>
+                                    <div className="text-[10px] capitalize" style={{ color: 'var(--text-muted)' }}>{user.role}</div>
+                                </div>
                             </div>
                             <button onClick={logout} className="p-1 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }} title="Sair">
                                 <Ic.Logout />
@@ -483,6 +486,151 @@ export default function App() {
                     {renderPage()}
                 </div>
             </main>
+
+            {/* Modal de Perfil */}
+            {showPerfil && <PerfilModal user={user} onClose={() => setShowPerfil(false)} notify={notify} updateUser={updateUser} />}
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════
+// PerfilModal — Editar perfil e alterar senha
+// ═══════════════════════════════════════════════════════
+function PerfilModal({ user, onClose, notify, updateUser }) {
+    const [nome, setNome] = useState(user.nome || '');
+    const [email, setEmail] = useState(user.email || '');
+    const [saving, setSaving] = useState(false);
+    const [senhaAtual, setSenhaAtual] = useState('');
+    const [novaSenha, setNovaSenha] = useState('');
+    const [confirmar, setConfirmar] = useState('');
+    const [savingSenha, setSavingSenha] = useState(false);
+    const [err, setErr] = useState('');
+    const [errSenha, setErrSenha] = useState('');
+
+    const handleSavePerfil = async () => {
+        setErr('');
+        if (!nome.trim() || !email.trim()) { setErr('Nome e email obrigatórios'); return; }
+        setSaving(true);
+        try {
+            const updated = await api.put('/auth/perfil', { nome: nome.trim(), email: email.trim() });
+            updateUser(updated);
+            notify('Perfil atualizado');
+        } catch (ex) {
+            setErr(ex.error || 'Erro ao salvar');
+        } finally { setSaving(false); }
+    };
+
+    const handleSaveSenha = async () => {
+        setErrSenha('');
+        if (!senhaAtual || !novaSenha) { setErrSenha('Preencha todos os campos'); return; }
+        if (novaSenha.length < 6) { setErrSenha('Nova senha deve ter no mínimo 6 caracteres'); return; }
+        if (novaSenha !== confirmar) { setErrSenha('As senhas não coincidem'); return; }
+        setSavingSenha(true);
+        try {
+            await api.put('/auth/password', { senhaAtual, novaSenha });
+            setSenhaAtual(''); setNovaSenha(''); setConfirmar('');
+            notify('Senha alterada com sucesso');
+        } catch (ex) {
+            setErrSenha(ex.error || 'Erro ao alterar senha');
+        } finally { setSavingSenha(false); }
+    };
+
+    const inputStyle = {
+        width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 14,
+        border: '1.5px solid var(--border)', background: 'var(--bg-body)',
+        color: 'var(--text-primary)', outline: 'none',
+    };
+    const labelStyle = { fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block' };
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)' }} onClick={onClose} />
+            <div style={{
+                position: 'relative', width: '100%', maxWidth: 440, maxHeight: '90vh', overflowY: 'auto',
+                background: 'var(--bg-card)', borderRadius: 18, boxShadow: '0 20px 60px rgba(0,0,0,.25)',
+                border: '1px solid var(--border)', margin: 16,
+            }}>
+                {/* Header */}
+                <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{
+                            width: 42, height: 42, borderRadius: '50%', background: 'var(--primary)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#fff', fontSize: 16, fontWeight: 800,
+                        }}>{user.nome?.[0]?.toUpperCase()}</div>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>Meu Perfil</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{user.role}</div>
+                        </div>
+                    </div>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
+                        <Ic.X />
+                    </button>
+                </div>
+
+                {/* Dados pessoais */}
+                <div style={{ padding: '20px 24px' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Ic.Edit /> Dados Pessoais
+                    </div>
+
+                    {err && (
+                        <div style={{ padding: '8px 12px', borderRadius: 8, marginBottom: 12, fontSize: 12, fontWeight: 600, background: 'rgba(220,38,38,0.08)', color: '#ef4444', border: '1px solid rgba(220,38,38,0.15)' }}>
+                            {err}
+                        </div>
+                    )}
+
+                    <div style={{ marginBottom: 12 }}>
+                        <label style={labelStyle}>Nome</label>
+                        <input value={nome} onChange={e => setNome(e.target.value)} style={inputStyle} />
+                    </div>
+                    <div style={{ marginBottom: 16 }}>
+                        <label style={labelStyle}>Email</label>
+                        <input value={email} onChange={e => setEmail(e.target.value)} type="email" style={inputStyle} />
+                    </div>
+                    <button onClick={handleSavePerfil} disabled={saving}
+                        className={`${Z.btn} w-full py-2.5 text-sm`}>
+                        {saving ? 'Salvando...' : 'Salvar Dados'}
+                    </button>
+                </div>
+
+                {/* Divider */}
+                <div style={{ height: 1, background: 'var(--border)', margin: '0 24px' }} />
+
+                {/* Alterar senha */}
+                <div style={{ padding: '20px 24px' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Ic.Lock /> Alterar Senha
+                    </div>
+
+                    {errSenha && (
+                        <div style={{ padding: '8px 12px', borderRadius: 8, marginBottom: 12, fontSize: 12, fontWeight: 600, background: 'rgba(220,38,38,0.08)', color: '#ef4444', border: '1px solid rgba(220,38,38,0.15)' }}>
+                            {errSenha}
+                        </div>
+                    )}
+
+                    <div style={{ marginBottom: 12 }}>
+                        <label style={labelStyle}>Senha Atual</label>
+                        <input value={senhaAtual} onChange={e => setSenhaAtual(e.target.value)} type="password" style={inputStyle} placeholder="Digite sua senha atual" />
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                        <label style={labelStyle}>Nova Senha</label>
+                        <input value={novaSenha} onChange={e => setNovaSenha(e.target.value)} type="password" style={inputStyle} placeholder="Mínimo 6 caracteres" />
+                    </div>
+                    <div style={{ marginBottom: 16 }}>
+                        <label style={labelStyle}>Confirmar Nova Senha</label>
+                        <input value={confirmar} onChange={e => setConfirmar(e.target.value)} type="password" style={inputStyle} placeholder="Repita a nova senha" />
+                    </div>
+                    <button onClick={handleSaveSenha} disabled={savingSenha}
+                        style={{
+                            width: '100%', padding: '10px 0', borderRadius: 10, border: '2px solid var(--border)',
+                            background: 'var(--bg-body)', color: 'var(--text-primary)', fontWeight: 600, fontSize: 14,
+                            cursor: 'pointer', transition: 'all 0.15s',
+                        }}>
+                        {savingSenha ? 'Alterando...' : 'Alterar Senha'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }

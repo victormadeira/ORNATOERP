@@ -39,8 +39,10 @@ export function AuthProvider({ children }) {
     const isGerente = user?.role === 'gerente' || isAdmin;
     const canEdit = isGerente;
 
+    const updateUser = (data) => setUser(prev => ({ ...prev, ...data }));
+
     return (
-        <AuthContext.Provider value={{ user, loading, login, logout, isAdmin, isGerente, canEdit }}>
+        <AuthContext.Provider value={{ user, loading, login, logout, isAdmin, isGerente, canEdit, updateUser }}>
             {children}
         </AuthContext.Provider>
     );

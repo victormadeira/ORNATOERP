@@ -126,6 +126,24 @@ router.delete('/users/:id', requireAuth, requireRole('admin'), (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// PUT /api/auth/perfil — atualizar próprio nome/email
+// ═══════════════════════════════════════════════════════
+router.put('/perfil', requireAuth, (req, res) => {
+    const { nome, email } = req.body;
+    if (!nome || !email) return res.status(400).json({ error: 'Nome e email obrigatórios' });
+    if (nome.length < 2) return res.status(400).json({ error: 'Nome deve ter no mínimo 2 caracteres' });
+
+    // Verificar se email já existe em outro usuário
+    const existe = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email, req.user.id);
+    if (existe) return res.status(400).json({ error: 'Este email já está em uso por outro usuário' });
+
+    db.prepare('UPDATE users SET nome = ?, email = ? WHERE id = ?').run(nome.trim(), email.trim().toLowerCase(), req.user.id);
+
+    const updated = db.prepare('SELECT id, nome, email, role, permissions FROM users WHERE id = ?').get(req.user.id);
+    res.json(updated);
+});
+
+// ═══════════════════════════════════════════════════════
 // PUT /api/auth/password — alterar própria senha
 // ═══════════════════════════════════════════════════════
 router.put('/password', requireAuth, (req, res) => {
