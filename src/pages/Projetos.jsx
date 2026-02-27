@@ -137,22 +137,46 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
     const minW = Math.round(600 * zoom);
     const shortDt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
 
+    // Detectar se barra é estreita (< 12% da largura total)
+    const isNarrow = (widthPct) => widthPct < 12;
+
     return (
         <div style={{ overflowX: 'auto' }}>
-            {/* Timeline header with grid labels */}
-            <div style={{ position: 'relative', height: 32, background: 'var(--bg-muted)', borderRadius: '6px 6px 0 0', border: '1px solid var(--border)', borderBottom: 'none', minWidth: minW }}>
-                {months.map((m, i) => (
-                    <div key={`m${i}`} style={{ position: 'absolute', left: `${m.pct}%`, fontSize: 10, color: 'var(--text-muted)', padding: '4px 6px', fontWeight: 700, whiteSpace: 'nowrap', top: 0 }}>{m.label}</div>
-                ))}
-                {gridLines.map((g, i) => (
-                    <div key={`g${i}`} style={{ position: 'absolute', left: `${g.pct}%`, bottom: 0, fontSize: 9, color: '#94a3b8', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>{g.label}</div>
-                ))}
+            {/* Timeline header — duas linhas: meses em cima, datas embaixo */}
+            <div style={{ position: 'relative', borderRadius: '6px 6px 0 0', border: '1px solid var(--border)', borderBottom: 'none', minWidth: minW, overflow: 'hidden' }}>
+                {/* Linha 1: Meses */}
+                <div style={{ position: 'relative', height: 22, background: 'var(--bg-muted)', borderBottom: '1px solid var(--border)' }}>
+                    {months.map((m, i) => {
+                        // Calcular largura de cada mês
+                        const nextPct = i < months.length - 1 ? months[i + 1].pct : 100;
+                        const mWidth = nextPct - Math.max(0, m.pct);
+                        return (
+                            <div key={`m${i}`} style={{
+                                position: 'absolute', left: `${Math.max(0, m.pct)}%`, width: `${mWidth}%`,
+                                fontSize: 11, color: 'var(--text-muted)', fontWeight: 700,
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                lineHeight: '22px', paddingLeft: 8, boxSizing: 'border-box',
+                                borderRight: i < months.length - 1 ? '1px solid var(--border)' : 'none',
+                            }}>{m.label}</div>
+                        );
+                    })}
+                </div>
+                {/* Linha 2: Datas do grid */}
+                <div style={{ position: 'relative', height: 18, background: 'var(--bg-card)' }}>
+                    {gridLines.map((g, i) => (
+                        <div key={`g${i}`} style={{
+                            position: 'absolute', left: `${g.pct}%`, top: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            fontSize: 9, color: '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap',
+                        }}>{g.label}</div>
+                    ))}
+                </div>
             </div>
             {/* Bars container */}
             <div style={{ position: 'relative', border: '1px solid var(--border)', borderRadius: '0 0 6px 6px', background: 'var(--bg-card)', minWidth: minW }}>
                 {/* Grid lines verticais */}
                 {gridLines.map((g, i) => (
-                    <div key={`gl${i}`} style={{ position: 'absolute', left: `${g.pct}%`, top: 0, bottom: 0, width: 1, background: 'var(--border)', opacity: 0.5, zIndex: 0 }} />
+                    <div key={`gl${i}`} style={{ position: 'absolute', left: `${g.pct}%`, top: 0, bottom: 0, width: 1, background: 'var(--border)', opacity: 0.4, zIndex: 0 }} />
                 ))}
                 {/* Today indicator — linha vermelha com glow */}
                 {showToday && (
@@ -164,7 +188,6 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                 )}
                 {etapas.map((e, i) => {
                     if (!e.data_inicio && !e.data_vencimento) {
-                        // Sem datas — mostra como placeholder cinza
                         return (
                             <div key={e.id} style={{ position: 'relative', height: 44, borderBottom: i < etapas.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
                                 <span onClick={() => onEdit && onEdit(e)} style={{ fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', fontStyle: 'italic' }}>
@@ -182,6 +205,8 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                     const isOverdue = e.data_vencimento && e.data_vencimento < todayStr && e.status !== 'concluida';
                     const hasDep = e.dependencia_id && etapaMap[e.dependencia_id];
                     const endLabel = shortDt(e.data_vencimento);
+                    const narrow = isNarrow(width);
+                    const barText = e.nome + (progresso > 0 ? ` (${progresso}%)` : '');
 
                     return (
                         <div key={e.id} style={{ position: 'relative', height: 44, borderBottom: i < etapas.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center' }}>
@@ -189,8 +214,10 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                             {hasDep && (
                                 <div style={{ position: 'absolute', left: `${Math.max(0, (toMs(etapaMap[e.dependencia_id].data_vencimento || etapaMap[e.dependencia_id].data_inicio) - minMs) / totalMs * 100)}%`, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#94a3b8', zIndex: 3, pointerEvents: 'none', fontWeight: 700 }}>→</div>
                             )}
-                            {/* Etapa name to the left of bar */}
-                            <div style={{ position: 'absolute', left: 4, right: `${100 - left}%`, fontSize: 11, color: 'var(--text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 4px', display: left > 12 ? 'block' : 'none' }}>{e.nome}</div>
+                            {/* Etapa name to the left of bar (only if bar starts far enough right) */}
+                            {!narrow && left > 12 && (
+                                <div style={{ position: 'absolute', left: 4, right: `${100 - left}%`, fontSize: 11, color: 'var(--text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 4px' }}>{e.nome}</div>
+                            )}
                             {/* Bar with progress fill */}
                             <div
                                 onClick={() => onEdit && onEdit(e)}
@@ -204,19 +231,24 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                             >
                                 {/* Progress fill */}
                                 <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${progresso}%`, background: `${color}50`, transition: 'width 0.3s' }} />
-                                {/* Bar text */}
-                                <span style={{ position: 'relative', zIndex: 1, fontSize: 11, fontWeight: 600, color: '#1e293b', padding: '0 8px', whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: '26px', display: 'block' }}>
-                                    {e.nome}{progresso > 0 ? ` (${progresso}%)` : ''}
-                                </span>
+                                {/* Bar text — only if not narrow */}
+                                {!narrow && (
+                                    <span style={{ position: 'relative', zIndex: 1, fontSize: 11, fontWeight: 600, color: '#1e293b', padding: '0 8px', whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: '26px', display: 'block' }}>
+                                        {barText}
+                                    </span>
+                                )}
                             </div>
-                            {/* Data final + initials after bar */}
-                            <div style={{ position: 'absolute', left: `${Math.min(97, left + width + 0.5)}%`, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 4, zIndex: 3 }}>
+                            {/* Info after bar: initials + date + (nome if narrow) */}
+                            <div style={{ position: 'absolute', left: `${Math.min(96, left + width + 0.5)}%`, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 4, zIndex: 3 }}>
                                 {e.responsavel_nome && (
                                     <div style={{
                                         width: 22, height: 22, borderRadius: '50%', background: color, color: '#fff',
                                         fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
                                         border: '2px solid var(--bg-card)', flexShrink: 0,
                                     }}>{getInitials(e.responsavel_nome)}</div>
+                                )}
+                                {narrow && (
+                                    <span style={{ fontSize: 11, color: 'var(--text)', fontWeight: 600, whiteSpace: 'nowrap' }}>{barText}</span>
                                 )}
                                 {endLabel && (
                                     <span style={{ fontSize: 10, color: isOverdue ? '#ef4444' : '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap' }}>{endLabel}</span>

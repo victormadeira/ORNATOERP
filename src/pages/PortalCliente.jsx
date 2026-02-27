@@ -80,23 +80,38 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
     const shortDt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
     const STATUS = mkStatusEtapa(accent);
 
+    const isNarrow = (widthPct) => widthPct < 12;
+
     return (
         <div style={{ overflowX: 'auto', marginTop: 8 }}>
-            <div style={{
-                position: 'relative', height: 30,
-                background: primary,
-                borderRadius: '8px 8px 0 0', minWidth: 400
-            }}>
-                {months.map((m, i) => (
-                    <div key={`m${i}`} style={{
-                        position: 'absolute', left: `${m.pct}%`,
-                        fontSize: 10, color: 'rgba(255,255,255,0.75)',
-                        padding: '4px 8px', fontWeight: 600, whiteSpace: 'nowrap', top: 0
-                    }}>{m.label}</div>
-                ))}
-                {gridLines.map((g, i) => (
-                    <div key={`g${i}`} style={{ position: 'absolute', left: `${g.pct}%`, bottom: 0, fontSize: 8, color: 'rgba(255,255,255,0.45)', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>{g.label}</div>
-                ))}
+            {/* Header — duas linhas */}
+            <div style={{ borderRadius: '8px 8px 0 0', minWidth: 400, overflow: 'hidden' }}>
+                {/* Linha 1: Meses */}
+                <div style={{ position: 'relative', height: 22, background: primary }}>
+                    {months.map((m, i) => {
+                        const nextPct = i < months.length - 1 ? months[i + 1].pct : 100;
+                        const mWidth = nextPct - Math.max(0, m.pct);
+                        return (
+                            <div key={`m${i}`} style={{
+                                position: 'absolute', left: `${Math.max(0, m.pct)}%`, width: `${mWidth}%`,
+                                fontSize: 10, color: 'rgba(255,255,255,0.85)', fontWeight: 700,
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                lineHeight: '22px', paddingLeft: 8, boxSizing: 'border-box',
+                                borderRight: i < months.length - 1 ? '1px solid rgba(255,255,255,0.15)' : 'none',
+                            }}>{m.label}</div>
+                        );
+                    })}
+                </div>
+                {/* Linha 2: Datas do grid */}
+                <div style={{ position: 'relative', height: 18, background: `${primary}dd` }}>
+                    {gridLines.map((g, i) => (
+                        <div key={`g${i}`} style={{
+                            position: 'absolute', left: `${g.pct}%`, top: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            fontSize: 9, color: 'rgba(255,255,255,0.55)', fontWeight: 600, whiteSpace: 'nowrap',
+                        }}>{g.label}</div>
+                    ))}
+                </div>
             </div>
 
             <div style={{
@@ -106,7 +121,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
             }}>
                 {/* Grid lines */}
                 {gridLines.map((g, i) => (
-                    <div key={`gl${i}`} style={{ position: 'absolute', left: `${g.pct}%`, top: 0, bottom: 0, width: 1, background: '#e2e8f0', opacity: 0.6, zIndex: 0 }} />
+                    <div key={`gl${i}`} style={{ position: 'absolute', left: `${g.pct}%`, top: 0, bottom: 0, width: 1, background: '#e2e8f0', opacity: 0.5, zIndex: 0 }} />
                 ))}
                 {/* Today line */}
                 {showToday && (
@@ -132,6 +147,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                     const width = Math.max(1.5, (Math.max(f, s + DAY) - s) / totalMs * 100);
                     const color = STATUS[e.status]?.color || '#94a3b8';
                     const endLabel = shortDt(e.data_vencimento);
+                    const narrow = isNarrow(width);
                     return (
                         <div key={e.id} style={{
                             position: 'relative', height: 40,
@@ -146,13 +162,21 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                 overflow: 'hidden', zIndex: 1,
                                 boxShadow: '0 1px 4px rgba(0,0,0,.15)'
                             }}>
-                                <span style={{ fontSize: 10, color: '#fff', padding: '0 8px', whiteSpace: 'nowrap', overflow: 'hidden', fontWeight: 600 }}>
-                                    {e.nome}
-                                </span>
+                                {!narrow && (
+                                    <span style={{ fontSize: 10, color: '#fff', padding: '0 8px', whiteSpace: 'nowrap', overflow: 'hidden', fontWeight: 600 }}>
+                                        {e.nome}
+                                    </span>
+                                )}
                             </div>
-                            {endLabel && (
-                                <span style={{ position: 'absolute', left: `${Math.min(96, left + width + 0.5)}%`, top: '50%', transform: 'translateY(-50%)', fontSize: 9, color: '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap', zIndex: 2 }}>{endLabel}</span>
-                            )}
+                            {/* Info ao lado da barra */}
+                            <div style={{ position: 'absolute', left: `${Math.min(96, left + width + 0.5)}%`, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 4, zIndex: 2 }}>
+                                {narrow && (
+                                    <span style={{ fontSize: 10, color: '#334155', fontWeight: 600, whiteSpace: 'nowrap' }}>{e.nome}</span>
+                                )}
+                                {endLabel && (
+                                    <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap' }}>{endLabel}</span>
+                                )}
+                            </div>
                         </div>
                     );
                 })}
