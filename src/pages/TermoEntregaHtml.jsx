@@ -393,7 +393,7 @@ ${pages.join('\n')}
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// 3. CERTIFICADO DE GARANTIA (documento separado)
+// 3. CERTIFICADO DE GARANTIA (documento profissional com fundamentação CDC)
 // ═════════════════════════════════════════════════════════════════════════════
 export function buildCertificadoGarantiaHtml(data, config = {}) {
     const { projeto, ambientes, empresa } = data;
@@ -406,146 +406,228 @@ export function buildCertificadoGarantiaHtml(data, config = {}) {
     const clienteNome = esc(projeto.cliente_nome || '—');
     const projNome = esc(projeto.nome || '—');
     const orcNumero = esc(projeto.orc_numero || '');
+    const enderecoObra = esc((() => { try { return JSON.parse(projeto.mods_json || '{}').endereco_obra || ''; } catch (_) { return ''; } })());
 
     const garantiaPeriodo = '5 (cinco) anos';
+    const garantiaLegal = '90 (noventa) dias';
     const dataEntrega = dataHoje;
 
-    // Lista de ambientes e itens
+    // Contagem total de itens
+    let totalItens = 0;
     const itensResumo = (ambientes || []).map((amb, ai) => {
         const itens = amb.itens || amb.mods || [];
+        totalItens += itens.length;
         return `<tr>
-            <td style="font-weight:600">${esc(amb.nome) || 'Ambiente ' + (ai + 1)}</td>
-            <td>${itens.length} item${itens.length !== 1 ? 'ns' : ''}</td>
+            <td style="font-weight:600;white-space:nowrap">${esc(amb.nome) || 'Ambiente ' + (ai + 1)}</td>
+            <td class="n">${itens.length}</td>
             <td>${itens.map(m => esc(m.nome || m.tipo) || '—').join(', ')}</td>
         </tr>`;
     }).join('');
 
     const garantiaCustom = garantiaTexto || '';
 
+    const empresaNome = esc(empresa.nome) || 'a empresa';
+    const empresaCnpj = esc(empresa.cnpj) || '';
+    const empresaTel = esc(empresa.telefone) || '';
+    const empresaEmail = esc(empresa.email) || '';
+    const empresaCidade = [empresa.cidade, empresa.estado].filter(Boolean).map(esc).join('/');
+
     return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/><base href="${baseHref}"/>
 <title>Certificado de Garantia — ${clienteNome}</title>
 <style>
 ${buildBaseCSS(cp, ca)}
-.cert-border{border:3px solid ${cp};border-radius:12px;padding:24px;margin-bottom:20px;}
-.cert-title{text-align:center;margin-bottom:20px;}
-.cert-title h2{font-size:22px;font-weight:bold;color:${cp};letter-spacing:1px;}
-.cert-title .sub{font-size:12px;color:#555;margin-top:4px;}
 
-.clause{margin-bottom:12px;}
-.clause h4{font-size:11px;font-weight:bold;color:${cp};margin-bottom:4px;text-transform:uppercase;}
-.clause p, .clause li{font-size:10.5px;line-height:1.7;color:#333;}
-.clause ul{padding-left:18px;margin-top:4px;}
-.clause li{margin-bottom:3px;}
+/* --- Certificado de Garantia --- */
+.cert-wrap{border:2.5px solid ${cp};border-radius:10px;padding:28px 26px;position:relative;}
+.cert-header{text-align:center;border-bottom:2px solid ${cp};padding-bottom:16px;margin-bottom:18px;}
+.cert-header img.logo{height:44px;max-width:140px;object-fit:contain;margin:0 auto 8px;display:block;}
+.cert-header h1{font-size:20px;font-weight:800;color:${cp};letter-spacing:2px;margin:0;}
+.cert-header .cert-sub{font-size:10px;color:#666;margin-top:4px;letter-spacing:0.5px;}
 
-.cuidados{background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:12px 14px;margin-bottom:14px;}
-.cuidados h4{color:${ca};font-size:11px;font-weight:bold;margin-bottom:6px;text-transform:uppercase;}
-.cuidados li{font-size:10px;line-height:1.7;color:#555;}
-.cuidados ul{padding-left:16px;}
+.cert-seal{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;background:${cp}08;border:1.5px solid ${cp}30;border-radius:6px;margin:16px 0;}
+.cert-seal svg{flex-shrink:0;}
+.cert-seal span{font-size:12px;font-weight:700;color:${cp};}
 
-.exclusoes{background:#fef2f2;border:1px solid #fecaca;border-radius:5px;padding:12px 14px;margin-bottom:14px;}
-.exclusoes h4{color:#dc2626;font-size:11px;font-weight:bold;margin-bottom:6px;text-transform:uppercase;}
-.exclusoes li{font-size:10px;line-height:1.7;color:#555;}
-.exclusoes ul{padding-left:16px;}
+.cert-dados{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px 14px;margin-bottom:16px;font-size:10px;}
+.cert-dados .cd{display:flex;gap:4px;}
+.cert-dados .cd label{font-weight:700;color:#555;white-space:nowrap;}
+.cert-dados .cd span{color:#111;}
+.cert-dados .cd.full{grid-column:span 2;}
+.cert-dados .cd.destaque span{color:${cp};font-weight:700;}
 
-.cert-badge{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin-bottom:14px;}
-.cert-badge span{font-size:13px;font-weight:bold;color:#16a34a;}
+.cl{margin-bottom:14px;page-break-inside:avoid;}
+.cl-hdr{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+.cl-hdr .cl-num{background:${cp};color:#fff;font-size:9px;font-weight:800;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.cl-hdr h4{font-size:10.5px;font-weight:700;color:${cp};text-transform:uppercase;margin:0;letter-spacing:0.3px;}
+.cl p,.cl li{font-size:10px;line-height:1.7;color:#333;}
+.cl ul{padding-left:16px;margin:4px 0 0;}
+.cl li{margin-bottom:2px;}
+.cl .sub-title{font-weight:700;color:#444;font-size:10px;margin:8px 0 4px;text-transform:uppercase;}
+
+.cl-box{border-radius:6px;padding:12px 14px;margin-bottom:14px;page-break-inside:avoid;}
+.cl-box.cobertura{background:#f0fdf4;border:1px solid #bbf7d0;}
+.cl-box.cobertura h4{color:#16a34a;}
+.cl-box.exclusao{background:#fef2f2;border:1px solid #fecaca;}
+.cl-box.exclusao h4{color:#dc2626;}
+.cl-box.cuidados{background:#fffbeb;border:1px solid #fde68a;}
+.cl-box.cuidados h4{color:${ca};}
+.cl-box h4{font-size:10px;font-weight:700;margin-bottom:6px;text-transform:uppercase;}
+.cl-box li{font-size:9.5px;line-height:1.7;color:#555;margin-bottom:1px;}
+.cl-box ul{padding-left:14px;margin:0;}
+
+.cert-contato{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;background:${cp}06;border:1.5px solid ${cp}20;border-radius:6px;padding:12px 14px;margin:16px 0;font-size:10px;}
+.cert-contato .cc{text-align:center;}
+.cert-contato .cc label{display:block;font-size:8.5px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:2px;}
+.cert-contato .cc span{font-weight:600;color:${cp};}
+
+.cert-legal{font-size:8.5px;color:#888;text-align:center;line-height:1.6;margin-top:14px;padding-top:10px;border-top:1px solid #e5e7eb;}
 </style></head><body>
 
 ${watermarkHtml(watermarkSrc, watermarkOpacity)}
 <div class="content-wrap">
 
-<div class="cert-border">
+<div class="cert-wrap">
 
-${headerHtml(empresa, 'CERTIFICADO DE GARANTIA', orcNumero ? `Ref.: ${orcNumero}` : '', dataHoje)}
-
-<div class="cert-badge">
-    <span>&#x2714; GARANTIA DE ${garantiaPeriodo.toUpperCase()} PARA DEFEITOS DE FABRICAÇÃO</span>
+<!-- Cabeçalho centralizado — logo sem nome da empresa em texto -->
+<div class="cert-header">
+    ${(empresa.logo_header_path || empresa.logo) ? `<img class="logo" src="${empresa.logo_header_path || empresa.logo}" alt="Logo">` : ''}
+    <h1>CERTIFICADO DE GARANTIA</h1>
+    <div class="cert-sub">${orcNumero ? `Ref.: ${orcNumero} · ` : ''}Emitido em ${dataHoje}</div>
 </div>
 
-<div class="info-box">
-    <div class="fi"><label>Cliente</label><span>${clienteNome}</span></div>
-    <div class="fi"><label>Projeto</label><span>${projNome}</span></div>
-    <div class="fi"><label>Data de Entrega</label><span>${dataEntrega}</span></div>
+<!-- Selo de garantia -->
+<div class="cert-seal">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${cp}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+    <span>GARANTIA CONTRATUAL DE ${garantiaPeriodo.toUpperCase()} PARA DEFEITOS DE FABRICACAO</span>
 </div>
 
-<!-- Itens cobertos -->
-<div class="clause">
-    <h4>Itens Cobertos pela Garantia</h4>
-    ${itensResumo ? `<table class="mt"><thead><tr><th>Ambiente</th><th>Qtd</th><th>Itens</th></tr></thead><tbody>${itensResumo}</tbody></table>` : '<p>Todos os móveis e itens descritos no orçamento e termo de entrega.</p>'}
+<!-- Dados do certificado -->
+<div class="cert-dados">
+    <div class="cd"><label>Cliente:</label><span>${clienteNome}</span></div>
+    <div class="cd"><label>Projeto:</label><span>${projNome}</span></div>
+    <div class="cd destaque"><label>Data de Entrega:</label><span>${dataEntrega}</span></div>
+    <div class="cd destaque"><label>Validade:</label><span>${dataEntrega} + ${garantiaPeriodo}</span></div>
+    ${enderecoObra ? `<div class="cd full"><label>Local de Instalacao:</label><span>${enderecoObra}</span></div>` : ''}
+    ${empresaCnpj ? `<div class="cd full"><label>Fornecedor:</label><span>${empresaNome} — CNPJ: ${empresaCnpj}</span></div>` : ''}
 </div>
 
-<!-- Cobertura -->
-<div class="clause">
-    <h4>O que a Garantia Cobre</h4>
-    ${garantiaCustom ? `<p>${esc(garantiaCustom).replace(/\n/g, '<br>')}</p>` : `<ul>
-        <li>Defeitos de fabricação em materiais e acabamentos</li>
-        <li>Descolamento de bordas e chapas em condições normais de uso</li>
-        <li>Ferragens (dobradiças, corrediças, puxadores) — funcionamento normal</li>
-        <li>Empenamento de portas e painéis dentro dos limites técnicos do material</li>
-        <li>Mão de obra para reparo dos itens cobertos</li>
-    </ul>`}
+<!-- CLAUSULA 1 — OBJETO -->
+<div class="cl">
+    <div class="cl-hdr"><div class="cl-num">1</div><h4>Objeto</h4></div>
+    <p>O presente certificado assegura a garantia contratual dos moveis planejados descritos abaixo, fabricados e instalados por ${empresaNome}, conforme especificacoes do orcamento${orcNumero ? ` de referencia n. ${orcNumero}` : ''} e Termo de Entrega devidamente assinado pelas partes.</p>
+    ${itensResumo ? `<table class="mt" style="margin-top:8px"><thead><tr><th>Ambiente</th><th class="n">Qtd</th><th>Descricao dos Itens</th></tr></thead><tbody>${itensResumo}</tbody></table>
+    <p style="font-size:9px;color:#888;margin-top:4px;text-align:right">Total: ${totalItens} item${totalItens !== 1 ? 'ns' : ''} em ${(ambientes || []).length} ambiente${(ambientes || []).length !== 1 ? 's' : ''}</p>` : '<p>Todos os moveis e itens descritos no orcamento e termo de entrega vinculados a este projeto.</p>'}
 </div>
 
-<!-- Cuidados e boas práticas -->
-<div class="cuidados">
-    <h4>Cuidados e Boas Práticas de Conservação</h4>
+<!-- CLAUSULA 2 — PRAZO E VIGENCIA -->
+<div class="cl">
+    <div class="cl-hdr"><div class="cl-num">2</div><h4>Prazo e Vigencia</h4></div>
+    <p><strong>2.1. Garantia Contratual:</strong> O prazo de garantia contratual e de <strong>${garantiaPeriodo}</strong>, contados a partir da data de entrega e instalacao dos moveis (${dataEntrega}), nos termos do Art. 50 da Lei n. 8.078/90 (Codigo de Defesa do Consumidor).</p>
+    <p><strong>2.2. Garantia Legal:</strong> Alem da garantia contratual, o CONSUMIDOR possui a garantia legal de <strong>${garantiaLegal}</strong> para vicios aparentes ou de facil constatacao, conforme Art. 26, II, da Lei n. 8.078/90. A garantia legal e somada a contratual, totalizando <strong>5 anos e 90 dias</strong> de cobertura.</p>
+    <p><strong>2.3.</strong> O prazo de garantia fica suspenso durante o periodo em que o produto estiver em reparo pelo FORNECEDOR, nos termos do Art. 26, &sect;2&ordm;, III do CDC.</p>
+</div>
+
+<!-- CLAUSULA 3 — COBERTURA -->
+<div class="cl">
+    <div class="cl-hdr"><div class="cl-num">3</div><h4>Cobertura da Garantia</h4></div>
+    ${garantiaCustom ? `<p>${esc(garantiaCustom).replace(/\n/g, '<br>')}</p>` : `
+    <div class="cl-box cobertura">
+        <h4>Esta garantia cobre:</h4>
+        <ul>
+            <li>Defeitos de fabricacao em materiais, chapas, paineis e acabamentos</li>
+            <li>Descolamento de bordas (ABS/PVC), laminados e revestimentos em condicoes normais de uso</li>
+            <li>Defeitos em ferragens fornecidas (dobradicas, corredicas telescopicas, puxadores, fechaduras) — funcionamento mecanico normal</li>
+            <li>Empenamento de portas e paineis que exceda os limites tecnicos toleraveis do material empregado</li>
+            <li>Defeitos de pintura, lacagem ou acabamento que se manifestem em condicoes normais de uso</li>
+            <li>Mao de obra para diagnostico, reparo ou substituicao dos itens cobertos, sem custo adicional ao consumidor</li>
+            <li>Pecas de reposicao para componentes com defeito de fabricacao</li>
+        </ul>
+    </div>`}
+    <p style="font-size:9px;color:#666"><strong>Nota:</strong> A cobertura abrange exclusivamente defeitos de fabricacao. Componentes de desgaste natural (feltros, amortecedores de impacto, vedacoes) possuem vida util propria e nao sao cobertos apos o periodo de uso regular.</p>
+</div>
+
+<!-- CLAUSULA 4 — EXCLUSOES -->
+<div class="cl">
+    <div class="cl-hdr"><div class="cl-num">4</div><h4>Exclusoes e Limitacoes</h4></div>
+    <div class="cl-box exclusao">
+        <h4>A presente garantia NAO cobre:</h4>
+        <ul>
+            <li>Danos causados por mau uso, negligencia, imprudencia ou uso inadequado dos moveis</li>
+            <li>Danos decorrentes de umidade excessiva, infiltracoes, goteiras ou contato prolongado com agua e liquidos</li>
+            <li>Desgaste natural de superficies, acabamentos e componentes mecanicos pelo uso cotidiano</li>
+            <li>Danos causados por utilizacao de produtos de limpeza abrasivos, quimicos, solventes, alcool, thinner, cloro, esponjas de aco ou similares</li>
+            <li>Modificacoes, reparos, adaptacoes ou intervencoes realizadas por terceiros nao autorizados pelo FORNECEDOR</li>
+            <li>Exposicao direta e prolongada ao sol, calor excessivo ou variacoes extremas de temperatura e umidade</li>
+            <li>Danos decorrentes de transporte, remocao ou mudanca do local de instalacao original</li>
+            <li>Danos causados por insetos (cupins, brocas), pragas, roedores ou animais domesticos</li>
+            <li>Variacoes de tonalidade naturais entre lotes de madeira, laminados ou revestimentos, inerentes ao processo produtivo</li>
+            <li>Instalacoes eletricas, hidraulicas, de gas ou de alvenaria nao relacionadas diretamente aos moveis</li>
+            <li>Danos ocasionados por caso fortuito ou forca maior (enchentes, incendios, desabamentos)</li>
+            <li>Uso de moveis em ambientes comerciais, quando projetados para uso residencial</li>
+        </ul>
+    </div>
+</div>
+
+<!-- CLAUSULA 5 — COMO ACIONAR -->
+<div class="cl">
+    <div class="cl-hdr"><div class="cl-num">5</div><h4>Procedimento para Acionamento</h4></div>
+    <p>Para acionar a garantia, o CONSUMIDOR devera:</p>
     <ul>
-        <li><strong>Limpeza:</strong> Use apenas pano macio levemente umedecido com água e sabão neutro. Seque imediatamente após.</li>
-        <li><strong>Nunca use:</strong> Produtos abrasivos, esponjas de aço, álcool, thinner, cloro, desengordurantes ou similares.</li>
-        <li><strong>Umidade:</strong> Evite contato prolongado com água ou líquidos. Seque imediatamente qualquer derramamento.</li>
-        <li><strong>Calor:</strong> Não apoie objetos quentes diretamente sobre a superfície (use apoios/descansos de panela).</li>
-        <li><strong>Peso:</strong> Respeite a capacidade de carga das prateleiras e gavetas. Não force portas ou gavetas.</li>
-        <li><strong>Sol:</strong> Evite exposição direta e prolongada ao sol, que pode desbotar acabamentos e ressecar a madeira.</li>
-        <li><strong>Ventilação:</strong> Mantenha o ambiente ventilado para evitar acúmulo de umidade.</li>
-        <li><strong>Ferragens:</strong> Verifique e reaperte parafusos periodicamente. Lubrifique dobradiças e corrediças a cada 6 meses.</li>
-        <li><strong>Instalação:</strong> Não instale móveis próximos a fontes de calor (fogão, forno) sem proteção adequada.</li>
+        <li><strong>5.1.</strong> Comunicar o defeito ao FORNECEDOR pelos canais de contato indicados neste certificado, descrevendo o problema e, se possivel, anexando registros fotograficos.</li>
+        <li><strong>5.2.</strong> Apresentar este Certificado de Garantia e o Termo de Entrega assinado. A ausencia do Termo de Entrega nao invalida a garantia legal (Art. 24, CDC), mas e requisito para a garantia contratual.</li>
+        <li><strong>5.3.</strong> Permitir a vistoria tecnica no local de instalacao, que sera agendada em ate <strong>10 (dez) dias uteis</strong> apos a solicitacao.</li>
+        <li><strong>5.4.</strong> O FORNECEDOR tera o prazo maximo de <strong>30 (trinta) dias</strong> para sanar o vicio, contados da data da reclamacao, conforme Art. 18, &sect;1&ordm; do CDC. Nao sendo o vicio sanado nesse prazo, o consumidor podera exigir, alternativamente: a substituicao do produto, a restituicao da quantia paga ou o abatimento proporcional do preco.</li>
     </ul>
 </div>
 
-<!-- Exclusões -->
-<div class="exclusoes">
-    <h4>O que a Garantia NÃO Cobre</h4>
+<!-- CLAUSULA 6 — CUIDADOS DE CONSERVACAO -->
+<div class="cl" style="page-break-before:auto;">
+    <div class="cl-hdr"><div class="cl-num">6</div><h4>Orientacoes de Uso e Conservacao</h4></div>
+    <p>Para manter a garantia vigente e assegurar a durabilidade dos moveis, o CONSUMIDOR devera observar as seguintes orientacoes:</p>
+    <div class="cl-box cuidados">
+        <h4>Boas praticas de conservacao</h4>
+        <ul>
+            <li><strong>Limpeza:</strong> Utilize apenas pano macio e limpo, levemente umedecido com agua e sabao neutro. Seque imediatamente com pano seco. Nunca use produtos abrasivos, esponjas de aco, alcool, thinner, acetona, cloro ou desengordurantes.</li>
+            <li><strong>Umidade:</strong> Evite contato prolongado com agua ou liquidos. Seque imediatamente qualquer derramamento. Mantenha o ambiente ventilado.</li>
+            <li><strong>Temperatura:</strong> Nao apoie objetos quentes diretamente sobre as superficies (panelas, pratos quentes). Utilize apoios ou descansos termicos.</li>
+            <li><strong>Peso:</strong> Respeite a capacidade de carga das prateleiras e gavetas indicada no projeto. Nao force portas, gavetas ou basculantes.</li>
+            <li><strong>Sol:</strong> Evite exposicao direta e prolongada ao sol, que pode desbotar acabamentos, ressecar e empenar os paineis.</li>
+            <li><strong>Ferragens:</strong> Verifique e reaperte parafusos aparentes periodicamente. Lubrifique dobradicas e corredicas com oleo fino a cada 6 (seis) meses.</li>
+            <li><strong>Instalacao:</strong> Nao instale moveis em contato direto com fontes de calor (fogao, forno, aquecedores) sem protecao termica adequada.</li>
+            <li><strong>Eletrodomesticos:</strong> Lava-loucas e fornos embutidos devem possuir isolamento termico adequado para proteger os paineis adjacentes.</li>
+        </ul>
+    </div>
+    <p style="font-size:9px;color:#666"><strong>Importante:</strong> O descumprimento das orientacoes acima podera acarretar a perda da garantia contratual para os danos decorrentes.</p>
+</div>
+
+<!-- CLAUSULA 7 — DISPOSICOES GERAIS -->
+<div class="cl">
+    <div class="cl-hdr"><div class="cl-num">7</div><h4>Disposicoes Gerais</h4></div>
     <ul>
-        <li>Danos causados por mau uso, negligência ou uso inadequado dos móveis</li>
-        <li>Danos por umidade excessiva, infiltrações ou contato prolongado com água</li>
-        <li>Desgaste natural do acabamento pelo uso cotidiano</li>
-        <li>Danos causados por produtos de limpeza abrasivos ou químicos</li>
-        <li>Modificações, reparos ou intervenções realizadas por terceiros não autorizados</li>
-        <li>Exposição direta ao sol, calor excessivo ou variações extremas de temperatura</li>
-        <li>Danos decorrentes de transporte ou mudança após a instalação</li>
-        <li>Danos causados por insetos, pragas ou animais domésticos</li>
-        <li>Variações de tonalidade naturais da madeira e dos materiais</li>
-        <li>Instalação elétrica ou hidráulica não relacionada aos móveis</li>
+        <li><strong>7.1.</strong> Este certificado e intransferivel e vinculado ao CONSUMIDOR e ao endereco de instalacao originais.</li>
+        <li><strong>7.2.</strong> A garantia contratual aqui prevista complementa a garantia legal (Art. 50, CDC), nao a substitui. Os prazos sao somados conforme entendimento consolidado do Superior Tribunal de Justica.</li>
+        <li><strong>7.3.</strong> A existencia deste certificado nao exclui o direito do consumidor de reclamar pelos vicios do produto perante os orgaos de defesa do consumidor (PROCON) ou pelo Poder Judiciario.</li>
+        <li><strong>7.4.</strong> Eventuais controversias decorrentes deste certificado serao dirimidas preferencialmente de forma amigavel. Persistindo a divergencia, fica eleito o foro da comarca do domicilio do consumidor, nos termos do Art. 101, I, do CDC.</li>
+        <li><strong>7.5.</strong> Este documento e regido pela Lei n. 8.078/90 (Codigo de Defesa do Consumidor) e pela legislacao civil vigente.</li>
     </ul>
 </div>
 
-<!-- Condições -->
-<div class="clause">
-    <h4>Condições Gerais</h4>
-    <ul>
-        <li>A garantia tem validade de ${garantiaPeriodo} a partir da data de entrega.</li>
-        <li>Para acionar a garantia, entre em contato informando o número deste certificado.</li>
-        <li>A visita técnica será agendada em até 10 dias úteis após a solicitação.</li>
-        <li>Este certificado só é válido com o Termo de Entrega devidamente assinado.</li>
-        <li>A garantia é intransferível e vinculada ao endereço de instalação original.</li>
-    </ul>
-</div>
-
-<!-- Contato -->
-<div class="info-box" style="background:#f0fdf4;border-color:#bbf7d0;">
-    <div class="fi"><label>Contato para Garantia</label><span>${esc(empresa.nome) || 'Marcenaria'}</span></div>
-    <div class="fi"><label>Telefone</label><span>${esc(empresa.telefone) || '—'}</span></div>
-    <div class="fi"><label>Email</label><span>${esc(empresa.email) || '—'}</span></div>
+<!-- Contato para Garantia -->
+<div class="cert-contato">
+    <div class="cc"><label>Empresa</label><span>${empresaNome}</span></div>
+    <div class="cc"><label>Telefone</label><span>${empresaTel || '—'}</span></div>
+    <div class="cc"><label>Email</label><span>${empresaEmail || '—'}</span></div>
 </div>
 
 ${assinaturasHtml(clienteNome, empresa.nome)}
 
-<div class="footer-legal">
-    Certificado de Garantia — ${projNome} · ${orcNumero || ''} · Emitido em ${dataHoje}
-    <br>Este documento deve ser mantido junto ao Termo de Entrega para acionamento da garantia.
+<div class="cert-legal">
+    Certificado de Garantia — ${projNome}${orcNumero ? ` · Ref. ${orcNumero}` : ''} · Emitido em ${dataHoje}
+    <br>Este documento tem validade como garantia contratual nos termos do Art. 50 da Lei n. 8.078/90 (CDC).
+    <br>Conserve este certificado juntamente com o Termo de Entrega e a Nota Fiscal para acionamento da garantia.
 </div>
 
-</div><!-- fim cert-border -->
+</div><!-- fim cert-wrap -->
 
 </div><!-- content-wrap -->
 <button class="print-btn no-print" onclick="window.print()">Imprimir / Salvar PDF</button>
