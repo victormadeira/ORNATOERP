@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
-import { Z, Ic } from '../ui';
+import { Z, Ic, Spinner } from '../ui';
 import { R$, N } from '../engine';
 import {
     TrendingUp, TrendingDown, AlertTriangle, Clock, DollarSign,
@@ -805,9 +805,7 @@ export default function Dash({ nav, notify, user }) {
                     <h1 className={Z.h1}>{greet()}, bem-vindo!</h1>
                     <p className={Z.sub}>{today}</p>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-                    <div className="w-7 h-7 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }} />
-                </div>
+                <Spinner text="Carregando dashboard..." />
             </div>
         );
     }
@@ -863,10 +861,36 @@ export default function Dash({ nav, notify, user }) {
             {tab === 'geral' && (
                 <>
                     {!isVendedor && <HeadlineMes data={data.headline} />}
+
+                    {/* Métricas do vendedor */}
+                    {isVendedor && data.vendedor && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+                            {[
+                                { label: 'Orçamentos no mês', value: data.vendedor.orcs_mes, sub: R$(data.vendedor.orcs_valor_mes), icon: FileText, color: '#3b82f6' },
+                                { label: 'Aprovados no mês', value: data.vendedor.aprovados_mes, sub: R$(data.vendedor.aprovados_valor_mes), icon: CheckCircle2, color: '#22c55e' },
+                                { label: 'Taxa de conversão', value: `${data.vendedor.taxa_conversao}%`, sub: 'orçamentos → aprovados', icon: TrendingUp, color: '#8b5cf6' },
+                                { label: 'Novos clientes', value: data.vendedor.novos_clientes_mes, sub: 'neste mês', icon: UserIcon, color: '#f59e0b' },
+                            ].map((m, i) => {
+                                const MIcon = m.icon;
+                                return (
+                                    <div key={i} className="glass-card" style={{ padding: '16px 18px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                            <div style={{ width: 32, height: 32, borderRadius: 8, background: `${m.color}15`, color: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <MIcon size={16} />
+                                            </div>
+                                            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{m.label}</span>
+                                        </div>
+                                        <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{m.value}</div>
+                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{m.sub}</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
                     {!isVendedor ? (
                         <FilaAtencao data={data.atencao} nav={nav} />
                     ) : data.atencao?.total_parados > 0 && (
-                        /* Vendedor vê só orçamentos parados, sem contas vencidas */
                         <FilaAtencao data={{ ...data.atencao, total_vencidas: 0, contas_vencidas: [], valor_vencido: 0 }} nav={nav} />
                     )}
                     <div style={{ display: 'grid', gridTemplateColumns: isVendedor ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>

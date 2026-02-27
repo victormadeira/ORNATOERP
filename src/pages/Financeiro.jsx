@@ -6,7 +6,7 @@ import {
     BarChart2, Archive, Receipt, ArrowDownCircle, ArrowUpCircle,
 } from 'lucide-react';
 import { R$ } from '../engine';
-import { Z, Modal } from '../ui';
+import { Z, Modal, Spinner } from '../ui';
 import api from '../api';
 
 // ─── Constantes ─────────────────────────────────────────────────────
@@ -405,7 +405,7 @@ function SecaoPagar({ notify, projetos }) {
 
             {/* Tabela */}
             <div className={Z.card} style={{ overflow: 'hidden' }}>
-                {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Carregando...</div>
+                {loading ? <Spinner text="Carregando..." />
                 : filtradas.length === 0 ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhuma conta encontrada.</div>
                 : (
                     <div style={{ overflowX: 'auto' }}>
@@ -737,7 +737,7 @@ function SecaoReceber({ notify, projetos }) {
 
             {/* Tabela */}
             <div className={Z.card} style={{ overflow: 'hidden' }}>
-                {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Carregando...</div>
+                {loading ? <Spinner text="Carregando..." />
                 : filtradas.length === 0 ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhum recebimento encontrado.</div>
                 : (
                     <div style={{ overflowX: 'auto' }}>
@@ -870,7 +870,7 @@ function SecaoNFs({ notify }) {
 
             {/* Grid de NFs */}
             <div className={Z.card} style={{ overflow: 'hidden' }}>
-                {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Carregando...</div>
+                {loading ? <Spinner text="Carregando..." />
                 : nfs.length === 0 ? (
                     <div style={{ padding: 48, textAlign: 'center' }}>
                         <Archive size={32} style={{ color: 'var(--text-muted)', margin: '0 auto 10px', display: 'block' }} />
@@ -946,7 +946,7 @@ function SecaoFluxo() {
         api.get('/financeiro/fluxo').then(setDados).catch(() => {}).finally(() => setLoading(false));
     }, []);
 
-    if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Carregando...</div>;
+    if (loading) return <Spinner text="Carregando..." />;
     if (!dados) return null;
 
     // Montar meses dos últimos 12 meses

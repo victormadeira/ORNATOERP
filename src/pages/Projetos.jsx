@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
-import { Ic, Z, Modal } from '../ui';
+import { Ic, Z, Modal, Spinner } from '../ui';
 import { R$, N } from '../engine';
 import {
     User as UserIcon, Calendar as CalendarIcon, Copy as CopyIcon,
@@ -290,9 +290,34 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
     const [etapas, setEtapas] = useState(ETAPAS_PADRAO.map((n, i) => ({ nome: n, data_inicio: '', data_vencimento: '', key: i })));
     const [saving, setSaving] = useState(false);
     const [err, setErr] = useState('');
+    const [templates, setTemplates] = useState([]);
+    const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+    const [templateNome, setTemplateNome] = useState('');
+
+    useEffect(() => { api.get('/projetos/templates/list').then(setTemplates).catch(() => {}); }, []);
 
     const addEtapa = () => setEtapas(e => [...e, { nome: '', data_inicio: '', data_vencimento: '', key: Date.now() }]);
     const rmEtapa = (i) => setEtapas(e => e.filter((_, j) => j !== i));
+
+    const loadTemplate = (tpl) => {
+        setEtapas(tpl.etapas.map((n, i) => ({ nome: typeof n === 'string' ? n : n.nome, data_inicio: '', data_vencimento: '', key: Date.now() + i })));
+    };
+
+    const saveAsTemplate = () => {
+        if (!templateNome.trim()) return;
+        const nomes = etapas.filter(e => e.nome.trim()).map(e => e.nome.trim());
+        if (nomes.length === 0) return;
+        api.post('/projetos/templates', { nome: templateNome.trim(), etapas: nomes }).then(() => {
+            api.get('/projetos/templates/list').then(setTemplates);
+            setShowSaveTemplate(false); setTemplateNome('');
+        }).catch(() => {});
+    };
+
+    const deleteTemplate = (id) => {
+        api.del(`/projetos/templates/${id}`).then(() => {
+            setTemplates(t => t.filter(x => x.id !== id));
+        });
+    };
 
     const handleSave = async () => {
         if (!nome.trim()) { setErr('Nome do projeto é obrigatório'); return; }
@@ -326,10 +351,26 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
                 </div>
                 <div><label className={Z.lbl}>Descrição</label><textarea className={Z.inp} style={{ minHeight: 60, resize: 'vertical' }} value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Detalhes do projeto..." /></div>
                 <div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
                         <label className={Z.lbl} style={{ margin: 0 }}>Etapas</label>
-                        <button type="button" onClick={addEtapa} className={Z.btn2} style={{ fontSize: 12, padding: '4px 10px' }}>+ Adicionar</button>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            {templates.length > 0 && (
+                                <select onChange={e => { const t = templates.find(x => x.id === +e.target.value); if (t) loadTemplate(t); e.target.value = ''; }}
+                                    style={{ fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                                    <option value="">Usar template...</option>
+                                    {templates.map(t => <option key={t.id} value={t.id}>{t.nome} ({t.etapas.length} etapas)</option>)}
+                                </select>
+                            )}
+                            <button type="button" onClick={() => setShowSaveTemplate(!showSaveTemplate)} className={Z.btn2} style={{ fontSize: 11, padding: '4px 8px' }}>Salvar template</button>
+                            <button type="button" onClick={addEtapa} className={Z.btn2} style={{ fontSize: 12, padding: '4px 10px' }}>+ Adicionar</button>
+                        </div>
                     </div>
+                    {showSaveTemplate && (
+                        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                            <input className={Z.inp} style={{ fontSize: 12, flex: 1 }} placeholder="Nome do template" value={templateNome} onChange={e => setTemplateNome(e.target.value)} />
+                            <button className={Z.btn} style={{ fontSize: 11, padding: '4px 12px' }} onClick={saveAsTemplate}>Salvar</button>
+                        </div>
+                    )}
                     <div style={{ display: 'grid', gap: 6 }}>
                         {etapas.map((e, i) => (
                             <div key={e.key} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px auto', gap: 6, alignItems: 'center' }}>
@@ -363,10 +404,11 @@ function EditEtapaModal({ etapa, etapas, users, onSave, onClose }) {
     const [saving, setSaving] = useState(false);
 
     const handleSave = async () => {
+        if (!nome.trim()) return;
         setSaving(true);
         try {
             await api.put(`/projetos/etapas/${etapa.id}`, {
-                nome, descricao,
+                nome: nome.trim(), descricao,
                 data_inicio: dataInicio || null,
                 data_vencimento: dataVencimento || null,
                 status, responsavel_id: responsavelId || null,
@@ -1584,12 +1626,7 @@ function TabProducao({ data, notify }) {
         api.get(`/producao/${data.id}`).then(d => { setProdData(d); setLoading(false); }).catch(() => setLoading(false));
     }, [data?.id]);
 
-    if (loading) return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
-            <div style={{ width: 28, height: 28, border: '3px solid #ddd', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-        </div>
-    );
+    if (loading) return <Spinner text="Carregando produção..." />;
 
     if (!prodData) return (
         <div className={Z.card} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
@@ -2023,7 +2060,7 @@ function TabPortalMsgs({ data, notify }) {
 
                 <div ref={chatRef} style={{ maxHeight: 450, minHeight: 200, overflowY: 'auto', padding: 20, background: 'var(--bg-muted)' }}>
                     {loading ? (
-                        <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Carregando...</div>
+                        <Spinner text="Carregando mensagens..." />
                     ) : msgs.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 13 }}>
                             <Ic.Message />
@@ -2109,7 +2146,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user }) {
         api.put(`/projetos/${proj.id}`, { ...data, status }).then(() => { load(); reload(); setEditStatus(false); }).catch(() => notify('Erro ao atualizar status'));
     };
 
-    if (loading) return <div className={Z.pg}><p style={{ color: 'var(--text-muted)' }}>Carregando...</p></div>;
+    if (loading) return <div className={Z.pg}><Spinner text="Carregando projeto..." /></div>;
     if (!data) return <div className={Z.pg}><p style={{ color: '#ef4444' }}>Projeto não encontrado.</p></div>;
 
     const TABS = [
@@ -2241,7 +2278,7 @@ export default function Projetos({ orcs, notify, user }) {
             </div>
 
             {loading ? (
-                <p style={{ color: 'var(--text-muted)' }}>Carregando projetos...</p>
+                <Spinner text="Carregando projetos..." />
             ) : filtered.length === 0 ? (
                 <div className={Z.card} style={{ textAlign: 'center', padding: 48 }}>
                     <p style={{ color: 'var(--text-muted)', fontSize: 15 }}>{projetos.length === 0 ? 'Nenhum projeto cadastrado ainda.' : 'Nenhum resultado.'}</p>
@@ -2276,7 +2313,9 @@ export default function Projetos({ orcs, notify, user }) {
                                         </td>
                                         <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--primary)', fontSize: 13 }}>{p.valor_venda ? R$(p.valor_venda) : '—'}</td>
                                         <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: 13 }}>{dtFmt(p.data_vencimento)}</td>
-                                        <td style={{ padding: '12px 16px' }} onClick={e => e.stopPropagation()}>
+                                        <td style={{ padding: '12px 16px', display: 'flex', gap: 2 }} onClick={e => e.stopPropagation()}>
+                                            <button onClick={() => { const n = prompt('Nome do novo projeto:', `${p.nome} (cópia)`); if (n) api.post(`/projetos/${p.id}/duplicar`, { nome: n }).then(() => load()).catch(() => notify('Erro ao duplicar')); }}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: 6, borderRadius: 6, opacity: 0.6 }} title="Duplicar"><Ic.Copy /></button>
                                             <button onClick={() => handleDelete(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 6, borderRadius: 6, opacity: 0.6 }} title="Excluir"><Ic.Trash /></button>
                                         </td>
                                     </tr>

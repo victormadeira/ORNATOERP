@@ -358,6 +358,16 @@ db.exec(`
   );
 `);
 
+// ═══ Templates de etapas ═══
+db.exec(`
+  CREATE TABLE IF NOT EXISTS etapas_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    etapas_json TEXT NOT NULL DEFAULT '[]',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 // ═══════════════════════════════════════════════════════
 // MIGRAÇÕES — Colunas novas em tabelas existentes
 // ═══════════════════════════════════════════════════════

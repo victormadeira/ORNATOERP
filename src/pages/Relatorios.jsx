@@ -81,6 +81,22 @@ const REPORTS = [
         desc: 'Contas a receber, contas a pagar e despesas por projeto',
         usePeriodo: true,
     },
+    {
+        id: 'conversao',
+        label: 'Conversão Pipeline',
+        icon: <BarChart3 size={20} />,
+        color: '#ec4899',
+        desc: 'Taxa de conversão por etapa do pipeline e funil de vendas',
+        usePeriodo: true,
+    },
+    {
+        id: 'vendedores',
+        label: 'Por Vendedor',
+        icon: <Users size={20} />,
+        color: '#14b8a6',
+        desc: 'Performance individual: orçamentos, aprovações, valores e conversão',
+        usePeriodo: true,
+    },
 ];
 
 // ── Column definitions for each report ──────────────
@@ -140,6 +156,22 @@ const COLUMNS = {
         { key: 'data_vencimento', label: 'Vencimento', fmt: v => dtFmt(v) },
         { key: 'data_pagamento', label: 'Pagamento', fmt: v => dtFmt(v) },
         { key: 'status', label: 'Status', fmt: v => v === 'pago' ? 'Pago' : 'Pendente' },
+    ],
+    conversao: [
+        { key: 'etapa', label: 'Etapa Pipeline' },
+        { key: 'total', label: 'Total' },
+        { key: 'valor', label: 'Valor Total', fmt: v => R$(v) },
+        { key: 'pct_total', label: '% do Total', fmt: v => `${v}%` },
+    ],
+    vendedores: [
+        { key: 'nome', label: 'Vendedor' },
+        { key: 'total_orcs', label: 'Orçamentos' },
+        { key: 'valor_orcs', label: 'Valor Orçados', fmt: v => R$(v) },
+        { key: 'aprovados', label: 'Aprovados' },
+        { key: 'valor_aprovados', label: 'Valor Aprovados', fmt: v => R$(v) },
+        { key: 'taxa_conversao', label: 'Conversão', fmt: v => `${v}%` },
+        { key: 'ticket_medio', label: 'Ticket Médio', fmt: v => R$(v) },
+        { key: 'perdidos', label: 'Perdidos' },
     ],
 };
 
@@ -437,7 +469,7 @@ export default function Relatorios({ notify }) {
                 <div className="glass-card p-16 text-center no-print" style={{ color: 'var(--text-muted)' }}>
                     <BarChart3 size={40} className="mx-auto mb-4 opacity-30" />
                     <p className="text-sm font-medium">Selecione um tipo de relatório acima</p>
-                    <p className="text-xs mt-1">Escolha entre Clientes, Orçamentos, Projetos ou Financeiro</p>
+                    <p className="text-xs mt-1">Escolha entre Clientes, Orçamentos, Projetos, Financeiro, Conversão ou Vendedores</p>
                 </div>
             )}
         </div>

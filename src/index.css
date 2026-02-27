@@ -249,6 +249,10 @@ body {
   animation: fade-up 0.25s ease both;
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ─── Selection ─── */
 ::selection {
   background: rgba(19, 121, 240, 0.2);

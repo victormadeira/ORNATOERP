@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
-import { Ic, Z, Modal } from '../ui';
+import { Ic, Z, Modal, Spinner } from '../ui';
 import { R$, N } from '../engine';
 import { useAuth } from '../auth';
 import {
@@ -318,7 +318,7 @@ export default function Estoque({ notify }) {
 
                     {/* Tabela de Materiais */}
                     {loading ? (
-                        <p style={{ color: 'var(--text-muted)' }}>Carregando...</p>
+                        <Spinner text="Carregando materiais..." />
                     ) : filtered.length === 0 ? (
                         <div className={Z.card} style={{ textAlign: 'center', padding: 48 }}>
                             <p style={{ color: 'var(--text-muted)', fontSize: 15 }}>

@@ -177,8 +177,98 @@ function gerarContasRecorrentes() {
     }
 }
 
+// ═══════════════════════════════════════════════════════
+// NOTIFICAÇÕES INTELIGENTES — alertas automáticos
+// ═══════════════════════════════════════════════════════
+
+function gerarNotificacoesInteligentes() {
+    try {
+        const hoje = new Date().toISOString().slice(0, 10);
+
+        // 1. Contas a pagar vencendo amanhã
+        const amanha = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+        const contasAmanha = db.prepare(`
+            SELECT id, descricao, valor FROM contas_pagar
+            WHERE status = 'pendente' AND data_vencimento = ?
+            AND id NOT IN (SELECT referencia_id FROM notificacoes WHERE tipo = 'pagar_proximo' AND date(criado_em) = ?)
+        `).all(amanha, hoje);
+        for (const c of contasAmanha) {
+            createNotification('pagar_proximo',
+                `Conta vence amanhã: ${c.descricao}`,
+                `R$ ${Number(c.valor).toFixed(2)} · Vence em ${amanha}`,
+                c.id, 'contas_pagar');
+        }
+
+        // 2. Contas a receber vencidas (não pagas)
+        const receberVencidas = db.prepare(`
+            SELECT id, descricao, valor, data_vencimento FROM contas_receber
+            WHERE status = 'pendente' AND data_vencimento < ?
+            AND id NOT IN (SELECT referencia_id FROM notificacoes WHERE tipo = 'financeiro_vencido' AND date(criado_em) = ?)
+        `).all(hoje, hoje);
+        for (const c of receberVencidas) {
+            createNotification('financeiro_vencido',
+                `Recebível vencido: ${c.descricao}`,
+                `R$ ${Number(c.valor).toFixed(2)} · Venceu em ${c.data_vencimento}`,
+                c.id, 'contas_receber');
+        }
+
+        // 3. Orçamentos parados há mais de 7 dias (sem mudança de status)
+        const orcParados = db.prepare(`
+            SELECT id, numero, cliente_nome, kb_col FROM orcamentos
+            WHERE status NOT IN ('cancelado', 'aprovado')
+            AND kb_col NOT IN ('ok', 'perdido', 'arq')
+            AND julianday(?) - julianday(COALESCE(atualizado_em, criado_em)) > 7
+            AND id NOT IN (SELECT referencia_id FROM notificacoes WHERE tipo = 'orcamento_parado' AND date(criado_em) >= date(?, '-7 days'))
+        `).all(hoje, hoje);
+        for (const o of orcParados) {
+            createNotification('orcamento_parado',
+                `Orçamento #${o.numero} parado há +7 dias`,
+                `Cliente: ${o.cliente_nome}`,
+                o.id, 'orcamento');
+        }
+
+        // 4. Etapas de projeto atrasadas
+        const etapasAtrasadas = db.prepare(`
+            SELECT e.id, e.nome as etapa_nome, e.data_vencimento, p.id as projeto_id, p.nome as projeto_nome
+            FROM etapas_projeto e
+            JOIN projetos p ON p.id = e.projeto_id
+            WHERE e.status NOT IN ('concluida')
+            AND e.data_vencimento < ?
+            AND p.status NOT IN ('concluido', 'suspenso')
+            AND e.id NOT IN (SELECT referencia_id FROM notificacoes WHERE tipo = 'etapa_atrasada' AND date(criado_em) = ?)
+        `).all(hoje, hoje);
+        for (const e of etapasAtrasadas) {
+            createNotification('etapa_atrasada',
+                `Etapa atrasada: ${e.etapa_nome}`,
+                `Projeto "${e.projeto_nome}" · Venceu em ${e.data_vencimento}`,
+                e.projeto_id, 'projeto');
+        }
+
+        // 5. Aniversário de cliente hoje
+        const mesdia = hoje.slice(5); // MM-DD
+        const aniversariantes = db.prepare(`
+            SELECT id, nome, tel FROM clientes
+            WHERE substr(data_nascimento, 6) = ?
+            AND id NOT IN (SELECT referencia_id FROM notificacoes WHERE tipo = 'cliente_aniversario' AND date(criado_em) = ?)
+        `).all(mesdia, hoje);
+        for (const c of aniversariantes) {
+            createNotification('cliente_aniversario',
+                `🎂 Aniversário: ${c.nome}`,
+                `Aproveite para enviar uma mensagem!`,
+                c.id, 'cliente');
+        }
+
+        const total = contasAmanha.length + receberVencidas.length + orcParados.length + etapasAtrasadas.length + aniversariantes.length;
+        if (total > 0) {
+            console.log(`  🔔 Notificações inteligentes: ${total} alerta(s) gerado(s)`);
+        }
+    } catch (err) {
+        console.error('Erro ao gerar notificações inteligentes:', err.message);
+    }
+}
+
 export function iniciarAutomacoes() {
-    console.log('  ⚡ Automações de follow-up + recorrência ativadas (intervalo: 1h)');
+    console.log('  ⚡ Automações de follow-up + recorrência + notificações ativadas (intervalo: 1h)');
 
     // Executar a cada hora
     const interval = setInterval(executarRegras, 60 * 60 * 1000);
@@ -190,6 +280,9 @@ export function iniciarAutomacoes() {
 }
 
 async function executarRegras() {
+    // ─── Notificações inteligentes (sempre roda) ───
+    gerarNotificacoesInteligentes();
+
     // ─── Recorrência financeira (sempre roda, independente de WhatsApp) ───
     gerarContasRecorrentes();
 

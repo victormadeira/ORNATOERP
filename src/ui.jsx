@@ -98,6 +98,21 @@ export const tagStyle = (c) => ({
 });
 export const tagClass = "text-[10px] px-2 py-0.5 rounded-full font-semibold tracking-wide inline-block";
 
+export function Spinner({ size = 28, color = 'var(--primary)', text }) {
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: text ? '40px 20px' : '20px', gap: 12 }}>
+            <div style={{
+                width: size, height: size,
+                border: `2.5px solid ${color}25`,
+                borderTopColor: color,
+                borderRadius: '50%',
+                animation: 'spin 0.7s linear infinite',
+            }} />
+            {text && <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>{text}</span>}
+        </div>
+    );
+}
+
 export function Modal({ title, close, children, w = 500 }) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={close}>

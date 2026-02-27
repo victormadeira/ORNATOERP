@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './auth';
 import api from './api';
 import { Ic, Z } from './ui';
-import { AlertTriangle, Clock, CheckCircle2, Folder, BarChart2, AlertCircle, DollarSign, Calendar, Bell, MessageCircle, Camera } from 'lucide-react';
+import { AlertTriangle, Clock, CheckCircle2, Folder, BarChart2, AlertCircle, DollarSign, Calendar, Bell, MessageCircle, Camera, Gift, FileText, ClipboardList } from 'lucide-react';
 import LoginPage from './pages/Login';
 import Dash from './pages/Dash';
 import Cli from './pages/Cli';
@@ -39,6 +39,11 @@ export default function App() {
     const [mobileOpen, setMobileOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
     const [showPerfil, setShowPerfil] = useState(false);
+    const [buscaQuery, setBuscaQuery] = useState('');
+    const [buscaResults, setBuscaResults] = useState(null);
+    const [buscaOpen, setBuscaOpen] = useState(false);
+    const buscaRef = useRef(null);
+    const buscaTimer = useRef(null);
 
     // Detectar mobile via resize
     useEffect(() => {
@@ -88,10 +93,24 @@ export default function App() {
     useEffect(() => {
         const handleClick = (e) => {
             if (notifsRef.current && !notifsRef.current.contains(e.target)) setShowNotifs(false);
+            if (buscaRef.current && !buscaRef.current.contains(e.target)) { setBuscaOpen(false); }
         };
         document.addEventListener('mousedown', handleClick);
         return () => document.removeEventListener('mousedown', handleClick);
     }, []);
+
+    // Busca global debounce
+    useEffect(() => {
+        if (buscaQuery.length < 2) { setBuscaResults(null); setBuscaOpen(false); return; }
+        clearTimeout(buscaTimer.current);
+        buscaTimer.current = setTimeout(() => {
+            api.get(`/dashboard/busca?q=${encodeURIComponent(buscaQuery)}`).then(r => {
+                setBuscaResults(r);
+                setBuscaOpen(true);
+            }).catch(() => {});
+        }, 300);
+        return () => clearTimeout(buscaTimer.current);
+    }, [buscaQuery]);
 
     // Marcar UMA notificação como lida
     const markNotifRead = (id) => {
@@ -210,6 +229,9 @@ export default function App() {
         recorrencia_gerada:  { icon: <Calendar size={14} />, color: '#8b5cf6', bg: '#f5f3ff' },
         portal_mensagem:     { icon: <MessageCircle size={14} />, color: '#3b82f6', bg: '#eff6ff' },
         montador_foto:       { icon: <Camera size={14} />, color: '#8b5cf6', bg: '#f5f3ff' },
+        orcamento_parado:    { icon: <FileText size={14} />, color: '#f97316', bg: '#fff7ed' },
+        etapa_atrasada:      { icon: <ClipboardList size={14} />, color: '#ef4444', bg: '#fef2f2' },
+        cliente_aniversario: { icon: <Gift size={14} />, color: '#ec4899', bg: '#fdf2f8' },
     };
     const getNotifStyle = (tipo) => NOTIF_STYLE[tipo] || { icon: <Bell size={14} />, color: 'var(--primary)', bg: 'var(--bg-hover)' };
     const notifBadgeColor = notifs.nao_lidas > 0
@@ -335,6 +357,84 @@ export default function App() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {/* Busca Global */}
+                    <div ref={buscaRef} style={{ position: 'relative' }} className="hidden md:block">
+                        <div style={{ position: 'relative' }}>
+                            <Ic.Search style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} size={15} />
+                            <input
+                                type="text"
+                                value={buscaQuery}
+                                onChange={e => setBuscaQuery(e.target.value)}
+                                onFocus={() => buscaResults && setBuscaOpen(true)}
+                                placeholder="Buscar clientes, orçamentos, projetos..."
+                                style={{
+                                    width: 260, padding: '6px 12px 6px 32px', borderRadius: 8,
+                                    border: '1px solid var(--border)', background: 'var(--bg-muted)',
+                                    fontSize: 12, color: 'var(--text-primary)', outline: 'none',
+                                }}
+                            />
+                        </div>
+                        {buscaOpen && buscaResults && (
+                            <div style={{
+                                position: 'absolute', top: '100%', right: 0, marginTop: 4,
+                                width: 380, maxHeight: 420, overflowY: 'auto',
+                                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                                borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.15)', zIndex: 50, padding: 8,
+                            }}>
+                                {buscaResults.clientes.length === 0 && buscaResults.orcamentos.length === 0 && buscaResults.projetos.length === 0 && (
+                                    <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhum resultado</div>
+                                )}
+                                {buscaResults.clientes.length > 0 && (
+                                    <>
+                                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em' }}>Clientes</div>
+                                        {buscaResults.clientes.map(c => (
+                                            <button key={`c${c.id}`} onClick={() => { nav('cli'); setBuscaOpen(false); setBuscaQuery(''); }}
+                                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)' }}
+                                                className="hover:bg-[var(--bg-hover)]">
+                                                <Ic.Usr style={{ flexShrink: 0, color: 'var(--text-muted)' }} size={14} />
+                                                <div style={{ minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</div>
+                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.tel || c.email || c.cidade || ''}</div>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </>
+                                )}
+                                {buscaResults.orcamentos.length > 0 && (
+                                    <>
+                                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em', marginTop: 4 }}>Orçamentos</div>
+                                        {buscaResults.orcamentos.map(o => (
+                                            <button key={`o${o.id}`} onClick={() => { nav('orcs'); setBuscaOpen(false); setBuscaQuery(''); }}
+                                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)' }}
+                                                className="hover:bg-[var(--bg-hover)]">
+                                                <Ic.File style={{ flexShrink: 0, color: 'var(--text-muted)' }} size={14} />
+                                                <div style={{ minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 600 }}>#{o.numero} — {o.cliente_nome}</div>
+                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{o.ambiente || ''}</div>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </>
+                                )}
+                                {buscaResults.projetos.length > 0 && (
+                                    <>
+                                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em', marginTop: 4 }}>Projetos</div>
+                                        {buscaResults.projetos.map(p => (
+                                            <button key={`p${p.id}`} onClick={() => { nav('proj'); setBuscaOpen(false); setBuscaQuery(''); }}
+                                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)' }}
+                                                className="hover:bg-[var(--bg-hover)]">
+                                                <Ic.Briefcase style={{ flexShrink: 0, color: 'var(--text-muted)' }} size={14} />
+                                                <div style={{ minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 600 }}>{p.nome}</div>
+                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.cliente_nome || ''}</div>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
                     {/* WhatsApp Badge na Top Bar */}
                     {waUnread > 0 && (
                         <button

@@ -239,6 +239,37 @@ router.get('/', requireAuth, (req, res) => {
             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
             .slice(0, 8);
 
+        // ── Métricas do Vendedor (sempre calculado, filtrado por user) ──
+        const vendedorMetrics = {};
+        if (!all) {
+            const meusMes = db.prepare(`
+                SELECT COUNT(*) as total, COALESCE(SUM(valor_venda), 0) as valor
+                FROM orcamentos WHERE user_id = ? AND strftime('%Y-%m', criado_em) = ?
+            `).get(uid, mesAtual);
+            const meusAprovados = db.prepare(`
+                SELECT COUNT(*) as total, COALESCE(SUM(valor_venda), 0) as valor
+                FROM orcamentos WHERE user_id = ? AND kb_col = 'ok' AND strftime('%Y-%m', atualizado_em) = ?
+            `).get(uid, mesAtual);
+            const meusTotal = db.prepare(`
+                SELECT COUNT(*) as total FROM orcamentos WHERE user_id = ?
+                AND kb_col NOT IN ('done','arquivo') AND status != 'cancelado'
+            `).get(uid);
+            const meusConvertidos = db.prepare(`
+                SELECT COUNT(*) as total FROM orcamentos WHERE user_id = ?
+                AND kb_col IN ('ok','prod','done')
+            `).get(uid);
+            const meusClientes = db.prepare(`
+                SELECT COUNT(*) as total FROM clientes WHERE user_id = ?
+                AND strftime('%Y-%m', criado_em) = ?
+            `).get(uid, mesAtual);
+            vendedorMetrics.orcs_mes = meusMes.total;
+            vendedorMetrics.orcs_valor_mes = meusMes.valor;
+            vendedorMetrics.aprovados_mes = meusAprovados.total;
+            vendedorMetrics.aprovados_valor_mes = meusAprovados.valor;
+            vendedorMetrics.taxa_conversao = meusTotal.total > 0 ? Math.round((meusConvertidos.total / meusTotal.total) * 100) : 0;
+            vendedorMetrics.novos_clientes_mes = meusClientes.total;
+        }
+
         // ── Resposta ─────────────────────────────────────────────────
         res.json({
             headline,
@@ -249,6 +280,7 @@ router.get('/', requireAuth, (req, res) => {
             projetos_ativos,
             total_projetos_ativos: projetos_ativos.length,
             atividades,
+            vendedor: Object.keys(vendedorMetrics).length > 0 ? vendedorMetrics : undefined,
         });
 
     } catch (err) {
@@ -571,12 +603,99 @@ router.get('/relatorio/:tipo', requireAuth, (req, res) => {
                 break;
             }
 
+            case 'conversao': {
+                const rows = db.prepare(`
+                    SELECT kb_col, COUNT(*) as total,
+                           COALESCE(SUM(valor_venda), 0) as valor
+                    FROM orcamentos
+                    WHERE tipo != 'aditivo'
+                      AND criado_em BETWEEN ? AND ? || ' 23:59:59'
+                    GROUP BY kb_col
+                    ORDER BY total DESC
+                `).all(inicio, fim);
+                const grandTotal = rows.reduce((s, r) => s + r.total, 0) || 1;
+                const KB_ORDER = { lead: 'Lead', orc: 'Orçamento', env: 'Enviado', neg: 'Negociação', ok: 'Aprovado', prod: 'Produção', mont: 'Montagem', arq: 'Arquivo', perdido: 'Perdido' };
+                const dados = Object.entries(KB_ORDER).map(([key, label]) => {
+                    const found = rows.find(r => r.kb_col === key);
+                    return {
+                        etapa: label,
+                        total: found ? found.total : 0,
+                        valor: found ? found.valor : 0,
+                        pct_total: found ? Math.round((found.total / grandTotal) * 100) : 0,
+                    };
+                }).filter(r => r.total > 0);
+                res.json({ tipo: 'conversao', periodo: { inicio, fim }, dados });
+                break;
+            }
+
+            case 'vendedores': {
+                const rows = db.prepare(`
+                    SELECT u.id, u.nome,
+                           COUNT(o.id) as total_orcs,
+                           COALESCE(SUM(o.valor_venda), 0) as valor_orcs,
+                           COUNT(CASE WHEN o.kb_col IN ('ok','prod','mont') THEN 1 END) as aprovados,
+                           COALESCE(SUM(CASE WHEN o.kb_col IN ('ok','prod','mont') THEN o.valor_venda ELSE 0 END), 0) as valor_aprovados,
+                           COUNT(CASE WHEN o.kb_col = 'perdido' THEN 1 END) as perdidos
+                    FROM users u
+                    LEFT JOIN orcamentos o ON o.user_id = u.id
+                        AND o.tipo != 'aditivo'
+                        AND o.criado_em BETWEEN ? AND ? || ' 23:59:59'
+                    WHERE u.role IN ('admin','gerente','vendedor')
+                    GROUP BY u.id
+                    ORDER BY valor_aprovados DESC
+                `).all(inicio, fim);
+                const dados = rows.map(r => ({
+                    ...r,
+                    taxa_conversao: r.total_orcs > 0 ? Math.round((r.aprovados / r.total_orcs) * 100) : 0,
+                    ticket_medio: r.aprovados > 0 ? Math.round(r.valor_aprovados / r.aprovados) : 0,
+                }));
+                res.json({ tipo: 'vendedores', periodo: { inicio, fim }, dados });
+                break;
+            }
+
             default:
                 res.status(400).json({ error: 'Tipo de relatório inválido' });
         }
     } catch (err) {
         console.error('Relatório error:', err);
         res.status(500).json({ error: 'Erro ao gerar relatório' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// GET /api/dashboard/busca — busca global
+// ═══════════════════════════════════════════════════════
+router.get('/busca', requireAuth, (req, res) => {
+    const q = (req.query.q || '').trim();
+    if (q.length < 2) return res.json({ clientes: [], orcamentos: [], projetos: [] });
+
+    const like = `%${q}%`;
+    try {
+        const clientes = db.prepare(`
+            SELECT id, nome, tel, email, cidade FROM clientes
+            WHERE nome LIKE ? OR email LIKE ? OR tel LIKE ? OR cidade LIKE ?
+            ORDER BY nome LIMIT 8
+        `).all(like, like, like, like);
+
+        const orcamentos = db.prepare(`
+            SELECT id, numero, cliente_nome, ambiente, valor_venda, status, kb_col
+            FROM orcamentos
+            WHERE cliente_nome LIKE ? OR ambiente LIKE ? OR CAST(numero AS TEXT) LIKE ?
+            ORDER BY criado_em DESC LIMIT 8
+        `).all(like, like, like);
+
+        const projetos = db.prepare(`
+            SELECT p.id, p.nome, p.status, o.cliente_nome
+            FROM projetos p
+            LEFT JOIN orcamentos o ON o.id = p.orc_id
+            WHERE p.nome LIKE ? OR o.cliente_nome LIKE ?
+            ORDER BY p.criado_em DESC LIMIT 8
+        `).all(like, like);
+
+        res.json({ clientes, orcamentos, projetos });
+    } catch (err) {
+        console.error('Busca error:', err);
+        res.status(500).json({ error: 'Erro na busca' });
     }
 });
 

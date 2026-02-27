@@ -257,6 +257,59 @@ router.post('/', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// POST /api/projetos/:id/duplicar — duplicar projeto (auth)
+// ═══════════════════════════════════════════════════
+router.post('/:id/duplicar', requireAuth, (req, res) => {
+    const srcId = parseInt(req.params.id);
+    const src = db.prepare('SELECT * FROM projetos WHERE id = ?').get(srcId);
+    if (!src) return res.status(404).json({ error: 'Projeto não encontrado' });
+
+    const token = randomBytes(24).toString('hex');
+    const nome = (req.body.nome || `${src.nome} (cópia)`).trim();
+
+    const r = db.prepare(`
+        INSERT INTO projetos (user_id, orc_id, nome, descricao, data_inicio, data_vencimento, status, token)
+        VALUES (?, ?, ?, ?, ?, ?, 'nao_iniciado', ?)
+    `).run(req.user.id, src.orc_id, nome, src.descricao || '', req.body.data_inicio || null, req.body.data_vencimento || null, token);
+
+    const newProjId = r.lastInsertRowid;
+
+    // Copiar etapas (sem status, progresso e datas)
+    const etapas = db.prepare('SELECT * FROM etapas_projeto WHERE projeto_id = ? ORDER BY ordem').all(srcId);
+    const stmtEtapa = db.prepare(`
+        INSERT INTO etapas_projeto (projeto_id, nome, descricao, data_inicio, data_vencimento, ordem, responsavel_id)
+        VALUES (?, ?, ?, NULL, NULL, ?, ?)
+    `);
+    etapas.forEach(e => stmtEtapa.run(newProjId, e.nome, e.descricao || '', e.ordem, e.responsavel_id));
+
+    try { logActivity(req.user.id, req.user.nome, 'criar', `Duplicou projeto "${src.nome}" → "${nome}"`, newProjId, 'projeto'); } catch (_) {}
+
+    res.json({ id: newProjId, token });
+});
+
+// ═══════════════════════════════════════════════════
+// GET /api/projetos/templates — listar templates de etapas
+// ═══════════════════════════════════════════════════
+router.get('/templates/list', requireAuth, (req, res) => {
+    const templates = db.prepare('SELECT * FROM etapas_templates ORDER BY nome').all();
+    res.json(templates.map(t => ({ ...t, etapas: JSON.parse(t.etapas_json || '[]') })));
+});
+
+// POST /api/projetos/templates — salvar template
+router.post('/templates', requireAuth, (req, res) => {
+    const { nome, etapas } = req.body;
+    if (!nome || !etapas?.length) return res.status(400).json({ error: 'Nome e etapas obrigatórios' });
+    const r = db.prepare('INSERT INTO etapas_templates (nome, etapas_json) VALUES (?, ?)').run(nome, JSON.stringify(etapas));
+    res.json({ id: r.lastInsertRowid });
+});
+
+// DELETE /api/projetos/templates/:id
+router.delete('/templates/:id', requireAuth, (req, res) => {
+    db.prepare('DELETE FROM etapas_templates WHERE id = ?').run(parseInt(req.params.id));
+    res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════
 // PUT /api/projetos/:id — atualizar projeto (auth)
 // ═══════════════════════════════════════════════════
 router.put('/:id', requireAuth, (req, res) => {
