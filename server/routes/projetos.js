@@ -106,10 +106,22 @@ router.post('/portal/:token/mensagens', (req, res) => {
     const proj = db.prepare('SELECT id FROM projetos WHERE token = ?').get(token);
     if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
 
+    const nomeCliente = (autor_nome || '').trim() || 'Cliente';
     const r = db.prepare(`
         INSERT INTO portal_mensagens (projeto_id, token, autor_tipo, autor_nome, conteudo)
         VALUES (?, ?, 'cliente', ?, ?)
-    `).run(proj.id, token, (autor_nome || '').trim() || 'Cliente', conteudo.trim());
+    `).run(proj.id, token, nomeCliente, conteudo.trim());
+
+    // Notificar equipe
+    const projNome = db.prepare('SELECT nome FROM projetos WHERE id = ?').get(proj.id)?.nome || '';
+    try {
+        createNotification(
+            'portal_mensagem',
+            'Nova mensagem do cliente',
+            `${nomeCliente} enviou mensagem no portal "${projNome}"`,
+            proj.id, 'projeto'
+        );
+    } catch (_) { /* não bloqueia */ }
 
     const msg = db.prepare('SELECT * FROM portal_mensagens WHERE id = ?').get(r.lastInsertRowid);
     res.status(201).json(msg);

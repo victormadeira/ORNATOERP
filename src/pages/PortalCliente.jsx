@@ -679,11 +679,6 @@ export default function PortalCliente({ token }) {
                         </div>
                     </div>
 
-                    {projeto.descricao && (
-                        <div style={{ marginTop: 16, padding: '14px 18px', background: '#f8fafc', borderRadius: 10, fontSize: 14, color: '#334155', lineHeight: 1.6 }}>
-                            {projeto.descricao}
-                        </div>
-                    )}
                 </div>
 
                 {/* ─── Etapas / Cronograma ────────────────────── */}
