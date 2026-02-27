@@ -13,7 +13,7 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
 
     // Buscar config pública (sem autenticação) para pegar logo e nome
     useEffect(() => {
-        if (logoProp !== undefined) return; // já recebeu via prop
+        if (logoProp) return; // já recebeu via prop (string não-vazia)
         fetch('/api/config/empresa/public')
             .then(r => r.json())
             .then(d => {

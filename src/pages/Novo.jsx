@@ -651,6 +651,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [reportItemId, setReportItemId] = useState(null);
     const [addCompModal, setAddCompModal] = useState(null); // { ambId, itemId }
     const [showTipoAmbModal, setShowTipoAmbModal] = useState(false);
+    const [mkExpanded, setMkExpanded] = useState(false);
 
     // Catálogo e biblioteca do banco
     const [caixas, setCaixas] = useState([]);
@@ -744,8 +745,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [localTaxas, setLocalTaxas] = useState(editOrc?.taxas || {
         imp: globalTaxas.imp, com: globalTaxas.com, mont: globalTaxas.mont,
         lucro: globalTaxas.lucro, frete: globalTaxas.frete,
-        custoOpMode: 'percent', mdoPct: 5, instPct: 3,
-        mdoHoras: 0, mdoValorHora: 80, instHoras: 0, instValorHora: 60,
+        inst: globalTaxas.inst ?? 5,
+        mk_chapas: globalTaxas.mk_chapas ?? 1.45,
+        mk_ferragens: globalTaxas.mk_ferragens ?? 1.15,
+        mk_fita: globalTaxas.mk_fita ?? 1.45,
+        mk_acabamentos: globalTaxas.mk_acabamentos ?? 1.30,
+        mk_acessorios: globalTaxas.mk_acessorios ?? 1.20,
+        mk_mdo: globalTaxas.mk_mdo ?? 0.80,
     });
     const taxas = localTaxas;
     const setTaxa = (k, v) => setLocalTaxas(p => ({ ...p, [k]: parseFloat(v) || 0 }));
@@ -1534,7 +1540,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 </div>
                             )}
                             <div className="flex flex-col gap-1.5 text-xs">
-                                {[['Custo Material', tot.cm], ['Mão de Obra', tot.custoMdo], ['Instalação', tot.custoInst]].map(([l, v], i) => (
+                                {[['Custo Material', tot.cm], ['Mão de Obra', tot.custoMdo]].map(([l, v], i) => (
                                     <div key={i} className="flex justify-between">
                                         <span style={{ color: 'var(--text-muted)' }}>{l}</span>
                                         <span style={{ color: 'var(--text-secondary)' }}>{R$(v)}</span>
@@ -1552,10 +1558,33 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 </div>
                             )}
 
-                            {/* Taxas */}
+                            {/* Markups por Categoria (colapsável) */}
                             <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
-                                <div className="text-[9px] font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>Taxas (%)</div>
-                                {[['Impostos', 'imp'], ['Comissão', 'com'], ['Montagem', 'mont'], ['Lucro', 'lucro'], ['Frete', 'frete']].map(([l, k]) => (
+                                <button onClick={() => setMkExpanded(!mkExpanded)}
+                                    className="flex items-center justify-between w-full cursor-pointer mb-1">
+                                    <span className="text-[9px] font-semibold" style={{ color: 'var(--text-muted)' }}>Markups ×</span>
+                                    <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>{mkExpanded ? '▾' : '▸'}</span>
+                                </button>
+                                {mkExpanded && (
+                                    <div className="flex flex-col gap-1 mt-1">
+                                        {[['Chapas', 'mk_chapas'], ['Ferragens', 'mk_ferragens'], ['Fita', 'mk_fita'], ['Acabamentos', 'mk_acabamentos'], ['Acessórios', 'mk_acessorios'], ['Mão de Obra', 'mk_mdo']].map(([l, k]) => (
+                                            <div key={k} className="flex items-center justify-between gap-2">
+                                                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{l}</span>
+                                                <div className="flex items-center gap-1">
+                                                    <input type="number" step="0.05" min="0.1" value={taxas[k]} onChange={e => setTaxa(k, e.target.value)}
+                                                        className="w-14 text-xs px-1.5 py-0.5 rounded border text-center input-glass" />
+                                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>×</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Taxas sobre PV */}
+                            <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
+                                <div className="text-[9px] font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>Taxas sobre PV (%)</div>
+                                {[['Impostos', 'imp'], ['Comissão', 'com'], ['Lucro', 'lucro'], ['Frete', 'frete'], ['Instalação', 'inst'], ['Montagem', 'mont']].map(([l, k]) => (
                                     <div key={k} className="flex items-center justify-between gap-2 mb-1">
                                         <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{l}</span>
                                         <div className="flex items-center gap-1">
@@ -1567,45 +1596,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 ))}
                                 <div className="flex justify-between pt-1 mt-1 font-semibold text-[11px]" style={{ borderTop: '1px solid var(--border)' }}>
                                     <span style={{ color: 'var(--text-muted)' }}>Σ Taxas</span>
-                                    <span className={taxas.imp + taxas.com + taxas.mont + taxas.lucro + taxas.frete >= 100 ? 'text-red-500' : ''}>
-                                        {taxas.imp + taxas.com + taxas.mont + taxas.lucro + taxas.frete}%
+                                    <span className={(taxas.imp + taxas.com + taxas.mont + taxas.lucro + taxas.frete + (taxas.inst || 0)) >= 100 ? 'text-red-500' : ''}>
+                                        {(taxas.imp + taxas.com + taxas.mont + taxas.lucro + taxas.frete + (taxas.inst || 0)).toFixed(1)}%
                                     </span>
                                 </div>
-                            </div>
-
-                            {/* Custo operacional */}
-                            <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[9px] font-semibold" style={{ color: 'var(--text-muted)' }}>Custo Operacional</span>
-                                    <div className="flex gap-0.5">
-                                        {[['percent', '%'], ['hours', 'H']].map(([m, l]) => (
-                                            <button key={m} onClick={() => setLocalTaxas(p => ({ ...p, custoOpMode: m }))}
-                                                className="text-[9px] px-2 py-0.5 rounded font-bold cursor-pointer"
-                                                style={taxas.custoOpMode === m ? { background: 'var(--primary)', color: '#fff' } : { background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>{l}</button>
-                                        ))}
-                                    </div>
-                                </div>
-                                {taxas.custoOpMode === 'percent'
-                                    ? [['Mão de Obra', 'mdoPct'], ['Instalação', 'instPct']].map(([l, k]) => (
-                                        <div key={k} className="flex items-center justify-between gap-2 mb-1">
-                                            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{l}</span>
-                                            <div className="flex items-center gap-1">
-                                                <input type="number" step="0.5" value={taxas[k]} onChange={e => setTaxa(k, e.target.value)}
-                                                    className="w-14 text-xs px-1.5 py-0.5 rounded border text-center input-glass" />
-                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>%</span>
-                                            </div>
-                                        </div>
-                                    ))
-                                    : [['Mão de Obra', 'mdoHoras', 'mdoValorHora'], ['Instalação', 'instHoras', 'instValorHora']].map(([l, hk, vk]) => (
-                                        <div key={hk} className="mb-2">
-                                            <div className="text-[10px] font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>{l}</div>
-                                            <div className="flex gap-1.5">
-                                                <div className="flex-1"><label className="text-[9px]" style={{ color: 'var(--text-muted)' }}>Horas</label><input type="number" value={taxas[hk]} onChange={e => setTaxa(hk, e.target.value)} className="w-full text-xs px-1.5 py-1 rounded border input-glass" /></div>
-                                                <div className="flex-1"><label className="text-[9px]" style={{ color: 'var(--text-muted)' }}>R$/h</label><input type="number" value={taxas[vk]} onChange={e => setTaxa(vk, e.target.value)} className="w-full text-xs px-1.5 py-1 rounded border input-glass" /></div>
-                                            </div>
-                                        </div>
-                                    ))
-                                }
                             </div>
 
                             {/* Padrões de Ferragens — substituição global */}
