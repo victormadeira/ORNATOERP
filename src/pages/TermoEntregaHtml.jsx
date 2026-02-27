@@ -12,41 +12,47 @@ function matNome(id, chapas, acabamentos) {
     return id;
 }
 
-// ── CSS compartilhado ─────────────────────────────────────────────────────────
-const BASE_CSS = `
+// ── CSS compartilhado (cores dinâmicas da config) ────────────────────────────
+function buildBaseCSS(cp, ca) {
+    return `
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:11px;padding:20px 24px;}
+body{font-family:'Inter',Arial,Helvetica,sans-serif;color:#111;font-size:11px;padding:20px 24px;}
 @page{margin:12mm 10mm;size:A4;}
 @media print{.no-print{display:none!important;} body{padding:0;} .page-break{page-break-before:always;}}
+*,*::before,*::after{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}
 
-.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #1a4fa0;padding-bottom:12px;margin-bottom:14px;}
-.emp h1{font-size:15px;font-weight:bold;color:#1a4fa0;margin-bottom:3px;}
+.watermark{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:0;pointer-events:none;}
+.watermark img{width:340px;height:auto;}
+.content-wrap{position:relative;z-index:1;}
+
+.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid ${cp};padding-bottom:12px;margin-bottom:14px;}
+.emp h1{font-size:15px;font-weight:bold;color:${cp};margin-bottom:3px;}
 .emp p{font-size:9.5px;color:#555;line-height:1.5;}
 .doc-info{text-align:right;}
-.doc-info .title{font-size:16px;font-weight:bold;color:#1a4fa0;letter-spacing:0.5px;}
+.doc-info .title{font-size:16px;font-weight:bold;color:${cp};letter-spacing:0.5px;}
 .doc-info .sub{font-size:11px;color:#444;font-weight:600;margin-top:2px;}
 .doc-info .date{font-size:10px;color:#666;margin-top:3px;}
 
-.info-box{background:#f4f7ff;border:1px solid #d8e2f5;border-radius:5px;padding:10px 14px;margin-bottom:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px 20px;}
+.info-box{background:${cp}08;border:1px solid ${cp}20;border-radius:5px;padding:10px 14px;margin-bottom:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px 20px;}
 .info-box .fi label{font-size:8.5px;font-weight:bold;color:#888;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:1px;}
 .info-box .fi span{font-size:11px;font-weight:600;color:#111;}
 
 .section{margin-bottom:14px;}
-.section h3{font-size:11px;font-weight:bold;color:#1a4fa0;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:1.5px solid #d8e2f5;}
+.section h3{font-size:11px;font-weight:bold;color:${cp};text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:1.5px solid ${cp}25;}
 
 .amb{margin-bottom:12px;}
-.amb-hdr{background:#1a4fa0;color:#fff;padding:5px 10px;border-radius:4px 4px 0 0;font-size:10px;font-weight:bold;display:flex;justify-content:space-between;}
+.amb-hdr{background:${cp};color:#fff;padding:5px 10px;border-radius:4px 4px 0 0;font-size:10px;font-weight:bold;display:flex;justify-content:space-between;}
 .mt{width:100%;border-collapse:collapse;font-size:10px;}
-.mt th{background:#e6edf8;color:#1a4fa0;padding:4px 7px;text-align:left;border:1px solid #ccd6ed;font-size:9px;}
+.mt th{background:${cp}10;color:${cp};padding:4px 7px;text-align:left;border:1px solid ${cp}20;font-size:9px;}
 .mt td{padding:4px 7px;border:1px solid #e2e2e2;vertical-align:middle;}
-.mt tr:nth-child(even) td{background:#f8faff;}
+.mt tr:nth-child(even) td{background:${cp}05;}
 .n{text-align:center;width:28px;}
 .nome{min-width:110px;}
 .dim{font-family:monospace;font-size:9.5px;white-space:nowrap;}
 .text-xs{font-size:9px;line-height:1.4;}
 
 .checklist{margin-bottom:14px;}
-.checklist h3{font-size:11px;font-weight:bold;color:#1a4fa0;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:1.5px solid #d8e2f5;}
+.checklist h3{font-size:11px;font-weight:bold;color:${cp};text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:1.5px solid ${cp}25;}
 .check-item{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:10.5px;}
 .check-box{width:14px;height:14px;border:1.5px solid #999;border-radius:2px;flex-shrink:0;}
 
@@ -54,18 +60,18 @@ body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:11px;padding:20
 .garantia-box h3{font-size:11px;font-weight:bold;color:#16a34a;margin-bottom:6px;}
 .garantia-box p{font-size:10px;line-height:1.6;color:#333;}
 
-.financeiro{background:#fefce8;border:1px solid #fde68a;border-radius:5px;padding:10px 14px;margin-bottom:14px;}
-.financeiro h3{font-size:11px;font-weight:bold;color:#ca8a04;margin-bottom:6px;}
-.fin-row{display:flex;justify-content:space-between;padding:3px 0;font-size:10.5px;border-bottom:1px dashed #e5e7eb;}
+.financeiro{background:${ca}10;border:1px solid ${ca}30;border-radius:5px;padding:10px 14px;margin-bottom:14px;}
+.financeiro h3{font-size:11px;font-weight:bold;color:${ca};margin-bottom:6px;}
+.fin-row{display:flex;justify-content:space-between;padding:3px 0;font-size:10.5px;border-bottom:1px dashed ${cp}15;}
 .fin-row:last-child{border-bottom:none;}
-.fin-row.total{font-weight:bold;font-size:12px;border-top:1.5px solid #ca8a04;margin-top:4px;padding-top:6px;}
+.fin-row.total{font-weight:bold;font-size:12px;border-top:1.5px solid ${ca};margin-top:4px;padding-top:6px;}
 
 .ressalvas{background:#fef2f2;border:1px solid #fecaca;border-radius:5px;padding:10px 14px;margin-bottom:14px;}
 .ressalvas h3{color:#dc2626!important;border-bottom-color:#fecaca!important;}
 .ressalvas p{font-size:10px;line-height:1.6;color:#333;}
 
-.obs{margin-bottom:14px;padding:10px 14px;border:1px solid #e5e7eb;border-radius:5px;background:#fafafa;}
-.obs h3{font-size:10px;font-weight:bold;color:#666;margin-bottom:4px;}
+.obs{margin-bottom:14px;padding:10px 14px;border:1px solid ${cp}18;border-radius:5px;background:${cp}05;}
+.obs h3{font-size:10px;font-weight:bold;color:${cp};margin-bottom:4px;}
 .obs p{font-size:10px;line-height:1.6;color:#444;}
 
 .assinaturas{display:flex;justify-content:space-between;gap:40px;margin-top:30px;padding-top:10px;}
@@ -76,11 +82,28 @@ body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:11px;padding:20
 .assin-box .data{font-size:9px;color:#888;margin-top:4px;}
 
 .empty{text-align:center;padding:20px;color:#999;font-style:italic;}
-.footer-legal{margin-top:20px;padding-top:8px;border-top:1px solid #e5e7eb;font-size:8.5px;color:#aaa;text-align:center;line-height:1.5;}
-.print-btn{display:block;margin:16px auto 0;padding:10px 36px;background:#1a4fa0;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:bold;}
-.print-btn:hover{background:#1555c0;}
+.footer-legal{margin-top:20px;padding-top:8px;border-top:1px solid ${cp}20;font-size:8.5px;color:#aaa;text-align:center;line-height:1.5;}
+.print-btn{display:block;margin:16px auto 0;padding:10px 36px;background:${cp};color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:bold;}
+.print-btn:hover{opacity:.9;}
 .btn-row{display:flex;justify-content:center;gap:12px;margin-top:16px;}
 `;
+}
+
+// ── Helpers para extrair cores da config ──────────────────────────────────────
+function extractColors(empresa) {
+    return {
+        cp: empresa?.proposta_cor_primaria || '#1B2A4A',
+        ca: empresa?.proposta_cor_accent || '#C9A96E',
+        logoSrc: empresa?.logo_header_path || empresa?.logo || '',
+        watermarkSrc: empresa?.logo_watermark_path || empresa?.logo_watermark || '',
+        watermarkOpacity: empresa?.logo_watermark_opacity ?? 0.04,
+    };
+}
+
+function watermarkHtml(src, opacity) {
+    if (!src) return '';
+    return `<div class="watermark" style="opacity:${opacity}"><img src="${src}" /></div>`;
+}
 
 // ── Helpers de seções comuns ──────────────────────────────────────────────────
 function headerHtml(empresa, docTitle, subtitle, dataHoje) {
@@ -183,6 +206,8 @@ export function buildTermoEntregaHtml(data, config = {}) {
     const { projeto, etapas, ocorrencias, ambientes, financeiro, empresa } = data;
     const { chapas = [], acabamentos = [], observacoes = '', ressalvas = '', garantiaTexto } = config;
 
+    const { cp, ca, watermarkSrc, watermarkOpacity } = extractColors(empresa);
+
     const dataHoje = new Date().toLocaleDateString('pt-BR');
     const clienteNome = projeto.cliente_nome || '—';
     const projNome = projeto.nome || '—';
@@ -205,14 +230,17 @@ export function buildTermoEntregaHtml(data, config = {}) {
 
     const ressalvasHtml = ressalvas ? `<div class="section ressalvas"><h3>RESSALVAS</h3><p>${ressalvas.replace(/\n/g, '<br>')}</p></div>` : '';
 
-    return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/><title>Termo de Entrega — ${clienteNome}</title><style>${BASE_CSS}</style></head><body>
+    return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/><title>Termo de Entrega — ${clienteNome}</title><style>${buildBaseCSS(cp, ca)}</style></head><body>
+
+${watermarkHtml(watermarkSrc, watermarkOpacity)}
+<div class="content-wrap">
 
 ${headerHtml(empresa, 'TERMO DE ENTREGA', orcNumero ? `Ref.: ${orcNumero}` : '', dataHoje)}
 
 <div class="info-box">
     <div class="fi"><label>Cliente</label><span>${clienteNome}</span></div>
     <div class="fi"><label>Projeto</label><span>${projNome}</span></div>
-    <div class="fi"><label>Valor Total</label><span style="color:#1a4fa0">${R(financeiro.valorTotal)}</span></div>
+    <div class="fi"><label>Valor Total</label><span style="color:${cp};font-weight:700">${R(financeiro.valorTotal)}</span></div>
     ${enderecoObra ? `<div class="fi" style="grid-column:span 2"><label>Endereço da Obra</label><span>${enderecoObra}</span></div>` : ''}
     <div class="fi"><label>Data Início</label><span>${fmtDt(projeto.data_inicio)}</span></div>
 </div>
@@ -243,6 +271,7 @@ ${assinaturasHtml(clienteNome, empresa.nome)}
     ${orcNumero ? `Ref. Orçamento: ${orcNumero} · ` : ''}Projeto: ${projNome}
 </div>
 
+</div><!-- content-wrap -->
 <button class="print-btn no-print" onclick="window.print()">Imprimir / Salvar PDF</button>
 </body></html>`;
 }
@@ -253,6 +282,8 @@ ${assinaturasHtml(clienteNome, empresa.nome)}
 export function buildTermoPorAmbienteHtml(data, config = {}) {
     const { projeto, ocorrencias, ambientes, financeiro, empresa } = data;
     const { chapas = [], acabamentos = [], observacoes = '', ressalvas = '' } = config;
+
+    const { cp, ca, watermarkSrc, watermarkOpacity } = extractColors(empresa);
 
     const dataHoje = new Date().toLocaleDateString('pt-BR');
     const clienteNome = projeto.cliente_nome || '—';
@@ -265,7 +296,6 @@ export function buildTermoPorAmbienteHtml(data, config = {}) {
     }
 
     const pages = ambientes.map((amb, ai) => {
-        const mods = amb.mods || [];
         return `
 ${ai > 0 ? '<div class="page-break"></div>' : ''}
 
@@ -274,7 +304,7 @@ ${headerHtml(empresa, 'TERMO DE ENTREGA', `Ambiente ${ai + 1} de ${ambientes.len
 <div class="info-box">
     <div class="fi"><label>Cliente</label><span>${clienteNome}</span></div>
     <div class="fi"><label>Projeto</label><span>${projNome}</span></div>
-    <div class="fi"><label>Ambiente</label><span style="color:#1a4fa0;font-weight:700">${amb.nome || 'Sem nome'}</span></div>
+    <div class="fi"><label>Ambiente</label><span style="color:${cp};font-weight:700">${amb.nome || 'Sem nome'}</span></div>
     ${enderecoObra ? `<div class="fi" style="grid-column:span 2"><label>Endereço da Obra</label><span>${enderecoObra}</span></div>` : ''}
     <div class="fi"><label>Ref.</label><span>${orcNumero || '—'}</span></div>
 </div>
@@ -295,8 +325,11 @@ ${assinaturasHtml(clienteNome, empresa.nome)}
 </div>`;
     });
 
-    return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/><title>Termos por Ambiente — ${clienteNome}</title><style>${BASE_CSS}</style></head><body>
+    return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/><title>Termos por Ambiente — ${clienteNome}</title><style>${buildBaseCSS(cp, ca)}</style></head><body>
+${watermarkHtml(watermarkSrc, watermarkOpacity)}
+<div class="content-wrap">
 ${pages.join('\n')}
+</div><!-- content-wrap -->
 <button class="print-btn no-print" onclick="window.print()">Imprimir Todos / Salvar PDF</button>
 </body></html>`;
 }
@@ -307,6 +340,8 @@ ${pages.join('\n')}
 export function buildCertificadoGarantiaHtml(data, config = {}) {
     const { projeto, ambientes, empresa } = data;
     const { chapas = [], acabamentos = [], garantiaTexto } = config;
+
+    const { cp, ca, watermarkSrc, watermarkOpacity } = extractColors(empresa);
 
     const dataHoje = new Date().toLocaleDateString('pt-BR');
     const clienteNome = projeto.cliente_nome || '—';
@@ -331,20 +366,20 @@ export function buildCertificadoGarantiaHtml(data, config = {}) {
     return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/>
 <title>Certificado de Garantia — ${clienteNome}</title>
 <style>
-${BASE_CSS}
-.cert-border{border:3px solid #1a4fa0;border-radius:12px;padding:24px;margin-bottom:20px;}
+${buildBaseCSS(cp, ca)}
+.cert-border{border:3px solid ${cp};border-radius:12px;padding:24px;margin-bottom:20px;}
 .cert-title{text-align:center;margin-bottom:20px;}
-.cert-title h2{font-size:22px;font-weight:bold;color:#1a4fa0;letter-spacing:1px;}
+.cert-title h2{font-size:22px;font-weight:bold;color:${cp};letter-spacing:1px;}
 .cert-title .sub{font-size:12px;color:#555;margin-top:4px;}
 
 .clause{margin-bottom:12px;}
-.clause h4{font-size:11px;font-weight:bold;color:#1a4fa0;margin-bottom:4px;text-transform:uppercase;}
+.clause h4{font-size:11px;font-weight:bold;color:${cp};margin-bottom:4px;text-transform:uppercase;}
 .clause p, .clause li{font-size:10.5px;line-height:1.7;color:#333;}
 .clause ul{padding-left:18px;margin-top:4px;}
 .clause li{margin-bottom:3px;}
 
 .cuidados{background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:12px 14px;margin-bottom:14px;}
-.cuidados h4{color:#ca8a04;font-size:11px;font-weight:bold;margin-bottom:6px;text-transform:uppercase;}
+.cuidados h4{color:${ca};font-size:11px;font-weight:bold;margin-bottom:6px;text-transform:uppercase;}
 .cuidados li{font-size:10px;line-height:1.7;color:#555;}
 .cuidados ul{padding-left:16px;}
 
@@ -356,6 +391,9 @@ ${BASE_CSS}
 .cert-badge{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin-bottom:14px;}
 .cert-badge span{font-size:13px;font-weight:bold;color:#16a34a;}
 </style></head><body>
+
+${watermarkHtml(watermarkSrc, watermarkOpacity)}
+<div class="content-wrap">
 
 <div class="cert-border">
 
@@ -450,6 +488,7 @@ ${assinaturasHtml(clienteNome, empresa.nome)}
 
 </div><!-- fim cert-border -->
 
+</div><!-- content-wrap -->
 <button class="print-btn no-print" onclick="window.print()">Imprimir / Salvar PDF</button>
 </body></html>`;
 }
