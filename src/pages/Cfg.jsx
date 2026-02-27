@@ -92,6 +92,7 @@ export default function Cfg({ taxas, reload, notify }) {
         proposta_cor_primaria: '#1B2A4A', proposta_cor_accent: '#C9A96E',
         proposta_sobre: '', proposta_garantia: '', proposta_consideracoes: '', proposta_rodape: '',
         gdrive_credentials: '', gdrive_folder_id: '',
+        gdrive_client_id: '', gdrive_client_secret: '',
         wa_instance_url: '', wa_instance_name: '', wa_api_key: '', wa_webhook_token: '',
         ia_provider: 'anthropic', ia_api_key: '', ia_model: 'claude-sonnet-4',
         ia_system_prompt: '', ia_temperatura: 0.7, ia_ativa: 0,
@@ -103,6 +104,9 @@ export default function Cfg({ taxas, reload, notify }) {
     const [iaTestResult, setIaTestResult] = useState(null);
     const [iaTesting, setIaTesting] = useState(false);
     const [activeSection, setActiveSection] = useState('empresa');
+    const [driveStatus, setDriveStatus] = useState(null);
+    const [driveAuthCode, setDriveAuthCode] = useState('');
+    const [driveAuthorizing, setDriveAuthorizing] = useState(false);
 
     useEffect(() => {
         api.get('/config/empresa').then(d => {
@@ -123,6 +127,8 @@ export default function Cfg({ taxas, reload, notify }) {
                 proposta_rodape: d.proposta_rodape || '',
                 gdrive_credentials: d.gdrive_credentials || '',
                 gdrive_folder_id: d.gdrive_folder_id || '',
+                gdrive_client_id: d.gdrive_client_id || '',
+                gdrive_client_secret: d.gdrive_client_secret || '',
                 wa_instance_url: d.wa_instance_url || '',
                 wa_instance_name: d.wa_instance_name || '',
                 wa_api_key: d.wa_api_key || '',
@@ -166,6 +172,8 @@ export default function Cfg({ taxas, reload, notify }) {
                 proposta_rodape: emp.proposta_rodape,
                 gdrive_credentials: emp.gdrive_credentials,
                 gdrive_folder_id: emp.gdrive_folder_id,
+                gdrive_client_id: emp.gdrive_client_id,
+                gdrive_client_secret: emp.gdrive_client_secret,
                 wa_instance_url: emp.wa_instance_url,
                 wa_instance_name: emp.wa_instance_name,
                 wa_api_key: emp.wa_api_key,
@@ -823,52 +831,119 @@ export default function Cfg({ taxas, reload, notify }) {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                     <div className="lg:col-span-2">
                         <div className={Z.card}>
-                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Integração Google Drive</h3>
+                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Google Drive (OAuth)</h3>
                             <p className="text-[11px] mb-4" style={{ color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                                Configure as credenciais da Service Account do Google Drive para armazenar arquivos dos projetos na nuvem.
-                                Por enquanto, os arquivos são armazenados localmente no servidor. Quando a integração for ativada, os novos uploads irão para o Google Drive.
+                                Conecte sua conta Google para armazenar fotos de montagem, notas fiscais e arquivos de projetos diretamente no seu Google Drive.
+                                Os arquivos ficam na sua conta pessoal, usando seu espaco de armazenamento.
                             </p>
 
                             <div className="flex flex-col gap-4">
-                                <div>
-                                    <label className={Z.lbl}>Credenciais da Service Account (JSON)</label>
-                                    <textarea
-                                        value={emp.gdrive_credentials || ''}
-                                        onChange={e => setEmp({ ...emp, gdrive_credentials: e.target.value })}
-                                        disabled={!isGerente}
-                                        rows={8}
-                                        placeholder={'Cole aqui o conteúdo do arquivo JSON da Service Account do Google Cloud.\nEx: {"type":"service_account","project_id":"...","private_key":"..."}'}
-                                        style={{
-                                            width: '100%', fontFamily: 'monospace', fontSize: 11, lineHeight: 1.6,
-                                            padding: 12, borderRadius: 8, resize: 'vertical',
-                                            background: 'var(--bg-muted)', color: 'var(--text-primary)',
-                                            border: '1px solid var(--border)',
-                                        }}
-                                    />
+                                {/* Passo 1: Client ID + Secret */}
+                                <div className="font-bold text-[11px]" style={{ color: 'var(--text-secondary)' }}>Passo 1: Credenciais OAuth</div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className={Z.lbl}>Client ID</label>
+                                        <input
+                                            value={emp.gdrive_client_id || ''}
+                                            onChange={e => setEmp({ ...emp, gdrive_client_id: e.target.value })}
+                                            disabled={!isGerente}
+                                            placeholder="XXXXX.apps.googleusercontent.com"
+                                            className={Z.inp}
+                                            style={{ fontFamily: 'monospace', fontSize: 11 }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={Z.lbl}>Client Secret</label>
+                                        <input
+                                            value={emp.gdrive_client_secret || ''}
+                                            onChange={e => setEmp({ ...emp, gdrive_client_secret: e.target.value })}
+                                            disabled={!isGerente}
+                                            placeholder="GOCSPX-..."
+                                            className={Z.inp}
+                                            type="password"
+                                            style={{ fontFamily: 'monospace', fontSize: 11 }}
+                                        />
+                                    </div>
                                 </div>
+
+                                {/* Passo 2: ID da pasta */}
+                                <div className="font-bold text-[11px] mt-2" style={{ color: 'var(--text-secondary)' }}>Passo 2: Pasta raiz no Drive</div>
                                 <div>
-                                    <label className={Z.lbl}>ID da Pasta Raiz no Google Drive</label>
+                                    <label className={Z.lbl}>ID da Pasta (da URL)</label>
                                     <input
                                         value={emp.gdrive_folder_id || ''}
                                         onChange={e => setEmp({ ...emp, gdrive_folder_id: e.target.value })}
                                         disabled={!isGerente}
-                                        placeholder="Ex: 1a2b3c4d5e6f7g8h9i0j (ID da pasta no Drive)"
+                                        placeholder="1a2b3c4d5e6f..."
                                         className={Z.inp}
-                                        style={{ fontFamily: 'monospace', fontSize: 12 }}
+                                        style={{ fontFamily: 'monospace', fontSize: 11 }}
                                     />
                                     <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                                        O ID está na URL da pasta: drive.google.com/drive/folders/<strong>ID_AQUI</strong>
+                                        Crie uma pasta "Ornato ERP" no seu Drive. O ID esta na URL: drive.google.com/drive/folders/<strong>ID_AQUI</strong>
+                                    </div>
+                                </div>
+
+                                {isGerente && (
+                                    <div className="flex justify-end">
+                                        <button onClick={async () => { await saveEmpresa(); notify('Credenciais salvas!'); }} className={Z.btn}>
+                                            <Ic.Check /> Salvar Credenciais
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Passo 3: Autorizar */}
+                                <div className="font-bold text-[11px] mt-2" style={{ color: 'var(--text-secondary)' }}>Passo 3: Autorizar acesso</div>
+                                <div className="flex flex-col gap-2">
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                const r = await api.get('/drive/auth-url');
+                                                window.open(r.url, '_blank');
+                                            } catch (err) {
+                                                notify(err.error || 'Salve o Client ID e Secret primeiro');
+                                            }
+                                        }}
+                                        disabled={!emp.gdrive_client_id || !emp.gdrive_client_secret}
+                                        className={Z.btn}
+                                        style={{ opacity: (!emp.gdrive_client_id || !emp.gdrive_client_secret) ? 0.5 : 1 }}
+                                    >
+                                        <Ic.ExternalLink /> Abrir Autorizacao Google
+                                    </button>
+                                    <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                        Clique acima, autorize no Google, e cole o codigo abaixo.
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input
+                                            value={driveAuthCode}
+                                            onChange={e => setDriveAuthCode(e.target.value)}
+                                            placeholder="Cole o codigo de autorizacao aqui"
+                                            className={Z.inp}
+                                            style={{ flex: 1, fontFamily: 'monospace', fontSize: 11 }}
+                                        />
+                                        <button
+                                            onClick={async () => {
+                                                if (!driveAuthCode.trim()) return;
+                                                setDriveAuthorizing(true);
+                                                try {
+                                                    await api.post('/drive/auth-callback', { code: driveAuthCode.trim() });
+                                                    notify('Google Drive autorizado com sucesso!');
+                                                    setDriveAuthCode('');
+                                                    // Testar conexao
+                                                    const test = await api.get('/drive/test');
+                                                    setDriveStatus(test);
+                                                } catch (err) {
+                                                    notify(err.error || 'Erro ao autorizar');
+                                                }
+                                                setDriveAuthorizing(false);
+                                            }}
+                                            disabled={!driveAuthCode.trim() || driveAuthorizing}
+                                            className={Z.btn}
+                                        >
+                                            {driveAuthorizing ? 'Autorizando...' : 'Confirmar'}
+                                        </button>
                                     </div>
                                 </div>
                             </div>
-
-                            {isGerente && (
-                                <div className="flex justify-end mt-4">
-                                    <button onClick={saveEmpresa} className={Z.btn}>
-                                        <Ic.Check /> Salvar Configurações do Drive
-                                    </button>
-                                </div>
-                            )}
                         </div>
                     </div>
 
@@ -877,38 +952,56 @@ export default function Cfg({ taxas, reload, notify }) {
                             <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Como Configurar</h3>
                             <div className="flex flex-col gap-3 text-[11px]" style={{ color: 'var(--text-muted)', lineHeight: 1.7 }}>
                                 <div>
-                                    <div className="font-bold mb-1" style={{ color: 'var(--text-secondary)' }}>1. Criar Projeto no Google Cloud</div>
-                                    Acesse <strong>console.cloud.google.com</strong>, crie um projeto e ative a Google Drive API.
+                                    <div className="font-bold mb-1" style={{ color: 'var(--text-secondary)' }}>1. Ativar Google Drive API</div>
+                                    Acesse <strong>console.cloud.google.com</strong>. No menu lateral, va em <strong>APIs e servicos {'>'} Biblioteca</strong>. Pesquise <strong>"Google Drive API"</strong> e clique em <strong>Ativar</strong>.
                                 </div>
                                 <div>
-                                    <div className="font-bold mb-1" style={{ color: 'var(--text-secondary)' }}>2. Criar Service Account</div>
-                                    Em IAM & Admin → Service Accounts, crie uma conta de serviço e gere uma chave JSON.
+                                    <div className="font-bold mb-1" style={{ color: 'var(--text-secondary)' }}>2. Tela de Consentimento</div>
+                                    Em <strong>APIs e servicos {'>'} Tela de consentimento OAuth</strong>, selecione <strong>"Externo"</strong> e preencha o nome do app (ex: "Ornato ERP"). Em <strong>Escopos</strong>, adicione <strong>drive.file</strong>. Em <strong>Usuarios de teste</strong>, adicione seu email Google.
                                 </div>
                                 <div>
-                                    <div className="font-bold mb-1" style={{ color: 'var(--text-secondary)' }}>3. Compartilhar Pasta</div>
-                                    No Google Drive, crie uma pasta e compartilhe com o e-mail da Service Account (editor).
+                                    <div className="font-bold mb-1" style={{ color: 'var(--text-secondary)' }}>3. Criar Credenciais OAuth</div>
+                                    Em <strong>Credenciais {'>'} Criar credenciais {'>'} ID do cliente OAuth</strong>. Tipo: <strong>"App para computador"</strong>. Copie o <strong>Client ID</strong> e o <strong>Client Secret</strong>.
                                 </div>
                                 <div>
-                                    <div className="font-bold mb-1" style={{ color: 'var(--text-secondary)' }}>4. Colar Credenciais</div>
-                                    Cole o JSON da chave no campo ao lado e o ID da pasta compartilhada.
+                                    <div className="font-bold mb-1" style={{ color: 'var(--text-secondary)' }}>4. Criar Pasta no Drive</div>
+                                    No seu Google Drive, crie uma pasta (ex: "Ornato ERP"). Abra-a e copie o <strong>ID da URL</strong> (tudo depois de /folders/).
+                                </div>
+                                <div>
+                                    <div className="font-bold mb-1" style={{ color: 'var(--text-secondary)' }}>5. Configurar e Autorizar</div>
+                                    Cole o Client ID, Client Secret e ID da pasta nos campos ao lado. Clique em <strong>Salvar</strong>, depois em <strong>"Abrir Autorizacao Google"</strong>. Autorize com sua conta e cole o codigo aqui.
                                 </div>
                             </div>
                         </div>
 
                         <div className={Z.card + ' mt-4'}>
-                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Status Atual</h3>
+                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Status</h3>
                             <div className="flex items-center gap-2 text-sm">
                                 <div style={{
                                     width: 10, height: 10, borderRadius: '50%',
-                                    background: '#f59e0b',
+                                    background: driveStatus?.ok ? '#22c55e' : driveStatus === null ? '#f59e0b' : '#ef4444',
                                 }} />
                                 <span style={{ color: 'var(--text-secondary)' }}>
-                                    Armazenamento Local
+                                    {driveStatus?.ok
+                                        ? `Google Drive Ativo — ${driveStatus.folder_name || 'Conectado'}`
+                                        : driveStatus?.error
+                                            ? `Erro: ${driveStatus.error}`
+                                            : 'Armazenamento Local'}
                                 </span>
                             </div>
-                            <p className="text-[11px] mt-2" style={{ color: 'var(--text-muted)' }}>
-                                Arquivos são salvos no servidor local. Configure as credenciais do Google Drive para migrar para armazenamento em nuvem.
-                            </p>
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        const r = await api.get('/drive/test');
+                                        setDriveStatus(r);
+                                        notify(r.ok ? 'Conexao OK!' : (r.error || 'Falhou'));
+                                    } catch { notify('Erro ao testar'); }
+                                }}
+                                className="text-[11px] mt-3 underline"
+                                style={{ color: 'var(--primary)' }}
+                            >
+                                Testar Conexao
+                            </button>
                         </div>
                     </div>
                 </div>

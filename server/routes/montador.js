@@ -5,6 +5,7 @@ import { randomBytes } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import * as gdrive from '../services/gdrive.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
@@ -136,7 +137,7 @@ router.get('/public/:token', (req, res) => {
 // ═══════════════════════════════════════════════════
 // POST /api/montador/public/:token/upload — upload de foto (sem auth)
 // ═══════════════════════════════════════════════════
-router.post('/public/:token/upload', (req, res) => {
+router.post('/public/:token/upload', async (req, res) => {
     const tokenRow = db.prepare(`
         SELECT mt.*, p.id as projeto_id
         FROM montador_tokens mt
@@ -144,28 +145,43 @@ router.post('/public/:token/upload', (req, res) => {
         WHERE mt.token = ? AND mt.ativo = 1
     `).get(req.params.token);
 
-    if (!tokenRow) return res.status(403).json({ error: 'Link inválido ou desativado' });
+    if (!tokenRow) return res.status(403).json({ error: 'Link invalido ou desativado' });
 
     const { filename, data, ambiente } = req.body;
-    if (!filename || !data) return res.status(400).json({ error: 'Filename e data obrigatórios' });
+    if (!filename || !data) return res.status(400).json({ error: 'Filename e data obrigatorios' });
 
-    // Salvar na pasta do projeto, subpasta montador
-    const montadorDir = path.join(UPLOADS_DIR, `projeto_${tokenRow.projeto_id}`, 'montador');
-    if (!fs.existsSync(montadorDir)) fs.mkdirSync(montadorDir, { recursive: true });
-
-    // Nome do arquivo: timestamp + nome original sanitizado
     const timestamp = Date.now();
     const safeName = `${timestamp}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    const filePath = path.join(montadorDir, safeName);
-
     const base64Data = data.includes(',') ? data.split(',')[1] : data;
-    fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+    const buffer = Buffer.from(base64Data, 'base64');
+    const ext = path.extname(safeName).toLowerCase();
+    const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
+    const mime = mimeMap[ext] || 'image/jpeg';
 
-    // Registrar foto na tabela montador_fotos
+    let gdriveFileId = '';
+
+    if (gdrive.isConfigured()) {
+        try {
+            const folderId = await gdrive.getProjectMontadorFolder(tokenRow.projeto_id);
+            const result = await gdrive.uploadFile(folderId, safeName, mime, buffer);
+            gdriveFileId = result.id;
+        } catch (err) {
+            console.error('Drive montador upload erro:', err.message);
+            // fallback para local
+        }
+    }
+
+    // Se nao foi para o Drive, salvar local
+    if (!gdriveFileId) {
+        const montadorDir = path.join(UPLOADS_DIR, `projeto_${tokenRow.projeto_id}`, 'montador');
+        if (!fs.existsSync(montadorDir)) fs.mkdirSync(montadorDir, { recursive: true });
+        fs.writeFileSync(path.join(montadorDir, safeName), buffer);
+    }
+
     db.prepare(`
-        INSERT INTO montador_fotos (projeto_id, token_id, nome_montador, ambiente, filename)
-        VALUES (?, ?, ?, ?, ?)
-    `).run(tokenRow.projeto_id, tokenRow.id, tokenRow.nome_montador, ambiente || '', safeName);
+        INSERT INTO montador_fotos (projeto_id, token_id, nome_montador, ambiente, filename, gdrive_file_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `).run(tokenRow.projeto_id, tokenRow.id, tokenRow.nome_montador, ambiente || '', safeName, gdriveFileId);
 
     res.json({ ok: true, nome: safeName });
 });
@@ -222,25 +238,41 @@ router.put('/fotos/portal-lote/:projeto_id', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════
 // POST /api/montador/fotos/:projeto_id/upload — upload de foto pelo admin (auth)
 // ═══════════════════════════════════════════════════
-router.post('/fotos/:projeto_id/upload', requireAuth, (req, res) => {
+router.post('/fotos/:projeto_id/upload', requireAuth, async (req, res) => {
     const projeto_id = parseInt(req.params.projeto_id);
     const { filename, data, ambiente } = req.body;
-    if (!filename || !data) return res.status(400).json({ error: 'Filename e data obrigatórios' });
-
-    const montadorDir = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, 'montador');
-    if (!fs.existsSync(montadorDir)) fs.mkdirSync(montadorDir, { recursive: true });
+    if (!filename || !data) return res.status(400).json({ error: 'Filename e data obrigatorios' });
 
     const timestamp = Date.now();
     const safeName = `${timestamp}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    const filePath = path.join(montadorDir, safeName);
-
     const base64Data = data.includes(',') ? data.split(',')[1] : data;
-    fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+    const buffer = Buffer.from(base64Data, 'base64');
+    const ext = path.extname(safeName).toLowerCase();
+    const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
+    const mime = mimeMap[ext] || 'image/jpeg';
+
+    let gdriveFileId = '';
+
+    if (gdrive.isConfigured()) {
+        try {
+            const folderId = await gdrive.getProjectMontadorFolder(projeto_id);
+            const result = await gdrive.uploadFile(folderId, safeName, mime, buffer);
+            gdriveFileId = result.id;
+        } catch (err) {
+            console.error('Drive admin upload erro:', err.message);
+        }
+    }
+
+    if (!gdriveFileId) {
+        const montadorDir = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, 'montador');
+        if (!fs.existsSync(montadorDir)) fs.mkdirSync(montadorDir, { recursive: true });
+        fs.writeFileSync(path.join(montadorDir, safeName), buffer);
+    }
 
     db.prepare(`
-        INSERT INTO montador_fotos (projeto_id, token_id, nome_montador, ambiente, filename)
-        VALUES (?, NULL, ?, ?, ?)
-    `).run(projeto_id, req.user.nome || 'Equipe', ambiente || '', safeName);
+        INSERT INTO montador_fotos (projeto_id, token_id, nome_montador, ambiente, filename, gdrive_file_id)
+        VALUES (?, NULL, ?, ?, ?, ?)
+    `).run(projeto_id, req.user.nome || 'Equipe', ambiente || '', safeName, gdriveFileId);
 
     res.json({ ok: true, nome: safeName });
 });
@@ -248,15 +280,20 @@ router.post('/fotos/:projeto_id/upload', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════
 // DELETE /api/montador/fotos/:id — excluir foto (auth)
 // ═══════════════════════════════════════════════════
-router.delete('/fotos/:id', requireAuth, (req, res) => {
+router.delete('/fotos/:id', requireAuth, async (req, res) => {
     const id = parseInt(req.params.id);
     const foto = db.prepare('SELECT * FROM montador_fotos WHERE id = ?').get(id);
-    if (!foto) return res.status(404).json({ error: 'Foto não encontrada' });
+    if (!foto) return res.status(404).json({ error: 'Foto nao encontrada' });
 
-    // Excluir arquivo do disco
+    // Excluir do Drive se aplicavel
+    if (foto.gdrive_file_id) {
+        try { await gdrive.deleteFile(foto.gdrive_file_id); } catch (err) { console.error('Drive delete foto erro:', err.message); }
+    }
+
+    // Excluir arquivo local se existir
     const filePath = path.join(UPLOADS_DIR, `projeto_${foto.projeto_id}`, 'montador', foto.filename);
     if (fs.existsSync(filePath)) {
-        try { fs.unlinkSync(filePath); } catch { /* arquivo pode já ter sido removido */ }
+        try { fs.unlinkSync(filePath); } catch { }
     }
 
     db.prepare('DELETE FROM montador_fotos WHERE id = ?').run(id);

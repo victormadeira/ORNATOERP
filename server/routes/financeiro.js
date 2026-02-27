@@ -5,6 +5,7 @@ import { logActivity } from '../services/notificacoes.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import * as gdrive from '../services/gdrive.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
@@ -220,33 +221,47 @@ router.delete('/pagar/:id', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════
 
 // POST /api/financeiro/pagar/:id/anexos — upload base64
-router.post('/pagar/:id/anexos', requireAuth, (req, res) => {
+router.post('/pagar/:id/anexos', requireAuth, async (req, res) => {
     const contaId = parseInt(req.params.id);
     const { arquivo, nome, tipo } = req.body;
-    if (!arquivo || !nome) return res.status(400).json({ error: 'Arquivo e nome obrigatórios' });
+    if (!arquivo || !nome) return res.status(400).json({ error: 'Arquivo e nome obrigatorios' });
 
-    // Verificar que a conta existe
     const conta = db.prepare('SELECT id FROM contas_pagar WHERE id = ?').get(contaId);
-    if (!conta) return res.status(404).json({ error: 'Conta não encontrada' });
+    if (!conta) return res.status(404).json({ error: 'Conta nao encontrada' });
 
-    // Criar diretório
-    const dir = path.join(UPLOADS_DIR, 'financeiro', String(contaId));
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-    // Sanitizar nome e salvar
     const safeName = nome.replace(/[^a-zA-Z0-9._-]/g, '_');
     const ts = Date.now();
     const finalName = `${ts}_${safeName}`;
-    const filePath = path.join(dir, finalName);
-
     const base64Data = arquivo.includes(',') ? arquivo.split(',')[1] : arquivo;
     const buffer = Buffer.from(base64Data, 'base64');
-    fs.writeFileSync(filePath, buffer);
+    const ext = path.extname(finalName).toLowerCase();
+    const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.pdf': 'application/pdf' };
+    const mime = mimeMap[ext] || 'application/octet-stream';
+
+    let gdriveFileId = '';
+    const tipoAnexo = tipo || 'boleto';
+
+    if (gdrive.isConfigured()) {
+        try {
+            const folders = await gdrive.setupFinanceiroFolders();
+            const folderId = tipoAnexo === 'nota_fiscal' ? folders.nfsFolderId : folders.boletosFolderId;
+            const result = await gdrive.uploadFile(folderId, finalName, mime, buffer);
+            gdriveFileId = result.id;
+        } catch (err) {
+            console.error('Drive financeiro upload erro:', err.message);
+        }
+    }
+
+    if (!gdriveFileId) {
+        const dir = path.join(UPLOADS_DIR, 'financeiro', String(contaId));
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, finalName), buffer);
+    }
 
     const r = db.prepare(`
-        INSERT INTO contas_pagar_anexos (conta_pagar_id, user_id, nome, tipo, filename, tamanho)
-        VALUES (?, ?, ?, ?, ?, ?)
-    `).run(contaId, req.user.id, nome, tipo || 'boleto', finalName, buffer.length);
+        INSERT INTO contas_pagar_anexos (conta_pagar_id, user_id, nome, tipo, filename, tamanho, gdrive_file_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(contaId, req.user.id, nome, tipoAnexo, finalName, buffer.length, gdriveFileId);
 
     res.json({ id: r.lastInsertRowid, filename: finalName, tamanho: buffer.length });
 });
@@ -262,18 +277,31 @@ router.get('/pagar/:id/anexos', requireAuth, (req, res) => {
 });
 
 // GET /api/financeiro/pagar/anexo/:contaId/:filename — servir arquivo
-router.get('/pagar/anexo/:contaId/:filename', requireAuth, (req, res) => {
+router.get('/pagar/anexo/:contaId/:filename', requireAuth, async (req, res) => {
     const contaId = String(req.params.contaId).replace(/[^0-9]/g, '');
     const filename = path.basename(decodeURIComponent(req.params.filename));
-    const filePath = path.join(UPLOADS_DIR, 'financeiro', contaId, filename);
 
-    // Proteção contra path traversal
-    const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) {
-        return res.status(403).json({ error: 'Acesso negado' });
+    // Verificar no banco se tem gdrive_file_id
+    const anexo = db.prepare('SELECT gdrive_file_id FROM contas_pagar_anexos WHERE conta_pagar_id = ? AND filename = ?').get(contaId, filename);
+
+    if (anexo?.gdrive_file_id) {
+        try {
+            const meta = await gdrive.getFileMeta(anexo.gdrive_file_id);
+            const stream = await gdrive.downloadFile(anexo.gdrive_file_id);
+            res.setHeader('Content-Type', meta.mimeType || 'application/octet-stream');
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+            stream.pipe(res);
+            return;
+        } catch (err) {
+            console.error('Drive financeiro download erro:', err.message);
+        }
     }
 
-    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado' });
+    // Local fallback
+    const filePath = path.join(UPLOADS_DIR, 'financeiro', contaId, filename);
+    const resolved = path.resolve(filePath);
+    if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) return res.status(403).json({ error: 'Acesso negado' });
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo nao encontrado' });
 
     const ext = path.extname(filePath).toLowerCase();
     const mimeTypes = {
@@ -289,11 +317,16 @@ router.get('/pagar/anexo/:contaId/:filename', requireAuth, (req, res) => {
 });
 
 // DELETE /api/financeiro/pagar/anexos/:anexoId — deletar anexo
-router.delete('/pagar/anexos/:anexoId', requireAuth, (req, res) => {
+router.delete('/pagar/anexos/:anexoId', requireAuth, async (req, res) => {
     const anexo = db.prepare('SELECT * FROM contas_pagar_anexos WHERE id = ?').get(parseInt(req.params.anexoId));
-    if (!anexo) return res.status(404).json({ error: 'Anexo não encontrado' });
+    if (!anexo) return res.status(404).json({ error: 'Anexo nao encontrado' });
 
-    // Deletar arquivo físico
+    // Deletar do Drive se aplicavel
+    if (anexo.gdrive_file_id) {
+        try { await gdrive.deleteFile(anexo.gdrive_file_id); } catch (err) { console.error('Drive delete anexo erro:', err.message); }
+    }
+
+    // Deletar arquivo local se existir
     const filePath = path.join(UPLOADS_DIR, 'financeiro', String(anexo.conta_pagar_id), anexo.filename);
     try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (_) { }
 

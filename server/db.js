@@ -589,6 +589,26 @@ const migrations = [
     tamanho INTEGER DEFAULT 0,
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
+  // ═══ Google Drive OAuth ═══
+  "ALTER TABLE empresa_config ADD COLUMN gdrive_client_id TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN gdrive_client_secret TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN gdrive_refresh_token TEXT DEFAULT ''",
+  // ═══ Google Drive file IDs ═══
+  "ALTER TABLE montador_fotos ADD COLUMN gdrive_file_id TEXT DEFAULT ''",
+  "ALTER TABLE contas_pagar_anexos ADD COLUMN gdrive_file_id TEXT DEFAULT ''",
+  // ═══ Projeto Arquivos (tracking de arquivos em banco) ═══
+  `CREATE TABLE IF NOT EXISTS projeto_arquivos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projeto_id INTEGER NOT NULL,
+    user_id INTEGER REFERENCES users(id),
+    nome TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    tipo TEXT DEFAULT '',
+    tamanho INTEGER DEFAULT 0,
+    gdrive_file_id TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_projeto_arquivos_projeto ON projeto_arquivos(projeto_id)",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
