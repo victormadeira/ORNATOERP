@@ -5,6 +5,8 @@ import puppeteer from 'puppeteer';
 import { existsSync } from 'fs';
 
 let browser = null;
+let launchRetries = 0;
+const MAX_RETRIES = 3;
 
 // Detectar path do Chromium automaticamente
 function findChromiumPath() {
@@ -25,23 +27,59 @@ function findChromiumPath() {
     return undefined; // Puppeteer usa o bundled
 }
 
+async function closeBrowser() {
+    if (browser) {
+        try { await browser.close(); } catch { }
+        browser = null;
+    }
+}
+
 async function getBrowser() {
-    if (!browser || !browser.isConnected()) {
+    // Se browser existe mas desconectou, fechar e recriar
+    if (browser && !browser.isConnected()) {
+        console.log('  Puppeteer: browser desconectou, recriando...');
+        await closeBrowser();
+    }
+
+    if (!browser) {
         const execPath = findChromiumPath();
-        console.log(`  Puppeteer: usando ${execPath || 'Chromium bundled'}`);
-        browser = await puppeteer.launch({
-            headless: 'new',
-            executablePath: execPath,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-gpu',
-                '--disable-extensions',
-                '--disable-software-rasterizer',
-                '--single-process',
-            ],
-        });
+        console.log(`  Puppeteer: lançando com ${execPath || 'Chromium bundled'}`);
+        try {
+            browser = await puppeteer.launch({
+                headless: 'new',
+                executablePath: execPath,
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--disable-extensions',
+                    '--disable-software-rasterizer',
+                    '--font-render-hinting=none',
+                ],
+                // Timeout para launch (30s)
+                timeout: 30000,
+            });
+
+            // Listener para desconexão inesperada
+            browser.on('disconnected', () => {
+                console.log('  Puppeteer: browser desconectou inesperadamente');
+                browser = null;
+            });
+
+            launchRetries = 0;
+            console.log('  Puppeteer: browser pronto');
+        } catch (err) {
+            browser = null;
+            launchRetries++;
+            console.error(`  Puppeteer: ERRO ao lançar (tentativa ${launchRetries}/${MAX_RETRIES}):`, err.message);
+            if (launchRetries < MAX_RETRIES) {
+                console.log('  Puppeteer: tentando novamente em 2s...');
+                await new Promise(r => setTimeout(r, 2000));
+                return getBrowser();
+            }
+            throw new Error(`Chromium não pôde ser iniciado após ${MAX_RETRIES} tentativas: ${err.message}`);
+        }
     }
     return browser;
 }
@@ -53,22 +91,62 @@ async function getBrowser() {
  * @returns {Buffer}
  */
 export async function htmlToPdf(html, options = {}) {
-    const br = await getBrowser();
-    const page = await br.newPage();
+    let page = null;
     try {
-        await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+        const br = await getBrowser();
+        page = await br.newPage();
+
+        // Bloquear requisições externas (imagens/fontes externas causam timeout)
+        await page.setRequestInterception(true);
+        page.on('request', (req) => {
+            const url = req.url();
+            // Permitir data: URIs e about:blank, bloquear todo o resto
+            if (url.startsWith('data:') || url.startsWith('about:')) {
+                req.continue();
+            } else {
+                // Bloquear requests de rede (imagens externas, fontes, etc.)
+                req.abort('blockedbyclient');
+            }
+        });
+
+        // Usar domcontentloaded ao invés de networkidle0
+        // O HTML da proposta usa base64 inline, não precisa esperar rede
+        await page.setContent(html, {
+            waitUntil: 'domcontentloaded',
+            timeout: 30000,
+        });
+
         const pdf = await page.pdf({
             format: options.format || 'A4',
             landscape: options.landscape || false,
             printBackground: true,
             margin: options.margin || { top: '15mm', right: '12mm', bottom: '15mm', left: '12mm' },
+            timeout: 60000,
         });
         return Buffer.from(pdf);
+    } catch (err) {
+        // Se o browser crashou durante a geração, resetar para próxima tentativa
+        if (err.message?.includes('disconnected') || err.message?.includes('Target closed') || err.message?.includes('Session closed')) {
+            console.log('  Puppeteer: browser crashou durante PDF, resetando...');
+            await closeBrowser();
+        }
+        throw err;
     } finally {
-        await page.close();
+        if (page) {
+            try { await page.close(); } catch { }
+        }
     }
 }
 
+/**
+ * Testa se o Puppeteer funciona (usado pelo health check)
+ */
+export async function testPdf() {
+    const testHtml = '<html><body><h1>Teste PDF</h1><p>OK</p></body></html>';
+    const buf = await htmlToPdf(testHtml);
+    return { ok: true, size: buf.length, chromium: findChromiumPath() || 'bundled' };
+}
+
 // Graceful shutdown
-process.on('SIGINT', async () => { if (browser) await browser.close(); });
-process.on('SIGTERM', async () => { if (browser) await browser.close(); });
+process.on('SIGINT', async () => { await closeBrowser(); });
+process.on('SIGTERM', async () => { await closeBrowser(); });

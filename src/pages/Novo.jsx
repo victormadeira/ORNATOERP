@@ -1690,7 +1690,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     });
                                     const blob = await api.postBlob('/pdf/generate', { html });
                                     window.open(URL.createObjectURL(blob), '_blank');
-                                } catch (ex) { notify(ex.error || 'Erro ao gerar contrato'); }
+                                } catch (ex) { notify(ex.detail || ex.error || 'Erro ao gerar contrato'); }
                             }} className={`${Z.btn2} w-full py-2 text-xs`}><FileSignature size={13} /> Gerar Contrato</button>
                             <button onClick={async () => {
                                 if (!empresa) {
@@ -2020,7 +2020,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             const url = URL.createObjectURL(blob);
                             window.open(url, '_blank');
                         } catch (ex) {
-                            notify(ex.error || 'Erro ao gerar PDF');
+                            notify(ex.detail || ex.error || 'Erro ao gerar PDF');
                         }
                     }}
                 />
@@ -2068,7 +2068,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         if (editOrc?.id) {
                                             api.post('/portal/generate', { orc_id: editOrc.id, html_proposta: html, nivel: opt.id }).catch(() => {});
                                         }
-                                    } catch (ex) { notify(ex.error || 'Erro ao gerar proposta'); }
+                                    } catch (ex) { notify(ex.detail || ex.error || 'Erro ao gerar proposta'); }
                                 }}
                                     className="w-full text-left p-3 rounded-lg border cursor-pointer transition-all hover:border-[var(--primary)] hover:bg-[var(--bg-hover)]"
                                     style={{ borderColor: 'var(--border)' }}>
