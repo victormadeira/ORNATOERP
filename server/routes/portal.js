@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth } from '../auth.js';
 import { randomBytes } from 'crypto';
+import { createNotification } from '../services/notificacoes.js';
 
 const router = Router();
 
@@ -147,6 +148,19 @@ router.get('/public/:token', async (req, res) => {
     `).run(portalToken.orc_id, token, ip, ua, dispositivo, navegador, os_name, geo.cidade, geo.estado, geo.pais, newVisit ? 1 : 0);
 
     db.prepare('UPDATE portal_tokens SET ultimo_acesso = CURRENT_TIMESTAMP WHERE token = ?').run(token);
+
+    // Notificar equipe quando cliente visualiza a proposta (só visitas novas)
+    if (newVisit) {
+        try {
+            const local = geo.cidade ? ` de ${geo.cidade}${geo.estado ? '/' + geo.estado : ''}` : '';
+            createNotification(
+                'proposta_visualizada',
+                `Proposta visualizada: ${orc.numero || 'Orçamento #' + orc.id}`,
+                `${orc.cliente_nome} abriu a proposta${local} (${dispositivo})`,
+                orc.id, 'orcamento', orc.cliente_nome, null
+            );
+        } catch (_) {}
+    }
 
     // Retornar dados (single query para empresa_config)
     const emp = db.prepare('SELECT nome, proposta_cor_primaria, proposta_cor_accent FROM empresa_config WHERE id = 1').get();

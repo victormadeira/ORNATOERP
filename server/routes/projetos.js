@@ -29,6 +29,24 @@ router.get('/portal/:token', (req, res) => {
 
     if (!proj) return res.status(404).json({ error: 'Projeto não encontrado ou link inválido' });
 
+    // Notificar equipe quando cliente acessa o portal (rate-limit: 1 por projeto a cada 30 min)
+    try {
+        const recent = db.prepare(`
+            SELECT id FROM notificacoes
+            WHERE tipo = 'portal_visualizado' AND referencia_id = ?
+              AND criado_em > datetime('now', '-30 minutes')
+            LIMIT 1
+        `).get(proj.id);
+        if (!recent) {
+            createNotification(
+                'portal_visualizado',
+                `Portal acessado: ${proj.nome}`,
+                `${proj.cliente_nome || 'Cliente'} visualizou o portal do projeto`,
+                proj.id, 'projeto', proj.cliente_nome || '', null
+            );
+        }
+    } catch (_) {}
+
     const etapas = db.prepare(`
         SELECT e.*, u.nome as responsavel_nome
         FROM etapas_projeto e
