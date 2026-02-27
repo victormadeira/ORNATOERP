@@ -42,6 +42,7 @@ export default function App() {
     const [buscaQuery, setBuscaQuery] = useState('');
     const [buscaResults, setBuscaResults] = useState(null);
     const [buscaOpen, setBuscaOpen] = useState(false);
+    const [openProjectId, setOpenProjectId] = useState(null);
     const buscaRef = useRef(null);
     const buscaTimer = useRef(null);
 
@@ -81,10 +82,10 @@ export default function App() {
 
     useEffect(() => { loadClis(); loadOrcs(); loadTaxas(); loadNotifs(); loadWaUnread(); loadEmpresa(); }, [loadClis, loadOrcs, loadTaxas, loadNotifs, loadWaUnread, loadEmpresa]);
 
-    // Atualizar notificações a cada 60s e WhatsApp a cada 15s
+    // Atualizar notificações a cada 15s e WhatsApp a cada 15s
     useEffect(() => {
         if (!user) return;
-        const i1 = setInterval(loadNotifs, 60000);
+        const i1 = setInterval(loadNotifs, 15000);
         const i2 = setInterval(loadWaUnread, 15000);
         return () => { clearInterval(i1); clearInterval(i2); };
     }, [user, loadNotifs, loadWaUnread]);
@@ -136,12 +137,22 @@ export default function App() {
     const goToNotif = (n) => {
         if (!n.lida) markNotifRead(n.id);
         setShowNotifs(false);
-        if (n.referencia_tipo === 'contas_pagar' || n.tipo?.startsWith('pagar_')) nav('financeiro');
-        else if (n.referencia_tipo === 'contas_receber' || n.tipo?.startsWith('financeiro')) nav('proj');
-        else if (n.referencia_tipo === 'projeto') nav('proj');
-        else if (n.referencia_tipo === 'orcamento') nav('orcs');
-        else if (n.referencia_tipo === 'estoque') nav('estoque');
-        else nav('dash');
+        if (n.referencia_tipo === 'contas_pagar' || n.tipo?.startsWith('pagar_')) {
+            nav('financeiro');
+        } else if (n.referencia_tipo === 'contas_receber' || n.tipo?.startsWith('financeiro')) {
+            nav('financeiro');
+        } else if (n.referencia_tipo === 'projeto') {
+            setOpenProjectId(n.referencia_id);
+            nav('proj');
+        } else if (n.referencia_tipo === 'orcamento') {
+            // Abrir orçamento direto em edição
+            const orc = orcs.find(o => o.id === n.referencia_id);
+            if (orc) nav('novo', orc); else nav('orcs');
+        } else if (n.referencia_tipo === 'estoque') {
+            nav('estoque');
+        } else {
+            nav('dash');
+        }
     };
 
     const reload = () => { loadClis(); loadOrcs(); loadTaxas(); loadNotifs(); };
@@ -203,7 +214,7 @@ export default function App() {
             case "orcs": return <Orcs orcs={orcs} nav={nav} reload={loadOrcs} notify={notify} />;
             case "novo": return <Novo clis={clis} taxas={taxas} editOrc={editOrc} nav={nav} reload={reload} notify={notify} />;
             case "kb": return <Kb orcs={orcs} reload={loadOrcs} notify={notify} nav={nav} />;
-            case "proj": return <Projetos orcs={orcs} notify={notify} user={user} />;
+            case "proj": return <Projetos orcs={orcs} notify={notify} user={user} openProjectId={openProjectId} onProjectOpened={() => setOpenProjectId(null)} />;
             case "estoque": return <Estoque notify={notify} />;
             case "financeiro": return <Financeiro notify={notify} user={user} nav={nav} />;
             case "whatsapp": return <Mensagens notify={notify} />;

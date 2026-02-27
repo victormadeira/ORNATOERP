@@ -2211,7 +2211,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user }) {
 }
 
 // ─── Página Principal ─────────────────────────────────
-export default function Projetos({ orcs, notify, user }) {
+export default function Projetos({ orcs, notify, user, openProjectId, onProjectOpened }) {
     const [projetos, setProjetos] = useState([]);
     const [selected, setSelected] = useState(null);
     const [showNew, setShowNew] = useState(false);
@@ -2225,6 +2225,15 @@ export default function Projetos({ orcs, notify, user }) {
     }, []);
 
     useEffect(() => { load(); }, [load]);
+
+    // Abrir projeto direto quando vem de notificação
+    useEffect(() => {
+        if (openProjectId && projetos.length > 0) {
+            const proj = projetos.find(p => p.id === openProjectId);
+            if (proj) setSelected(proj);
+            onProjectOpened?.();
+        }
+    }, [openProjectId, projetos, onProjectOpened]);
 
     const handleCreate = async (payload) => {
         const res = await api.post('/projetos', payload);

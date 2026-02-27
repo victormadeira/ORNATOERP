@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import {
     LayoutDashboard, User, Box, FileText, Calculator, Trello,
     Settings, Users, Menu, X, Plus, Trash2, Edit, Copy,
@@ -109,6 +110,193 @@ export function Spinner({ size = 28, color = 'var(--primary)', text }) {
                 animation: 'spin 0.7s linear infinite',
             }} />
             {text && <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>{text}</span>}
+        </div>
+    );
+}
+
+/**
+ * SearchableSelect — dropdown com busca por texto
+ * Props:
+ *   value        - valor selecionado atual
+ *   onChange(val) - callback ao selecionar
+ *   options      - [{ value, label }]  (flat list, sem grupos)
+ *   groups       - [{ label, options: [{ value, label }] }]  (com grupos)
+ *   emptyOption  - texto da opção vazia (ex: "Sem tamponamento")
+ *   inheritOption - texto da opção herdar (ex: "↩ Herdar: MDF Branco")
+ *   placeholder  - placeholder do input de busca
+ *   className    - classe CSS do container
+ *   style        - style adicional do container
+ */
+export function SearchableSelect({ value, onChange, options, groups, emptyOption, inheritOption, placeholder = 'Buscar...', className, style }) {
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState('');
+    const ref = useRef(null);
+    const inputRef = useRef(null);
+
+    // close on outside click
+    useEffect(() => {
+        if (!open) return;
+        const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [open]);
+
+    // focus input on open
+    useEffect(() => { if (open && inputRef.current) inputRef.current.focus(); }, [open]);
+
+    // build flat list for finding selected label
+    const allOpts = groups
+        ? groups.flatMap(g => g.options)
+        : (options || []);
+
+    const selectedLabel = value === '' && emptyOption ? emptyOption
+        : value === '' && inheritOption ? inheritOption
+        : allOpts.find(o => String(o.value) === String(value))?.label || '';
+
+    const q = search.toLowerCase();
+
+    const filterOpts = (arr) => q ? arr.filter(o => o.label.toLowerCase().includes(q)) : arr;
+
+    const select = (val) => {
+        onChange(val);
+        setOpen(false);
+        setSearch('');
+    };
+
+    const itemStyle = (isActive) => ({
+        padding: '6px 10px',
+        fontSize: 12,
+        cursor: 'pointer',
+        background: isActive ? 'var(--primary)' : 'transparent',
+        color: isActive ? '#fff' : 'var(--text-primary)',
+        borderRadius: 4,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+    });
+
+    return (
+        <div ref={ref} style={{ position: 'relative', ...style }}>
+            {/* Trigger button */}
+            <button
+                type="button"
+                onClick={() => setOpen(!open)}
+                className={className}
+                style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 4,
+                    cursor: 'pointer',
+                    overflow: 'hidden',
+                }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontSize: 12 }}>
+                    {selectedLabel || <span style={{ color: 'var(--text-muted)' }}>Selecione...</span>}
+                </span>
+                <ChevronDown size={12} style={{ flexShrink: 0, color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+            </button>
+
+            {/* Dropdown */}
+            {open && (
+                <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: 4,
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    boxShadow: '0 8px 24px rgba(0,0,0,.18)',
+                    zIndex: 999,
+                    maxHeight: 260,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minWidth: 200,
+                }}>
+                    {/* Search input */}
+                    <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Search size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                        <input
+                            ref={inputRef}
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            placeholder={placeholder}
+                            style={{
+                                flex: 1,
+                                border: 'none',
+                                outline: 'none',
+                                background: 'transparent',
+                                fontSize: 12,
+                                color: 'var(--text-primary)',
+                                padding: '2px 0',
+                            }}
+                        />
+                        {search && (
+                            <button type="button" onClick={() => setSearch('')} style={{ cursor: 'pointer', color: 'var(--text-muted)', background: 'none', border: 'none', padding: 0 }}>
+                                <X size={11} />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Options list */}
+                    <div style={{ overflowY: 'auto', padding: 4, flex: 1 }}>
+                        {/* Empty / inherit option */}
+                        {emptyOption && (!q || emptyOption.toLowerCase().includes(q)) && (
+                            <div onClick={() => select('')} style={itemStyle(value === '')}
+                                onMouseEnter={e => { if (value !== '') e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                                onMouseLeave={e => { if (value !== '') e.currentTarget.style.background = 'transparent'; }}>
+                                {emptyOption}
+                            </div>
+                        )}
+                        {inheritOption && (!q || inheritOption.toLowerCase().includes(q)) && (
+                            <div onClick={() => select('')} style={itemStyle(value === '')}
+                                onMouseEnter={e => { if (value !== '') e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                                onMouseLeave={e => { if (value !== '') e.currentTarget.style.background = 'transparent'; }}>
+                                {inheritOption}
+                            </div>
+                        )}
+
+                        {groups ? (
+                            groups.map((g, gi) => {
+                                const filtered = filterOpts(g.options);
+                                if (filtered.length === 0) return null;
+                                return (
+                                    <div key={gi}>
+                                        <div style={{ padding: '6px 8px 3px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
+                                            {g.label}
+                                        </div>
+                                        {filtered.map(o => (
+                                            <div key={o.value} onClick={() => select(o.value)} style={itemStyle(String(value) === String(o.value))}
+                                                onMouseEnter={e => { if (String(value) !== String(o.value)) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                                                onMouseLeave={e => { if (String(value) !== String(o.value)) e.currentTarget.style.background = 'transparent'; }}>
+                                                {o.label}
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            filterOpts(allOpts).map(o => (
+                                <div key={o.value} onClick={() => select(o.value)} style={itemStyle(String(value) === String(o.value))}
+                                    onMouseEnter={e => { if (String(value) !== String(o.value)) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                                    onMouseLeave={e => { if (String(value) !== String(o.value)) e.currentTarget.style.background = 'transparent'; }}>
+                                    {o.label}
+                                </div>
+                            ))
+                        )}
+
+                        {/* No results */}
+                        {q && filterOpts(allOpts).length === 0 && !(emptyOption && emptyOption.toLowerCase().includes(q)) && (
+                            <div style={{ padding: '12px 10px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+                                Nenhum resultado para "{search}"
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

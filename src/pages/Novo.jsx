@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Z, Ic, Modal } from '../ui';
+import { Z, Ic, Modal, SearchableSelect } from '../ui';
 import { uid, R$, N, DB_CHAPAS, DB_ACABAMENTOS, DB_FERRAGENS, DB_FITAS, FERR_GROUPS, calcItemV2, calcPainelRipado, precoVenda, precoVendaV2, LOCKED_COLS } from '../engine';
 import api from '../api';
 import RelatorioMateriais, { buildRelatorioHtml } from './RelatorioMateriais';
@@ -322,39 +322,37 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                         <div className="grid grid-cols-2 gap-2">
                             <div>
                                 <label className={Z.lbl}>Material Interno</label>
-                                <select
+                                <SearchableSelect
                                     value={ci.matIntInst || ''}
-                                    onChange={e => onUpdate({ ...ci, matIntInst: e.target.value })}
+                                    onChange={val => onUpdate({ ...ci, matIntInst: val })}
+                                    groups={[
+                                        { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                        ...(acabDB.filter(a => a.preco > 0).length > 0
+                                            ? [{ label: 'Acabamentos', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) }]
+                                            : []),
+                                    ]}
+                                    inheritOption={`↩ Herdar: ${autoMatIntNome}`}
+                                    placeholder="Buscar material..."
                                     className={Z.inp}
-                                    style={ci.matIntInst ? { borderColor: 'rgba(168,85,247,0.5)', background: 'rgba(168,85,247,0.04)' } : {}}>
-                                    <option value="">↩ Herdar: {autoMatIntNome}</option>
-                                    <optgroup label="Chapas">
-                                        {chapasDB.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                                    </optgroup>
-                                    {acabDB.filter(a => a.preco > 0).length > 0 && (
-                                        <optgroup label="Acabamentos">
-                                            {acabDB.filter(a => a.preco > 0).map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
-                                        </optgroup>
-                                    )}
-                                </select>
+                                    style={ci.matIntInst ? { borderColor: 'rgba(168,85,247,0.5)', background: 'rgba(168,85,247,0.04)' } : {}}
+                                />
                             </div>
                             <div>
                                 <label className={Z.lbl}>Material Externo</label>
-                                <select
+                                <SearchableSelect
                                     value={ci.matExtInst || ''}
-                                    onChange={e => onUpdate({ ...ci, matExtInst: e.target.value })}
+                                    onChange={val => onUpdate({ ...ci, matExtInst: val })}
+                                    groups={[
+                                        { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                        ...(acabDB.filter(a => a.preco > 0).length > 0
+                                            ? [{ label: 'Acabamentos', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) }]
+                                            : []),
+                                    ]}
+                                    inheritOption={`↩ Herdar: ${autoMatExtNome}`}
+                                    placeholder="Buscar material..."
                                     className={Z.inp}
-                                    style={ci.matExtInst ? { borderColor: 'rgba(168,85,247,0.5)', background: 'rgba(168,85,247,0.04)' } : {}}>
-                                    <option value="">↩ Herdar: {autoMatExtNome}</option>
-                                    <optgroup label="Chapas">
-                                        {chapasDB.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                                    </optgroup>
-                                    {acabDB.filter(a => a.preco > 0).length > 0 && (
-                                        <optgroup label="Acabamentos">
-                                            {acabDB.filter(a => a.preco > 0).map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
-                                        </optgroup>
-                                    )}
-                                </select>
+                                    style={ci.matExtInst ? { borderColor: 'rgba(168,85,247,0.5)', background: 'rgba(168,85,247,0.04)' } : {}}
+                                />
                             </div>
                         </div>
                         <p className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
@@ -371,13 +369,17 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                             </div>
                             <div>
                                 <label className={Z.lbl}>Material da Frente Externa</label>
-                                <select value={ci.matExtComp || ''}
-                                    onChange={e => onUpdate({ ...ci, matExtComp: e.target.value })}
-                                    className={Z.inp}>
-                                    <option value="">Sem frente externa / mesmo material interno</option>
-                                    <optgroup label="Chapas">{chapasDB.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</optgroup>
-                                    <optgroup label="Acabamentos premium">{acabDB.filter(a => a.preco > 0).map(a => <option key={a.id} value={a.id}>{a.nome} — {R$(a.preco)}/m²</option>)}</optgroup>
-                                </select>
+                                <SearchableSelect
+                                    value={ci.matExtComp || ''}
+                                    onChange={val => onUpdate({ ...ci, matExtComp: val })}
+                                    groups={[
+                                        { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                        { label: 'Acabamentos premium', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: `${a.nome} — ${R$(a.preco)}/m²` })) },
+                                    ]}
+                                    emptyOption="Sem frente externa / mesmo material interno"
+                                    placeholder="Buscar material..."
+                                    className={Z.inp}
+                                />
                             </div>
                         </div>
                     )}
@@ -1424,21 +1426,27 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                                                     <div>
                                                                         <label className={Z.lbl}>Material Interno (chapas)</label>
-                                                                        <select value={item.mats.matInt}
-                                                                            onChange={e => upItem(amb.id, item.id, it => it.mats.matInt = e.target.value)}
-                                                                            className={Z.inp}>
-                                                                            {chapasDB.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                                                                        </select>
+                                                                        <SearchableSelect
+                                                                            value={item.mats.matInt}
+                                                                            onChange={val => upItem(amb.id, item.id, it => it.mats.matInt = val)}
+                                                                            options={chapasDB.map(c => ({ value: c.id, label: c.nome }))}
+                                                                            placeholder="Buscar chapa..."
+                                                                            className={Z.inp}
+                                                                        />
                                                                     </div>
                                                                     <div>
                                                                         <label className={Z.lbl}>Material Externo (tamponamento)</label>
-                                                                        <select value={item.mats.matExt}
-                                                                            onChange={e => upItem(amb.id, item.id, it => it.mats.matExt = e.target.value)}
-                                                                            className={Z.inp}>
-                                                                            <option value="">Sem tamponamento</option>
-                                                                            <optgroup label="Chapas">{chapasDB.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</optgroup>
-                                                                            <optgroup label="Acabamentos premium">{acabDB.filter(a => a.preco > 0).map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}</optgroup>
-                                                                        </select>
+                                                                        <SearchableSelect
+                                                                            value={item.mats.matExt}
+                                                                            onChange={val => upItem(amb.id, item.id, it => it.mats.matExt = val)}
+                                                                            groups={[
+                                                                                { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                                                                { label: 'Acabamentos premium', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) },
+                                                                            ]}
+                                                                            emptyOption="Sem tamponamento"
+                                                                            placeholder="Buscar material..."
+                                                                            className={Z.inp}
+                                                                        />
                                                                     </div>
                                                                 </div>
 
