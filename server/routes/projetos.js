@@ -266,59 +266,70 @@ router.get('/:id', requireAuth, (req, res) => {
 // GET /api/projetos/:id/termo-entrega — dados para o termo
 // ═══════════════════════════════════════════════════
 router.get('/:id/termo-entrega', requireAuth, (req, res) => {
-    const proj = db.prepare(`
-        SELECT p.*, o.cliente_nome, o.valor_venda, o.custo_material, o.numero as orc_numero,
-               o.mods_json, o.ambiente as orc_ambiente
-        FROM projetos p
-        LEFT JOIN orcamentos o ON o.id = p.orc_id
-        WHERE p.id = ?
-    `).get(parseInt(req.params.id));
-    if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
-
-    // Etapas do projeto
-    const etapas = db.prepare(`
-        SELECT e.*, u.nome as responsavel_nome
-        FROM etapas_projeto e
-        LEFT JOIN users u ON u.id = e.responsavel_id
-        WHERE e.projeto_id = ? ORDER BY e.ordem, e.id
-    `).all(proj.id);
-
-    // Ocorrências abertas
-    const ocorrencias = db.prepare(
-        'SELECT * FROM ocorrencias_projeto WHERE projeto_id = ? AND status = ? ORDER BY criado_em DESC'
-    ).all(proj.id, 'aberto');
-
-    // Financeiro: contas a receber do projeto
-    const parcelas = db.prepare(
-        'SELECT * FROM contas_receber WHERE projeto_id = ? ORDER BY data_vencimento'
-    ).all(proj.id);
-    const totalPago = parcelas.filter(p => p.status === 'pago').reduce((s, p) => s + (p.valor || 0), 0);
-    const totalPendente = parcelas.filter(p => p.status === 'pendente').reduce((s, p) => s + (p.valor || 0), 0);
-
-    // Parse ambientes do orçamento vinculado
-    let ambientes = [];
     try {
-        const data = JSON.parse(proj.mods_json || '{}');
-        ambientes = data.ambientes || [];
-    } catch (_) {}
+        const proj = db.prepare(`
+            SELECT p.*, o.cliente_nome, o.valor_venda, o.custo_material, o.numero as orc_numero,
+                   o.mods_json, o.ambiente as orc_ambiente
+            FROM projetos p
+            LEFT JOIN orcamentos o ON o.id = p.orc_id
+            WHERE p.id = ?
+        `).get(parseInt(req.params.id));
+        if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
 
-    // Dados da empresa
-    const empresa = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get() || {};
+        // Etapas do projeto
+        const etapas = db.prepare(`
+            SELECT e.*, u.nome as responsavel_nome
+            FROM etapas_projeto e
+            LEFT JOIN users u ON u.id = e.responsavel_id
+            WHERE e.projeto_id = ? ORDER BY e.ordem, e.id
+        `).all(proj.id);
 
-    // Fotos do montador
-    const fotos = db.prepare(
-        'SELECT id, descricao, criado_em FROM montador_fotos WHERE projeto_id = ? ORDER BY criado_em DESC LIMIT 10'
-    ).all(proj.id);
+        // Ocorrências abertas
+        let ocorrencias = [];
+        try {
+            ocorrencias = db.prepare(
+                'SELECT * FROM ocorrencias_projeto WHERE projeto_id = ? AND status = ? ORDER BY criado_em DESC'
+            ).all(proj.id, 'aberto');
+        } catch (_) {}
 
-    res.json({
-        projeto: proj,
-        etapas,
-        ocorrencias,
-        ambientes,
-        financeiro: { parcelas, totalPago, totalPendente, valorTotal: proj.valor_venda || 0 },
-        empresa,
-        fotos,
-    });
+        // Financeiro: contas a receber do projeto
+        const parcelas = db.prepare(
+            'SELECT * FROM contas_receber WHERE projeto_id = ? ORDER BY data_vencimento'
+        ).all(proj.id);
+        const totalPago = parcelas.filter(p => p.status === 'pago').reduce((s, p) => s + (p.valor || 0), 0);
+        const totalPendente = parcelas.filter(p => p.status === 'pendente').reduce((s, p) => s + (p.valor || 0), 0);
+
+        // Parse ambientes do orçamento vinculado
+        let ambientes = [];
+        try {
+            const data = JSON.parse(proj.mods_json || '{}');
+            ambientes = data.ambientes || [];
+        } catch (_) {}
+
+        // Dados da empresa
+        const empresa = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get() || {};
+
+        // Fotos do montador
+        let fotos = [];
+        try {
+            fotos = db.prepare(
+                'SELECT id, ambiente, filename, criado_em FROM montador_fotos WHERE projeto_id = ? ORDER BY criado_em DESC LIMIT 10'
+            ).all(proj.id);
+        } catch (_) {}
+
+        res.json({
+            projeto: proj,
+            etapas,
+            ocorrencias,
+            ambientes,
+            financeiro: { parcelas, totalPago, totalPendente, valorTotal: proj.valor_venda || 0 },
+            empresa,
+            fotos,
+        });
+    } catch (ex) {
+        console.error('Erro termo-entrega:', ex.message);
+        res.status(500).json({ error: 'Erro ao carregar dados do termo: ' + ex.message });
+    }
 });
 
 // ═══════════════════════════════════════════════════
