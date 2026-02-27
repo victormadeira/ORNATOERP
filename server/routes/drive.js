@@ -252,6 +252,39 @@ router.get('/arquivo/:projeto_id/montador/:filename', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// GET /api/drive/arquivo/:projeto_id/entrega/:filename — foto entrega digital
+// DEVE vir ANTES da rota generica :filename
+// ═══════════════════════════════════════════════════
+router.get('/arquivo/:projeto_id/entrega/:filename', async (req, res) => {
+    const projeto_id = String(req.params.projeto_id).replace(/[^a-zA-Z0-9_-]/g, '');
+    const filename = path.basename(decodeURIComponent(req.params.filename));
+
+    const foto = db.prepare('SELECT gdrive_file_id FROM entrega_fotos WHERE projeto_id = ? AND filename = ?').get(projeto_id, filename);
+
+    if (foto?.gdrive_file_id) {
+        try {
+            const meta = await gdrive.getFileMeta(foto.gdrive_file_id);
+            const stream = await gdrive.downloadFile(foto.gdrive_file_id);
+            res.setHeader('Content-Type', meta.mimeType || getMime(filename));
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+            stream.pipe(res);
+            return;
+        } catch (err) {
+            console.error('Drive download entrega erro:', err.message);
+        }
+    }
+
+    const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, 'entrega', filename);
+    const resolved = path.resolve(filePath);
+    if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) return res.status(403).json({ error: 'Acesso negado' });
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo nao encontrado' });
+
+    res.setHeader('Content-Type', getMime(filename));
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.sendFile(filePath);
+});
+
+// ═══════════════════════════════════════════════════
 // GET /api/drive/arquivo/:projeto_id/:filename — servir arquivo
 // ═══════════════════════════════════════════════════
 router.get('/arquivo/:projeto_id/:filename', async (req, res) => {

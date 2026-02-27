@@ -3,6 +3,13 @@ import db from '../db.js';
 import { requireAuth } from '../auth.js';
 import { randomBytes } from 'crypto';
 import { createNotification, logActivity } from '../services/notificacoes.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import * as gdrive from '../services/gdrive.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
 
 const router = Router();
 
@@ -317,6 +324,14 @@ router.get('/:id/termo-entrega', requireAuth, (req, res) => {
             ).all(proj.id);
         } catch (_) {}
 
+        // Fotos de entrega digital (por módulo)
+        let entregaFotos = [];
+        try {
+            entregaFotos = db.prepare(
+                'SELECT id, ambiente_idx, item_idx, filename, nota, criado_em FROM entrega_fotos WHERE projeto_id = ? ORDER BY ambiente_idx, item_idx, criado_em'
+            ).all(proj.id);
+        } catch (_) {}
+
         res.json({
             projeto: proj,
             etapas,
@@ -325,10 +340,106 @@ router.get('/:id/termo-entrega', requireAuth, (req, res) => {
             financeiro: { parcelas, totalPago, totalPendente, valorTotal: proj.valor_venda || 0 },
             empresa,
             fotos,
+            entregaFotos: entregaFotos.map(f => ({ ...f, url: `/api/drive/arquivo/${proj.id}/entrega/${f.filename}` })),
         });
     } catch (ex) {
         console.error('Erro termo-entrega:', ex.message);
         res.status(500).json({ error: 'Erro ao carregar dados do termo: ' + ex.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════
+// GET /api/projetos/:id/entrega-fotos — listar fotos de entrega
+// ═══════════════════════════════════════════════════
+router.get('/:id/entrega-fotos', requireAuth, (req, res) => {
+    try {
+        const fotos = db.prepare(`
+            SELECT id, ambiente_idx, item_idx, filename, nota, criado_em
+            FROM entrega_fotos WHERE projeto_id = ? ORDER BY ambiente_idx, item_idx, criado_em DESC
+        `).all(parseInt(req.params.id));
+
+        const result = fotos.map(f => ({
+            ...f,
+            url: `/api/drive/arquivo/${req.params.id}/entrega/${f.filename}`,
+        }));
+        res.json(result);
+    } catch (ex) {
+        console.error('Erro entrega-fotos list:', ex.message);
+        res.status(500).json({ error: ex.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════
+// POST /api/projetos/:id/entrega-fotos — upload foto de entrega (só gerente)
+// ═══════════════════════════════════════════════════
+router.post('/:id/entrega-fotos', requireAuth, async (req, res) => {
+    try {
+        const projeto_id = parseInt(req.params.id);
+        const { filename, data, ambiente_idx, item_idx, nota } = req.body;
+        if (!filename || !data) return res.status(400).json({ error: 'Filename e data obrigatórios' });
+
+        const timestamp = Date.now();
+        const safeName = `${timestamp}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+
+        const base64Data = data.includes(',') ? data.split(',')[1] : data;
+        const buffer = Buffer.from(base64Data, 'base64');
+        const ext = path.extname(safeName).toLowerCase();
+        const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
+        const mime = mimeMap[ext] || 'image/jpeg';
+
+        let gdriveFileId = '';
+        if (gdrive.isConfigured()) {
+            try {
+                const folderId = await gdrive.getProjectMontadorFolder(projeto_id);
+                const result = await gdrive.uploadFile(folderId, safeName, mime, buffer);
+                gdriveFileId = result.id;
+            } catch (err) {
+                console.error('Drive entrega upload erro:', err.message);
+            }
+        }
+
+        if (!gdriveFileId) {
+            const entregaDir = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, 'entrega');
+            if (!fs.existsSync(entregaDir)) fs.mkdirSync(entregaDir, { recursive: true });
+            fs.writeFileSync(path.join(entregaDir, safeName), buffer);
+        }
+
+        db.prepare(`
+            INSERT INTO entrega_fotos (projeto_id, ambiente_idx, item_idx, filename, nota, gdrive_file_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).run(projeto_id, ambiente_idx ?? 0, item_idx ?? null, safeName, nota || '', gdriveFileId);
+
+        res.json({ ok: true, nome: safeName, url: `/api/drive/arquivo/${projeto_id}/entrega/${safeName}` });
+    } catch (ex) {
+        console.error('Erro entrega-fotos upload:', ex.message);
+        res.status(500).json({ error: ex.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════
+// DELETE /api/projetos/:id/entrega-fotos/:fotoId — deletar foto
+// ═══════════════════════════════════════════════════
+router.delete('/:id/entrega-fotos/:fotoId', requireAuth, async (req, res) => {
+    try {
+        const foto = db.prepare('SELECT * FROM entrega_fotos WHERE id = ? AND projeto_id = ?').get(
+            parseInt(req.params.fotoId), parseInt(req.params.id)
+        );
+        if (!foto) return res.status(404).json({ error: 'Foto não encontrada' });
+
+        if (foto.gdrive_file_id) {
+            try { await gdrive.deleteFile(foto.gdrive_file_id); } catch (err) { console.error('Drive delete entrega erro:', err.message); }
+        }
+
+        const filePath = path.join(UPLOADS_DIR, `projeto_${foto.projeto_id}`, 'entrega', foto.filename);
+        if (fs.existsSync(filePath)) {
+            try { fs.unlinkSync(filePath); } catch { }
+        }
+
+        db.prepare('DELETE FROM entrega_fotos WHERE id = ?').run(foto.id);
+        res.json({ ok: true });
+    } catch (ex) {
+        console.error('Erro entrega-fotos delete:', ex.message);
+        res.status(500).json({ error: ex.message });
     }
 });
 

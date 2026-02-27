@@ -84,6 +84,12 @@ body{font-family:'Inter',Arial,Helvetica,sans-serif;color:#111;font-size:11px;pa
 .ressalvas h3{color:#dc2626!important;border-bottom-color:#fecaca!important;}
 .ressalvas p{font-size:10px;line-height:1.6;color:#333;}
 
+.foto-grid{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;margin-bottom:10px;}
+.foto-grid img{width:80px;height:80px;object-fit:cover;border-radius:4px;border:1px solid #ddd;}
+.foto-grid .foto-label{font-size:8px;color:#666;text-align:center;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.foto-section{margin-top:6px;padding:6px 10px;background:${cp}05;border:1px solid ${cp}12;border-radius:4px;}
+.foto-section .foto-title{font-size:9px;font-weight:bold;color:${cp};margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;}
+
 .obs{margin-bottom:14px;padding:10px 14px;border:1px solid ${cp}18;border-radius:5px;background:${cp}05;}
 .obs h3{font-size:10px;font-weight:bold;color:${cp};margin-bottom:4px;}
 .obs p{font-size:10px;line-height:1.6;color:#444;}
@@ -159,13 +165,26 @@ function assinaturasHtml(clienteNome, empresaNome) {
 </div>`;
 }
 
-function ambienteTable(amb, ai, chapas, acabamentos) {
+function ambienteTable(amb, ai, chapas, acabamentos, entregaFotos = []) {
     // Suporta ambientes com .itens (Novo.jsx) ou .mods (legado)
     const itens = amb.itens || amb.mods || [];
+    const ambFotos = entregaFotos.filter(f => f.ambiente_idx === ai);
+
+    const fotosHtml = ambFotos.length > 0 ? `
+        <div class="foto-section">
+            <div class="foto-title">📷 Registro fotográfico da entrega</div>
+            <div class="foto-grid">
+                ${ambFotos.map(f => `<div>
+                    <img src="${f.url}" alt="${f.nota || ''}" title="${f.nota || `Ambiente ${ai + 1}, Item ${(f.item_idx ?? 0) + 1}`}">
+                    ${f.nota ? `<div class="foto-label">${f.nota}</div>` : ''}
+                </div>`).join('')}
+            </div>
+        </div>` : '';
+
     return `<div class="amb">
         <div class="amb-hdr">
             <span>AMBIENTE ${ai + 1}: ${amb.nome || 'Sem nome'}</span>
-            <span>${itens.length} item${itens.length !== 1 ? 'ns' : ''}</span>
+            <span>${itens.length} item${itens.length !== 1 ? 'ns' : ''}${ambFotos.length > 0 ? ` · ${ambFotos.length} foto${ambFotos.length !== 1 ? 's' : ''}` : ''}</span>
         </div>
         <table class="mt">
             <thead><tr>
@@ -196,6 +215,7 @@ function ambienteTable(amb, ai, chapas, acabamentos) {
                 }).join('')}
             </tbody>
         </table>
+        ${fotosHtml}
     </div>`;
 }
 
@@ -224,7 +244,7 @@ function checklistHtml(items) {
 // ═════════════════════════════════════════════════════════════════════════════
 export function buildTermoEntregaHtml(data, config = {}) {
     const { projeto, etapas, ocorrencias, ambientes, financeiro, empresa } = data;
-    const { chapas = [], acabamentos = [], observacoes = '', ressalvas = '', garantiaTexto } = config;
+    const { chapas = [], acabamentos = [], observacoes = '', ressalvas = '', garantiaTexto, entregaFotos = [] } = config;
 
     const { cp, ca, watermarkSrc, watermarkOpacity } = extractColors(empresa);
 
@@ -235,7 +255,7 @@ export function buildTermoEntregaHtml(data, config = {}) {
     const enderecoObra = (() => { try { return JSON.parse(projeto.mods_json || '{}').endereco_obra || ''; } catch (_) { return ''; } })();
 
     const itensHtml = (ambientes || []).length > 0
-        ? (ambientes || []).map((amb, ai) => ambienteTable(amb, ai, chapas, acabamentos)).join('')
+        ? (ambientes || []).map((amb, ai) => ambienteTable(amb, ai, chapas, acabamentos, entregaFotos)).join('')
         : '<div class="empty">Nenhum ambiente/módulo vinculado a este projeto.</div>';
 
     const garantia = garantiaTexto || 'Garantia de 5 (cinco) anos para defeitos de fabricação, em condições normais de uso. A garantia não cobre danos causados por mau uso, umidade excessiva, exposição direta ao sol ou modificações feitas por terceiros.';
@@ -306,7 +326,7 @@ ${assinaturasHtml(clienteNome, empresa.nome)}
 // ═════════════════════════════════════════════════════════════════════════════
 export function buildTermoPorAmbienteHtml(data, config = {}) {
     const { projeto, ocorrencias, ambientes, financeiro, empresa } = data;
-    const { chapas = [], acabamentos = [], observacoes = '', ressalvas = '' } = config;
+    const { chapas = [], acabamentos = [], observacoes = '', ressalvas = '', entregaFotos = [] } = config;
 
     const { cp, ca, watermarkSrc, watermarkOpacity } = extractColors(empresa);
 
@@ -341,7 +361,7 @@ ${ai === 0 ? `<div class="fill-tip no-print">
 
 <div class="section">
     <h3>ITENS ENTREGUES — ${(amb.nome || 'AMBIENTE').toUpperCase()}</h3>
-    ${ambienteTable(amb, ai, chapas, acabamentos)}
+    ${ambienteTable(amb, ai, chapas, acabamentos, entregaFotos)}
 </div>
 
 ${checklistHtml(CHECKLIST)}

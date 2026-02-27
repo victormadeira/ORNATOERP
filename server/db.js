@@ -575,6 +575,17 @@ const migrations = [
     detalhes TEXT DEFAULT '{}',
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
+  // ═══ Entrega Digital — Fotos por módulo (só gerente) ═══
+  `CREATE TABLE IF NOT EXISTS entrega_fotos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projeto_id INTEGER NOT NULL REFERENCES projetos(id),
+    ambiente_idx INTEGER NOT NULL DEFAULT 0,
+    item_idx INTEGER DEFAULT NULL,
+    filename TEXT NOT NULL,
+    nota TEXT DEFAULT '',
+    gdrive_file_id TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
   // ═══ Contas a Receber — Parcelamento + Boleto + NF ═══
   "ALTER TABLE contas_receber ADD COLUMN codigo_barras TEXT DEFAULT ''",
   "ALTER TABLE contas_receber ADD COLUMN nf_numero TEXT DEFAULT ''",
@@ -691,6 +702,9 @@ const indexes = [
   "CREATE INDEX IF NOT EXISTS idx_contas_pagar_grupo ON contas_pagar(grupo_parcela_id)",
   "CREATE INDEX IF NOT EXISTS idx_contas_pagar_recorrencia ON contas_pagar(recorrencia_pai_id)",
   "CREATE INDEX IF NOT EXISTS idx_contas_pagar_anexos ON contas_pagar_anexos(conta_pagar_id)",
+  // ═══ Entrega Digital ═══
+  "CREATE INDEX IF NOT EXISTS idx_entrega_fotos_projeto ON entrega_fotos(projeto_id)",
+  "CREATE INDEX IF NOT EXISTS idx_entrega_fotos_item ON entrega_fotos(projeto_id, ambiente_idx, item_idx)",
 ];
 for (const sql of indexes) {
   try { db.exec(sql); } catch (_) { }

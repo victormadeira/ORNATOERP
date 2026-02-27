@@ -10,7 +10,8 @@ import {
     ArrowUpCircle, ArrowDownCircle, BarChart3, Search,
     Scissors, Layers, Ruler, ClipboardList, ShoppingCart,
     ChevronDown, ChevronRight, Printer, X as XIcon, Pencil, Clipboard,
-    Eye, EyeOff, Upload, Trash2 as Trash2Icon, FileCheck, Shield
+    Eye, EyeOff, Upload, Trash2 as Trash2Icon, FileCheck, Shield,
+    Camera, Image as ImageIcon, CheckCircle2, XCircle
 } from 'lucide-react';
 
 // ─── Helpers ──────────────────────────────────────
@@ -2135,12 +2136,20 @@ function TabEntrega({ data, notify }) {
     const [ressalvas, setRessalvas] = useState('');
     const [garantiaTexto, setGarantiaTexto] = useState('');
     const [showConfig, setShowConfig] = useState(false);
+    // Vistoria digital
+    const [entregaFotos, setEntregaFotos] = useState([]);
+    const [expandedAmb, setExpandedAmb] = useState({});
+    const [uploadingKey, setUploadingKey] = useState(null);
+    const [previewImg, setPreviewImg] = useState(null);
+    const fileInputRef = useRef(null);
+    const pendingUploadRef = useRef(null);
 
     const loadTermoData = async () => {
         setLoading(true);
         try {
             const res = await api.get(`/projetos/${data.id}/termo-entrega`);
             setTermoData(res);
+            setEntregaFotos(res.entregaFotos || []);
         } catch (ex) {
             notify('Erro ao carregar dados do termo');
         } finally {
@@ -2149,6 +2158,70 @@ function TabEntrega({ data, notify }) {
     };
 
     useEffect(() => { loadTermoData(); }, [data.id]);
+
+    // ── Upload de foto de entrega ──
+    const iniciarUpload = (ambIdx, itemIdx) => {
+        pendingUploadRef.current = { ambIdx, itemIdx };
+        setUploadingKey(`${ambIdx}-${itemIdx}`);
+        fileInputRef.current?.click();
+    };
+
+    const handleFileSelect = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file || !pendingUploadRef.current) return;
+        const { ambIdx, itemIdx } = pendingUploadRef.current;
+
+        try {
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                try {
+                    const res = await api.post(`/projetos/${data.id}/entrega-fotos`, {
+                        filename: file.name,
+                        data: ev.target.result,
+                        ambiente_idx: ambIdx,
+                        item_idx: itemIdx,
+                    });
+                    if (res.ok) {
+                        setEntregaFotos(prev => [...prev, {
+                            id: Date.now(),
+                            ambiente_idx: ambIdx,
+                            item_idx: itemIdx,
+                            filename: res.nome,
+                            nota: '',
+                            url: res.url,
+                            criado_em: new Date().toISOString(),
+                        }]);
+                        notify('Foto adicionada');
+                    }
+                } catch (ex) {
+                    notify('Erro ao enviar foto');
+                } finally {
+                    setUploadingKey(null);
+                    pendingUploadRef.current = null;
+                }
+            };
+            reader.readAsDataURL(file);
+        } catch {
+            setUploadingKey(null);
+        }
+        e.target.value = '';
+    };
+
+    const deletarFoto = async (fotoId) => {
+        try {
+            await api.delete(`/projetos/${data.id}/entrega-fotos/${fotoId}`);
+            setEntregaFotos(prev => prev.filter(f => f.id !== fotoId));
+            notify('Foto removida');
+        } catch {
+            notify('Erro ao remover foto');
+        }
+    };
+
+    const fotosDoItem = (ambIdx, itemIdx) =>
+        entregaFotos.filter(f => f.ambiente_idx === ambIdx && f.item_idx === itemIdx);
+
+    const totalFotosAmb = (ambIdx) =>
+        entregaFotos.filter(f => f.ambiente_idx === ambIdx).length;
 
     const abrirDoc = (html) => {
         const win = window.open('', '_blank', 'width=950,height=750');
@@ -2165,6 +2238,7 @@ function TabEntrega({ data, notify }) {
         observacoes,
         ressalvas,
         garantiaTexto: garantiaTexto || undefined,
+        entregaFotos,
     });
 
     const gerarTermo = () => { if (termoData) abrirDoc(buildTermoEntregaHtml(termoData, cfgBase())); };
@@ -2249,6 +2323,162 @@ function TabEntrega({ data, notify }) {
                     ))}
                 </div>
             </div>
+
+            {/* ── Vistoria Digital — fotos por módulo ── */}
+            {termoData && (termoData.ambientes || []).length > 0 && (
+                <div className="glass-card p-5">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: '#eff6ff' }}>
+                                <Camera size={20} style={{ color: '#3b82f6' }} />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Vistoria Digital</h3>
+                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                    Registre fotos de cada módulo entregue · {entregaFotos.length} foto{entregaFotos.length !== 1 ? 's' : ''} registrada{entregaFotos.length !== 1 ? 's' : ''}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <input type="file" ref={fileInputRef} accept="image/*" capture="environment"
+                        className="hidden" onChange={handleFileSelect} />
+
+                    <div className="flex flex-col gap-3">
+                        {(termoData.ambientes || []).map((amb, ai) => {
+                            const itens = amb.itens || amb.mods || [];
+                            const isOpen = expandedAmb[ai] !== false;
+                            const fotosAmb = totalFotosAmb(ai);
+                            return (
+                                <div key={ai} className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                                    <button
+                                        onClick={() => setExpandedAmb(prev => ({ ...prev, [ai]: !isOpen }))}
+                                        className="w-full flex items-center justify-between px-4 py-3 text-left"
+                                        style={{ background: 'var(--bg-muted)' }}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-primary)' }}>
+                                                {amb.nome || `Ambiente ${ai + 1}`}
+                                            </span>
+                                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                                                style={{ background: 'var(--primary)', color: '#fff' }}>
+                                                {itens.length} {itens.length === 1 ? 'item' : 'itens'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {fotosAmb > 0 && (
+                                                <span className="text-[10px] font-semibold flex items-center gap-1" style={{ color: '#16a34a' }}>
+                                                    <ImageIcon size={12} /> {fotosAmb} foto{fotosAmb !== 1 ? 's' : ''}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </button>
+
+                                    {isOpen && (
+                                        <div className="flex flex-col">
+                                            {itens.map((item, ii) => {
+                                                const fotos = fotosDoItem(ai, ii);
+                                                const isUploading = uploadingKey === `${ai}-${ii}`;
+                                                return (
+                                                    <div key={ii} className="px-4 py-3 flex flex-col gap-2"
+                                                        style={{ borderTop: '1px solid var(--border)' }}>
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                {fotos.length > 0
+                                                                    ? <CheckCircle2 size={14} style={{ color: '#16a34a' }} />
+                                                                    : <XCircle size={14} style={{ color: '#d1d5db' }} />
+                                                                }
+                                                                <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+                                                                    {item.nome || item.tipo || `Item ${ii + 1}`}
+                                                                </span>
+                                                                {item.qtd > 1 && (
+                                                                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                                                                        ×{item.qtd}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <button
+                                                                onClick={() => iniciarUpload(ai, ii)}
+                                                                disabled={isUploading}
+                                                                className={Z.btn2}
+                                                                style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                                                            >
+                                                                {isUploading
+                                                                    ? <><span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full" style={{ animation: 'spin 0.6s linear infinite' }} /> Enviando...</>
+                                                                    : <><Camera size={12} /> Foto</>
+                                                                }
+                                                            </button>
+                                                        </div>
+
+                                                        {fotos.length > 0 && (
+                                                            <div className="flex flex-wrap gap-2 ml-5">
+                                                                {fotos.map(f => (
+                                                                    <div key={f.id} className="relative group">
+                                                                        <img
+                                                                            src={f.url}
+                                                                            alt=""
+                                                                            className="w-16 h-16 object-cover rounded-lg cursor-pointer"
+                                                                            style={{ border: '1px solid var(--border)' }}
+                                                                            onClick={() => setPreviewImg(f.url)}
+                                                                        />
+                                                                        <button
+                                                                            onClick={() => deletarFoto(f.id)}
+                                                                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                            style={{ background: '#ef4444', color: '#fff' }}
+                                                                            title="Remover foto"
+                                                                        >
+                                                                            <XIcon size={10} />
+                                                                        </button>
+                                                                        {f.nota && (
+                                                                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[8px] px-1 py-0.5 rounded-b-lg truncate">
+                                                                                {f.nota}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Resumo da vistoria */}
+                    {entregaFotos.length > 0 && (() => {
+                        const totalItens = (termoData.ambientes || []).reduce((s, a) => s + (a.itens || a.mods || []).length, 0);
+                        const itensComFoto = new Set(entregaFotos.map(f => `${f.ambiente_idx}-${f.item_idx}`)).size;
+                        const pct = totalItens > 0 ? Math.round((itensComFoto / totalItens) * 100) : 0;
+                        return (
+                            <div className="mt-4 p-3 rounded-lg flex items-center gap-3" style={{ background: pct === 100 ? '#f0fdf4' : '#fffbeb', border: `1px solid ${pct === 100 ? '#bbf7d0' : '#fde68a'}` }}>
+                                {pct === 100
+                                    ? <CheckCircle2 size={16} style={{ color: '#16a34a' }} />
+                                    : <Camera size={16} style={{ color: '#ca8a04' }} />
+                                }
+                                <span className="text-xs font-semibold" style={{ color: pct === 100 ? '#16a34a' : '#ca8a04' }}>
+                                    {itensComFoto}/{totalItens} módulos fotografados ({pct}%)
+                                </span>
+                            </div>
+                        );
+                    })()}
+                </div>
+            )}
+
+            {/* Preview da foto em tela cheia */}
+            {previewImg && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={() => setPreviewImg(null)}>
+                    <button className="absolute top-4 right-4 text-white bg-white/20 rounded-full p-2 hover:bg-white/30"
+                        onClick={() => setPreviewImg(null)}>
+                        <XIcon size={20} />
+                    </button>
+                    <img src={previewImg} alt="" className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg" />
+                </div>
+            )}
 
             {/* Preview: o que vai no termo */}
             {termoData && (
