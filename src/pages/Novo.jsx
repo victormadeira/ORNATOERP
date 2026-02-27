@@ -878,6 +878,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 ambTotals.push({ id: amb.id, custo: ambCm, manual: true });
                 return;
             }
+            let ambCP = 0;
             amb.itens.forEach(item => {
                 try {
                     const res = calcItemV2(item.caixaDef, item.dims, item.mats, item.componentes.map(ci => ({
@@ -899,7 +900,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     cm += itemCusto; ambCm += itemCusto;
                     at += res.area * qtd;
                     ft += res.fita * qtd;
-                    itemCostList.push({ ambId: amb.id, custoItem: itemCusto, coef, ajuste: item.ajuste || null });
+                    // Calcular CP (custo de produção) individual deste item com markups
+                    const mk = { chapas: taxas.mk_chapas ?? 1.45, fita: taxas.mk_fita ?? 1.45, acabamentos: taxas.mk_acabamentos ?? 1.30, ferragens: taxas.mk_ferragens ?? 1.15, mdo: taxas.mk_mdo ?? 0.80 };
+                    const _ca = cChapas * (1 + coef);
+                    const _fa = cFita * (1 + coef);
+                    const _aa = cAcab * (1 + coef);
+                    const itemCP = _ca * mk.chapas + _fa * mk.fita + _aa * mk.acabamentos + cFerr * mk.ferragens + _ca * mk.mdo;
+                    ambCP += itemCP;
+                    itemCostList.push({ itemId: item.id, ambId: amb.id, custoItem: itemCusto, itemCP, coef, ajuste: item.ajuste || null });
                     Object.entries(res.chapas).forEach(([id, c]) => {
                         if (!ca[id]) ca[id] = { mat: c.mat, area: 0, n: 0 };
                         ca[id].area += c.area * qtd;
@@ -921,10 +929,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         const pc = res.custoMaterial * (painel.qtd || 1);
                         totChapas += pc;
                         cm += pc; ambCm += pc;
+                        // CP do painel: custo × markup chapas (sem coef — painel não tem dificuldade)
+                        const mkC = taxas.mk_chapas ?? 1.45;
+                        const mkMdo = taxas.mk_mdo ?? 0.80;
+                        ambCP += pc * mkC + pc * mkMdo;
                     }
                 } catch (_) { }
             });
-            ambTotals.push({ id: amb.id, custo: ambCm });
+            ambTotals.push({ id: amb.id, custo: ambCm, cp: ambCP });
         });
 
         // ── Engine v2: precoVendaV2 com markups por categoria ──
@@ -943,11 +955,15 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         const cp = pvResult.cp || 0;
         const custoMdo = pvResult.mdo || 0;
 
-        // Calcular ajustes por módulo (proporcional ao custo do item)
+        // Total CP individual (soma dos CPs por item) — usado para proporção de PV
+        const totalItemCP = itemCostList.reduce((s, i) => s + (i.itemCP || 0), 0)
+            + ambTotals.filter(a => a.manual).reduce((s, a) => s + a.custo, 0);
+
+        // Calcular ajustes por módulo (proporcional ao CP do item)
         let totalAjustes = 0;
-        itemCostList.forEach(({ custoItem, ajuste }) => {
+        itemCostList.forEach(({ itemCP, ajuste }) => {
             if (!ajuste || !ajuste.valor) return;
-            const precoBase = cm > 0 ? (custoItem / cm) * pv : custoItem;
+            const precoBase = totalItemCP > 0 ? (itemCP / totalItemCP) * pv : 0;
             const ajR = ajuste.tipo === 'R' ? ajuste.valor : precoBase * (ajuste.valor / 100);
             totalAjustes += ajR;
         });
@@ -957,7 +973,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             cm, at, ft, ca, fa, pv, cp,
             pvErro: pvResult.erro, pvMsg: pvResult.msg,
             custoMdo, totChapas, totFita, totFerragens, totAcabamentos, totAcessorios,
-            ambTotals, totalAjustes, pvFinal, manualTotal,
+            ambTotals, totalAjustes, pvFinal, manualTotal, totalItemCP, itemCostList,
             breakdown: pvResult.breakdown,
             cb: cp, // compatibilidade
         };
@@ -1172,8 +1188,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             </div>
                         ) : ambientes.map(amb => {
                             const isExpAmb = expandedAmb === amb.id;
-                            const ambCusto = tot.ambTotals.find(a => a.id === amb.id)?.custo || 0;
-                            const ambPv = amb.tipo === 'manual' ? ambCusto : (tot.pv > 0 && tot.cb > 0 ? ambCusto / tot.cb * tot.pv : ambCusto);
+                            const ambData = tot.ambTotals.find(a => a.id === amb.id) || {};
+                            const ambPv = amb.tipo === 'manual' ? (ambData.custo || 0) : (tot.totalItemCP > 0 ? (ambData.cp || 0) / tot.totalItemCP * tot.pv : (ambData.custo || 0));
                             return (
                                 <div key={amb.id} className="glass-card !p-0 overflow-hidden border-l-[3px] border-l-[var(--primary)] mb-3">
                                     {/* Header do ambiente */}
@@ -1286,8 +1302,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     })), bib, padroes);
                                                 } catch (_) { }
 
-                                                const custoItem = (res?.custo || 0) * (1 + coef) * (item.qtd || 1);
-                                                const precoItem = tot.pv > 0 && tot.cb > 0 ? custoItem / tot.cb * tot.pv : custoItem;
+                                                // Buscar CP pré-calculado do item (consistente com o total)
+                                                const itemCPData = (tot.itemCostList || []).find(x => x.itemId === item.id);
+                                                const itemCP = itemCPData?.itemCP || 0;
+                                                const precoItem = tot.totalItemCP > 0 ? (itemCP / tot.totalItemCP) * tot.pv : (res?.custo || 0);
                                                 const aj = item.ajuste || { tipo: '%', valor: 0 };
                                                 const ajusteR = aj.valor ? (aj.tipo === 'R' ? aj.valor : precoItem * (aj.valor / 100)) : 0;
                                                 const precoItemFinal = precoItem + ajusteR;
