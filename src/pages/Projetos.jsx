@@ -995,6 +995,7 @@ function TabEstoque({ data, notify, user }) {
                             <span style={{ fontSize: 12, color: '#92400e' }}>Orçamento sem módulos configurados — valores orçados estão zerados. Configure os módulos no editor de orçamento e recalcule.</span>
                         </div>
                     )}
+                    <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                         <thead><tr>{['Material', 'Orçado', 'Gasto', 'Diferença'].map(h => <th key={h} className={Z.th} style={{ fontSize: 11 }}>{h}</th>)}</tr></thead>
                         <tbody>
@@ -1008,6 +1009,7 @@ function TabEstoque({ data, notify, user }) {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             ) : temOrcamento ? (
                 <div className={Z.card} style={{ marginBottom: 20, textAlign: 'center', padding: 30 }}>
@@ -1104,6 +1106,7 @@ function TabEstoque({ data, notify, user }) {
                 {movs.length === 0 ? (
                     <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nenhum consumo registrado neste projeto.</p>
                 ) : (
+                    <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                         <thead><tr>{['Data', 'Material', 'Qtd', 'Tipo', 'Valor Unit.', 'Descrição', ...(canDelete ? [''] : [])].map(h => <th key={h} className={Z.th} style={{ fontSize: 11 }}>{h}</th>)}</tr></thead>
                         <tbody>
@@ -1128,6 +1131,7 @@ function TabEstoque({ data, notify, user }) {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                 )}
             </div>
         </>
@@ -1228,9 +1232,9 @@ function TabArquivos({ data, notify }) {
                         {arquivos.map(f => (
                             <div key={f.nome} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10, background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
                                 {isImage(f.tipo) ? (
-                                    <img src={`${API_BASE}${f.url}`} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+                                    <img src={`${API_BASE}${f.url}`} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)', flexShrink: 0 }} />
                                 ) : (
-                                    <div style={{ width: 48, height: 48, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{f.tipo || '?'}</div>
+                                    <div style={{ width: 48, height: 48, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', flexShrink: 0 }}>{f.tipo || '?'}</div>
                                 )}
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.nome}</div>
@@ -1385,7 +1389,7 @@ function TabArquivos({ data, notify }) {
                                     onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
                                     onMouseLeave={e => e.currentTarget.style.transform = ''}
                                 >
-                                    <img src={`${API_BASE}${foto.url}`} alt="" style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block' }} />
+                                    <img src={`${API_BASE}${foto.url}`} alt="" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
                                     {/* Badge visual (não clicável) */}
                                     <div style={{
                                         position: 'absolute', top: 6, right: 6,
@@ -2144,8 +2148,8 @@ export default function Projetos({ orcs, notify, user }) {
                     {projetos.length === 0 && <button onClick={() => setShowNew(true)} className={Z.btn} style={{ marginTop: 16 }}>+ Criar primeiro projeto</button>}
                 </div>
             ) : (
-                <div className="glass-card" style={{ overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto' }}>
+                    <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse' }}>
                         <thead><tr>{['Projeto', 'Cliente', 'Status', 'Progresso', 'Valor', 'Entrega', ''].map(h => <th key={h} className={Z.th}>{h}</th>)}</tr></thead>
                         <tbody>
                             {filtered.map((p, i) => {

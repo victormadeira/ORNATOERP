@@ -91,7 +91,7 @@ export default function Cat() {
     }, [items, tab, search, catFiltro]);
 
     const openNew = () => {
-        const defaults = { material: { unidade: 'chapa', perda_pct: 15 }, acabamento: { unidade: 'm²' }, ferragem: { unidade: 'un' }, componente: { unidade: 'un' } };
+        const defaults = { material: { unidade: 'chapa', perda_pct: 15 }, acabamento: { unidade: 'm²' }, ferragem: { unidade: 'un' }, acessorio: { unidade: 'un' } };
         setForm({ ...emptyItem, tipo: tab, ...(defaults[tab] || {}) });
         setEditId(null); setShowForm(true);
     };
@@ -111,7 +111,7 @@ export default function Cat() {
         { id: 'material', lb: 'Materiais', icon: Package, desc: 'Chapas MDF/MDP, compensados com controle de perda', color: '#3b82f6' },
         { id: 'acabamento', lb: 'Acabamentos', icon: PaintBucket, desc: 'BP, lâminas, lacas — preço por m²', color: '#8b5cf6' },
         { id: 'ferragem', lb: 'Ferragens', icon: Wrench, desc: 'Dobradiças, corrediças, puxadores — só preço e unidade', color: '#f59e0b' },
-        { id: 'componente', lb: 'Componentes', icon: Layers, desc: 'Cabideiros, sapateiras, cestos aramados', color: '#10b981' },
+        { id: 'acessorio', lb: 'Acessórios', icon: Layers, desc: 'Cabideiros, sapateiras, cestos aramados', color: '#10b981' },
     ];
     const activeTab = tabs.find(t => t.id === tab);
 
@@ -120,7 +120,7 @@ export default function Cat() {
             <div className="mb-5 flex justify-between items-start">
                 <div>
                     <h1 className={Z.h1}>Biblioteca</h1>
-                    <p className={Z.sub}>Materiais, Ferragens e Componentes — cadastro centralizado</p>
+                    <p className={Z.sub}>Materiais, Ferragens e Acessórios — cadastro centralizado</p>
                 </div>
                 <button onClick={openNew} className={`${Z.btn} flex items-center gap-2`}>
                     <Plus size={14} /> Novo {activeTab?.lb.slice(0, -1) || 'Item'}
@@ -205,7 +205,7 @@ export default function Cat() {
                         </div>
                     )}
 
-                    {(tab === 'ferragem' || tab === 'componente') && (
+                    {(tab === 'ferragem' || tab === 'acessorio') && (
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
                             <div><label className={Z.lbl}>Unidade</label>
                                 <select value={form.unidade} onChange={e => setF('unidade', e.target.value)} className={Z.inp}>
@@ -261,7 +261,7 @@ export default function Cat() {
                                     {tab === 'material' && <><th className={Z.th}>Esp.</th><th className={Z.th}>Dimensões</th><th className={Z.th}>Perda</th><th className={Z.th + " text-right"}>R$/Chapa</th><th className={Z.th + " text-right"}>R$/m²</th><th className={Z.th + " text-right"}>Fita R$/m</th></>}
                                     {tab === 'acabamento' && <><th className={Z.th + " text-right"}>R$/m²</th></>}
                                     {tab === 'ferragem' && <><th className={Z.th}>Categoria</th><th className={Z.th}>Un</th><th className={Z.th + " text-right"}>Preço</th></>}
-                                    {tab === 'componente' && <><th className={Z.th}>Un</th><th className={Z.th + " text-right"}>Preço</th></>}
+                                    {tab === 'acessorio' && <><th className={Z.th}>Un</th><th className={Z.th + " text-right"}>Preço</th></>}
                                     <th className={Z.th + " text-right w-20"}></th>
                                 </tr>
                             </thead>
@@ -290,7 +290,7 @@ export default function Cat() {
                                             <td className="td-glass text-right font-bold text-xs" style={{ color: 'var(--primary)' }}>{R$(item.preco)}</td>
                                         </>}
 
-                                        {tab === 'componente' && <>
+                                        {tab === 'acessorio' && <>
                                             <td className="td-glass text-xs" style={{ color: 'var(--text-muted)' }}>{item.unidade}</td>
                                             <td className="td-glass text-right font-bold text-xs" style={{ color: 'var(--primary)' }}>{R$(item.preco)}</td>
                                         </>}

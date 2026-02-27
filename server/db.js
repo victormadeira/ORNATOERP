@@ -609,6 +609,19 @@ const migrations = [
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
   "CREATE INDEX IF NOT EXISTS idx_projeto_arquivos_projeto ON projeto_arquivos(projeto_id)",
+  // ═══ Renomear Componentes → Acessórios na biblioteca ═══
+  "UPDATE biblioteca SET tipo='acessorio' WHERE tipo='componente'",
+  // ═══ Engine v2: Markups por categoria ═══
+  "ALTER TABLE config_taxas ADD COLUMN mk_chapas REAL DEFAULT 1.45",
+  "ALTER TABLE config_taxas ADD COLUMN mk_ferragens REAL DEFAULT 1.15",
+  "ALTER TABLE config_taxas ADD COLUMN mk_fita REAL DEFAULT 1.45",
+  "ALTER TABLE config_taxas ADD COLUMN mk_acabamentos REAL DEFAULT 1.30",
+  "ALTER TABLE config_taxas ADD COLUMN mk_acessorios REAL DEFAULT 1.20",
+  "ALTER TABLE config_taxas ADD COLUMN mk_mdo REAL DEFAULT 0.80",
+  // inst muda de R$/m² (180) para % do PV (5); lucro de 20 para 12; mont de 12 para 0
+  "UPDATE config_taxas SET inst=5 WHERE inst=180",
+  "UPDATE config_taxas SET lucro=12 WHERE lucro=20",
+  "UPDATE config_taxas SET mont=0 WHERE mont=12",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
@@ -748,9 +761,9 @@ if (bibCount.c === 0) {
   ins.run('ferragem', 'pux160', 'Puxador 160mm', '', 'un', 16.90, 0, 0, 0, 0, 0);
   ins.run('ferragem', 'pux256', 'Puxador 256mm', '', 'un', 22.90, 0, 0, 0, 0, 0);
   ins.run('ferragem', 'pistGas', 'Pistão a Gás 100N', '', 'par', 34.90, 0, 0, 0, 0, 0);
-  ins.run('componente', 'cabOval', 'Cabideiro Tubo Oval', 'Tubo oval para roupeiro', 'm', 18.90, 0, 0, 0, 0, 0);
-  ins.run('componente', 'sapReg', 'Sapateira Regulável', '', 'un', 45.90, 0, 0, 0, 0, 0);
-  ins.run('componente', 'cestoAr', 'Cesto Aramado', '', 'un', 65.90, 0, 0, 0, 0, 0);
+  ins.run('acessorio', 'cabOval', 'Cabideiro Tubo Oval', 'Tubo oval para roupeiro', 'm', 18.90, 0, 0, 0, 0, 0);
+  ins.run('acessorio', 'sapReg', 'Sapateira Regulável', '', 'un', 45.90, 0, 0, 0, 0, 0);
+  ins.run('acessorio', 'cestoAr', 'Cesto Aramado', '', 'un', 65.90, 0, 0, 0, 0, 0);
   ins.run('material', 'fita_pvc', 'Fita de Borda PVC', 'Fita de borda 22mm', 'm', 0.85, 0, 0, 0, 0, 0);
   console.log('✓ Biblioteca inicial criada');
 }

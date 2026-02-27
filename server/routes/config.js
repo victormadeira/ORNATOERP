@@ -9,18 +9,30 @@ const router = Router();
 // ═══════════════════════════════════════════════════════
 router.get('/', requireAuth, (req, res) => {
     const cfg = db.prepare('SELECT * FROM config_taxas WHERE id = 1').get();
-    res.json(cfg || { imp: 8, com: 10, mont: 12, lucro: 20, frete: 2, mdo: 350, inst: 180 });
+    res.json(cfg || {
+        imp: 8, com: 10, mont: 0, lucro: 12, frete: 2, inst: 5,
+        mk_chapas: 1.45, mk_ferragens: 1.15, mk_fita: 1.45,
+        mk_acabamentos: 1.30, mk_acessorios: 1.20, mk_mdo: 0.80,
+    });
 });
 
 // ═══════════════════════════════════════════════════════
 // PUT /api/config — somente admin/gerente
 // ═══════════════════════════════════════════════════════
 router.put('/', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
-    const { imp, com, mont, lucro, frete, mdo, inst } = req.body;
+    const {
+        imp, com, mont, lucro, frete, inst,
+        mk_chapas, mk_ferragens, mk_fita, mk_acabamentos, mk_acessorios, mk_mdo,
+    } = req.body;
     db.prepare(`
-    UPDATE config_taxas SET imp=?, com=?, mont=?, lucro=?, frete=?, mdo=?, inst=? WHERE id=1
+    UPDATE config_taxas SET
+      imp=?, com=?, mont=?, lucro=?, frete=?, inst=?,
+      mk_chapas=?, mk_ferragens=?, mk_fita=?, mk_acabamentos=?, mk_acessorios=?, mk_mdo=?
+    WHERE id=1
   `).run(
-        imp ?? 8, com ?? 10, mont ?? 12, lucro ?? 20, frete ?? 2, mdo ?? 350, inst ?? 180
+        imp ?? 8, com ?? 10, mont ?? 0, lucro ?? 12, frete ?? 2, inst ?? 5,
+        mk_chapas ?? 1.45, mk_ferragens ?? 1.15, mk_fita ?? 1.45,
+        mk_acabamentos ?? 1.30, mk_acessorios ?? 1.20, mk_mdo ?? 0.80,
     );
     const cfg = db.prepare('SELECT * FROM config_taxas WHERE id = 1').get();
     res.json(cfg);

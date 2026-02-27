@@ -4,7 +4,7 @@ import { requireAuth } from '../auth.js';
 
 const r = Router();
 
-// GET all items (optional ?tipo=material|ferragem|componente|acabamento)
+// GET all items (optional ?tipo=material|ferragem|acessorio|acabamento)
 r.get('/', requireAuth, (req, res) => {
     const { tipo } = req.query;
     const rows = tipo

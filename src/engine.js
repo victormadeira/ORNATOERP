@@ -481,21 +481,31 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
     });
 
     // ── 4. Consolidar chapas ────────────────────────────────
+    let custoChapas = 0;
     Object.values(chapas).forEach(c => {
         const areaChapa = (c.mat.larg * c.mat.alt) / 1e6;
         const perda = c.mat.perda_pct != null ? c.mat.perda_pct : 15;
         const areaUtil = areaChapa * (1 - perda / 100);
         c.n = areaUtil > 0 ? Math.ceil(c.area / areaUtil) : 1;
-        custo += c.n * c.mat.preco;
+        const cc = c.n * c.mat.preco;
+        custoChapas += cc;
+        custo += cc;
     });
 
     // Custo de fita: per-material se fita_preco cadastrado, senão fallback global
-    const fitaCusto = Object.values(fitaByMat).reduce((s, v) => s + v.metros * v.preco, 0)
+    const custoFita = Object.values(fitaByMat).reduce((s, v) => s + v.metros * v.preco, 0)
         || fita * fitaPrecoDefault;
-    custo += fitaCusto;
-    ferrList.forEach(f => custo += f.preco * f.qtd);
+    custo += custoFita;
 
-    return { pecas, chapas, fita, fitaByMat, ferrList, custo, area };
+    // Custo de ferragens
+    let custoFerragens = 0;
+    ferrList.forEach(f => { const fc = f.preco * f.qtd; custoFerragens += fc; custo += fc; });
+
+    // Custo de acabamentos (já adicionado ao custo em addAcabamento)
+    // Calcular valor isolado para breakdown
+    const custoAcabamentos = custo - custoChapas - custoFita - custoFerragens;
+
+    return { pecas, chapas, fita, fitaByMat, ferrList, custo, area, custoChapas, custoFita, custoFerragens, custoAcabamentos };
 }
 
 // ═══════════════════════════════════════════════════════
@@ -504,11 +514,66 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
 export function precoVenda(custoBase, taxas) {
     const s = (taxas.imp + taxas.com + taxas.mont + taxas.lucro + taxas.frete) / 100;
     if (s >= 1) {
-        // Soma das taxas ≥ 100% — markup divisor impossível
-        // Retorna custo base com aviso (flag para UI)
         return { valor: custoBase, erro: true, msg: "Σ taxas ≥ 100% — ajuste as taxas" };
     }
     return { valor: custoBase / (1 - s), erro: false };
+}
+
+// ═══════════════════════════════════════════════════════
+// ENGINE V2 — Markups diferenciados por categoria
+// ═══════════════════════════════════════════════════════
+/**
+ * @param {object} custos — { chapas, fita, acabamentos, ferragens, acessorios }
+ * @param {number} coef — coeficiente de dificuldade do módulo (0.20-0.40)
+ * @param {object} taxas — config_taxas com mk_chapas, mk_ferragens, etc.
+ * @returns {{ valor, erro, cp, mdo, breakdown }}
+ */
+export function precoVendaV2(custos, coef, taxas) {
+    const mk = {
+        chapas: taxas.mk_chapas ?? 1.45,
+        ferragens: taxas.mk_ferragens ?? 1.15,
+        fita: taxas.mk_fita ?? 1.45,
+        acabamentos: taxas.mk_acabamentos ?? 1.30,
+        acessorios: taxas.mk_acessorios ?? 1.20,
+        mdo: taxas.mk_mdo ?? 0.80,
+    };
+
+    // Etapa 1: aplicar coef (dificuldade/risco) — só em itens fabricados
+    const chapasAdj = (custos.chapas || 0) * (1 + coef);
+    const fitaAdj = (custos.fita || 0) * (1 + coef);
+    const acabAdj = (custos.acabamentos || 0) * (1 + coef);
+    // Ferragens e acessórios: sem coef (itens comprados prontos)
+    const ferrVal = custos.ferragens || 0;
+    const acessVal = custos.acessorios || 0;
+
+    // Etapa 2: markups por categoria
+    const pvChapas = chapasAdj * mk.chapas;
+    const pvFita = fitaAdj * mk.fita;
+    const pvAcab = acabAdj * mk.acabamentos;
+    const pvFerr = ferrVal * mk.ferragens;
+    const pvAcess = acessVal * mk.acessorios;
+
+    // Etapa 3: MDO (mão de obra proporcional ao MDF)
+    const mdo = chapasAdj * mk.mdo;
+
+    // Etapa 4: custo de produção
+    const cp = pvChapas + pvFita + pvAcab + pvFerr + pvAcess + mdo;
+
+    // Etapa 5: divisor (taxas sobre PV)
+    const inst = taxas.inst ?? 5;
+    const s = ((taxas.imp || 0) + (taxas.com || 0) + (taxas.lucro || 0) + (inst) + (taxas.frete || 0) + (taxas.mont || 0)) / 100;
+    if (s >= 1) {
+        return { valor: cp, erro: true, msg: "Σ taxas ≥ 100% — ajuste os percentuais", cp, mdo };
+    }
+    const pv = cp / (1 - s);
+
+    return {
+        valor: pv,
+        erro: false,
+        cp,
+        mdo,
+        breakdown: { chapasAdj, fitaAdj, acabAdj, ferrVal, acessVal, pvChapas, pvFita, pvAcab, pvFerr, pvAcess, mdo },
+    };
 }
 
 // Helper retrocompatível que sempre retorna número

@@ -147,7 +147,7 @@ export default function Cfg({ taxas, reload, notify }) {
         }).catch(() => {});
     }, []);
 
-    const totalTaxas = (tx.imp || 0) + (tx.com || 0) + (tx.mont || 0) + (tx.lucro || 0) + (tx.frete || 0);
+    const totalTaxas = (tx.imp || 0) + (tx.com || 0) + (tx.mont || 0) + (tx.lucro || 0) + (tx.frete || 0) + (tx.inst || 0);
 
     const saveTaxas = async () => {
         try {
@@ -394,19 +394,80 @@ export default function Cfg({ taxas, reload, notify }) {
             {activeSection === 'taxas' && (
                 <>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        {/* ── Markups por Categoria ── */}
                         <div className={Z.card}>
-                            <h3 className="font-semibold text-sm mb-4" style={{ color: 'var(--primary)' }}>Taxas (%)</h3>
+                            <h3 className="font-semibold text-sm mb-4" style={{ color: 'var(--primary)' }}>Markups por Categoria</h3>
                             <div className="rounded-lg px-3 py-2 mb-4 border-l-2 text-[10px]"
                                 style={{ background: 'var(--bg-muted)', borderColor: 'var(--primary)', color: 'var(--text-secondary)' }}>
-                                Preço de Venda = Custo × Coeficiente ÷ (1 − Σ taxas)
+                                Cada categoria tem seu multiplicador sobre o custo de compra. Ex: 1.45× = 45% de markup.
+                            </div>
+                            <div className="flex flex-col gap-3">
+                                {[
+                                    ["mk_chapas", "Chapas (MDF/MDP)", 1.45],
+                                    ["mk_ferragens", "Ferragens", 1.15],
+                                    ["mk_fita", "Fita de Borda", 1.45],
+                                    ["mk_acabamentos", "Acabamentos", 1.30],
+                                    ["mk_acessorios", "Acessórios", 1.20],
+                                    ["mk_mdo", "Fator Mão de Obra", 0.80],
+                                ].map(([k, l, def]) => (
+                                    <div key={k}>
+                                        <label className={Z.lbl}>{l}</label>
+                                        <div className="flex items-center gap-2">
+                                            <input type="number" value={tx[k] ?? def} step={0.05} min={0.1} disabled={!isGerente}
+                                                onChange={e => st({ ...tx, [k]: parseFloat(e.target.value) || def })}
+                                                className={`${Z.inp} flex-1`} />
+                                            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>×</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Simulador rápido */}
+                            <div className="mt-4 rounded-lg p-3" style={{ background: 'var(--bg-muted)' }}>
+                                <div className="text-[10px] font-semibold mb-2" style={{ color: 'var(--text-secondary)' }}>Simulador (custo R$1.000 — cozinha típica)</div>
+                                {(() => {
+                                    const mk = {
+                                        chapas: tx.mk_chapas ?? 1.45, ferragens: tx.mk_ferragens ?? 1.15,
+                                        fita: tx.mk_fita ?? 1.45, acabamentos: tx.mk_acabamentos ?? 1.30,
+                                        acessorios: tx.mk_acessorios ?? 1.20, mdo: tx.mk_mdo ?? 0.80,
+                                    };
+                                    const coef = 0.30;
+                                    // Cozinha: 50% MDF, 30% ferr, 3% fita, 10% acab, 7% acess
+                                    const ch = 500 * (1 + coef) * mk.chapas;
+                                    const fe = 300 * mk.ferragens;
+                                    const fi = 30 * (1 + coef) * mk.fita;
+                                    const ac = 100 * (1 + coef) * mk.acabamentos;
+                                    const as_ = 70 * mk.acessorios;
+                                    const mdo = 500 * (1 + coef) * mk.mdo;
+                                    const cp = ch + fe + fi + ac + as_ + mdo;
+                                    const s = totalTaxas / 100;
+                                    const pv = s < 1 ? cp / (1 - s) : cp;
+                                    return (
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>PV estimado:</span>
+                                            <span className="font-bold text-lg" style={{ color: 'var(--primary)' }}>
+                                                R$ {pv.toFixed(0)} <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>({(pv / 1000).toFixed(1)}×)</span>
+                                            </span>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+
+                        {/* ── Percentuais sobre PV (divisor) ── */}
+                        <div className={Z.card}>
+                            <h3 className="font-semibold text-sm mb-4" style={{ color: 'var(--primary)' }}>Percentuais sobre PV</h3>
+                            <div className="rounded-lg px-3 py-2 mb-4 border-l-2 text-[10px]"
+                                style={{ background: 'var(--bg-muted)', borderColor: 'var(--primary)', color: 'var(--text-secondary)' }}>
+                                PV = Custo Produção ÷ (1 − Σ percentuais). Estes incidem sobre o preço de venda final.
                             </div>
                             <div className="flex flex-col gap-3">
                                 {[
                                     ["imp", "Impostos (Simples/Presumido)"],
                                     ["com", "Comissão Arq./Designer"],
-                                    ["mont", "Montagem Terceirizada"],
                                     ["lucro", "Lucro Líquido"],
-                                    ["frete", "Frete / Entrega"]
+                                    ["inst", "Instalação"],
+                                    ["frete", "Frete / Entrega"],
+                                    ["mont", "Montagem Terceirizada"],
                                 ].map(([k, l]) => (
                                     <div key={k}>
                                         <label className={Z.lbl}>{l}</label>
@@ -419,32 +480,11 @@ export default function Cfg({ taxas, reload, notify }) {
                                     </div>
                                 ))}
                                 <div className="rounded-lg p-3 flex justify-between items-center" style={{ background: 'var(--bg-muted)' }}>
-                                    <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Σ Total de Taxas</span>
+                                    <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Σ Total Percentuais</span>
                                     <span className={`font-bold text-lg ${totalTaxas >= 100 ? 'text-red-400' : ''}`}
                                         style={totalTaxas < 100 ? { color: 'var(--primary)' } : {}}>
                                         {totalTaxas.toFixed(1)}%
                                     </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className={Z.card}>
-                            <h3 className="font-semibold text-sm mb-4" style={{ color: 'var(--primary)' }}>Custos Operacionais</h3>
-                            <p className="text-[11px] mb-4" style={{ color: 'var(--text-muted)' }}>
-                                Usados como referência padrão ao criar novos orçamentos.
-                            </p>
-                            <div className="flex flex-col gap-3">
-                                <div>
-                                    <label className={Z.lbl}>Mão de Obra (R$/m²)</label>
-                                    <input type="number" value={tx.mdo} disabled={!isGerente}
-                                        onChange={e => st({ ...tx, mdo: parseFloat(e.target.value) || 0 })}
-                                        className={Z.inp} />
-                                </div>
-                                <div>
-                                    <label className={Z.lbl}>Instalação (R$/m²)</label>
-                                    <input type="number" value={tx.inst} disabled={!isGerente}
-                                        onChange={e => st({ ...tx, inst: parseFloat(e.target.value) || 0 })}
-                                        className={Z.inp} />
                                 </div>
                             </div>
                             {!isGerente && (

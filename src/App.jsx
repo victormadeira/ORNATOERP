@@ -36,6 +36,19 @@ export default function App() {
     const [waUnread, setWaUnread] = useState(0);
     const [logoSistema, setLogoSistema] = useState(() => localStorage.getItem('logo_sistema') || '');
     const [empNome, setEmpNome] = useState(() => localStorage.getItem('emp_nome') || 'Ornato');
+    const [mobileOpen, setMobileOpen] = useState(false);
+    const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+
+    // Detectar mobile via resize
+    useEffect(() => {
+        const onResize = () => {
+            const mobile = window.innerWidth < 768;
+            setIsMobile(mobile);
+            if (!mobile) setMobileOpen(false); // fechar overlay ao sair de mobile
+        };
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
 
     useEffect(() => {
         document.documentElement.classList.toggle('dark', dark);
@@ -117,6 +130,7 @@ export default function App() {
         if (p === "novo" && orc !== undefined) setEditOrc(orc);
         else if (p !== "novo") setEditOrc(null);
         setPg(p);
+        if (isMobile) setMobileOpen(false); // fechar sidebar mobile ao navegar
     };
 
     if (loading) return (
@@ -196,16 +210,27 @@ export default function App() {
 
     return (
         <div className="flex h-screen w-full overflow-hidden" style={{ background: 'var(--bg-body)', color: 'var(--text-primary)' }}>
+            {/* Backdrop mobile */}
+            {isMobile && mobileOpen && (
+                <div className="fixed inset-0 z-30 bg-black/40 transition-opacity" onClick={() => setMobileOpen(false)} />
+            )}
+
             {/* Sidebar */}
-            <aside className={`relative z-20 flex flex-col shrink-0 overflow-hidden transition-all duration-200 ${sb ? 'w-56' : 'w-[52px]'}`}
+            <aside className={`
+                ${isMobile
+                    ? `fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-200 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`
+                    : `relative z-20 shrink-0 overflow-hidden transition-all duration-200 ${sb ? 'w-56' : 'w-[52px]'}`
+                }
+                flex flex-col
+            `}
                 style={{ background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)' }}>
 
                 {/* Logo */}
                 <div className="flex items-center gap-2.5 px-3 min-h-[52px]" style={{ borderBottom: '1px solid var(--border)' }}>
-                    <button onClick={() => setSb(!sb)} className="p-1.5 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
-                        <Ic.Menu />
+                    <button onClick={() => isMobile ? setMobileOpen(false) : setSb(!sb)} className="p-1.5 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
+                        {isMobile && mobileOpen ? <Ic.X /> : <Ic.Menu />}
                     </button>
-                    {sb && (
+                    {(sb || isMobile) && (
                         <div className="flex items-center overflow-hidden min-w-0">
                             {logoSistema
                                 ? <img src={logoSistema} alt="Logo" style={{ height: 28, maxWidth: 140, objectFit: 'contain' }} />
@@ -240,16 +265,16 @@ export default function App() {
                                         }} />
                                     )}
                                 </span>
-                                {sb && (
+                                {(sb || isMobile) && (
                                     <span className="text-[13px] flex-1 text-left whitespace-nowrap">{m.lb}</span>
                                 )}
-                                {sb && showBadge && (
+                                {(sb || isMobile) && showBadge && (
                                     <span style={{
                                         fontSize: 10, fontWeight: 700, background: badgeBg, color: '#fff',
                                         padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center',
                                     }}>{badgeNum}</span>
                                 )}
-                                {sb && !active && !showBadge && <span className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--text-muted)' }}><Ic.ChevR /></span>}
+                                {(sb || isMobile) && !active && !showBadge && <span className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--text-muted)' }}><Ic.ChevR /></span>}
                             </button>
                         );
                     })}
@@ -260,10 +285,10 @@ export default function App() {
                     {/* Theme Toggle */}
                     <button onClick={() => setDark(!dark)} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
                         {dark ? <Ic.Sun /> : <Ic.Moon />}
-                        {sb && <span className="text-xs">{dark ? 'Modo Claro' : 'Modo Escuro'}</span>}
+                        {(sb || isMobile) && <span className="text-xs">{dark ? 'Modo Claro' : 'Modo Escuro'}</span>}
                     </button>
 
-                    {sb ? (
+                    {(sb || isMobile) ? (
                         <div className="flex items-center gap-2.5 px-2.5 py-2">
                             <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--primary)' }}>
                                 {user.nome?.[0]?.toUpperCase()}
@@ -287,11 +312,16 @@ export default function App() {
             {/* Main */}
             <main className="flex-1 relative overflow-y-auto overflow-x-hidden">
                 {/* Top bar */}
-                <div className="sticky top-0 z-10 flex items-center justify-between px-6 h-[52px]" style={{ background: 'var(--bg-body)', borderBottom: '1px solid var(--border)' }}>
+                <div className="sticky top-0 z-10 flex items-center justify-between px-3 md:px-6 h-[52px]" style={{ background: 'var(--bg-body)', borderBottom: '1px solid var(--border)' }}>
                     <div className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text-muted)' }}>
-                        <span><Ic.Home /></span>
-                        <span>›</span>
-                        <span style={{ color: 'var(--text-primary)' }} className="font-medium">{[...ALL_MENUS, { id: "novo", lb: "Novo Orçamento" }, { id: "users", lb: "Usuários" }].find(m => m.id === pg)?.lb || 'Home'}</span>
+                        {isMobile && (
+                            <button onClick={() => setMobileOpen(true)} className="p-1.5 mr-1 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
+                                <Ic.Menu />
+                            </button>
+                        )}
+                        <span className="hidden md:inline"><Ic.Home /></span>
+                        <span className="hidden md:inline">›</span>
+                        <span style={{ color: 'var(--text-primary)' }} className="font-medium truncate">{[...ALL_MENUS, { id: "novo", lb: "Novo Orçamento" }, { id: "users", lb: "Usuários" }].find(m => m.id === pg)?.lb || 'Home'}</span>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -348,7 +378,7 @@ export default function App() {
                                 position: 'absolute', right: 0, top: '110%', zIndex: 50,
                                 background: 'var(--bg-card)', border: '1px solid var(--border)',
                                 borderRadius: 14, boxShadow: '0 12px 40px rgba(0,0,0,.18)',
-                                minWidth: 370, maxHeight: 440, overflow: 'hidden',
+                                minWidth: Math.min(370, window.innerWidth - 24), maxWidth: 'calc(100vw - 16px)', maxHeight: 440, overflow: 'hidden',
                             }}>
                                 {/* Header */}
                                 <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

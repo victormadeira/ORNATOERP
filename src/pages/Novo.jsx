@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Z, Ic, Modal } from '../ui';
-import { uid, R$, N, DB_CHAPAS, DB_ACABAMENTOS, DB_FERRAGENS, DB_FITAS, FERR_GROUPS, calcItemV2, calcPainelRipado, precoVenda, LOCKED_COLS } from '../engine';
+import { uid, R$, N, DB_CHAPAS, DB_ACABAMENTOS, DB_FERRAGENS, DB_FITAS, FERR_GROUPS, calcItemV2, calcPainelRipado, precoVenda, precoVendaV2, LOCKED_COLS } from '../engine';
 import api from '../api';
 import RelatorioMateriais, { buildRelatorioHtml } from './RelatorioMateriais';
 import { buildPropostaHtml } from './PropostaHtml';
@@ -669,7 +669,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             id: i.cod || `bib_${i.id}`, nome: i.nome, esp: i.espessura, larg: i.largura,
             alt: i.altura, preco: i.preco, perda_pct: i.perda_pct || 15, fita_preco: i.fita_preco || 0,
         }));
-        const ferragens = bibItems.filter(i => i.tipo === 'ferragem' || i.tipo === 'componente').map(i => ({
+        const ferragens = bibItems.filter(i => i.tipo === 'ferragem' || i.tipo === 'acessorio').map(i => ({
             id: i.cod || `bib_${i.id}`, nome: i.nome, preco: i.preco, un: i.unidade, categoria: i.categoria || '',
         }));
         const acabamentos = bibItems.filter(i => i.tipo === 'acabamento').map(i => ({
@@ -857,8 +857,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     // ── Totais ───────────────────────────────────────────────────────────────
     const tot = useMemo(() => {
         let cm = 0, at = 0, ft = 0, manualTotal = 0;
+        // ── Engine v2: custos separados por categoria ──
+        let totChapas = 0, totFita = 0, totFerragens = 0, totAcabamentos = 0, totAcessorios = 0;
         const ca = {}, fa = {}, ambTotals = [];
-        const itemCostList = []; // { ambId, custoItem, ajuste }
+        const itemCostList = []; // { ambId, custoItem, coef, ajuste }
         ambientes.forEach(amb => {
             let ambCm = 0;
             // ── Ambiente Manual: valor = preco de venda direto (sem markup) ──
@@ -868,7 +870,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 });
                 manualTotal += ambCm;
                 ambTotals.push({ id: amb.id, custo: ambCm, manual: true });
-                return; // pula o cálculo paramétrico
+                return;
             }
             amb.itens.forEach(item => {
                 try {
@@ -877,58 +879,82 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
                     })), bib, padroes);
                     const coef = item.caixaDef?.coef || 0;
-                    const cc = res.custo * (1 + coef) * (item.qtd || 1);
-                    cm += cc; ambCm += cc;
-                    at += res.area * (item.qtd || 1);
-                    ft += res.fita * (item.qtd || 1);
-                    itemCostList.push({ ambId: amb.id, custoItem: cc, ajuste: item.ajuste || null });
+                    const qtd = item.qtd || 1;
+                    // Acumular custos brutos por categoria (sem coef — coef é aplicado no precoVendaV2)
+                    const cChapas = (res.custoChapas || 0) * qtd;
+                    const cFita = (res.custoFita || 0) * qtd;
+                    const cFerr = (res.custoFerragens || 0) * qtd;
+                    const cAcab = (res.custoAcabamentos || 0) * qtd;
+                    totChapas += cChapas;
+                    totFita += cFita;
+                    totFerragens += cFerr;
+                    totAcabamentos += cAcab;
+                    const itemCusto = cChapas + cFita + cFerr + cAcab;
+                    cm += itemCusto; ambCm += itemCusto;
+                    at += res.area * qtd;
+                    ft += res.fita * qtd;
+                    itemCostList.push({ ambId: amb.id, custoItem: itemCusto, coef, ajuste: item.ajuste || null });
                     Object.entries(res.chapas).forEach(([id, c]) => {
                         if (!ca[id]) ca[id] = { mat: c.mat, area: 0, n: 0 };
-                        ca[id].area += c.area * (item.qtd || 1);
+                        ca[id].area += c.area * qtd;
                         const perda = c.mat.perda_pct != null ? c.mat.perda_pct : 15;
                         const areaUtil = ((c.mat.larg * c.mat.alt) / 1e6) * (1 - perda / 100);
                         ca[id].n = areaUtil > 0 ? Math.ceil(ca[id].area / areaUtil) : 1;
                     });
                     res.ferrList.forEach(f => {
                         if (!fa[f.id]) fa[f.id] = { ...f, qtd: 0 };
-                        fa[f.id].qtd += f.qtd * (item.qtd || 1);
+                        fa[f.id].qtd += f.qtd * qtd;
                     });
                 } catch (_) { }
             });
-            // ── Painéis ripados ──
+            // ── Painéis ripados (custo vai pra chapas) ──
             (amb.paineis || []).forEach(painel => {
                 try {
                     const res = calcPainelRipado(painel, bibItems);
                     if (res) {
                         const pc = res.custoMaterial * (painel.qtd || 1);
+                        totChapas += pc;
                         cm += pc; ambCm += pc;
                     }
                 } catch (_) { }
             });
             ambTotals.push({ id: amb.id, custo: ambCm });
         });
-        let custoMdo = 0, custoInst = 0;
-        if (taxas.custoOpMode === 'percent') {
-            custoMdo = cm * (taxas.mdoPct / 100);
-            custoInst = cm * (taxas.instPct / 100);
-        } else {
-            custoMdo = taxas.mdoHoras * taxas.mdoValorHora;
-            custoInst = taxas.instHoras * taxas.instValorHora;
-        }
-        const cb = cm + custoMdo + custoInst;
-        const pvResult = precoVenda(cb, taxas);
+
+        // ── Engine v2: precoVendaV2 com markups por categoria ──
+        // Calcular coef médio ponderado (baseado nos custos de cada item)
+        const totalCustoItens = itemCostList.reduce((s, i) => s + i.custoItem, 0);
+        const coefMedio = totalCustoItens > 0
+            ? itemCostList.reduce((s, i) => s + i.coef * i.custoItem, 0) / totalCustoItens
+            : 0.25;
+
+        const pvResult = precoVendaV2(
+            { chapas: totChapas, fita: totFita, acabamentos: totAcabamentos, ferragens: totFerragens, acessorios: totAcessorios },
+            coefMedio,
+            taxas,
+        );
         const pv = pvResult.valor;
-        // Calcular ajustes por módulo (após ter pv e cb)
+        const cp = pvResult.cp || 0;
+        const custoMdo = pvResult.mdo || 0;
+
+        // Calcular ajustes por módulo (proporcional ao custo do item)
         let totalAjustes = 0;
         itemCostList.forEach(({ custoItem, ajuste }) => {
             if (!ajuste || !ajuste.valor) return;
-            const precoBase = pv > 0 && cb > 0 ? custoItem / cb * pv : custoItem;
+            const precoBase = cm > 0 ? (custoItem / cm) * pv : custoItem;
             const ajR = ajuste.tipo === 'R' ? ajuste.valor : precoBase * (ajuste.valor / 100);
             totalAjustes += ajR;
         });
-        // pvFinal = preco calculadora + ajustes + ambientes manuais (direto, sem markup)
+
         const pvFinal = pv + totalAjustes + manualTotal;
-        return { cm, at, ft, ca, fa, cb, pv, pvErro: pvResult.erro, pvMsg: pvResult.msg, custoMdo, custoInst, ambTotals, totalAjustes, pvFinal, manualTotal };
+        return {
+            cm, at, ft, ca, fa, pv, cp,
+            pvErro: pvResult.erro, pvMsg: pvResult.msg,
+            custoMdo, totChapas, totFita, totFerragens, totAcabamentos, totAcessorios,
+            ambTotals, totalAjustes, pvFinal, manualTotal,
+            breakdown: pvResult.breakdown,
+            cb: cp, // compatibilidade
+        };
     }, [ambientes, taxas, bib]);
 
     // ── Desconto e totais de pagamento ───────────────────────────────────────
@@ -1169,7 +1195,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     {isExpAmb && amb.tipo === 'manual' && (
                                         <div className="px-4 pb-4" style={{ borderTop: '1px solid var(--border)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
                                             {/* ── Ambiente Manual: tabela de linhas ── */}
-                                            <div className="py-3">
+                                            <div className="py-3" style={{ overflowX: 'auto' }}>
                                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                                                     <thead>
                                                         <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -1472,6 +1498,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     {Object.keys(tot.fa).length > 0 && (
                         <div className={Z.card}>
                             <h3 className="font-semibold text-sm mb-3" style={{ color: '#a855f7' }}>BOM — Ferragens do Orçamento</h3>
+                            <div style={{ overflowX: 'auto' }}>
                             <table className="w-full border-collapse text-left">
                                 <thead><tr>{['Item', 'Origem', 'Qtd', 'Unit.', 'Total'].map(h => <th key={h} className={Z.th}>{h}</th>)}</tr></thead>
                                 <tbody>
@@ -1486,6 +1513,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     ))}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     )}
                 </div>

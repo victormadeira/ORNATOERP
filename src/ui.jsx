@@ -88,7 +88,7 @@ export const Z = {
     sub: "text-sm text-[var(--text-muted)] mb-5",
     lbl: "label-text",
     th: "th-glass text-left",
-    pg: "p-6 md:p-8 max-w-7xl mx-auto w-full",
+    pg: "p-3 md:p-6 lg:p-8 max-w-7xl mx-auto w-full",
 };
 
 export const tagStyle = (c) => ({
@@ -100,15 +100,15 @@ export const tagClass = "text-[10px] px-2 py-0.5 rounded-full font-semibold trac
 
 export function Modal({ title, close, children, w = 500 }) {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={close}>
-            <div className="glass-card shadow-xl w-full max-h-[90vh] overflow-y-auto animate-fade-up" style={{ maxWidth: w }} onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-                    <span className="font-semibold text-base">{title}</span>
-                    <button onClick={close} className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors cursor-pointer" style={{ color: 'var(--text-muted)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={close}>
+            <div className="glass-card shadow-xl w-[95vw] max-h-[90vh] overflow-y-auto animate-fade-up" style={{ maxWidth: w }} onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center px-4 md:px-5 py-3 md:py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+                    <span className="font-semibold text-sm md:text-base truncate mr-2">{title}</span>
+                    <button onClick={close} className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors cursor-pointer shrink-0" style={{ color: 'var(--text-muted)' }}>
                         <Ic.X />
                     </button>
                 </div>
-                <div className="p-5">{children}</div>
+                <div className="p-4 md:p-5">{children}</div>
             </div>
         </div>
     );

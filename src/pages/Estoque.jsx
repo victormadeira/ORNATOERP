@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 // ─── Constantes ─────────────────────────────
-const TIPOS = { material: 'Material', ferragem: 'Ferragem', componente: 'Componente' };
+const TIPOS = { material: 'Material', ferragem: 'Ferragem', acessorio: 'Acessório' };
 
 const STATUS_COR = (qtd, min) => {
     if (qtd <= 0) return { label: 'Zerado', color: '#ef4444', bg: '#fef2f2' };
@@ -326,8 +326,8 @@ export default function Estoque({ notify }) {
                             </p>
                         </div>
                     ) : (
-                        <div className="glass-card" style={{ overflow: 'hidden' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto' }}>
+                            <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr>
                                         {['Material', 'Tipo', 'Estoque', 'Mínimo', 'Status', 'Localização', 'Valor Unit.', ''].map(h => (
@@ -395,8 +395,8 @@ export default function Estoque({ notify }) {
                             <p style={{ color: 'var(--text-muted)', fontSize: 15 }}>Nenhuma movimentação registrada.</p>
                         </div>
                     ) : (
-                        <div className="glass-card" style={{ overflow: 'hidden' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto' }}>
+                            <table style={{ width: '100%', minWidth: 650, borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr>
                                         {['Data', 'Tipo', 'Material', 'Quantidade', 'Projeto', 'Descrição', 'Usuário'].map(h => (
@@ -543,8 +543,8 @@ export default function Estoque({ notify }) {
                             <p style={{ color: 'var(--text-muted)', fontSize: 15 }}>Nenhum apontamento registrado.</p>
                         </div>
                     ) : (
-                        <div className="glass-card" style={{ overflow: 'hidden' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto' }}>
+                            <table style={{ width: '100%', minWidth: 650, borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr>
                                         {['Data', 'Colaborador', 'Projeto', 'Horas', 'Valor (R$)', 'Descrição', ''].map(h => (
@@ -654,8 +654,8 @@ export default function Estoque({ notify }) {
                             <p style={{ color: 'var(--text-muted)', fontSize: 15 }}>Nenhum colaborador cadastrado.</p>
                         </div>
                     ) : (
-                        <div className="glass-card" style={{ overflow: 'hidden' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto' }}>
+                            <table style={{ width: '100%', minWidth: 550, borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr>
                                         {['Nome', 'Função', 'Valor/Hora (R$)', 'Telefone', 'Status', ''].map(h => (
