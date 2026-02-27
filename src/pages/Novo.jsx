@@ -79,7 +79,7 @@ function SubItemRow({ si, ativo, onChange, ferragensDB, globalPadroes, ferrOvr, 
 }
 
 // ── Componente: seletor de módulos com busca ─────────────────────────────────
-function CaixaSearch({ caixas, onSelect, onAddPainel }) {
+function CaixaSearch({ caixas, onSelect, onAddPainel, placeholder }) {
     const [q, setQ] = useState('');
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
@@ -97,7 +97,7 @@ function CaixaSearch({ caixas, onSelect, onAddPainel }) {
             <div className="flex items-center gap-2" style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', padding: '7px 10px' }}>
                 <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                 <input type="text" value={q}
-                    placeholder="+ Adicionar módulo... (digite para buscar)"
+                    placeholder={placeholder || '+ Adicionar módulo... (digite para buscar)'}
                     onChange={e => { setQ(e.target.value); setOpen(true); }}
                     onFocus={() => setOpen(true)}
                     className="flex-1 bg-transparent outline-none text-sm"
@@ -119,14 +119,16 @@ function CaixaSearch({ caixas, onSelect, onAddPainel }) {
                     {filtered.length === 0 && q.trim() && (
                         <div className="px-3 py-3 text-xs text-center" style={{ color: 'var(--text-muted)' }}>Nenhum módulo encontrado para "{q}"</div>
                     )}
-                    <button onClick={() => { onAddPainel(); setQ(''); setOpen(false); }}
-                        className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
-                        style={{ color: '#f59e0b' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.08)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <Layers size={14} />
-                        <span>⬡ Painel Ripado / Muxarabi</span>
-                    </button>
+                    {onAddPainel && (
+                        <button onClick={() => { onAddPainel(); setQ(''); setOpen(false); }}
+                            className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
+                            style={{ color: '#f59e0b' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.08)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                            <Layers size={14} />
+                            <span>⬡ Painel Ripado / Muxarabi</span>
+                        </button>
+                    )}
                 </div>
             )}
         </div>
@@ -902,6 +904,17 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         setExpandedItem(item.id);
     };
 
+    const swapItemCaixa = (ambId, itemId, newCaixaId) => {
+        const novaCaixaDef = caixas.find(c => c.db_id === newCaixaId);
+        if (!novaCaixaDef) return;
+        upItem(ambId, itemId, it => {
+            it.caixaId = novaCaixaDef.db_id;
+            it.caixaDef = JSON.parse(JSON.stringify(novaCaixaDef));
+            it.nome = novaCaixaDef.nome;
+            it.componentes = [];
+        });
+    };
+
     const removeItem = (ambId, itemId) => upAmb(ambId, a => { a.itens = a.itens.filter(i => i.id !== itemId); });
     const copyItem = (ambId, itemId) => upAmb(ambId, a => {
         const src = a.itens.find(i => i.id === itemId);
@@ -1455,6 +1468,17 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
                                                         {isItemExp && (
                                                             <div className="px-4 pb-4 pt-3 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
+                                                                {/* Trocar módulo */}
+                                                                <div>
+                                                                    <label className={Z.lbl}>Módulo base</label>
+                                                                    <CaixaSearch
+                                                                        caixas={caixas}
+                                                                        onSelect={newId => swapItemCaixa(amb.id, item.id, newId)}
+                                                                        onAddPainel={null}
+                                                                        placeholder={`Atual: ${item.nome} — clique para trocar...`}
+                                                                    />
+                                                                </div>
+
                                                                 {/* Descrição do módulo */}
                                                                 <div>
                                                                     <label className={Z.lbl}>Descrição do Módulo</label>
@@ -1516,17 +1540,17 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                 </div>
 
                                                                 {/* Dimensões e quantidade */}
-                                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                                                    {[['Largura (mm)', 'l'], ['Altura (mm)', 'a'], ['Profund. (mm)', 'p']].map(([lbl, k]) => (
-                                                                        <div key={k}>
+                                                                <div className="grid grid-cols-4 gap-2">
+                                                                    {[['Larg. (mm)', 'l'], ['Alt. (mm)', 'a'], ['Prof. (mm)', 'p']].map(([lbl, k]) => (
+                                                                        <div key={k} className="min-w-0">
                                                                             <label className={Z.lbl}>{lbl}</label>
                                                                             <input type="number" value={item.dims[k]}
                                                                                 onChange={e => upItem(amb.id, item.id, it => it.dims[k] = +e.target.value || 0)}
                                                                                 className={Z.inp} />
                                                                         </div>
                                                                     ))}
-                                                                    <div>
-                                                                        <label className={Z.lbl}>Quantidade</label>
+                                                                    <div className="min-w-0">
+                                                                        <label className={Z.lbl}>Qtd.</label>
                                                                         <input type="number" min="1" value={item.qtd || 1}
                                                                             onChange={e => upItem(amb.id, item.id, it => it.qtd = Math.max(1, +e.target.value || 1))}
                                                                             className={Z.inp} />
