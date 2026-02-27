@@ -3,13 +3,19 @@
 const R = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 const fmtDt = (s) => s ? new Date(s).toLocaleDateString('pt-BR') : '—';
 
+/** Escapa caracteres HTML para prevenir XSS */
+function esc(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function matNome(id, chapas, acabamentos) {
     if (!id) return '—';
     const c = (chapas || []).find(x => x.id === id);
-    if (c) return c.nome;
+    if (c) return esc(c.nome);
     const a = (acabamentos || []).find(x => x.id === id);
-    if (a) return a.nome;
-    return id;
+    if (a) return esc(a.nome);
+    return esc(id);
 }
 
 // ── CSS compartilhado (cores dinâmicas da config) ────────────────────────────
@@ -129,18 +135,18 @@ function watermarkHtml(src, opacity) {
 function headerHtml(empresa, docTitle, subtitle, dataHoje) {
     return `<div class="header">
     <div class="emp">
-        ${(empresa.logo_header_path || empresa.logo) ? `<img src="${empresa.logo_header_path || empresa.logo}" alt="${empresa.nome}" style="height:36px;max-width:110px;object-fit:contain;display:block;margin-bottom:5px;">` : ''}
-        <h1>${empresa.nome || 'Marcenaria'}</h1>
+        ${(empresa.logo_header_path || empresa.logo) ? `<img src="${empresa.logo_header_path || empresa.logo}" alt="${esc(empresa.nome)}" style="height:36px;max-width:110px;object-fit:contain;display:block;margin-bottom:5px;">` : ''}
+        <h1>${esc(empresa.nome) || 'Marcenaria'}</h1>
         <p>
-            ${empresa.cnpj ? `CNPJ: ${empresa.cnpj}<br>` : ''}
-            ${empresa.telefone ? `Tel: ${empresa.telefone}` : ''}
-            ${empresa.email ? `&nbsp;&nbsp;Email: ${empresa.email}` : ''}
-            ${(empresa.cidade || empresa.estado) ? `<br>${[empresa.cidade, empresa.estado].filter(Boolean).join(' — ')}` : ''}
+            ${empresa.cnpj ? `CNPJ: ${esc(empresa.cnpj)}<br>` : ''}
+            ${empresa.telefone ? `Tel: ${esc(empresa.telefone)}` : ''}
+            ${empresa.email ? `&nbsp;&nbsp;Email: ${esc(empresa.email)}` : ''}
+            ${(empresa.cidade || empresa.estado) ? `<br>${[empresa.cidade, empresa.estado].filter(Boolean).map(esc).join(' — ')}` : ''}
         </p>
     </div>
     <div class="doc-info">
-        <div class="title">${docTitle}</div>
-        ${subtitle ? `<div class="sub">${subtitle}</div>` : ''}
+        <div class="title">${esc(docTitle)}</div>
+        ${subtitle ? `<div class="sub">${esc(subtitle)}</div>` : ''}
         <div class="date">Data: ${dataHoje}</div>
     </div>
 </div>`;
@@ -150,14 +156,14 @@ function assinaturasHtml(clienteNome, empresaNome) {
     return `<div class="assinaturas">
     <div class="assin-box">
         <div class="assin-line">
-            <div class="nome">${clienteNome}</div>
+            <div class="nome">${esc(clienteNome)}</div>
             <div class="cargo">Cliente / Contratante</div>
             <div class="data">Data: ____/____/________</div>
         </div>
     </div>
     <div class="assin-box">
         <div class="assin-line">
-            <div class="nome">${empresaNome || 'Representante'}</div>
+            <div class="nome">${esc(empresaNome) || 'Representante'}</div>
             <div class="cargo">Representante da Empresa</div>
             <div class="data">Data: ____/____/________</div>
         </div>
@@ -172,18 +178,18 @@ function ambienteTable(amb, ai, chapas, acabamentos, entregaFotos = []) {
 
     const fotosHtml = ambFotos.length > 0 ? `
         <div class="foto-section">
-            <div class="foto-title">📷 Registro fotográfico da entrega</div>
+            <div class="foto-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Registro fotográfico da entrega</div>
             <div class="foto-grid">
                 ${ambFotos.map(f => `<div>
-                    <img src="${f.url}" alt="${f.nota || ''}" title="${f.nota || `Ambiente ${ai + 1}, Item ${(f.item_idx ?? 0) + 1}`}">
-                    ${f.nota ? `<div class="foto-label">${f.nota}</div>` : ''}
+                    <img src="${f.url}" alt="${esc(f.nota)}" title="${esc(f.nota) || `Ambiente ${ai + 1}, Item ${(f.item_idx ?? 0) + 1}`}">
+                    ${f.nota ? `<div class="foto-label">${esc(f.nota)}</div>` : ''}
                 </div>`).join('')}
             </div>
         </div>` : '';
 
     return `<div class="amb">
         <div class="amb-hdr">
-            <span>AMBIENTE ${ai + 1}: ${amb.nome || 'Sem nome'}</span>
+            <span>AMBIENTE ${ai + 1}: ${esc(amb.nome) || 'Sem nome'}</span>
             <span>${itens.length} item${itens.length !== 1 ? 'ns' : ''}${ambFotos.length > 0 ? ` · ${ambFotos.length} foto${ambFotos.length !== 1 ? 's' : ''}` : ''}</span>
         </div>
         <table class="mt">
@@ -205,7 +211,7 @@ function ambienteTable(amb, ai, chapas, acabamentos, entregaFotos = []) {
                     const p = m.dims?.p || m.p || 0;
                     return `<tr>
                         <td class="n">${mi + 1}</td>
-                        <td class="nome"><strong>${m.nome || m.tipo || '—'}</strong></td>
+                        <td class="nome"><strong>${esc(m.nome || m.tipo) || '—'}</strong></td>
                         <td class="text-xs">${matInt !== '—' ? `Int: ${matInt}` : ''}${matExt !== '—' ? `${matInt !== '—' ? '<br>' : ''}Ext: ${matExt}` : ''}</td>
                         <td class="dim">${l} × ${a} × ${p}</td>
                         <td class="n">${m.qtd || 1}</td>
@@ -248,11 +254,12 @@ export function buildTermoEntregaHtml(data, config = {}) {
 
     const { cp, ca, watermarkSrc, watermarkOpacity } = extractColors(empresa);
 
+    const baseHref = typeof window !== 'undefined' ? window.location.origin : '';
     const dataHoje = new Date().toLocaleDateString('pt-BR');
-    const clienteNome = projeto.cliente_nome || '—';
-    const projNome = projeto.nome || '—';
-    const orcNumero = projeto.orc_numero || '';
-    const enderecoObra = (() => { try { return JSON.parse(projeto.mods_json || '{}').endereco_obra || ''; } catch (_) { return ''; } })();
+    const clienteNome = esc(projeto.cliente_nome || '—');
+    const projNome = esc(projeto.nome || '—');
+    const orcNumero = esc(projeto.orc_numero || '');
+    const enderecoObra = esc((() => { try { return JSON.parse(projeto.mods_json || '{}').endereco_obra || ''; } catch (_) { return ''; } })());
 
     const itensHtml = (ambientes || []).length > 0
         ? (ambientes || []).map((amb, ai) => ambienteTable(amb, ai, chapas, acabamentos, entregaFotos)).join('')
@@ -264,13 +271,13 @@ export function buildTermoEntregaHtml(data, config = {}) {
         <div class="section ressalvas">
             <h3>PENDÊNCIAS / RESSALVAS</h3>
             <table class="mt"><thead><tr><th>Assunto</th><th>Descrição</th><th>Status</th></tr></thead><tbody>
-            ${ocorrencias.map(oc => `<tr><td class="nome"><strong>${oc.assunto}</strong></td><td>${oc.descricao || '—'}</td><td style="color:#ef4444;font-weight:600">Pendente</td></tr>`).join('')}
+            ${ocorrencias.map(oc => `<tr><td class="nome"><strong>${esc(oc.assunto)}</strong></td><td>${esc(oc.descricao) || '—'}</td><td style="color:#ef4444;font-weight:600">Pendente</td></tr>`).join('')}
             </tbody></table>
         </div>` : '';
 
-    const ressalvasHtml = ressalvas ? `<div class="section ressalvas"><h3>RESSALVAS</h3><p>${ressalvas.replace(/\n/g, '<br>')}</p></div>` : '';
+    const ressalvasHtml = ressalvas ? `<div class="section ressalvas"><h3>RESSALVAS</h3><p>${esc(ressalvas).replace(/\n/g, '<br>')}</p></div>` : '';
 
-    return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/><title>Termo de Entrega — ${clienteNome}</title><style>${buildBaseCSS(cp, ca)}</style></head><body>
+    return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/><base href="${baseHref}"/><title>Termo de Entrega — ${clienteNome}</title><style>${buildBaseCSS(cp, ca)}</style></head><body>
 
 ${watermarkHtml(watermarkSrc, watermarkOpacity)}
 <div class="content-wrap">
@@ -306,7 +313,7 @@ ${ressalvasHtml}
     <div class="fin-row total"><span>${financeiro.totalPendente > 0 ? 'SALDO A PAGAR' : 'QUITADO'}</span><span style="color:${financeiro.totalPendente > 0 ? '#ef4444' : '#16a34a'}">${financeiro.totalPendente > 0 ? R(financeiro.totalPendente) : 'R$ 0,00'}</span></div>
 </div>
 
-${observacoes ? `<div class="obs"><h3>OBSERVAÇÕES</h3><p>${observacoes.replace(/\n/g, '<br>')}</p></div>` : ''}
+${observacoes ? `<div class="obs"><h3>OBSERVAÇÕES</h3><p>${esc(observacoes).replace(/\n/g, '<br>')}</p></div>` : ''}
 
 ${assinaturasHtml(clienteNome, empresa.nome)}
 
@@ -330,11 +337,12 @@ export function buildTermoPorAmbienteHtml(data, config = {}) {
 
     const { cp, ca, watermarkSrc, watermarkOpacity } = extractColors(empresa);
 
+    const baseHref = typeof window !== 'undefined' ? window.location.origin : '';
     const dataHoje = new Date().toLocaleDateString('pt-BR');
-    const clienteNome = projeto.cliente_nome || '—';
-    const projNome = projeto.nome || '—';
-    const orcNumero = projeto.orc_numero || '';
-    const enderecoObra = (() => { try { return JSON.parse(projeto.mods_json || '{}').endereco_obra || ''; } catch (_) { return ''; } })();
+    const clienteNome = esc(projeto.cliente_nome || '—');
+    const projNome = esc(projeto.nome || '—');
+    const orcNumero = esc(projeto.orc_numero || '');
+    const enderecoObra = esc((() => { try { return JSON.parse(projeto.mods_json || '{}').endereco_obra || ''; } catch (_) { return ''; } })());
 
     if (!ambientes || ambientes.length === 0) {
         return buildTermoEntregaHtml(data, config); // fallback para termo único
@@ -344,12 +352,12 @@ export function buildTermoPorAmbienteHtml(data, config = {}) {
         return `
 ${ai > 0 ? '<div class="page-break"></div>' : ''}
 
-${headerHtml(empresa, 'TERMO DE ENTREGA', `Ambiente ${ai + 1} de ${ambientes.length} — ${amb.nome || 'Sem nome'}`, dataHoje)}
+${headerHtml(empresa, 'TERMO DE ENTREGA', `Ambiente ${ai + 1} de ${ambientes.length} — ${esc(amb.nome) || 'Sem nome'}`, dataHoje)}
 
 <div class="info-box">
     <div class="fi"><label>Cliente</label><span>${clienteNome}</span></div>
     <div class="fi"><label>Projeto</label><span>${projNome}</span></div>
-    <div class="fi"><label>Ambiente</label><span style="color:${cp};font-weight:700">${amb.nome || 'Sem nome'}</span></div>
+    <div class="fi"><label>Ambiente</label><span style="color:${cp};font-weight:700">${esc(amb.nome) || 'Sem nome'}</span></div>
     ${enderecoObra ? `<div class="fi" style="grid-column:span 2"><label>Endereço da Obra</label><span>${enderecoObra}</span></div>` : ''}
     <div class="fi"><label>Ref.</label><span>${orcNumero || '—'}</span></div>
 </div>
@@ -360,22 +368,22 @@ ${ai === 0 ? `<div class="fill-tip no-print">
 </div>` : ''}
 
 <div class="section">
-    <h3>ITENS ENTREGUES — ${(amb.nome || 'AMBIENTE').toUpperCase()}</h3>
+    <h3>ITENS ENTREGUES — ${(esc(amb.nome) || 'AMBIENTE').toUpperCase()}</h3>
     ${ambienteTable(amb, ai, chapas, acabamentos, entregaFotos)}
 </div>
 
 ${checklistHtml(CHECKLIST)}
 
-${observacoes ? `<div class="obs"><h3>OBSERVAÇÕES</h3><p>${observacoes.replace(/\n/g, '<br>')}</p></div>` : ''}
+${observacoes ? `<div class="obs"><h3>OBSERVAÇÕES</h3><p>${esc(observacoes).replace(/\n/g, '<br>')}</p></div>` : ''}
 
 ${assinaturasHtml(clienteNome, empresa.nome)}
 
 <div class="footer-legal">
-    Termo de Entrega — Ambiente ${ai + 1}/${ambientes.length}: ${amb.nome || 'Sem nome'} · ${projNome} · ${orcNumero || ''}
+    Termo de Entrega — Ambiente ${ai + 1}/${ambientes.length}: ${esc(amb.nome) || 'Sem nome'} · ${projNome} · ${orcNumero || ''}
 </div>`;
     });
 
-    return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/><title>Termos por Ambiente — ${clienteNome}</title><style>${buildBaseCSS(cp, ca)}</style></head><body>
+    return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/><base href="${baseHref}"/><title>Termos por Ambiente — ${clienteNome}</title><style>${buildBaseCSS(cp, ca)}</style></head><body>
 ${watermarkHtml(watermarkSrc, watermarkOpacity)}
 <div class="content-wrap">
 ${pages.join('\n')}
@@ -393,10 +401,11 @@ export function buildCertificadoGarantiaHtml(data, config = {}) {
 
     const { cp, ca, watermarkSrc, watermarkOpacity } = extractColors(empresa);
 
+    const baseHref = typeof window !== 'undefined' ? window.location.origin : '';
     const dataHoje = new Date().toLocaleDateString('pt-BR');
-    const clienteNome = projeto.cliente_nome || '—';
-    const projNome = projeto.nome || '—';
-    const orcNumero = projeto.orc_numero || '';
+    const clienteNome = esc(projeto.cliente_nome || '—');
+    const projNome = esc(projeto.nome || '—');
+    const orcNumero = esc(projeto.orc_numero || '');
 
     const garantiaPeriodo = '5 (cinco) anos';
     const dataEntrega = dataHoje;
@@ -405,15 +414,15 @@ export function buildCertificadoGarantiaHtml(data, config = {}) {
     const itensResumo = (ambientes || []).map((amb, ai) => {
         const itens = amb.itens || amb.mods || [];
         return `<tr>
-            <td style="font-weight:600">${amb.nome || 'Ambiente ' + (ai + 1)}</td>
+            <td style="font-weight:600">${esc(amb.nome) || 'Ambiente ' + (ai + 1)}</td>
             <td>${itens.length} item${itens.length !== 1 ? 'ns' : ''}</td>
-            <td>${itens.map(m => m.nome || m.tipo || '—').join(', ')}</td>
+            <td>${itens.map(m => esc(m.nome || m.tipo) || '—').join(', ')}</td>
         </tr>`;
     }).join('');
 
     const garantiaCustom = garantiaTexto || '';
 
-    return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/>
+    return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/><base href="${baseHref}"/>
 <title>Certificado de Garantia — ${clienteNome}</title>
 <style>
 ${buildBaseCSS(cp, ca)}
@@ -468,7 +477,7 @@ ${headerHtml(empresa, 'CERTIFICADO DE GARANTIA', orcNumero ? `Ref.: ${orcNumero}
 <!-- Cobertura -->
 <div class="clause">
     <h4>O que a Garantia Cobre</h4>
-    ${garantiaCustom ? `<p>${garantiaCustom.replace(/\n/g, '<br>')}</p>` : `<ul>
+    ${garantiaCustom ? `<p>${esc(garantiaCustom).replace(/\n/g, '<br>')}</p>` : `<ul>
         <li>Defeitos de fabricação em materiais e acabamentos</li>
         <li>Descolamento de bordas e chapas em condições normais de uso</li>
         <li>Ferragens (dobradiças, corrediças, puxadores) — funcionamento normal</li>
@@ -524,9 +533,9 @@ ${headerHtml(empresa, 'CERTIFICADO DE GARANTIA', orcNumero ? `Ref.: ${orcNumero}
 
 <!-- Contato -->
 <div class="info-box" style="background:#f0fdf4;border-color:#bbf7d0;">
-    <div class="fi"><label>Contato para Garantia</label><span>${empresa.nome || 'Marcenaria'}</span></div>
-    <div class="fi"><label>Telefone</label><span>${empresa.telefone || '—'}</span></div>
-    <div class="fi"><label>Email</label><span>${empresa.email || '—'}</span></div>
+    <div class="fi"><label>Contato para Garantia</label><span>${esc(empresa.nome) || 'Marcenaria'}</span></div>
+    <div class="fi"><label>Telefone</label><span>${esc(empresa.telefone) || '—'}</span></div>
+    <div class="fi"><label>Email</label><span>${esc(empresa.email) || '—'}</span></div>
 </div>
 
 ${assinaturasHtml(clienteNome, empresa.nome)}

@@ -97,7 +97,7 @@ router.post('/captura', (req, res) => {
                     headers: { 'Content-Type': 'application/json', apikey: emp.wa_api_key },
                     body: JSON.stringify({
                         number: phoneClean,
-                        text: `Olá ${nome.split(' ')[0]}! 👋\n\nRecebemos seu contato na ${emp.nome || 'nossa marcenaria'}. Em breve um de nossos consultores entrará em contato.\n\nObrigado pelo interesse!`,
+                        text: `Olá ${nome.split(' ')[0]}!\n\nRecebemos seu contato na ${emp.nome || 'nossa marcenaria'}. Em breve um de nossos consultores entrará em contato.\n\nObrigado pelo interesse!`,
                     }),
                 }).catch(() => {});
             }

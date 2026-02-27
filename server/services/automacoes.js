@@ -19,7 +19,7 @@ const REGRAS = [
             AND o.id NOT IN (SELECT referencia_id FROM automacoes_log WHERE tipo = 'followup_lead' AND referencia_tipo = 'orcamento')
         `,
         mensagem: (r, emp) =>
-            `Olá ${(r.c_nome || r.cliente_nome || '').split(' ')[0]}! 😊\n\nSou da ${emp}. Vi que você demonstrou interesse em nossos serviços de móveis planejados.\n\nPosso te ajudar com alguma informação sobre orçamento ou projeto?\n\nFicarei feliz em atender! 🪵`,
+            `Olá ${(r.c_nome || r.cliente_nome || '').split(' ')[0]}!\n\nSou da ${emp}. Vi que você demonstrou interesse em nossos serviços de móveis planejados.\n\nPosso te ajudar com alguma informação sobre orçamento ou projeto?\n\nFicarei feliz em atender!`,
         logTipo: 'followup_lead',
     },
     {
@@ -35,7 +35,7 @@ const REGRAS = [
             AND o.id NOT IN (SELECT referencia_id FROM automacoes_log WHERE tipo = 'followup_proposta' AND referencia_tipo = 'orcamento')
         `,
         mensagem: (r, emp) =>
-            `Olá ${(r.c_nome || r.cliente_nome || '').split(' ')[0]}! 👋\n\nEspero que esteja bem! Passando para saber se você teve a oportunidade de analisar nossa proposta (${r.numero}).\n\nSe tiver alguma dúvida ou quiser ajustar algo, estou à disposição!\n\n${emp} 🪵`,
+            `Olá ${(r.c_nome || r.cliente_nome || '').split(' ')[0]}!\n\nEspero que esteja bem! Passando para saber se você teve a oportunidade de analisar nossa proposta (${r.numero}).\n\nSe tiver alguma dúvida ou quiser ajustar algo, estou à disposição!\n\n${emp}`,
         logTipo: 'followup_proposta',
     },
     {
@@ -50,7 +50,7 @@ const REGRAS = [
             AND o.id NOT IN (SELECT referencia_id FROM automacoes_log WHERE tipo = 'followup_aprovado' AND referencia_tipo = 'orcamento')
         `,
         mensagem: (r, emp) =>
-            `Parabéns ${(r.c_nome || r.cliente_nome || '').split(' ')[0]}! 🎉\n\nSeu projeto foi aprovado! Estamos muito felizes em fazer parte dessa realização.\n\nPróximos passos:\n✅ Medição final\n✅ Compra de materiais\n✅ Início da produção\n\nEm breve entraremos em contato com o cronograma detalhado.\n\n${emp} 🪵`,
+            `Parabéns ${(r.c_nome || r.cliente_nome || '').split(' ')[0]}!\n\nSeu projeto foi aprovado! Estamos muito felizes em fazer parte dessa realização.\n\nPróximos passos:\n- Medição final\n- Compra de materiais\n- Início da produção\n\nEm breve entraremos em contato com o cronograma detalhado.\n\n${emp}`,
         logTipo: 'followup_aprovado',
     },
     {
@@ -66,7 +66,7 @@ const REGRAS = [
             AND p.id NOT IN (SELECT referencia_id FROM automacoes_log WHERE tipo = 'followup_concluido' AND referencia_tipo = 'projeto')
         `,
         mensagem: (r, emp) =>
-            `Olá ${(r.c_nome || r.cliente_nome || '').split(' ')[0]}! 😊\n\nEsperamos que esteja amando seus novos móveis!\n\nSua opinião é muito importante para nós. Poderia avaliar nosso trabalho no Google? Isso nos ajuda muito! ⭐\n\nSe precisar de qualquer ajuste, estamos à disposição.\n\nObrigado pela confiança!\n${emp} 🪵`,
+            `Olá ${(r.c_nome || r.cliente_nome || '').split(' ')[0]}!\n\nEsperamos que esteja amando seus novos móveis!\n\nSua opinião é muito importante para nós. Poderia avaliar nosso trabalho no Google? Isso nos ajuda muito!\n\nSe precisar de qualquer ajuste, estamos à disposição.\n\nObrigado pela confiança!\n${emp}`,
         logTipo: 'followup_concluido',
     },
 ];
@@ -170,7 +170,7 @@ function gerarContasRecorrentes() {
         }
 
         if (geradas > 0) {
-            console.log(`  💰 Recorrência: ${geradas} conta(s) a pagar gerada(s)`);
+            console.log(`  [OK] Recorrência: ${geradas} conta(s) a pagar gerada(s)`);
         }
     } catch (err) {
         console.error('Erro ao gerar contas recorrentes:', err.message);
@@ -253,14 +253,14 @@ function gerarNotificacoesInteligentes() {
         `).all(mesdia, hoje);
         for (const c of aniversariantes) {
             createNotification('cliente_aniversario',
-                `🎂 Aniversário: ${c.nome}`,
+                `Aniversário: ${c.nome}`,
                 `Aproveite para enviar uma mensagem!`,
                 c.id, 'cliente');
         }
 
         const total = contasAmanha.length + receberVencidas.length + orcParados.length + etapasAtrasadas.length + aniversariantes.length;
         if (total > 0) {
-            console.log(`  🔔 Notificações inteligentes: ${total} alerta(s) gerado(s)`);
+            console.log(`  [OK] Notificações inteligentes: ${total} alerta(s) gerado(s)`);
         }
     } catch (err) {
         console.error('Erro ao gerar notificações inteligentes:', err.message);
@@ -268,7 +268,7 @@ function gerarNotificacoesInteligentes() {
 }
 
 export function iniciarAutomacoes() {
-    console.log('  ⚡ Automações de follow-up + recorrência + notificações ativadas (intervalo: 1h)');
+    console.log('  [OK] Automações de follow-up + recorrência + notificações ativadas (intervalo: 1h)');
 
     // Executar a cada hora
     const interval = setInterval(executarRegras, 60 * 60 * 1000);
@@ -329,7 +329,7 @@ async function executarRegras() {
     }
 
     if (totalEnviados > 0) {
-        console.log(`  ⚡ Automações: ${totalEnviados} follow-up(s) enviado(s)`);
+        console.log(`  [OK] Automações: ${totalEnviados} follow-up(s) enviado(s)`);
     }
 }
 

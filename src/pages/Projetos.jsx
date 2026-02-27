@@ -2173,6 +2173,7 @@ function TabEntrega({ data, notify }) {
 
         try {
             const reader = new FileReader();
+            reader.onerror = () => { setUploadingKey(null); pendingUploadRef.current = null; notify('Erro ao ler arquivo'); };
             reader.onload = async (ev) => {
                 try {
                     const res = await api.post(`/projetos/${data.id}/entrega-fotos`, {
@@ -2183,7 +2184,7 @@ function TabEntrega({ data, notify }) {
                     });
                     if (res.ok) {
                         setEntregaFotos(prev => [...prev, {
-                            id: Date.now(),
+                            id: res.id,
                             ambiente_idx: ambIdx,
                             item_idx: itemIdx,
                             filename: res.nome,

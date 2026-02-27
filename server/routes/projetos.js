@@ -404,12 +404,12 @@ router.post('/:id/entrega-fotos', requireAuth, async (req, res) => {
             fs.writeFileSync(path.join(entregaDir, safeName), buffer);
         }
 
-        db.prepare(`
+        const insertResult = db.prepare(`
             INSERT INTO entrega_fotos (projeto_id, ambiente_idx, item_idx, filename, nota, gdrive_file_id)
             VALUES (?, ?, ?, ?, ?, ?)
         `).run(projeto_id, ambiente_idx ?? 0, item_idx ?? null, safeName, nota || '', gdriveFileId);
 
-        res.json({ ok: true, nome: safeName, url: `/api/drive/arquivo/${projeto_id}/entrega/${safeName}` });
+        res.json({ ok: true, id: Number(insertResult.lastInsertRowid), nome: safeName, url: `/api/drive/arquivo/${projeto_id}/entrega/${safeName}` });
     } catch (ex) {
         console.error('Erro entrega-fotos upload:', ex.message);
         res.status(500).json({ error: ex.message });

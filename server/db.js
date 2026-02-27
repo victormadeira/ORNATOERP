@@ -719,7 +719,7 @@ for (const sql of indexes) {
       const ano = o.criado_em ? new Date(o.criado_em).getFullYear() : new Date().getFullYear();
       stmt.run(`ORN-${ano}-${String(o.id).padStart(5, '0')}`, o.id);
     });
-    console.log(`✓ Numeração retroativa: ${semNumero.length} orçamento(s) numerado(s)`);
+    console.log(`[OK] Numeração retroativa: ${semNumero.length} orçamento(s) numerado(s)`);
   }
 }
 
@@ -744,7 +744,7 @@ if (!adminExists) {
 const configExists = db.prepare('SELECT id FROM config_taxas WHERE id = 1').get();
 if (!configExists) {
   db.prepare('INSERT INTO config_taxas (id) VALUES (1)').run();
-  console.log('✓ Config taxas padrão criada');
+  console.log('[OK] Config taxas padrão criada');
 }
 
 // Seed clientes de exemplo
@@ -754,7 +754,7 @@ if (clientCount.c === 0) {
   if (adminUser) {
     db.prepare('INSERT INTO clientes (user_id, nome, tel, email, arq, cidade) VALUES (?, ?, ?, ?, ?, ?)').run(adminUser.id, 'Maria Silva', '(98)99999-1111', 'maria@email.com', '', 'São Luís');
     db.prepare('INSERT INTO clientes (user_id, nome, tel, email, arq, cidade) VALUES (?, ?, ?, ?, ?, ?)').run(adminUser.id, 'João Santos', '(98)99999-2222', 'joao@email.com', 'Arq. Ana Costa', 'São Luís');
-    console.log('✓ Clientes de exemplo criados');
+    console.log('[OK] Clientes de exemplo criados');
   }
 }
 
@@ -789,7 +789,7 @@ if (bibCount.c === 0) {
   ins.run('acessorio', 'sapReg', 'Sapateira Regulável', '', 'un', 45.90, 0, 0, 0, 0, 0);
   ins.run('acessorio', 'cestoAr', 'Cesto Aramado', '', 'un', 65.90, 0, 0, 0, 0, 0);
   ins.run('material', 'fita_pvc', 'Fita de Borda PVC', 'Fita de borda 22mm', 'm', 0.85, 0, 0, 0, 0, 0);
-  console.log('✓ Biblioteca inicial criada');
+  console.log('[OK] Biblioteca inicial criada');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -966,7 +966,7 @@ if (caixaCount.c === 0) {
     ],
   }));
 
-    console.log('✓ Catálogo v2 criado: 3 caixas + 5 componentes');
+    console.log('[OK] Catálogo v2 criado: 3 caixas + 5 componentes');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -993,7 +993,7 @@ if (caixaCount.c === 0) {
         return si;
       });
       db.prepare('UPDATE modulos_custom SET json_data = ? WHERE id = ?').run(JSON.stringify(porta), portaRow.id);
-      console.log('✓ Porta: variável Ap (altura) adicionada com qtdFormula de dobradiças');
+      console.log('[OK] Porta: variável Ap (altura) adicionada com qtdFormula de dobradiças');
     }
   }
 }
@@ -1018,7 +1018,7 @@ if (caixaCount.c === 0) {
     if (data.dimsAplicaveis) continue; // já migrado
     data.dimsAplicaveis = dims;
     db.prepare('UPDATE modulos_custom SET json_data = ? WHERE id = ?').run(JSON.stringify(data), row.id);
-    console.log(`✓ ${row.nome}: dimsAplicaveis = [${dims.join(', ')}]`);
+    console.log(`[OK] ${row.nome}: dimsAplicaveis = [${dims.join(', ')}]`);
   }
 }
 
@@ -1039,7 +1039,7 @@ if (caixaCount.c === 0) {
     if (JSON.stringify(data.dimsAplicaveis) === JSON.stringify(dims)) continue;
     data.dimsAplicaveis = dims;
     db.prepare('UPDATE modulos_custom SET json_data = ? WHERE id = ?').run(JSON.stringify(data), row.id);
-    console.log(`✓ ${nome}: dimsAplicaveis corrigido para [${dims.join(', ')}]`);
+    console.log(`[OK] ${nome}: dimsAplicaveis corrigido para [${dims.join(', ')}]`);
   }
 }
 
