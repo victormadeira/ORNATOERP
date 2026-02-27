@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { Z, Ic, Modal, tagStyle, tagClass } from '../ui';
 import { R$, KCOLS, DB_ACABAMENTOS, DB_CHAPAS } from '../engine';
 import api from '../api';
+import { Copy, Download, SortAsc, SortDesc, Filter, AlertTriangle, Calendar } from 'lucide-react';
 
 // ─── Helpers para OS ─────────────────────────────────────
 const acabNome = (id) => {
@@ -158,26 +159,68 @@ function parseUA(ua = '') {
 export default function Orcs({ orcs, nav, reload, notify }) {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
+    const [clienteFilter, setClienteFilter] = useState('');
+    const [periodoFilter, setPeriodoFilter] = useState(''); // 7d, 30d, 90d, custom
+    const [sortBy, setSortBy] = useState('data_desc'); // data_desc, data_asc, valor_desc, valor_asc, cliente_asc, mod_desc
+    const [showFilters, setShowFilters] = useState(false);
     const [confirmDel, setConfirmDel] = useState(null); // { id, nome }
     const [linkModal, setLinkModal] = useState(null); // { orc, token, views }
     const [loadingLink, setLoadingLink] = useState(null); // orc_id
     const [osModal, setOsModal] = useState(null);   // { orc, empresa }
     const [loadingOS, setLoadingOS] = useState(null); // orc_id
+    const [loadingDup, setLoadingDup] = useState(null); // orc_id duplicando
+
+    // ─── Lista de clientes únicos ────────────────────────────
+    const clientes = useMemo(() => {
+        const nomes = [...new Set(orcs.map(o => o.cliente_nome).filter(Boolean))];
+        return nomes.sort((a, b) => a.localeCompare(b));
+    }, [orcs]);
+
+    // ─── Helper: dias atrás ──────────────────────────────────
+    const diasAtras = (dateStr) => {
+        if (!dateStr) return Infinity;
+        return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+    };
 
     // ─── Filtros ───────────────────────────────────────────
     const filtered = useMemo(() => {
         let list = [...orcs];
+        // Texto
         if (search.trim()) {
             const q = search.toLowerCase();
             list = list.filter(o =>
                 o.cliente_nome?.toLowerCase().includes(q) ||
                 o.ambiente?.toLowerCase().includes(q) ||
-                o.obs?.toLowerCase().includes(q)
+                o.obs?.toLowerCase().includes(q) ||
+                o.numero?.toLowerCase().includes(q)
             );
         }
+        // Status
         if (statusFilter) list = list.filter(o => (o.kb_col || 'lead') === statusFilter);
+        // Cliente
+        if (clienteFilter) list = list.filter(o => o.cliente_nome === clienteFilter);
+        // Período (baseado em atualizado_em ou criado_em)
+        if (periodoFilter) {
+            const now = Date.now();
+            const days = periodoFilter === '7d' ? 7 : periodoFilter === '30d' ? 30 : periodoFilter === '90d' ? 90 : 0;
+            if (days > 0) {
+                const cutoff = now - days * 86400000;
+                list = list.filter(o => new Date(o.atualizado_em || o.criado_em).getTime() >= cutoff);
+            }
+        }
+        // Ordenação
+        list.sort((a, b) => {
+            switch (sortBy) {
+                case 'data_asc': return new Date(a.criado_em) - new Date(b.criado_em);
+                case 'valor_desc': return (b.valor_venda || 0) - (a.valor_venda || 0);
+                case 'valor_asc': return (a.valor_venda || 0) - (b.valor_venda || 0);
+                case 'cliente_asc': return (a.cliente_nome || '').localeCompare(b.cliente_nome || '');
+                case 'mod_desc': return new Date(b.atualizado_em || b.criado_em) - new Date(a.atualizado_em || a.criado_em);
+                default: return new Date(b.criado_em) - new Date(a.criado_em); // data_desc
+            }
+        });
         return list;
-    }, [orcs, search, statusFilter]);
+    }, [orcs, search, statusFilter, clienteFilter, periodoFilter, sortBy]);
 
     // ─── Deletar ───────────────────────────────────────────
     const del = async () => {
@@ -254,7 +297,53 @@ export default function Orcs({ orcs, nav, reload, notify }) {
         setTimeout(() => { win.focus(); win.print(); }, 600);
     };
 
+    // ─── Duplicar orçamento ────────────────────────────
+    const duplicar = async (orc) => {
+        setLoadingDup(orc.id);
+        try {
+            const novo = await api.post(`/orcamentos/${orc.id}/duplicar`);
+            notify(`Orçamento duplicado → ${novo.numero}`);
+            reload();
+            // Abrir cópia direto em edição
+            nav('novo', novo);
+        } catch (ex) {
+            notify(ex.error || 'Erro ao duplicar');
+        } finally {
+            setLoadingDup(null);
+        }
+    };
+
+    // ─── Exportar CSV ────────────────────────────────────
+    const exportCSV = () => {
+        const header = ['Número', 'Data Criação', 'Última Modificação', 'Cliente', 'Projeto', 'Ambientes', 'Custo Material', 'Valor Venda', 'Status'];
+        const rows = filtered.map(o => {
+            const kc = KCOLS.find(c => c.id === (o.kb_col || 'lead'));
+            const nAmb = (o.ambientes || []).length || (o.mods?.length || 0);
+            return [
+                o.numero || `#${o.id}`,
+                dt(o.criado_em),
+                dt(o.atualizado_em || o.criado_em),
+                o.cliente_nome || '',
+                o.ambiente || '',
+                nAmb,
+                (o.custo_material || 0).toFixed(2),
+                (o.valor_venda || 0).toFixed(2),
+                kc?.nm || 'Lead'
+            ];
+        });
+        const csv = [header, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `orcamentos_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        notify('CSV exportado');
+    };
+
     const totalValue = filtered.reduce((s, o) => s + (o.valor_venda || 0), 0);
+    const hasActiveFilters = statusFilter || clienteFilter || periodoFilter;
 
     // Mapear aditivos filhos por orçamento pai (com detalhes)
     const aditivoMap = useMemo(() => {
@@ -307,32 +396,93 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                     <h1 className={Z.h1}>Orçamentos</h1>
                     <p className={Z.sub}>{orcs.length} propostas · portfólio total {R$(orcs.reduce((s, o) => s + (o.valor_venda || 0), 0))}</p>
                 </div>
-                <button onClick={() => nav("novo", null)} className={Z.btn}>
-                    <Ic.Plus /> Novo Orçamento
-                </button>
+                <div className="flex items-center gap-2">
+                    <button onClick={exportCSV} className={Z.btn2} title="Exportar CSV" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
+                        <Download size={14} /> CSV
+                    </button>
+                    <button onClick={() => nav("novo", null)} className={Z.btn}>
+                        <Ic.Plus /> Novo Orçamento
+                    </button>
+                </div>
             </div>
 
             {/* ─── Filtros ──────────────────────────────────── */}
-            <div className="flex flex-col md:flex-row gap-3 mb-6">
-                <div className="flex-1 relative">
-                    <input
-                        placeholder="Buscar por cliente, projeto ou notas..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        className={`${Z.inp} !pl-9`}
-                    />
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }}>
-                        <Ic.Search />
+            <div className="flex flex-col gap-3 mb-6">
+                {/* Linha 1: Busca + botão filtros */}
+                <div className="flex flex-col md:flex-row gap-3">
+                    <div className="flex-1 relative">
+                        <input
+                            placeholder="Buscar por cliente, projeto, número ou notas..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            className={`${Z.inp} !pl-9`}
+                        />
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }}>
+                            <Ic.Search />
+                        </div>
                     </div>
+                    <button
+                        onClick={() => setShowFilters(!showFilters)}
+                        className={`${Z.btn2} flex items-center gap-1.5 text-xs shrink-0`}
+                        style={hasActiveFilters ? { borderColor: 'var(--primary)', color: 'var(--primary)' } : {}}
+                    >
+                        <Filter size={13} />
+                        Filtros {hasActiveFilters && `(${[statusFilter, clienteFilter, periodoFilter].filter(Boolean).length})`}
+                    </button>
+                    {/* Ordenação */}
+                    <select
+                        value={sortBy}
+                        onChange={e => setSortBy(e.target.value)}
+                        className={`${Z.inp} w-full md:w-52 text-xs`}
+                    >
+                        <option value="data_desc">Mais recentes primeiro</option>
+                        <option value="data_asc">Mais antigos primeiro</option>
+                        <option value="mod_desc">Última modificação</option>
+                        <option value="valor_desc">Maior valor</option>
+                        <option value="valor_asc">Menor valor</option>
+                        <option value="cliente_asc">Cliente (A-Z)</option>
+                    </select>
                 </div>
-                <select
-                    value={statusFilter}
-                    onChange={e => setStatusFilter(e.target.value)}
-                    className={`${Z.inp} w-full md:w-48`}
-                >
-                    <option value="">Todos os status</option>
-                    {KCOLS.map(c => <option key={c.id} value={c.id}>{c.nm}</option>)}
-                </select>
+
+                {/* Linha 2: Filtros expandíveis */}
+                {showFilters && (
+                    <div className="flex flex-col md:flex-row gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                        <div className="flex-1">
+                            <label className="text-[10px] font-bold uppercase tracking-wider mb-1 block" style={{ color: 'var(--text-muted)' }}>Status</label>
+                            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={`${Z.inp} w-full text-xs`}>
+                                <option value="">Todos os status</option>
+                                {KCOLS.map(c => <option key={c.id} value={c.id}>{c.nm}</option>)}
+                            </select>
+                        </div>
+                        <div className="flex-1">
+                            <label className="text-[10px] font-bold uppercase tracking-wider mb-1 block" style={{ color: 'var(--text-muted)' }}>Cliente</label>
+                            <select value={clienteFilter} onChange={e => setClienteFilter(e.target.value)} className={`${Z.inp} w-full text-xs`}>
+                                <option value="">Todos os clientes</option>
+                                {clientes.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
+                        <div className="flex-1">
+                            <label className="text-[10px] font-bold uppercase tracking-wider mb-1 block" style={{ color: 'var(--text-muted)' }}>Período</label>
+                            <select value={periodoFilter} onChange={e => setPeriodoFilter(e.target.value)} className={`${Z.inp} w-full text-xs`}>
+                                <option value="">Todo período</option>
+                                <option value="7d">Última semana</option>
+                                <option value="30d">Último mês</option>
+                                <option value="90d">Últimos 3 meses</option>
+                            </select>
+                        </div>
+                        {hasActiveFilters && (
+                            <div className="flex items-end">
+                                <button
+                                    onClick={() => { setStatusFilter(''); setClienteFilter(''); setPeriodoFilter(''); }}
+                                    className="text-[11px] px-3 py-1.5 rounded-md cursor-pointer hover:bg-red-500/10"
+                                    style={{ color: '#ef4444' }}
+                                >
+                                    Limpar filtros
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* ─── Sumário pipeline ─────────────────────────── */}
@@ -375,8 +525,8 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                         <table className="w-full border-collapse text-left whitespace-nowrap">
                             <thead>
                                 <tr>
-                                    {['Data', 'Cliente', 'Projeto', 'Ambientes', 'Preço Final', 'Status', 'Ações'].map(h => (
-                                        <th key={h} className={`${Z.th} ${['Ambientes', 'Preço Final'].includes(h) ? 'text-right' : ''}`}>
+                                    {['Data', 'Modificado', 'Cliente', 'Projeto', 'Amb.', 'Preço Final', 'Status', 'Ações'].map(h => (
+                                        <th key={h} className={`${Z.th} ${['Amb.', 'Preço Final'].includes(h) ? 'text-right' : ''}`}>
                                             {h}
                                         </th>
                                     ))}
@@ -388,12 +538,26 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                     const nAmb = (o.ambientes || []).length;
                                     const isLoadingThisLink = loadingLink === o.id;
                                     const isLoadingThisOS = loadingOS === o.id;
+                                    const isLoadingThisDup = loadingDup === o.id;
+                                    const diasParado = diasAtras(o.atualizado_em || o.criado_em);
+                                    const isStale = (o.kb_col === 'lead' || o.kb_col === 'proposal') && diasParado > 30;
                                     return (
                                         <tr key={o.id} className="group hover:bg-[var(--bg-muted)] transition-colors">
                                             <td className="td-glass">
                                                 <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
                                                     {dt(o.criado_em)}
                                                 </span>
+                                            </td>
+                                            <td className="td-glass">
+                                                <span className="text-xs" style={{ color: isStale ? '#ef4444' : 'var(--text-muted)' }}>
+                                                    {dt(o.atualizado_em || o.criado_em)}
+                                                </span>
+                                                {isStale && (
+                                                    <div className="flex items-center gap-0.5 mt-0.5" title={`Sem movimentação há ${diasParado} dias`}>
+                                                        <AlertTriangle size={10} style={{ color: '#ef4444' }} />
+                                                        <span className="text-[9px] font-semibold" style={{ color: '#ef4444' }}>{diasParado}d parado</span>
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="td-glass font-medium" style={{ color: 'var(--text-primary)' }}>
                                                 {o.cliente_nome}
@@ -522,6 +686,18 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                     >
                                                         <Ic.Link />
                                                     </button>
+                                                    {/* Duplicar */}
+                                                    <button
+                                                        onClick={() => duplicar(o)}
+                                                        className="p-1.5 rounded-md transition-colors hover:bg-violet-500/10"
+                                                        style={{ color: isLoadingThisDup ? 'var(--text-muted)' : '#8b5cf6' }}
+                                                        title="Duplicar orçamento"
+                                                        disabled={isLoadingThisDup}
+                                                    >
+                                                        {isLoadingThisDup ? (
+                                                            <div className="w-3.5 h-3.5 border-2 rounded-full animate-spin" style={{ borderColor: '#8b5cf6', borderTopColor: 'transparent' }} />
+                                                        ) : <Copy size={14} />}
+                                                    </button>
                                                     {/* Excluir */}
                                                     <button
                                                         onClick={() => setConfirmDel({ id: o.id, nome: o.cliente_nome })}
@@ -539,7 +715,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                             {filtered.length > 1 && (
                                 <tfoot>
                                     <tr style={{ borderTop: '2px solid var(--border)' }}>
-                                        <td colSpan={4} className="td-glass text-right text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+                                        <td colSpan={5} className="td-glass text-right text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
                                             {filtered.length} proposta{filtered.length !== 1 ? 's' : ''} · Total
                                         </td>
                                         <td className="td-glass text-right font-bold" style={{ color: 'var(--primary)' }}>

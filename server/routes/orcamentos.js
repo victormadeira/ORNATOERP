@@ -154,6 +154,55 @@ router.get('/:id/aditivos', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// POST /api/orcamentos/:id/duplicar — cópia independente
+// ═══════════════════════════════════════════════════════
+router.post('/:id/duplicar', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    const original = db.prepare('SELECT * FROM orcamentos WHERE id = ?').get(id);
+    if (!original) return res.status(404).json({ error: 'Orçamento não encontrado' });
+
+    if (!canSeeAll(req.user) && original.user_id !== req.user.id) {
+        return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    // Copiar mods_json completo
+    let modsData = {};
+    try { modsData = JSON.parse(original.mods_json || '{}'); } catch (_) {}
+
+    // Reset pagamento (parcelas) — cópia começa do zero
+    modsData.pagamento = null;
+
+    const modsJson = JSON.stringify(modsData);
+
+    const result = db.prepare(`
+        INSERT INTO orcamentos (user_id, cliente_id, cliente_nome, ambiente, mods_json, obs, custo_material, valor_venda, status, kb_col, numero, tipo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'rascunho', 'lead', '', 'original')
+    `).run(
+        req.user.id,
+        original.cliente_id,
+        original.cliente_nome || '',
+        modsData.projeto || original.ambiente || '',
+        modsJson,
+        original.obs ? `Cópia de ${original.numero || '#' + original.id}. ${original.obs}` : `Cópia de ${original.numero || '#' + original.id}`,
+        original.custo_material || 0,
+        original.valor_venda || 0
+    );
+
+    const newId = result.lastInsertRowid;
+    // Auto-gerar número
+    const ano = new Date().getFullYear();
+    const autoNum = `ORN-${ano}-${String(newId).padStart(5, '0')}`;
+    db.prepare('UPDATE orcamentos SET numero = ? WHERE id = ?').run(autoNum, newId);
+
+    const orc = db.prepare('SELECT * FROM orcamentos WHERE id = ?').get(newId);
+    parseOrcData(orc);
+
+    logActivity(req.user.id, req.user.nome, 'duplicou_orcamento', `Duplicou orçamento ${original.numero || '#' + original.id} → ${autoNum}`, orc.id, 'orcamento');
+
+    res.status(201).json(orc);
+});
+
+// ═══════════════════════════════════════════════════════
 // POST /api/orcamentos
 // ═══════════════════════════════════════════════════════
 router.post('/', requireAuth, (req, res) => {
