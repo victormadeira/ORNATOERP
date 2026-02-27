@@ -41,7 +41,8 @@ function parseUA(ua) {
     return { dispositivo, navegador, os_name };
 }
 
-// Geolocalização por IP (ip-api.com — gratuito, 45 req/min)
+// Geolocalização por IP (ipinfo.io — 50k req/mês grátis)
+const IPINFO_TOKEN = 'f4a5ba70f05a1c';
 async function geolocateIP(ip) {
     if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
         return { cidade: 'Local', estado: '', pais: '' };
@@ -49,11 +50,11 @@ async function geolocateIP(ip) {
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 3000);
-        const resp = await fetch(`http://ip-api.com/json/${ip}?fields=city,regionName,country&lang=pt-BR`, { signal: controller.signal });
+        const resp = await fetch(`https://ipinfo.io/${ip}/json?token=${IPINFO_TOKEN}`, { signal: controller.signal });
         clearTimeout(timeout);
         if (!resp.ok) return { cidade: '', estado: '', pais: '' };
         const data = await resp.json();
-        return { cidade: data.city || '', estado: data.regionName || '', pais: data.country || '' };
+        return { cidade: data.city || '', estado: data.region || '', pais: data.country || '' };
     } catch {
         return { cidade: '', estado: '', pais: '' };
     }
