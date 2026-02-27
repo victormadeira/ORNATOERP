@@ -1,0 +1,50 @@
+## Ornato ERP — Nginx Reverse Proxy
+## Copiar para: /etc/nginx/sites-available/ornato-erp
+## Ativar: ln -s /etc/nginx/sites-available/ornato-erp /etc/nginx/sites-enabled/
+
+server {
+    listen 80;
+    server_name _;
+
+    # Limite de upload (fotos montador, NFs, etc)
+    client_max_body_size 50M;
+
+    # Frontend (React build)
+    location / {
+        root /home/ornato/app/dist;
+        try_files $uri $uri/ /index.html;
+
+        # Cache para assets estaticos
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 7d;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+
+    # API Backend (Node.js via PM2)
+    location /api/ {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    # Portal do cliente (SPA fallback)
+    location /portal/ {
+        root /home/ornato/app/dist;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Montador (SPA fallback)
+    location /montador/ {
+        root /home/ornato/app/dist;
+        try_files $uri $uri/ /index.html;
+    }
+}
