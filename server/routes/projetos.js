@@ -29,6 +29,10 @@ router.get('/portal/:token', (req, res) => {
 
     if (!proj) return res.status(404).json({ error: 'Projeto não encontrado ou link inválido' });
 
+    // Auto-sync status do projeto baseado nas etapas
+    const syncedStatus = autoUpdateProjectStatus(proj.id);
+    if (syncedStatus) proj.status = syncedStatus;
+
     const etapas = db.prepare(`
         SELECT e.*, u.nome as responsavel_nome
         FROM etapas_projeto e
@@ -192,6 +196,10 @@ router.get('/:id', requireAuth, (req, res) => {
 
     if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
 
+    // Auto-sync status do projeto baseado nas etapas
+    const syncedStatus = autoUpdateProjectStatus(proj.id, req.user.id, req.user.nome);
+    if (syncedStatus) proj.status = syncedStatus;
+
     const etapas = db.prepare(`
         SELECT e.*, u.nome as responsavel_nome
         FROM etapas_projeto e
@@ -341,14 +349,14 @@ router.post('/:id/etapas', requireAuth, (req, res) => {
 function autoUpdateProjectStatus(projetoId, userId, userName) {
     try {
         const projeto = db.prepare('SELECT id, nome, status FROM projetos WHERE id = ?').get(projetoId);
-        if (!projeto) return;
+        if (!projeto) return projeto?.status;
 
         // Só age sobre nao_iniciado e em_andamento (respeita suspenso/atrasado como manuais)
         const autoStatuses = ['nao_iniciado', 'em_andamento'];
-        if (!autoStatuses.includes(projeto.status)) return;
+        if (!autoStatuses.includes(projeto.status)) return projeto.status;
 
         const etapas = db.prepare('SELECT status FROM etapas_projeto WHERE projeto_id = ?').all(projetoId);
-        if (etapas.length === 0) return;
+        if (etapas.length === 0) return projeto.status;
 
         const allDone = etapas.every(e => e.status === 'concluida');
         const anyStarted = etapas.some(e => e.status === 'em_andamento' || e.status === 'concluida');
@@ -359,7 +367,6 @@ function autoUpdateProjectStatus(projetoId, userId, userName) {
         } else if (anyStarted && projeto.status === 'nao_iniciado') {
             newStatus = 'em_andamento';
         } else if (!anyStarted && !allDone && projeto.status === 'em_andamento') {
-            // Todas voltaram para nao_iniciado
             const anyActive = etapas.some(e => e.status !== 'nao_iniciado' && e.status !== 'pendente');
             if (!anyActive) newStatus = 'nao_iniciado';
         }
@@ -377,9 +384,12 @@ function autoUpdateProjectStatus(projetoId, userId, userName) {
                         projetoId, 'projeto', '', userId);
                 }
             } catch (_) { /* log não bloqueia */ }
+            return newStatus;
         }
+        return projeto.status;
     } catch (err) {
         console.error('autoUpdateProjectStatus error:', err);
+        return null;
     }
 }
 
