@@ -23,31 +23,65 @@ export default function MontadorUpload({ token }) {
             .finally(() => setLoading(false));
     }, [token]);
 
+    // Comprimir imagem no client via Canvas (max 1920px, JPEG 80%)
+    const compressImage = (file) => new Promise((resolve, reject) => {
+        const img = new Image();
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            img.onload = () => {
+                const MAX_SIZE = 1920;
+                let { width, height } = img;
+                if (width > MAX_SIZE || height > MAX_SIZE) {
+                    if (width > height) {
+                        height = Math.round(height * (MAX_SIZE / width));
+                        width = MAX_SIZE;
+                    } else {
+                        width = Math.round(width * (MAX_SIZE / height));
+                        height = MAX_SIZE;
+                    }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.80);
+                resolve(dataUrl);
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+
     const handleUpload = async (file) => {
         if (!file) return;
         setUploading(true);
         setSuccess(false);
 
         try {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const res = await fetch(`${API}/api/montador/public/${token}/upload`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ filename: file.name, data: e.target.result, ambiente }),
-                });
-                if (!res.ok) throw new Error();
-                setFotos(f => f + 1);
-                setUploadedFotos(prev => [...prev, {
-                    filename: file.name,
-                    ambiente,
-                    timestamp: new Date().toLocaleString('pt-BR'),
-                }]);
-                setSuccess(true);
-                setTimeout(() => setSuccess(false), 3000);
-                setUploading(false);
-            };
-            reader.readAsDataURL(file);
+            // Comprimir antes de enviar
+            const compressedData = await compressImage(file);
+            // Trocar extensão para .jpg pois agora é sempre JPEG
+            const baseName = file.name.replace(/\.[^.]+$/, '');
+            const fileName = `${baseName}.jpg`;
+
+            const res = await fetch(`${API}/api/montador/public/${token}/upload`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: fileName, data: compressedData, ambiente }),
+            });
+            if (!res.ok) throw new Error();
+            setFotos(f => f + 1);
+            setUploadedFotos(prev => [...prev, {
+                filename: fileName,
+                ambiente,
+                timestamp: new Date().toLocaleString('pt-BR'),
+            }]);
+            setSuccess(true);
+            setTimeout(() => setSuccess(false), 3000);
+            setUploading(false);
         } catch {
             setError('Erro ao enviar foto');
             setUploading(false);

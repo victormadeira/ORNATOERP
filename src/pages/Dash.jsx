@@ -745,11 +745,12 @@ function TopClientes({ data }) {
 // ═══════════════════════════════════════════════════════════
 // DASH — Componente principal
 // ═══════════════════════════════════════════════════════════
-export default function Dash({ nav, notify }) {
+export default function Dash({ nav, notify, user }) {
     const [data, setData] = useState(null);
     const [finData, setFinData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState(false);
+    const isVendedor = user?.role === 'vendedor';
     const [tab, setTab] = useState('geral'); // 'geral' | 'financeiro'
     const [finLoading, setFinLoading] = useState(false);
     const [atividades, setAtividades] = useState([]);
@@ -838,7 +839,7 @@ export default function Dash({ nav, notify }) {
                 <div style={{ display: 'flex', gap: 4, background: 'var(--bg-muted)', borderRadius: 10, padding: 3 }}>
                     {[
                         { id: 'geral', label: 'Visão Geral', icon: Activity },
-                        { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
+                        ...(!isVendedor ? [{ id: 'financeiro', label: 'Financeiro', icon: DollarSign }] : []),
                     ].map(t => {
                         const Icon = t.icon;
                         return (
@@ -861,15 +862,20 @@ export default function Dash({ nav, notify }) {
             {/* ═══ TAB GERAL ═══ */}
             {tab === 'geral' && (
                 <>
-                    <HeadlineMes data={data.headline} />
-                    <FilaAtencao data={data.atencao} nav={nav} />
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                    {!isVendedor && <HeadlineMes data={data.headline} />}
+                    {!isVendedor ? (
+                        <FilaAtencao data={data.atencao} nav={nav} />
+                    ) : data.atencao?.total_parados > 0 && (
+                        /* Vendedor vê só orçamentos parados, sem contas vencidas */
+                        <FilaAtencao data={{ ...data.atencao, total_vencidas: 0, contas_vencidas: [], valor_vencido: 0 }} nav={nav} />
+                    )}
+                    <div style={{ display: 'grid', gridTemplateColumns: isVendedor ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>
                         <PipelineVisual data={data.pipeline} total={data.pipeline_total} nav={nav} />
-                        <FluxoCaixa data={data.fluxo_caixa} />
+                        {!isVendedor && <FluxoCaixa data={data.fluxo_caixa} />}
                     </div>
                     <ProjetosAtivos data={data.projetos_ativos} total={data.total_projetos_ativos} nav={nav} />
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, marginBottom: 16 }}>
-                        {shortcuts.map((s, i) => {
+                        {shortcuts.filter(s => !(isVendedor && s.pg === 'cfg')).map((s, i) => {
                             const I = s.ic;
                             return (
                                 <button key={i} onClick={() => nav(s.pg)}

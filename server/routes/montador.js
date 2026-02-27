@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as gdrive from '../services/gdrive.js';
+import { createNotification } from '../services/notificacoes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
@@ -182,6 +183,19 @@ router.post('/public/:token/upload', async (req, res) => {
         INSERT INTO montador_fotos (projeto_id, token_id, nome_montador, ambiente, filename, gdrive_file_id)
         VALUES (?, ?, ?, ?, ?, ?)
     `).run(tokenRow.projeto_id, tokenRow.id, tokenRow.nome_montador, ambiente || '', safeName, gdriveFileId);
+
+    // Notificar equipe sobre a foto enviada
+    const projNome = db.prepare('SELECT nome FROM projetos WHERE id = ?').get(tokenRow.projeto_id)?.nome || '';
+    const montadorNome = (tokenRow.nome_montador || '').trim() || 'Montador';
+    try {
+        createNotification(
+            'montador_foto',
+            'Nova foto do montador',
+            `${montadorNome} enviou foto${ambiente ? ` (${ambiente})` : ''} — projeto "${projNome}"`,
+            tokenRow.projeto_id,
+            'projeto'
+        );
+    } catch (_) { /* não bloqueia */ }
 
     res.json({ ok: true, nome: safeName });
 });

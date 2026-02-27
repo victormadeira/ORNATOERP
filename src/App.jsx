@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './auth';
 import api from './api';
 import { Ic, Z } from './ui';
-import { AlertTriangle, Clock, CheckCircle2, Folder, BarChart2, AlertCircle, DollarSign, Calendar, Bell, MessageCircle } from 'lucide-react';
+import { AlertTriangle, Clock, CheckCircle2, Folder, BarChart2, AlertCircle, DollarSign, Calendar, Bell, MessageCircle, Camera } from 'lucide-react';
 import LoginPage from './pages/Login';
 import Dash from './pages/Dash';
 import Cli from './pages/Cli';
@@ -162,17 +162,22 @@ export default function App() {
 
     // Filtra menus por permissões do usuário (admin vê tudo; outros respeitam permissions)
     const userPerms = (() => { try { return user?.permissions ? JSON.parse(user.permissions) : null; } catch { return null; } })();
+    const isVendedor = user?.role === 'vendedor';
     const mn = [
         ...(isAdmin
             ? ALL_MENUS
-            : ALL_MENUS.filter(m => !userPerms || userPerms.length === 0 || userPerms.includes(m.id))
+            : ALL_MENUS.filter(m => {
+                // Vendedor nunca vê financeiro
+                if (isVendedor && m.id === 'financeiro') return false;
+                return !userPerms || userPerms.length === 0 || userPerms.includes(m.id);
+            })
         ),
         ...(isAdmin ? [{ id: "users", lb: "Usuários", ic: Ic.Users }] : []),
     ];
 
     const renderPage = () => {
         switch (pg) {
-            case "dash": return <Dash nav={nav} notify={notify} />;
+            case "dash": return <Dash nav={nav} notify={notify} user={user} />;
             case "cli": return <Cli clis={clis} reload={loadClis} notify={notify} nav={nav} />;
             case "cat": return <Cat />;
             case "orcs": return <Orcs orcs={orcs} nav={nav} reload={loadOrcs} notify={notify} />;
@@ -203,6 +208,7 @@ export default function App() {
         pagar_proximo:       { icon: <DollarSign size={14} />, color: '#f59e0b', bg: '#fffbeb' },
         recorrencia_gerada:  { icon: <Calendar size={14} />, color: '#8b5cf6', bg: '#f5f3ff' },
         portal_mensagem:     { icon: <MessageCircle size={14} />, color: '#3b82f6', bg: '#eff6ff' },
+        montador_foto:       { icon: <Camera size={14} />, color: '#8b5cf6', bg: '#f5f3ff' },
     };
     const getNotifStyle = (tipo) => NOTIF_STYLE[tipo] || { icon: <Bell size={14} />, color: 'var(--primary)', bg: 'var(--bg-hover)' };
     const notifBadgeColor = notifs.nao_lidas > 0
