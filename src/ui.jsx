@@ -84,12 +84,12 @@ export const Z = {
     btn: "btn-primary",
     btn2: "btn-secondary",
     btnD: "btn-danger",
-    card: "glass-card p-5",
+    card: "glass-card p-3 sm:p-5",
     h1: "text-xl font-semibold mb-0.5",
     sub: "text-sm text-[var(--text-muted)] mb-5",
     lbl: "label-text",
     th: "th-glass text-left",
-    pg: "p-3 md:p-6 lg:p-8 max-w-7xl mx-auto w-full",
+    pg: "p-2 sm:p-3 md:p-6 lg:p-8 max-w-7xl mx-auto w-full",
 };
 
 export const tagStyle = (c) => ({

@@ -259,6 +259,51 @@ body {
   color: var(--text-primary);
 }
 
+/* ─── Mobile (≤640px) ─── */
+@media (max-width: 640px) {
+  /* Cards: menos padding */
+  .glass-card {
+    border-radius: 0.625rem;
+  }
+  .glass-card.p-5 {
+    padding: 0.75rem !important;
+  }
+
+  /* Inputs: touch-friendly */
+  .input-glass {
+    font-size: 1rem;
+    padding: 0.625rem 0.75rem;
+    min-height: 44px;
+  }
+
+  /* Botões: touch-friendly */
+  .btn-primary, .btn-secondary {
+    font-size: 0.8125rem;
+    padding: 0.5rem 1rem;
+    min-height: 40px;
+  }
+
+  /* Tabelas: mais compactas */
+  .th-glass {
+    padding: 0.5rem 0.625rem;
+    font-size: 0.6875rem;
+  }
+  .td-glass {
+    padding: 0.5rem 0.625rem;
+    font-size: 0.8125rem;
+  }
+
+  /* Labels */
+  .label-text {
+    font-size: 0.8125rem;
+  }
+
+  /* Colunas escondidas no mobile */
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
 /* ─── Print ─── */
 @media print {
   @page {

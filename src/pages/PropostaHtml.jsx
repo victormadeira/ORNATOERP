@@ -351,6 +351,19 @@ export function buildPropostaHtml({
             margin: 0 auto;
         }
     }
+    @media screen and (max-width: 640px) {
+        body {
+            padding: 20px 14px 32px !important;
+            font-size: 11px !important;
+        }
+        table { font-size: 10px !important; }
+        td, th { padding: 4px 6px !important; }
+        .header { flex-direction: column !important; text-align: center !important; gap: 10px !important; }
+        .header img { max-width: 180px !important; }
+        .wm img { max-width: 200px !important; }
+        h2 { font-size: 13px !important; }
+        .c-field { font-size: 11px !important; }
+    }
 
     /* ── Watermark ── */
     .wm {

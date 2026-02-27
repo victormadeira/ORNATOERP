@@ -533,11 +533,20 @@ export default function Orcs({ orcs, nav, reload, notify }) {
             ) : (
                 <div className={`${Z.card} !p-0 overflow-hidden`}>
                     <div className="overflow-x-auto">
-                        <table className="w-full border-collapse text-left whitespace-nowrap">
+                        <table className="w-full border-collapse text-left">
                             <thead>
                                 <tr>
-                                    {['Data', 'Modificado', 'Cliente', 'Projeto', 'Amb.', 'Preço Final', 'Status', 'Ações'].map(h => (
-                                        <th key={h} className={`${Z.th} ${['Amb.', 'Preço Final'].includes(h) ? 'text-right' : ''}`}>
+                                    {[
+                                        { h: 'Data', cls: '' },
+                                        { h: 'Modificado', cls: 'hide-mobile' },
+                                        { h: 'Cliente', cls: '' },
+                                        { h: 'Projeto', cls: '' },
+                                        { h: 'Amb.', cls: 'hide-mobile text-right' },
+                                        { h: 'Preço Final', cls: 'text-right' },
+                                        { h: 'Status', cls: '' },
+                                        { h: 'Ações', cls: '' },
+                                    ].map(({ h, cls }) => (
+                                        <th key={h} className={`${Z.th} ${cls}`}>
                                             {h}
                                         </th>
                                     ))}
@@ -559,7 +568,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                     {dt(o.criado_em)}
                                                 </span>
                                             </td>
-                                            <td className="td-glass">
+                                            <td className="td-glass hide-mobile">
                                                 <span className="text-xs" style={{ color: isStale ? '#ef4444' : 'var(--text-muted)' }}>
                                                     {dt(o.atualizado_em || o.criado_em)}
                                                 </span>
@@ -590,7 +599,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                     )}
                                                 </span>
                                             </td>
-                                            <td className="td-glass text-right" style={{ color: 'var(--text-muted)' }}>
+                                            <td className="td-glass text-right hide-mobile" style={{ color: 'var(--text-muted)' }}>
                                                 {nAmb > 0 ? `${nAmb} amb.` : (o.mods?.length > 0 ? `${o.mods.length} mód.` : '—')}
                                             </td>
                                             <td className="td-glass text-right font-bold relative" style={{ color: 'var(--primary)' }}>

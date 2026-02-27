@@ -172,8 +172,8 @@ export default function ProposalPublic({ token }) {
                 position: 'sticky', top: 0, zIndex: 100,
                 background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(8px)',
                 borderBottom: `3px solid ${meta?.cor_primaria || '#1B2A4A'}`,
-                padding: '12px 20px',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8,
+                padding: '10px 12px',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6,
                 boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -209,7 +209,7 @@ export default function ProposalPublic({ token }) {
             </div>
 
             {/* Proposta renderizada em iframe (HTML standalone) */}
-            <div className="prop-frame" style={{ maxWidth: 900, margin: '24px auto', padding: '0 16px' }}>
+            <div className="prop-frame" style={{ maxWidth: 900, margin: '16px auto', padding: '0 8px' }}>
                 <iframe
                     ref={iframeRef}
                     srcDoc={html}
@@ -234,6 +234,17 @@ export default function ProposalPublic({ token }) {
                                     max-width: 860px;
                                     margin: 0 auto !important;
                                 }
+                            }
+                            @media screen and (max-width: 640px) {
+                                body {
+                                    padding: 20px 14px 32px !important;
+                                    font-size: 11px !important;
+                                }
+                                table { font-size: 10px !important; }
+                                td, th { padding: 4px 6px !important; }
+                                .header { flex-direction: column !important; text-align: center !important; }
+                                .header img, .wm img { max-width: 200px !important; }
+                                h2 { font-size: 13px !important; }
                             }
                         `;
                         doc.head.appendChild(style);

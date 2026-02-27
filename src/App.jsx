@@ -264,7 +264,7 @@ export default function App() {
             {/* Sidebar */}
             <aside className={`
                 ${isMobile
-                    ? `fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-200 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`
+                    ? `fixed inset-y-0 left-0 z-40 w-56 transform transition-transform duration-200 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`
                     : `relative z-20 shrink-0 overflow-hidden transition-all duration-200 ${sb ? 'w-56' : 'w-[52px]'}`
                 }
                 flex flex-col
