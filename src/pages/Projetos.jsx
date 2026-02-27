@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
 import { Ic, Z, Modal, Spinner } from '../ui';
-import { R$, N } from '../engine';
+import { R$, N, DB_CHAPAS, DB_ACABAMENTOS } from '../engine';
+import { buildTermoEntregaHtml } from './TermoEntregaHtml';
 import {
     User as UserIcon, Calendar as CalendarIcon, Copy as CopyIcon,
     Check as CheckIcon, DollarSign, TrendingUp, TrendingDown,
@@ -9,7 +10,7 @@ import {
     ArrowUpCircle, ArrowDownCircle, BarChart3, Search,
     Scissors, Layers, Ruler, ClipboardList, ShoppingCart,
     ChevronDown, ChevronRight, Printer, X as XIcon, Pencil, Clipboard,
-    Eye, EyeOff, Upload, Trash2 as Trash2Icon
+    Eye, EyeOff, Upload, Trash2 as Trash2Icon, FileCheck, Shield
 } from 'lucide-react';
 
 // ─── Helpers ──────────────────────────────────────
@@ -2125,6 +2126,247 @@ function TabPortalMsgs({ data, notify }) {
 }
 
 // ═══════════════════════════════════════════════════════
+// TAB ENTREGA — Termo de Entrega e Aceitação
+// ═══════════════════════════════════════════════════════
+function TabEntrega({ data, notify }) {
+    const [loading, setLoading] = useState(false);
+    const [termoData, setTermoData] = useState(null);
+    const [observacoes, setObservacoes] = useState('');
+    const [ressalvas, setRessalvas] = useState('');
+    const [garantiaTexto, setGarantiaTexto] = useState('');
+    const [showConfig, setShowConfig] = useState(false);
+
+    const loadTermoData = async () => {
+        setLoading(true);
+        try {
+            const res = await api.get(`/projetos/${data.id}/termo-entrega`);
+            setTermoData(res);
+        } catch (ex) {
+            notify('Erro ao carregar dados do termo');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => { loadTermoData(); }, [data.id]);
+
+    const gerarTermo = () => {
+        if (!termoData) return;
+        const html = buildTermoEntregaHtml(termoData, {
+            chapas: DB_CHAPAS,
+            acabamentos: DB_ACABAMENTOS,
+            observacoes,
+            ressalvas,
+            garantiaTexto: garantiaTexto || undefined,
+        });
+        const win = window.open('', '_blank', 'width=950,height=750');
+        if (!win) { notify('Permita pop-ups para gerar o termo'); return; }
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
+        setTimeout(() => { win.focus(); }, 400);
+    };
+
+    if (loading) return <Spinner text="Carregando dados do termo..." />;
+
+    const etapas = data.etapas || [];
+    const totalEtapas = etapas.length;
+    const concluidas = etapas.filter(e => e.status === 'concluida').length;
+    const progresso = totalEtapas > 0 ? Math.round((concluidas / totalEtapas) * 100) : 0;
+    const isConcluido = data.status === 'concluido' || progresso === 100;
+
+    return (
+        <div className="flex flex-col gap-5">
+            {/* Status da entrega */}
+            <div className="glass-card p-5">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center"
+                            style={{ background: isConcluido ? '#f0fdf4' : '#fefce8' }}>
+                            <FileCheck size={20} style={{ color: isConcluido ? '#16a34a' : '#ca8a04' }} />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                                Termo de Entrega e Aceitação
+                            </h3>
+                            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                {isConcluido
+                                    ? 'Projeto concluído — pronto para gerar o termo de entrega'
+                                    : `Projeto em andamento — ${progresso}% concluído (${concluidas}/${totalEtapas} etapas)`
+                                }
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={gerarTermo}
+                        disabled={!termoData}
+                        className={Z.btn}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}
+                    >
+                        <Printer size={15} /> Gerar Termo
+                    </button>
+                </div>
+
+                {/* Barra de progresso */}
+                <div className="mb-3">
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>
+                        <span>Progresso do Projeto</span>
+                        <span>{progresso}%</span>
+                    </div>
+                    <div style={{ background: 'var(--bg-muted)', borderRadius: 8, height: 8, overflow: 'hidden' }}>
+                        <div style={{
+                            width: `${progresso}%`,
+                            height: '100%',
+                            borderRadius: 8,
+                            background: progresso === 100 ? '#16a34a' : 'var(--primary)',
+                            transition: 'width 0.3s',
+                        }} />
+                    </div>
+                </div>
+
+                {/* Resumo das etapas */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {[
+                        { label: 'Total', value: totalEtapas, color: 'var(--text-muted)' },
+                        { label: 'Concluídas', value: concluidas, color: '#16a34a' },
+                        { label: 'Em andamento', value: etapas.filter(e => e.status === 'em_andamento').length, color: '#3b82f6' },
+                        { label: 'Pendentes', value: etapas.filter(e => e.status === 'nao_iniciado').length, color: '#94a3b8' },
+                    ].map((s, i) => (
+                        <div key={i} className="text-center p-2 rounded-lg" style={{ background: 'var(--bg-muted)' }}>
+                            <div className="text-lg font-bold" style={{ color: s.color }}>{s.value}</div>
+                            <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{s.label}</div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Preview: o que vai no termo */}
+            {termoData && (
+                <div className="glass-card p-5">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                            <ClipboardList size={15} /> Conteúdo do Termo
+                        </h3>
+                        <button
+                            onClick={() => setShowConfig(!showConfig)}
+                            className={Z.btn2}
+                            style={{ fontSize: 11, padding: '5px 12px' }}
+                        >
+                            {showConfig ? 'Ocultar opções' : 'Personalizar'}
+                        </button>
+                    </div>
+
+                    {/* Resumo de dados */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                        <div className="p-3 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                            <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Cliente</div>
+                            <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{termoData.projeto.cliente_nome || '—'}</div>
+                        </div>
+                        <div className="p-3 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                            <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Ambientes</div>
+                            <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                                {(termoData.ambientes || []).length > 0
+                                    ? `${termoData.ambientes.length} ambiente${termoData.ambientes.length > 1 ? 's' : ''}: ${termoData.ambientes.map(a => a.nome || 'Sem nome').join(', ')}`
+                                    : 'Nenhum ambiente vinculado'
+                                }
+                            </div>
+                        </div>
+                        <div className="p-3 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                            <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Financeiro</div>
+                            <div className="text-sm font-semibold" style={{ color: termoData.financeiro.totalPendente > 0 ? '#ef4444' : '#16a34a' }}>
+                                {termoData.financeiro.totalPendente > 0
+                                    ? `${R$(termoData.financeiro.totalPago)} pago · ${R$(termoData.financeiro.totalPendente)} pendente`
+                                    : `${R$(termoData.financeiro.valorTotal)} — Quitado`
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Ocorrências abertas */}
+                    {(termoData.ocorrencias || []).length > 0 && (
+                        <div className="p-3 rounded-lg mb-4" style={{ background: '#fef2f2', border: '1px solid #fecaca' }}>
+                            <div className="flex items-center gap-2 mb-2">
+                                <AlertTriangle size={14} style={{ color: '#ef4444' }} />
+                                <span className="text-xs font-bold" style={{ color: '#ef4444' }}>
+                                    {termoData.ocorrencias.length} ocorrência{termoData.ocorrencias.length > 1 ? 's' : ''} aberta{termoData.ocorrencias.length > 1 ? 's' : ''}
+                                </span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                {termoData.ocorrencias.map(oc => (
+                                    <div key={oc.id} className="text-xs" style={{ color: '#991b1b' }}>
+                                        • {oc.assunto}{oc.descricao ? ` — ${oc.descricao}` : ''}
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-[10px] mt-2" style={{ color: '#b91c1c' }}>
+                                Estas pendências serão incluídas automaticamente no termo de entrega.
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Opções de personalização */}
+                    {showConfig && (
+                        <div className="flex flex-col gap-3 p-4 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                            <div>
+                                <label className={Z.lbl}>Observações (opcional)</label>
+                                <textarea
+                                    value={observacoes}
+                                    onChange={e => setObservacoes(e.target.value)}
+                                    placeholder="Observações adicionais a incluir no termo..."
+                                    className={Z.inp}
+                                    rows={3}
+                                    style={{ resize: 'vertical' }}
+                                />
+                            </div>
+                            <div>
+                                <label className={Z.lbl}>Ressalvas (opcional)</label>
+                                <textarea
+                                    value={ressalvas}
+                                    onChange={e => setRessalvas(e.target.value)}
+                                    placeholder="Itens pendentes, condições especiais..."
+                                    className={Z.inp}
+                                    rows={2}
+                                    style={{ resize: 'vertical' }}
+                                />
+                            </div>
+                            <div>
+                                <label className={Z.lbl}>Texto de Garantia (personalizado)</label>
+                                <textarea
+                                    value={garantiaTexto}
+                                    onChange={e => setGarantiaTexto(e.target.value)}
+                                    placeholder="Deixe em branco para usar o texto padrão (5 anos para defeitos de fabricação)..."
+                                    className={Z.inp}
+                                    rows={3}
+                                    style={{ resize: 'vertical' }}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Garantia info */}
+                    <div className="flex items-center gap-3 p-3 rounded-lg mt-3" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                        <Shield size={16} style={{ color: '#16a34a', flexShrink: 0 }} />
+                        <div>
+                            <span className="text-xs font-semibold" style={{ color: '#16a34a' }}>Garantia inclusa</span>
+                            <span className="text-[10px] ml-2" style={{ color: '#166534' }}>
+                                {garantiaTexto ? 'Texto personalizado' : '5 anos para defeitos de fabricação (padrão)'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Dicas */}
+            <div className="text-[11px] p-3 rounded-lg" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                <strong>Como usar:</strong> Clique em "Gerar Termo" para abrir o documento em nova aba. Use Ctrl+P para imprimir ou salvar como PDF.
+                O termo inclui automaticamente todos os ambientes/módulos do orçamento, checklist de vistoria, situação financeira e espaço para assinaturas.
+                {!isConcluido && <span style={{ color: '#ca8a04' }}> Nota: o projeto ainda não está concluído, mas você pode gerar o termo a qualquer momento.</span>}
+            </div>
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════
 // DETALHE DO PROJETO (com tabs)
 // ═══════════════════════════════════════════════════════
 function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user }) {
@@ -2156,6 +2398,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user }) {
         { id: 'estoque', label: 'Recursos', icon: <Package size={14} /> },
         { id: 'arquivos', label: 'Arquivos', icon: <Ic.FolderOpen /> },
         { id: 'portal', label: 'Portal', icon: <Ic.Message /> },
+        { id: 'entrega', label: 'Entrega', icon: <FileCheck size={14} /> },
     ];
 
     return (
@@ -2206,6 +2449,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user }) {
             {tab === 'estoque' && <TabEstoque data={data} notify={notify} user={user} />}
             {tab === 'arquivos' && <TabArquivos data={data} notify={notify} />}
             {tab === 'portal' && <TabPortalMsgs data={data} notify={notify} />}
+            {tab === 'entrega' && <TabEntrega data={data} notify={notify} />}
         </div>
     );
 }
