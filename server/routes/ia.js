@@ -232,7 +232,7 @@ router.get('/base-conhecimento', requireAuth, (req, res) => {
         // Buscar materiais
         const materiais = db.prepare("SELECT cod, nome, tipo, unidade FROM biblioteca WHERE ativo=1 ORDER BY tipo, nome").all();
         // Buscar empresa
-        const empresa = db.prepare("SELECT nome, cidade, estado FROM empresa LIMIT 1").get();
+        const empresa = db.prepare("SELECT nome, cidade, estado FROM empresa_config LIMIT 1").get();
 
         // ── Montar seção CAIXAS ──
         const caixasPorCat = {};
