@@ -53,8 +53,22 @@ body{font-family:'Inter',Arial,Helvetica,sans-serif;color:#111;font-size:11px;pa
 
 .checklist{margin-bottom:14px;}
 .checklist h3{font-size:11px;font-weight:bold;color:${cp};text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:1.5px solid ${cp}25;}
-.check-item{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:10.5px;}
-.check-box{width:14px;height:14px;border:1.5px solid #999;border-radius:2px;flex-shrink:0;}
+.check-item{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:10.5px;border-bottom:1px solid #f0f0f0;}
+.check-item:last-child{border-bottom:none;}
+.check-item input[type="checkbox"]{width:15px;height:15px;accent-color:${cp};cursor:pointer;flex-shrink:0;}
+.check-label{flex:1;min-width:180px;}
+.check-obs{flex:1;max-width:260px;border:1px solid #ddd;border-radius:3px;padding:2px 6px;font-size:9.5px;font-family:inherit;color:#333;outline:none;}
+.check-obs:focus{border-color:${cp};box-shadow:0 0 0 2px ${cp}15;}
+.check-obs::placeholder{color:#bbb;font-style:italic;}
+
+.item-cb{width:15px;height:15px;accent-color:${cp};cursor:pointer;}
+.item-obs{width:100%;border:1px solid #ddd;border-radius:3px;padding:2px 5px;font-size:9px;font-family:inherit;color:#333;outline:none;min-width:80px;}
+.item-obs:focus{border-color:${cp};box-shadow:0 0 0 2px ${cp}15;}
+.item-obs::placeholder{color:#bbb;font-style:italic;}
+
+.fill-tip{background:${cp}08;border:1px solid ${cp}20;border-radius:5px;padding:8px 14px;margin-bottom:14px;font-size:10px;color:${cp};display:flex;align-items:center;gap:8px;}
+.fill-tip svg{flex-shrink:0;}
+@media print{.fill-tip{display:none!important;} .check-obs,.item-obs{border-color:transparent!important;box-shadow:none!important;} .check-obs:empty::placeholder,.item-obs:empty::placeholder{color:transparent!important;}}
 
 .garantia-box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:10px 14px;margin-bottom:14px;}
 .garantia-box h3{font-size:11px;font-weight:bold;color:#16a34a;margin-bottom:6px;}
@@ -160,7 +174,8 @@ function ambienteTable(amb, ai, chapas, acabamentos) {
                 <th>Material</th>
                 <th class="dim">Dimensões (mm)</th>
                 <th class="n">Qtd</th>
-                <th class="n">✓</th>
+                <th class="n" style="width:30px">OK</th>
+                <th style="min-width:100px">Observação</th>
             </tr></thead>
             <tbody>
                 ${itens.map((m, mi) => {
@@ -175,7 +190,8 @@ function ambienteTable(amb, ai, chapas, acabamentos) {
                         <td class="text-xs">${matInt !== '—' ? `Int: ${matInt}` : ''}${matExt !== '—' ? `${matInt !== '—' ? '<br>' : ''}Ext: ${matExt}` : ''}</td>
                         <td class="dim">${l} × ${a} × ${p}</td>
                         <td class="n">${m.qtd || 1}</td>
-                        <td class="n">☐</td>
+                        <td class="n"><input type="checkbox" class="item-cb" title="Marcar como entregue"></td>
+                        <td><input type="text" class="item-obs" placeholder="Pendência..."></td>
                     </tr>`;
                 }).join('')}
             </tbody>
@@ -195,7 +211,11 @@ const CHECKLIST = [
 function checklistHtml(items) {
     return `<div class="checklist">
     <h3>CHECKLIST DE VISTORIA</h3>
-    ${items.map(item => `<div class="check-item"><div class="check-box"></div><span>${item}</span></div>`).join('')}
+    ${items.map(item => `<div class="check-item">
+        <input type="checkbox" title="Marcar como conferido">
+        <span class="check-label">${item}</span>
+        <input type="text" class="check-obs" placeholder="Observação...">
+    </div>`).join('')}
 </div>`;
 }
 
@@ -243,6 +263,11 @@ ${headerHtml(empresa, 'TERMO DE ENTREGA', orcNumero ? `Ref.: ${orcNumero}` : '',
     <div class="fi"><label>Valor Total</label><span style="color:${cp};font-weight:700">${R(financeiro.valorTotal)}</span></div>
     ${enderecoObra ? `<div class="fi" style="grid-column:span 2"><label>Endereço da Obra</label><span>${enderecoObra}</span></div>` : ''}
     <div class="fi"><label>Data Início</label><span>${fmtDt(projeto.data_inicio)}</span></div>
+</div>
+
+<div class="fill-tip no-print">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+    <span>Preencha os checkboxes e observações antes de imprimir. Os campos preenchidos serão preservados no PDF.</span>
 </div>
 
 <div class="section"><h3>ITENS ENTREGUES</h3>${itensHtml}</div>
@@ -308,6 +333,11 @@ ${headerHtml(empresa, 'TERMO DE ENTREGA', `Ambiente ${ai + 1} de ${ambientes.len
     ${enderecoObra ? `<div class="fi" style="grid-column:span 2"><label>Endereço da Obra</label><span>${enderecoObra}</span></div>` : ''}
     <div class="fi"><label>Ref.</label><span>${orcNumero || '—'}</span></div>
 </div>
+
+${ai === 0 ? `<div class="fill-tip no-print">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+    <span>Preencha os checkboxes e observações antes de imprimir.</span>
+</div>` : ''}
 
 <div class="section">
     <h3>ITENS ENTREGUES — ${(amb.nome || 'AMBIENTE').toUpperCase()}</h3>
