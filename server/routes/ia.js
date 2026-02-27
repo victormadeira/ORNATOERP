@@ -622,11 +622,21 @@ ${materiais.filter(m => m.tipo === 'material').map(m => `| \`"${m.cod}"\` | ${m.
 
 ### Codigos de ferragens (para referencia)
 
+| Codigo | Ferragem |
+|--------|----------|
 ${materiais.filter(m => m.tipo === 'ferragem').map(m => `| \`"${m.cod}"\` | ${m.nome} |`).join('\n')}
 
 ### Codigos de acabamentos
 
+| Codigo | Acabamento |
+|--------|------------|
 ${materiais.filter(m => m.tipo === 'acabamento').map(m => `| \`"${m.cod}"\` | ${m.nome} |`).join('\n')}
+
+### Codigos de acessorios
+
+| Codigo | Acessorio |
+|--------|-----------|
+${materiais.filter(m => m.tipo === 'acessorio').map(m => `| \`"${m.cod}"\` | ${m.nome} |`).join('\n')}
 
 ---
 
@@ -785,7 +795,7 @@ ${materiais.filter(m => m.tipo === 'acabamento').map(m => `| \`"${m.cod}"\` | ${
 9. **Sem componente no catalogo**: Se o componente nao existe, NAO inclua. O sistema ignorara e gerara um aviso. O usuario adicionara manualmente.
 10. **Paineis/lambris/revestimentos**: Use caixa \`"Painel de Fechamento"\`.
 11. **Sapateira dentro de closet**: E um componente \`"Sapateira Interna"\`, nao uma caixa.
-12. **Cabeceira estofada**: E um componente \`"Cabeceira Estofada"\`, geralmente dentro de uma caixa \`"Painel de Cabeceira"\`.
+12. **Cabeceira estofada**: E um componente \`"Cabeceira Estofada"\`, geralmente dentro de uma caixa \`"Cabeceira"\`.
 13. **Forro de MDF**: Use caixa \`"Forro MDF"\` com L = comprimento e P = largura do forro.
 14. **Beliche/Mezzanine**: Use caixa \`"Beliche / Mezzanine"\`.
 15. **Despenseiro/armario com espaco para gas**: Use caixa \`"Despenseiro"\`.`;
