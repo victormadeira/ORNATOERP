@@ -232,6 +232,7 @@ router.get('/arquivo/:projeto_id/montador/:filename', async (req, res) => {
             const stream = await gdrive.downloadFile(foto.gdrive_file_id);
             res.setHeader('Content-Type', meta.mimeType || getMime(filename));
             res.setHeader('Cache-Control', 'public, max-age=86400');
+            stream.on('error', (err) => { console.error('Stream montador erro:', err.message); if (!res.headersSent) res.status(500).end(); });
             stream.pipe(res);
             return;
         } catch (err) {
@@ -267,6 +268,7 @@ router.get('/arquivo/:projeto_id/entrega/:filename', async (req, res) => {
             const stream = await gdrive.downloadFile(foto.gdrive_file_id);
             res.setHeader('Content-Type', meta.mimeType || getMime(filename));
             res.setHeader('Cache-Control', 'public, max-age=86400');
+            stream.on('error', (err) => { console.error('Stream entrega erro:', err.message); if (!res.headersSent) res.status(500).end(); });
             stream.pipe(res);
             return;
         } catch (err) {
@@ -299,6 +301,7 @@ router.get('/arquivo/:projeto_id/:filename', async (req, res) => {
             const meta = await gdrive.getFileMeta(arq.gdrive_file_id);
             const stream = await gdrive.downloadFile(arq.gdrive_file_id);
             res.setHeader('Content-Type', meta.mimeType || getMime(filename));
+            stream.on('error', (err) => { console.error('Stream download erro:', err.message); if (!res.headersSent) res.status(500).end(); });
             stream.pipe(res);
             return;
         } catch (err) {

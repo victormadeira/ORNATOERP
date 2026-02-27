@@ -2219,7 +2219,7 @@ function TabEntrega({ data, notify }) {
     };
 
     const fotosDoItem = (ambIdx, itemIdx) =>
-        entregaFotos.filter(f => f.ambiente_idx === ambIdx && f.item_idx === itemIdx);
+        entregaFotos.filter(f => Number(f.ambiente_idx) === Number(ambIdx) && (f.item_idx == null && itemIdx == null || Number(f.item_idx) === Number(itemIdx)));
 
     const totalFotosAmb = (ambIdx) =>
         entregaFotos.filter(f => f.ambiente_idx === ambIdx).length;

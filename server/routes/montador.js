@@ -151,12 +151,21 @@ router.post('/public/:token/upload', async (req, res) => {
     const { filename, data, ambiente } = req.body;
     if (!filename || !data) return res.status(400).json({ error: 'Filename e data obrigatorios' });
 
+    // Validar tipo de arquivo (apenas imagens)
+    const ALLOWED_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'];
+    const ext = path.extname(filename).toLowerCase();
+    if (!ALLOWED_EXTS.includes(ext)) return res.status(400).json({ error: `Tipo nao permitido (${ext}). Use: ${ALLOWED_EXTS.join(', ')}` });
+
     const timestamp = Date.now();
     const safeName = `${timestamp}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const base64Data = data.includes(',') ? data.split(',')[1] : data;
     const buffer = Buffer.from(base64Data, 'base64');
-    const ext = path.extname(safeName).toLowerCase();
-    const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
+
+    // Validar tamanho (max 10MB)
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (buffer.length > MAX_SIZE) return res.status(400).json({ error: `Arquivo muito grande (${(buffer.length / 1024 / 1024).toFixed(1)}MB). Max: 10MB` });
+
+    const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic', '.heif': 'image/heif' };
     const mime = mimeMap[ext] || 'image/jpeg';
 
     let gdriveFileId = '';
@@ -257,12 +266,21 @@ router.post('/fotos/:projeto_id/upload', requireAuth, async (req, res) => {
     const { filename, data, ambiente } = req.body;
     if (!filename || !data) return res.status(400).json({ error: 'Filename e data obrigatorios' });
 
+    // Validar tipo de arquivo (apenas imagens)
+    const ALLOWED_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'];
+    const ext = path.extname(filename).toLowerCase();
+    if (!ALLOWED_EXTS.includes(ext)) return res.status(400).json({ error: `Tipo nao permitido (${ext}). Use: ${ALLOWED_EXTS.join(', ')}` });
+
     const timestamp = Date.now();
     const safeName = `${timestamp}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const base64Data = data.includes(',') ? data.split(',')[1] : data;
     const buffer = Buffer.from(base64Data, 'base64');
-    const ext = path.extname(safeName).toLowerCase();
-    const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
+
+    // Validar tamanho (max 10MB)
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (buffer.length > MAX_SIZE) return res.status(400).json({ error: `Arquivo muito grande (${(buffer.length / 1024 / 1024).toFixed(1)}MB). Max: 10MB` });
+
+    const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic', '.heif': 'image/heif' };
     const mime = mimeMap[ext] || 'image/jpeg';
 
     let gdriveFileId = '';
