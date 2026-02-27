@@ -29,16 +29,29 @@ router.get('/portal/:token', (req, res) => {
 
     if (!proj) return res.status(404).json({ error: 'Projeto não encontrado ou link inválido' });
 
-    // Auto-sync status do projeto baseado nas etapas
-    const syncedStatus = autoUpdateProjectStatus(proj.id);
-    if (syncedStatus) proj.status = syncedStatus;
-
     const etapas = db.prepare(`
         SELECT e.*, u.nome as responsavel_nome
         FROM etapas_projeto e
         LEFT JOIN users u ON u.id = e.responsavel_id
         WHERE e.projeto_id = ? ORDER BY e.ordem, e.id
     `).all(proj.id);
+
+    // Calcular status real do projeto a partir das etapas (garantia de consistência)
+    let displayStatus = proj.status;
+    if (etapas.length > 0) {
+        const allDone = etapas.every(e => e.status === 'concluida');
+        const anyStarted = etapas.some(e => e.status === 'em_andamento' || e.status === 'concluida' || e.status === 'atrasada');
+        if (allDone) {
+            displayStatus = 'concluido';
+        } else if (anyStarted && (proj.status === 'nao_iniciado' || !proj.status)) {
+            displayStatus = 'em_andamento';
+        }
+    }
+
+    // Também persistir no banco para manter consistência
+    if (displayStatus !== proj.status) {
+        try { db.prepare('UPDATE projetos SET status = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?').run(displayStatus, proj.id); } catch (_) {}
+    }
 
     const ocorrencias = db.prepare(
         "SELECT * FROM ocorrencias_projeto WHERE projeto_id = ? AND status != 'interno' ORDER BY criado_em DESC"
@@ -61,7 +74,7 @@ router.get('/portal/:token', (req, res) => {
             id: proj.id,
             nome: proj.nome,
             descricao: proj.descricao,
-            status: proj.status,
+            status: displayStatus,
             data_inicio: proj.data_inicio,
             data_vencimento: proj.data_vencimento,
             cliente_nome: proj.cliente_nome,
@@ -196,16 +209,33 @@ router.get('/:id', requireAuth, (req, res) => {
 
     if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
 
-    // Auto-sync status do projeto baseado nas etapas
-    const syncedStatus = autoUpdateProjectStatus(proj.id, req.user.id, req.user.nome);
-    if (syncedStatus) proj.status = syncedStatus;
-
     const etapas = db.prepare(`
         SELECT e.*, u.nome as responsavel_nome
         FROM etapas_projeto e
         LEFT JOIN users u ON u.id = e.responsavel_id
         WHERE e.projeto_id = ? ORDER BY e.ordem, e.id
     `).all(proj.id);
+
+    // Calcular status real do projeto a partir das etapas
+    if (etapas.length > 0) {
+        const allDone = etapas.every(e => e.status === 'concluida');
+        const anyStarted = etapas.some(e => e.status === 'em_andamento' || e.status === 'concluida' || e.status === 'atrasada');
+        let newStatus = null;
+        if (allDone && proj.status !== 'concluido') {
+            newStatus = 'concluido';
+        } else if (anyStarted && proj.status === 'nao_iniciado') {
+            newStatus = 'em_andamento';
+        }
+        if (newStatus) {
+            try {
+                db.prepare('UPDATE projetos SET status = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?').run(newStatus, proj.id);
+                logActivity(req.user.id, req.user.nome, 'atualizar_status',
+                    `Status do projeto "${proj.nome}" alterado automaticamente para ${newStatus}`,
+                    proj.id, 'projeto', { status_anterior: proj.status, status_novo: newStatus, auto: true });
+            } catch (_) {}
+            proj.status = newStatus;
+        }
+    }
 
     const ocorrencias = db.prepare(
         'SELECT * FROM ocorrencias_projeto WHERE projeto_id = ? ORDER BY criado_em DESC'
