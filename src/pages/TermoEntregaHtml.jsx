@@ -123,11 +123,12 @@ function assinaturasHtml(clienteNome, empresaNome) {
 }
 
 function ambienteTable(amb, ai, chapas, acabamentos) {
-    const mods = amb.mods || [];
+    // Suporta ambientes com .itens (Novo.jsx) ou .mods (legado)
+    const itens = amb.itens || amb.mods || [];
     return `<div class="amb">
         <div class="amb-hdr">
             <span>AMBIENTE ${ai + 1}: ${amb.nome || 'Sem nome'}</span>
-            <span>${mods.length} item${mods.length !== 1 ? 'ns' : ''}</span>
+            <span>${itens.length} item${itens.length !== 1 ? 'ns' : ''}</span>
         </div>
         <table class="mt">
             <thead><tr>
@@ -139,14 +140,17 @@ function ambienteTable(amb, ai, chapas, acabamentos) {
                 <th class="n">✓</th>
             </tr></thead>
             <tbody>
-                ${mods.map((m, mi) => {
-                    const matInt = matNome(m.matInt || m.mmInt, chapas, acabamentos);
-                    const matExt = matNome(m.matExt || m.acabExt || m.mmExt, chapas, acabamentos);
+                ${itens.map((m, mi) => {
+                    const matInt = matNome(m.mats?.matInt || m.matInt || m.mmInt, chapas, acabamentos);
+                    const matExt = matNome(m.mats?.matExt || m.matExt || m.acabExt || m.mmExt, chapas, acabamentos);
+                    const l = m.dims?.l || m.l || 0;
+                    const a = m.dims?.a || m.a || 0;
+                    const p = m.dims?.p || m.p || 0;
                     return `<tr>
                         <td class="n">${mi + 1}</td>
                         <td class="nome"><strong>${m.nome || m.tipo || '—'}</strong></td>
                         <td class="text-xs">${matInt !== '—' ? `Int: ${matInt}` : ''}${matExt !== '—' ? `${matInt !== '—' ? '<br>' : ''}Ext: ${matExt}` : ''}</td>
-                        <td class="dim">${m.l || 0} × ${m.a || 0} × ${m.p || 0}</td>
+                        <td class="dim">${l} × ${a} × ${p}</td>
                         <td class="n">${m.qtd || 1}</td>
                         <td class="n">☐</td>
                     </tr>`;
@@ -314,11 +318,11 @@ export function buildCertificadoGarantiaHtml(data, config = {}) {
 
     // Lista de ambientes e itens
     const itensResumo = (ambientes || []).map((amb, ai) => {
-        const mods = amb.mods || [];
+        const itens = amb.itens || amb.mods || [];
         return `<tr>
             <td style="font-weight:600">${amb.nome || 'Ambiente ' + (ai + 1)}</td>
-            <td>${mods.length} item${mods.length !== 1 ? 'ns' : ''}</td>
-            <td>${mods.map(m => m.nome || m.tipo || '—').join(', ')}</td>
+            <td>${itens.length} item${itens.length !== 1 ? 'ns' : ''}</td>
+            <td>${itens.map(m => m.nome || m.tipo || '—').join(', ')}</td>
         </tr>`;
     }).join('');
 

@@ -229,7 +229,7 @@ export function buildRelatorioHtml({ empresa, orcamento, ambientes, tot, taxas, 
                 <td style="padding:5px 8px">${c.mat.nome}</td>
                 <td style="text-align:center;padding:5px 8px;color:#888">${c.mat.esp}mm</td>
                 <td style="text-align:right;padding:5px 8px">${N(c.area, 2)}</td>
-                <td style="text-align:center;padding:5px 8px;font-weight:600;color:#1a56db">${c.n}</td>
+                <td style="text-align:center;padding:5px 8px;font-weight:600;color:#1a4fa0">${c.n}</td>
                 <td style="text-align:right;padding:5px 8px;color:#888">${R$(c.mat.preco)}</td>
                 <td style="text-align:right;padding:5px 8px;font-weight:600">${R$(c.n * c.mat.preco)}</td>
             </tr>`).join('')}
@@ -259,32 +259,37 @@ export function buildRelatorioHtml({ empresa, orcamento, ambientes, tot, taxas, 
             </tbody>
             <tfoot><tr style="border-top:2px solid #ccc">
                 <td colspan="4" style="padding:5px 8px;font-weight:700;font-size:11px;color:#555">Subtotal ${name}</td>
-                <td style="text-align:right;padding:5px 8px;font-weight:700;color:#1a56db">${R$(total)}</td>
+                <td style="text-align:right;padding:5px 8px;font-weight:700;color:#1a4fa0">${R$(total)}</td>
             </tr></tfoot></table></div>`;
     };
 
     return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
 <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family: 'Segoe UI', Tahoma, Geneva, sans-serif; color: #333; line-height: 1.5; }
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+    body { font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, sans-serif; color: #333; line-height: 1.5; font-size:12px; }
+    @page { margin:12mm 10mm; size:A4; }
+    @media screen { body { padding:30px 40px; max-width:900px; margin:0 auto; } }
+    @media print { .no-print { display:none !important; } body { padding:0; } }
     .page { padding: 0; }
-    .header { display:flex; justify-content:space-between; align-items:center; padding-bottom:16px; border-bottom:3px solid #1a56db; margin-bottom:24px; }
+    .header { display:flex; justify-content:space-between; align-items:center; padding-bottom:14px; border-bottom:2.5px solid #1a4fa0; margin-bottom:20px; }
     .header-left { display:flex; align-items:center; gap:12px; }
     .header-right { text-align:right; font-size:11px; color:#666; }
-    .title { font-size:18px; font-weight:800; color:#1a56db; }
-    .section { margin-bottom:24px; page-break-inside:avoid; }
-    .section-title { font-size:14px; font-weight:700; color:#1a56db; border-bottom:2px solid #e5e7eb; padding-bottom:6px; margin-bottom:12px; display:flex; align-items:center; gap:6px; }
-    .amb-title { font-size:12px; font-weight:700; color:#374151; background:#f3f4f6; padding:6px 10px; border-radius:4px; margin-bottom:8px; }
+    .title { font-size:16px; font-weight:800; color:#1a4fa0; letter-spacing:0.3px; }
+    .section { margin-bottom:20px; page-break-inside:avoid; }
+    .section-title { font-size:13px; font-weight:700; color:#1a4fa0; border-bottom:1.5px solid #d8e2f5; padding-bottom:5px; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+    .amb-title { font-size:11px; font-weight:700; color:#374151; background:#f4f7ff; border:1px solid #d8e2f5; padding:5px 10px; border-radius:4px; margin-bottom:8px; }
     .summary-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-    .summary-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:12px; }
-    .summary-label { font-size:10px; text-transform:uppercase; letter-spacing:1px; color:#64748b; margin-bottom:2px; }
-    .summary-value { font-size:16px; font-weight:700; color:#1e293b; }
-    .summary-value.primary { color:#1a56db; }
-    .total-row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #eee; font-size:12px; }
-    .total-row.final { border-top:2px solid #1a56db; border-bottom:none; padding-top:10px; font-size:14px; font-weight:700; }
+    .summary-box { background:#f4f7ff; border:1px solid #d8e2f5; border-radius:6px; padding:10px 12px; }
+    .summary-label { font-size:9px; text-transform:uppercase; letter-spacing:0.8px; color:#64748b; margin-bottom:2px; font-weight:600; }
+    .summary-value { font-size:15px; font-weight:700; color:#1e293b; }
+    .summary-value.primary { color:#1a4fa0; }
+    .total-row { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #eee; font-size:11px; }
+    .total-row.final { border-top:2px solid #1a4fa0; border-bottom:none; padding-top:8px; font-size:13px; font-weight:700; }
     .total-row .label { color:#555; }
     .total-row .value { font-weight:600; }
-    .footer { margin-top:32px; padding-top:16px; border-top:1px solid #ddd; font-size:10px; color:#999; text-align:center; }
+    .footer { margin-top:24px; padding-top:10px; border-top:1px solid #e5e7eb; font-size:9px; color:#aaa; text-align:center; line-height:1.5; }
+    .print-btn { display:block; margin:20px auto 0; padding:10px 36px; background:#1a4fa0; color:#fff; border:none; border-radius:6px; font-size:13px; cursor:pointer; font-weight:bold; }
+    .print-btn:hover { background:#1555c0; }
 </style></head><body><div class="page">
     <div class="header">
         <div class="header-left">
@@ -391,7 +396,9 @@ export function buildRelatorioHtml({ empresa, orcamento, ambientes, tot, taxas, 
     </div>` : ''}
 
     <div class="footer">${empresa?.nome || ''} — ${empresa?.telefone || ''} — ${empresa?.email || ''} — Gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
-</div></body></html>`;
+</div>
+<button class="print-btn no-print" onclick="window.print()">Imprimir / Salvar PDF</button>
+</body></html>`;
 }
 
 // ── Componente React (para renderizar in-tab no Novo.jsx) ───────────────────
