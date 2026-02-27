@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
 import { Ic, Z, Modal, Spinner } from '../ui';
 import { R$, N, DB_CHAPAS, DB_ACABAMENTOS } from '../engine';
-import { buildTermoEntregaHtml } from './TermoEntregaHtml';
+import { buildTermoEntregaHtml, buildTermoPorAmbienteHtml, buildCertificadoGarantiaHtml } from './TermoEntregaHtml';
 import {
     User as UserIcon, Calendar as CalendarIcon, Copy as CopyIcon,
     Check as CheckIcon, DollarSign, TrendingUp, TrendingDown,
@@ -2150,22 +2150,26 @@ function TabEntrega({ data, notify }) {
 
     useEffect(() => { loadTermoData(); }, [data.id]);
 
-    const gerarTermo = () => {
-        if (!termoData) return;
-        const html = buildTermoEntregaHtml(termoData, {
-            chapas: DB_CHAPAS,
-            acabamentos: DB_ACABAMENTOS,
-            observacoes,
-            ressalvas,
-            garantiaTexto: garantiaTexto || undefined,
-        });
+    const abrirDoc = (html) => {
         const win = window.open('', '_blank', 'width=950,height=750');
-        if (!win) { notify('Permita pop-ups para gerar o termo'); return; }
+        if (!win) { notify('Permita pop-ups para gerar o documento'); return; }
         win.document.open();
         win.document.write(html);
         win.document.close();
         setTimeout(() => { win.focus(); }, 400);
     };
+
+    const cfgBase = () => ({
+        chapas: DB_CHAPAS,
+        acabamentos: DB_ACABAMENTOS,
+        observacoes,
+        ressalvas,
+        garantiaTexto: garantiaTexto || undefined,
+    });
+
+    const gerarTermo = () => { if (termoData) abrirDoc(buildTermoEntregaHtml(termoData, cfgBase())); };
+    const gerarTermoAmbiente = () => { if (termoData) abrirDoc(buildTermoPorAmbienteHtml(termoData, cfgBase())); };
+    const gerarCertificado = () => { if (termoData) abrirDoc(buildCertificadoGarantiaHtml(termoData, cfgBase())); };
 
     if (loading) return <Spinner text="Carregando dados do termo..." />;
 
@@ -2197,14 +2201,20 @@ function TabEntrega({ data, notify }) {
                             </p>
                         </div>
                     </div>
-                    <button
-                        onClick={gerarTermo}
-                        disabled={!termoData}
-                        className={Z.btn}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}
-                    >
-                        <Printer size={15} /> Gerar Termo
-                    </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <button onClick={gerarTermo} disabled={!termoData} className={Z.btn}
+                            style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '6px 14px' }}>
+                            <Printer size={14} /> Termo Completo
+                        </button>
+                        <button onClick={gerarTermoAmbiente} disabled={!termoData} className={Z.btn2}
+                            style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '6px 14px' }}>
+                            <Layers size={14} /> Por Ambiente
+                        </button>
+                        <button onClick={gerarCertificado} disabled={!termoData} className={Z.btn2}
+                            style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '6px 14px', color: '#16a34a', borderColor: '#bbf7d0' }}>
+                            <Shield size={14} /> Certificado Garantia
+                        </button>
+                    </div>
                 </div>
 
                 {/* Barra de progresso */}
@@ -2358,9 +2368,12 @@ function TabEntrega({ data, notify }) {
 
             {/* Dicas */}
             <div className="text-[11px] p-3 rounded-lg" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
-                <strong>Como usar:</strong> Clique em "Gerar Termo" para abrir o documento em nova aba. Use Ctrl+P para imprimir ou salvar como PDF.
-                O termo inclui automaticamente todos os ambientes/módulos do orçamento, checklist de vistoria, situação financeira e espaço para assinaturas.
-                {!isConcluido && <span style={{ color: '#ca8a04' }}> Nota: o projeto ainda não está concluído, mas você pode gerar o termo a qualquer momento.</span>}
+                <strong>Documentos disponíveis:</strong>{' '}
+                <strong>Termo Completo</strong> — todos os ambientes em 1 documento com checklist, financeiro e assinaturas.{' '}
+                <strong>Por Ambiente</strong> — 1 página por ambiente, cada um com checklist e assinaturas próprias.{' '}
+                <strong>Certificado Garantia</strong> — documento separado com boas práticas de conservação, exclusões e condições.{' '}
+                Use Ctrl+P para imprimir ou salvar como PDF.
+                {!isConcluido && <span style={{ color: '#ca8a04' }}> Nota: o projeto ainda não está concluído, mas você pode gerar os documentos a qualquer momento.</span>}
             </div>
         </div>
     );

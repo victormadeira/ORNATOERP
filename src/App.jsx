@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './auth';
 import api from './api';
 import { Ic, Z } from './ui';
-import { AlertTriangle, Clock, CheckCircle2, Folder, BarChart2, AlertCircle, DollarSign, Calendar, Bell, MessageCircle, Camera, Gift, FileText, ClipboardList, Eye } from 'lucide-react';
+import { AlertTriangle, Clock, CheckCircle2, Folder, BarChart2, AlertCircle, DollarSign, Calendar, Bell, MessageCircle, Camera, Gift, FileText, ClipboardList, Eye, Search } from 'lucide-react';
 import LoginPage from './pages/Login';
 import Dash from './pages/Dash';
 import Cli from './pages/Cli';
@@ -373,7 +373,7 @@ export default function App() {
                     {/* Busca Global */}
                     <div ref={buscaRef} style={{ position: 'relative' }} className="hidden md:block">
                         <div style={{ position: 'relative' }}>
-                            <Ic.Search style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} size={15} />
+                            <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                             <input
                                 type="text"
                                 value={buscaQuery}
