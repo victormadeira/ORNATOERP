@@ -643,6 +643,19 @@ const migrations = [
   "UPDATE config_taxas SET inst=5 WHERE inst=180",
   "UPDATE config_taxas SET lucro=12 WHERE lucro=20",
   "UPDATE config_taxas SET mont=0 WHERE mont=12",
+  // ═══ Rastreabilidade v2: evento_tipo em acessos ═══
+  "ALTER TABLE proposta_acessos ADD COLUMN evento_tipo TEXT DEFAULT ''",
+  // ═══ Templates de Ambiente (Kits) ═══
+  `CREATE TABLE IF NOT EXISTS ambiente_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    descricao TEXT DEFAULT '',
+    categoria TEXT DEFAULT '',
+    json_data TEXT NOT NULL DEFAULT '{}',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // ═══ Materiais Recentes: contador de uso ═══
+  "ALTER TABLE biblioteca ADD COLUMN uso_count INTEGER DEFAULT 0",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

@@ -72,16 +72,27 @@ export default function ProposalPublic({ token }) {
             }).catch(() => {});
         }, 30000);
 
+        // ── Fase 3: Detectar impressão ──
+        const onBeforePrint = () => {
+            try {
+                const blob = new Blob([JSON.stringify({ tipo: 'print' })], { type: 'application/json' });
+                navigator.sendBeacon(`/api/portal/event/${token}`, blob);
+            } catch { }
+        };
+        window.addEventListener('beforeprint', onBeforePrint);
+
         // Enviar dados finais ao sair
         const onUnload = () => {
             const tempoSeg = Math.round((Date.now() - startTime.current) / 1000);
-            navigator.sendBeacon(`/api/portal/heartbeat/${token}`, JSON.stringify({ tempo_pagina: tempoSeg, scroll_max: 0 }));
+            const blob = new Blob([JSON.stringify({ tempo_pagina: tempoSeg, scroll_max: 0 })], { type: 'application/json' });
+            navigator.sendBeacon(`/api/portal/heartbeat/${token}`, blob);
         };
         window.addEventListener('beforeunload', onUnload);
 
         return () => {
             clearInterval(heartbeatRef.current);
             window.removeEventListener('beforeunload', onUnload);
+            window.removeEventListener('beforeprint', onBeforePrint);
         };
     }, [html, error, token]);
 
@@ -136,6 +147,8 @@ export default function ProposalPublic({ token }) {
     const copyLink = () => { navigator.clipboard.writeText(pageUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); };
 
     const printProposta = () => {
+        // Enviar evento de print pelo botão também
+        try { fetch(`/api/portal/event/${token}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tipo: 'print' }) }); } catch {}
         try {
             const iframe = iframeRef.current;
             if (iframe?.contentWindow) iframe.contentWindow.print();

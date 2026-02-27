@@ -653,6 +653,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [reportItemId, setReportItemId] = useState(null);
     const [addCompModal, setAddCompModal] = useState(null); // { ambId, itemId }
     const [showTipoAmbModal, setShowTipoAmbModal] = useState(false);
+    const [ambTemplates, setAmbTemplates] = useState([]);
+    const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(null); // ambId
+    const [templateNome, setTemplateNome] = useState('');
+    const [templateCategoria, setTemplateCategoria] = useState('');
     const [mkExpanded, setMkExpanded] = useState(false);
 
     // Catálogo e biblioteca do banco
@@ -664,6 +668,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         api.get('/catalogo?tipo=caixa').then(setCaixas).catch(() => { });
         api.get('/catalogo?tipo=componente').then(setComponentesCat).catch(() => { });
         api.get('/biblioteca').then(setBibItems).catch(() => { });
+        api.get('/orcamentos/templates').then(setAmbTemplates).catch(() => { });
     }, []);
 
     const bib = useMemo(() => {
@@ -671,21 +676,29 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         const chapas = bibItems.filter(i => i.tipo === 'material' && i.unidade === 'chapa').map(i => ({
             id: i.cod || `bib_${i.id}`, nome: i.nome, esp: i.espessura, larg: i.largura,
             alt: i.altura, preco: i.preco, perda_pct: i.perda_pct || 15, fita_preco: i.fita_preco || 0,
+            uso_count: i.uso_count || 0,
         }));
         const ferragens = bibItems.filter(i => i.tipo === 'ferragem' || i.tipo === 'acessorio').map(i => ({
             id: i.cod || `bib_${i.id}`, nome: i.nome, preco: i.preco, un: i.unidade, categoria: i.categoria || '',
+            uso_count: i.uso_count || 0,
         }));
         const acabamentos = bibItems.filter(i => i.tipo === 'acabamento').map(i => ({
             id: i.cod || `bib_${i.id}`, nome: i.nome, preco: i.preco || i.preco_m2, un: 'm²',
+            uso_count: i.uso_count || 0,
         }));
         const fitas = bibItems.filter(i => i.tipo === 'material' && i.unidade === 'm' && i.nome.toLowerCase().includes('fita')).map(i => ({
             id: i.cod || `bib_${i.id}`, nome: i.nome, preco: i.preco,
         }));
+        // Top 5 chapas mais usadas
+        const topChapas = [...chapas].sort((a, b) => (b.uso_count || 0) - (a.uso_count || 0)).filter(c => c.uso_count > 0).slice(0, 5);
+        const topAcab = [...acabamentos].sort((a, b) => (b.uso_count || 0) - (a.uso_count || 0)).filter(c => c.uso_count > 0).slice(0, 5);
         return {
             chapas: chapas.length > 0 ? chapas : DB_CHAPAS,
             ferragens: ferragens.length > 0 ? ferragens : DB_FERRAGENS,
             acabamentos: acabamentos.length > 0 ? acabamentos : DB_ACABAMENTOS,
             fitas: fitas.length > 0 ? fitas : DB_FITAS,
+            topChapas,
+            topAcab,
         };
     }, [bibItems]);
 
@@ -783,6 +796,69 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         setExpandedAmb(base.id);
     };
     const removeAmb = id => setAmbientes(p => p.filter(a => a.id !== id));
+
+    // ── Fase 5: Duplicar ambiente (deep clone com novos IDs) ──
+    const duplicarAmbiente = (ambId) => {
+        const orig = ambientes.find(a => a.id === ambId);
+        if (!orig) return;
+        const clone = JSON.parse(JSON.stringify(orig));
+        clone.id = uid();
+        clone.nome = `${orig.nome} (cópia)`;
+        // Regenerar IDs de todos os objetos aninhados
+        if (clone.itens) {
+            for (const item of clone.itens) {
+                item.id = uid();
+                if (item.componentes) {
+                    for (const comp of item.componentes) { comp.id = uid(); }
+                }
+            }
+        }
+        if (clone.paineis) { for (const p of clone.paineis) { p.id = uid(); } }
+        if (clone.linhas) { for (const l of clone.linhas) { l.id = uid(); } }
+        // Inserir logo após o original
+        const idx = ambientes.findIndex(a => a.id === ambId);
+        const newAmbs = [...ambientes];
+        newAmbs.splice(idx + 1, 0, clone);
+        setAmbientes(newAmbs);
+        setExpandedAmb(clone.id);
+        notify('Ambiente duplicado');
+    };
+
+    // ── Fase 6: Salvar ambiente como template ──
+    const salvarComoTemplate = async (ambId) => {
+        if (!templateNome.trim()) { notify('Nome obrigatório'); return; }
+        const amb = ambientes.find(a => a.id === ambId);
+        if (!amb) return;
+        const clean = JSON.parse(JSON.stringify(amb));
+        delete clean.id; // Remove ID específico
+        try {
+            await api.post('/orcamentos/templates', {
+                nome: templateNome.trim(),
+                descricao: `Baseado em: ${amb.nome}`,
+                categoria: templateCategoria || amb.nome,
+                json_data: clean,
+            });
+            setShowSaveTemplateModal(null);
+            setTemplateNome('');
+            setTemplateCategoria('');
+            const tpls = await api.get('/orcamentos/templates');
+            setAmbTemplates(tpls);
+            notify('Template salvo!');
+        } catch (ex) { notify(ex.error || 'Erro ao salvar template'); }
+    };
+
+    // ── Fase 6: Criar ambiente a partir de template ──
+    const createFromTemplate = (tpl) => {
+        setShowTipoAmbModal(false);
+        const data = typeof tpl.json_data === 'string' ? JSON.parse(tpl.json_data) : tpl.json_data;
+        const base = { ...data, id: uid(), nome: tpl.nome };
+        // Regenerar IDs
+        if (base.itens) { for (const item of base.itens) { item.id = uid(); if (item.componentes) { for (const c of item.componentes) { c.id = uid(); } } } }
+        if (base.paineis) { for (const p of base.paineis) { p.id = uid(); } }
+        if (base.linhas) { for (const l of base.linhas) { l.id = uid(); } }
+        setAmbientes([...ambientes, base]);
+        setExpandedAmb(base.id);
+    };
 
     const addItemToAmb = (ambId, caixaId) => {
         const caixaDef = caixas.find(c => c.db_id === caixaId);
@@ -1212,7 +1288,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <span className="font-bold text-sm" style={{ color: 'var(--primary)' }}>{R$(ambPv)}</span>
-                                            {!readOnly && <button onClick={e => { e.stopPropagation(); removeAmb(amb.id); }} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={14} /></button>}
+                                            {!readOnly && (
+                                                <>
+                                                    <button onClick={e => { e.stopPropagation(); setShowSaveTemplateModal(amb.id); setTemplateNome(amb.nome); setTemplateCategoria(''); }} className="p-1 rounded hover:bg-green-500/10 text-green-400/50 hover:text-green-400" title="Salvar como template"><FilePlus2 size={13} /></button>
+                                                    <button onClick={e => { e.stopPropagation(); duplicarAmbiente(amb.id); }} className="p-1 rounded hover:bg-violet-500/10 text-violet-400/50 hover:text-violet-400" title="Duplicar ambiente"><Copy size={13} /></button>
+                                                    <button onClick={e => { e.stopPropagation(); removeAmb(amb.id); }} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={14} /></button>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
 
@@ -1429,7 +1511,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                         <SearchableSelect
                                                                             value={item.mats.matInt}
                                                                             onChange={val => upItem(amb.id, item.id, it => it.mats.matInt = val)}
-                                                                            options={chapasDB.map(c => ({ value: c.id, label: c.nome }))}
+                                                                            groups={[
+                                                                                ...(bib?.topChapas?.length > 0 ? [{ label: 'Mais usados', options: bib.topChapas.map(c => ({ value: c.id, label: c.nome })) }] : []),
+                                                                                { label: 'Todas as chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                                                            ]}
                                                                             placeholder="Buscar chapa..."
                                                                             className={Z.inp}
                                                                         />
@@ -1440,6 +1525,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                             value={item.mats.matExt}
                                                                             onChange={val => upItem(amb.id, item.id, it => it.mats.matExt = val)}
                                                                             groups={[
+                                                                                ...(bib?.topChapas?.length > 0 || bib?.topAcab?.length > 0 ? [{ label: 'Mais usados', options: [...(bib?.topChapas || []), ...(bib?.topAcab || [])].map(c => ({ value: c.id, label: c.nome })) }] : []),
                                                                                 { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
                                                                                 { label: 'Acabamentos premium', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) },
                                                                             ]}
@@ -2176,6 +2262,54 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.3 }}>Importar JSON (em breve)</span>
                                     </button>
                                 ) : null}
+                            </div>
+
+                            {/* Templates salvos */}
+                            {ambTemplates.length > 0 && (
+                                <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                                    <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>Templates Salvos</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
+                                        {ambTemplates.map(tpl => (
+                                            <button key={tpl.id} onClick={() => createFromTemplate(tpl)}
+                                                className="flex flex-col items-center gap-1.5 p-3 rounded-lg border cursor-pointer transition-all hover:shadow-md hover:border-[var(--primary)]"
+                                                style={{ borderColor: 'var(--border)', background: 'var(--bg-muted)' }}>
+                                                <Layers size={18} style={{ color: '#16a34a' }} />
+                                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>{tpl.nome}</span>
+                                                {tpl.categoria && <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{tpl.categoria}</span>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Modal: Salvar como Template ── */}
+            {showSaveTemplateModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}
+                    onClick={() => setShowSaveTemplateModal(null)}>
+                    <div className="rounded-xl shadow-2xl w-full mx-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', maxWidth: 400 }}
+                        onClick={e => e.stopPropagation()}>
+                        <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
+                            <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Salvar como Template</h3>
+                            <button onClick={() => setShowSaveTemplateModal(null)} className="p-1 rounded hover:bg-[var(--bg-hover)] cursor-pointer"><X size={16} /></button>
+                        </div>
+                        <div className="p-4 flex flex-col gap-3">
+                            <div>
+                                <label className="text-[10px] font-bold uppercase tracking-wider mb-1 block" style={{ color: 'var(--text-muted)' }}>Nome do Template</label>
+                                <input value={templateNome} onChange={e => setTemplateNome(e.target.value)}
+                                    className={`${Z.inp} w-full text-sm`} placeholder="Ex: Cozinha Completa" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold uppercase tracking-wider mb-1 block" style={{ color: 'var(--text-muted)' }}>Categoria (opcional)</label>
+                                <input value={templateCategoria} onChange={e => setTemplateCategoria(e.target.value)}
+                                    className={`${Z.inp} w-full text-sm`} placeholder="Ex: Cozinha, Quarto, Closet..." />
+                            </div>
+                            <div className="flex justify-end gap-2 pt-2">
+                                <button onClick={() => setShowSaveTemplateModal(null)} className={Z.btn2}>Cancelar</button>
+                                <button onClick={() => salvarComoTemplate(showSaveTemplateModal)} className={Z.btn}>Salvar Template</button>
                             </div>
                         </div>
                     </div>

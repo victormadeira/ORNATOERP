@@ -289,6 +289,27 @@ router.put('/:id', requireAuth, (req, res) => {
         id
     );
 
+    // ── Fase 7: Atualizar uso_count dos materiais utilizados ──
+    try {
+        if (ambientes && Array.isArray(ambientes)) {
+            const materialCods = new Set();
+            for (const amb of ambientes) {
+                for (const item of (amb.itens || [])) {
+                    if (item.mats?.matInt) materialCods.add(item.mats.matInt);
+                    if (item.mats?.matExt) materialCods.add(item.mats.matExt);
+                    if (item.mats?.matFundo) materialCods.add(item.mats.matFundo);
+                    for (const comp of (item.componentes || [])) {
+                        if (comp.matExtComp) materialCods.add(comp.matExtComp);
+                    }
+                }
+            }
+            if (materialCods.size > 0) {
+                const stmtUso = db.prepare('UPDATE biblioteca SET uso_count = uso_count + 1 WHERE cod = ?');
+                for (const cod of materialCods) { try { stmtUso.run(cod); } catch(_) {} }
+            }
+        }
+    } catch (_) {}
+
     const orc = db.prepare('SELECT * FROM orcamentos WHERE id = ?').get(id);
     parseOrcData(orc);
     res.json(orc);
@@ -553,6 +574,33 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
     } catch (_) { /* log não bloqueia */ }
 
     res.json({ ok: true, projeto_criado });
+});
+
+// ═══════════════════════════════════════════════════════
+// GET /api/orcamentos/templates — listar templates de ambiente
+// ═══════════════════════════════════════════════════════
+router.get('/templates', requireAuth, (req, res) => {
+    const templates = db.prepare('SELECT * FROM ambiente_templates ORDER BY categoria, nome').all();
+    res.json(templates);
+});
+
+// ═══════════════════════════════════════════════════════
+// POST /api/orcamentos/templates — criar template de ambiente
+// ═══════════════════════════════════════════════════════
+router.post('/templates', requireAuth, (req, res) => {
+    const { nome, descricao, categoria, json_data } = req.body;
+    if (!nome) return res.status(400).json({ error: 'Nome obrigatório' });
+    const result = db.prepare('INSERT INTO ambiente_templates (nome, descricao, categoria, json_data) VALUES (?, ?, ?, ?)')
+        .run(nome, descricao || '', categoria || '', JSON.stringify(json_data || {}));
+    res.json({ ok: true, id: Number(result.lastInsertRowid) });
+});
+
+// ═══════════════════════════════════════════════════════
+// DELETE /api/orcamentos/templates/:id — deletar template
+// ═══════════════════════════════════════════════════════
+router.delete('/templates/:id', requireAuth, (req, res) => {
+    db.prepare('DELETE FROM ambiente_templates WHERE id = ?').run(parseInt(req.params.id));
+    res.json({ ok: true });
 });
 
 export default router;

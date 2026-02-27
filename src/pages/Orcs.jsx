@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { Z, Ic, Modal, tagStyle, tagClass } from '../ui';
 import { R$, KCOLS, DB_ACABAMENTOS, DB_CHAPAS } from '../engine';
 import api from '../api';
-import { Copy, Download, SortAsc, SortDesc, Filter, AlertTriangle, Calendar } from 'lucide-react';
+import { Copy, Download, SortAsc, SortDesc, Filter, AlertTriangle, Calendar, Flame, Eye as EyeIcon, RefreshCw, Share2, Printer, CheckCircle, FileText as FileTextIcon, Link2 } from 'lucide-react';
 
 // ─── Helpers para OS ─────────────────────────────────────
 const acabNome = (id) => {
@@ -169,6 +169,13 @@ export default function Orcs({ orcs, nav, reload, notify }) {
     const [osModal, setOsModal] = useState(null);   // { orc, empresa }
     const [loadingOS, setLoadingOS] = useState(null); // orc_id
     const [loadingDup, setLoadingDup] = useState(null); // orc_id duplicando
+    const [scores, setScores] = useState({}); // { orc_id: { score, label, cor } }
+    const [timeline, setTimeline] = useState(null); // { events: [] }
+
+    // ─── Carregar scores ──────────────────────────────────
+    useEffect(() => {
+        api.get('/portal/scores').then(setScores).catch(() => {});
+    }, [orcs]);
 
     // ─── Lista de clientes únicos ────────────────────────────
     const clientes = useMemo(() => {
@@ -239,8 +246,12 @@ export default function Orcs({ orcs, nav, reload, notify }) {
         try {
             const gen = await api.post('/portal/generate', { orc_id: orc.id });
             const token = gen.token;
-            const views = await api.get(`/portal/views/${orc.id}`);
-            setLinkModal({ orc, token, views: views.views || [], total: views.total || 0 });
+            const [views, tl] = await Promise.all([
+                api.get(`/portal/views/${orc.id}`),
+                api.get(`/portal/timeline/${orc.id}`),
+            ]);
+            setLinkModal({ orc, token, views: views.views || [], total: views.total || 0, lead_score: views.lead_score, viewsData: views });
+            setTimeline(tl);
         } catch (ex) {
             notify(ex.error || 'Erro ao gerar link');
         } finally {
@@ -638,9 +649,21 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                 )}
                                             </td>
                                             <td className="td-glass">
-                                                <span style={tagStyle(kc?.c)} className={tagClass}>
-                                                    {kc?.nm || 'Lead'}
-                                                </span>
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <span style={tagStyle(kc?.c)} className={tagClass}>
+                                                        {kc?.nm || 'Lead'}
+                                                    </span>
+                                                    {scores[o.id] && scores[o.id].score > 0 && (
+                                                        <span
+                                                            className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                                            style={{ background: `${scores[o.id].cor}18`, color: scores[o.id].cor, border: `1px solid ${scores[o.id].cor}30` }}
+                                                            title={`Lead Score: ${scores[o.id].score} — ${scores[o.id].label}`}
+                                                        >
+                                                            <Flame size={9} />
+                                                            {scores[o.id].score}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="td-glass">
                                                 <div className="flex items-center gap-1.5">
@@ -875,19 +898,47 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                 </Modal>
             )}
 
-            {/* ─── Modal: Link Público + Histórico ──────────── */}
+            {/* ─── Modal: Link Público + Score + Timeline ──────── */}
             {linkModal && (
-                <Modal title="Link Público da Proposta" close={() => setLinkModal(null)} w={600}>
+                <Modal title="Link Público da Proposta" close={() => { setLinkModal(null); setTimeline(null); }} w={680}>
                     <div className="flex flex-col gap-5">
-                        {/* Info proposta */}
-                        <div className="p-3 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
-                            <div className="text-xs font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
-                                {linkModal.orc.cliente_nome} — {linkModal.orc.ambiente || 'Sem nome'}
+                        {/* Info proposta + Score */}
+                        <div className="p-3 rounded-lg flex items-center justify-between" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                            <div>
+                                <div className="text-xs font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
+                                    {linkModal.orc.cliente_nome} — {linkModal.orc.ambiente || 'Sem nome'}
+                                </div>
+                                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                    Valor: <strong style={{ color: 'var(--primary)' }}>{R$(linkModal.orc.valor_venda)}</strong>
+                                </div>
                             </div>
-                            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                                Valor: <strong style={{ color: 'var(--primary)' }}>{R$(linkModal.orc.valor_venda)}</strong>
-                            </div>
+                            {linkModal.lead_score && linkModal.lead_score.score > 0 && (
+                                <div className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg" style={{ background: `${linkModal.lead_score.cor}12`, border: `1px solid ${linkModal.lead_score.cor}30` }}>
+                                    <div className="flex items-center gap-1">
+                                        <Flame size={14} style={{ color: linkModal.lead_score.cor }} />
+                                        <span className="text-lg font-bold" style={{ color: linkModal.lead_score.cor }}>{linkModal.lead_score.score}</span>
+                                    </div>
+                                    <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: linkModal.lead_score.cor }}>{linkModal.lead_score.label}</span>
+                                </div>
+                            )}
                         </div>
+
+                        {/* Métricas resumo */}
+                        {linkModal.viewsData && linkModal.viewsData.total > 0 && (
+                            <div className="grid grid-cols-4 gap-2">
+                                {[
+                                    { label: 'Visitas', value: linkModal.viewsData.new_visits || 0, color: '#3b82f6' },
+                                    { label: 'Dispositivos', value: linkModal.viewsData.unique_devices || 0, color: '#8b5cf6' },
+                                    { label: 'Tempo Max', value: `${Math.floor((linkModal.viewsData.max_tempo || 0) / 60)}min`, color: '#f59e0b' },
+                                    { label: 'Scroll Max', value: `${linkModal.viewsData.max_scroll || 0}%`, color: '#22c55e' },
+                                ].map((m, i) => (
+                                    <div key={i} className="text-center p-2 rounded-lg" style={{ background: `${m.color}08`, border: `1px solid ${m.color}20` }}>
+                                        <div className="text-sm font-bold" style={{ color: m.color }}>{m.value}</div>
+                                        <div className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{m.label}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
 
                         {/* Link */}
                         <div>
@@ -906,40 +957,57 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                     <Ic.Copy /> Copiar
                                 </button>
                             </div>
-                            <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
-                                Compartilhe este link com o cliente — ele pode visualizar a proposta sem precisar de conta.
-                            </p>
                         </div>
 
-                        {/* Histórico de acessos */}
+                        {/* Timeline Visual */}
                         <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-                                    HISTÓRICO DE ACESSOS
-                                    <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ background: linkModal.total > 0 ? '#dbeafe' : 'var(--bg-muted)', color: linkModal.total > 0 ? '#1d4ed8' : 'var(--text-muted)' }}>
-                                        {linkModal.total} {linkModal.total === 1 ? 'acesso' : 'acessos'}
-                                    </span>
-                                </div>
+                            <div className="text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>
+                                TIMELINE DO CLIENTE
+                                <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ background: linkModal.total > 0 ? '#dbeafe' : 'var(--bg-muted)', color: linkModal.total > 0 ? '#1d4ed8' : 'var(--text-muted)' }}>
+                                    {linkModal.total} {linkModal.total === 1 ? 'acesso' : 'acessos'}
+                                </span>
                             </div>
-                            {linkModal.views.length === 0 ? (
+                            {(!timeline || !timeline.events || timeline.events.length === 0) ? (
                                 <div className="py-6 text-center text-xs rounded-lg" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
                                     <div className="mb-2 flex justify-center"><Ic.Eye /></div>
-                                    Nenhum acesso registrado ainda.<br />
+                                    Nenhum evento registrado ainda.<br />
                                     <span className="opacity-70">Quando o cliente abrir o link, aparecerá aqui.</span>
                                 </div>
                             ) : (
-                                <div className="flex flex-col gap-1.5 max-h-52 overflow-y-auto pr-1">
-                                    {linkModal.views.map((v, i) => (
-                                        <div key={i} className="flex items-center justify-between p-2 rounded-lg text-xs" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
-                                            <div className="flex items-center gap-2">
-                                                <span>{parseUA(v.user_agent)}</span>
-                                                {v.ip_cliente && v.ip_cliente !== '::1' && (
-                                                    <span className="font-mono" style={{ color: 'var(--text-muted)' }}>{v.ip_cliente}</span>
-                                                )}
-                                            </div>
-                                            <span style={{ color: 'var(--text-muted)' }}>{dtHr(v.acessado_em)}</span>
-                                        </div>
-                                    ))}
+                                <div className="max-h-64 overflow-y-auto pr-1">
+                                    <div className="relative pl-6">
+                                        {/* Linha vertical */}
+                                        <div className="absolute left-[9px] top-2 bottom-2 w-[2px]" style={{ background: 'var(--border)' }} />
+                                        {timeline.events.map((ev, i) => {
+                                            const ICON_MAP = {
+                                                file: { icon: <FileTextIcon size={10} />, color: '#3b82f6' },
+                                                link: { icon: <Link2 size={10} />, color: '#8b5cf6' },
+                                                eye: { icon: <EyeIcon size={10} />, color: '#6366f1' },
+                                                refresh: { icon: <RefreshCw size={10} />, color: '#f97316' },
+                                                share: { icon: <Share2 size={10} />, color: '#8b5cf6' },
+                                                printer: { icon: <Printer size={10} />, color: '#16a34a' },
+                                                check: { icon: <CheckCircle size={10} />, color: '#22c55e' },
+                                            };
+                                            const ic = ICON_MAP[ev.icone] || ICON_MAP.file;
+                                            return (
+                                                <div key={i} className="relative flex gap-3 pb-3">
+                                                    <div className="absolute left-[-15px] w-5 h-5 rounded-full flex items-center justify-center shrink-0 z-10"
+                                                        style={{ background: `${ic.color}18`, border: `2px solid ${ic.color}`, color: ic.color }}>
+                                                        {ic.icon}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0 pt-0.5">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{ev.titulo}</span>
+                                                            <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>{dtHr(ev.data)}</span>
+                                                        </div>
+                                                        {ev.detalhe && (
+                                                            <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{ev.detalhe}</div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -952,7 +1020,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                             >
                                 <Ic.X /> Revogar link público
                             </button>
-                            <button onClick={() => setLinkModal(null)} className={Z.btn2}>Fechar</button>
+                            <button onClick={() => { setLinkModal(null); setTimeline(null); }} className={Z.btn2}>Fechar</button>
                         </div>
                     </div>
                 </Modal>
