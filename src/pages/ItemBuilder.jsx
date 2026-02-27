@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Z, Ic } from '../ui';
 import { uid, R$, N, DB_CHAPAS, DB_FERRAGENS, DB_ACABAMENTOS, calcItemV2 } from '../engine';
 import api from '../api';
-import { Plus, Trash2, Edit2, Save, X, ChevronDown, ChevronRight, Box, Package, Wrench, Eye, EyeOff, Copy, Layers } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, ChevronDown, ChevronRight, Box, Package, Wrench, Eye, EyeOff, Copy, Layers, Search } from 'lucide-react';
 import RipadoCalc from './Ripado';
 
 // ── Safe formula evaluator ──────────────────────────────────────────────────
@@ -789,6 +789,7 @@ export default function ItemBuilder({ notify }) {
     const [componentes, setComponentes] = useState([]);
     const [editing, setEditing] = useState(null); // { tipo, item } | null
     const [loading, setLoading] = useState(false);
+    const [busca, setBusca] = useState('');
 
     const load = async () => {
         try {
@@ -844,7 +845,13 @@ export default function ItemBuilder({ notify }) {
         );
     }
 
-    const items = aba === 'caixas' ? caixas : componentes;
+    const todosItems = aba === 'caixas' ? caixas : componentes;
+    const items = busca.trim()
+        ? todosItems.filter(i =>
+            (i.nome || '').toLowerCase().includes(busca.toLowerCase()) ||
+            (i.desc || '').toLowerCase().includes(busca.toLowerCase())
+        )
+        : todosItems;
     const tipo = aba === 'caixas' ? 'caixa' : 'componente';
 
     return (
@@ -865,7 +872,7 @@ export default function ItemBuilder({ notify }) {
             {/* Abas */}
             <div className="flex gap-1 mb-4 p-1 rounded-lg" style={{ background: 'var(--bg-muted)', width: 'fit-content' }}>
                 {[['caixas', 'Caixas', Box], ['componentes', 'Componentes', Package], ['paineis', 'Painéis Especiais', Layers]].map(([id, lb, Icon]) => (
-                    <button key={id} onClick={() => setAba(id)}
+                    <button key={id} onClick={() => { setAba(id); setBusca(''); }}
                         className="flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-semibold transition-all"
                         style={aba === id ? { background: 'var(--primary)', color: '#fff' } : { color: 'var(--text-muted)' }}>
                         <Icon size={13} /> {lb}
@@ -882,14 +889,42 @@ export default function ItemBuilder({ notify }) {
             {/* Painéis Especiais — calculadora embebida */}
             {aba === 'paineis' && <RipadoCalc embedded />}
 
+            {/* Busca */}
+            {aba !== 'paineis' && (
+                <div className="relative mb-4">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
+                    <input
+                        type="text"
+                        placeholder={`Buscar ${aba === 'caixas' ? 'caixas' : 'componentes'}...`}
+                        value={busca}
+                        onChange={e => setBusca(e.target.value)}
+                        className="w-full pl-9 pr-9 py-2 rounded-lg text-sm outline-none"
+                        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                    />
+                    {busca && (
+                        <button onClick={() => setBusca('')} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 transition-opacity">
+                            <X size={13} style={{ color: 'var(--text-muted)' }} />
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Lista de Caixas / Componentes */}
-            {aba !== 'paineis' && (items.length === 0 ? (
+            {aba !== 'paineis' && (todosItems.length === 0 ? (
                 <div className={`${Z.card} flex flex-col items-center py-16`} style={{ color: 'var(--text-muted)' }}>
                     {aba === 'caixas' ? <Box size={40} className="mb-3 opacity-30" /> : <Package size={40} className="mb-3 opacity-30" />}
                     <p className="text-sm">Nenhum {aba === 'caixas' ? 'caixa' : 'componente'} cadastrado</p>
                     <button onClick={() => setEditing({ tipo, item: tipo === 'caixa' ? { ...EMPTY_CAIXA } : { ...EMPTY_COMP } })}
                         className={`${Z.btn} mt-4 text-xs`}>
                         <Plus size={13} /> Criar o primeiro
+                    </button>
+                </div>
+            ) : items.length === 0 ? (
+                <div className={`${Z.card} flex flex-col items-center py-16`} style={{ color: 'var(--text-muted)' }}>
+                    <Search size={40} className="mb-3 opacity-30" />
+                    <p className="text-sm">Nenhum resultado para "<span className="font-semibold">{busca}</span>"</p>
+                    <button onClick={() => setBusca('')} className={`${Z.btn2} mt-4 text-xs`}>
+                        <X size={13} /> Limpar busca
                     </button>
                 </div>
             ) : (
