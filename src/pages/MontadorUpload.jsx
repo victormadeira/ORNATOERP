@@ -10,7 +10,7 @@ export default function MontadorUpload({ token }) {
     const [uploading, setUploading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [fotos, setFotos] = useState(0);
-    const [ambiente, setAmbiente] = useState('');
+    const [ambiente, setAmbiente] = useState(null); // null até info carregar, depois inicializa com projeto_nome
     const [uploadedFotos, setUploadedFotos] = useState([]);
     const fileRef = useRef();
     const cameraRef = useRef();
@@ -18,7 +18,10 @@ export default function MontadorUpload({ token }) {
     useEffect(() => {
         fetch(`${API}/api/montador/public/${token}`)
             .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-            .then(d => setInfo(d))
+            .then(d => {
+                setInfo(d);
+                setAmbiente(d.projeto_nome || 'Geral');
+            })
             .catch(() => setError('Link inválido ou expirado'))
             .finally(() => setLoading(false));
     }, [token]);
@@ -154,25 +157,37 @@ export default function MontadorUpload({ token }) {
                     </div>
                 )}
 
-                {/* Ambiente Selector */}
-                {info.ambientes && info.ambientes.length > 0 && (
-                    <div style={{ marginBottom: 16 }}>
-                        <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 6, display: 'block' }}>
-                            <MapPin size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                            Ambiente
-                        </label>
-                        <select
-                            value={ambiente}
-                            onChange={e => setAmbiente(e.target.value)}
-                            style={styles.selectAmbiente}
-                        >
-                            <option value="">Selecionar ambiente (opcional)</option>
-                            {info.ambientes.map(amb => (
-                                <option key={amb} value={amb}>{amb}</option>
-                            ))}
-                        </select>
+                {/* Ambiente Chips — scroll horizontal */}
+                <div style={{ marginBottom: 16 }}>
+                    <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <MapPin size={14} />
+                        Ambiente
+                    </label>
+                    <div style={{
+                        display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4,
+                        WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
+                    }}>
+                        {[info.projeto_nome || 'Geral', ...(info.ambientes || [])].map(amb => {
+                            const selected = ambiente === amb;
+                            return (
+                                <button
+                                    key={amb}
+                                    onClick={() => setAmbiente(amb)}
+                                    style={{
+                                        padding: '8px 16px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                                        fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
+                                        transition: 'all 0.15s',
+                                        background: selected ? (info?.cor_primaria || '#1B2A4A') : '#f1f5f9',
+                                        color: selected ? '#fff' : '#475569',
+                                        boxShadow: selected ? `0 2px 8px ${info?.cor_primaria || '#1B2A4A'}40` : 'none',
+                                    }}
+                                >
+                                    {amb}
+                                </button>
+                            );
+                        })}
                     </div>
-                )}
+                </div>
 
                 {uploading ? (
                     <div style={{ textAlign: 'center', padding: 32 }}>
@@ -288,16 +303,6 @@ const mkStyles = (cor1 = '#1B2A4A', cor2 = '#C9A96E') => ({
         margin: 16, padding: 24, borderRadius: 16,
         background: '#fff', border: '2px dashed #cbd5e1',
         boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
-    },
-    selectAmbiente: {
-        width: '100%', padding: '12px 14px', borderRadius: 10,
-        border: '1.5px solid #e2e8f0', background: '#fff',
-        fontSize: 14, color: '#334155', outline: 'none',
-        appearance: 'none',
-        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
-        backgroundRepeat: 'no-repeat',
-        backgroundPosition: 'right 12px center',
-        cursor: 'pointer',
     },
     successBanner: {
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
