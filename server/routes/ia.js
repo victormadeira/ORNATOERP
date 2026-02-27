@@ -362,20 +362,35 @@ ${exComp ? JSON.stringify(JSON.parse(exComp.json_data), null, 2) : '{}'}
 ### Mapeamento de materiais:
 | Nome no projeto | Codigo |
 |-----------------|--------|
-| MDF Freijo / Louro Freijo / Gianduia | amad_medio |
-| MDF Areia / Lord / Sal Rosa / Cafelatte | amad_claro |
-| MDF Nogueira / Gaia / Tramato | amad_escuro |
-| MDF Branco / Branco TX | branco_tx15 |
-| Cores especiais (Verde, Rosa, Cinza) | personalizado |
+| MDF Freijo / Louro Freijo / Gianduia / Ipê / Carvalho Natural | amad_medio |
+| MDF Areia / Lord / Sal Rosa / Cafelatte / Creme / Bege / Amendoa | amad_claro |
+| MDF Nogueira / Nogueira Caiena / Gaia / Tramato / Castanho / Wenge / Tabaco | amad_escuro |
+| MDF Branco / Branco TX / Branco Polar / Off White | branco_tx15 |
+| MDF Branco Ultra / Branco Premium / Alto Brilho Branco | branco_ultra |
+| MDF Preto / Preto TX / Preto Fosco | preto_tx |
+| MDF Laca / Laqueado | laca15 |
+| Cinza Fossil / Cinza Grafite / Cinza Marte / Cinza (qualquer tom) | personalizado |
+| Coloridos (Verde, Rosa, Azul, Vinho, Terracota, Mostarda) | personalizado |
+| Material nao identificado / Sob medida / Especial | personalizado |
+
+### Regra matInt vs matExt:
+- **matInt**: material das pecas estruturais internas (laterais, topo, base, fundo). Geralmente MDF branco ou mais barato.
+- **matExt**: material das faces visiveis externas (tamponamentos, porta de correr no guarda-roupa). Geralmente o material nobre do projeto.
+- **matExtComp**: material da frente dos componentes (porta de abrir, gaveta). Geralmente o material nobre.
+- Se o projeto especifica apenas UM material para tudo (ex: "MDF Nogueira Caiena em todas as pecas"), use o mesmo codigo em matInt, matExt e matExtComp.
+- Se o movel e bipartido (ex: "interior branco, frente Nogueira"), use matInt diferente de matExt/matExtComp.
 
 ### Mapeamento de ferragens:
 | Mencionado no projeto | Ferragem |
 |----------------------|----------|
-| "puxador cava" / "usinado" | puxCava |
-| "fecho toque" / "tip-on" | tipOn |
-| "corredica oculta" / "telescopica" | corrOculta |
-| "pistao a gas" | pistGas |
-| "perfil LED" / "fita LED" | perfilLed |
+| "puxador cava" / "usinado" / "puxador integrado" / "sem puxador aparente" | puxCava |
+| "fecho toque" / "tip-on" / "push open" | tipOn |
+| "corredica oculta" / "telescopica" / "full extension oculta" | corrOculta |
+| "pistao a gas" / "porta basculante" / "articulador" | pistGas |
+| "perfil LED" / "fita LED" / "iluminacao interna" / "LED embutido" | perfilLed |
+| "trilho de correr" / "porta deslizante" / "porta de correr" | trilhoCorrer |
+| "articulador" / "porta articulada" / "porta rebativel" | articulador |
+| "lixeira deslizante" / "lixeira embutida" | lixeiraDesliz |
 
 ---
 
@@ -388,20 +403,36 @@ ${exComp ? JSON.stringify(JSON.parse(exComp.json_data), null, 2) : '{}'}
 5. **Corredica**: gavetas ate 400mm prof = corr400, acima = corr500.
 6. **Porta fecho toque**: usa Tip-On, sem puxador aparente.
 7. **Puxador cava**: usinado no MDF, sem ferragem adicional visivel.
+8. **Porta componente**: use a variavel nPortas para o NUMERO DE FOLHAS. O componente "Porta" gera 1 frente para cada folha. Uma porta de 2 folhas = nPortas: 2.
+9. **Gaveta**: ag = altura da frente em mm. Gaveta padrao cozinha = 150-200mm, gaveta roupa = 200-250mm, gavetao = 300-400mm.
+10. **Prateleira**: nBand = numero de prateleiras internas. Nao inclui base e topo da caixa.
+11. **Painel Ripado / Muxarabi**: estes itens sao tratados pelo motor de ripado. Use caixa="Painel Ripado" ou caixa="Painel Muxarabi". O sistema converte automaticamente para o motor correto. Informe L (largura total) e A (altura total).
 
 ---
 
 ## 9. DICAS
 
 - "Armario superior" cozinha = Caixa Aerea
-- "Armario inferior" cozinha = Caixa Baixa / Balcao
-- "Mesa de cabeceira" = Comoda (menor)
-- "Penteadeira" = Mesa / Escrivaninha
-- "Lambri" / "revestimento parede" = Painel de Fechamento
+- "Armario inferior" / "balcao" cozinha = Caixa Baixa / Balcao
+- "Mesa de cabeceira" / "criado mudo" = Comoda (menor, L 400-600mm)
+- "Penteadeira" / "mesa maquiagem" = Comoda (L 800-1200mm) ou Mesa / Escrivaninha
+- "Lambri" / "revestimento parede" / "painel de fundo" = Painel de Fechamento (P=18-30mm)
 - "Cristaleira" com vidro = Cristaleira + Porta com Vidro
 - "Sapateira" dentro de closet = Sapateira Interna (componente)
 - "Gaveta basculante" = Gaveta Basculante (componente)
 - "Porta de correr com espelho" = Porta de Correr com Espelho (componente)
+- "Porta de correr MDF" = Porta de Correr (componente)
+- "Painel ripado" / "painel com ripas" / "ripado decorativo" = caixa "Painel Ripado"
+- "Muxarabi" / "painel muxarabi" = caixa "Painel Muxarabi"
+- "Nicho aberto" / "nicho decorativo" = Nicho Aberto (componente, vars: an=altura em mm)
+- "Nichos iluminados" = Nicho Iluminado (componente)
+- "Maleiro" = Maleiro (componente) — prateleira fixa no topo do guarda-roupa
+- "Cabideiro" / "cabide de roupas" = Cabideiro (componente) — nao tem vars
+- "Espelheira" banheiro = Espelheira (caixa) com Porta (componente, matExtComp = vidro ou espelho)
+- "Torre forno micro" = Torre Quente com Nicho Aberto (para o forno) + Porta acima/abaixo
+- "Bancada suspensa" = Caixa Baixa / Balcao com A reduzida (ex: A=300-400mm)
+- "Painel cabeceira" = Cabeceira (caixa) com Cabeceira Estofada (componente) se tiver estofado
+- "Guarda-roupa com espelho" = Guarda-Roupa + Porta de Correr com Espelho (componente)
 
 ---
 
@@ -542,17 +573,46 @@ ${caixas.map(c => `- \`"${JSON.parse(c.json_data).nome}"\``).join('\n')}
 #### Nomes de COMPONENTES disponiveis:
 ${comps.map(c => `- \`"${JSON.parse(c.json_data).nome}"\``).join('\n')}
 
-### Variaveis comuns dos componentes
+### Variaveis dos componentes (COMPLETO)
 
-| Componente | Variavel | Descricao | Tipo |
-|------------|----------|-----------|------|
-| Porta | \`nPortas\` | Numero de folhas | number |
-| Porta | \`Ap\` | Altura da porta (mm). Se omitido, usa Ai | number |
-| Gaveta | \`ag\` | Altura da frente da gaveta (mm) | number |
-| Prateleira | \`nBand\` | Numero de prateleiras | number |
-| Nicho | \`an\` | Altura do nicho (mm) | number |
-| Nicho | \`ln\` | Largura do nicho (mm). Se omitido, usa Li | number |
-| Gaveta Basculante | \`ag\` | Altura da frente basculante (mm) | number |
+| Componente | Variavel | Descricao | Tipo | Exemplo |
+|------------|----------|-----------|------|---------|
+| Porta | \`nPortas\` | Numero de folhas (1=simples, 2=dupla, 4=quadrupla) | number | \`2\` |
+| Porta | \`Ap\` | Altura da porta em mm. Omitir = usa altura interna Ai | number | \`700\` |
+| Porta com Vidro | \`nPortas\` | Numero de folhas com vidro | number | \`2\` |
+| Porta com Vidro | \`Ap\` | Altura da porta (mm) | number | \`800\` |
+| Porta de Correr | \`nPortas\` | Numero de folhas deslizantes | number | \`2\` |
+| Porta de Correr com Espelho | \`nPortas\` | Numero de folhas com espelho | number | \`3\` |
+| Porta Basculante | \`nPortas\` | Numero de folhas basculantes | number | \`1\` |
+| Porta Fecho Toque | \`nPortas\` | Numero de folhas push-open | number | \`2\` |
+| Porta Ripada | \`nPortas\` | Numero de folhas ripadas | number | \`2\` |
+| Porta com Friso | \`nPortas\` | Numero de folhas com friso | number | \`2\` |
+| Porta com Muxarabi | \`nPortas\` | Numero de folhas com muxarabi | number | \`1\` |
+| Porta com Palhinha | \`nPortas\` | Numero de folhas com palhinha | number | \`2\` |
+| Porta Provencal | \`nPortas\` | Numero de folhas provencal | number | \`2\` |
+| Porta Perfil Aluminio | \`nPortas\` | Numero de folhas perfil alu | number | \`2\` |
+| Gaveta | \`ag\` | Altura da frente da gaveta (mm). Padrao 200mm | number | \`180\` |
+| Gavetao | \`ag\` | Altura do gavetao (mm). Padrao 300mm | number | \`350\` |
+| Gaveta Basculante | \`ag\` | Altura da frente basculante (mm) | number | \`200\` |
+| Gaveta Organizadora | \`ag\` | Altura da gaveta organizadora (mm) | number | \`150\` |
+| Prateleira | \`nBand\` | Numero de prateleiras internas | number | \`3\` |
+| Prateleira com LED | \`nBand\` | Numero de prateleiras iluminadas | number | \`4\` |
+| Prateleira Borda Curva | \`nBand\` | Numero de prateleiras curvas | number | \`2\` |
+| Nicho Aberto | \`an\` | Altura do nicho (mm) | number | \`350\` |
+| Nicho Aberto | \`ln\` | Largura do nicho (mm). Omitir = usa Li | number | \`400\` |
+| Nicho Iluminado | \`an\` | Altura do nicho iluminado (mm) | number | \`350\` |
+| Divisoria Vertical | — | Sem variaveis. Divide internamente | — | — |
+| Maleiro | — | Sem variaveis. Prateleira fixa no topo | — | — |
+| Cabideiro | — | Sem variaveis. Tubo na altura de roupas | — | — |
+| Sapateira Interna | — | Sem variaveis. Modulo de sapateira | — | — |
+| Cabeceira Estofada | — | Sem variaveis. Painel estofado frontal | — | — |
+| Lixeira Deslizante | — | Sem variaveis. Lixeira embutida pull-out | — | — |
+
+### CRITICO: Como usar Porta corretamente
+- Cada grupo de portas de MESMA altura e material = 1 entrada de componente
+- Se um armario tem 2 portas superiores (A=800mm) e 2 portas inferiores (A=600mm): use 2 entradas separadas de "Porta"
+- Exemplo: \`{ "nome": "Porta", "qtd": 1, "vars": { "nPortas": 2, "Ap": 800 }, "matExtComp": "amad_escuro" }\`
+- O campo \`qtd\` no componente multiplica o custo. Para 2 grupos de 2 portas com mesma altura: use 1 entrada com nPortas=2 e qtd=2 (ou 2 entradas com nPortas=2 e qtd=1).
 
 ### Codigos de materiais mais usados
 

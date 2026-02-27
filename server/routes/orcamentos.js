@@ -185,6 +185,29 @@ router.post('/importar', requireAuth, (req, res) => {
             }
 
             for (const itemIA of ambIA.itens) {
+                // ── Painel Ripado / Muxarabi → vai para paineis[], não itens[]
+                const caixaNorm = (itemIA.caixa || '').toLowerCase().trim();
+                const isPainel = caixaNorm === 'painel ripado' || caixaNorm === 'painel muxarabi' || caixaNorm === 'muxarabi';
+                if (isPainel) {
+                    const tipoP = caixaNorm.includes('muxarabi') ? 'muxarabi' : 'ripado';
+                    amb.paineis.push({
+                        id: uid(),
+                        nome: itemIA.nome || (tipoP === 'muxarabi' ? 'Muxarabi' : 'Painel Ripado'),
+                        tipo: tipoP,
+                        L: itemIA.L || itemIA.largura || 2400,
+                        A: itemIA.A || itemIA.altura || 2200,
+                        qtd: itemIA.qtd || 1,
+                        wV: itemIA.wV || 40, eV: itemIA.eV || 18, sV: itemIA.sV || 15,
+                        wH: itemIA.wH || 40, eH: itemIA.eH || 18, sH: itemIA.sH || 15,
+                        mesmasRipas: itemIA.mesmasRipas !== false,
+                        temSubstrato: itemIA.temSubstrato !== false,
+                        matRipaV: itemIA.matRipa || itemIA.matRipaV || '',
+                        matRipaH: itemIA.matRipaH || '',
+                        matSubstrato: itemIA.matSubstrato || '',
+                    });
+                    continue;
+                }
+
                 const cxRow = findCaixa(itemIA.caixa);
                 if (!cxRow) {
                     warnings.push(`Caixa "${itemIA.caixa}" não encontrada no catálogo (ambiente: ${amb.nome})`);
