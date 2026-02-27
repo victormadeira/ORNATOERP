@@ -6,7 +6,11 @@ import db from '../db.js';
 // ═══════════════════════════════════════════════════════
 
 const SCOPES = ['https://www.googleapis.com/auth/drive'];
-const REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob';
+
+function getRedirectUri() {
+    const host = process.env.PUBLIC_URL || 'https://gestaoornato.com';
+    return `${host}/api/drive/callback`;
+}
 
 // Cache do client autenticado
 let _cachedClient = null;
@@ -34,7 +38,7 @@ export function getAuthUrl() {
     const cfg = getConfig();
     if (!cfg.gdrive_client_id || !cfg.gdrive_client_secret) return null;
 
-    const oauth2 = new google.auth.OAuth2(cfg.gdrive_client_id, cfg.gdrive_client_secret, REDIRECT_URI);
+    const oauth2 = new google.auth.OAuth2(cfg.gdrive_client_id, cfg.gdrive_client_secret, getRedirectUri());
     return oauth2.generateAuthUrl({
         access_type: 'offline',
         prompt: 'consent',
@@ -49,7 +53,7 @@ export async function exchangeCode(code) {
         throw new Error('Client ID e Client Secret devem ser configurados primeiro');
     }
 
-    const oauth2 = new google.auth.OAuth2(cfg.gdrive_client_id, cfg.gdrive_client_secret, REDIRECT_URI);
+    const oauth2 = new google.auth.OAuth2(cfg.gdrive_client_id, cfg.gdrive_client_secret, getRedirectUri());
     const { tokens } = await oauth2.getToken(code);
 
     if (!tokens.refresh_token) {
@@ -75,7 +79,7 @@ export function getClient() {
     const credsKey = `${cfg.gdrive_client_id}:${cfg.gdrive_client_secret}:${cfg.gdrive_refresh_token}`;
     if (_cachedClient && _cachedCreds === credsKey) return _cachedClient;
 
-    const oauth2 = new google.auth.OAuth2(cfg.gdrive_client_id, cfg.gdrive_client_secret, REDIRECT_URI);
+    const oauth2 = new google.auth.OAuth2(cfg.gdrive_client_id, cfg.gdrive_client_secret, getRedirectUri());
     oauth2.setCredentials({ refresh_token: cfg.gdrive_refresh_token });
 
     _cachedClient = google.drive({ version: 'v3', auth: oauth2 });

@@ -63,6 +63,36 @@ router.post('/auth-callback', requireAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// GET /api/drive/callback — OAuth redirect do Google
+// ═══════════════════════════════════════════════════
+router.get('/callback', async (req, res) => {
+    const { code, error } = req.query;
+    if (error) {
+        return res.send(`<html><body><h2>Erro na autorizacao</h2><p>${error}</p><script>setTimeout(()=>window.close(),3000)</script></body></html>`);
+    }
+    if (!code) {
+        return res.status(400).send('<html><body><h2>Codigo nao recebido</h2></body></html>');
+    }
+    try {
+        await gdrive.exchangeCode(code.trim());
+        res.send(`<html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f0f4f8">
+            <div style="text-align:center;padding:40px;background:#fff;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.1)">
+                <div style="font-size:48px;margin-bottom:16px">&#10004;</div>
+                <h2 style="color:#22c55e;margin:0 0 8px">Google Drive Conectado!</h2>
+                <p style="color:#666">Pode fechar esta aba e voltar ao sistema.</p>
+                <script>setTimeout(()=>window.close(),3000)</script>
+            </div></div></body></html>`);
+    } catch (err) {
+        res.status(400).send(`<html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f0f4f8">
+            <div style="text-align:center;padding:40px;background:#fff;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.1)">
+                <div style="font-size:48px;margin-bottom:16px">&#10060;</div>
+                <h2 style="color:#ef4444;margin:0 0 8px">Erro</h2>
+                <p style="color:#666">${err.message}</p>
+            </div></div></body></html>`);
+    }
+});
+
+// ═══════════════════════════════════════════════════
 // GET /api/drive/test — testa conexão (config UI)
 // ═══════════════════════════════════════════════════
 router.get('/test', requireAuth, async (req, res) => {
