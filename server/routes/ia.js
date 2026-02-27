@@ -400,13 +400,25 @@ ${exComp ? JSON.stringify(JSON.parse(exComp.json_data), null, 2) : '{}'}
 2. **Fundo**: sempre compensado 3mm (comp3), exceto movel aberto atras.
 3. **Tamponamento**: faces visiveis externas. Se encostado na parede, nao precisa.
 4. **Dobradicas**: ate 900mm = 2un, 900-1600mm = 3un, acima = 4un.
-5. **Corredica**: gavetas ate 400mm prof = corr400, acima = corr500.
+5. **Corredica**: SEMPRE usar corredica oculta (corrOculta ou corrFH) como padrao. NAO usar corr400/corr500 (corredica normal) — a marcenaria trabalha exclusivamente com corredicas ocultas.
 6. **Porta fecho toque**: usa Tip-On, sem puxador aparente.
 7. **Puxador cava**: usinado no MDF, sem ferragem adicional visivel.
 8. **Porta componente**: use a variavel nPortas para o NUMERO DE FOLHAS. O componente "Porta" gera 1 frente para cada folha. Uma porta de 2 folhas = nPortas: 2.
 9. **Gaveta**: ag = altura da frente em mm. Gaveta padrao cozinha = 150-200mm, gaveta roupa = 200-250mm, gavetao = 300-400mm.
 10. **Prateleira**: nBand = numero de prateleiras internas. Nao inclui base e topo da caixa.
 11. **Painel Ripado / Muxarabi**: estes itens sao tratados pelo motor de ripado. Use caixa="Painel Ripado" ou caixa="Painel Muxarabi". O sistema converte automaticamente para o motor correto. Informe L (largura total) e A (altura total).
+12. **Alturas por tipo de caixa** (CRITICO — respeitar para nao gerar modulos impossiveis):
+    - Caixa Aerea: A entre 300-800mm (modulo SUSPENSO na parede). Se A > 800mm, use "Armario Alto" ou "Caixa Alta".
+    - Caixa Baixa / Balcao: A entre 700-950mm (modulo apoiado no chao, sob bancada).
+    - Caixa Alta / Armario Alto: A entre 1800-2800mm (modulo alto do chao ao teto).
+    - Torre Quente: A entre 2000-2500mm.
+    - Guarda-Roupa: A entre 2200-2800mm.
+    - Rack TV: A entre 300-600mm.
+    - Comoda: A entre 700-1100mm.
+    - Gabinete Banheiro: A entre 500-850mm.
+    - Espelheira: A entre 600-1300mm.
+    - Cabeceira: A entre 800-1500mm (painel, nao movel alto).
+    - Painel TV / Painel de Fechamento: A livre (painel de parede, pode ir do chao ao teto).
 
 ---
 
