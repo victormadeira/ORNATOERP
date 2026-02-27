@@ -1,20 +1,25 @@
 ## Ornato ERP — Nginx Reverse Proxy
 ## Copiar para: /etc/nginx/sites-available/ornato-erp
 ## Ativar: ln -s /etc/nginx/sites-available/ornato-erp /etc/nginx/sites-enabled/
+## Depois: nginx -t && systemctl reload nginx
 
 server {
     listen 80;
-    server_name _;
+    server_name gestaoornato.com www.gestaoornato.com;
 
-    # Limite de upload (fotos montador, NFs, etc)
-    client_max_body_size 50M;
+    # Limite de upload (fotos, NFs, backups)
+    client_max_body_size 100M;
+
+    # Gzip
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml;
 
     # Frontend (React build)
     location / {
         root /home/ornato/app/dist;
         try_files $uri $uri/ /index.html;
 
-        # Cache para assets estaticos
+        # Cache para assets estaticos (JS, CSS, fontes, imagens)
         location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
             expires 7d;
             add_header Cache-Control "public, immutable";
@@ -32,8 +37,18 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
-        proxy_read_timeout 300s;
-        proxy_send_timeout 300s;
+
+        # Timeouts longos para PDF e operacoes pesadas
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+        proxy_connect_timeout 60s;
+
+        # Sem cache para API
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Pragma "no-cache";
+
+        # Body maior para backup/upload
+        client_max_body_size 100M;
     }
 
     # Portal do cliente (SPA fallback)

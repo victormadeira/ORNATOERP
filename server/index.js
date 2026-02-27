@@ -43,9 +43,19 @@ app.use('/api/leads', publicLimiter, express.json(), landingRoutes);
 
 const corsOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
-    : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5175', 'http://127.0.0.1:5175'];
+    : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5175', 'http://127.0.0.1:5175', 'https://gestaoornato.com', 'http://gestaoornato.com'];
 app.use(cors({ origin: corsOrigins }));
-app.use(express.json({ limit: '20mb' }));
+app.use(express.json({ limit: '50mb' }));
+
+// ═══ Anti-cache para API (evita dados stale entre dispositivos) ═══
+app.use('/api', (req, res, next) => {
+    res.set({
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+    });
+    next();
+});
 
 // ═══════════════════════════════════════════════════════
 // ROTAS

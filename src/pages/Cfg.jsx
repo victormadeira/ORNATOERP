@@ -3,7 +3,7 @@ import { Z, Ic } from '../ui';
 import api from '../api';
 import { useAuth } from '../auth';
 import { DEFAULT_CONTRATO_TEMPLATE } from './ContratoHtml';
-import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot } from 'lucide-react';
+import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database } from 'lucide-react';
 
 const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
@@ -107,6 +107,9 @@ export default function Cfg({ taxas, reload, notify }) {
     const [driveStatus, setDriveStatus] = useState(null);
     const [driveAuthCode, setDriveAuthCode] = useState('');
     const [driveAuthorizing, setDriveAuthorizing] = useState(false);
+    const [backupLoading, setBackupLoading] = useState(false);
+    const [backupResult, setBackupResult] = useState(null);
+    const backupInputRef = useRef();
 
     useEffect(() => {
         api.get('/config/empresa').then(d => {
@@ -244,6 +247,7 @@ export default function Cfg({ taxas, reload, notify }) {
                 {sectionBtn('drive', 'Google Drive', <Ic.Folder />)}
                 {sectionBtn('whatsapp', 'WhatsApp', <Ic.WhatsApp />)}
                 {sectionBtn('ia', 'Inteligência Artificial', <Ic.Sparkles />)}
+                {sectionBtn('backup', 'Backup', <Database size={16} />)}
             </div>
 
             {/* ─── Dados da Empresa ─────────────────────────────── */}
@@ -1390,6 +1394,136 @@ export default function Cfg({ taxas, reload, notify }) {
                                         <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>GPT-4o, GPT-4o Mini, GPT-4.1</div>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── Backup do Sistema ──────────────────────────── */}
+            {activeSection === 'backup' && (
+                <div className="max-w-2xl">
+                    <div className={Z.card}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
+                                <Database size={20} style={{ color: 'var(--primary)' }} />
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Backup do Sistema</h3>
+                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Exportar e importar todos os dados do sistema</p>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-4">
+                            {/* Exportar */}
+                            <div className="p-4 rounded-xl" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Download size={16} style={{ color: '#22c55e' }} />
+                                    <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Exportar Backup</span>
+                                </div>
+                                <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+                                    Baixa um arquivo JSON com todos os dados: empresa, taxas, biblioteca, modulos,
+                                    clientes, orcamentos, projetos, financeiro, estoque e mais.
+                                </p>
+                                <button
+                                    onClick={async () => {
+                                        setBackupLoading(true); setBackupResult(null);
+                                        try {
+                                            const resp = await fetch('/api/config/backup', {
+                                                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                                            });
+                                            if (!resp.ok) throw new Error('Erro ao gerar backup');
+                                            const blob = await resp.blob();
+                                            const url = URL.createObjectURL(blob);
+                                            const a = document.createElement('a');
+                                            a.href = url;
+                                            a.download = `ornato-backup-${new Date().toISOString().slice(0, 10)}.json`;
+                                            a.click();
+                                            URL.revokeObjectURL(url);
+                                            setBackupResult({ ok: true, msg: 'Backup exportado com sucesso!' });
+                                        } catch (e) {
+                                            setBackupResult({ ok: false, msg: e.message || 'Erro ao exportar' });
+                                        }
+                                        setBackupLoading(false);
+                                    }}
+                                    disabled={backupLoading}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
+                                    style={{ background: '#22c55e' }}
+                                >
+                                    {backupLoading ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
+                                    Exportar Backup
+                                </button>
+                            </div>
+
+                            {/* Importar */}
+                            <div className="p-4 rounded-xl" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Upload size={16} style={{ color: 'var(--primary)' }} />
+                                    <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Importar Backup</span>
+                                </div>
+                                <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+                                    Restaurar dados a partir de um arquivo de backup JSON.
+                                    Os dados atuais serao substituidos (exceto senhas de usuarios).
+                                </p>
+                                <input
+                                    ref={backupInputRef}
+                                    type="file"
+                                    accept=".json"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        if (!confirm(`Tem certeza que deseja importar o backup "${file.name}"?\n\nIsso vai SUBSTITUIR os dados atuais do sistema.`)) {
+                                            e.target.value = '';
+                                            return;
+                                        }
+                                        setBackupLoading(true); setBackupResult(null);
+                                        try {
+                                            const text = await file.text();
+                                            const json = JSON.parse(text);
+                                            const resp = await api.post('/config/backup', json);
+                                            setBackupResult({ ok: true, msg: resp.mensagem || 'Backup importado com sucesso!' });
+                                            if (reload) reload();
+                                        } catch (err) {
+                                            setBackupResult({ ok: false, msg: err.error || err.message || 'Erro ao importar backup' });
+                                        }
+                                        setBackupLoading(false);
+                                        e.target.value = '';
+                                    }}
+                                />
+                                <button
+                                    onClick={() => backupInputRef.current?.click()}
+                                    disabled={backupLoading}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
+                                    style={{ background: 'var(--primary)' }}
+                                >
+                                    {backupLoading ? <RefreshCw size={14} className="animate-spin" /> : <Upload size={14} />}
+                                    Selecionar Arquivo JSON
+                                </button>
+                            </div>
+
+                            {/* Resultado */}
+                            {backupResult && (
+                                <div className="flex items-center gap-2 p-3 rounded-lg text-sm" style={{
+                                    background: backupResult.ok ? '#dcfce7' : '#fee2e2',
+                                    color: backupResult.ok ? '#166534' : '#991b1b',
+                                }}>
+                                    {backupResult.ok ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+                                    {backupResult.msg}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Info */}
+                        <div className="mt-4 p-3 rounded-lg text-xs" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                            <div className="font-semibold mb-1">O que e incluido no backup:</div>
+                            <div className="grid grid-cols-2 gap-1">
+                                <span>Dados da empresa</span><span>Taxas e markup</span>
+                                <span>Biblioteca (materiais)</span><span>Modulos (caixas/componentes)</span>
+                                <span>Clientes + interacoes</span><span>Orcamentos completos</span>
+                                <span>Projetos + etapas</span><span>Financeiro (contas)</span>
+                                <span>Estoque + movimentacoes</span><span>Chat + mensagens</span>
+                                <span>Usuarios (sem senhas)</span><span>Configuracoes IA/WhatsApp</span>
                             </div>
                         </div>
                     </div>

@@ -4,11 +4,12 @@ module.exports = {
     name: 'ornato-erp',
     script: 'server/index.js',
     cwd: '/home/ornato/app',
-    node_args: '--experimental-vm-modules',
     env: {
       NODE_ENV: 'production',
       PORT: 3001,
+      // Ubuntu 22.04: pode ser chromium-browser ou chromium
       PUPPETEER_EXECUTABLE_PATH: '/usr/bin/chromium-browser',
+      PUPPETEER_SKIP_DOWNLOAD: 'true',
     },
     instances: 1,
     autorestart: true,
