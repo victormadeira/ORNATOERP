@@ -1207,7 +1207,7 @@ function TabArquivos({ data, notify }) {
     };
 
     const isImage = (tipo) => ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(tipo);
-    const API_BASE = import.meta.env.VITE_API || 'http://localhost:3001';
+    const API_BASE = import.meta.env.VITE_API || '';
     const fmtSize = (bytes) => bytes > 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`;
 
     return (

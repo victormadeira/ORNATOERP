@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Camera, Upload, CheckCircle2, AlertCircle, Image as ImageIcon, Clock, MapPin } from 'lucide-react';
 
-const API = import.meta.env.VITE_API || 'http://localhost:3001';
+const API = import.meta.env.VITE_API || '';
 
 export default function MontadorUpload({ token }) {
     const [info, setInfo] = useState(null);
