@@ -114,6 +114,34 @@ router.post('/aditivo', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// GET /api/orcamentos/templates — listar templates de ambiente
+// (DEVE ficar antes de /:id para não conflitar)
+// ═══════════════════════════════════════════════════════
+router.get('/templates', requireAuth, (req, res) => {
+    const templates = db.prepare('SELECT * FROM ambiente_templates ORDER BY categoria, nome').all();
+    res.json(templates);
+});
+
+// ═══════════════════════════════════════════════════════
+// POST /api/orcamentos/templates — criar template de ambiente
+// ═══════════════════════════════════════════════════════
+router.post('/templates', requireAuth, (req, res) => {
+    const { nome, descricao, categoria, json_data } = req.body;
+    if (!nome) return res.status(400).json({ error: 'Nome obrigatório' });
+    const result = db.prepare('INSERT INTO ambiente_templates (nome, descricao, categoria, json_data) VALUES (?, ?, ?, ?)')
+        .run(nome, descricao || '', categoria || '', JSON.stringify(json_data || {}));
+    res.json({ ok: true, id: Number(result.lastInsertRowid) });
+});
+
+// ═══════════════════════════════════════════════════════
+// DELETE /api/orcamentos/templates/:id — deletar template
+// ═══════════════════════════════════════════════════════
+router.delete('/templates/:id', requireAuth, (req, res) => {
+    db.prepare('DELETE FROM ambiente_templates WHERE id = ?').run(parseInt(req.params.id));
+    res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════
 // GET /api/orcamentos/:id
 // ═══════════════════════════════════════════════════════
 router.get('/:id', requireAuth, (req, res) => {
@@ -574,33 +602,6 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
     } catch (_) { /* log não bloqueia */ }
 
     res.json({ ok: true, projeto_criado });
-});
-
-// ═══════════════════════════════════════════════════════
-// GET /api/orcamentos/templates — listar templates de ambiente
-// ═══════════════════════════════════════════════════════
-router.get('/templates', requireAuth, (req, res) => {
-    const templates = db.prepare('SELECT * FROM ambiente_templates ORDER BY categoria, nome').all();
-    res.json(templates);
-});
-
-// ═══════════════════════════════════════════════════════
-// POST /api/orcamentos/templates — criar template de ambiente
-// ═══════════════════════════════════════════════════════
-router.post('/templates', requireAuth, (req, res) => {
-    const { nome, descricao, categoria, json_data } = req.body;
-    if (!nome) return res.status(400).json({ error: 'Nome obrigatório' });
-    const result = db.prepare('INSERT INTO ambiente_templates (nome, descricao, categoria, json_data) VALUES (?, ?, ?, ?)')
-        .run(nome, descricao || '', categoria || '', JSON.stringify(json_data || {}));
-    res.json({ ok: true, id: Number(result.lastInsertRowid) });
-});
-
-// ═══════════════════════════════════════════════════════
-// DELETE /api/orcamentos/templates/:id — deletar template
-// ═══════════════════════════════════════════════════════
-router.delete('/templates/:id', requireAuth, (req, res) => {
-    db.prepare('DELETE FROM ambiente_templates WHERE id = ?').run(parseInt(req.params.id));
-    res.json({ ok: true });
 });
 
 export default router;

@@ -1255,7 +1255,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     <div className={Z.card}>
                         <div className="flex items-center justify-between mb-3">
                             <h2 className="text-sm font-semibold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}><Layers size={14} /> Ambientes ({ambientes.length})</h2>
-                            {!readOnly && <button onClick={addAmbiente} className={`${Z.btn} text-xs py-1.5 px-3`}><Plus size={13} /> Ambiente</button>}
+                            {!readOnly && <div className="flex gap-2">
+                                {ambTemplates.length > 0 && <button onClick={() => setShowTipoAmbModal(true)} className={`${Z.btn2} text-xs py-1.5 px-3`} style={{ borderColor: '#16a34a40', color: '#16a34a' }}><FilePlus2 size={13} /> Templates</button>}
+                                <button onClick={addAmbiente} className={`${Z.btn} text-xs py-1.5 px-3`}><Plus size={13} /> Ambiente</button>
+                            </div>}
                         </div>
 
                         {ambientes.length === 0 ? (
