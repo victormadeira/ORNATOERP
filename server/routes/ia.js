@@ -419,6 +419,17 @@ ${exComp ? JSON.stringify(JSON.parse(exComp.json_data), null, 2) : '{}'}
     - Espelheira: A entre 600-1300mm.
     - Cabeceira: A entre 800-1500mm (painel, nao movel alto).
     - Painel TV / Painel de Fechamento: A livre (painel de parede, pode ir do chao ao teto).
+13. **Ap (altura da porta) — REGRA CRITICA**:
+    - Ap NUNCA pode ser maior que Ai (altura interna = A - 30mm).
+    - Se omitir Ap, o sistema usa Ai automaticamente. Prefira omitir quando a porta ocupa toda a altura interna.
+    - Se o modulo tem MULTIPLOS GRUPOS de portas em alturas diferentes (ex: portas superiores + portas inferiores), calcule: Ap do grupo inferior = Ai - Ap do grupo superior - 15mm (divisoria). Exemplo: modulo A=1900 → Ai=1870. Se portas sup Ap=500, portas inf Ap = 1870 - 500 - 15 = 1355mm.
+    - NUNCA use Ap = A (altura total do modulo). O correto e Ap <= Ai.
+    - Portas de Painel de Fechamento sao excecao: Ap pode ser igual a A pois nao tem estrutura de caixa.
+14. **Validacao de componentes dentro do modulo**:
+    - A soma das alturas dos componentes frontais (portas + gavetas) NAO pode ultrapassar Ai.
+    - Exemplo: modulo A=850 → Ai=820. Se tem 3 gavetas ag=200 (=600mm total) + 1 porta, entao Ap da porta deve ser no maximo 820 - 600 - folgas = ~200mm.
+    - Componentes sem frente (Prateleira, Cabideiro, Nicho Aberto) ficam ATRAS das portas, nao somam na frente.
+15. **Espessura da chapa**: a caixa padrao usa MDF 15mm. Ai = A - 30 (2x15mm), Li = L - 30. Usar esses valores como referencia ao calcular Ap e dimensoes internas.
 
 ---
 
@@ -445,6 +456,13 @@ ${exComp ? JSON.stringify(JSON.parse(exComp.json_data), null, 2) : '{}'}
 - "Bancada suspensa" = Caixa Baixa / Balcao com A reduzida (ex: A=300-400mm)
 - "Painel cabeceira" = Cabeceira (caixa) com Cabeceira Estofada (componente) se tiver estofado
 - "Guarda-roupa com espelho" = Guarda-Roupa + Porta de Correr com Espelho (componente)
+- "Porta toque" / "push open" / "sem puxador" = Porta Fecho Toque (componente). Se a porta for de vidro, use matExtComp="vidro_incol"
+- "Porta pivotante" em painel de fechamento = Porta (componente) com Ap igual a A do painel (excecao a regra de Ap <= Ai)
+- "Mesa redonda" / "mesa lateral redonda" / "movel curvo" = Movel Curvo (caixa coef=1.0, alta complexidade)
+- "Armario coluna" / "armario estreito alto" cozinha = se A > 800mm, usar "Armario Alto" e NAO "Caixa Aerea"
+- Quando o movel tem portas em DUAS alturas diferentes (ex: aerea em cima + portas grandes embaixo), criar 2 entradas de "Porta" com Ap diferentes
+- "Envoltorio 21mm" / "porta embutida" = porte com bordas internas visiveis, nao afeta o JSON
+- Ferragens especificas no nome (ex: "puxador Granado Zen", "metalon chumbo fosco") = incluir no campo nome para referencia, nao gera ferragem automatica
 
 ---
 
@@ -625,6 +643,23 @@ ${comps.map(c => `- \`"${JSON.parse(c.json_data).nome}"\``).join('\n')}
 - Se um armario tem 2 portas superiores (A=800mm) e 2 portas inferiores (A=600mm): use 2 entradas separadas de "Porta"
 - Exemplo: \`{ "nome": "Porta", "qtd": 1, "vars": { "nPortas": 2, "Ap": 800 }, "matExtComp": "amad_escuro" }\`
 - O campo \`qtd\` no componente multiplica o custo. Para 2 grupos de 2 portas com mesma altura: use 1 entrada com nPortas=2 e qtd=2 (ou 2 entradas com nPortas=2 e qtd=1).
+- **VALIDACAO Ap**: Ap NUNCA pode ser maior que Ai (= A - 30). Se omitir Ap, usa Ai inteiro. Excecao: portas em Painel de Fechamento podem ter Ap = A.
+- **EXEMPLO com 2 grupos**: Armario Alto A=1900mm (Ai=1870mm). Portas superiores Ap=500. Portas inferiores Ap = 1870 - 500 - 15 (divisoria) = 1355mm.
+  \`\`\`json
+  "componentes": [
+    { "nome": "Porta", "qtd": 1, "vars": { "nPortas": 2, "Ap": 500 }, "matExtComp": "..." },
+    { "nome": "Porta", "qtd": 1, "vars": { "nPortas": 2, "Ap": 1355 }, "matExtComp": "..." }
+  ]
+  \`\`\`
+
+### ERROS COMUNS A EVITAR
+1. **Ap = A**: Errado. Use Ap <= Ai (= A - 30). Exceto em Painel de Fechamento.
+2. **Caixa Aerea com A > 800mm**: Use "Armario Alto" ou "Caixa Alta".
+3. **corr400/corr500 como corredica**: Use corrOculta ou corrFH (corredica oculta).
+4. **Componentes sobrando na frente**: soma de (todas portas Ap + todas gavetas ag) nao pode passar de Ai.
+5. **Painel Ripado como caixa normal**: O sistema converte automaticamente para o motor de ripado. Nao adicione componentes ao Painel Ripado.
+6. **matExtComp em componente sem frente**: Prateleira, Cabideiro, Nicho Aberto, Divisoria nao tem frente — nao colocar matExtComp.
+7. **Porta de Correr sem Ap**: Omitir Ap em porta de correr = usa Ai inteiro. Isso e correto para guarda-roupa.
 
 ### Codigos de materiais mais usados
 
