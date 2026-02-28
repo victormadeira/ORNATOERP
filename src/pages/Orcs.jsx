@@ -1,146 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Z, Ic, Modal, tagStyle, tagClass } from '../ui';
-import { R$, KCOLS, DB_ACABAMENTOS, DB_CHAPAS } from '../engine';
+import { R$, KCOLS } from '../engine';
 import api from '../api';
 import { Copy, Download, SortAsc, SortDesc, Filter, AlertTriangle, Calendar, Flame, Eye as EyeIcon, RefreshCw, Share2, Printer, CheckCircle, FileText as FileTextIcon, Link2 } from 'lucide-react';
-
-// ─── Helpers para OS ─────────────────────────────────────
-const acabNome = (id) => {
-    if (!id) return '—';
-    const a = DB_ACABAMENTOS.find(x => x.id === id);
-    return a ? a.nome : id;
-};
-const chapaInfo = (id) => {
-    if (!id) return '';
-    const c = DB_CHAPAS.find(x => x.id === id);
-    return c ? `${c.esp}mm` : id;
-};
-
-// ─── Gera HTML completo da OS para impressão ─────────────
-function buildOsHtml(orc, empresa) {
-    const R = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
-    const fmtDt = (s) => s ? new Date(s).toLocaleDateString('pt-BR') : '—';
-    const ac = (id) => acabNome(id);
-    const mm = (id) => chapaInfo(id);
-
-    const num = orc.numero || `#${orc.id}`;
-    const ambientes = orc.ambientes || [];
-    const legacyMods = orc.mods || [];
-
-    const buildRows = (mods) => mods.map((m, mi) => `
-        <tr>
-            <td class="n">${mi + 1}</td>
-            <td class="nome"><strong>${m.nome || m.tipo || '—'}</strong></td>
-            <td>${m.acabExt ? `${ac(m.acabExt)}${m.mmExt ? ' / ' + mm(m.mmExt) : ''}` : '—'}</td>
-            <td>${m.acabInt ? `${ac(m.acabInt)}${m.mmInt ? ' / ' + mm(m.mmInt) : ''}` : '—'}</td>
-            <td class="dim">${m.l || 0} × ${m.a || 0} × ${m.p || 0}</td>
-            <td class="n">${m.qtd || 1}</td>
-        </tr>`).join('');
-
-    const buildTable = (mods) => `
-        <table class="mt">
-            <thead><tr>
-                <th class="n">Nº</th>
-                <th>Módulo</th>
-                <th>Acab. Externo / Esp.</th>
-                <th>Acab. Interno / Esp.</th>
-                <th>L × A × P (mm)</th>
-                <th class="n">Qtd</th>
-            </tr></thead>
-            <tbody>${buildRows(mods)}</tbody>
-        </table>`;
-
-    const modsHtml = ambientes.length > 0
-        ? ambientes.map((amb, ai) => `
-            <div class="amb">
-                <div class="amb-hdr">
-                    <span>AMBIENTE ${ai + 1}: ${amb.nome || 'Sem nome'}</span>
-                    <span>${(amb.mods || []).length} módulo${(amb.mods || []).length !== 1 ? 's' : ''}</span>
-                </div>
-                ${buildTable(amb.mods || [])}
-            </div>`).join('')
-        : legacyMods.length > 0
-            ? buildTable(legacyMods)
-            : '<p style="color:#888;text-align:center;padding:20px;">Nenhum módulo cadastrado.</p>';
-
-    return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="utf-8"/>
-<title>OS ${num} — ${orc.cliente_nome}</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:11px;padding:24px;}
-@page{margin:14mm 12mm;size:A4;}
-.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #1a4fa0;padding-bottom:12px;margin-bottom:16px;}
-.emp h1{font-size:16px;font-weight:bold;color:#1a4fa0;margin-bottom:4px;}
-.emp p{font-size:10px;color:#555;line-height:1.6;}
-.os-info{text-align:right;}
-.os-info .title{font-size:20px;font-weight:bold;color:#1a4fa0;letter-spacing:1px;}
-.os-info .num{font-size:13px;font-weight:bold;color:#333;margin-top:2px;}
-.os-info .date{font-size:10px;color:#888;margin-top:3px;}
-.info-box{background:#f4f7ff;border:1px solid #d8e2f5;border-radius:5px;padding:10px 14px;margin-bottom:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px 20px;}
-.info-box .fi label{font-size:9px;font-weight:bold;color:#888;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:2px;}
-.info-box .fi span{font-size:12px;font-weight:600;color:#111;}
-.amb{margin-bottom:18px;}
-.amb-hdr{background:#1a4fa0;color:#fff;padding:6px 10px;border-radius:4px 4px 0 0;font-size:11px;font-weight:bold;display:flex;justify-content:space-between;}
-.mt{width:100%;border-collapse:collapse;font-size:10.5px;}
-.mt th{background:#e6edf8;color:#1a4fa0;padding:5px 8px;text-align:left;border:1px solid #ccd6ed;font-size:9.5px;}
-.mt td{padding:5.5px 8px;border:1px solid #e2e2e2;vertical-align:middle;}
-.mt tr:nth-child(even) td{background:#f8faff;}
-.n{text-align:center;width:32px;}
-.nome{min-width:130px;}
-.dim{font-family:monospace;font-size:10px;white-space:nowrap;}
-.footer{border-top:2px solid #e0e0e0;margin-top:18px;padding-top:12px;display:flex;justify-content:space-between;align-items:flex-end;}
-.assin{width:200px;border-top:1px solid #aaa;text-align:center;font-size:9px;color:#777;padding-top:4px;margin-top:40px;}
-.totals{text-align:right;font-size:11px;}
-.totals .row{display:flex;justify-content:flex-end;gap:32px;padding:2px 0;color:#555;}
-.totals .row.final{font-size:14px;font-weight:bold;color:#1a4fa0;border-top:1px solid #ccc;padding-top:4px;margin-top:3px;}
-.print-btn{display:block;margin:22px auto 0;padding:10px 36px;background:#1a4fa0;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:bold;}
-.print-btn:hover{background:#1555c0;}
-@media print{.print-btn{display:none!important;}}
-</style>
-</head>
-<body>
-<div class="header">
-    <div class="emp">
-        ${(empresa.logo_header_path || empresa.logo) ? `<img src="${empresa.logo_header_path || empresa.logo}" alt="${empresa.nome}" style="height:38px;max-width:120px;object-fit:contain;display:block;margin-bottom:6px;">` : ''}
-        <h1>${empresa.nome || 'Marcenaria'}</h1>
-        <p>
-            ${empresa.cnpj ? `CNPJ: ${empresa.cnpj}<br>` : ''}
-            ${empresa.telefone ? `Tel: ${empresa.telefone}` : ''}
-            ${empresa.email ? `&nbsp;&nbsp;Email: ${empresa.email}` : ''}
-            ${(empresa.cidade || empresa.estado) ? `<br>${[empresa.cidade, empresa.estado].filter(Boolean).join(' — ')}` : ''}
-        </p>
-    </div>
-    <div class="os-info">
-        <div class="title">ORDEM DE SERVIÇO</div>
-        <div class="num">${num}</div>
-        <div class="date">Emitida em: ${fmtDt(orc.criado_em)}</div>
-        ${orc.data_vencimento ? `<div class="date" style="color:#c00;font-weight:bold;">Prazo: ${fmtDt(orc.data_vencimento)}</div>` : ''}
-    </div>
-</div>
-
-<div class="info-box">
-    <div class="fi"><label>Cliente</label><span>${orc.cliente_nome || '—'}</span></div>
-    <div class="fi"><label>Projeto</label><span>${orc.ambiente || '—'}</span></div>
-    <div class="fi"><label>Status</label><span style="text-transform:capitalize">${orc.status || 'rascunho'}</span></div>
-</div>
-
-${modsHtml}
-
-<div class="footer">
-    <div><div class="assin">Responsável pela Produção</div></div>
-    <div class="totals">
-        <div class="row"><span>Custo de Materiais:</span><span>${R(orc.custo_material)}</span></div>
-        <div class="row final"><span>Valor de Venda:</span><span>${R(orc.valor_venda)}</span></div>
-    </div>
-</div>
-
-<button class="print-btn" onclick="window.print()">Imprimir / Salvar PDF</button>
-</body>
-</html>`;
-}
 
 const dt = (s) => s ? new Date(s + 'Z').toLocaleDateString('pt-BR') : '—';
 const dtHr = (s) => s ? new Date(s + 'Z').toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -166,8 +28,6 @@ export default function Orcs({ orcs, nav, reload, notify }) {
     const [confirmDel, setConfirmDel] = useState(null); // { id, nome }
     const [linkModal, setLinkModal] = useState(null); // { orc, token, views }
     const [loadingLink, setLoadingLink] = useState(null); // orc_id
-    const [osModal, setOsModal] = useState(null);   // { orc, empresa }
-    const [loadingOS, setLoadingOS] = useState(null); // orc_id
     const [loadingDup, setLoadingDup] = useState(null); // orc_id duplicando
     const [scores, setScores] = useState({}); // { orc_id: { score, label, cor } }
     const [timeline, setTimeline] = useState(null); // { events: [] }
@@ -285,28 +145,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
         } catch { notify('Erro ao revogar'); }
     };
 
-    // ─── Abrir OS (modal interno + print) ────────────────
-    const abrirOS = async (orc) => {
-        setLoadingOS(orc.id);
-        try {
-            const empresa = await api.get('/config/empresa');
-            setOsModal({ orc, empresa });
-        } catch {
-            notify('Erro ao carregar dados da empresa');
-        } finally {
-            setLoadingOS(null);
-        }
-    };
 
-    const printOS = (orc, empresa) => {
-        const html = buildOsHtml(orc, empresa);
-        const win = window.open('', '_blank', 'width=950,height=750');
-        if (!win) { notify('Permita pop-ups para imprimir a OS'); return; }
-        win.document.open();
-        win.document.write(html);
-        win.document.close();
-        setTimeout(() => { win.focus(); win.print(); }, 600);
-    };
 
     // ─── Duplicar orçamento ────────────────────────────
     const duplicar = async (orc) => {
@@ -557,7 +396,6 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                     const kc = KCOLS.find(c => c.id === (o.kb_col || 'lead'));
                                     const nAmb = (o.ambientes || []).length;
                                     const isLoadingThisLink = loadingLink === o.id;
-                                    const isLoadingThisOS = loadingOS === o.id;
                                     const isLoadingThisDup = loadingDup === o.id;
                                     const diasParado = diasAtras(o.atualizado_em || o.criado_em);
                                     const isStale = (o.kb_col === 'lead' || o.kb_col === 'proposal') && diasParado > 30;
@@ -696,18 +534,6 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                             <div className="w-3.5 h-3.5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }} />
                                                         ) : <Ic.Eye />}
                                                     </button>
-                                                    {/* Ordem de Serviço */}
-                                                    <button
-                                                        onClick={() => abrirOS(o)}
-                                                        className="p-1.5 rounded-md transition-colors hover:bg-orange-500/10"
-                                                        style={{ color: isLoadingThisOS ? 'var(--text-muted)' : '#ea580c' }}
-                                                        title="Ordem de Serviço (imprimir)"
-                                                        disabled={isLoadingThisOS}
-                                                    >
-                                                        {isLoadingThisOS ? (
-                                                            <div className="w-3.5 h-3.5 border-2 rounded-full animate-spin" style={{ borderColor: '#ea580c', borderTopColor: 'transparent' }} />
-                                                        ) : <Ic.OS />}
-                                                    </button>
                                                     {/* Link público + rastreamento */}
                                                     <button
                                                         onClick={() => abrirLink(o)}
@@ -782,126 +608,6 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                         <div className="flex justify-end gap-3 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
                             <button onClick={() => setConfirmDel(null)} className={Z.btn2}>Cancelar</button>
                             <button onClick={del} className={Z.btnD}>Excluir</button>
-                        </div>
-                    </div>
-                </Modal>
-            )}
-
-            {/* ─── Modal: Ordem de Serviço ──────────────────── */}
-            {osModal && (
-                <Modal title={`Ordem de Serviço — ${osModal.orc.cliente_nome}`} close={() => setOsModal(null)} w={720}>
-                    <div className="flex flex-col gap-4">
-                        {/* Cabeçalho OS */}
-                        <div className="flex justify-between items-start p-3 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
-                            <div>
-                                <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--text-muted)' }}>Número</div>
-                                <div className="text-xl font-bold" style={{ color: 'var(--primary)' }}>{osModal.orc.numero || `#${osModal.orc.id}`}</div>
-                            </div>
-                            <div className="text-center">
-                                <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--text-muted)' }}>Cliente</div>
-                                <div className="font-semibold" style={{ color: 'var(--text-primary)' }}>{osModal.orc.cliente_nome}</div>
-                                <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{osModal.orc.ambiente || '—'}</div>
-                            </div>
-                            <div className="text-right">
-                                <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--text-muted)' }}>Emissão</div>
-                                <div className="font-semibold" style={{ color: 'var(--text-secondary)' }}>{dt(osModal.orc.criado_em)}</div>
-                                {osModal.orc.data_vencimento && (
-                                    <div className="text-xs font-bold mt-0.5" style={{ color: '#ef4444' }}>Prazo: {dt(osModal.orc.data_vencimento)}</div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Módulos por ambiente */}
-                        <div className="max-h-[420px] overflow-y-auto flex flex-col gap-3">
-                            {(osModal.orc.ambientes || []).length > 0
-                                ? (osModal.orc.ambientes || []).map((amb, ai) => (
-                                    <div key={ai}>
-                                        <div className="flex justify-between items-center px-3 py-1.5 rounded-t-md text-xs font-bold text-white"
-                                            style={{ background: 'var(--primary)' }}>
-                                            <span>AMBIENTE {ai + 1}: {amb.nome || 'Sem nome'}</span>
-                                            <span>{(amb.mods || []).length} módulo{(amb.mods || []).length !== 1 ? 's' : ''}</span>
-                                        </div>
-                                        <div className="overflow-x-auto rounded-b-md" style={{ border: '1px solid var(--border)', borderTop: 'none' }}>
-                                            <table className="w-full text-xs border-collapse">
-                                                <thead>
-                                                    <tr style={{ background: 'var(--bg-muted)', borderBottom: '1px solid var(--border)' }}>
-                                                        {['Nº', 'Módulo', 'Acab. Ext / Esp.', 'Acab. Int / Esp.', 'L × A × P (mm)', 'Qtd'].map(h => (
-                                                            <th key={h} className="px-2 py-1.5 text-left font-semibold" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{h}</th>
-                                                        ))}
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                                                    {(amb.mods || []).map((m, mi) => (
-                                                        <tr key={mi} className="hover:bg-[var(--bg-hover)]">
-                                                            <td className="px-2 py-1.5 text-center w-8" style={{ color: 'var(--text-muted)' }}>{mi + 1}</td>
-                                                            <td className="px-2 py-1.5 font-medium" style={{ color: 'var(--text-primary)' }}>{m.nome || m.tipo || '—'}</td>
-                                                            <td className="px-2 py-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>{m.acabExt ? `${acabNome(m.acabExt)}${m.mmExt ? ' · ' + chapaInfo(m.mmExt) : ''}` : '—'}</td>
-                                                            <td className="px-2 py-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>{m.acabInt ? `${acabNome(m.acabInt)}${m.mmInt ? ' · ' + chapaInfo(m.mmInt) : ''}` : '—'}</td>
-                                                            <td className="px-2 py-1.5 font-mono text-xs" style={{ color: 'var(--text-primary)' }}>{m.l || 0} × {m.a || 0} × {m.p || 0}</td>
-                                                            <td className="px-2 py-1.5 text-center font-bold" style={{ color: 'var(--primary)' }}>{m.qtd || 1}</td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                ))
-                                : (osModal.orc.mods || []).length > 0
-                                    ? (
-                                        <div className="overflow-x-auto rounded-md" style={{ border: '1px solid var(--border)' }}>
-                                            <table className="w-full text-xs border-collapse">
-                                                <thead>
-                                                    <tr style={{ background: 'var(--bg-muted)', borderBottom: '1px solid var(--border)' }}>
-                                                        {['Nº', 'Módulo', 'Acab. Ext / Esp.', 'Acab. Int / Esp.', 'L × A × P (mm)', 'Qtd'].map(h => (
-                                                            <th key={h} className="px-2 py-1.5 text-left font-semibold" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{h}</th>
-                                                        ))}
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                                                    {(osModal.orc.mods || []).map((m, mi) => (
-                                                        <tr key={mi} className="hover:bg-[var(--bg-hover)]">
-                                                            <td className="px-2 py-1.5 text-center w-8" style={{ color: 'var(--text-muted)' }}>{mi + 1}</td>
-                                                            <td className="px-2 py-1.5 font-medium" style={{ color: 'var(--text-primary)' }}>{m.nome || m.tipo || '—'}</td>
-                                                            <td className="px-2 py-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>{m.acabExt ? `${acabNome(m.acabExt)}${m.mmExt ? ' · ' + chapaInfo(m.mmExt) : ''}` : '—'}</td>
-                                                            <td className="px-2 py-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>{m.acabInt ? `${acabNome(m.acabInt)}${m.mmInt ? ' · ' + chapaInfo(m.mmInt) : ''}` : '—'}</td>
-                                                            <td className="px-2 py-1.5 font-mono text-xs" style={{ color: 'var(--text-primary)' }}>{m.l || 0} × {m.a || 0} × {m.p || 0}</td>
-                                                            <td className="px-2 py-1.5 text-center font-bold" style={{ color: 'var(--primary)' }}>{m.qtd || 1}</td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )
-                                    : (
-                                        <div className="py-10 text-center text-sm rounded-lg" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
-                                            <div className="mb-2 flex justify-center"><Ic.Layers /></div>
-                                            Nenhum módulo cadastrado neste orçamento.
-                                        </div>
-                                    )
-                            }
-                        </div>
-
-                        {/* Totais */}
-                        <div className="flex items-center justify-between pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
-                            <div className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                                Custo de materiais: <strong style={{ color: 'var(--text-secondary)' }}>{R$(osModal.orc.custo_material)}</strong>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Valor de Venda:</span>
-                                <span className="text-xl font-bold" style={{ color: 'var(--primary)' }}>{R$(osModal.orc.valor_venda)}</span>
-                            </div>
-                        </div>
-
-                        {/* Footer */}
-                        <div className="flex justify-between items-center pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
-                            <button onClick={() => setOsModal(null)} className={Z.btn2}>Fechar</button>
-                            <button
-                                onClick={() => printOS(osModal.orc, osModal.empresa)}
-                                className={Z.btn}
-                                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                            >
-                                <Ic.Printer /> Imprimir / PDF
-                            </button>
                         </div>
                     </div>
                 </Modal>
