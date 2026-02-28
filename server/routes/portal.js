@@ -293,6 +293,8 @@ router.post('/heartbeat/:token', async (req, res) => {
 
         // Geolocalização precisa via GPS do navegador — sobrescreve IP-based
         if (lat && lon && typeof lat === 'number' && typeof lon === 'number') {
+            updates.push('lat = ?'); params.push(lat);
+            updates.push('lon = ?'); params.push(lon);
             try {
                 const geo = await reverseGeocode(lat, lon);
                 if (geo?.cidade) {
@@ -511,7 +513,7 @@ router.get('/timeline/:orc_id', requireAuth, (req, res) => {
 
     // 3. Acessos (primeira visita, retornos, prints)
     const acessos = db.prepare(`
-        SELECT acessado_em, dispositivo, navegador, cidade, estado, tempo_pagina, scroll_max, is_new_visit, evento_tipo, fingerprint
+        SELECT acessado_em, dispositivo, navegador, cidade, estado, tempo_pagina, scroll_max, is_new_visit, evento_tipo, fingerprint, lat, lon
         FROM proposta_acessos WHERE orc_id = ? ORDER BY acessado_em ASC LIMIT 100
     `).all(orc_id);
 
@@ -522,10 +524,11 @@ router.get('/timeline/:orc_id', requireAuth, (req, res) => {
         } else if (a.is_new_visit) {
             visitCount++;
             const local = a.cidade ? `${a.cidade}${a.estado ? '/' + a.estado : ''}` : '';
+            const coords = (a.lat && a.lon) ? { lat: a.lat, lon: a.lon } : null;
             if (visitCount === 1) {
-                events.push({ tipo: 'primeira_visita', titulo: 'Primeira visualização', detalhe: `${a.dispositivo} · ${a.navegador}${local ? ' · ' + local : ''}`, data: a.acessado_em, icone: 'eye' });
+                events.push({ tipo: 'primeira_visita', titulo: 'Primeira visualização', detalhe: `${a.dispositivo} · ${a.navegador}${local ? ' · ' + local : ''}`, data: a.acessado_em, icone: 'eye', coords, local });
             } else {
-                events.push({ tipo: 'retorno', titulo: `${visitCount}ª visita (retorno)`, detalhe: `${a.dispositivo}${local ? ' · ' + local : ''} · ${a.tempo_pagina || 0}s · ${a.scroll_max || 0}% scroll`, data: a.acessado_em, icone: 'refresh' });
+                events.push({ tipo: 'retorno', titulo: `${visitCount}ª visita (retorno)`, detalhe: `${a.dispositivo}${local ? ' · ' + local : ''} · ${a.tempo_pagina || 0}s · ${a.scroll_max || 0}% scroll`, data: a.acessado_em, icone: 'refresh', coords, local });
             }
         }
     }

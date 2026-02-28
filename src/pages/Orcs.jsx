@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { Z, Ic, Modal, tagStyle, tagClass } from '../ui';
 import { R$, KCOLS, DB_ACABAMENTOS, DB_CHAPAS } from '../engine';
 import api from '../api';
-import { Copy, Download, SortAsc, SortDesc, Filter, AlertTriangle, Calendar, Flame, Eye as EyeIcon, RefreshCw, Share2, Printer, CheckCircle, FileText as FileTextIcon, Link2 } from 'lucide-react';
+import { Copy, Download, SortAsc, SortDesc, Filter, AlertTriangle, Calendar, Flame, Eye as EyeIcon, RefreshCw, Share2, Printer, CheckCircle, FileText as FileTextIcon, Link2, MapPin } from 'lucide-react';
 
 // ─── Helpers para OS ─────────────────────────────────────
 const acabNome = (id) => {
@@ -970,12 +970,41 @@ export default function Orcs({ orcs, nav, reload, notify }) {
 
                         {/* Timeline Visual */}
                         <div>
-                            <div className="text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>
+                            <div className="text-xs font-semibold mb-3" style={{ color: 'var(--text-muted)' }}>
                                 TIMELINE DO CLIENTE
                                 <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ background: linkModal.total > 0 ? '#dbeafe' : 'var(--bg-muted)', color: linkModal.total > 0 ? '#1d4ed8' : 'var(--text-muted)' }}>
                                     {linkModal.total} {linkModal.total === 1 ? 'acesso' : 'acessos'}
                                 </span>
                             </div>
+
+                            {/* Mini-mapa de acessos */}
+                            {timeline?.events?.some(ev => ev.coords) && (
+                                <div className="mb-3 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)', height: 160 }}>
+                                    {(() => {
+                                        const pts = timeline.events.filter(ev => ev.coords).map(ev => ev.coords);
+                                        const lastPt = pts[pts.length - 1];
+                                        const zoom = pts.length === 1 ? 13 : 10;
+                                        const lat = lastPt.lat;
+                                        const lon = lastPt.lon;
+                                        return (
+                                            <div className="relative w-full h-full">
+                                                <iframe
+                                                    title="Mapa de acessos"
+                                                    width="100%" height="100%"
+                                                    style={{ border: 0 }}
+                                                    loading="lazy"
+                                                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${lon - 0.05},${lat - 0.03},${lon + 0.05},${lat + 0.03}&layer=mapnik&marker=${lat},${lon}`}
+                                                />
+                                                <div className="absolute bottom-1 left-1 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold" style={{ background: 'rgba(0,0,0,0.7)', color: '#fff' }}>
+                                                    <MapPin size={9} />
+                                                    {timeline.events.filter(ev => ev.coords).slice(-1)[0]?.local || 'Localização GPS'}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            )}
+
                             {(!timeline || !timeline.events || timeline.events.length === 0) ? (
                                 <div className="py-6 text-center text-xs rounded-lg" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
                                     <div className="mb-2 flex justify-center"><Ic.Eye /></div>
@@ -984,7 +1013,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                 </div>
                             ) : (
                                 <div className="max-h-64 overflow-y-auto pr-1">
-                                    <div className="relative pl-6">
+                                    <div className="relative pl-8">
                                         {/* Linha vertical */}
                                         <div className="absolute left-[9px] top-2 bottom-2 w-[2px]" style={{ background: 'var(--border)' }} />
                                         {timeline.events.map((ev, i) => {
@@ -999,18 +1028,23 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                             };
                                             const ic = ICON_MAP[ev.icone] || ICON_MAP.file;
                                             return (
-                                                <div key={i} className="relative flex gap-3 pb-3">
-                                                    <div className="absolute left-[-15px] w-5 h-5 rounded-full flex items-center justify-center shrink-0 z-10"
+                                                <div key={i} className="relative flex gap-3 pb-4">
+                                                    <div className="absolute left-[-20px] w-5 h-5 rounded-full flex items-center justify-center shrink-0 z-10"
                                                         style={{ background: `${ic.color}18`, border: `2px solid ${ic.color}`, color: ic.color }}>
                                                         {ic.icon}
                                                     </div>
-                                                    <div className="flex-1 min-w-0 pt-0.5">
+                                                    <div className="flex-1 min-w-0">
                                                         <div className="flex items-center justify-between gap-2">
                                                             <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{ev.titulo}</span>
                                                             <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>{dtHr(ev.data)}</span>
                                                         </div>
                                                         {ev.detalhe && (
-                                                            <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{ev.detalhe}</div>
+                                                            <div className="text-[10px] mt-0.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>{ev.detalhe}</div>
+                                                        )}
+                                                        {ev.coords && (
+                                                            <div className="flex items-center gap-1 mt-1 text-[9px]" style={{ color: '#6366f1' }}>
+                                                                <MapPin size={8} /> Localização GPS confirmada
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>

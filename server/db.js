@@ -656,6 +656,9 @@ const migrations = [
   )`,
   // ═══ Materiais Recentes: contador de uso ═══
   "ALTER TABLE biblioteca ADD COLUMN uso_count INTEGER DEFAULT 0",
+  // ═══ Geolocalização GPS: coordenadas precisas ═══
+  "ALTER TABLE proposta_acessos ADD COLUMN lat REAL DEFAULT NULL",
+  "ALTER TABLE proposta_acessos ADD COLUMN lon REAL DEFAULT NULL",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
