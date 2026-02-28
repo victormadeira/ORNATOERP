@@ -771,6 +771,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [templateNome, setTemplateNome] = useState('');
     const [templateCategoria, setTemplateCategoria] = useState('');
     const [mkExpanded, setMkExpanded] = useState(false);
+    const [compExpanded, setCompExpanded] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
     const [importJson, setImportJson] = useState('');
     const [importLoading, setImportLoading] = useState(false);
@@ -1868,12 +1869,17 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 </div>
                             )}
                             <div className="flex flex-col gap-1.5 text-xs">
-                                {[['Custo Material', tot.cm], ['Mão de Obra', tot.custoMdo]].map(([l, v], i) => (
-                                    <div key={i} className="flex justify-between">
-                                        <span style={{ color: 'var(--text-muted)' }}>{l}</span>
-                                        <span style={{ color: 'var(--text-secondary)' }}>{R$(v)}</span>
-                                    </div>
-                                ))}
+                                {(() => {
+                                    const bd = tot.breakdown || {};
+                                    const matMk = (bd.pvChapas || 0) + (bd.pvFita || 0) + (bd.pvAcab || 0) + (bd.pvFerr || 0) + (bd.pvAcess || 0);
+                                    const mdoMk = bd.mdo || tot.custoMdo || 0;
+                                    return [['Custo Material', matMk || tot.cm], ['Mão de Obra', mdoMk]].map(([l, v], i) => (
+                                        <div key={i} className="flex justify-between">
+                                            <span style={{ color: 'var(--text-muted)' }}>{l}</span>
+                                            <span style={{ color: 'var(--text-secondary)' }}>{R$(v)}</span>
+                                        </div>
+                                    ));
+                                })()}
                             </div>
                             <div className="mt-2 pt-2 flex justify-between text-xs" style={{ borderTop: '1px solid var(--border)' }}>
                                 <span className="font-medium" style={{ color: 'var(--text-secondary)' }}>Custo Produção</span>
@@ -1987,6 +1993,93 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         </span>
                                     </div>
                                 )}
+
+                                {/* ── Composição do Preço ── */}
+                                {pvComDesconto > 0 && (() => {
+                                    const pv = pvComDesconto;
+                                    const bd = tot.breakdown || {};
+                                    const matTotal = (bd.pvChapas || 0) + (bd.pvFita || 0) + (bd.pvAcab || 0) + (bd.pvFerr || 0) + (bd.pvAcess || 0);
+                                    const mdo = bd.mdo || tot.custoMdo || 0;
+                                    const cpVal = tot.cb || 0;
+                                    const impR = pv * ((taxas.imp || 0) / 100);
+                                    const comR = pv * ((taxas.com || 0) / 100);
+                                    const lucroR = pv * ((taxas.lucro || 0) / 100);
+                                    const instR = pv * ((taxas.inst ?? 5) / 100);
+                                    const freteR = pv * ((taxas.frete || 0) / 100);
+                                    const montR = pv * ((taxas.mont || 0) / 100);
+                                    const pct = (v) => pv > 0 ? (v / pv * 100).toFixed(1) : '0.0';
+                                    const bar = (v, cor) => (
+                                        <div className="h-1.5 rounded-full" style={{ width: `${Math.min(100, Math.max(2, v / pv * 100))}%`, background: cor, transition: 'width 0.3s' }} />
+                                    );
+                                    const matChapas = bd.pvChapas || 0;
+                                    const matFita = bd.pvFita || 0;
+                                    const matFerr = bd.pvFerr || 0;
+                                    const matAcab = bd.pvAcab || 0;
+                                    const matAcess = bd.pvAcess || 0;
+
+                                    return (
+                                        <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                                            <button onClick={() => setCompExpanded(!compExpanded)}
+                                                className="flex items-center justify-between w-full cursor-pointer">
+                                                <span className="text-[10px] font-semibold" style={{ color: 'var(--text-muted)' }}>Composição do Preço</span>
+                                                <ChevronDown size={12} style={{ color: 'var(--text-muted)', transform: compExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                                            </button>
+                                            {compExpanded && (
+                                                <div className="mt-2 flex flex-col gap-2">
+                                                    {/* Material */}
+                                                    <div>
+                                                        <div className="flex justify-between items-center mb-0.5">
+                                                            <span className="text-[10px] font-semibold" style={{ color: '#3b82f6' }}>Material</span>
+                                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(matTotal)} <span className="font-semibold" style={{ color: '#3b82f6' }}>{pct(matTotal)}%</span></span>
+                                                        </div>
+                                                        <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(matTotal, '#3b82f6')}</div>
+                                                        {/* Sub-detalhamento material */}
+                                                        <div className="mt-1 ml-2 flex flex-col gap-0.5">
+                                                            {[[matChapas, 'Chapas'], [matFita, 'Fita'], [matFerr, 'Ferragens'], [matAcab, 'Acabamentos'], [matAcess, 'Acessórios']].filter(([v]) => v > 0).map(([v, l]) => (
+                                                                <div key={l} className="flex justify-between text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                                                                    <span>{l}</span>
+                                                                    <span>{R$(v)}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Mão de Obra */}
+                                                    <div>
+                                                        <div className="flex justify-between items-center mb-0.5">
+                                                            <span className="text-[10px] font-semibold" style={{ color: '#22c55e' }}>Mão de Obra</span>
+                                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(mdo)} <span className="font-semibold" style={{ color: '#22c55e' }}>{pct(mdo)}%</span></span>
+                                                        </div>
+                                                        <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(mdo, '#22c55e')}</div>
+                                                    </div>
+
+                                                    {/* Subtotal CP */}
+                                                    <div className="flex justify-between items-center py-1 px-2 rounded" style={{ background: 'var(--bg-muted)' }}>
+                                                        <span className="text-[10px] font-bold" style={{ color: 'var(--text-secondary)' }}>Custo Produção</span>
+                                                        <span className="text-[10px] font-bold" style={{ color: 'var(--text-primary)' }}>{R$(cpVal)} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{pct(cpVal)}%</span></span>
+                                                    </div>
+
+                                                    {/* Taxas individuais */}
+                                                    {[[impR, 'Impostos', '#ef4444', taxas.imp], [comR, 'Comissão', '#f59e0b', taxas.com], [lucroR, 'Lucro', '#059669', taxas.lucro], [instR, 'Instalação', '#8b5cf6', taxas.inst ?? 5], [freteR, 'Frete', '#6b7280', taxas.frete], [montR, 'Montagem', '#6b7280', taxas.mont]].filter(([v,,,t]) => t > 0).map(([v, l, cor, t]) => (
+                                                        <div key={l}>
+                                                            <div className="flex justify-between items-center mb-0.5">
+                                                                <span className="text-[10px] font-semibold" style={{ color: cor }}>{l} ({N(t,1)}%)</span>
+                                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(v)} <span className="font-semibold" style={{ color: cor }}>{pct(v)}%</span></span>
+                                                            </div>
+                                                            <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(v, cor)}</div>
+                                                        </div>
+                                                    ))}
+
+                                                    {/* Total = PV */}
+                                                    <div className="flex justify-between items-center py-1.5 px-2 rounded-md mt-1" style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)' }}>
+                                                        <span className="text-[11px] font-bold" style={{ color: 'var(--primary)' }}>PREÇO VENDA</span>
+                                                        <span className="text-[11px] font-bold" style={{ color: 'var(--primary)' }}>{R$(pv)} <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>100%</span></span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
                         <div className="p-3 flex flex-col gap-1.5" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
