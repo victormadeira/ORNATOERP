@@ -1871,9 +1871,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             <div className="flex flex-col gap-1.5 text-xs">
                                 {(() => {
                                     const bd = tot.breakdown || {};
+                                    const matRaw = (bd.chapasAdj || 0) + (bd.fitaAdj || 0) + (bd.acabAdj || 0) + (bd.ferrVal || 0) + (bd.acessVal || 0);
                                     const matMk = (bd.pvChapas || 0) + (bd.pvFita || 0) + (bd.pvAcab || 0) + (bd.pvFerr || 0) + (bd.pvAcess || 0);
-                                    const mdoMk = bd.mdo || tot.custoMdo || 0;
-                                    return [['Custo Material', matMk || tot.cm], ['Mão de Obra', mdoMk]].map(([l, v], i) => (
+                                    const custOp = matMk - matRaw;
+                                    const mdoVal = bd.mdo || tot.custoMdo || 0;
+                                    return [['Custo Material', matRaw || tot.cm], ['Mão de Obra', mdoVal], ['Custos Operacionais', custOp]].filter(([, v]) => v > 0).map(([l, v], i) => (
                                         <div key={i} className="flex justify-between">
                                             <span style={{ color: 'var(--text-muted)' }}>{l}</span>
                                             <span style={{ color: 'var(--text-secondary)' }}>{R$(v)}</span>
@@ -1998,7 +2000,9 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 {pvComDesconto > 0 && (() => {
                                     const pv = pvComDesconto;
                                     const bd = tot.breakdown || {};
-                                    const matTotal = (bd.pvChapas || 0) + (bd.pvFita || 0) + (bd.pvAcab || 0) + (bd.pvFerr || 0) + (bd.pvAcess || 0);
+                                    const matRaw = (bd.chapasAdj || 0) + (bd.fitaAdj || 0) + (bd.acabAdj || 0) + (bd.ferrVal || 0) + (bd.acessVal || 0);
+                                    const matMk = (bd.pvChapas || 0) + (bd.pvFita || 0) + (bd.pvAcab || 0) + (bd.pvFerr || 0) + (bd.pvAcess || 0);
+                                    const custOp = matMk - matRaw;
                                     const mdo = bd.mdo || tot.custoMdo || 0;
                                     const cpVal = tot.cb || 0;
                                     const impR = pv * ((taxas.imp || 0) / 100);
@@ -2011,11 +2015,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     const bar = (v, cor) => (
                                         <div className="h-1.5 rounded-full" style={{ width: `${Math.min(100, Math.max(2, v / pv * 100))}%`, background: cor, transition: 'width 0.3s' }} />
                                     );
-                                    const matChapas = bd.pvChapas || 0;
-                                    const matFita = bd.pvFita || 0;
-                                    const matFerr = bd.pvFerr || 0;
-                                    const matAcab = bd.pvAcab || 0;
-                                    const matAcess = bd.pvAcess || 0;
+                                    const matChapas = bd.chapasAdj || 0;
+                                    const matFita = bd.fitaAdj || 0;
+                                    const matFerr = bd.ferrVal || 0;
+                                    const matAcab = bd.acabAdj || 0;
+                                    const matAcess = bd.acessVal || 0;
 
                                     return (
                                         <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
@@ -2026,13 +2030,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             </button>
                                             {compExpanded && (
                                                 <div className="mt-2 flex flex-col gap-2">
-                                                    {/* Material */}
+                                                    {/* Material (custo real) */}
                                                     <div>
                                                         <div className="flex justify-between items-center mb-0.5">
                                                             <span className="text-[10px] font-semibold" style={{ color: '#3b82f6' }}>Material</span>
-                                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(matTotal)} <span className="font-semibold" style={{ color: '#3b82f6' }}>{pct(matTotal)}%</span></span>
+                                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(matRaw)} <span className="font-semibold" style={{ color: '#3b82f6' }}>{pct(matRaw)}%</span></span>
                                                         </div>
-                                                        <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(matTotal, '#3b82f6')}</div>
+                                                        <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(matRaw, '#3b82f6')}</div>
                                                         {/* Sub-detalhamento material */}
                                                         <div className="mt-1 ml-2 flex flex-col gap-0.5">
                                                             {[[matChapas, 'Chapas'], [matFita, 'Fita'], [matFerr, 'Ferragens'], [matAcab, 'Acabamentos'], [matAcess, 'Acessórios']].filter(([v]) => v > 0).map(([v, l]) => (
@@ -2052,6 +2056,17 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         </div>
                                                         <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(mdo, '#22c55e')}</div>
                                                     </div>
+
+                                                    {/* Custos Operacionais */}
+                                                    {custOp > 0 && (
+                                                        <div>
+                                                            <div className="flex justify-between items-center mb-0.5">
+                                                                <span className="text-[10px] font-semibold" style={{ color: '#a855f7' }}>Custos Operacionais</span>
+                                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(custOp)} <span className="font-semibold" style={{ color: '#a855f7' }}>{pct(custOp)}%</span></span>
+                                                            </div>
+                                                            <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(custOp, '#a855f7')}</div>
+                                                        </div>
+                                                    )}
 
                                                     {/* Subtotal CP */}
                                                     <div className="flex justify-between items-center py-1 px-2 rounded" style={{ background: 'var(--bg-muted)' }}>
