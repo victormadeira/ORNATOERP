@@ -622,6 +622,8 @@ export function calcPainelRipado(cfg, bib = []) {
     const _sH = mesmasRipas ? sV : sH;
 
     const materiais = bib.filter(b => b.tipo === 'material');
+    const fitaDefault = bib.find(b => b.nome?.includes('Fita'));
+    const fitaPrecoDefault = fitaDefault?.preco || 0.85;
 
     // ── Ripas Verticais ──
     const nV = _nRipas(L, wV, sV);
@@ -634,9 +636,10 @@ export function calcPainelRipado(cfg, bib = []) {
     const chapasV = nV > 0 ? Math.ceil(nV / rpcV) : 0;
     const custoRipasV = matV ? chapasV * (matV.preco || 0) : 0;
     const fitaRipasV = nV * 2 * compV / 1000;
+    const fitaPrecoV = matV?.fita_preco > 0 ? matV.fita_preco : fitaPrecoDefault;
 
     // ── Ripas Horizontais (muxarabi) ──
-    let nH = 0, mlH = 0, chapasH = 0, custoRipasH = 0, fitaRipasH = 0;
+    let nH = 0, mlH = 0, chapasH = 0, custoRipasH = 0, fitaRipasH = 0, fitaPrecoH = fitaPrecoDefault;
     if (tipo === 'muxarabi' && _wH > 0) {
         nH = _nRipas(A, _wH, _sH);
         const compH = L;
@@ -646,6 +649,7 @@ export function calcPainelRipado(cfg, bib = []) {
         chapasH = nH > 0 ? Math.ceil(nH / rpcH) : 0;
         custoRipasH = matH ? chapasH * (matH.preco || 0) : 0;
         fitaRipasH = nH * 2 * compH / 1000;
+        fitaPrecoH = matH?.fita_preco > 0 ? matH.fita_preco : fitaPrecoDefault;
     }
 
     // ── Substrato ──
@@ -657,6 +661,7 @@ export function calcPainelRipado(cfg, bib = []) {
         const pm2 = _calcPrecoM2Item(matSub);
         custoSubstrato = pm2 > 0 ? areaSubstrato * pm2 : Math.ceil(areaSubstrato / ((matSub.largura * matSub.altura / 1e6) * (1 - (matSub.perda_pct || 15) / 100) || 1)) * (matSub.preco || 0);
     }
+    const fitaPrecoSub = matSub?.fita_preco > 0 ? matSub.fita_preco : fitaPrecoDefault;
 
     // ── Cobertura efetiva (desconta interseções) ──
     const areaIntersecoes = tipo === 'muxarabi' ? (nV * wV * nH * _wH) / 1e6 : 0;
@@ -665,14 +670,22 @@ export function calcPainelRipado(cfg, bib = []) {
 
     const mlTotal = mlV + mlH;
     const fitaTotal = fitaRipasV + fitaRipasH + (temSubstrato ? fitaSubstrato : 0);
-    const custoMaterial = custoRipasV + custoRipasH + custoSubstrato;
+
+    // ── Custo fita de borda ──
+    const custoFitaV = fitaRipasV * fitaPrecoV;
+    const custoFitaH = fitaRipasH * fitaPrecoH;
+    const custoFitaSub = temSubstrato ? fitaSubstrato * fitaPrecoSub : 0;
+    const custoFita = custoFitaV + custoFitaH + custoFitaSub;
+
+    const custoChapas = custoRipasV + custoRipasH + custoSubstrato;
+    const custoMaterial = custoChapas + custoFita;
 
     return {
         nV, nH, mlV, mlH, mlTotal,
         chapasV, chapasH,
         fitaRipasV, fitaRipasH, fitaSubstrato, fitaTotal,
         areaSubstrato, custoSubstrato,
-        custoRipasV, custoRipasH, custoMaterial,
+        custoRipasV, custoRipasH, custoFita, custoChapas, custoMaterial,
         cobertura, vazio: Math.max(0, 100 - cobertura),
         matV, matH: mesmasRipas ? matV : materiais.find(m => m.id == matRipaH),
         matSub, _wH, _eH, _sH,

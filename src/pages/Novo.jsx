@@ -526,7 +526,8 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove }) {
     const [exp, setExp] = useState(false);
     const materiais = (bibItems || []).filter(m => m.tipo === 'material');
     const calc = useMemo(() => calcPainelRipado(painel, bibItems || []), [painel, bibItems]);
-    const custo = (calc?.custoMaterial || 0) * (painel.qtd || 1);
+    const coef = painel.coefDificuldade ?? (painel.tipo === 'muxarabi' ? 1.5 : 1.3);
+    const custo = (calc?.custoMaterial || 0) * coef * (painel.qtd || 1);
     const up = (patch) => onUpdate({ ...painel, ...patch });
 
     return (
@@ -631,6 +632,21 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove }) {
                         </div>
                     )}
 
+                    {/* Coeficiente de dificuldade */}
+                    <div className="grid grid-cols-2 gap-2">
+                        <div>
+                            <label className={Z.lbl}>Coef. Dificuldade</label>
+                            <input type="number" className={Z.inp} min={1} step={0.05}
+                                value={painel.coefDificuldade ?? (painel.tipo === 'muxarabi' ? 1.5 : 1.3)}
+                                onChange={e => up({ coefDificuldade: Math.max(1, +e.target.value || 1) })} />
+                        </div>
+                        <div className="flex items-end pb-1">
+                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                Multiplica o custo total (corte, colagem, montagem). Padrão: {painel.tipo === 'muxarabi' ? '1.50' : '1.30'}
+                            </span>
+                        </div>
+                    </div>
+
                     {/* Resultados ao vivo */}
                     {calc && (
                         <div className="rounded-lg p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
@@ -641,7 +657,13 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove }) {
                                 <div><span style={{ color: 'var(--text-muted)' }}>ML total: </span><strong>{N(calc.mlTotal)} m</strong></div>
                                 <div><span style={{ color: 'var(--text-muted)' }}>Fita: </span><strong>{N(calc.fitaTotal)} ml</strong></div>
                                 <div><span style={{ color: 'var(--text-muted)' }}>Cobertura: </span><strong>{N(calc.cobertura, 1)}%</strong></div>
-                                <div><span style={{ color: 'var(--text-muted)' }}>Custo mat.: </span><strong style={{ color: '#f59e0b' }}>{R$(calc.custoMaterial)}</strong></div>
+                                <div><span style={{ color: 'var(--text-muted)' }}>Chapas: </span><strong>{R$(calc.custoChapas)}</strong></div>
+                                <div><span style={{ color: 'var(--text-muted)' }}>Fita borda: </span><strong>{R$(calc.custoFita)}</strong></div>
+                                <div><span style={{ color: 'var(--text-muted)' }}>Custo mat.: </span><strong>{R$(calc.custoMaterial)}</strong></div>
+                            </div>
+                            <div className="mt-2 pt-2 flex justify-between text-xs" style={{ borderTop: '1px solid var(--border)' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>Custo c/ dificuldade (×{N(coef, 2)}):</span>
+                                <strong style={{ color: '#f59e0b' }}>{R$(calc.custoMaterial * coef)}</strong>
                             </div>
                         </div>
                     )}
@@ -1015,6 +1037,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             wH: 40, eH: 18, sH: 15,
             mesmasRipas: true, temSubstrato: true,
             matRipaV: '', matRipaH: '', matSubstrato: '',
+            coefDificuldade: 1.3,
         });
     });
     const removePainel = (ambId, pid) => upAmb(ambId, a => { a.paineis = (a.paineis || []).filter(p => p.id !== pid); });
@@ -1084,18 +1107,24 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     });
                 } catch (_) { }
             });
-            // ── Painéis ripados (custo vai pra chapas) ──
+            // ── Painéis ripados (custo vai pra chapas + fita, com coef dificuldade) ──
             (amb.paineis || []).forEach(painel => {
                 try {
                     const res = calcPainelRipado(painel, bibItems);
                     if (res) {
-                        const pc = res.custoMaterial * (painel.qtd || 1);
-                        totChapas += pc;
-                        cm += pc; ambCm += pc;
-                        // CP do painel: custo × markup chapas (sem coef — painel não tem dificuldade)
+                        const pCoef = painel.coefDificuldade ?? (painel.tipo === 'muxarabi' ? 1.5 : 1.3);
+                        const qtdP = painel.qtd || 1;
+                        const custoComCoef = res.custoMaterial * pCoef * qtdP;
+                        const chapasCoef = (res.custoChapas || 0) * pCoef * qtdP;
+                        const fitaCoef = (res.custoFita || 0) * pCoef * qtdP;
+                        totChapas += chapasCoef;
+                        totFita += fitaCoef;
+                        cm += custoComCoef; ambCm += custoComCoef;
+                        // CP: chapas × mk_chapas + fita × mk_fita + mdo
                         const mkC = taxas.mk_chapas ?? 1.45;
+                        const mkF = taxas.mk_fita ?? 1.45;
                         const mkMdo = taxas.mk_mdo ?? 0.80;
-                        ambCP += pc * mkC + pc * mkMdo;
+                        ambCP += chapasCoef * mkC + fitaCoef * mkF + custoComCoef * mkMdo;
                     }
                 } catch (_) { }
             });
