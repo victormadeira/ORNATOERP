@@ -60,6 +60,29 @@ async function geolocateIP(ip) {
     }
 }
 
+// Reverse geocoding via coordenadas GPS (Nominatim/OpenStreetMap — gratuito)
+async function reverseGeocode(lat, lon) {
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 4000);
+        const resp = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=pt-BR`,
+            { signal: controller.signal, headers: { 'User-Agent': 'OrnatoERP/1.0' } }
+        );
+        clearTimeout(timeout);
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        const addr = data.address || {};
+        return {
+            cidade: addr.city || addr.town || addr.village || addr.municipality || '',
+            estado: addr.state || '',
+            pais: addr.country_code?.toUpperCase() || '',
+        };
+    } catch {
+        return null;
+    }
+}
+
 // Rate limit: mesma IP nos últimos 30min não gera nova notificação
 const RATE_LIMIT_MIN = 30;
 function isNewVisit(orc_id, ip) {
@@ -247,15 +270,15 @@ router.get('/public/:token', async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // POST /api/portal/heartbeat/:token — atualiza tempo + scroll de sessão ativa
 // ═══════════════════════════════════════════════════════════════════════════════
-router.post('/heartbeat/:token', (req, res) => {
+router.post('/heartbeat/:token', async (req, res) => {
     const { token } = req.params;
-    const { tempo_pagina, scroll_max, resolucao, fingerprint } = req.body;
+    const { tempo_pagina, scroll_max, resolucao, fingerprint, lat, lon } = req.body;
 
     const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
 
     // Atualizar o último acesso deste IP/token (mais recente)
     const lastAccess = db.prepare(`
-        SELECT id FROM proposta_acessos
+        SELECT id, cidade FROM proposta_acessos
         WHERE token = ? AND ip_cliente = ?
         ORDER BY acessado_em DESC LIMIT 1
     `).get(token, ip);
@@ -267,6 +290,18 @@ router.post('/heartbeat/:token', (req, res) => {
         if (scroll_max > 0) { updates.push('scroll_max = MAX(scroll_max, ?)'); params.push(scroll_max); }
         if (resolucao) { updates.push('resolucao = ?'); params.push(resolucao); }
         if (fingerprint) { updates.push('fingerprint = ?'); params.push(fingerprint); }
+
+        // Geolocalização precisa via GPS do navegador — sobrescreve IP-based
+        if (lat && lon && typeof lat === 'number' && typeof lon === 'number') {
+            try {
+                const geo = await reverseGeocode(lat, lon);
+                if (geo?.cidade) {
+                    updates.push('cidade = ?'); params.push(geo.cidade);
+                    updates.push('estado = ?'); params.push(geo.estado);
+                    updates.push('pais = ?'); params.push(geo.pais);
+                }
+            } catch { /* fallback: mantém localização por IP */ }
+        }
         if (updates.length > 0) {
             params.push(lastAccess.id);
             db.prepare(`UPDATE proposta_acessos SET ${updates.join(', ')} WHERE id = ?`).run(...params);

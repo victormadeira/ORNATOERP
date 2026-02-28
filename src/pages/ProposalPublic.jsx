@@ -46,6 +46,21 @@ export default function ProposalPublic({ token }) {
             body: JSON.stringify({ resolucao, fingerprint, tempo_pagina: 0, scroll_max: 0 }),
         }).catch(() => {});
 
+        // Geolocalização do navegador (mais precisa que IP) — silencioso, sem bloquear UX
+        try {
+            navigator.geolocation?.getCurrentPosition(
+                (pos) => {
+                    fetch(`/api/portal/heartbeat/${token}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+                    }).catch(() => {});
+                },
+                () => {}, // silencioso se negado
+                { timeout: 8000, maximumAge: 300000 }
+            );
+        } catch { /* navegador sem suporte */ }
+
         // Heartbeat a cada 30s
         heartbeatRef.current = setInterval(() => {
             const tempoSeg = Math.round((Date.now() - startTime.current) / 1000);
