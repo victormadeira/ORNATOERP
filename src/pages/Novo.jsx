@@ -49,24 +49,35 @@ function matLabel(id, chapas) {
 function PuxadorSelect({ puxadores, value, onChange }) {
     const [open, setOpen] = useState(false);
     const [q, setQ] = useState('');
+    const [pos, setPos] = useState({ top: 0, left: 0 });
     const ref = useRef(null);
+    const btnRef = useRef(null);
     const selected = puxadores.find(p => p.id === value);
     const filtered = q.trim()
         ? puxadores.filter(p => p.nome.toLowerCase().includes(q.toLowerCase()))
         : puxadores;
 
     useEffect(() => {
-        const h = (e) => { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setQ(''); } };
+        const h = (e) => { if (ref.current && !ref.current.contains(e.target) && btnRef.current && !btnRef.current.contains(e.target)) { setOpen(false); setQ(''); } };
         document.addEventListener('mousedown', h);
         return () => document.removeEventListener('mousedown', h);
     }, []);
 
+    const toggle = () => {
+        if (!open && btnRef.current) {
+            const r = btnRef.current.getBoundingClientRect();
+            setPos({ top: r.bottom + 4, left: Math.max(8, r.right - 220) });
+        }
+        setOpen(!open);
+    };
+
     const pick = (id) => { onChange(id); setOpen(false); setQ(''); };
 
     return (
-        <div ref={ref} className="relative" style={{ flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+        <div style={{ flexShrink: 0 }} onClick={e => e.stopPropagation()}>
             <button
-                onClick={() => setOpen(!open)}
+                ref={btnRef}
+                onClick={toggle}
                 className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium cursor-pointer transition-colors"
                 style={{
                     background: 'rgba(168,85,247,0.08)',
@@ -78,7 +89,7 @@ function PuxadorSelect({ puxadores, value, onChange }) {
                 <ChevronDown size={10} style={{ opacity: 0.6 }} />
             </button>
             {open && (
-                <div className="absolute right-0 mt-1 rounded-lg shadow-lg overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', width: 220, zIndex: 60 }}>
+                <div ref={ref} className="fixed rounded-lg shadow-lg overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', width: 220, zIndex: 9999, top: pos.top, left: pos.left }}>
                     {puxadores.length > 4 && (
                         <div className="px-2 pt-2 pb-1">
                             <div className="flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
