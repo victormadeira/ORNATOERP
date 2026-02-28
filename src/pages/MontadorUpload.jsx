@@ -167,7 +167,7 @@ export default function MontadorUpload({ token }) {
                         display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4,
                         WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
                     }}>
-                        {[info.projeto_nome || 'Geral', ...(info.ambientes || [])].map(amb => {
+                        {[info.projeto_nome || 'Geral', ...(info.ambientes || []), 'Produção'].map(amb => {
                             const selected = ambiente === amb;
                             return (
                                 <button

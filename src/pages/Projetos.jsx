@@ -1563,7 +1563,33 @@ function TabArquivos({ data, notify }) {
                         <img src={`${API_BASE}${fotoLightbox.url}`} alt="" style={{ width: '100%', borderRadius: 8, maxHeight: '70vh', objectFit: 'contain' }} />
                         <div style={{ display: 'flex', gap: 12, marginTop: 12, fontSize: 12, color: 'var(--text-muted)', flexWrap: 'wrap', alignItems: 'center' }}>
                             {fotoLightbox.nome_montador && <span>Por: <b>{fotoLightbox.nome_montador}</b></span>}
-                            {fotoLightbox.ambiente && <span>Ambiente: <b>{fotoLightbox.ambiente}</b></span>}
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                Ambiente:
+                                <select
+                                    className={Z.inp}
+                                    style={{ fontSize: 12, padding: '3px 8px', minWidth: 120, fontWeight: 600 }}
+                                    value={fotoLightbox.ambiente || ''}
+                                    onChange={async (e) => {
+                                        const novoAmb = e.target.value;
+                                        try {
+                                            await api.put(`/montador/fotos/${fotoLightbox.id}/ambiente`, { ambiente: novoAmb });
+                                            const updated = { ...fotoLightbox, ambiente: novoAmb };
+                                            setFotoLightbox(updated);
+                                            setMontadorFotos(prev => prev.map(f => f.id === fotoLightbox.id ? { ...f, ambiente: novoAmb } : f));
+                                            notify('Ambiente atualizado');
+                                        } catch { notify('Erro ao atualizar ambiente'); }
+                                    }}
+                                >
+                                    <option value="">Sem ambiente</option>
+                                    {[...new Set([
+                                        ...montadorFotos.map(f => f.ambiente).filter(Boolean),
+                                        fotoLightbox.ambiente || '',
+                                        'Produção',
+                                    ].filter(Boolean))].sort().map(amb => (
+                                        <option key={amb} value={amb}>{amb}</option>
+                                    ))}
+                                </select>
+                            </span>
                             {fotoLightbox.criado_em && <span>{new Date(fotoLightbox.criado_em).toLocaleString('pt-BR')}</span>}
                         </div>
                         <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end', flexWrap: 'wrap' }}>

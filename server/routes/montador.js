@@ -243,6 +243,19 @@ router.put('/fotos/:id/portal', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// PUT /api/montador/fotos/:id/ambiente — alterar ambiente da foto (auth)
+// ═══════════════════════════════════════════════════
+router.put('/fotos/:id/ambiente', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    const { ambiente } = req.body;
+    if (ambiente === undefined || ambiente === null) return res.status(400).json({ error: 'Ambiente obrigatório' });
+    const foto = db.prepare('SELECT * FROM montador_fotos WHERE id = ?').get(id);
+    if (!foto) return res.status(404).json({ error: 'Foto não encontrada' });
+    db.prepare('UPDATE montador_fotos SET ambiente = ? WHERE id = ?').run(ambiente, id);
+    res.json({ ok: true, ambiente });
+});
+
+// ═══════════════════════════════════════════════════
 // PUT /api/montador/fotos/portal-lote/:projeto_id — toggle em lote (auth)
 // ═══════════════════════════════════════════════════
 router.put('/fotos/portal-lote/:projeto_id', requireAuth, (req, res) => {
