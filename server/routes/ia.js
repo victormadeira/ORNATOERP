@@ -239,15 +239,15 @@ router.get('/base-conhecimento', requireAuth, (req, res) => {
         for (const cx of caixas) {
             const d = JSON.parse(cx.json_data);
             if (!caixasPorCat[d.cat]) caixasPorCat[d.cat] = [];
-            caixasPorCat[d.cat].push({ nome: d.nome, desc: d.desc, coef: d.coef });
+            caixasPorCat[d.cat].push({ nome: d.nome, desc: d.desc, coef: d.coef, dims: (d.dimsAplicaveis || ['L','A','P']).join(',') });
         }
 
         let secaoCaixas = '';
         for (const [cat, items] of Object.entries(caixasPorCat)) {
             secaoCaixas += `\n### ${cat.charAt(0).toUpperCase() + cat.slice(1)}\n`;
-            secaoCaixas += `| Caixa | Descricao | Coef |\n|-------|-----------|------|\n`;
+            secaoCaixas += `| Caixa | Descricao | Coef | Dims |\n|-------|-----------|------|------|\n`;
             for (const it of items) {
-                secaoCaixas += `| ${it.nome} | ${it.desc} | ${it.coef} |\n`;
+                secaoCaixas += `| ${it.nome} | ${it.desc} | ${it.coef} | ${it.dims} |\n`;
             }
         }
 
@@ -302,6 +302,14 @@ O Ornato ERP e um sistema de orcamentos para marcenarias${empresa ? ` (${empresa
 - **Li** = Largura interna = L - 30 (2x espessura 15mm)
 - **Ai** = Altura interna = A - 30
 - **Pi** = Profundidade interna = P - 3 (fundo compensado 3mm)
+
+### Dimensoes aplicaveis (dimsAplicaveis)
+Nem todos os modulos usam as 3 dimensoes. O campo **dimsAplicaveis** de cada caixa define quais sao necessarias:
+- **Paineis** (Painel TV, Painel Ripado, Painel de Fechamento, Cabeceira, Espelho Organico): usam apenas **L e A** — a profundidade e a espessura da chapa (15mm), nao precisa informar P.
+- **Prateleira Avulsa, Forro MDF**: usam apenas **L e P** — a altura e a espessura da chapa, nao precisa informar A.
+- **Caixas completas** (Caixa Alta, Baixa, Aerea, etc.): usam **L, A e P**.
+- Ao gerar o JSON de importacao, informe **apenas as dimensoes aplicaveis**. Dimensoes nao aplicaveis serao ignoradas pelo sistema.
+- A coluna **Dims** na tabela de caixas abaixo indica quais dimensoes cada modulo usa.
 
 ---
 
@@ -509,19 +517,24 @@ Ambientes sao os comodos/espacos do projeto. Cada ambiente agrupa os moveis daqu
 
 ### Dimensoes tipicas dos moveis (referencia em mm)
 
-| Movel | Largura (L) | Altura (A) | Profundidade (P) |
-|-------|-------------|------------|------------------|
-| Armario superior cozinha | 400-1200 | 600-800 | 300-350 |
-| Balcao/inferior cozinha | 400-1200 | 800-900 | 500-600 |
-| Torre quente (forno/micro) | 600-700 | 2100-2400 | 550-650 |
-| Guarda-roupa | 1500-3000 | 2400-2800 | 550-650 |
-| Comoda | 800-1600 | 800-1000 | 400-500 |
-| Painel TV | 1200-2200 | 900-1800 | 30-50 |
-| Rack TV | 1200-2200 | 400-600 | 350-450 |
-| Mesa/escrivaninha | 1000-1600 | 750-800 | 500-600 |
-| Gabinete banheiro | 600-1200 | 550-800 | 400-500 |
-| Estante | 800-1800 | 1800-2600 | 300-400 |
-| Sapateira | 600-1000 | 1200-1800 | 300-400 |
+| Movel | Largura (L) | Altura (A) | Profundidade (P) | Dims |
+|-------|-------------|------------|------------------|------|
+| Armario superior cozinha | 400-1200 | 600-800 | 300-350 | L,A,P |
+| Balcao/inferior cozinha | 400-1200 | 800-900 | 500-600 | L,A,P |
+| Torre quente (forno/micro) | 600-700 | 2100-2400 | 550-650 | L,A,P |
+| Guarda-roupa | 1500-3000 | 2400-2800 | 550-650 | L,A,P |
+| Comoda | 800-1600 | 800-1000 | 400-500 | L,A,P |
+| Painel TV | 1200-2200 | 900-1800 | — | L,A |
+| Painel Ripado | 1000-3000 | 1500-2800 | — | L,A |
+| Painel de Fechamento | 500-3000 | 500-2800 | — | L,A |
+| Cabeceira | 1400-2200 | 800-1500 | — | L,A |
+| Prateleira Avulsa | 600-1800 | — | 200-400 | L,P |
+| Forro MDF | 1000-3000 | — | 500-2000 | L,P |
+| Rack TV | 1200-2200 | 400-600 | 350-450 | L,A,P |
+| Mesa/escrivaninha | 1000-1600 | 750-800 | 500-600 | L,A,P |
+| Gabinete banheiro | 600-1200 | 550-800 | 400-500 | L,A,P |
+| Estante | 800-1800 | 1800-2600 | 300-400 | L,A,P |
+| Sapateira | 600-1000 | 1200-1800 | 300-400 | L,A,P |
 
 ---
 
@@ -577,8 +590,8 @@ Quando voce interpretar um projeto e quiser gerar o orcamento, voce DEVE gerar u
 | \`caixa\` | string | **OBRIGATORIO**. Nome da caixa. Deve ser EXATAMENTE igual ao catalogo | \`"Caixa Aérea"\` |
 | \`nome\` | string | Nome descritivo do movel para identificacao | \`"Armario Superior Pia"\` |
 | \`L\` | number | Largura em milimetros | \`800\` |
-| \`A\` | number | Altura em milimetros | \`700\` |
-| \`P\` | number | Profundidade em milimetros | \`350\` |
+| \`A\` | number | Altura em mm. **Omitir se a caixa nao usa A** (ex: Prateleira Avulsa, Forro MDF) | \`700\` |
+| \`P\` | number | Profundidade em mm. **Omitir se a caixa nao usa P** (ex: Paineis, Cabeceira) | \`350\` |
 | \`qtd\` | number | Quantidade (default: 1) | \`1\` |
 | \`matInt\` | string | Codigo do material interno | \`"branco_tx15"\` |
 | \`matExt\` | string | Codigo do material externo (face visivel) | \`"amad_medio"\` |
@@ -816,7 +829,6 @@ ${materiais.filter(m => m.tipo === 'acessorio').map(m => `| \`"${m.cod}"\` | ${m
           "nome": "Painel TV Quarto",
           "L": 1800,
           "A": 1200,
-          "P": 50,
           "matInt": "amad_escuro",
           "matExt": "amad_escuro",
           "componentes": []
@@ -834,6 +846,7 @@ ${materiais.filter(m => m.tipo === 'acessorio').map(m => `| \`"${m.cod}"\` | ${m
 1. **Identificar ambientes**: Cada comodo do projeto vira um objeto em \`ambientes[]\`.
 2. **Cada movel vira um item**: Identificar a caixa mais adequada do catalogo.
 3. **Dimensoes em mm**: SEMPRE em milimetros. Ex: 80cm = 800mm, 2.60m = 2600mm.
+3b. **Dimensoes aplicaveis**: Consultar a coluna **Dims** do catalogo de caixas. Se a caixa usa apenas L,A (paineis), NAO informar P. Se usa apenas L,P (prateleira avulsa, forro), NAO informar A. Informar dimensoes nao aplicaveis causa erro no calculo.
 4. **Material padrao**: Se o projeto nao especificar cor/material, use \`"branco_tx15"\` para interno e deixe \`"matExt"\` vazio (o usuario define depois).
 5. **Componentes**: Adicionar portas, gavetas, prateleiras, nichos conforme o projeto.
 6. **Qtd default**: Se nao especificado, \`qtd: 1\`.

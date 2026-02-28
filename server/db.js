@@ -2221,4 +2221,27 @@ if (caixaCount.c === 0) {
   }
 }
 
+// ═══════════════════════════════════════════════════════
+// MIGRATION FINAL — dimsAplicaveis: garante que TODAS as caixas tenham
+// (roda após todos os seeds para pegar itens v3/v3.1/v3.2)
+// ═══════════════════════════════════════════════════════
+{
+  const rows = db.prepare("SELECT id, nome, json_data FROM modulos_custom WHERE tipo_item = 'caixa'").all();
+  let migrated = 0;
+  for (const row of rows) {
+    const data = JSON.parse(row.json_data);
+    if (data.dimsAplicaveis) continue;
+    const allCalcs = [...(data.pecas || []), ...(data.tamponamentos || [])].map(p => p.calc).join(' ');
+    const dims = [];
+    if (/\bL\b|\bLi\b/.test(allCalcs)) dims.push('L');
+    if (/\bA\b|\bAi\b/.test(allCalcs)) dims.push('A');
+    if (/\bP\b|\bPi\b/.test(allCalcs)) dims.push('P');
+    if (dims.length === 0) dims.push('L', 'A', 'P');
+    data.dimsAplicaveis = dims;
+    db.prepare('UPDATE modulos_custom SET json_data = ? WHERE id = ?').run(JSON.stringify(data), row.id);
+    migrated++;
+  }
+  if (migrated > 0) console.log(`[OK] dimsAplicaveis (final): ${migrated} caixas corrigidas`);
+}
+
 export default db;
