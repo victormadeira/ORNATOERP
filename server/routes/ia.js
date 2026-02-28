@@ -305,7 +305,8 @@ O Ornato ERP e um sistema de orcamentos para marcenarias${empresa ? ` (${empresa
 
 ### Dimensoes aplicaveis (dimsAplicaveis)
 Nem todos os modulos usam as 3 dimensoes. O campo **dimsAplicaveis** de cada caixa define quais sao necessarias:
-- **Paineis** (Painel TV, Painel Ripado, Painel de Fechamento, Cabeceira, Espelho Organico): usam apenas **L e A** — a profundidade e a espessura da chapa (15mm), nao precisa informar P.
+- **Paineis planos** (Painel Ripado, Painel de Fechamento, Cabeceira, Espelho Organico): usam apenas **L e A** — a profundidade e a espessura da chapa (15mm), nao precisa informar P.
+- **Painel TV**: usa **L, A e P** — porque possui prateleira interna que precisa de profundidade.
 - **Prateleira Avulsa, Forro MDF**: usam apenas **L e P** — a altura e a espessura da chapa, nao precisa informar A.
 - **Caixas completas** (Caixa Alta, Baixa, Aerea, etc.): usam **L, A e P**.
 - Ao gerar o JSON de importacao, informe **apenas as dimensoes aplicaveis**. Dimensoes nao aplicaveis serao ignoradas pelo sistema.
@@ -524,7 +525,7 @@ Ambientes sao os comodos/espacos do projeto. Cada ambiente agrupa os moveis daqu
 | Torre quente (forno/micro) | 600-700 | 2100-2400 | 550-650 | L,A,P |
 | Guarda-roupa | 1500-3000 | 2400-2800 | 550-650 | L,A,P |
 | Comoda | 800-1600 | 800-1000 | 400-500 | L,A,P |
-| Painel TV | 1200-2200 | 900-1800 | — | L,A |
+| Painel TV | 1200-2200 | 900-1800 | 300-500 | L,A,P |
 | Painel Ripado | 1000-3000 | 1500-2800 | — | L,A |
 | Painel de Fechamento | 500-3000 | 500-2800 | — | L,A |
 | Cabeceira | 1400-2200 | 800-1500 | — | L,A |
@@ -591,7 +592,7 @@ Quando voce interpretar um projeto e quiser gerar o orcamento, voce DEVE gerar u
 | \`nome\` | string | Nome descritivo do movel para identificacao | \`"Armario Superior Pia"\` |
 | \`L\` | number | Largura em milimetros | \`800\` |
 | \`A\` | number | Altura em mm. **Omitir se a caixa nao usa A** (ex: Prateleira Avulsa, Forro MDF) | \`700\` |
-| \`P\` | number | Profundidade em mm. **Omitir se a caixa nao usa P** (ex: Paineis, Cabeceira) | \`350\` |
+| \`P\` | number | Profundidade em mm. **Omitir se a caixa nao usa P** (ex: Painel Ripado, Painel de Fechamento, Cabeceira, Espelho Organico). Painel TV USA P (tem prateleira). | \`350\` |
 | \`qtd\` | number | Quantidade (default: 1) | \`1\` |
 | \`matInt\` | string | Codigo do material interno | \`"branco_tx15"\` |
 | \`matExt\` | string | Codigo do material externo (face visivel) | \`"amad_medio"\` |
@@ -829,6 +830,7 @@ ${materiais.filter(m => m.tipo === 'acessorio').map(m => `| \`"${m.cod}"\` | ${m
           "nome": "Painel TV Quarto",
           "L": 1800,
           "A": 1200,
+          "P": 350,
           "matInt": "amad_escuro",
           "matExt": "amad_escuro",
           "componentes": []
@@ -846,7 +848,7 @@ ${materiais.filter(m => m.tipo === 'acessorio').map(m => `| \`"${m.cod}"\` | ${m
 1. **Identificar ambientes**: Cada comodo do projeto vira um objeto em \`ambientes[]\`.
 2. **Cada movel vira um item**: Identificar a caixa mais adequada do catalogo.
 3. **Dimensoes em mm**: SEMPRE em milimetros. Ex: 80cm = 800mm, 2.60m = 2600mm.
-3b. **Dimensoes aplicaveis**: Consultar a coluna **Dims** do catalogo de caixas. Se a caixa usa apenas L,A (paineis), NAO informar P. Se usa apenas L,P (prateleira avulsa, forro), NAO informar A. Informar dimensoes nao aplicaveis causa erro no calculo.
+3b. **Dimensoes aplicaveis**: Consultar a coluna **Dims** do catalogo de caixas (secao 2). Informar APENAS as dimensoes listadas. Ex: Painel Ripado = L,A (nao informar P). Prateleira Avulsa = L,P (nao informar A). Painel TV = L,A,P (informar P pois tem prateleira). Informar dimensoes nao aplicaveis causa erro no calculo.
 4. **Material padrao**: Se o projeto nao especificar cor/material, use \`"branco_tx15"\` para interno e deixe \`"matExt"\` vazio (o usuario define depois).
 5. **Componentes**: Adicionar portas, gavetas, prateleiras, nichos conforme o projeto.
 6. **Qtd default**: Se nao especificado, \`qtd: 1\`.

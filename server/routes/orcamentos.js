@@ -225,11 +225,12 @@ router.post('/importar', requireAuth, (req, res) => {
                     continue;
                 }
                 const caixaDef = { db_id: cxRow.id, ...JSON.parse(cxRow.json_data) };
+                const dimsAplic = caixaDef.dimsAplicaveis || ['L','A','P'];
 
                 const dims = {
                     l: itemIA.largura || itemIA.L || 600,
-                    a: itemIA.altura || itemIA.A || 2200,
-                    p: itemIA.profundidade || itemIA.P || 550,
+                    a: dimsAplic.includes('A') ? (itemIA.altura || itemIA.A || (caixaDef.cat === 'especial' ? 2400 : 2200)) : 0,
+                    p: dimsAplic.includes('P') ? (itemIA.profundidade || itemIA.P || 550) : 0,
                 };
 
                 const item = {
