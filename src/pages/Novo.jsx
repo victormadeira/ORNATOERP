@@ -677,6 +677,35 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         api.get('/orcamentos/templates').then(setAmbTemplates).catch(() => { });
     }, []);
 
+    // ── Hidratação: ao carregar do banco, itens só têm caixaId/compId — precisamos injetar caixaDef/compDef do catálogo
+    useEffect(() => {
+        if (caixas.length === 0 || componentesCat.length === 0) return;
+        let changed = false;
+        setAmbientes(prev => prev.map(amb => ({
+            ...amb,
+            itens: (amb.itens || []).map(item => {
+                let updated = item;
+                // Hidratar caixaDef se ausente
+                if (!item.caixaDef && item.caixaId) {
+                    const def = caixas.find(c => c.db_id === item.caixaId);
+                    if (def) { updated = { ...updated, caixaDef: JSON.parse(JSON.stringify(def)) }; changed = true; }
+                }
+                // Hidratar compDef em cada componente se ausente
+                if (updated.componentes?.length > 0) {
+                    const comps = updated.componentes.map(ci => {
+                        if (ci.compDef) return ci;
+                        const cd = componentesCat.find(c => c.db_id === ci.compId);
+                        if (cd) { changed = true; return { ...ci, compDef: JSON.parse(JSON.stringify(cd)) }; }
+                        return ci;
+                    });
+                    updated = { ...updated, componentes: comps };
+                }
+                return updated;
+            }),
+        })));
+        if (changed) console.log('[Hidratação] caixaDef/compDef injetados do catálogo');
+    }, [caixas, componentesCat]);
+
     const bib = useMemo(() => {
         if (bibItems.length === 0) return null;
         const chapas = bibItems.filter(i => i.tipo === 'material' && i.unidade === 'chapa').map(i => ({
