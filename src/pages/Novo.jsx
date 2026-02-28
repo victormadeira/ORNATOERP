@@ -715,9 +715,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
     const [padroes, setPadroes] = useState(editOrc?.padroes || { corredica: '', dobradica: '', articulador: '' });
 
-    const [pagamento, setPagamento] = useState(editOrc?.pagamento || {
-        desconto: { tipo: '%', valor: 0 },
-        blocos: [],
+    const [pagamento, setPagamento] = useState(() => {
+        const pg = editOrc?.pagamento || { desconto: { tipo: '%', valor: 0 }, blocos: [] };
+        // Ensure each bloco has an id for React keys and upBloco matching
+        if (pg.blocos) pg.blocos = pg.blocos.map(b => b.id ? b : { ...b, id: uid() });
+        return pg;
     });
     const [showRelatorio, setShowRelatorio] = useState(false);
     const [empresa, setEmpresa] = useState(null);
@@ -763,16 +765,19 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         blocos: p.blocos.map(b => b.id === id ? { ...b, [field]: val } : b),
     }));
 
-    const [localTaxas, setLocalTaxas] = useState(editOrc?.taxas || {
-        imp: globalTaxas.imp, com: globalTaxas.com, mont: globalTaxas.mont,
-        lucro: globalTaxas.lucro, frete: globalTaxas.frete,
-        inst: globalTaxas.inst ?? 5,
-        mk_chapas: globalTaxas.mk_chapas ?? 1.45,
-        mk_ferragens: globalTaxas.mk_ferragens ?? 1.15,
-        mk_fita: globalTaxas.mk_fita ?? 1.45,
-        mk_acabamentos: globalTaxas.mk_acabamentos ?? 1.30,
-        mk_acessorios: globalTaxas.mk_acessorios ?? 1.20,
-        mk_mdo: globalTaxas.mk_mdo ?? 0.80,
+    const [localTaxas, setLocalTaxas] = useState(() => {
+        const defaults = {
+            imp: globalTaxas.imp ?? 0, com: globalTaxas.com ?? 0, mont: globalTaxas.mont ?? 0,
+            lucro: globalTaxas.lucro ?? 0, frete: globalTaxas.frete ?? 0,
+            inst: globalTaxas.inst ?? 5,
+            mk_chapas: globalTaxas.mk_chapas ?? 1.45,
+            mk_ferragens: globalTaxas.mk_ferragens ?? 1.15,
+            mk_fita: globalTaxas.mk_fita ?? 1.45,
+            mk_acabamentos: globalTaxas.mk_acabamentos ?? 1.30,
+            mk_acessorios: globalTaxas.mk_acessorios ?? 1.20,
+            mk_mdo: globalTaxas.mk_mdo ?? 0.80,
+        };
+        return editOrc?.taxas ? { ...defaults, ...editOrc.taxas } : defaults;
     });
     const taxas = localTaxas;
     const setTaxa = (k, v) => setLocalTaxas(p => ({ ...p, [k]: parseFloat(v) || 0 }));
@@ -1761,8 +1766,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 ))}
                                 <div className="flex justify-between pt-1 mt-1 font-semibold text-[11px]" style={{ borderTop: '1px solid var(--border)' }}>
                                     <span style={{ color: 'var(--text-muted)' }}>Σ Taxas</span>
-                                    <span className={(taxas.imp + taxas.com + taxas.mont + taxas.lucro + taxas.frete + (taxas.inst || 0)) >= 100 ? 'text-red-500' : ''}>
-                                        {(taxas.imp + taxas.com + taxas.mont + taxas.lucro + taxas.frete + (taxas.inst || 0)).toFixed(1)}%
+                                    <span className={((taxas.imp ?? 0) + (taxas.com ?? 0) + (taxas.mont ?? 0) + (taxas.lucro ?? 0) + (taxas.frete ?? 0) + (taxas.inst ?? 0)) >= 100 ? 'text-red-500' : ''}>
+                                        {((taxas.imp ?? 0) + (taxas.com ?? 0) + (taxas.mont ?? 0) + (taxas.lucro ?? 0) + (taxas.frete ?? 0) + (taxas.inst ?? 0)).toFixed(1)}%
                                     </span>
                                 </div>
                             </div>
