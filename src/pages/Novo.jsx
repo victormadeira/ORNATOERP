@@ -45,6 +45,83 @@ function matLabel(id, chapas) {
     return chapas.find(c => c.id === id)?.nome || id || '—';
 }
 
+// ── Componente: dropdown estilizado para puxadores ──────────────────────────
+function PuxadorSelect({ puxadores, value, onChange }) {
+    const [open, setOpen] = useState(false);
+    const [q, setQ] = useState('');
+    const ref = useRef(null);
+    const selected = puxadores.find(p => p.id === value);
+    const filtered = q.trim()
+        ? puxadores.filter(p => p.nome.toLowerCase().includes(q.toLowerCase()))
+        : puxadores;
+
+    useEffect(() => {
+        const h = (e) => { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setQ(''); } };
+        document.addEventListener('mousedown', h);
+        return () => document.removeEventListener('mousedown', h);
+    }, []);
+
+    const pick = (id) => { onChange(id); setOpen(false); setQ(''); };
+
+    return (
+        <div ref={ref} className="relative" style={{ flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+            <button
+                onClick={() => setOpen(!open)}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium cursor-pointer transition-colors"
+                style={{
+                    background: 'rgba(168,85,247,0.08)',
+                    border: '1px solid rgba(168,85,247,0.25)',
+                    color: '#a855f7',
+                }}>
+                <Wrench size={10} />
+                <span className="truncate" style={{ maxWidth: 100 }}>{selected?.nome || 'Puxador'}</span>
+                <ChevronDown size={10} style={{ opacity: 0.6 }} />
+            </button>
+            {open && (
+                <div className="absolute right-0 mt-1 rounded-lg shadow-lg overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', width: 220, zIndex: 60 }}>
+                    {puxadores.length > 4 && (
+                        <div className="px-2 pt-2 pb-1">
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                <Search size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                                <input
+                                    type="text" value={q} autoFocus
+                                    placeholder="Buscar puxador..."
+                                    onChange={e => setQ(e.target.value)}
+                                    className="flex-1 bg-transparent outline-none text-[11px]"
+                                    style={{ color: 'var(--text-primary)', minWidth: 0 }} />
+                                {q && <button onClick={() => setQ('')} className="cursor-pointer"><X size={10} style={{ color: 'var(--text-muted)' }} /></button>}
+                            </div>
+                        </div>
+                    )}
+                    <div className="overflow-y-auto" style={{ maxHeight: 180 }}>
+                        {filtered.map(p => {
+                            const isActive = p.id === value;
+                            return (
+                                <button key={p.id} onClick={() => pick(p.id)}
+                                    className="w-full text-left px-3 py-1.5 flex items-center justify-between cursor-pointer transition-colors"
+                                    style={{
+                                        background: isActive ? 'rgba(168,85,247,0.1)' : 'transparent',
+                                        borderLeft: isActive ? '2px solid #a855f7' : '2px solid transparent',
+                                    }}
+                                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(168,85,247,0.05)'; }}
+                                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}>
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="text-[11px] font-medium truncate" style={{ color: isActive ? '#a855f7' : 'var(--text-primary)' }}>{p.nome}</span>
+                                    </div>
+                                    <span className="text-[10px] font-semibold shrink-0 ml-2" style={{ color: isActive ? '#a855f7' : 'var(--text-muted)' }}>{R$(p.preco)}</span>
+                                </button>
+                            );
+                        })}
+                        {filtered.length === 0 && q.trim() && (
+                            <div className="px-3 py-2 text-[10px] text-center" style={{ color: 'var(--text-muted)' }}>Nenhum puxador para "{q}"</div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ── Componente: linha de sub-item (ferragem) ─────────────────────────────────
 function SubItemRow({ si, ativo, onChange, ferragensDB, globalPadroes, ferrOvr, onFerrChange }) {
     const siFerragem = ferragensDB.find(f => f.id === si.ferrId);
@@ -59,7 +136,6 @@ function SubItemRow({ si, ativo, onChange, ferragensDB, globalPadroes, ferrOvr, 
     }
 
     const fe = ferragensDB.find(f => f.id === effFerrId) || siFerragem;
-    const isSubst = effFerrId !== si.ferrId;
     const isPuxador = siFerragem?.categoria?.toLowerCase() === 'puxador';
     const puxadores = isPuxador ? ferragensDB.filter(f => f.categoria?.toLowerCase() === 'puxador') : [];
 
@@ -73,14 +149,7 @@ function SubItemRow({ si, ativo, onChange, ferragensDB, globalPadroes, ferrOvr, 
                 </div>
             </button>
             {isPuxador && ativo && puxadores.length > 0 && (
-                <select
-                    value={ferrOvr || si.ferrId}
-                    onChange={e => onFerrChange(e.target.value)}
-                    onClick={e => e.stopPropagation()}
-                    className="text-[10px] px-1 py-0.5 rounded border input-glass"
-                    style={{ maxWidth: 120, flexShrink: 0 }}>
-                    {puxadores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                </select>
+                <PuxadorSelect puxadores={puxadores} value={ferrOvr || si.ferrId} onChange={onFerrChange} />
             )}
             {fe && <span className="text-[10px] font-semibold shrink-0" style={{ color: ativo ? '#a855f7' : 'var(--text-muted)' }}>{R$(fe.preco)}</span>}
         </div>
