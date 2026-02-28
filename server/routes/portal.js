@@ -52,11 +52,17 @@ async function geolocateIP(ip) {
         const timeout = setTimeout(() => controller.abort(), 3000);
         const resp = await fetch(`https://ipinfo.io/${ip}/json?token=${IPINFO_TOKEN}`, { signal: controller.signal });
         clearTimeout(timeout);
-        if (!resp.ok) return { cidade: '', estado: '', pais: '' };
+        if (!resp.ok) return { cidade: '', estado: '', pais: '', lat: null, lon: null };
         const data = await resp.json();
-        return { cidade: data.city || '', estado: data.region || '', pais: data.country || '' };
+        let lat = null, lon = null;
+        if (data.loc) {
+            const [la, lo] = data.loc.split(',');
+            lat = parseFloat(la) || null;
+            lon = parseFloat(lo) || null;
+        }
+        return { cidade: data.city || '', estado: data.region || '', pais: data.country || '', lat, lon };
     } catch {
-        return { cidade: '', estado: '', pais: '' };
+        return { cidade: '', estado: '', pais: '', lat: null, lon: null };
     }
 }
 
@@ -218,11 +224,11 @@ router.get('/public/:token', async (req, res) => {
     // Geolocalização assíncrona
     const geo = await geolocateIP(ip);
 
-    // Registrar acesso
+    // Registrar acesso (com coords aproximadas do IP, GPS sobrescreve depois)
     db.prepare(`
-        INSERT INTO proposta_acessos (orc_id, token, ip_cliente, user_agent, dispositivo, navegador, os_name, cidade, estado, pais, is_new_visit)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(portalToken.orc_id, token, ip, ua, dispositivo, navegador, os_name, geo.cidade, geo.estado, geo.pais, newVisit ? 1 : 0);
+        INSERT INTO proposta_acessos (orc_id, token, ip_cliente, user_agent, dispositivo, navegador, os_name, cidade, estado, pais, is_new_visit, lat, lon)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(portalToken.orc_id, token, ip, ua, dispositivo, navegador, os_name, geo.cidade, geo.estado, geo.pais, newVisit ? 1 : 0, geo.lat, geo.lon);
 
     db.prepare('UPDATE portal_tokens SET ultimo_acesso = CURRENT_TIMESTAMP WHERE token = ?').run(token);
 

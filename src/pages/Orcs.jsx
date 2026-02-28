@@ -1012,10 +1012,8 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                     <span className="opacity-70">Quando o cliente abrir o link, aparecerá aqui.</span>
                                 </div>
                             ) : (
-                                <div className="max-h-64 overflow-y-auto pr-1">
-                                    <div className="relative pl-8">
-                                        {/* Linha vertical */}
-                                        <div className="absolute left-[9px] top-2 bottom-2 w-[2px]" style={{ background: 'var(--border)' }} />
+                                <div className="max-h-72 overflow-y-auto pr-1">
+                                    <div className="flex flex-col gap-1">
                                         {timeline.events.map((ev, i) => {
                                             const ICON_MAP = {
                                                 file: { icon: <FileTextIcon size={10} />, color: '#3b82f6' },
@@ -1028,9 +1026,9 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                             };
                                             const ic = ICON_MAP[ev.icone] || ICON_MAP.file;
                                             return (
-                                                <div key={i} className="relative flex gap-3 pb-4">
-                                                    <div className="absolute left-[-20px] w-5 h-5 rounded-full flex items-center justify-center shrink-0 z-10"
-                                                        style={{ background: `${ic.color}18`, border: `2px solid ${ic.color}`, color: ic.color }}>
+                                                <div key={i} className="flex items-start gap-3 py-2 px-2 rounded-lg hover:bg-[var(--bg-muted)] transition-colors">
+                                                    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                                                        style={{ background: `${ic.color}15`, border: `2px solid ${ic.color}`, color: ic.color }}>
                                                         {ic.icon}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
@@ -1043,7 +1041,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                         )}
                                                         {ev.coords && (
                                                             <div className="flex items-center gap-1 mt-1 text-[9px]" style={{ color: '#6366f1' }}>
-                                                                <MapPin size={8} /> Localização GPS confirmada
+                                                                <MapPin size={8} /> Localização confirmada
                                                             </div>
                                                         )}
                                                     </div>
