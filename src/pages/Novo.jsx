@@ -10,7 +10,16 @@ import {
     FolderOpen, Package, Settings, Layers, X, RefreshCw, Wrench, AlertTriangle, Box, Search,
     ToggleLeft, ToggleRight, Info, CreditCard, Eye, Globe, Monitor, Smartphone, Clock, ExternalLink, Share2,
     Lock, Unlock, ShieldAlert, FilePlus2, CheckCircle, Upload, Brain, Sparkles,
+    PanelTop, UtensilsCrossed, BedDouble, Bath, Shirt, Flame, WashingMachine, Armchair, PenTool, Briefcase,
 } from 'lucide-react';
+
+// ── Ícone por categoria de caixa ─────────────────────────────────────────────
+const CAT_ICON = {
+    caixaria: Box, cozinha: UtensilsCrossed, sala: Armchair, quarto: BedDouble,
+    banheiro: Bath, closet: Shirt, gourmet: Flame, lavanderia: WashingMachine,
+    escritorio: Briefcase, especial: PenTool, generico: Package,
+};
+const getCatIcon = (cat) => CAT_ICON[cat] || Box;
 
 // ── Constantes ───────────────────────────────────────────────────────────────
 const MEIOS_PAGAMENTO = [
@@ -929,7 +938,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             caixaId: caixaDef.db_id,
             caixaDef: JSON.parse(JSON.stringify(caixaDef)),
             nome: caixaDef.nome,
-            dims: { l: 600, a: caixaDef.cat === 'especial' ? 2400 : 2200, p: 550 },
+            dims: {
+                l: 600,
+                a: (caixaDef.dimsAplicaveis || ['L','A','P']).includes('A') ? (caixaDef.cat === 'especial' ? 2400 : 2200) : 0,
+                p: (caixaDef.dimsAplicaveis || ['L','A','P']).includes('P') ? 550 : 0,
+            },
             qtd: 1,
             mats: { matInt: 'mdf18', matExt: '' },
             componentes: [],
@@ -1476,7 +1489,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         <div className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)]" onClick={() => setExpandedItem(isItemExp ? null : item.id)}>
                                                             <div className="flex items-center gap-2">
                                                                 {isItemExp ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                                                                <Box size={13} style={{ color: 'var(--primary)' }} />
+                                                                {(() => { const CatIc = getCatIcon(item.caixaDef?.cat); return <CatIc size={13} style={{ color: 'var(--primary)' }} />; })()}
                                                                 <div className="flex flex-col leading-tight">
                                                                     <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
                                                                         {item.desc || item.nome}
@@ -1574,8 +1587,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                 </div>
 
                                                                 {/* Dimensões e quantidade */}
-                                                                <div className="grid grid-cols-4 gap-2">
-                                                                    {[['Larg. (mm)', 'l'], ['Alt. (mm)', 'a'], ['Prof. (mm)', 'p']].map(([lbl, k]) => (
+                                                                {(() => {
+                                                                    const allowedDims = item.caixaDef?.dimsAplicaveis || ['L','A','P'];
+                                                                    const dimFields = [['Larg. (mm)', 'l', 'L'], ['Alt. (mm)', 'a', 'A'], ['Prof. (mm)', 'p', 'P']]
+                                                                        .filter(([, , key]) => allowedDims.includes(key));
+                                                                    return (
+                                                                <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${dimFields.length + 1}, minmax(0, 1fr))` }}>
+                                                                    {dimFields.map(([lbl, k]) => (
                                                                         <div key={k} className="min-w-0">
                                                                             <label className={Z.lbl}>{lbl}</label>
                                                                             <input type="number" value={item.dims[k]}
@@ -1590,6 +1608,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                             className={Z.inp} />
                                                                     </div>
                                                                 </div>
+                                                                    );
+                                                                })()}
 
                                                                 {/* Materiais */}
                                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -2425,15 +2445,37 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             {ambTemplates.length > 0 && (
                                 <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
                                     <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>Templates Salvos</div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
+                                    <div className="flex flex-col gap-1.5">
                                         {ambTemplates.map(tpl => (
-                                            <button key={tpl.id} onClick={() => createFromTemplate(tpl)}
-                                                className="flex flex-col items-center gap-1.5 p-3 rounded-lg border cursor-pointer transition-all hover:shadow-md hover:border-[var(--primary)]"
+                                            <div key={tpl.id} className="flex items-center gap-2 p-2 rounded-lg border transition-all hover:border-[var(--primary)]"
                                                 style={{ borderColor: 'var(--border)', background: 'var(--bg-muted)' }}>
-                                                <Layers size={18} style={{ color: '#16a34a' }} />
-                                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>{tpl.nome}</span>
-                                                {tpl.categoria && <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{tpl.categoria}</span>}
-                                            </button>
+                                                <button onClick={() => createFromTemplate(tpl)} className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer" title="Usar template">
+                                                    <Layers size={15} style={{ color: '#16a34a', flexShrink: 0 }} />
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }} className="truncate">{tpl.nome}</span>
+                                                        {tpl.categoria && <span style={{ fontSize: 9, color: 'var(--text-muted)' }} className="truncate">{tpl.categoria}</span>}
+                                                    </div>
+                                                </button>
+                                                <button onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    const novo = prompt('Renomear template:', tpl.nome);
+                                                    if (!novo || novo === tpl.nome) return;
+                                                    await api.put(`/orcamentos/templates/${tpl.id}`, { nome: novo, descricao: tpl.descricao, categoria: tpl.categoria });
+                                                    setAmbTemplates(await api.get('/orcamentos/templates'));
+                                                    notify('Template renomeado');
+                                                }} className="p-1 rounded hover:bg-[var(--bg-hover)] cursor-pointer" style={{ color: 'var(--text-muted)' }} title="Renomear">
+                                                    <Settings size={12} />
+                                                </button>
+                                                <button onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    if (!confirm(`Excluir template "${tpl.nome}"?`)) return;
+                                                    await api.del(`/orcamentos/templates/${tpl.id}`);
+                                                    setAmbTemplates(await api.get('/orcamentos/templates'));
+                                                    notify('Template excluído');
+                                                }} className="p-1 rounded hover:bg-red-500/10 cursor-pointer" style={{ color: 'var(--text-muted)' }} title="Excluir">
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </div>
                                         ))}
                                     </div>
                                 </div>

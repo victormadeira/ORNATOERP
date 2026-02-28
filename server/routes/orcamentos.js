@@ -134,6 +134,17 @@ router.post('/templates', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// PUT /api/orcamentos/templates/:id — editar template
+// ═══════════════════════════════════════════════════════
+router.put('/templates/:id', requireAuth, (req, res) => {
+    const { nome, descricao, categoria } = req.body;
+    if (!nome) return res.status(400).json({ error: 'Nome obrigatório' });
+    db.prepare('UPDATE ambiente_templates SET nome = ?, descricao = ?, categoria = ? WHERE id = ?')
+        .run(nome, descricao || '', categoria || '', parseInt(req.params.id));
+    res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════
 // DELETE /api/orcamentos/templates/:id — deletar template
 // ═══════════════════════════════════════════════════════
 router.delete('/templates/:id', requireAuth, (req, res) => {

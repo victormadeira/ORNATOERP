@@ -821,7 +821,7 @@ if (caixaCount.c === 0) {
     nome: 'Caixa Alta',
     cat: 'caixaria',
     desc: 'Roupeiro, despensa, armário — caixaria completa',
-    coef: 0.35,
+    coef: 0.35, dimsAplicaveis: ['L','A','P'],
     pecas: [
       { id: 'le', nome: 'Lateral Esq.',  qtd: 1, calc: 'A*P',   mat: 'int',   fita: ['f']      },
       { id: 'ld', nome: 'Lateral Dir.',  qtd: 1, calc: 'A*P',   mat: 'int',   fita: ['f']      },
@@ -841,7 +841,7 @@ if (caixaCount.c === 0) {
     nome: 'Caixa Baixa / Balcão',
     cat: 'caixaria',
     desc: 'Bancada, balcão cozinha/banheiro',
-    coef: 0.30,
+    coef: 0.30, dimsAplicaveis: ['L','A','P'],
     pecas: [
       { id: 'le', nome: 'Lateral Esq.',  qtd: 1, calc: 'A*P',   mat: 'int',   fita: ['f']      },
       { id: 'ld', nome: 'Lateral Dir.',  qtd: 1, calc: 'A*P',   mat: 'int',   fita: ['f']      },
@@ -860,7 +860,7 @@ if (caixaCount.c === 0) {
     nome: 'Caixa Aérea',
     cat: 'caixaria',
     desc: 'Módulo suspenso — cozinha, lavanderia',
-    coef: 0.25,
+    coef: 0.25, dimsAplicaveis: ['L','A','P'],
     pecas: [
       { id: 'le', nome: 'Lateral Esq.',  qtd: 1, calc: 'A*P',   mat: 'int',   fita: ['f']      },
       { id: 'ld', nome: 'Lateral Dir.',  qtd: 1, calc: 'A*P',   mat: 'int',   fita: ['f']      },
@@ -1057,6 +1057,27 @@ if (caixaCount.c === 0) {
 }
 
 // ═══════════════════════════════════════════════════════
+// MIGRATION — dimsAplicaveis para CAIXAS: analisar pecas e definir quais dims são usadas
+// ═══════════════════════════════════════════════════════
+{
+  const rows = db.prepare("SELECT id, nome, json_data FROM modulos_custom WHERE tipo_item = 'caixa'").all();
+  let migrated = 0;
+  for (const row of rows) {
+    const data = JSON.parse(row.json_data);
+    if (data.dimsAplicaveis) continue; // já migrado
+    const allCalcs = [...(data.pecas || []), ...(data.tamponamentos || [])].map(p => p.calc).join(' ');
+    const dims = [];
+    if (/\bL\b|\bLi\b/.test(allCalcs)) dims.push('L');
+    if (/\bA\b|\bAi\b/.test(allCalcs)) dims.push('A');
+    if (/\bP\b|\bPi\b/.test(allCalcs)) dims.push('P');
+    data.dimsAplicaveis = dims;
+    db.prepare('UPDATE modulos_custom SET json_data = ? WHERE id = ?').run(JSON.stringify(data), row.id);
+    migrated++;
+  }
+  if (migrated > 0) console.log(`[OK] dimsAplicaveis: ${migrated} caixas migradas`);
+}
+
+// ═══════════════════════════════════════════════════════
 // SEED v3 — Biblioteca expandida + Catálogo completo
 // Baseado em análise de projetos reais (Arauco, Guararapes, Duratex)
 // Materiais genéricos 15mm + ferragens + módulos diversos
@@ -1174,7 +1195,7 @@ if (caixaCount.c === 0) {
       {
         nome: 'Torre Quente',
         cat: 'cozinha', desc: 'Torre para forno e micro-ondas embutidos — nicho aberto no meio',
-        coef: 0.40,
+        coef: 0.40, dimsAplicaveis: ['L','A','P'],
         pecas: pecasPadrao,
         tamponamentos: tampFull,
       },
