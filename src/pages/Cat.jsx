@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Z, Ic } from '../ui';
 import { R$, N } from '../engine';
 import api from '../api';
-import { Plus, Trash2, Edit2, X, Check, Search, Package, Wrench, Layers, PaintBucket, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Edit2, X, Check, Search, Package, Wrench, Layers, PaintBucket, AlertCircle, Square, Sofa, RectangleHorizontal, GlassWater, Shapes } from 'lucide-react';
 
 function calcPrecoM2(item) {
     if (item.largura > 0 && item.altura > 0 && item.preco > 0) {
@@ -91,7 +91,7 @@ export default function Cat() {
     }, [items, tab, search, catFiltro]);
 
     const openNew = () => {
-        const defaults = { material: { unidade: 'chapa', perda_pct: 15 }, acabamento: { unidade: 'm²' }, ferragem: { unidade: 'un' }, acessorio: { unidade: 'un' } };
+        const defaults = { material: { unidade: 'chapa', perda_pct: 15 }, acabamento: { unidade: 'm²' }, ferragem: { unidade: 'un' }, acessorio: { unidade: 'un' }, espelho: { unidade: 'm²' }, estofado: { unidade: 'm²' }, aluminio: { unidade: 'm' }, vidro: { unidade: 'm²' } };
         setForm({ ...emptyItem, tipo: tab, ...(defaults[tab] || {}) });
         setEditId(null); setShowForm(true);
     };
@@ -112,6 +112,10 @@ export default function Cat() {
         { id: 'acabamento', lb: 'Acabamentos', icon: PaintBucket, desc: 'BP, lâminas, lacas — preço por m²', color: '#8b5cf6' },
         { id: 'ferragem', lb: 'Ferragens', icon: Wrench, desc: 'Dobradiças, corrediças, puxadores — só preço e unidade', color: '#f59e0b' },
         { id: 'acessorio', lb: 'Acessórios', icon: Layers, desc: 'Cabideiros, sapateiras, cestos aramados', color: '#10b981' },
+        { id: 'espelho', lb: 'Espelhos', icon: Square, desc: 'Espelhos bisotê, lapidados — preço por m²', color: '#06b6d4' },
+        { id: 'estofado', lb: 'Estofados', icon: Sofa, desc: 'Tecidos, couros, painéis estofados — preço por m²', color: '#ec4899' },
+        { id: 'aluminio', lb: 'Alumínio', icon: RectangleHorizontal, desc: 'Perfis e portas de alumínio — preço por metro linear', color: '#94a3b8' },
+        { id: 'vidro', lb: 'Vidros', icon: GlassWater, desc: 'Temperados, laminados — preço por m²', color: '#22d3ee' },
     ];
     const activeTab = tabs.find(t => t.id === tab);
 
@@ -237,6 +241,21 @@ export default function Cat() {
                         </div>
                     )}
 
+                    {['espelho', 'estofado', 'vidro'].includes(tab) && (
+                        <div className="grid grid-cols-2 gap-3 mt-3">
+                            <div><label className={Z.lbl}>Preço por m² (R$)</label><input type="number" step="0.01" value={form.preco_m2 || form.preco} onChange={e => { setF('preco_m2', +e.target.value); setF('preco', +e.target.value); }} className={Z.inp} /></div>
+                            <div><label className={Z.lbl}>Descrição</label><input value={form.descricao} onChange={e => setF('descricao', e.target.value)} className={Z.inp} placeholder="Ex: Bisotê 4mm, Suede premium..." /></div>
+                        </div>
+                    )}
+
+                    {tab === 'aluminio' && (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
+                            <div><label className={Z.lbl}>Preço por metro linear (R$)</label><input type="number" step="0.01" value={form.preco} onChange={e => setF('preco', +e.target.value)} className={Z.inp} /></div>
+                            <div><label className={Z.lbl}>Cor/Acabamento</label><input value={form.categoria || ''} onChange={e => setF('categoria', e.target.value)} className={Z.inp} placeholder="Ex: Preto anodizado" /></div>
+                            <div><label className={Z.lbl}>Descrição</label><input value={form.descricao} onChange={e => setF('descricao', e.target.value)} className={Z.inp} placeholder="Ex: Perfil 40x20mm" /></div>
+                        </div>
+                    )}
+
                     <div className="flex gap-2 mt-4">
                         <button onClick={save} className={`${Z.btn} flex items-center gap-1 text-xs`}><Check size={13} /> {editId ? 'Atualizar' : 'Cadastrar'}</button>
                         <button onClick={() => setShowForm(false)} className={`${Z.btn2} text-xs`}>Cancelar</button>
@@ -262,6 +281,8 @@ export default function Cat() {
                                     {tab === 'acabamento' && <><th className={Z.th + " text-right"}>R$/m²</th></>}
                                     {tab === 'ferragem' && <><th className={Z.th}>Categoria</th><th className={Z.th}>Un</th><th className={Z.th + " text-right"}>Preço</th></>}
                                     {tab === 'acessorio' && <><th className={Z.th}>Un</th><th className={Z.th + " text-right"}>Preço</th></>}
+                                    {['espelho', 'estofado', 'vidro'].includes(tab) && <><th className={Z.th + " text-right"}>R$/m²</th><th className={Z.th}>Descrição</th></>}
+                                    {tab === 'aluminio' && <><th className={Z.th}>Cor/Acab.</th><th className={Z.th + " text-right"}>R$/ml</th><th className={Z.th}>Descrição</th></>}
                                     <th className={Z.th + " text-right w-20"}></th>
                                 </tr>
                             </thead>
@@ -293,6 +314,17 @@ export default function Cat() {
                                         {tab === 'acessorio' && <>
                                             <td className="td-glass text-xs" style={{ color: 'var(--text-muted)' }}>{item.unidade}</td>
                                             <td className="td-glass text-right font-bold text-xs" style={{ color: 'var(--primary)' }}>{R$(item.preco)}</td>
+                                        </>}
+
+                                        {['espelho', 'estofado', 'vidro'].includes(tab) && <>
+                                            <td className="td-glass text-right font-bold text-xs" style={{ color: 'var(--primary)' }}>{R$(item.preco_m2 || item.preco)}/m²</td>
+                                            <td className="td-glass text-xs" style={{ color: 'var(--text-muted)' }}>{item.descricao || '—'}</td>
+                                        </>}
+
+                                        {tab === 'aluminio' && <>
+                                            <td className="td-glass text-xs capitalize" style={{ color: 'var(--text-secondary)' }}>{item.categoria || '—'}</td>
+                                            <td className="td-glass text-right font-bold text-xs" style={{ color: 'var(--primary)' }}>{R$(item.preco)}/ml</td>
+                                            <td className="td-glass text-xs" style={{ color: 'var(--text-muted)' }}>{item.descricao || '—'}</td>
                                         </>}
 
                                         <td className="td-glass text-right">

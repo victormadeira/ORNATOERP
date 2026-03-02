@@ -1369,7 +1369,15 @@ function parsePluginJSON(json) {
 
             // Machining data
             if (peca.persistent_id && machining[peca.persistent_id]) {
-                peca.machining_json = JSON.stringify(machining[peca.persistent_id]);
+                const machData = { ...machining[peca.persistent_id] };
+                // Se o contour esta no nivel da piece entity (model_entities), incluir no machining
+                if (ent.contour && !machData.contour) {
+                    machData.contour = ent.contour;
+                }
+                peca.machining_json = JSON.stringify(machData);
+            } else if (ent.contour) {
+                // Peca sem machining mas com contour
+                peca.machining_json = JSON.stringify({ contour: ent.contour });
             }
 
             pecas.push(peca);
@@ -3427,43 +3435,92 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const velC = contTool.velocidade_corte || velCorteMaq;
             const velEf = isPeq ? Math.round(velC * feedPct / 100) : velC;
 
-            const cx1 = refilo + pX - cR, cy1 = refilo + pY - cR;
-            const cx2 = refilo + pX + pW + cR, cy2 = refilo + pY + pH + cR;
             const cTipo = usinagemTipos.find(t => t.codigo === 'contorno_peca') || { prioridade: 8, fase: 'contorno' };
 
             // Classificação determina sub-prioridade do contorno
             const clsOrder = cls === 'super_pequena' ? 0 : cls === 'pequena' ? 1 : 2;
 
             // ─── Índice de Risco de Vácuo (Vacuum Risk Index) ───
-            // Combina: (1) área da peça (menor = mais risco) e (2) distância das bordas (mais perto = mais risco)
-            // Peças de borda com pouca área devem ser cortadas primeiro enquanto o vácuo é forte
             const chapaW = chapa.comprimento || 2750, chapaH = chapa.largura || 1850;
             const centerX = pX + pW / 2, centerY = pY + pH / 2;
-            // Distância mínima de qualquer borda da chapa
             const distBorda = Math.min(centerX, centerY, chapaW - centerX, chapaH - centerY);
-            // Normalizar: 0 = na borda, 1 = no centro
             const distBordaNorm = Math.min(distBorda / (Math.min(chapaW, chapaH) / 2), 1.0);
-            // Normalizar área: 0 = muito pequena, 1 = grande
-            const areaMax = chapaW * chapaH / 100; // área máxima teórica em cm2
-            const areaNorm = Math.min(areaCm2 / (areaMax * 0.1), 1.0); // normalizar contra 10% da chapa
-            // Índice de risco: quanto MAIOR, mais risco → cortar primeiro
-            // Peso: 60% área (menor = mais risco), 40% borda (mais perto = mais risco)
+            const areaMax = chapaW * chapaH / 100;
+            const areaNorm = Math.min(areaCm2 / (areaMax * 0.1), 1.0);
             const vacuumRiskIndex = (1.0 - areaNorm) * 0.6 + (1.0 - distBordaNorm) * 0.4;
 
-            allOps.push({
-                pecaId: pp.pecaId, pecaDesc: pDb.descricao, moduloDesc: pDb.modulo_desc,
-                absX: cx1, absY: cy1, absX2: cx2, absY2: cy2,
-                opType: 'contorno', fase: 1,
-                prioridade: cTipo.prioridade, clsOrder, tipoNome: 'Contorno',
-                toolCode: contTool.tool_code, toolCodigo: contTool.codigo, toolNome: contTool.nome,
-                toolRpm: contTool.rpm || rpmDef, toolDiam: contTool.diametro,
-                depthTotal, depthCont, passes, velCorte: velEf,
-                contornoPath: [{ x: cx1, y: cy1 }, { x: cx2, y: cy1 }, { x: cx2, y: cy2 }, { x: cx1, y: cy2 }],
-                classificacao: cls, areaCm2, isPequena: isPeq,
-                isContorno: true, needsOnionSkin: needsOnion, onionDepthFull: depthTotal,
-                // Vacuum risk index: maior = mais risco = cortar primeiro
-                vacuumRiskIndex, distBorda: Math.round(distBorda),
-            });
+            // Verificar se a peça tem contorno complexo (não-retangular)
+            const hasComplexContour = mach.contour && mach.contour.outer && mach.contour.outer.length > 0;
+
+            if (hasComplexContour) {
+                // ═══ CONTORNO COMPLEXO (arcos, curvas, furos) ═══
+                const contour = mach.contour;
+                const offsetX = refilo + pX;
+                const offsetY = refilo + pY;
+
+                // Contorno externo
+                allOps.push({
+                    pecaId: pp.pecaId, pecaDesc: pDb.descricao, moduloDesc: pDb.modulo_desc,
+                    absX: refilo + pX - cR, absY: refilo + pY - cR,
+                    absX2: refilo + pX + pW + cR, absY2: refilo + pY + pH + cR,
+                    opType: 'contorno', fase: 1,
+                    prioridade: cTipo.prioridade, clsOrder, tipoNome: 'Contorno Complexo',
+                    toolCode: contTool.tool_code, toolCodigo: contTool.codigo, toolNome: contTool.nome,
+                    toolRpm: contTool.rpm || rpmDef, toolDiam: contTool.diametro,
+                    depthTotal, depthCont, passes, velCorte: velEf,
+                    contornoPath: null,  // Não usar path retangular
+                    contourData: contour,  // Contorno complexo
+                    offsetX, offsetY, cutterRadius: cR,
+                    classificacao: cls, areaCm2, isPequena: isPeq,
+                    isContorno: true, isComplexContour: true,
+                    needsOnionSkin: needsOnion, onionDepthFull: depthTotal,
+                    vacuumRiskIndex, distBorda: Math.round(distBorda),
+                });
+
+                // Furos/recortes internos (cada um = operação separada, ANTES do contorno externo)
+                if (contour.holes && contour.holes.length > 0) {
+                    for (const hole of contour.holes) {
+                        const holeDepth = esp + profExtra;
+                        const holePasses = calcularPassadas(holeDepth, doc);
+                        allOps.push({
+                            pecaId: pp.pecaId, pecaDesc: pDb.descricao, moduloDesc: pDb.modulo_desc,
+                            absX: offsetX, absY: offsetY,
+                            absX2: offsetX + pW, absY2: offsetY + pH,
+                            opType: hole.type === 'circle' ? 'circular_hole' : 'contour_hole',
+                            fase: 0,  // Antes dos contornos externos
+                            prioridade: 5, clsOrder: 0, tipoNome: hole.type === 'circle' ? 'Furo Circular' : 'Recorte Interno',
+                            toolCode: contTool.tool_code, toolCodigo: contTool.codigo, toolNome: contTool.nome,
+                            toolRpm: contTool.rpm || rpmDef, toolDiam: contTool.diametro,
+                            depthTotal: holeDepth, passes: holePasses, velCorte: velEf,
+                            holeData: hole,
+                            offsetX, offsetY, cutterRadius: cR,
+                            classificacao: cls, areaCm2, isPequena: isPeq,
+                            isContorno: false, isComplexContour: false,
+                            needsOnionSkin: false,
+                        });
+                    }
+                }
+
+            } else {
+                // ═══ CONTORNO RETANGULAR (comportamento existente) ═══
+                const cx1 = refilo + pX - cR, cy1 = refilo + pY - cR;
+                const cx2 = refilo + pX + pW + cR, cy2 = refilo + pY + pH + cR;
+
+                allOps.push({
+                    pecaId: pp.pecaId, pecaDesc: pDb.descricao, moduloDesc: pDb.modulo_desc,
+                    absX: cx1, absY: cy1, absX2: cx2, absY2: cy2,
+                    opType: 'contorno', fase: 1,
+                    prioridade: cTipo.prioridade, clsOrder, tipoNome: 'Contorno',
+                    toolCode: contTool.tool_code, toolCodigo: contTool.codigo, toolNome: contTool.nome,
+                    toolRpm: contTool.rpm || rpmDef, toolDiam: contTool.diametro,
+                    depthTotal, depthCont, passes, velCorte: velEf,
+                    contornoPath: [{ x: cx1, y: cy1 }, { x: cx2, y: cy1 }, { x: cx2, y: cy2 }, { x: cx1, y: cy2 }],
+                    classificacao: cls, areaCm2, isPequena: isPeq,
+                    isContorno: true, isComplexContour: false,
+                    needsOnionSkin: needsOnion, onionDepthFull: depthTotal,
+                    vacuumRiskIndex, distBorda: Math.round(distBorda),
+                });
+            }
         }
     }
 
@@ -3612,7 +3669,170 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
         totalOps++;
 
         // ═══ Gerar movimentos por tipo ═══
-        if (op.isContorno) {
+
+        // ─── CONTORNO COMPLEXO (arcos, curvas) ───
+        if (op.isContorno && op.isComplexContour && op.contourData) {
+            const cd = op.contourData;
+            const oX = op.offsetX, oY = op.offsetY;
+            const cR = op.cutterRadius || 0;
+            const outerSegs = cd.outer || [];
+            if (outerSegs.length === 0) continue;
+
+            L.push(`${cmt} Contorno COMPLEXO: ${op.pecaDesc}${op.moduloDesc ? ' (' + op.moduloDesc + ')' : ''} (${outerSegs.length} segmentos)`);
+            if (op.needsOnionSkin) L.push(`${cmt}   ONION-SKIN: corte ate ${fmt(op.depthCont)}mm, breakthrough ${fmt(op.depthTotal)}mm`);
+            L.push(`${cmt}   Passadas: ${op.passes.length} | Prof: ${fmt(op.needsOnionSkin ? op.depthCont : op.depthTotal)}mm | Area: ${op.areaCm2.toFixed(0)}cm2`);
+            if (op.vacuumRiskIndex != null) L.push(`${cmt}   Risco vacuo: ${(op.vacuumRiskIndex * 100).toFixed(0)}% | Dist.borda: ${op.distBorda}mm`);
+            if (op.isPequena) L.push(`${cmt}   PECA PEQUENA -- Feed ${feedPct}%`);
+
+            // Ponto inicial: ultimo segmento do contorno fecha no primeiro
+            const lastSeg = outerSegs[outerSegs.length - 1];
+            const startX = oX + lastSeg.x2;
+            const startY = oY + lastSeg.y2;
+
+            // Rastrear posição atual para cálculo de I,J relativos em arcos
+            let curX = startX, curY = startY;
+
+            for (let pi = 0; pi < op.passes.length; pi++) {
+                const pd = op.passes[pi];
+                const zTarget = zCut(pd);
+                if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)}`);
+
+                // Posicionar
+                emit(`G0 X${fmt(startX)} Y${fmt(startY)}`);
+                emit(`G0 Z${fmt(zApproach())}`);
+
+                // Mergulho (rampa se habilitado e primeiro segmento é longo o bastante)
+                if (useRampa && outerSegs[0]) {
+                    const firstSeg = outerSegs[0];
+                    const dx = (oX + firstSeg.x2) - startX;
+                    const dy = (oY + firstSeg.y2) - startY;
+                    const segLen = Math.sqrt(dx * dx + dy * dy);
+                    const rampLen = Math.min(segLen * 0.4, 50);
+                    if (rampLen > 5) {
+                        const rampFrac = rampLen / segLen;
+                        const rampX = startX + dx * rampFrac;
+                        const rampY = startY + dy * rampFrac;
+                        L.push(`${cmt}   Rampa ${fmt(rampLen)}mm ao longo primeiro segmento`);
+                        emit(`G1 X${fmt(rampX)} Y${fmt(rampY)} Z${fmt(zTarget)} F${velMergulho}`);
+                        emit(`G1 X${fmt(startX)} Y${fmt(startY)} F${op.velCorte}`);
+                        curX = startX; curY = startY;
+                    } else {
+                        emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
+                    }
+                } else {
+                    emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
+                }
+
+                // Percorrer contorno complexo
+                for (const seg of outerSegs) {
+                    const targetX = oX + seg.x2;
+                    const targetY = oY + seg.y2;
+
+                    if (seg.type === 'arc') {
+                        // I,J relativos ao ponto atual
+                        const I = (oX + seg.cx) - curX;
+                        const J = (oY + seg.cy) - curY;
+                        const cmd = seg.dir === 'cw' ? 'G2' : 'G3';
+                        emit(`${cmd} X${fmt(targetX)} Y${fmt(targetY)} I${fmt(I)} J${fmt(J)} F${op.velCorte}`);
+                    } else {
+                        // Linha reta (G1)
+                        emit(`G1 X${fmt(targetX)} Y${fmt(targetY)} F${op.velCorte}`);
+                    }
+                    curX = targetX;
+                    curY = targetY;
+                }
+
+                // Retração Z
+                const nextOp = sortedOps[sortedOps.indexOf(op) + 1];
+                const useFastRetract = nextOp && nextOp.isContorno && nextOp.toolCode === op.toolCode;
+                emit(`G0 Z${fmt(useFastRetract ? zRapid() : zSafe())}`);
+            }
+            if (op.needsOnionSkin) {
+                onionOps.push({ ...op, velFinal: Math.round(op.velCorte * 0.6) });
+            }
+            L.push('');
+
+        // ─── FURO CIRCULAR (passa-fio, etc.) ───
+        } else if (op.opType === 'circular_hole' && op.holeData) {
+            const h = op.holeData;
+            const oX = op.offsetX, oY = op.offsetY;
+            const cx = oX + h.cx, cy = oY + h.cy, r = h.r;
+            const cR = op.cutterRadius || 0;
+            const toolR = (op.toolDiam || 6) / 2;
+
+            L.push(`${cmt} Furo circular D${fmt(r * 2)}mm (passa-fio): ${op.pecaDesc}`);
+
+            if (r > toolR * 1.5) {
+                // Contorno circular: posicionar na borda do furo, G2 volta completa
+                const cutR = r - toolR;  // Compensação do raio da fresa
+
+                for (let pi = 0; pi < op.passes.length; pi++) {
+                    const zTarget = zCut(op.passes[pi]);
+                    if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)}`);
+
+                    emit(`G0 X${fmt(cx + cutR)} Y${fmt(cy)}`);
+                    emit(`G0 Z${fmt(zApproach())}`);
+                    emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
+                    // G2 volta completa: endpoint = startpoint, I = -cutR, J = 0
+                    emit(`G2 X${fmt(cx + cutR)} Y${fmt(cy)} I${fmt(-cutR)} J0 F${op.velCorte}`);
+                }
+                emit(`G0 Z${fmt(zSafe())}`);
+            } else {
+                // Plunge simples (furo pequeno)
+                emit(`G0 X${fmt(cx)} Y${fmt(cy)}`);
+                emit(`G0 Z${fmt(zApproach())}`);
+                for (let pi = 0; pi < op.passes.length; pi++) {
+                    const zTarget = zCut(op.passes[pi]);
+                    emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
+                }
+                emit(`G0 Z${fmt(zSafe())}`);
+            }
+            L.push('');
+
+        // ─── RECORTE POLIGONAL INTERNO ───
+        } else if (op.opType === 'contour_hole' && op.holeData) {
+            const h = op.holeData;
+            const oX = op.offsetX, oY = op.offsetY;
+            const segs = h.segments || [];
+
+            L.push(`${cmt} Recorte interno: ${op.pecaDesc} (${segs.length} segmentos)`);
+
+            if (segs.length > 0) {
+                const lastSeg = segs[segs.length - 1];
+                const startX = oX + lastSeg.x2, startY = oY + lastSeg.y2;
+                let curX = startX, curY = startY;
+
+                for (let pi = 0; pi < op.passes.length; pi++) {
+                    const zTarget = zCut(op.passes[pi]);
+                    if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)}`);
+
+                    emit(`G0 X${fmt(startX)} Y${fmt(startY)}`);
+                    emit(`G0 Z${fmt(zApproach())}`);
+                    emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
+                    curX = startX; curY = startY;
+
+                    for (const seg of segs) {
+                        const targetX = oX + seg.x2;
+                        const targetY = oY + seg.y2;
+
+                        if (seg.type === 'arc') {
+                            const I = (oX + seg.cx) - curX;
+                            const J = (oY + seg.cy) - curY;
+                            const cmd = seg.dir === 'cw' ? 'G2' : 'G3';
+                            emit(`${cmd} X${fmt(targetX)} Y${fmt(targetY)} I${fmt(I)} J${fmt(J)} F${op.velCorte}`);
+                        } else {
+                            emit(`G1 X${fmt(targetX)} Y${fmt(targetY)} F${op.velCorte}`);
+                        }
+                        curX = targetX;
+                        curY = targetY;
+                    }
+                }
+                emit(`G0 Z${fmt(zSafe())}`);
+            }
+            L.push('');
+
+        // ─── CONTORNO RETANGULAR (comportamento existente) ───
+        } else if (op.isContorno) {
             const path = op.contornoPath;
             if (!path || path.length < 4) continue;
 

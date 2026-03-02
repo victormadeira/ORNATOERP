@@ -255,7 +255,7 @@ export function buildPropostaHtml({
         }).join('');
 
         return `
-            <div class="amb-block">
+            <div class="amb-block" data-section="amb_${amb.id}" data-section-nome="${amb.nome || 'Ambiente'}">
                 <div class="amb-title">${amb.nome || 'Ambiente'}</div>
                 <table class="tb">
                     <thead>
@@ -279,7 +279,7 @@ export function buildPropostaHtml({
 
     // ── Resumo ──────────────────────────────────────────────────────────────
     const resumoHtml = `
-        <div class="resumo">
+        <div class="resumo" data-section="resumo" data-section-nome="Resumo Financeiro">
             <table class="resumo-tb">
                 ${descontoR > 0 ? `
                 <tr>
@@ -303,7 +303,7 @@ export function buildPropostaHtml({
 
     // ── Pagamento ───────────────────────────────────────────────────────────
     const pagamentoHtml = (pagamento?.blocos || []).length > 0 ? `
-        <div class="section">
+        <div class="section" data-section="pagamento" data-section-nome="Condições de Pagamento">
             <div class="sec-title">CONDIÇÕES DE PAGAMENTO</div>
             <table class="tb pag-tb">
                 <thead>
@@ -332,7 +332,7 @@ export function buildPropostaHtml({
 
     // ── Considerações ───────────────────────────────────────────────────────
     const condicoesHtml = `
-        <div class="section">
+        <div class="section" data-section="consideracoes" data-section-nome="Considerações Finais">
             <div class="sec-title">CONSIDERAÇÕES FINAIS</div>
             ${txtGarantia ? `<p class="txt">${txtGarantia}</p>` : ''}
             <p class="txt">Prazo de entrega: <strong>${prazoEntrega || 'A combinar'}</strong> após aprovação do projeto.</p>

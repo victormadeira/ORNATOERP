@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { Z, Ic, Modal, tagStyle, tagClass } from '../ui';
 import { R$, KCOLS } from '../engine';
 import api from '../api';
-import { Copy, Download, SortAsc, SortDesc, Filter, AlertTriangle, Calendar, Flame, Eye as EyeIcon, RefreshCw, Share2, Printer, CheckCircle, FileText as FileTextIcon, Link2 } from 'lucide-react';
+import { Copy, Download, SortAsc, SortDesc, Filter, AlertTriangle, Calendar, Flame, Eye as EyeIcon, RefreshCw, Share2, Printer, CheckCircle, FileText as FileTextIcon, Link2, Type, ZoomIn, Star, MousePointer } from 'lucide-react';
 
 const dt = (s) => s ? new Date(s + 'Z').toLocaleDateString('pt-BR') : '—';
 const dtHr = (s) => s ? new Date(s + 'Z').toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -731,19 +731,91 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                         </div>
 
                         {/* Métricas resumo */}
-                        {linkModal.viewsData && linkModal.viewsData.total > 0 && (
-                            <div className="grid grid-cols-4 gap-2">
-                                {[
-                                    { label: 'Visitas', value: linkModal.viewsData.new_visits || 0, color: '#3b82f6' },
-                                    { label: 'Dispositivos', value: linkModal.viewsData.unique_devices || 0, color: '#8b5cf6' },
-                                    { label: 'Tempo Max', value: `${Math.floor((linkModal.viewsData.max_tempo || 0) / 60)}min`, color: '#f59e0b' },
-                                    { label: 'Scroll Max', value: `${linkModal.viewsData.max_scroll || 0}%`, color: '#22c55e' },
-                                ].map((m, i) => (
-                                    <div key={i} className="text-center p-2 rounded-lg" style={{ background: `${m.color}08`, border: `1px solid ${m.color}20` }}>
-                                        <div className="text-sm font-bold" style={{ color: m.color }}>{m.value}</div>
-                                        <div className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{m.label}</div>
-                                    </div>
-                                ))}
+                        {linkModal.viewsData && linkModal.viewsData.total > 0 && (() => {
+                            const topAmb = linkModal.viewsData.section_resumo?.find(s => s.id?.startsWith('amb_'));
+                            const totalInteracoes = Object.values(linkModal.viewsData.eventos_resumo || {}).reduce((s, v) => s + v, 0);
+                            const metrics = [
+                                { label: 'Visitas', value: linkModal.viewsData.new_visits || 0, color: '#3b82f6' },
+                                { label: 'Dispositivos', value: linkModal.viewsData.unique_devices || 0, color: '#8b5cf6' },
+                                { label: 'Tempo Max', value: `${Math.floor((linkModal.viewsData.max_tempo || 0) / 60)}min`, color: '#f59e0b' },
+                                { label: 'Scroll Max', value: `${linkModal.viewsData.max_scroll || 0}%`, color: '#22c55e' },
+                            ];
+                            if (topAmb) metrics.push({ label: 'Amb. Foco', value: topAmb.nome?.split(' ')[0] || topAmb.id, color: '#ef4444', sub: `${Math.floor(topAmb.tempo / 60)}m${topAmb.tempo % 60}s` });
+                            if (totalInteracoes > 0) metrics.push({ label: 'Interações', value: totalInteracoes, color: '#0ea5e9' });
+                            return (
+                                <div className={`grid gap-2 ${metrics.length > 4 ? 'grid-cols-3' : 'grid-cols-4'}`}>
+                                    {metrics.map((m, i) => (
+                                        <div key={i} className="text-center p-2 rounded-lg" style={{ background: `${m.color}08`, border: `1px solid ${m.color}20` }}>
+                                            <div className="text-sm font-bold" style={{ color: m.color }}>{m.value}</div>
+                                            {m.sub && <div className="text-[9px]" style={{ color: m.color, opacity: 0.7 }}>{m.sub}</div>}
+                                            <div className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{m.label}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        })()}
+
+                        {/* Engagement por Ambiente (heatmap) */}
+                        {linkModal.viewsData?.section_resumo?.length > 0 && (
+                            <div>
+                                <div className="text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>
+                                    ENGAGEMENT POR SEÇÃO
+                                </div>
+                                <div className="flex flex-col gap-1.5">
+                                    {linkModal.viewsData.section_resumo.map((s, i) => {
+                                        const maxPct = linkModal.viewsData.section_resumo[0]?.pct || 1;
+                                        const barW = Math.max(8, Math.round((s.pct / maxPct) * 100));
+                                        const min = Math.floor(s.tempo / 60);
+                                        const seg = s.tempo % 60;
+                                        const tempoStr = min > 0 ? `${min}m${seg > 0 ? seg + 's' : ''}` : `${seg}s`;
+                                        // Cor gradiente: do azul (frio) ao vermelho (quente)
+                                        const heat = s.pct / 100;
+                                        const barColor = heat > 0.6 ? '#ef4444' : heat > 0.3 ? '#f97316' : heat > 0.15 ? '#f59e0b' : '#3b82f6';
+                                        return (
+                                            <div key={i} className="flex items-center gap-2">
+                                                <span className="text-[10px] font-medium w-32 truncate text-right" style={{ color: 'var(--text-secondary)' }}>
+                                                    {s.nome || s.id}
+                                                </span>
+                                                <div className="flex-1 h-4 rounded-full overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
+                                                    <div className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-1.5"
+                                                        style={{ width: `${barW}%`, background: barColor, minWidth: 24 }}>
+                                                        <span className="text-[8px] font-bold text-white whitespace-nowrap">{tempoStr}</span>
+                                                    </div>
+                                                </div>
+                                                <span className="text-[9px] font-semibold w-8 text-right" style={{ color: barColor }}>{s.pct}%</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Interações detectadas */}
+                        {linkModal.viewsData?.eventos_resumo && Object.keys(linkModal.viewsData.eventos_resumo).length > 0 && (
+                            <div>
+                                <div className="text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>
+                                    INTERAÇÕES DETECTADAS
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {linkModal.viewsData.eventos_resumo.text_select > 0 && (
+                                        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1.5 rounded-full"
+                                            style={{ background: '#0ea5e910', color: '#0ea5e9', border: '1px solid #0ea5e925' }}>
+                                            <Type size={11} /> {linkModal.viewsData.eventos_resumo.text_select}× seleção de texto
+                                        </span>
+                                    )}
+                                    {linkModal.viewsData.eventos_resumo.copy > 0 && (
+                                        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1.5 rounded-full"
+                                            style={{ background: '#14b8a610', color: '#14b8a6', border: '1px solid #14b8a625' }}>
+                                            <Copy size={11} /> {linkModal.viewsData.eventos_resumo.copy}× texto copiado
+                                        </span>
+                                    )}
+                                    {linkModal.viewsData.eventos_resumo.zoom > 0 && (
+                                        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1.5 rounded-full"
+                                            style={{ background: '#a855f710', color: '#a855f7', border: '1px solid #a855f725' }}>
+                                            <ZoomIn size={11} /> {linkModal.viewsData.eventos_resumo.zoom}× zoom/ampliação
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         )}
 
@@ -793,6 +865,10 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                 share: { icon: <Share2 size={10} />, color: '#8b5cf6' },
                                                 printer: { icon: <Printer size={10} />, color: '#16a34a' },
                                                 check: { icon: <CheckCircle size={10} />, color: '#22c55e' },
+                                                text: { icon: <Type size={10} />, color: '#0ea5e9' },
+                                                copy: { icon: <Copy size={10} />, color: '#14b8a6' },
+                                                zoom: { icon: <ZoomIn size={10} />, color: '#a855f7' },
+                                                star: { icon: <Star size={10} />, color: '#eab308' },
                                             };
                                             const ic = ICON_MAP[ev.icone] || ICON_MAP.file;
                                             return (

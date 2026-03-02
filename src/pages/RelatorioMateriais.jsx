@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { R$, N, calcItemV2, calcPainelRipado, precoVenda, FERR_GROUPS } from '../engine';
+import { R$, N, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, precoVenda, FERR_GROUPS } from '../engine';
 import { Download, X, Layers, Package, Scissors, DollarSign } from 'lucide-react';
 import { Z } from '../ui';
 import api from '../api';
@@ -106,6 +106,14 @@ function calcAmbReports(ambientes, bib, padroes) {
                     fitaByMat[fitaMatId].metros += res.fitaTotal * qtd;
                     fita += res.fitaTotal * qtd;
                 }
+            } catch (_) { }
+        });
+        // ── Itens Especiais ──
+        (amb.itensEspeciais || []).forEach(ie => {
+            try {
+                const bibFlat = bib ? Object.values(bib).flat() : [];
+                const res = calcItemEspecial(ie, bibFlat);
+                custo += res.custo;
             } catch (_) { }
         });
         return { id: amb.id, nome: amb.nome, ca, fa, fita, fitaByMat, custo };
@@ -435,7 +443,7 @@ export default function RelatorioMateriais({ empresa, orcamento, ambientes, tot,
         Object.values(fitaByMatTotal).reduce((s, v) => s + v.metros * v.preco, 0) || 0,
         [fitaByMatTotal]);
 
-    const isEmpty = ambientes.every(a => (a.itens || []).length === 0 && (a.paineis || []).length === 0);
+    const isEmpty = ambientes.every(a => (a.itens || []).length === 0 && (a.paineis || []).length === 0 && (a.itensEspeciais || []).length === 0);
 
     if (isEmpty) {
         return (

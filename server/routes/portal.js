@@ -81,7 +81,7 @@ function isNewVisit(orc_id, ip) {
 // ── Lead Scoring (Score de Calor) ────────────────────────────────────────────
 function calculateLeadScore(orc_id) {
     const views = db.prepare(`
-        SELECT acessado_em, tempo_pagina, scroll_max, is_new_visit, fingerprint, evento_tipo
+        SELECT acessado_em, tempo_pagina, scroll_max, is_new_visit, fingerprint, evento_tipo, eventos_json
         FROM proposta_acessos WHERE orc_id = ? ORDER BY acessado_em DESC LIMIT 500
     `).all(orc_id);
 
@@ -115,6 +115,38 @@ function calculateLeadScore(orc_id) {
     // Imprimiu (+20)
     const printed = views.some(v => v.evento_tipo === 'print');
     if (printed) score += 20;
+
+    // ── Novos fatores: Seção + Interações ──
+    try {
+        // Viu todos os ambientes (+10)
+        const sectionRows = db.prepare(`
+            SELECT section_id, SUM(tempo_visivel) as tempo
+            FROM proposta_section_views WHERE orc_id = ? GROUP BY section_id
+        `).all(orc_id);
+        const ambSections = sectionRows.filter(r => r.section_id.startsWith('amb_'));
+        const resumoSeen = sectionRows.some(r => r.section_id === 'resumo' && r.tempo > 0);
+        const pagamentoSeen = sectionRows.find(r => r.section_id === 'pagamento');
+        if (ambSections.length >= 2 && resumoSeen) score += 10;
+
+        // Ambiente > 30s (max 3, +5 cada)
+        const ambOver30 = ambSections.filter(r => r.tempo >= 30).length;
+        score += Math.min(ambOver30, 3) * 5;
+
+        // Seção Pagamento > 30s (+10)
+        if (pagamentoSeen && pagamentoSeen.tempo >= 30) score += 10;
+
+        // Interações: text_select (+10), copy (+15), zoom (+5)
+        const allEvents = {};
+        views.forEach(v => {
+            try {
+                const evts = JSON.parse(v.eventos_json || '[]');
+                evts.forEach(e => { allEvents[e.tipo] = (allEvents[e.tipo] || 0) + 1; });
+            } catch {}
+        });
+        if (allEvents.text_select) score += 10;
+        if (allEvents.copy) score += 15;
+        if (allEvents.zoom) score += 5;
+    } catch (_) {}
 
     // Recência: se último acesso < 3 dias, multiplicador ×1.5
     const lastAccess = new Date(views[0].acessado_em);
@@ -255,7 +287,7 @@ router.get('/public/:token', async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 router.post('/heartbeat/:token', (req, res) => {
     const { token } = req.params;
-    const { tempo_pagina, scroll_max, resolucao, fingerprint } = req.body;
+    const { tempo_pagina, scroll_max, resolucao, fingerprint, sections, eventos } = req.body;
 
     const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
 
@@ -315,6 +347,38 @@ router.post('/heartbeat/:token', (req, res) => {
                         }
                     }
                 }
+            } catch (_) {}
+        }
+
+        // ── Section tracking: upsert visibilidade por seção ──
+        if (sections && typeof sections === 'object' && lastAccess) {
+            try {
+                const portalToken = db.prepare('SELECT orc_id FROM portal_tokens WHERE token = ? AND ativo = 1').get(token);
+                const orcId = portalToken?.orc_id;
+                if (orcId) {
+                    const upsert = db.prepare(`
+                        INSERT INTO proposta_section_views (acesso_id, orc_id, section_id, section_nome, tempo_visivel, entrou_viewport)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(acesso_id, section_id) DO UPDATE SET
+                            tempo_visivel = MAX(tempo_visivel, excluded.tempo_visivel),
+                            entrou_viewport = MAX(entrou_viewport, excluded.entrou_viewport)
+                    `);
+                    for (const [sid, data] of Object.entries(sections)) {
+                        if (!sid || typeof data !== 'object') continue;
+                        upsert.run(lastAccess.id, orcId, sid, data.nome || '', data.tempo || 0, data.entradas || 0);
+                    }
+                }
+            } catch (_) {}
+        }
+
+        // ── Eventos de interação: append ao eventos_json ──
+        if (Array.isArray(eventos) && eventos.length > 0 && lastAccess) {
+            try {
+                const current = db.prepare('SELECT eventos_json FROM proposta_acessos WHERE id = ?').get(lastAccess.id);
+                let existing = [];
+                try { existing = JSON.parse(current?.eventos_json || '[]'); } catch { existing = []; }
+                const merged = [...existing, ...eventos].slice(-100); // max 100 eventos
+                db.prepare('UPDATE proposta_acessos SET eventos_json = ? WHERE id = ?').run(JSON.stringify(merged), lastAccess.id);
             } catch (_) {}
         }
     }
@@ -377,6 +441,42 @@ router.get('/views/:orc_id', requireAuth, (req, res) => {
     // Lead Score
     const lead_score = calculateLeadScore(orc_id);
 
+    // ── Section analytics: tempo por seção agregado ──
+    let section_resumo = [];
+    try {
+        const sectionRows = db.prepare(`
+            SELECT section_id, section_nome,
+                   SUM(tempo_visivel) as tempo_total,
+                   MAX(tempo_visivel) as tempo_max,
+                   SUM(entrou_viewport) as entradas_total
+            FROM proposta_section_views
+            WHERE orc_id = ?
+            GROUP BY section_id
+            ORDER BY tempo_total DESC
+        `).all(orc_id);
+        const tempoGeral = sectionRows.reduce((s, r) => s + (r.tempo_total || 0), 0) || 1;
+        section_resumo = sectionRows.map(r => ({
+            id: r.section_id,
+            nome: r.section_nome,
+            tempo: r.tempo_total || 0,
+            tempo_max: r.tempo_max || 0,
+            entradas: r.entradas_total || 0,
+            pct: Math.round(((r.tempo_total || 0) / tempoGeral) * 100),
+        }));
+    } catch (_) {}
+
+    // ── Eventos de interação: contagem por tipo ──
+    let eventos_resumo = {};
+    try {
+        const evRows = db.prepare('SELECT eventos_json FROM proposta_acessos WHERE orc_id = ? AND eventos_json != ""').all(orc_id);
+        evRows.forEach(row => {
+            try {
+                const evts = JSON.parse(row.eventos_json || '[]');
+                evts.forEach(e => { eventos_resumo[e.tipo] = (eventos_resumo[e.tipo] || 0) + 1; });
+            } catch {}
+        });
+    } catch (_) {}
+
     res.json({
         token: portalToken.token,
         nivel: portalToken.nivel,
@@ -389,6 +489,8 @@ router.get('/views/:orc_id', requireAuth, (req, res) => {
         max_tempo: maxTempo,
         max_scroll: maxScroll,
         lead_score,
+        section_resumo,
+        eventos_resumo,
         dispositivos: Object.values(deviceMap).sort((a, b) => b.visitas - a.visitas),
         views: views.slice(0, 50), // últimos 50 para o frontend
     });
@@ -512,7 +614,61 @@ router.get('/timeline/:orc_id', requireAuth, (req, res) => {
         events.push({ tipo: 'compartilhamento', titulo: 'Novo dispositivo detectado', detalhe: s.mensagem, data: s.criado_em, icone: 'share' });
     }
 
-    // 5. Aprovação (se tiver mudado para 'ok')
+    // 5. Eventos de interação (text_select, copy, zoom) dos acessos
+    try {
+        const evRows = db.prepare(`
+            SELECT acessado_em, eventos_json FROM proposta_acessos
+            WHERE orc_id = ? AND eventos_json != '' AND eventos_json != '[]'
+            ORDER BY acessado_em ASC
+        `).all(orc_id);
+        for (const row of evRows) {
+            try {
+                const evts = JSON.parse(row.eventos_json || '[]');
+                const tipos = {};
+                evts.forEach(e => { tipos[e.tipo] = (tipos[e.tipo] || 0) + 1; });
+                if (tipos.text_select) {
+                    const secoes = [...new Set(evts.filter(e => e.tipo === 'text_select' && e.secao).map(e => e.secao))];
+                    events.push({
+                        tipo: 'interacao', titulo: 'Selecionou texto',
+                        detalhe: secoes.length > 0 ? `${tipos.text_select}× em ${secoes.join(', ')}` : `${tipos.text_select}× na proposta`,
+                        data: row.acessado_em, icone: 'text',
+                    });
+                }
+                if (tipos.copy) {
+                    events.push({ tipo: 'interacao', titulo: 'Copiou texto da proposta', detalhe: `${tipos.copy}×`, data: row.acessado_em, icone: 'copy' });
+                }
+                if (tipos.zoom) {
+                    events.push({ tipo: 'interacao', titulo: 'Ampliou conteúdo (zoom)', detalhe: `${tipos.zoom}×`, data: row.acessado_em, icone: 'zoom' });
+                }
+            } catch {}
+        }
+    } catch (_) {}
+
+    // 6. Ambiente mais analisado (evento sintético)
+    try {
+        const topSection = db.prepare(`
+            SELECT section_nome, SUM(tempo_visivel) as tempo
+            FROM proposta_section_views
+            WHERE orc_id = ? AND section_id LIKE 'amb_%'
+            GROUP BY section_id
+            ORDER BY tempo DESC LIMIT 1
+        `).get(orc_id);
+        if (topSection && topSection.tempo >= 10) {
+            const min = Math.floor(topSection.tempo / 60);
+            const seg = topSection.tempo % 60;
+            const tempoStr = min > 0 ? `${min}min ${seg}s` : `${seg}s`;
+            const lastVisit = acessos.length > 0 ? acessos[acessos.length - 1].acessado_em : null;
+            if (lastVisit) {
+                events.push({
+                    tipo: 'destaque', titulo: 'Ambiente mais analisado',
+                    detalhe: `${topSection.section_nome} (${tempoStr})`,
+                    data: lastVisit, icone: 'star',
+                });
+            }
+        }
+    } catch (_) {}
+
+    // 7. Aprovação (se tiver mudado para 'ok')
     const aprovacao = db.prepare(`
         SELECT criado_em, mensagem FROM notificacoes
         WHERE tipo = 'orcamento_aprovado' AND referencia_id = ?

@@ -11,6 +11,8 @@ export default function ProposalPublic({ token }) {
     const iframeRef = useRef(null);
     const heartbeatRef = useRef(null);
     const startTime = useRef(Date.now());
+    const sectionDataRef = useRef({});   // { section_id: { tempo: 0, entradas: 0, nome: '' } }
+    const pendingEventsRef = useRef([]); // [{ tipo, secao, ts }]
 
     // ── Carregar proposta ────────────────────────────────────────────────────
     useEffect(() => {
@@ -25,7 +27,7 @@ export default function ProposalPublic({ token }) {
             .finally(() => setLoading(false));
     }, [token]);
 
-    // ── Tracking: fingerprint + heartbeat ────────────────────────────────────
+    // ── Tracking: fingerprint + heartbeat + section observer + interações ──
     useEffect(() => {
         if (!html || error) return;
 
@@ -38,6 +40,17 @@ export default function ProposalPublic({ token }) {
         ].join('|');
         const fingerprint = btoa(fp).substring(0, 32);
         const resolucao = `${screen.width}x${screen.height}`;
+
+        // Helper: coletar dados de seções + eventos para envio
+        const collectPayload = (tempoSeg, scrollPct) => {
+            const sections = { ...sectionDataRef.current };
+            const eventos = pendingEventsRef.current.splice(0); // limpa após coleta
+            return {
+                tempo_pagina: tempoSeg, scroll_max: scrollPct, resolucao, fingerprint,
+                ...(Object.keys(sections).length > 0 ? { sections } : {}),
+                ...(eventos.length > 0 ? { eventos } : {}),
+            };
+        };
 
         // Enviar fingerprint inicial
         fetch(`/api/portal/heartbeat/${token}`, {
@@ -68,11 +81,11 @@ export default function ProposalPublic({ token }) {
             fetch(`/api/portal/heartbeat/${token}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tempo_pagina: tempoSeg, scroll_max: scrollPct, resolucao, fingerprint }),
+                body: JSON.stringify(collectPayload(tempoSeg, scrollPct)),
             }).catch(() => {});
         }, 30000);
 
-        // ── Fase 3: Detectar impressão ──
+        // ── Detectar impressão ──
         const onBeforePrint = () => {
             try {
                 const blob = new Blob([JSON.stringify({ tipo: 'print' })], { type: 'application/json' });
@@ -81,10 +94,11 @@ export default function ProposalPublic({ token }) {
         };
         window.addEventListener('beforeprint', onBeforePrint);
 
-        // Enviar dados finais ao sair
+        // Enviar dados finais ao sair (inclui seções + eventos pendentes)
         const onUnload = () => {
             const tempoSeg = Math.round((Date.now() - startTime.current) / 1000);
-            const blob = new Blob([JSON.stringify({ tempo_pagina: tempoSeg, scroll_max: 0 })], { type: 'application/json' });
+            const payload = collectPayload(tempoSeg, 0);
+            const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
             navigator.sendBeacon(`/api/portal/heartbeat/${token}`, blob);
         };
         window.addEventListener('beforeunload', onUnload);
@@ -256,6 +270,95 @@ export default function ProposalPublic({ token }) {
                             const height = Math.max(body.scrollHeight, body.offsetHeight, html.clientHeight, html.scrollHeight, html.offsetHeight);
                             iframe.style.height = (height + 60) + 'px';
                         }, 50);
+
+                        // ── Section tracking: Intersection Observer ──
+                        try {
+                            const sections = doc.querySelectorAll('[data-section]');
+                            if (sections.length > 0) {
+                                const visibleSections = new Set();
+
+                                const observer = new iframe.contentWindow.IntersectionObserver((entries) => {
+                                    entries.forEach(entry => {
+                                        const sid = entry.target.getAttribute('data-section');
+                                        if (entry.isIntersecting) {
+                                            visibleSections.add(sid);
+                                            // Registrar entrada no viewport
+                                            if (!sectionDataRef.current[sid]) {
+                                                sectionDataRef.current[sid] = {
+                                                    tempo: 0, entradas: 0,
+                                                    nome: entry.target.getAttribute('data-section-nome') || '',
+                                                };
+                                            }
+                                            sectionDataRef.current[sid].entradas++;
+                                        } else {
+                                            visibleSections.delete(sid);
+                                        }
+                                    });
+                                }, { threshold: [0, 0.3] });
+
+                                sections.forEach(el => observer.observe(el));
+
+                                // Timer de 1s: incrementar tempo das seções visíveis
+                                const sectionTimer = setInterval(() => {
+                                    visibleSections.forEach(sid => {
+                                        if (sectionDataRef.current[sid]) {
+                                            sectionDataRef.current[sid].tempo++;
+                                        }
+                                    });
+                                }, 1000);
+
+                                // Guardar cleanup no iframe
+                                iframe._sectionCleanup = () => {
+                                    clearInterval(sectionTimer);
+                                    observer.disconnect();
+                                };
+                            }
+
+                            // ── Detecção de interações ──
+                            // Seleção de texto
+                            doc.addEventListener('mouseup', () => {
+                                const sel = doc.getSelection();
+                                if (sel && sel.toString().trim().length > 3) {
+                                    // Identificar seção mais próxima
+                                    let secao = '';
+                                    let node = sel.anchorNode;
+                                    while (node && node !== doc.body) {
+                                        if (node.nodeType === 1 && node.getAttribute('data-section')) {
+                                            secao = node.getAttribute('data-section-nome') || node.getAttribute('data-section');
+                                            break;
+                                        }
+                                        node = node.parentNode;
+                                    }
+                                    pendingEventsRef.current.push({ tipo: 'text_select', secao, ts: Date.now() });
+                                }
+                            });
+
+                            // Cópia de texto (Ctrl+C / Cmd+C)
+                            doc.addEventListener('copy', () => {
+                                const sel = doc.getSelection();
+                                let secao = '';
+                                if (sel?.anchorNode) {
+                                    let node = sel.anchorNode;
+                                    while (node && node !== doc.body) {
+                                        if (node.nodeType === 1 && node.getAttribute('data-section')) {
+                                            secao = node.getAttribute('data-section-nome') || node.getAttribute('data-section');
+                                            break;
+                                        }
+                                        node = node.parentNode;
+                                    }
+                                }
+                                pendingEventsRef.current.push({ tipo: 'copy', secao, ts: Date.now() });
+                            });
+
+                            // Zoom/pinch (mobile)
+                            let lastPinchTs = 0;
+                            doc.addEventListener('touchstart', (e) => {
+                                if (e.touches.length >= 2 && Date.now() - lastPinchTs > 5000) {
+                                    lastPinchTs = Date.now();
+                                    pendingEventsRef.current.push({ tipo: 'zoom', secao: '', ts: Date.now() });
+                                }
+                            }, { passive: true });
+                        } catch { /* tracking errors should not break the page */ }
                     }}
                 />
             </div>

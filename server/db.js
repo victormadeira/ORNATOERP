@@ -112,6 +112,17 @@ db.exec(`
     user_agent TEXT DEFAULT ''
   );
 
+  CREATE TABLE IF NOT EXISTS proposta_section_views (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    acesso_id INTEGER NOT NULL REFERENCES proposta_acessos(id),
+    orc_id INTEGER NOT NULL,
+    section_id TEXT NOT NULL,
+    section_nome TEXT DEFAULT '',
+    tempo_visivel INTEGER DEFAULT 0,
+    entrou_viewport INTEGER DEFAULT 0,
+    UNIQUE(acesso_id, section_id)
+  );
+
   CREATE TABLE IF NOT EXISTS projetos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id),
@@ -959,6 +970,8 @@ const migrations = [
   // ═══ Versionamento de Orçamentos ═══
   "ALTER TABLE orcamentos ADD COLUMN versao INTEGER DEFAULT 1",
   "ALTER TABLE orcamentos ADD COLUMN versao_ativa INTEGER DEFAULT 1",
+  // ═══ Analytics Avançado — Section Tracking + Interações ═══
+  "ALTER TABLE proposta_acessos ADD COLUMN eventos_json TEXT DEFAULT ''",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
@@ -1032,6 +1045,9 @@ const indexes = [
   "CREATE INDEX IF NOT EXISTS idx_cnc_maquinas_user ON cnc_maquinas(user_id)",
   // Versionamento
   "CREATE INDEX IF NOT EXISTS idx_orc_versao ON orcamentos(parent_orc_id, tipo, versao)",
+  // Analytics — Section Views
+  "CREATE INDEX IF NOT EXISTS idx_section_views_orc ON proposta_section_views(orc_id)",
+  "CREATE INDEX IF NOT EXISTS idx_section_views_acesso ON proposta_section_views(acesso_id)",
 ];
 for (const sql of indexes) {
   try { db.exec(sql); } catch (_) { }
