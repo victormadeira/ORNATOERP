@@ -16,6 +16,7 @@ const MENUS = [
     { id: 'whatsapp',      label: 'WhatsApp',              desc: 'Mensagens e atendimento' },
     { id: 'assistente',    label: 'Assistente IA',         desc: 'Chat e assistente inteligente' },
     { id: 'relatorios',    label: 'Relatórios',            desc: 'Relatórios e análises' },
+    { id: 'cnc',           label: 'Corte e Produção',      desc: 'Plano de corte CNC, G-Code e máquinas' },
     { id: 'cfg',           label: 'Config & Taxas',        desc: 'Configurações e taxas do sistema' },
 ];
 

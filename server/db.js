@@ -369,6 +369,260 @@ db.exec(`
 `);
 
 // ═══════════════════════════════════════════════════════
+// CNC — Produção CNC (Plano de Corte, Nesting, G-code)
+// ═══════════════════════════════════════════════════════
+db.exec(`
+  CREATE TABLE IF NOT EXISTS cnc_lotes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id),
+    nome TEXT NOT NULL,
+    cliente TEXT DEFAULT '',
+    projeto TEXT DEFAULT '',
+    codigo TEXT DEFAULT '',
+    vendedor TEXT DEFAULT '',
+    json_original TEXT DEFAULT '',
+    status TEXT DEFAULT 'importado',
+    total_pecas INTEGER DEFAULT 0,
+    total_chapas INTEGER DEFAULT 0,
+    aproveitamento REAL DEFAULT 0,
+    plano_json TEXT DEFAULT '',
+    grupo_otimizacao INTEGER DEFAULT NULL,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS cnc_pecas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lote_id INTEGER NOT NULL REFERENCES cnc_lotes(id) ON DELETE CASCADE,
+    persistent_id TEXT DEFAULT '',
+    upmcode TEXT DEFAULT '',
+    descricao TEXT DEFAULT '',
+    modulo_desc TEXT DEFAULT '',
+    modulo_id INTEGER DEFAULT 0,
+    produto_final TEXT DEFAULT '',
+    material TEXT DEFAULT '',
+    material_code TEXT DEFAULT '',
+    espessura REAL DEFAULT 0,
+    comprimento REAL DEFAULT 0,
+    largura REAL DEFAULT 0,
+    quantidade INTEGER DEFAULT 1,
+    borda_dir TEXT DEFAULT '',
+    borda_esq TEXT DEFAULT '',
+    borda_frontal TEXT DEFAULT '',
+    borda_traseira TEXT DEFAULT '',
+    acabamento TEXT DEFAULT '',
+    upmdraw TEXT DEFAULT '',
+    usi_a TEXT DEFAULT '',
+    usi_b TEXT DEFAULT '',
+    machining_json TEXT DEFAULT '{}',
+    observacao TEXT DEFAULT '',
+    chapa_idx INTEGER DEFAULT NULL,
+    pos_x REAL DEFAULT 0,
+    pos_y REAL DEFAULT 0,
+    rotacionada INTEGER DEFAULT 0,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS cnc_chapas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id),
+    nome TEXT NOT NULL,
+    material_code TEXT DEFAULT '',
+    espessura_nominal REAL DEFAULT 18,
+    espessura_real REAL DEFAULT 18.5,
+    comprimento REAL DEFAULT 2750,
+    largura REAL DEFAULT 1850,
+    refilo REAL DEFAULT 10,
+    veio TEXT DEFAULT 'sem_veio',
+    kerf REAL DEFAULT 4,
+    preco REAL DEFAULT 0,
+    ativo INTEGER DEFAULT 1,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS cnc_retalhos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id),
+    chapa_ref_id INTEGER REFERENCES cnc_chapas(id),
+    nome TEXT DEFAULT '',
+    material_code TEXT DEFAULT '',
+    espessura_real REAL DEFAULT 0,
+    comprimento REAL DEFAULT 0,
+    largura REAL DEFAULT 0,
+    origem_lote TEXT DEFAULT '',
+    disponivel INTEGER DEFAULT 1,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS cnc_maquinas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id),
+    nome TEXT NOT NULL,
+    fabricante TEXT DEFAULT '',
+    modelo TEXT DEFAULT '',
+    tipo_pos TEXT DEFAULT 'generic',
+    extensao_arquivo TEXT DEFAULT '.nc',
+    -- Área de trabalho
+    x_max REAL DEFAULT 2800,
+    y_max REAL DEFAULT 1900,
+    z_max REAL DEFAULT 200,
+    -- Pós-processador: cabeçalho e rodapé
+    gcode_header TEXT DEFAULT '%\nM71 M10 G90 G00 G54 G17',
+    gcode_footer TEXT DEFAULT 'G0 Z200.000\nG40 M5 M74 M72 M11\nG0 X500.000 Y2000.000\nM141 M30\n%',
+    -- Velocidades
+    z_seguro REAL DEFAULT 30,
+    vel_vazio REAL DEFAULT 20000,
+    vel_corte REAL DEFAULT 4000,
+    vel_aproximacao REAL DEFAULT 8000,
+    rpm_padrao INTEGER DEFAULT 12000,
+    profundidade_extra REAL DEFAULT 0.20,
+    -- Coordenadas
+    coordenada_zero TEXT DEFAULT 'canto_esq_inf',
+    eixo_x_invertido INTEGER DEFAULT 0,
+    eixo_y_invertido INTEGER DEFAULT 0,
+    -- Exportações
+    exportar_lado_a INTEGER DEFAULT 1,
+    exportar_lado_b INTEGER DEFAULT 1,
+    exportar_furos INTEGER DEFAULT 1,
+    exportar_rebaixos INTEGER DEFAULT 1,
+    exportar_usinagens INTEGER DEFAULT 1,
+    -- Formato de saída
+    usar_ponto_decimal INTEGER DEFAULT 1,
+    casas_decimais INTEGER DEFAULT 3,
+    comentario_prefixo TEXT DEFAULT ';',
+    troca_ferramenta_cmd TEXT DEFAULT 'M6',
+    spindle_on_cmd TEXT DEFAULT 'M3',
+    spindle_off_cmd TEXT DEFAULT 'M5',
+    -- Anti-arrasto (peças pequenas)
+    usar_onion_skin INTEGER DEFAULT 1,
+    onion_skin_espessura REAL DEFAULT 0.5,
+    onion_skin_area_max REAL DEFAULT 500,
+    usar_tabs INTEGER DEFAULT 0,         -- Desativado por padrão: tabs quebram melamina em MDF
+    tab_largura REAL DEFAULT 4,
+    tab_altura REAL DEFAULT 1.5,
+    tab_qtd INTEGER DEFAULT 2,
+    tab_area_max REAL DEFAULT 800,
+    usar_lead_in INTEGER DEFAULT 1,
+    lead_in_tipo TEXT DEFAULT 'arco',
+    lead_in_raio REAL DEFAULT 5,
+    feed_rate_pct_pequenas REAL DEFAULT 50,
+    feed_rate_area_max REAL DEFAULT 500,
+    -- Status
+    padrao INTEGER DEFAULT 0,
+    ativo INTEGER DEFAULT 1,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS cnc_ferramentas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id),
+    maquina_id INTEGER REFERENCES cnc_maquinas(id) ON DELETE CASCADE,
+    codigo TEXT NOT NULL,
+    nome TEXT NOT NULL,
+    tipo TEXT DEFAULT 'broca',
+    diametro REAL DEFAULT 0,
+    profundidade_max REAL DEFAULT 30,
+    doc REAL DEFAULT NULL,
+    profundidade_extra REAL DEFAULT NULL,
+    tipo_corte TEXT DEFAULT 'broca',
+    comprimento_util REAL DEFAULT 25,
+    num_cortes INTEGER DEFAULT 2,
+    velocidade_corte REAL DEFAULT 4000,
+    rpm INTEGER DEFAULT 12000,
+    tool_code TEXT DEFAULT '',
+    ativo INTEGER DEFAULT 1,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS cnc_usinagem_tipos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id),
+    codigo TEXT NOT NULL,
+    nome TEXT NOT NULL,
+    categoria_match TEXT DEFAULT '',
+    diametro_match REAL DEFAULT NULL,
+    prioridade INTEGER DEFAULT 5,
+    fase TEXT DEFAULT 'interna',
+    tool_code_padrao TEXT DEFAULT '',
+    profundidade_padrao REAL DEFAULT NULL,
+    largura_padrao REAL DEFAULT NULL,
+    ativo INTEGER DEFAULT 1,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS cnc_config (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    user_id INTEGER REFERENCES users(id),
+    espaco_pecas REAL DEFAULT 7,
+    kerf_padrao REAL DEFAULT 4,
+    usar_guilhotina INTEGER DEFAULT 1,
+    usar_retalhos INTEGER DEFAULT 1,
+    iteracoes_otimizador INTEGER DEFAULT 300,
+    peca_min_largura REAL DEFAULT 200,
+    peca_min_comprimento REAL DEFAULT 200,
+    considerar_sobra INTEGER DEFAULT 1,
+    sobra_min_largura REAL DEFAULT 300,
+    sobra_min_comprimento REAL DEFAULT 600,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- Config de etiquetas (personalização)
+  CREATE TABLE IF NOT EXISTS cnc_etiqueta_config (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    user_id INTEGER REFERENCES users(id),
+    -- Formato
+    formato TEXT DEFAULT '100x70',
+    orientacao TEXT DEFAULT 'paisagem',
+    colunas_impressao INTEGER DEFAULT 2,
+    margem_pagina REAL DEFAULT 8,
+    gap_etiquetas REAL DEFAULT 4,
+    -- Campos visíveis (1=mostrar, 0=ocultar)
+    mostrar_usia INTEGER DEFAULT 1,
+    mostrar_usib INTEGER DEFAULT 1,
+    mostrar_material INTEGER DEFAULT 1,
+    mostrar_espessura INTEGER DEFAULT 1,
+    mostrar_cliente INTEGER DEFAULT 1,
+    mostrar_projeto INTEGER DEFAULT 1,
+    mostrar_codigo INTEGER DEFAULT 1,
+    mostrar_modulo INTEGER DEFAULT 1,
+    mostrar_peca INTEGER DEFAULT 1,
+    mostrar_dimensoes INTEGER DEFAULT 1,
+    mostrar_bordas_diagrama INTEGER DEFAULT 1,
+    mostrar_fita_resumo INTEGER DEFAULT 1,
+    mostrar_acabamento INTEGER DEFAULT 1,
+    mostrar_id_modulo INTEGER DEFAULT 1,
+    mostrar_controle INTEGER DEFAULT 1,
+    mostrar_produto_final INTEGER DEFAULT 0,
+    mostrar_observacao INTEGER DEFAULT 1,
+    mostrar_codigo_barras INTEGER DEFAULT 1,
+    -- Estilo
+    fonte_tamanho TEXT DEFAULT 'medio',
+    empresa_nome TEXT DEFAULT '',
+    empresa_logo_url TEXT DEFAULT '',
+    cor_borda_fita TEXT DEFAULT '#22c55e',
+    cor_controle TEXT DEFAULT '',
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- Templates de etiquetas (editor visual drag-and-drop)
+  CREATE TABLE IF NOT EXISTS cnc_etiqueta_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id),
+    nome TEXT NOT NULL DEFAULT 'Sem nome',
+    largura REAL NOT NULL DEFAULT 100,
+    altura REAL NOT NULL DEFAULT 70,
+    colunas_impressao INTEGER DEFAULT 2,
+    margem_pagina REAL DEFAULT 8,
+    gap_etiquetas REAL DEFAULT 4,
+    elementos TEXT NOT NULL DEFAULT '[]',
+    padrao INTEGER DEFAULT 0,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+// ═══════════════════════════════════════════════════════
 // MIGRAÇÕES — Colunas novas em tabelas existentes
 // ═══════════════════════════════════════════════════════
 const migrations = [
@@ -659,6 +913,49 @@ const migrations = [
   // ═══ Geolocalização GPS: coordenadas precisas ═══
   "ALTER TABLE proposta_acessos ADD COLUMN lat REAL DEFAULT NULL",
   "ALTER TABLE proposta_acessos ADD COLUMN lon REAL DEFAULT NULL",
+  // ═══ CNC: vincular ferramentas a máquinas ═══
+  "ALTER TABLE cnc_ferramentas ADD COLUMN maquina_id INTEGER REFERENCES cnc_maquinas(id) ON DELETE CASCADE",
+  // ═══ CNC: kerf, guilhotina, retalhos, iterações ═══
+  "ALTER TABLE cnc_chapas ADD COLUMN kerf REAL DEFAULT 4",
+  "ALTER TABLE cnc_config ADD COLUMN kerf_padrao REAL DEFAULT 4",
+  "ALTER TABLE cnc_config ADD COLUMN usar_guilhotina INTEGER DEFAULT 1",
+  "ALTER TABLE cnc_config ADD COLUMN usar_retalhos INTEGER DEFAULT 1",
+  "ALTER TABLE cnc_config ADD COLUMN iteracoes_otimizador INTEGER DEFAULT 300",
+  // ═══ CNC: anti-arrasto (peças pequenas) ═══
+  "ALTER TABLE cnc_maquinas ADD COLUMN usar_onion_skin INTEGER DEFAULT 1",
+  "ALTER TABLE cnc_maquinas ADD COLUMN onion_skin_espessura REAL DEFAULT 0.5",
+  "ALTER TABLE cnc_maquinas ADD COLUMN onion_skin_area_max REAL DEFAULT 500",
+  "ALTER TABLE cnc_maquinas ADD COLUMN usar_tabs INTEGER DEFAULT 0",
+  "ALTER TABLE cnc_maquinas ADD COLUMN tab_largura REAL DEFAULT 4",
+  "ALTER TABLE cnc_maquinas ADD COLUMN tab_altura REAL DEFAULT 1.5",
+  "ALTER TABLE cnc_maquinas ADD COLUMN tab_qtd INTEGER DEFAULT 2",
+  "ALTER TABLE cnc_maquinas ADD COLUMN tab_area_max REAL DEFAULT 800",
+  "ALTER TABLE cnc_maquinas ADD COLUMN usar_lead_in INTEGER DEFAULT 1",
+  "ALTER TABLE cnc_maquinas ADD COLUMN lead_in_tipo TEXT DEFAULT 'arco'",
+  "ALTER TABLE cnc_maquinas ADD COLUMN lead_in_raio REAL DEFAULT 5",
+  "ALTER TABLE cnc_maquinas ADD COLUMN feed_rate_pct_pequenas REAL DEFAULT 50",
+  "ALTER TABLE cnc_maquinas ADD COLUMN feed_rate_area_max REAL DEFAULT 500",
+  // ═══ CNC: otimização multi-lote (multi-projeto) ═══
+  "ALTER TABLE cnc_lotes ADD COLUMN grupo_otimizacao INTEGER DEFAULT NULL",
+  // ═══ CNC: DOC + prof_extra por ferramenta ═══
+  "ALTER TABLE cnc_ferramentas ADD COLUMN doc REAL DEFAULT NULL",
+  "ALTER TABLE cnc_ferramentas ADD COLUMN profundidade_extra REAL DEFAULT NULL",
+  "ALTER TABLE cnc_ferramentas ADD COLUMN tipo_corte TEXT DEFAULT 'broca'",
+  "ALTER TABLE cnc_ferramentas ADD COLUMN comprimento_util REAL DEFAULT 25",
+  "ALTER TABLE cnc_ferramentas ADD COLUMN num_cortes INTEGER DEFAULT 2",
+  // ═══ CNC: G-Code v2 — Z-origin, N-codes, direção corte, dwell ═══
+  "ALTER TABLE cnc_maquinas ADD COLUMN z_origin TEXT DEFAULT 'mesa'",
+  "ALTER TABLE cnc_maquinas ADD COLUMN z_aproximacao REAL DEFAULT 2.0",
+  "ALTER TABLE cnc_maquinas ADD COLUMN direcao_corte TEXT DEFAULT 'climb'",
+  "ALTER TABLE cnc_maquinas ADD COLUMN usar_n_codes INTEGER DEFAULT 1",
+  "ALTER TABLE cnc_maquinas ADD COLUMN n_code_incremento INTEGER DEFAULT 10",
+  "ALTER TABLE cnc_maquinas ADD COLUMN dwell_spindle REAL DEFAULT 1.0",
+  // ═══ CNC: G-Code v3 — Ramping, Lead-in, Vel. mergulho, Ordenação ═══
+  "ALTER TABLE cnc_maquinas ADD COLUMN usar_rampa INTEGER DEFAULT 1",
+  "ALTER TABLE cnc_maquinas ADD COLUMN rampa_angulo REAL DEFAULT 3.0",
+  "ALTER TABLE cnc_maquinas ADD COLUMN vel_mergulho REAL DEFAULT 1500",
+  "ALTER TABLE cnc_maquinas ADD COLUMN z_aproximacao_rapida REAL DEFAULT 5.0",
+  "ALTER TABLE cnc_maquinas ADD COLUMN ordenar_contornos TEXT DEFAULT 'menor_primeiro'",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
@@ -721,6 +1018,15 @@ const indexes = [
   // ═══ Entrega Digital ═══
   "CREATE INDEX IF NOT EXISTS idx_entrega_fotos_projeto ON entrega_fotos(projeto_id)",
   "CREATE INDEX IF NOT EXISTS idx_entrega_fotos_item ON entrega_fotos(projeto_id, ambiente_idx, item_idx)",
+  // ═══ CNC Produção ═══
+  "CREATE INDEX IF NOT EXISTS idx_cnc_lotes_user ON cnc_lotes(user_id)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_lotes_status ON cnc_lotes(status)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_pecas_lote ON cnc_pecas(lote_id)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_pecas_material ON cnc_pecas(material_code)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_retalhos_disp ON cnc_retalhos(disponivel)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_retalhos_material ON cnc_retalhos(material_code)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_ferramentas_maquina ON cnc_ferramentas(maquina_id)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_maquinas_user ON cnc_maquinas(user_id)",
 ];
 for (const sql of indexes) {
   try { db.exec(sql); } catch (_) { }
@@ -2242,6 +2548,143 @@ if (caixaCount.c === 0) {
     migrated++;
   }
   if (migrated > 0) console.log(`[OK] dimsAplicaveis (final): ${migrated} caixas corrigidas`);
+}
+
+// ═══════════════════════════════════════════════════════
+// SEED CNC — Máquinas, Chapas, Ferramentas e Config padrão
+// ═══════════════════════════════════════════════════════
+{
+  // Máquina padrão
+  const cncMaqCount = db.prepare('SELECT COUNT(*) as c FROM cnc_maquinas').get();
+  let maquinaPadraoId = null;
+  if (cncMaqCount.c === 0) {
+    const r = db.prepare(`INSERT INTO cnc_maquinas (nome, fabricante, modelo, tipo_pos, padrao)
+      VALUES ('CNC Principal', 'Genérico', 'Router CNC', 'generic', 1)`).run();
+    maquinaPadraoId = Number(r.lastInsertRowid);
+    console.log('[OK] CNC: máquina padrão criada');
+  } else {
+    const maq = db.prepare('SELECT id FROM cnc_maquinas WHERE padrao = 1 LIMIT 1').get();
+    maquinaPadraoId = maq?.id || db.prepare('SELECT id FROM cnc_maquinas LIMIT 1').get()?.id;
+  }
+
+  // Chapas
+  const cncChapaCount = db.prepare('SELECT COUNT(*) as c FROM cnc_chapas').get();
+  if (cncChapaCount.c === 0) {
+    const ins = db.prepare('INSERT INTO cnc_chapas (nome, material_code, espessura_nominal, espessura_real, comprimento, largura, refilo, preco) VALUES (?,?,?,?,?,?,?,?)');
+    ins.run('MDF Branco TX 6mm',  'MDF_6.5_BRANCO_TX',  6,  6.5,  2750, 1850, 10, 85);
+    ins.run('MDF Branco TX 15mm', 'MDF_15.5_BRANCO_TX', 15, 15.5, 2750, 1850, 10, 165);
+    ins.run('MDF Branco TX 18mm', 'MDF_18.5_BRANCO_TX', 18, 18.5, 2750, 1850, 10, 195);
+    console.log('[OK] CNC: 3 chapas padrão criadas');
+  }
+
+  // Ferramentas (vinculadas à máquina padrão)
+  const cncFerrCount = db.prepare('SELECT COUNT(*) as c FROM cnc_ferramentas').get();
+  if (cncFerrCount.c === 0 && maquinaPadraoId) {
+    const ins = db.prepare('INSERT INTO cnc_ferramentas (maquina_id, codigo, nome, tipo, diametro, tool_code) VALUES (?,?,?,?,?,?)');
+    ins.run(maquinaPadraoId, 'T01', 'Broca 15mm (minifix)',     'broca', 15, 'f_15mm_tambor_min');
+    ins.run(maquinaPadraoId, 'T02', 'Broca 35mm (dobradiça)',   'broca', 35, 'f_35mm_dob');
+    ins.run(maquinaPadraoId, 'T03', 'Broca 3mm',                'broca', 3,  'f_3mm');
+    ins.run(maquinaPadraoId, 'T04', 'Broca 5mm (twister)',      'broca', 5,  'f_5mm_twister243');
+    ins.run(maquinaPadraoId, 'T05', 'Broca 8mm (cavilha)',      'broca', 8,  'f_8mm_cavilha');
+    ins.run(maquinaPadraoId, 'T06', 'Broca 8mm (eixo minifix)', 'broca', 8,  'f_8mm_eixo_tambor_min');
+    ins.run(maquinaPadraoId, 'T07', 'Pocket 3mm',               'fresa', 3,  'p_3mm');
+    ins.run(maquinaPadraoId, 'T08', 'Pocket 8mm (cavilha)',     'fresa', 8,  'p_8mm_cavilha');
+    ins.run(maquinaPadraoId, 'T09', 'Serra rasgo fundo',        'serra', 7,  'r_f');
+    console.log('[OK] CNC: 9 ferramentas CNC criadas');
+  }
+
+  // Tipos de usinagem (prioridades centralizadas)
+  const usiTipoCount = db.prepare('SELECT COUNT(*) as c FROM cnc_usinagem_tipos').get();
+  if (usiTipoCount.c === 0) {
+    const insU = db.prepare('INSERT INTO cnc_usinagem_tipos (codigo, nome, categoria_match, diametro_match, prioridade, fase, tool_code_padrao, profundidade_padrao, largura_padrao) VALUES (?,?,?,?,?,?,?,?,?)');
+    insU.run('rasgo_fundo',       'Rasgo de Fundo',       'Transfer_vertical_saw_cut,Transfer_horizontal_saw_cut,saw_cut', null, 0, 'interna', 'r_f', 6, 3);
+    insU.run('rasgo_led',         'Rasgo de LED',          'led_groove,rasgo_led', null, 1, 'interna', 'r_f', 8, 8);
+    insU.run('rasgo_gaveta',      'Rasgo de Gaveta',       'rasgo_gaveta,drawer_groove', null, 2, 'interna', 'r_f', 12.5, 12.7);
+    insU.run('rebaixo',           'Rebaixo',               'rebaixo', null, 3, 'interna', 'r_f', 3, null);
+    insU.run('pocket',            'Pocket / Fresagem',     'pocket', null, 3, 'interna', '', null, null);
+    insU.run('furacao_minifix',   'Furação Minifix',       'hole,transfer_hole', 15, 4, 'interna', 'f_15mm_tambor_min', 13, null);
+    insU.run('furacao_dobradica', 'Furação Dobradiça',     'hole,transfer_hole', 35, 5, 'interna', 'f_35mm_dob', 13, null);
+    insU.run('furacao_cavilha',   'Furação Cavilha',       'hole,transfer_hole', 8, 6, 'interna', 'f_8mm_cavilha', 12, null);
+    insU.run('furacao_generica',  'Furação Genérica',      'hole,transfer_hole', null, 6, 'interna', '', null, null);
+    insU.run('contorno_peca',     'Contorno da Peça',      'contorno,contorno_peca', null, 8, 'contorno', '', null, null);
+    insU.run('contorno_sobra',    'Contorno de Sobra',     'contorno_sobra', null, 9, 'contorno', '', null, null);
+    console.log('[OK] CNC: 11 tipos de usinagem criados');
+  }
+
+  // Migração: vincular ferramentas órfãs à máquina padrão
+  if (maquinaPadraoId) {
+    const orfas = db.prepare('SELECT COUNT(*) as c FROM cnc_ferramentas WHERE maquina_id IS NULL').get();
+    if (orfas.c > 0) {
+      db.prepare('UPDATE cnc_ferramentas SET maquina_id = ? WHERE maquina_id IS NULL').run(maquinaPadraoId);
+      console.log(`[OK] CNC: ${orfas.c} ferramenta(s) vinculada(s) à máquina padrão`);
+    }
+  }
+
+  // Config
+  const cncCfgExists = db.prepare('SELECT id FROM cnc_config WHERE id = 1').get();
+  if (!cncCfgExists) {
+    db.prepare('INSERT INTO cnc_config (id) VALUES (1)').run();
+    console.log('[OK] CNC: config padrão criada');
+  }
+
+  // Config de Etiquetas
+  const etCfgExists = db.prepare('SELECT id FROM cnc_etiqueta_config WHERE id = 1').get();
+  if (!etCfgExists) {
+    db.prepare('INSERT INTO cnc_etiqueta_config (id) VALUES (1)').run();
+    console.log('[OK] CNC: config de etiquetas criada');
+  }
+
+  // Template padrão de etiquetas (replica o EtiquetaCard atual)
+  const templateExists = db.prepare('SELECT id FROM cnc_etiqueta_templates LIMIT 1').get();
+  if (!templateExists) {
+    const elementosPadrao = JSON.stringify([
+      // Header: empresa + controle
+      { id: 'el_hdr_empresa', tipo: 'texto', x: 2, y: 2, w: 60, h: 5, texto: '{{empresa_nome}}', variavel: 'empresa_nome', fontSize: 3, fontWeight: 700, cor: '#e67e22', alinhamento: 'start', zIndex: 10 },
+      { id: 'el_hdr_ctrl_bg', tipo: 'retangulo', x: 80, y: 1, w: 18, h: 7, preenchimento: '#e67e22', raio: 1.5, zIndex: 5 },
+      { id: 'el_hdr_ctrl', tipo: 'texto', x: 89, y: 6, w: 16, h: 5, texto: '{{controle}}', variavel: 'controle', fontSize: 4, fontWeight: 800, cor: '#ffffff', alinhamento: 'middle', zIndex: 11 },
+      // Linha separadora
+      { id: 'el_sep1', tipo: 'retangulo', x: 1, y: 9, w: 98, h: 0.3, preenchimento: '#e5e7eb', zIndex: 3 },
+      // Usi A / Usi B
+      { id: 'el_lbl_usia', tipo: 'texto', x: 2, y: 12, w: 12, h: 3, texto: 'UsiA:', fontSize: 2, fontWeight: 600, cor: '#6b7280', alinhamento: 'start', zIndex: 10 },
+      { id: 'el_val_usia', tipo: 'texto', x: 14, y: 12, w: 30, h: 3, texto: '{{usi_a}}', variavel: 'usi_a', fontSize: 2.2, fontWeight: 700, cor: '#111827', alinhamento: 'start', zIndex: 10 },
+      { id: 'el_lbl_usib', tipo: 'texto', x: 50, y: 12, w: 12, h: 3, texto: 'UsiB:', fontSize: 2, fontWeight: 600, cor: '#6b7280', alinhamento: 'start', zIndex: 10 },
+      { id: 'el_val_usib', tipo: 'texto', x: 62, y: 12, w: 30, h: 3, texto: '{{usi_b}}', variavel: 'usi_b', fontSize: 2.2, fontWeight: 700, cor: '#111827', alinhamento: 'start', zIndex: 10 },
+      // Material + Espessura
+      { id: 'el_lbl_mat', tipo: 'texto', x: 2, y: 17, w: 15, h: 3, texto: 'Material:', fontSize: 2, fontWeight: 600, cor: '#6b7280', alinhamento: 'start', zIndex: 10 },
+      { id: 'el_val_mat', tipo: 'texto', x: 18, y: 17, w: 50, h: 3, texto: '{{material}}', variavel: 'material', fontSize: 2.2, fontWeight: 600, cor: '#111827', alinhamento: 'start', zIndex: 10 },
+      { id: 'el_val_esp', tipo: 'texto', x: 75, y: 17, w: 23, h: 3, texto: '{{espessura}}mm', variavel: 'espessura', fontSize: 2.2, fontWeight: 700, cor: '#2563eb', alinhamento: 'end', zIndex: 10 },
+      // Cliente + Projeto
+      { id: 'el_lbl_cli', tipo: 'texto', x: 2, y: 22, w: 12, h: 3, texto: 'Cliente:', fontSize: 2, fontWeight: 600, cor: '#6b7280', alinhamento: 'start', zIndex: 10 },
+      { id: 'el_val_cli', tipo: 'texto', x: 14, y: 22, w: 30, h: 3, texto: '{{cliente}}', variavel: 'cliente', fontSize: 2.2, fontWeight: 600, cor: '#111827', alinhamento: 'start', zIndex: 10 },
+      { id: 'el_lbl_proj', tipo: 'texto', x: 50, y: 22, w: 12, h: 3, texto: 'Projeto:', fontSize: 2, fontWeight: 600, cor: '#6b7280', alinhamento: 'start', zIndex: 10 },
+      { id: 'el_val_proj', tipo: 'texto', x: 62, y: 22, w: 36, h: 3, texto: '{{projeto}}', variavel: 'projeto', fontSize: 2.2, fontWeight: 600, cor: '#111827', alinhamento: 'start', zIndex: 10 },
+      // Módulo + Peça
+      { id: 'el_lbl_mod', tipo: 'texto', x: 2, y: 27, w: 12, h: 3, texto: 'Módulo:', fontSize: 2, fontWeight: 600, cor: '#6b7280', alinhamento: 'start', zIndex: 10 },
+      { id: 'el_val_mod', tipo: 'texto', x: 14, y: 27, w: 30, h: 3, texto: '{{modulo_desc}}', variavel: 'modulo_desc', fontSize: 2.2, fontWeight: 600, cor: '#111827', alinhamento: 'start', zIndex: 10 },
+      { id: 'el_lbl_peca', tipo: 'texto', x: 50, y: 27, w: 12, h: 3, texto: 'Peça:', fontSize: 2, fontWeight: 600, cor: '#6b7280', alinhamento: 'start', zIndex: 10 },
+      { id: 'el_val_peca', tipo: 'texto', x: 62, y: 27, w: 36, h: 3, texto: '{{descricao}}', variavel: 'descricao', fontSize: 2.2, fontWeight: 700, cor: '#111827', alinhamento: 'start', zIndex: 10 },
+      // Dimensões
+      { id: 'el_lbl_dim', tipo: 'texto', x: 2, y: 32, w: 12, h: 3, texto: 'Dim:', fontSize: 2, fontWeight: 600, cor: '#6b7280', alinhamento: 'start', zIndex: 10 },
+      { id: 'el_val_dim', tipo: 'texto', x: 14, y: 32, w: 40, h: 3, texto: '{{dimensoes}}', variavel: 'dimensoes', fontSize: 2.5, fontWeight: 700, cor: '#111827', alinhamento: 'start', zIndex: 10 },
+      // Acabamento
+      { id: 'el_lbl_acab', tipo: 'texto', x: 60, y: 32, w: 12, h: 3, texto: 'Acab:', fontSize: 2, fontWeight: 600, cor: '#6b7280', alinhamento: 'start', zIndex: 10 },
+      { id: 'el_val_acab', tipo: 'texto', x: 72, y: 32, w: 26, h: 3, texto: '{{acabamento}}', variavel: 'acabamento', fontSize: 2.2, fontWeight: 600, cor: '#111827', alinhamento: 'start', zIndex: 10 },
+      // Linha separadora 2
+      { id: 'el_sep2', tipo: 'retangulo', x: 1, y: 36, w: 98, h: 0.3, preenchimento: '#e5e7eb', zIndex: 3 },
+      // Diagrama de bordas + Fita resumo + Barcode
+      { id: 'el_diagrama', tipo: 'diagrama_bordas', x: 2, y: 38, w: 18, h: 16, diagramaCor: '#22c55e', zIndex: 10 },
+      { id: 'el_lbl_fita', tipo: 'texto', x: 22, y: 39, w: 12, h: 3, texto: 'Fita:', fontSize: 2, fontWeight: 600, cor: '#6b7280', alinhamento: 'start', zIndex: 10 },
+      { id: 'el_val_fita', tipo: 'texto', x: 22, y: 43, w: 40, h: 3, texto: '{{fita_resumo}}', variavel: 'fita_resumo', fontSize: 1.8, fontWeight: 600, cor: '#111827', alinhamento: 'start', zIndex: 10 },
+      { id: 'el_barcode', tipo: 'barcode', x: 55, y: 38, w: 35, h: 12, barcodeVariavel: 'controle', zIndex: 10 },
+      // ID Módulo no canto inferior
+      { id: 'el_val_idmod', tipo: 'texto', x: 22, y: 49, w: 20, h: 3, texto: 'Mod: {{modulo_id}}', variavel: 'modulo_id', fontSize: 1.8, fontWeight: 600, cor: '#6b7280', alinhamento: 'start', zIndex: 10 },
+      // Borda externa
+      { id: 'el_borda_ext', tipo: 'retangulo', x: 0.5, y: 0.5, w: 99, h: 69, preenchimento: 'none', bordaCor: '#d1d5db', bordaLargura: 0.3, raio: 1.5, zIndex: 1 },
+    ]);
+    db.prepare('INSERT INTO cnc_etiqueta_templates (user_id, nome, largura, altura, elementos, padrao) VALUES (1, ?, 100, 70, ?, 1)')
+      .run('Etiqueta Padrão', elementosPadrao);
+    console.log('[OK] CNC: template padrão de etiquetas criado');
+  }
 }
 
 export default db;

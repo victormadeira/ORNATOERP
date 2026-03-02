@@ -19,6 +19,7 @@ import Mensagens from './pages/Mensagens';
 import AssistenteIA from './pages/AssistenteIA';
 import Relatorios from './pages/Relatorios';
 import Financeiro from './pages/Financeiro';
+import ProducaoCNC from './pages/ProducaoCNC';
 
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
@@ -188,6 +189,7 @@ export default function App() {
         { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
         { id: "relatorios", lb: "Relatórios", ic: Ic.BarChart },
+        { id: "cnc", lb: "Corte e Produção", ic: Ic.Scissors },
         { id: "cfg", lb: "Config & Taxas", ic: Ic.Gear },
     ];
 
@@ -221,6 +223,7 @@ export default function App() {
             case "assistente": return <AssistenteIA notify={notify} />;
             case "catalogo_itens": return <ItemBuilder notify={notify} />;
             case "relatorios": return <Relatorios notify={notify} />;
+            case "cnc": return <ProducaoCNC notify={notify} />;
             case "cfg": return <Cfg taxas={taxas} reload={loadTaxas} notify={notify} />;
             case "users": return isAdmin ? <Users notify={notify} meUser={user} /> : <Dash nav={nav} notify={notify} />;
             default: return <Dash nav={nav} notify={notify} />;
