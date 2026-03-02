@@ -135,6 +135,15 @@ function calculateLeadScore(orc_id) {
         // Seção Pagamento > 30s (+10)
         if (pagamentoSeen && pagamentoSeen.tempo >= 30) score += 10;
 
+        // Perfil comportamental: focado no preço (penalizar) vs analisou detalhes (bonificar)
+        const tempoTotal = sectionRows.reduce((s, r) => s + (r.tempo || 0), 0) || 1;
+        const tempoAmbs = ambSections.reduce((s, r) => s + (r.tempo || 0), 0);
+        const tempoResumo = (sectionRows.find(r => r.section_id === 'resumo')?.tempo || 0) + (pagamentoSeen?.tempo || 0);
+        const pctResumo = (tempoResumo / tempoTotal) * 100;
+        const pctAmbs = (tempoAmbs / tempoTotal) * 100;
+        if (pctResumo > 50 && pctAmbs < 30) score -= 15; // focado só no preço
+        if (pctAmbs > 60) score += 10; // analisou detalhes dos ambientes
+
         // Interações: text_select (+10), copy (+15), zoom (+5)
         const allEvents = {};
         views.forEach(v => {
@@ -361,7 +370,8 @@ router.post('/heartbeat/:token', (req, res) => {
                         VALUES (?, ?, ?, ?, ?, ?)
                         ON CONFLICT(acesso_id, section_id) DO UPDATE SET
                             tempo_visivel = MAX(tempo_visivel, excluded.tempo_visivel),
-                            entrou_viewport = MAX(entrou_viewport, excluded.entrou_viewport)
+                            entrou_viewport = MAX(entrou_viewport, excluded.entrou_viewport),
+                            section_nome = CASE WHEN excluded.section_nome != '' THEN excluded.section_nome ELSE section_nome END
                     `);
                     for (const [sid, data] of Object.entries(sections)) {
                         if (!sid || typeof data !== 'object') continue;

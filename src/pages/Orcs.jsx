@@ -755,45 +755,101 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                             );
                         })()}
 
-                        {/* Engagement por Ambiente (heatmap) */}
-                        {linkModal.viewsData?.section_resumo?.length > 0 && (
-                            <div>
-                                <div className="text-xs font-semibold mb-2 flex items-center justify-between" style={{ color: 'var(--text-muted)' }}>
-                                    <span>ENGAGEMENT POR SEÇÃO</span>
-                                    <span className="text-[9px] font-normal">tempo que o cliente ficou em cada seção</span>
-                                </div>
-                                <div className="flex flex-col gap-1.5">
-                                    {linkModal.viewsData.section_resumo.map((s, i) => {
-                                        const maxPct = linkModal.viewsData.section_resumo[0]?.pct || 1;
-                                        const barW = Math.max(8, Math.round((s.pct / maxPct) * 100));
-                                        const min = Math.floor(s.tempo / 60);
-                                        const seg = s.tempo % 60;
-                                        const tempoStr = min > 0 ? `${min}m${seg > 0 ? seg + 's' : ''}` : `${seg}s`;
-                                        const heat = s.pct / 100;
-                                        const barColor = heat > 0.6 ? '#ef4444' : heat > 0.3 ? '#f97316' : heat > 0.15 ? '#f59e0b' : '#3b82f6';
-                                        return (
-                                            <div key={i} className="flex items-center gap-2">
-                                                <span className="text-[10px] font-medium w-36 truncate text-right" style={{ color: 'var(--text-secondary)' }}>
-                                                    {s.nome || s.id}
-                                                </span>
-                                                <div className="flex-1 h-5 rounded-full overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
-                                                    <div className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-1.5"
-                                                        style={{ width: `${barW}%`, background: barColor, minWidth: 28 }}>
-                                                        <span className="text-[9px] font-bold text-white whitespace-nowrap">{tempoStr}</span>
-                                                    </div>
-                                                </div>
-                                                <span className="text-[9px] font-semibold w-8 text-right" style={{ color: barColor }}>{s.pct}%</span>
-                                                {s.entradas > 1 && (
-                                                    <span className="text-[8px] w-14 text-right" style={{ color: 'var(--text-muted)' }}>
-                                                        {s.entradas}× visto
-                                                    </span>
-                                                )}
+                        {/* Engagement por Ambiente (heatmap) + Insight comportamental */}
+                        {linkModal.viewsData?.section_resumo?.length > 0 && (() => {
+                            const sections = linkModal.viewsData.section_resumo;
+                            const tempoTotal = sections.reduce((s, r) => s + (r.tempo || 0), 0) || 1;
+                            const ambientes = sections.filter(s => s.id?.startsWith('amb_'));
+                            const resumoSec = sections.find(s => s.id === 'resumo');
+                            const pagSec = sections.find(s => s.id === 'pagamento');
+                            const tempoAmbs = ambientes.reduce((s, r) => s + (r.tempo || 0), 0);
+                            const tempoResumo = (resumoSec?.tempo || 0) + (pagSec?.tempo || 0);
+                            const pctResumo = Math.round((tempoResumo / tempoTotal) * 100);
+                            const pctAmbs = Math.round((tempoAmbs / tempoTotal) * 100);
+
+                            // Classificar perfil comportamental
+                            let perfil, perfilCor, perfilIcon, perfilDesc;
+                            if (pctResumo > 50 && pctAmbs < 30) {
+                                perfil = 'Focado no Preço';
+                                perfilCor = '#ef4444';
+                                perfilIcon = '💰';
+                                perfilDesc = `${pctResumo}% do tempo no resumo financeiro — cliente pode estar comparando preços`;
+                            } else if (pctAmbs > 60) {
+                                perfil = 'Analisou Detalhes';
+                                perfilCor = '#22c55e';
+                                perfilIcon = '🔍';
+                                perfilDesc = `${pctAmbs}% do tempo nos ambientes — cliente interessado nos detalhes do projeto`;
+                            } else if (tempoTotal < 30) {
+                                perfil = 'Visualização Rápida';
+                                perfilCor = '#f59e0b';
+                                perfilIcon = '⚡';
+                                perfilDesc = `Apenas ${tempoTotal}s na proposta — pode não ter analisado a fundo`;
+                            } else {
+                                perfil = 'Análise Equilibrada';
+                                perfilCor = '#3b82f6';
+                                perfilIcon = '✓';
+                                perfilDesc = `${pctAmbs}% nos ambientes, ${pctResumo}% no financeiro — análise balanceada`;
+                            }
+
+                            return (
+                                <>
+                                    {/* Insight comportamental */}
+                                    <div className="p-3 rounded-lg" style={{ background: `${perfilCor}08`, border: `1px solid ${perfilCor}20` }}>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-sm">{perfilIcon}</span>
+                                            <span className="text-xs font-bold" style={{ color: perfilCor }}>{perfil}</span>
+                                        </div>
+                                        <div className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>{perfilDesc}</div>
+                                        <div className="flex gap-3 mt-2">
+                                            <div className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                                                <span className="font-semibold" style={{ color: pctAmbs > 50 ? '#22c55e' : 'var(--text-secondary)' }}>{pctAmbs}%</span> nos ambientes
                                             </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
+                                            <div className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                                                <span className="font-semibold" style={{ color: pctResumo > 50 ? '#ef4444' : 'var(--text-secondary)' }}>{pctResumo}%</span> no financeiro
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Heatmap por seção */}
+                                    <div>
+                                        <div className="text-xs font-semibold mb-2 flex items-center justify-between" style={{ color: 'var(--text-muted)' }}>
+                                            <span>ENGAGEMENT POR SEÇÃO</span>
+                                        </div>
+                                        <div className="flex flex-col gap-1.5">
+                                            {sections.map((s, i) => {
+                                                const maxPct = sections[0]?.pct || 1;
+                                                const barW = Math.max(8, Math.round((s.pct / maxPct) * 100));
+                                                const min = Math.floor(s.tempo / 60);
+                                                const seg = s.tempo % 60;
+                                                const tempoStr = min > 0 ? `${min}m${seg > 0 ? seg + 's' : ''}` : `${seg}s`;
+                                                const heat = s.pct / 100;
+                                                const barColor = heat > 0.6 ? '#ef4444' : heat > 0.3 ? '#f97316' : heat > 0.15 ? '#f59e0b' : '#3b82f6';
+                                                const isResumo = s.id === 'resumo' || s.id === 'pagamento';
+                                                return (
+                                                    <div key={i} className="flex items-center gap-2">
+                                                        <span className="text-[10px] font-medium w-36 truncate text-right" style={{ color: 'var(--text-secondary)' }}>
+                                                            {isResumo ? `💰 ${s.nome || s.id}` : s.nome || s.id}
+                                                        </span>
+                                                        <div className="flex-1 h-5 rounded-full overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
+                                                            <div className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-1.5"
+                                                                style={{ width: `${barW}%`, background: barColor, minWidth: 28 }}>
+                                                                <span className="text-[9px] font-bold text-white whitespace-nowrap">{tempoStr}</span>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-[9px] font-semibold w-8 text-right" style={{ color: barColor }}>{s.pct}%</span>
+                                                        {s.entradas > 1 && (
+                                                            <span className="text-[8px] w-14 text-right" style={{ color: 'var(--text-muted)' }}>
+                                                                {s.entradas}× visto
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </>
+                            );
+                        })()}
 
                         {/* Interações detectadas */}
                         {linkModal.viewsData?.eventos_resumo && Object.keys(linkModal.viewsData.eventos_resumo).length > 0 && (

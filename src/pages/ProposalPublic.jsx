@@ -268,6 +268,30 @@ export default function ProposalPublic({ token }) {
                             iframe.style.height = (height + 60) + 'px';
                         }, 50);
 
+                        // ── Injetar data-section em HTMLs antigos que não os têm ──
+                        if (!doc.querySelector('[data-section]')) {
+                            let ambIdx = 0;
+                            doc.querySelectorAll('.amb-block').forEach(el => {
+                                ambIdx++;
+                                const title = el.querySelector('.amb-title') || el.querySelector('h2, h3');
+                                const nome = title?.textContent?.trim() || `Ambiente ${ambIdx}`;
+                                el.setAttribute('data-section', `amb_${ambIdx}`);
+                                el.setAttribute('data-section-nome', nome);
+                            });
+                            const resumo = doc.querySelector('.resumo');
+                            if (resumo) { resumo.setAttribute('data-section', 'resumo'); resumo.setAttribute('data-section-nome', 'Resumo Financeiro'); }
+                            doc.querySelectorAll('.section').forEach(el => {
+                                const txt = el.textContent?.toLowerCase() || '';
+                                if (txt.includes('pagamento') || txt.includes('condição') || txt.includes('condicao')) {
+                                    el.setAttribute('data-section', 'pagamento');
+                                    el.setAttribute('data-section-nome', 'Condições de Pagamento');
+                                } else if (txt.includes('consideraç') || txt.includes('observaç') || txt.includes('considerac')) {
+                                    el.setAttribute('data-section', 'consideracoes');
+                                    el.setAttribute('data-section-nome', 'Considerações Finais');
+                                }
+                            });
+                        }
+
                         // ── Section tracking: scroll-based visibility ──
                         // (IntersectionObserver não funciona porque o iframe é full-height,
                         //  quem scrolla é o window pai, não o iframe)
