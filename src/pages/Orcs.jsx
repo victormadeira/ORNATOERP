@@ -49,9 +49,38 @@ export default function Orcs({ orcs, nav, reload, notify }) {
         return Math.floor((Date.now() - new Date(dateStr + 'Z').getTime()) / 86400000);
     };
 
+    // ─── Mapa de versões (agrupar versões substituídas por raiz) ─────────
+    const versaoMap = useMemo(() => {
+        const map = {};
+        orcs.forEach(o => {
+            if (o.tipo === 'versao' && o.parent_orc_id) {
+                if (!map[o.parent_orc_id]) map[o.parent_orc_id] = [];
+                map[o.parent_orc_id].push(o);
+            }
+        });
+        return map;
+    }, [orcs]);
+
+    const versaoCount = useMemo(() => {
+        const map = {};
+        Object.entries(versaoMap).forEach(([pid, arr]) => { map[pid] = arr.length; });
+        return map;
+    }, [versaoMap]);
+
+    const [expandedVersoes, setExpandedVersoes] = useState(null);
+    const versaoPopupRef = useRef(null);
+    useEffect(() => {
+        if (!expandedVersoes) return;
+        const handler = (e) => { if (versaoPopupRef.current && !versaoPopupRef.current.contains(e.target)) setExpandedVersoes(null); };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [expandedVersoes]);
+
     // ─── Filtros ───────────────────────────────────────────
     const filtered = useMemo(() => {
         let list = [...orcs];
+        // Filtrar versões substituídas (só mostrar a ativa)
+        list = list.filter(o => o.versao_ativa !== 0);
         // Texto
         if (search.trim()) {
             const q = search.toLowerCase();
@@ -428,6 +457,11 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                                 {o.numero?.match(/-A\d+$/)?.[0]?.replace('-', '') || 'ADT'}
                                                             </span>
                                                         )}
+                                                        {(o.versao > 1 || versaoCount[o.id] > 0) && (
+                                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(139,92,246,0.12)', color: '#8b5cf6', flexShrink: 0 }}>
+                                                                {o.versao > 1 ? `R${o.versao}` : `v1`}
+                                                            </span>
+                                                        )}
                                                         {o.ambiente || '—'}
                                                     </span>
                                                     {o.tipo === 'aditivo' && o.parent_orc_id && parentMap[o.parent_orc_id] && (
@@ -492,6 +526,64 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                             <span>Total consolidado</span>
                                                             <span style={{ color: 'var(--primary)' }}>{R$(o.valor_venda + (aditivoMap[o.id] || []).reduce((s, a) => s + (a.valor_venda || 0), 0))}</span>
                                                         </div>
+                                                    </div>
+                                                )}
+                                                {/* Versões anteriores */}
+                                                {versaoCount[o.id] > 0 && (
+                                                    <div
+                                                        className="text-[9px] font-semibold mt-0.5 cursor-pointer hover:underline"
+                                                        style={{ color: '#8b5cf6' }}
+                                                        onClick={(e) => { e.stopPropagation(); setExpandedVersoes(expandedVersoes === o.id ? null : o.id); }}
+                                                    >
+                                                        {versaoCount[o.id]} revisão{versaoCount[o.id] > 1 ? 'es' : ''} anterior{versaoCount[o.id] > 1 ? 'es' : ''}
+                                                        <span className="ml-0.5">{expandedVersoes === o.id ? '▲' : '▼'}</span>
+                                                    </div>
+                                                )}
+                                                {/* Popup expandido com detalhes das versões */}
+                                                {expandedVersoes === o.id && versaoMap[o.id] && (
+                                                    <div
+                                                        ref={versaoPopupRef}
+                                                        className="absolute right-0 top-full mt-1 z-50 rounded-lg shadow-lg border p-3 text-left min-w-[280px]"
+                                                        style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
+                                                    >
+                                                        <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
+                                                            Revisões de {o.numero}
+                                                        </div>
+                                                        <div className="text-xs font-normal mb-2 pb-2 border-b flex justify-between" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border)' }}>
+                                                            <span>Versão ativa ({o.versao > 1 ? `R${o.versao}` : 'v1'})</span>
+                                                            <span className="font-semibold">{R$(o.valor_venda)}</span>
+                                                        </div>
+                                                        {versaoMap[o.id].map(v => {
+                                                            const kc2 = KCOLS.find(c => c.id === (v.kb_col || 'lead'));
+                                                            return (
+                                                                <div key={v.id} className="flex items-start justify-between gap-2 py-1.5 border-b last:border-b-0" style={{ borderColor: 'var(--border)' }}>
+                                                                    <div className="flex flex-col gap-0.5">
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(139,92,246,0.12)', color: '#8b5cf6' }}>
+                                                                                {v.versao > 1 ? `R${v.versao}` : 'v1'}
+                                                                            </span>
+                                                                            <span className="text-[10px] font-medium" style={tagStyle(kc2?.c)}>{kc2?.nm || 'Lead'}</span>
+                                                                            <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(100,116,139,0.1)', color: '#94a3b8' }}>substituída</span>
+                                                                        </div>
+                                                                        <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                                                            {dt(v.criado_em)}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-xs font-bold whitespace-nowrap" style={{ color: '#8b5cf6' }}>
+                                                                            {R$(v.valor_venda)}
+                                                                        </span>
+                                                                        <button
+                                                                            className="text-[9px] font-semibold px-2 py-1 rounded hover:bg-[var(--bg-hover)] transition-colors"
+                                                                            style={{ color: 'var(--primary)' }}
+                                                                            onClick={(e) => { e.stopPropagation(); nav('novo', v); }}
+                                                                        >
+                                                                            Abrir
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
                                                 )}
                                             </td>

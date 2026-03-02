@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Z, Ic, Modal, SearchableSelect } from '../ui';
-import { uid, R$, N, DB_CHAPAS, DB_ACABAMENTOS, DB_FERRAGENS, DB_FITAS, FERR_GROUPS, calcItemV2, calcPainelRipado, precoVenda, precoVendaV2, LOCKED_COLS } from '../engine';
+import { uid, R$, N, DB_CHAPAS, DB_ACABAMENTOS, DB_FERRAGENS, DB_FITAS, FERR_GROUPS, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, precoVenda, precoVendaV2, LOCKED_COLS, compareVersions } from '../engine';
 import api from '../api';
 import RelatorioMateriais, { buildRelatorioHtml } from './RelatorioMateriais';
 import { buildPropostaHtml } from './PropostaHtml';
@@ -11,6 +11,8 @@ import {
     ToggleLeft, ToggleRight, Info, CreditCard, Eye, Globe, Monitor, Smartphone, Clock, ExternalLink, Share2,
     Lock, Unlock, ShieldAlert, FilePlus2, CheckCircle, Upload, Brain, Sparkles,
     PanelTop, UtensilsCrossed, BedDouble, Bath, Shirt, Flame, WashingMachine, Armchair, PenTool, Briefcase,
+    Square, Sofa, RectangleHorizontal, GlassWater, Shapes,
+    GitBranch, Star, ArrowRight, ArrowUpDown,
 } from 'lucide-react';
 
 // ── Ícone por categoria de caixa ─────────────────────────────────────────────
@@ -168,7 +170,7 @@ function SubItemRow({ si, ativo, onChange, ferragensDB, globalPadroes, ferrOvr, 
 }
 
 // ── Componente: seletor de módulos com busca ─────────────────────────────────
-function CaixaSearch({ caixas, onSelect, onAddPainel, placeholder }) {
+function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, placeholder }) {
     const [q, setQ] = useState('');
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
@@ -209,14 +211,31 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, placeholder }) {
                         <div className="px-3 py-3 text-xs text-center" style={{ color: 'var(--text-muted)' }}>Nenhum módulo encontrado para "{q}"</div>
                     )}
                     {onAddPainel && (
-                        <button onClick={() => { onAddPainel(); setQ(''); setOpen(false); }}
-                            className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
-                            style={{ color: '#f59e0b' }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.08)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                            <Layers size={14} />
-                            <span>⬡ Painel Ripado / Muxarabi</span>
-                        </button>
+                        <>
+                            <div className="px-3 pt-2 pb-1"><span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: 'var(--text-muted)' }}>Itens Especiais</span></div>
+                            <button onClick={() => { onAddPainel(); setQ(''); setOpen(false); }}
+                                className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
+                                style={{ color: '#f59e0b' }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.08)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                <Layers size={14} />
+                                <span>⬡ Painel Ripado / Muxarabi</span>
+                            </button>
+                            {TIPOS_ESPECIAIS.map(t => {
+                                const TIc = getEspecialIcon(t.id);
+                                return (
+                                    <button key={t.id} onClick={() => { onAddEspecial?.(t.id); setQ(''); setOpen(false); }}
+                                        className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
+                                        style={{ color: t.cor }}
+                                        onMouseEnter={e => e.currentTarget.style.background = `${t.cor}12`}
+                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                        <TIc size={14} />
+                                        <span>{t.nome}</span>
+                                        <span className="text-[10px] ml-auto" style={{ color: 'var(--text-muted)' }}>{t.unidade}</span>
+                                    </button>
+                                );
+                            })}
+                        </>
                     )}
                 </div>
             )}
@@ -753,6 +772,151 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove }) {
     );
 }
 
+// ── Ícone por tipo especial ───────────────────────────────────────────────────
+const ESPECIAL_ICON = { espelho: Square, estofado: Sofa, aluminio: RectangleHorizontal, vidro: GlassWater, outro: Shapes };
+const getEspecialIcon = (tipo) => ESPECIAL_ICON[tipo] || Shapes;
+const getEspecialCor = (tipo) => (TIPOS_ESPECIAIS.find(t => t.id === tipo)?.cor) || '#a78bfa';
+
+// ── Componente: card de item especial ────────────────────────────────────────
+function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, readOnly }) {
+    const [exp, setExp] = useState(false);
+    const tipoInfo = TIPOS_ESPECIAIS.find(t => t.id === item.tipo) || TIPOS_ESPECIAIS[4];
+    const cor = tipoInfo.cor;
+    const Ic = getEspecialIcon(item.tipo);
+
+    const materiaisDisponiveis = useMemo(() => {
+        return (bibItems || []).filter(m => m.tipo === item.tipo);
+    }, [bibItems, item.tipo]);
+
+    const calc = useMemo(() => calcItemEspecial(item, bibItems || []), [item, bibItems]);
+    const up = (patch) => onUpdate({ ...item, ...patch });
+
+    return (
+        <div className="rounded-lg border overflow-hidden mb-2" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', borderLeft: `3px solid ${cor}` }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)]" onClick={() => setExp(!exp)}>
+                <div className="flex items-center gap-2">
+                    {exp ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                    <Ic size={13} style={{ color: cor }} />
+                    <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>{item.nome || tipoInfo.nome}</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: `${cor}15`, color: cor }}>
+                        {tipoInfo.nome}
+                    </span>
+                    {item.L > 0 && item.A > 0 && <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>{item.L}×{item.A}mm</span>}
+                    {calc.area > 0 && <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>{N(calc.area)} m²</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="font-bold text-xs" style={{ color: cor }}>{R$(calc.custo)}</span>
+                    {!readOnly && <button onClick={e => { e.stopPropagation(); onRemove(); }} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>}
+                </div>
+            </div>
+
+            {/* Expanded */}
+            {exp && (
+                <div className="px-4 pb-4 pt-3 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
+                    {/* Nome */}
+                    <div>
+                        <label className={Z.lbl}>Nome</label>
+                        <input className={Z.inp} value={item.nome || ''} onChange={e => up({ nome: e.target.value })} placeholder={`Ex: ${tipoInfo.nome} Bisotê, Painel Estofado...`} />
+                    </div>
+
+                    {/* Dimensões + qtd */}
+                    <div className="grid grid-cols-3 gap-2">
+                        <div><label className={Z.lbl}>Largura (mm)</label><input type="number" className={Z.inp} min={0} value={item.L || 0} onChange={e => up({ L: +e.target.value })} /></div>
+                        <div><label className={Z.lbl}>Altura (mm)</label><input type="number" className={Z.inp} min={0} value={item.A || 0} onChange={e => up({ A: +e.target.value })} /></div>
+                        <div><label className={Z.lbl}>Qtd</label><input type="number" className={Z.inp} min={1} value={item.qtd || 1} onChange={e => up({ qtd: Math.max(1, +e.target.value) })} /></div>
+                    </div>
+
+                    {/* Material da biblioteca (se houver) */}
+                    {materiaisDisponiveis.length > 0 && (
+                        <div>
+                            <label className={Z.lbl}>Material (da Biblioteca)</label>
+                            <select className={Z.inp} value={item.materialId || ''} onChange={e => {
+                                const matId = e.target.value;
+                                const mat = bibItems.find(m => String(m.id) === String(matId));
+                                up({ materialId: matId, precoUnit: mat ? (mat.preco_m2 || mat.preco || 0) : item.precoUnit });
+                            }}>
+                                <option value="">— Preço manual —</option>
+                                {materiaisDisponiveis.map(m => (
+                                    <option key={m.id} value={m.id}>{m.nome} — {R$(m.preco_m2 || m.preco)}/{item.tipo === 'aluminio' ? 'ml' : 'm²'}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    {/* Preço unitário (manual ou override) */}
+                    <div className="grid grid-cols-2 gap-2">
+                        <div>
+                            <label className={Z.lbl}>Preço por {tipoInfo.unidade === 'ml' ? 'metro linear' : tipoInfo.unidade === 'm²' ? 'm²' : 'unidade'} (R$)</label>
+                            <input type="number" step="0.01" className={Z.inp} value={item.precoUnit || 0} onChange={e => up({ precoUnit: +e.target.value, materialId: '' })} />
+                        </div>
+                        <div>
+                            <label className={Z.lbl}>Custo Instalação (R$)</label>
+                            <input type="number" step="0.01" className={Z.inp} value={item.custoInstalacao || 0} onChange={e => up({ custoInstalacao: +e.target.value })} />
+                        </div>
+                    </div>
+
+                    {/* Perfis de alumínio (só para tipo aluminio) */}
+                    {item.tipo === 'aluminio' && (
+                        <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-card)', borderColor: `${cor}30`, borderLeft: `3px solid ${cor}` }}>
+                            <span className="text-[10px] uppercase tracking-widest font-bold block mb-2" style={{ color: cor }}>Perfis de Alumínio</span>
+                            {(item.perfis || []).map((p, pi) => (
+                                <div key={pi} className="grid grid-cols-4 gap-2 mb-2">
+                                    <div><input className={Z.inp} value={p.nome || ''} placeholder="Nome do perfil" onChange={e => { const perfis = [...(item.perfis || [])]; perfis[pi] = { ...p, nome: e.target.value }; up({ perfis }); }} /></div>
+                                    <div><input type="number" className={Z.inp} value={p.comp || 0} placeholder="Comp. (mm)" onChange={e => { const perfis = [...(item.perfis || [])]; perfis[pi] = { ...p, comp: +e.target.value }; up({ perfis }); }} /></div>
+                                    <div><input type="number" step="0.01" className={Z.inp} value={p.precoML || 0} placeholder="R$/ml" onChange={e => { const perfis = [...(item.perfis || [])]; perfis[pi] = { ...p, precoML: +e.target.value }; up({ perfis }); }} /></div>
+                                    <div className="flex items-center gap-1">
+                                        <input type="number" min={1} className={Z.inp} value={p.qtd || 1} style={{ width: 50 }} onChange={e => { const perfis = [...(item.perfis || [])]; perfis[pi] = { ...p, qtd: Math.max(1, +e.target.value) }; up({ perfis }); }} />
+                                        <button onClick={() => { const perfis = (item.perfis || []).filter((_, i) => i !== pi); up({ perfis }); }}
+                                            className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={11} /></button>
+                                    </div>
+                                </div>
+                            ))}
+                            <button onClick={() => up({ perfis: [...(item.perfis || []), { nome: '', comp: 0, precoML: 0, qtd: 1 }] })}
+                                className="text-[11px] px-2 py-1 rounded border cursor-pointer" style={{ borderColor: `${cor}40`, color: cor }}>
+                                <Plus size={10} className="inline mr-1" />Adicionar perfil
+                            </button>
+
+                            {/* Vidro opcional */}
+                            <div className="mt-3 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <button onClick={() => up({ vidro: item.vidro ? null : { tipo: '', precoM2: 0 } })}
+                                        className="flex items-center gap-1.5 cursor-pointer">
+                                        {item.vidro
+                                            ? <ToggleRight size={16} style={{ color: '#22d3ee' }} />
+                                            : <ToggleLeft size={16} style={{ color: 'var(--text-muted)' }} />}
+                                        <span className="text-xs font-medium" style={{ color: item.vidro ? '#22d3ee' : 'var(--text-muted)' }}>Vidro</span>
+                                    </button>
+                                </div>
+                                {item.vidro && (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div><label className={Z.lbl}>Tipo</label><input className={Z.inp} value={item.vidro.tipo || ''} placeholder="Temperado 8mm" onChange={e => up({ vidro: { ...item.vidro, tipo: e.target.value } })} /></div>
+                                        <div><label className={Z.lbl}>R$/m²</label><input type="number" step="0.01" className={Z.inp} value={item.vidro.precoM2 || 0} onChange={e => up({ vidro: { ...item.vidro, precoM2: +e.target.value } })} /></div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Observações */}
+                    <div>
+                        <label className={Z.lbl}>Observações</label>
+                        <input className={Z.inp} value={item.obs || ''} onChange={e => up({ obs: e.target.value })} placeholder="Notas adicionais..." />
+                    </div>
+
+                    {/* Resultado */}
+                    <div className="rounded-lg p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                        <div className="flex justify-between text-xs">
+                            <span style={{ color: 'var(--text-muted)' }}>{calc.descricao}</span>
+                            <strong style={{ color: cor }}>{R$(calc.custo)}</strong>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ── Página principal ─────────────────────────────────────────────────────────
 export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, notify }) {
     const [cid, sc] = useState(editOrc?.cliente_id || '');
@@ -846,6 +1010,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             fitas: fitas.length > 0 ? fitas : DB_FITAS,
             topChapas,
             topAcab,
+            raw: bibItems,
         };
     }, [bibItems]);
 
@@ -882,16 +1047,32 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [showAprovarModal, setShowAprovarModal] = useState(false);
     const [aprovandoOrc, setAprovandoOrc] = useState(false);
     const [projetoCriadoInfo, setProjetoCriadoInfo] = useState(null);
-    const readOnly = isLocked && !unlocked;
+    // ── Versionamento ──────────────────────────────────────────────────────────
+    const [versoes, setVersoes] = useState([]);
+    const [showVersaoModal, setShowVersaoModal] = useState(false);
+    const [motivoVersao, setMotivoVersao] = useState('');
+    const [criandoVersao, setCriandoVersao] = useState(false);
+    const [showDiffModal, setShowDiffModal] = useState(false);
+    const [diffData, setDiffData] = useState(null);
+    const [diffV1Id, setDiffV1Id] = useState(null);
+    const [diffV2Id, setDiffV2Id] = useState(null);
+    const [loadingDiff, setLoadingDiff] = useState(false);
+    const isSubstituida = editOrc && editOrc.versao_ativa === 0;
+    const isVersao = editOrc?.tipo === 'versao';
+    const temVersoes = versoes.length > 1;
+    const readOnly = (isLocked && !unlocked) || isSubstituida;
 
     // Colunas pré-aprovação onde o botão Aprovar fica visível
     const PRE_APPROVE_COLS = ['lead', 'orc', 'env', 'neg'];
 
-    // Carregar dados completos do orçamento (aditivos, parent_info, etc.)
+    // Carregar dados completos do orçamento (aditivos, parent_info, versões, etc.)
     const [orcFull, setOrcFull] = useState(null);
     useEffect(() => {
         if (editOrc?.id) {
-            api.get(`/orcamentos/${editOrc.id}`).then(setOrcFull).catch(() => {});
+            api.get(`/orcamentos/${editOrc.id}`).then(data => {
+                setOrcFull(data);
+                if (data.versoes && data.versoes.length > 1) setVersoes(data.versoes);
+            }).catch(() => {});
             api.get(`/portal/views/${editOrc.id}`).then(setViewsData).catch(() => {});
         }
     }, [editOrc?.id]);
@@ -961,9 +1142,9 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         const base = { id: uid(), nome: `Ambiente ${ambientes.length + 1}`, tipo: tipo || 'calculadora' };
         if (tipo === 'manual') {
             base.linhas = [{ id: uid(), descricao: '', qtd: 1, valorUnit: 0 }];
-            base.itens = []; base.paineis = [];
+            base.itens = []; base.paineis = []; base.itensEspeciais = [];
         } else {
-            base.itens = []; base.paineis = [];
+            base.itens = []; base.paineis = []; base.itensEspeciais = [];
         }
         setAmbientes([...ambientes, base]);
         setExpandedAmb(base.id);
@@ -987,6 +1168,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             }
         }
         if (clone.paineis) { for (const p of clone.paineis) { p.id = uid(); } }
+        if (clone.itensEspeciais) { for (const ie of clone.itensEspeciais) { ie.id = uid(); } }
         if (clone.linhas) { for (const l of clone.linhas) { l.id = uid(); } }
         // Inserir logo após o original
         const idx = ambientes.findIndex(a => a.id === ambId);
@@ -1028,6 +1210,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         // Regenerar IDs
         if (base.itens) { for (const item of base.itens) { item.id = uid(); if (item.componentes) { for (const c of item.componentes) { c.id = uid(); } } } }
         if (base.paineis) { for (const p of base.paineis) { p.id = uid(); } }
+        if (base.itensEspeciais) { for (const ie of base.itensEspeciais) { ie.id = uid(); } }
         if (base.linhas) { for (const l of base.linhas) { l.id = uid(); } }
         setAmbientes([...ambientes, base]);
         setExpandedAmb(base.id);
@@ -1127,6 +1310,25 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         if (idx >= 0) a.paineis[idx] = newP;
     });
 
+    // ── Itens Especiais CRUD ────────────────────────────────────────────────
+    const addItemEspecial = (ambId, tipo) => upAmb(ambId, a => {
+        if (!a.itensEspeciais) a.itensEspeciais = [];
+        const tipoInfo = TIPOS_ESPECIAIS.find(t => t.id === tipo) || TIPOS_ESPECIAIS[4];
+        a.itensEspeciais.push({
+            id: uid(), tipo, nome: '', L: 0, A: 0, qtd: 1,
+            precoUnit: 0, unidade: tipoInfo.unidade, materialId: '',
+            perfis: tipo === 'aluminio' ? [{ nome: '', comp: 0, precoML: 0, qtd: 1 }] : [],
+            vidro: null, custoInstalacao: 0, obs: '',
+        });
+    });
+    const removeItemEspecial = (ambId, itemId) => upAmb(ambId, a => {
+        a.itensEspeciais = (a.itensEspeciais || []).filter(i => i.id !== itemId);
+    });
+    const upItemEspecial = (ambId, itemId, newItem) => upAmb(ambId, a => {
+        const idx = (a.itensEspeciais || []).findIndex(i => i.id === itemId);
+        if (idx >= 0) a.itensEspeciais[idx] = newItem;
+    });
+
     // ── Totais ───────────────────────────────────────────────────────────────
     const tot = useMemo(() => {
         let cm = 0, at = 0, ft = 0, manualTotal = 0;
@@ -1209,6 +1411,18 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     }
                 } catch (_) { }
             });
+            // ── Itens Especiais (espelho, estofado, alumínio, vidro, outro) ──
+            (amb.itensEspeciais || []).forEach(ie => {
+                try {
+                    const res = calcItemEspecial(ie, bibItems);
+                    if (res.custo > 0) {
+                        const mkEsp = taxas.mk_acabamentos ?? 1.30;
+                        cm += res.custo; ambCm += res.custo;
+                        // CP: custo × markup de acabamentos (tratamos como compra pronta)
+                        ambCP += res.custo * mkEsp;
+                    }
+                } catch (_) { }
+            });
             ambTotals.push({ id: amb.id, custo: ambCm, cp: ambCP });
         });
 
@@ -1267,7 +1481,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         if (!cid) { notify('Selecione um cliente'); return; }
         if (ambientes.every(a => {
             if (a.tipo === 'manual') return (a.linhas || []).length === 0;
-            return a.itens.length === 0 && (a.paineis || []).length === 0;
+            return a.itens.length === 0 && (a.paineis || []).length === 0 && (a.itensEspeciais || []).length === 0;
         })) { notify('Adicione pelo menos um item'); return; }
         const cl = clis.find(c => c.id === parseInt(cid));
         try {
@@ -1301,6 +1515,46 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         finally { setCriandoAditivo(false); }
     };
 
+    // ── Versionamento: criar nova versão ────────────────────────────────────
+    const criarNovaVersao = async (motivo) => {
+        if (!editOrc?.id || criandoVersao) return;
+        setCriandoVersao(true);
+        try {
+            // Salvar estado atual antes de criar versão
+            await salvar();
+            const novaVersao = await api.post(`/orcamentos/${editOrc.id}/nova-versao`, { motivo });
+            notify(`Revisão ${novaVersao.versao} criada!`);
+            setShowVersaoModal(false);
+            setMotivoVersao('');
+            nav('novo', novaVersao);
+        } catch (ex) { notify(ex.error || 'Erro ao criar versão'); }
+        finally { setCriandoVersao(false); }
+    };
+
+    const ativarVersao = async () => {
+        if (!editOrc?.id) return;
+        try {
+            await api.put(`/orcamentos/${editOrc.id}/ativar-versao`);
+            notify('Versão ativada!');
+            reload();
+            // Recarregar esta versão
+            const orc = await api.get(`/orcamentos/${editOrc.id}`);
+            nav('novo', orc);
+        } catch (ex) { notify(ex.error || 'Erro ao ativar versão'); }
+    };
+
+    const abrirComparacao = async (id1, id2) => {
+        if (!id1 || !id2 || id1 === id2) return;
+        setLoadingDiff(true);
+        setShowDiffModal(true);
+        try {
+            const data = await api.get(`/orcamentos/${id1}/comparar/${id2}`);
+            const diff = compareVersions(data.v1, data.v2);
+            setDiffData({ diff, v1: data.v1, v2: data.v2 });
+        } catch (ex) { notify(ex.error || 'Erro ao comparar'); setShowDiffModal(false); }
+        finally { setLoadingDiff(false); }
+    };
+
     // ── Aprovar orçamento ──────────────────────────────────────────────────
     const validarAprovacao = () => {
         try {
@@ -1308,7 +1562,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             if (!cid) erros.push('Cliente não selecionado');
             if (!ambientes || ambientes.length === 0 || ambientes.every(a => {
                 if (a.tipo === 'manual') return (a.linhas || []).length === 0;
-                return (a.itens || []).length === 0 && (a.paineis || []).length === 0;
+                return (a.itens || []).length === 0 && (a.paineis || []).length === 0 && (a.itensEspeciais || []).length === 0;
             })) erros.push('Nenhum item no orçamento');
             if (!pvComDesconto || pvComDesconto <= 0) erros.push('Valor do orçamento é zero');
             const blocos = pagamento?.blocos || [];
@@ -1406,13 +1660,85 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 </div>
             )}
 
+            {/* ── Banner versão substituída ── */}
+            {isSubstituida && (
+                <div className="mb-4 px-4 py-3 rounded-xl flex items-center justify-between gap-3" style={{ background: 'rgba(100,116,139,0.08)', border: '1px solid rgba(100,116,139,0.25)' }}>
+                    <div className="flex items-center gap-2 text-xs" style={{ color: '#64748b' }}>
+                        <GitBranch size={16} />
+                        <span className="font-bold">VERSÃO SUBSTITUÍDA — somente leitura</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={ativarVersao}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ background: 'rgba(34,197,94,0.12)', color: '#16a34a' }}>
+                            <Star size={12} className="inline mr-1" /> Tornar ativa
+                        </button>
+                        {versoes.length > 1 && (() => {
+                            const ativa = versoes.find(v => v.versao_ativa === 1 || v.versao_ativa === true);
+                            return ativa ? (
+                                <button onClick={() => abrirComparacao(editOrc.id, ativa.id)}
+                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ background: 'rgba(139,92,246,0.12)', color: '#8b5cf6' }}>
+                                    <ArrowUpDown size={12} className="inline mr-1" /> Comparar com ativa
+                                </button>
+                            ) : null;
+                        })()}
+                        {versoes.length > 1 && (() => {
+                            const ativa = versoes.find(v => v.versao_ativa === 1 || v.versao_ativa === true);
+                            return ativa ? (
+                                <button onClick={() => { api.get(`/orcamentos/${ativa.id}`).then(o => nav('novo', o)).catch(() => notify('Erro')); }}
+                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ background: 'rgba(100,116,139,0.12)', color: '#64748b' }}>
+                                    Abrir ativa <ArrowRight size={12} className="inline ml-1" />
+                                </button>
+                            ) : null;
+                        })()}
+                    </div>
+                </div>
+            )}
+
+            {/* ── Tabs de versões ── */}
+            {temVersoes && (
+                <div className="mb-4 flex items-center gap-1.5 flex-wrap">
+                    <GitBranch size={14} style={{ color: 'var(--text-muted)' }} className="mr-1" />
+                    {versoes.map(v => {
+                        const isCurrent = v.id === editOrc?.id;
+                        const isAtiva = v.versao_ativa === 1 || v.versao_ativa === true;
+                        return (
+                            <button key={v.id}
+                                onClick={() => { if (!isCurrent) api.get(`/orcamentos/${v.id}`).then(o => nav('novo', o)).catch(() => notify('Erro')); }}
+                                className="text-[11px] font-semibold px-2.5 py-1 rounded-lg cursor-pointer transition-all"
+                                style={{
+                                    background: isCurrent ? 'var(--primary)' : isAtiva ? 'rgba(34,197,94,0.12)' : 'rgba(100,116,139,0.08)',
+                                    color: isCurrent ? '#fff' : isAtiva ? '#16a34a' : '#94a3b8',
+                                    border: `1px solid ${isCurrent ? 'var(--primary)' : isAtiva ? 'rgba(34,197,94,0.3)' : 'rgba(100,116,139,0.15)'}`,
+                                    opacity: isCurrent ? 1 : 0.85,
+                                }}>
+                                {v.versao === 1 ? 'v1' : `R${v.versao}`}
+                                {isAtiva && !isCurrent && <Star size={10} className="inline ml-1" />}
+                            </button>
+                        );
+                    })}
+                    {!isSubstituida && !isLocked && !isAditivo && editOrc?.id && (
+                        <button onClick={() => { setMotivoVersao(''); setShowVersaoModal(true); }}
+                            className="text-[11px] font-semibold px-2.5 py-1 rounded-lg cursor-pointer" style={{ background: 'rgba(139,92,246,0.08)', color: '#8b5cf6', border: '1px dashed rgba(139,92,246,0.3)' }}>
+                            <Plus size={10} className="inline mr-0.5" /> Nova Versão
+                        </button>
+                    )}
+                </div>
+            )}
+
             <div className="flex justify-between items-start mb-5">
                 <div>
                     <h1 className={Z.h1}>{editOrc ? 'Editar' : 'Novo'} Orçamento</h1>
                     <p className={Z.sub}>Ambientes → Caixas → Componentes</p>
                 </div>
                 <div className="flex gap-2">
-                    {editOrc?.id && PRE_APPROVE_COLS.includes(editOrc.kb_col) && (
+                    {editOrc?.id && !isSubstituida && !isLocked && !isAditivo && !temVersoes && (
+                        <button onClick={() => { setMotivoVersao(''); setShowVersaoModal(true); }}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all"
+                            style={{ background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.25)' }}>
+                            <GitBranch size={14} /> Nova Versão
+                        </button>
+                    )}
+                    {editOrc?.id && PRE_APPROVE_COLS.includes(editOrc.kb_col) && !isSubstituida && (
                         <button
                             onClick={() => setShowAprovarModal(true)}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition-all"
@@ -1480,7 +1806,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
                                                 {amb.tipo === 'manual'
                                                     ? `${(amb.linhas || []).length} item${(amb.linhas || []).length !== 1 ? 'ns' : ''}`
-                                                    : `${amb.itens.length} caixa${amb.itens.length !== 1 ? 's' : ''}${(amb.paineis || []).length > 0 ? ` · ${amb.paineis.length} painel${amb.paineis.length > 1 ? 'is' : ''}` : ''}`
+                                                    : `${amb.itens.length} caixa${amb.itens.length !== 1 ? 's' : ''}${(amb.paineis || []).length > 0 ? ` · ${amb.paineis.length} painel${amb.paineis.length > 1 ? 'is' : ''}` : ''}${(amb.itensEspeciais || []).length > 0 ? ` · ${amb.itensEspeciais.length} especial${amb.itensEspeciais.length > 1 ? 'is' : ''}` : ''}`
                                                 }
                                             </span>
                                             {amb.tipo === 'manual' && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: '#f59e0b18', color: '#f59e0b', border: '1px solid #f59e0b30' }}>Manual</span>}
@@ -1561,6 +1887,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         caixas={caixas}
                                                         onSelect={id => addItemToAmb(amb.id, parseInt(id))}
                                                         onAddPainel={() => addPainel(amb.id)}
+                                                        onAddEspecial={(tipo) => addItemEspecial(amb.id, tipo)}
                                                     />
                                                     {caixas.length === 0 && (
                                                         <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Nenhuma caixa cadastrada. Vá em <strong>Engenharia de Módulos</strong> para criar.</p>
@@ -1819,6 +2146,20 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         <PainelCard key={painel.id} painel={painel} bibItems={bibItems}
                                                             onUpdate={newP => upPainel(amb.id, painel.id, newP)}
                                                             onRemove={() => removePainel(amb.id, painel.id)} />
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* ── Itens Especiais ── */}
+                                            {(amb.itensEspeciais || []).length > 0 && (
+                                                <div className="mt-2">
+                                                    <div className="text-[10px] uppercase tracking-widest font-bold mb-2 flex items-center gap-1.5" style={{ color: '#a78bfa' }}>
+                                                        <Shapes size={10} /> Itens Especiais ({amb.itensEspeciais.length})
+                                                    </div>
+                                                    {amb.itensEspeciais.map(ie => (
+                                                        <ItemEspecialCard key={ie.id} item={ie} bibItems={bibItems} readOnly={readOnly}
+                                                            onUpdate={newItem => upItemEspecial(amb.id, ie.id, newItem)}
+                                                            onRemove={() => removeItemEspecial(amb.id, ie.id)} />
                                                     ))}
                                                 </div>
                                             )}
@@ -3009,6 +3350,144 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 style={{ opacity: unlockText !== 'EDITAR' ? 0.4 : 1 }}>
                                 <Unlock size={14} className="inline mr-1" /> Desbloquear
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Modal: Criar Nova Versão ── */}
+            {showVersaoModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}
+                    onClick={() => setShowVersaoModal(false)}>
+                    <div className={`${Z.card} w-full max-w-md`} onClick={e => e.stopPropagation()}>
+                        <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
+                            <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: '#8b5cf6' }}>
+                                <GitBranch size={16} /> Criar Nova Versão
+                            </h3>
+                            <button onClick={() => setShowVersaoModal(false)} className="p-1 rounded hover:bg-[var(--bg-hover)] cursor-pointer"><X size={16} /></button>
+                        </div>
+                        <div className="p-4 flex flex-col gap-4">
+                            <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                                Uma cópia completa do orçamento será criada como nova revisão. A versão atual ficará como histórico (somente leitura).
+                            </p>
+                            <div>
+                                <label className="text-xs font-bold uppercase tracking-wider mb-2 block" style={{ color: 'var(--text-muted)' }}>Motivo da revisão (opcional)</label>
+                                <textarea value={motivoVersao} onChange={e => setMotivoVersao(e.target.value)}
+                                    placeholder="Ex: Cliente pediu para trocar granito por quartzo..." maxLength={300}
+                                    className={`${Z.inp} w-full text-sm resize-none`} style={{ minHeight: 60 }} />
+                                <div className="text-[10px] text-right mt-1" style={{ color: 'var(--text-muted)' }}>{motivoVersao.length}/300</div>
+                            </div>
+                            <button
+                                onClick={() => criarNovaVersao(motivoVersao)}
+                                disabled={criandoVersao}
+                                className={`${Z.btn} w-full py-2.5`}
+                                style={{ background: '#8b5cf6', opacity: criandoVersao ? 0.4 : 1 }}>
+                                <GitBranch size={14} className="inline mr-1" /> {criandoVersao ? 'Criando...' : 'Criar Revisão'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Modal: Comparar Versões (Diff) ── */}
+            {showDiffModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}
+                    onClick={() => { setShowDiffModal(false); setDiffData(null); }}>
+                    <div className="rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] overflow-y-auto"
+                        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+                        onClick={e => e.stopPropagation()}>
+                        <div className="p-4 flex items-center justify-between sticky top-0 z-10" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                            <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: '#8b5cf6' }}>
+                                <ArrowUpDown size={16} /> Comparar Versões
+                            </h3>
+                            <div className="flex items-center gap-2">
+                                <select value={diffV1Id || ''} onChange={e => { const v = Number(e.target.value); setDiffV1Id(v); if (v && diffV2Id) abrirComparacao(v, diffV2Id); }}
+                                    className={`${Z.inp} text-xs py-1`} style={{ minWidth: 100 }}>
+                                    <option value="">De...</option>
+                                    {versoes.map(v => <option key={v.id} value={v.id}>{v.versao === 1 ? 'v1' : `R${v.versao}`} — {R$(v.valor_venda)}</option>)}
+                                </select>
+                                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>→</span>
+                                <select value={diffV2Id || ''} onChange={e => { const v = Number(e.target.value); setDiffV2Id(v); if (diffV1Id && v) abrirComparacao(diffV1Id, v); }}
+                                    className={`${Z.inp} text-xs py-1`} style={{ minWidth: 100 }}>
+                                    <option value="">Para...</option>
+                                    {versoes.map(v => <option key={v.id} value={v.id}>{v.versao === 1 ? 'v1' : `R${v.versao}`} — {R$(v.valor_venda)}</option>)}
+                                </select>
+                                <button onClick={() => { setShowDiffModal(false); setDiffData(null); }} className="p-1 rounded hover:bg-[var(--bg-hover)] cursor-pointer"><X size={16} /></button>
+                            </div>
+                        </div>
+                        <div className="p-4">
+                            {loadingDiff && <div className="text-center py-8 text-sm" style={{ color: 'var(--text-muted)' }}>Calculando diferenças...</div>}
+                            {diffData && !loadingDiff && (() => {
+                                const { diff, v1, v2 } = diffData;
+                                const valorDiff = (v2.valor_venda || 0) - (v1.valor_venda || 0);
+                                const pctDiff = v1.valor_venda ? ((valorDiff / v1.valor_venda) * 100) : 0;
+                                return (
+                                    <div className="flex flex-col gap-4">
+                                        {/* Resumo */}
+                                        <div className="p-3 rounded-lg flex items-center justify-between" style={{ background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.15)' }}>
+                                            <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                                                <strong>{v1.versao === 1 ? 'v1' : `R${v1.versao}`}</strong> {R$(v1.valor_venda)} → <strong>{v2.versao === 1 ? 'v1' : `R${v2.versao}`}</strong> {R$(v2.valor_venda)}
+                                            </div>
+                                            <span className="text-sm font-bold" style={{ color: valorDiff >= 0 ? '#16a34a' : '#dc2626' }}>
+                                                {valorDiff >= 0 ? '+' : ''}{R$(valorDiff)} ({valorDiff >= 0 ? '+' : ''}{N(pctDiff, 1)}%)
+                                            </span>
+                                        </div>
+                                        {/* Ambientes adicionados */}
+                                        {diff.ambientes.added.map((a, i) => (
+                                            <div key={`add-${i}`} className="px-3 py-2 rounded-lg text-xs" style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', color: '#16a34a' }}>
+                                                <strong>+ Adicionado:</strong> {a.nome} ({a.itensCount} itens)
+                                            </div>
+                                        ))}
+                                        {/* Ambientes removidos */}
+                                        {diff.ambientes.removed.map((a, i) => (
+                                            <div key={`rem-${i}`} className="px-3 py-2 rounded-lg text-xs" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', color: '#dc2626' }}>
+                                                <strong>- Removido:</strong> {a.nome} ({a.itensCount} itens)
+                                            </div>
+                                        ))}
+                                        {/* Ambientes modificados */}
+                                        {diff.ambientes.modified.map((a, i) => (
+                                            <div key={`mod-${i}`} className="rounded-lg overflow-hidden" style={{ border: '1px solid rgba(245,158,11,0.2)' }}>
+                                                <div className="px-3 py-2 text-xs font-bold" style={{ background: 'rgba(245,158,11,0.08)', color: '#d97706' }}>~ Modificado: {a.nome}</div>
+                                                <div className="px-3 py-2 flex flex-col gap-1.5 text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                                                    {a.itens.added.map((it, j) => <div key={`ia-${j}`} style={{ color: '#16a34a' }}>+ {it.nome} {it.dims ? `(${it.dims.l}×${it.dims.a})` : ''}</div>)}
+                                                    {a.itens.removed.map((it, j) => <div key={`ir-${j}`} style={{ color: '#dc2626' }}>- {it.nome} {it.dims ? `(${it.dims.l}×${it.dims.a})` : ''}</div>)}
+                                                    {a.itens.modified.map((it, j) => (
+                                                        <div key={`im-${j}`} style={{ color: '#d97706' }}>~ {it.nome}: {it.diffs.map(d => `${d.campo} ${d.de}→${d.para}`).join(', ')}</div>
+                                                    ))}
+                                                    {a.paineis.added.map((p, j) => <div key={`pa-${j}`} style={{ color: '#16a34a' }}>+ Painel: {p.nome}</div>)}
+                                                    {a.paineis.removed.map((p, j) => <div key={`pr-${j}`} style={{ color: '#dc2626' }}>- Painel: {p.nome}</div>)}
+                                                    {a.itensEspeciais.added.map((e, j) => <div key={`ea-${j}`} style={{ color: '#16a34a' }}>+ Especial: {e.nome}</div>)}
+                                                    {a.itensEspeciais.removed.map((e, j) => <div key={`er-${j}`} style={{ color: '#dc2626' }}>- Especial: {e.nome}</div>)}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {/* Sem alteração */}
+                                        {diff.ambientes.unchanged.length > 0 && (
+                                            <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                                                Sem alterações: {diff.ambientes.unchanged.map(a => a.nome).join(', ')}
+                                            </div>
+                                        )}
+                                        {/* Taxas */}
+                                        {diff.taxas.changed.length > 0 && (
+                                            <div className="rounded-lg overflow-hidden" style={{ border: '1px solid rgba(100,116,139,0.2)' }}>
+                                                <div className="px-3 py-2 text-xs font-bold" style={{ background: 'rgba(100,116,139,0.06)', color: '#64748b' }}>Taxas alteradas</div>
+                                                <div className="px-3 py-2 flex flex-col gap-1 text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                                                    {diff.taxas.changed.map((t, i) => <div key={i}>{t.label}: {t.de} → {t.para}</div>)}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {/* Pagamento */}
+                                        {diff.pagamento.changed && (
+                                            <div className="px-3 py-2 rounded-lg text-[11px]" style={{ background: 'rgba(100,116,139,0.04)', color: '#64748b', border: '1px solid rgba(100,116,139,0.15)' }}>
+                                                Condições de pagamento foram alteradas
+                                            </div>
+                                        )}
+                                        {!diff.ambientes.added.length && !diff.ambientes.removed.length && !diff.ambientes.modified.length && !diff.taxas.changed.length && !diff.pagamento.changed && (
+                                            <div className="text-center py-4 text-sm" style={{ color: 'var(--text-muted)' }}>Nenhuma diferença encontrada</div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>

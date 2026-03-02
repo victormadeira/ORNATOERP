@@ -692,6 +692,178 @@ export function calcPainelRipado(cfg, bib = []) {
     };
 }
 
+// ═══════════════════════════════════════════════════════
+// ITENS ESPECIAIS — Espelhos, Estofados, Alumínio, Vidro
+// ═══════════════════════════════════════════════════════
+
+export const TIPOS_ESPECIAIS = [
+    { id: 'espelho',  nome: 'Espelho',   cor: '#06b6d4', unidade: 'm²',  icon: 'Square' },
+    { id: 'estofado', nome: 'Estofado',  cor: '#ec4899', unidade: 'm²',  icon: 'Sofa' },
+    { id: 'aluminio', nome: 'Alumínio',  cor: '#94a3b8', unidade: 'ml',  icon: 'RectangleHorizontal' },
+    { id: 'vidro',    nome: 'Vidro',     cor: '#22d3ee', unidade: 'm²',  icon: 'GlassWater' },
+    { id: 'outro',    nome: 'Outro',     cor: '#a78bfa', unidade: 'un',  icon: 'Shapes' },
+];
+
+/**
+ * calcItemEspecial — calcula custo de um item especial (espelho, estofado, alumínio, etc.)
+ * @param {object} item — { tipo, L, A, qtd, precoUnit, unidade, perfis[], vidro{}, custoInstalacao }
+ * @param {Array}  bib — array de itens da biblioteca (para lookup de materialId)
+ * @returns {{ custo, area, descricao }}
+ */
+export function calcItemEspecial(item, bib = []) {
+    const { tipo = 'outro', L = 0, A = 0, qtd = 1, precoUnit = 0, unidade = 'm2', materialId, perfis = [], vidro, custoInstalacao = 0 } = item;
+
+    // Resolver preço do material da biblioteca se houver materialId
+    let precoEfetivo = precoUnit;
+    if (materialId) {
+        const mat = bib.find(m => String(m.id) === String(materialId));
+        if (mat) {
+            precoEfetivo = mat.preco_m2 || mat.preco || precoUnit;
+        }
+    }
+
+    let custo = 0;
+    let area = 0;
+    let descricao = '';
+
+    if (tipo === 'aluminio') {
+        // Alumínio: perfis em metro linear + vidro opcional
+        let custoPerfis = 0;
+        perfis.forEach(p => {
+            custoPerfis += ((p.comp || 0) / 1000) * (p.precoML || 0) * (p.qtd || 1);
+        });
+        let custoVidro = 0;
+        if (vidro && vidro.precoM2 > 0 && L > 0 && A > 0) {
+            const areaVidro = (L / 1000) * (A / 1000);
+            custoVidro = areaVidro * vidro.precoM2;
+        }
+        custo = (custoPerfis + custoVidro) * qtd + custoInstalacao;
+        area = L > 0 && A > 0 ? (L / 1000) * (A / 1000) * qtd : 0;
+        descricao = `${perfis.length} perfil(s)${vidro ? ' + vidro' : ''}`;
+    } else if (unidade === 'un' || tipo === 'outro') {
+        // Preço unitário
+        custo = precoEfetivo * qtd + custoInstalacao;
+        area = L > 0 && A > 0 ? (L / 1000) * (A / 1000) * qtd : 0;
+        descricao = `${qtd} un × ${R$(precoEfetivo)}`;
+    } else {
+        // m² (espelho, estofado, vidro)
+        area = L > 0 && A > 0 ? (L / 1000) * (A / 1000) * qtd : 0;
+        custo = area * precoEfetivo + custoInstalacao;
+        descricao = `${N(area)} m² × ${R$(precoEfetivo)}/m²`;
+    }
+
+    return { custo, area, descricao };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// COMPARAÇÃO DE VERSÕES — diff estruturado entre duas versões
+// ═══════════════════════════════════════════════════════════════
+export function compareVersions(v1, v2) {
+    const a1 = v1.ambientes || [];
+    const a2 = v2.ambientes || [];
+    const a1Map = new Map(a1.map(a => [a.id, a]));
+    const a2Map = new Map(a2.map(a => [a.id, a]));
+
+    const ambientes = { added: [], removed: [], modified: [], unchanged: [] };
+
+    // Ambientes adicionados (em v2 mas não em v1)
+    for (const [id, amb] of a2Map) {
+        if (!a1Map.has(id)) {
+            ambientes.added.push({ id, nome: amb.nome, itensCount: (amb.itens || []).length + (amb.paineis || []).length + (amb.itensEspeciais || []).length });
+        }
+    }
+
+    // Ambientes removidos (em v1 mas não em v2)
+    for (const [id, amb] of a1Map) {
+        if (!a2Map.has(id)) {
+            ambientes.removed.push({ id, nome: amb.nome, itensCount: (amb.itens || []).length + (amb.paineis || []).length + (amb.itensEspeciais || []).length });
+        }
+    }
+
+    // Ambientes em ambas as versões — verificar mudanças
+    for (const [id, amb2] of a2Map) {
+        if (!a1Map.has(id)) continue;
+        const amb1 = a1Map.get(id);
+        const changes = compareAmbiente(amb1, amb2);
+        if (changes.hasChanges) {
+            ambientes.modified.push({ id, nome: amb2.nome, ...changes });
+        } else {
+            ambientes.unchanged.push({ id, nome: amb2.nome });
+        }
+    }
+
+    // Comparar taxas
+    const t1 = v1.taxas || {};
+    const t2 = v2.taxas || {};
+    const TAXA_LABELS = { imp: 'Impostos', com: 'Comissão', mont: 'Montagem', lucro: 'Lucro', frete: 'Frete', mdo: 'Mão de obra (R$/m²)', inst: 'Instalação' };
+    const taxasChanged = [];
+    for (const key of Object.keys(TAXA_LABELS)) {
+        const de = t1[key] ?? 0;
+        const para = t2[key] ?? 0;
+        if (de !== para) taxasChanged.push({ campo: key, label: TAXA_LABELS[key], de, para });
+    }
+
+    // Comparar pagamento (resumo simplificado)
+    const pag1 = v1.pagamento || {};
+    const pag2 = v2.pagamento || {};
+    const pagChanged = JSON.stringify(pag1) !== JSON.stringify(pag2);
+
+    return {
+        ambientes,
+        taxas: { changed: taxasChanged },
+        pagamento: { changed: pagChanged },
+        resumo: {
+            ambAdded: ambientes.added.length,
+            ambRemoved: ambientes.removed.length,
+            ambModified: ambientes.modified.length,
+            ambUnchanged: ambientes.unchanged.length,
+            taxasChanged: taxasChanged.length,
+        },
+    };
+}
+
+function compareAmbiente(amb1, amb2) {
+    const changes = { hasChanges: false, itens: { added: [], removed: [], modified: [] }, paineis: { added: [], removed: [] }, itensEspeciais: { added: [], removed: [] } };
+
+    // Comparar itens (marcenaria) por id
+    const i1Map = new Map((amb1.itens || []).map(i => [i.id, i]));
+    const i2Map = new Map((amb2.itens || []).map(i => [i.id, i]));
+
+    for (const [id, item] of i2Map) {
+        if (!i1Map.has(id)) { changes.itens.added.push({ nome: item.nome || item.caixaDef?.nome || '?', dims: item.dims }); changes.hasChanges = true; }
+    }
+    for (const [id, item] of i1Map) {
+        if (!i2Map.has(id)) { changes.itens.removed.push({ nome: item.nome || item.caixaDef?.nome || '?', dims: item.dims }); changes.hasChanges = true; }
+    }
+    for (const [id, item2] of i2Map) {
+        if (!i1Map.has(id)) continue;
+        const item1 = i1Map.get(id);
+        const diffs = [];
+        if (item1.dims?.l !== item2.dims?.l) diffs.push({ campo: 'Largura', de: item1.dims?.l, para: item2.dims?.l });
+        if (item1.dims?.a !== item2.dims?.a) diffs.push({ campo: 'Altura', de: item1.dims?.a, para: item2.dims?.a });
+        if (item1.dims?.p !== item2.dims?.p) diffs.push({ campo: 'Prof.', de: item1.dims?.p, para: item2.dims?.p });
+        if ((item1.qtd || 1) !== (item2.qtd || 1)) diffs.push({ campo: 'Qtd', de: item1.qtd || 1, para: item2.qtd || 1 });
+        if (item1.mats?.matInt !== item2.mats?.matInt) diffs.push({ campo: 'Mat. Interno', de: item1.mats?.matInt, para: item2.mats?.matInt });
+        if (item1.mats?.matExt !== item2.mats?.matExt) diffs.push({ campo: 'Mat. Externo', de: item1.mats?.matExt, para: item2.mats?.matExt });
+        if ((item1.componentes || []).length !== (item2.componentes || []).length) diffs.push({ campo: 'Componentes', de: (item1.componentes || []).length, para: (item2.componentes || []).length });
+        if (diffs.length > 0) { changes.itens.modified.push({ nome: item2.nome || item2.caixaDef?.nome || '?', diffs }); changes.hasChanges = true; }
+    }
+
+    // Comparar painéis por id
+    const p1Set = new Set((amb1.paineis || []).map(p => p.id));
+    const p2Set = new Set((amb2.paineis || []).map(p => p.id));
+    for (const p of (amb2.paineis || [])) { if (!p1Set.has(p.id)) { changes.paineis.added.push({ nome: p.nome || 'Painel' }); changes.hasChanges = true; } }
+    for (const p of (amb1.paineis || [])) { if (!p2Set.has(p.id)) { changes.paineis.removed.push({ nome: p.nome || 'Painel' }); changes.hasChanges = true; } }
+
+    // Comparar itens especiais por id
+    const e1Set = new Set((amb1.itensEspeciais || []).map(e => e.id));
+    const e2Set = new Set((amb2.itensEspeciais || []).map(e => e.id));
+    for (const e of (amb2.itensEspeciais || [])) { if (!e1Set.has(e.id)) { changes.itensEspeciais.added.push({ nome: e.nome || e.tipo || '?' }); changes.hasChanges = true; } }
+    for (const e of (amb1.itensEspeciais || [])) { if (!e2Set.has(e.id)) { changes.itensEspeciais.removed.push({ nome: e.nome || e.tipo || '?' }); changes.hasChanges = true; } }
+
+    return changes;
+}
+
 // KANBAN COLS — Pipeline ativo (7 colunas visiveis no kanban)
 export const KCOLS = [
     { id: "lead", nm: "Primeiro Contato", c: "#7e7ec8" },

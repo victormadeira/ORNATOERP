@@ -956,6 +956,9 @@ const migrations = [
   "ALTER TABLE cnc_maquinas ADD COLUMN vel_mergulho REAL DEFAULT 1500",
   "ALTER TABLE cnc_maquinas ADD COLUMN z_aproximacao_rapida REAL DEFAULT 5.0",
   "ALTER TABLE cnc_maquinas ADD COLUMN ordenar_contornos TEXT DEFAULT 'menor_primeiro'",
+  // ═══ Versionamento de Orçamentos ═══
+  "ALTER TABLE orcamentos ADD COLUMN versao INTEGER DEFAULT 1",
+  "ALTER TABLE orcamentos ADD COLUMN versao_ativa INTEGER DEFAULT 1",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
@@ -1027,6 +1030,8 @@ const indexes = [
   "CREATE INDEX IF NOT EXISTS idx_cnc_retalhos_material ON cnc_retalhos(material_code)",
   "CREATE INDEX IF NOT EXISTS idx_cnc_ferramentas_maquina ON cnc_ferramentas(maquina_id)",
   "CREATE INDEX IF NOT EXISTS idx_cnc_maquinas_user ON cnc_maquinas(user_id)",
+  // Versionamento
+  "CREATE INDEX IF NOT EXISTS idx_orc_versao ON orcamentos(parent_orc_id, tipo, versao)",
 ];
 for (const sql of indexes) {
   try { db.exec(sql); } catch (_) { }

@@ -330,10 +330,31 @@ router.get('/:id', requireAuth, (req, res) => {
     // Enriquecer com aditivos ou referência ao pai
     if (!orc.parent_orc_id) {
         // Orçamento original: incluir lista de aditivos com motivo e datas
-        orc.aditivos = db.prepare('SELECT id, numero, kb_col, valor_venda, tipo, motivo_aditivo, criado_em FROM orcamentos WHERE parent_orc_id = ? ORDER BY criado_em ASC').all(id);
+        orc.aditivos = db.prepare("SELECT id, numero, kb_col, valor_venda, tipo, motivo_aditivo, criado_em FROM orcamentos WHERE parent_orc_id = ? AND tipo = 'aditivo' ORDER BY criado_em ASC").all(id);
         // Valor consolidado: original + soma dos aditivos
         const somaAditivos = orc.aditivos.reduce((s, a) => s + (a.valor_venda || 0), 0);
         orc.valor_consolidado = (orc.valor_venda || 0) + somaAditivos;
+        // Versões: incluir todas as versões da cadeia
+        const versoes = db.prepare(`
+            SELECT id, numero, versao, versao_ativa, kb_col, valor_venda, custo_material, motivo_aditivo, criado_em
+            FROM orcamentos WHERE parent_orc_id = ? AND tipo = 'versao' ORDER BY versao ASC
+        `).all(id);
+        if (versoes.length > 0) {
+            orc.versoes = [{ id: orc.id, numero: orc.numero, versao: orc.versao || 1, versao_ativa: orc.versao_ativa ?? 1, kb_col: orc.kb_col, valor_venda: orc.valor_venda, custo_material: orc.custo_material, criado_em: orc.criado_em }, ...versoes];
+        }
+    } else if (orc.tipo === 'versao') {
+        // Versão: incluir info da raiz + lista de versões
+        const raiz = db.prepare('SELECT id, numero, cliente_nome, valor_venda, versao, versao_ativa, kb_col, custo_material, criado_em FROM orcamentos WHERE id = ?').get(orc.parent_orc_id);
+        orc.parent_info = raiz || null;
+        const versoes = db.prepare(`
+            SELECT id, numero, versao, versao_ativa, kb_col, valor_venda, custo_material, motivo_aditivo, criado_em
+            FROM orcamentos WHERE parent_orc_id = ? AND tipo = 'versao' ORDER BY versao ASC
+        `).all(orc.parent_orc_id);
+        orc.versoes = [{ id: raiz.id, numero: raiz.numero, versao: raiz.versao || 1, versao_ativa: raiz.versao_ativa ?? 1, kb_col: raiz.kb_col, valor_venda: raiz.valor_venda, custo_material: raiz.custo_material, criado_em: raiz.criado_em }, ...versoes];
+        // Aditivos da versão ativa (se esta for a ativa)
+        if (orc.versao_ativa) {
+            orc.aditivos = db.prepare("SELECT id, numero, kb_col, valor_venda, tipo, motivo_aditivo, criado_em FROM orcamentos WHERE parent_orc_id = ? AND tipo = 'aditivo' ORDER BY criado_em ASC").all(id);
+        }
     } else {
         // Aditivo: incluir info do pai
         const pai = db.prepare('SELECT id, numero, cliente_nome, valor_venda FROM orcamentos WHERE id = ?').get(orc.parent_orc_id);
@@ -351,6 +372,162 @@ router.get('/:id/aditivos', requireAuth, (req, res) => {
     const rows = db.prepare('SELECT * FROM orcamentos WHERE parent_orc_id = ? ORDER BY criado_em ASC').all(id);
     rows.forEach(r => parseOrcData(r));
     res.json(rows);
+});
+
+// ═══════════════════════════════════════════════════════
+// POST /api/orcamentos/:id/nova-versao — criar revisão
+// ═══════════════════════════════════════════════════════
+router.post('/:id/nova-versao', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    const { motivo } = req.body;
+
+    const source = db.prepare('SELECT * FROM orcamentos WHERE id = ?').get(id);
+    if (!source) return res.status(404).json({ error: 'Orçamento não encontrado' });
+
+    if (!canSeeAll(req.user) && source.user_id !== req.user.id)
+        return res.status(403).json({ error: 'Sem permissão' });
+
+    if (source.tipo === 'aditivo')
+        return res.status(400).json({ error: 'Não é possível versionar um aditivo' });
+
+    const LOCKED_COLS = ['ok', 'prod', 'done'];
+    if (LOCKED_COLS.includes(source.kb_col))
+        return res.status(400).json({ error: 'Orçamento aprovado — use Aditivo para alterações' });
+
+    // Encontrar raiz da cadeia de versões
+    const rootId = source.tipo === 'versao' ? source.parent_orc_id : source.id;
+    const root = db.prepare('SELECT numero FROM orcamentos WHERE id = ?').get(rootId);
+
+    // Calcular próxima versão
+    const maxRow = db.prepare(`
+        SELECT MAX(versao) as mv FROM orcamentos
+        WHERE id = ? OR (parent_orc_id = ? AND tipo = 'versao')
+    `).get(rootId, rootId);
+    const novaVersao = (maxRow?.mv || 1) + 1;
+    const novoNumero = `${root.numero}-R${novaVersao}`;
+
+    const criarVersao = db.transaction(() => {
+        // Marcar todas as versões da cadeia como substituídas
+        db.prepare('UPDATE orcamentos SET versao_ativa = 0 WHERE id = ?').run(rootId);
+        db.prepare("UPDATE orcamentos SET versao_ativa = 0 WHERE parent_orc_id = ? AND tipo = 'versao'").run(rootId);
+
+        // Criar nova versão (cópia completa do source)
+        const result = db.prepare(`
+            INSERT INTO orcamentos (user_id, cliente_id, cliente_nome, ambiente, mods_json, obs,
+                custo_material, valor_venda, status, kb_col, numero, data_vencimento,
+                parent_orc_id, tipo, motivo_aditivo, versao, versao_ativa)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'rascunho', ?, ?, ?, ?, 'versao', ?, ?, 1)
+        `).run(
+            req.user.id, source.cliente_id, source.cliente_nome || '',
+            source.ambiente, source.mods_json, source.obs || '',
+            source.custo_material || 0, source.valor_venda || 0,
+            source.kb_col || 'lead', novoNumero, source.data_vencimento || null,
+            rootId, motivo || '', novaVersao
+        );
+
+        const newId = result.lastInsertRowid;
+
+        // Migrar portal_tokens da cadeia para a nova versão
+        db.prepare(`UPDATE portal_tokens SET orc_id = ? WHERE orc_id = ? OR orc_id IN (
+            SELECT id FROM orcamentos WHERE parent_orc_id = ? AND tipo = 'versao'
+        )`).run(newId, rootId, rootId);
+
+        return newId;
+    });
+
+    try {
+        const newId = criarVersao();
+        const orc = db.prepare('SELECT * FROM orcamentos WHERE id = ?').get(newId);
+        parseOrcData(orc);
+
+        logActivity(req.user.id, req.user.nome, 'nova_versao',
+            `Criou revisão ${novaVersao} do orçamento ${root.numero}`,
+            newId, 'orcamento');
+
+        res.status(201).json(orc);
+    } catch (err) {
+        console.error('Erro ao criar versão:', err);
+        res.status(500).json({ error: 'Erro ao criar versão: ' + err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// PUT /api/orcamentos/:id/ativar-versao — trocar versão ativa
+// ═══════════════════════════════════════════════════════
+router.put('/:id/ativar-versao', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    const orc = db.prepare('SELECT * FROM orcamentos WHERE id = ?').get(id);
+    if (!orc) return res.status(404).json({ error: 'Orçamento não encontrado' });
+
+    if (!canSeeAll(req.user) && orc.user_id !== req.user.id)
+        return res.status(403).json({ error: 'Sem permissão' });
+
+    const LOCKED_COLS = ['ok', 'prod', 'done'];
+    if (LOCKED_COLS.includes(orc.kb_col))
+        return res.status(400).json({ error: 'Orçamento aprovado — não pode trocar versão ativa' });
+
+    const rootId = orc.tipo === 'versao' ? orc.parent_orc_id : orc.id;
+
+    const ativar = db.transaction(() => {
+        // Desativar todas as versões da cadeia
+        db.prepare('UPDATE orcamentos SET versao_ativa = 0 WHERE id = ?').run(rootId);
+        db.prepare("UPDATE orcamentos SET versao_ativa = 0 WHERE parent_orc_id = ? AND tipo = 'versao'").run(rootId);
+        // Ativar a versão selecionada
+        db.prepare('UPDATE orcamentos SET versao_ativa = 1 WHERE id = ?').run(id);
+
+        // Migrar portal_tokens para a versão ativa
+        db.prepare(`UPDATE portal_tokens SET orc_id = ? WHERE orc_id = ? OR orc_id IN (
+            SELECT id FROM orcamentos WHERE parent_orc_id = ? AND tipo = 'versao'
+        )`).run(id, rootId, rootId);
+    });
+
+    try {
+        ativar();
+        logActivity(req.user.id, req.user.nome, 'ativar_versao',
+            `Ativou versão ${orc.versao || 1} do orçamento ${orc.numero}`,
+            id, 'orcamento');
+        res.json({ ok: true, versao_ativa: id });
+    } catch (err) {
+        res.status(500).json({ error: 'Erro: ' + err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// GET /api/orcamentos/:id/versoes — listar versões
+// ═══════════════════════════════════════════════════════
+router.get('/:id/versoes', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    const orc = db.prepare('SELECT id, tipo, parent_orc_id FROM orcamentos WHERE id = ?').get(id);
+    if (!orc) return res.status(404).json({ error: 'Não encontrado' });
+
+    const rootId = orc.tipo === 'versao' ? orc.parent_orc_id : orc.id;
+
+    const versoes = db.prepare(`
+        SELECT id, numero, versao, versao_ativa, kb_col, valor_venda, custo_material,
+               motivo_aditivo, criado_em, atualizado_em
+        FROM orcamentos
+        WHERE (id = ? OR (parent_orc_id = ? AND tipo = 'versao'))
+        ORDER BY versao ASC
+    `).all(rootId, rootId);
+
+    res.json(versoes);
+});
+
+// ═══════════════════════════════════════════════════════
+// GET /api/orcamentos/:id/comparar/:id2 — dados para diff
+// ═══════════════════════════════════════════════════════
+router.get('/:id/comparar/:id2', requireAuth, (req, res) => {
+    const id1 = parseInt(req.params.id);
+    const id2 = parseInt(req.params.id2);
+
+    const orc1 = db.prepare('SELECT * FROM orcamentos WHERE id = ?').get(id1);
+    const orc2 = db.prepare('SELECT * FROM orcamentos WHERE id = ?').get(id2);
+    if (!orc1 || !orc2) return res.status(404).json({ error: 'Orçamento não encontrado' });
+
+    parseOrcData(orc1);
+    parseOrcData(orc2);
+
+    res.json({ v1: orc1, v2: orc2 });
 });
 
 // ═══════════════════════════════════════════════════════
@@ -454,6 +631,11 @@ router.put('/:id', requireAuth, (req, res) => {
     const LOCKED_COLS = ['ok', 'prod', 'done'];
     if (LOCKED_COLS.includes(existing.kb_col) && !req.body.force_unlock) {
         return res.status(403).json({ error: 'Orçamento aprovado. Use o desbloqueio.', locked: true });
+    }
+
+    // ═══ Versão substituída não pode ser editada ═══
+    if (existing.versao_ativa === 0) {
+        return res.status(403).json({ error: 'Versão substituída — somente leitura', substituida: true });
     }
 
     const { cliente_id, cliente_nome, projeto, ambiente, ambientes, mods, taxas, padroes, pagamento, obs, custo_material, valor_venda, status, kb_col, numero, data_vencimento, prazo_entrega, endereco_obra, validade_proposta } = req.body;
@@ -580,16 +762,29 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
 
     db.prepare('UPDATE orcamentos SET kb_col = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?').run(kb_col, id);
 
-    // ═══ Cascata: arquivo/perdido → mover aditivos junto ═══
+    // ═══ Cascata: arquivo/perdido → mover aditivos e versões junto ═══
     if (['arquivo', 'perdido'].includes(kb_col) && existing.tipo !== 'aditivo') {
         db.prepare('UPDATE orcamentos SET kb_col = ?, atualizado_em = CURRENT_TIMESTAMP WHERE parent_orc_id = ?').run(kb_col, id);
     }
 
-    // ═══ Restaurar: se for pai saindo de arquivo/perdido, restaurar aditivos também ═══
+    // ═══ Restaurar: se for pai saindo de arquivo/perdido, restaurar filhos também ═══
     if (['arquivo', 'perdido'].includes(existing.kb_col) && !['arquivo', 'perdido'].includes(kb_col) && existing.tipo !== 'aditivo') {
-        // Restaurar aditivos que estavam arquivados/perdidos junto com o pai
         db.prepare(`UPDATE orcamentos SET kb_col = ?, atualizado_em = CURRENT_TIMESTAMP
                     WHERE parent_orc_id = ? AND kb_col IN ('arquivo', 'perdido')`).run(kb_col, id);
+    }
+
+    // ═══ Ao aprovar: arquivar versões substituídas da cadeia ═══
+    if (kb_col === 'ok') {
+        const rootId = existing.tipo === 'versao' ? existing.parent_orc_id : id;
+        db.prepare(`UPDATE orcamentos SET kb_col = 'arquivo', atualizado_em = CURRENT_TIMESTAMP
+                    WHERE versao_ativa = 0 AND tipo = 'versao' AND parent_orc_id = ?`).run(rootId);
+        // Se a raiz também foi substituída, arquivá-la
+        if (rootId !== id) {
+            const raiz = db.prepare('SELECT versao_ativa FROM orcamentos WHERE id = ?').get(rootId);
+            if (raiz && raiz.versao_ativa === 0) {
+                db.prepare("UPDATE orcamentos SET kb_col = 'arquivo', atualizado_em = CURRENT_TIMESTAMP WHERE id = ?").run(rootId);
+            }
+        }
     }
 
     // ═══ Auto-criar projeto ao mover para "Aprovado" (ok) ═══
@@ -654,7 +849,7 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
                     if (materiaisJson && materiaisJson !== '[]') {
                         db.prepare('UPDATE projetos SET materiais_orcados = ? WHERE id = ?').run(materiaisJson, projPai.id);
                     }
-                } catch (_) { /* erro ao recalcular BOM */ }
+                } catch (_) { /* erro ao recalcular lista de materiais */ }
 
                 projeto_criado = projPai.id;
             }
@@ -691,13 +886,13 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
                 const stmtE = db.prepare('INSERT INTO etapas_projeto (projeto_id, nome, ordem) VALUES (?, ?, ?)');
                 ETAPAS_PADRAO.forEach((nome, i) => stmtE.run(projId, nome, i));
 
-                // Popular materiais_orcados com BOM do orçamento
+                // Popular materiais_orcados (lista de materiais) do orçamento
                 try {
                     const materiaisJson = buildMateriaisOrcados(id);
                     if (materiaisJson && materiaisJson !== '[]') {
                         db.prepare('UPDATE projetos SET materiais_orcados = ? WHERE id = ?').run(materiaisJson, projId);
                     }
-                } catch (_) { /* erro ao calcular BOM não impede criação */ }
+                } catch (_) { /* erro ao calcular lista de materiais não impede criação */ }
 
                 // Auto-importar parcelas do pagamento como contas a receber
                 try {

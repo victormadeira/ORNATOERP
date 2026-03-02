@@ -1,4 +1,4 @@
-import { R$, N, calcItemV2, calcPainelRipado, precoVenda, FERR_GROUPS } from '../engine';
+import { R$, N, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, precoVenda, FERR_GROUPS } from '../engine';
 
 // ── Meios de pagamento (display) ────────────────────────────────────────────
 const MEIO_LABEL = {
@@ -80,6 +80,24 @@ function calcAmbCustos(ambientes, bib, padroes, taxas) {
                     custo: res.custoMaterial * (p.qtd || 1),
                     componentes: [],
                     tipo: 'painel',
+                    mats: {},
+                });
+            } catch (_) { }
+        });
+        // ── Itens Especiais ──
+        (amb.itensEspeciais || []).forEach(ie => {
+            try {
+                const res = calcItemEspecial(ie, bib?.raw || []);
+                const tipoLabel = (TIPOS_ESPECIAIS.find(t => t.id === ie.tipo)?.nome) || ie.tipo;
+                ambCm += res.custo;
+                itemDetails.push({
+                    nome: ie.nome || tipoLabel,
+                    dims: ie.L > 0 && ie.A > 0 ? { l: ie.L, a: ie.A } : null,
+                    qtd: ie.qtd || 1,
+                    custo: res.custo,
+                    componentes: [],
+                    tipo: 'especial',
+                    tipoEspecial: ie.tipo,
                     mats: {},
                 });
             } catch (_) { }
@@ -403,6 +421,14 @@ export function buildPropostaHtml({
         border-bottom: 1px solid #ddd;
         letter-spacing: 1px;
     }
+    .prop-revisao {
+        font-size: 11px; font-weight: 500;
+        color: #888;
+        text-align: center;
+        margin-top: -10px;
+        margin-bottom: 14px;
+        letter-spacing: 0.5px;
+    }
 
     .client-row {
         display: flex;
@@ -562,6 +588,7 @@ export function buildPropostaHtml({
 
     <!-- ═══ PROPOSAL NUMBER ═══ -->
     <div class="prop-num">PROPOSTA N° ${orcamento.numero || '—'}</div>
+    ${(orcamento.versao || 1) > 1 ? `<div class="prop-revisao">Revisão ${orcamento.versao}</div>` : ''}
 
     <!-- ═══ CLIENT INFO ═══ -->
     <div class="client-row">
