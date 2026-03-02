@@ -778,7 +778,7 @@ const getEspecialIcon = (tipo) => ESPECIAL_ICON[tipo] || Shapes;
 const getEspecialCor = (tipo) => (TIPOS_ESPECIAIS.find(t => t.id === tipo)?.cor) || '#a78bfa';
 
 // ── Componente: card de item especial ────────────────────────────────────────
-function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, readOnly }) {
+function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly }) {
     const [exp, setExp] = useState(false);
     const tipoInfo = TIPOS_ESPECIAIS.find(t => t.id === item.tipo) || TIPOS_ESPECIAIS[4];
     const cor = tipoInfo.cor;
@@ -807,6 +807,7 @@ function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, readOnly }) {
                 </div>
                 <div className="flex items-center gap-2">
                     <span className="font-bold text-xs" style={{ color: cor }}>{R$(calc.custo)}</span>
+                    {!readOnly && onCopy && <button onClick={e => { e.stopPropagation(); onCopy(); }} className="p-1 rounded hover:bg-violet-500/10 text-violet-400/50 hover:text-violet-400" title="Duplicar"><Copy size={12} /></button>}
                     {!readOnly && <button onClick={e => { e.stopPropagation(); onRemove(); }} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>}
                 </div>
             </div>
@@ -1412,6 +1413,16 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         if (idx >= 0) a.itensEspeciais[idx] = newItem;
     });
 
+    const copyItemEspecial = (ambId, itemId) => upAmb(ambId, a => {
+        const src = (a.itensEspeciais || []).find(i => i.id === itemId);
+        if (!src) return;
+        const c = JSON.parse(JSON.stringify(src));
+        c.id = uid();
+        c.nome = src.nome ? `${src.nome} (cópia)` : '';
+        const idx = a.itensEspeciais.findIndex(i => i.id === itemId);
+        a.itensEspeciais.splice(idx + 1, 0, c);
+    });
+
     // ── Totais ───────────────────────────────────────────────────────────────
     const tot = useMemo(() => {
         let cm = 0, at = 0, ft = 0, manualTotal = 0;
@@ -1517,11 +1528,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         });
 
         // ── Engine v2: precoVendaV2 com markups por categoria ──
-        // Calcular coef médio ponderado (baseado nos custos de cada item)
-        const totalCustoItens = itemCostList.reduce((s, i) => s + i.custoItem, 0);
-        const coefMedio = totalCustoItens > 0
-            ? itemCostList.reduce((s, i) => s + i.coef * i.custoItem, 0) / totalCustoItens
-            : 0.25;
+        // coefMedio: apenas itens fabricados (coef > 0). Itens especiais (coef=0, ferragens)
+        // e painéis (coef já embutido no custo) NÃO devem diluir o coeficiente de dificuldade.
+        const fabricados = itemCostList.filter(i => i.coef > 0);
+        const totalCustoFab = fabricados.reduce((s, i) => s + i.custoItem, 0);
+        const coefMedio = totalCustoFab > 0
+            ? fabricados.reduce((s, i) => s + i.coef * i.custoItem, 0) / totalCustoFab
+            : 0;
 
         const pvResult = precoVendaV2(
             { chapas: totChapas, fita: totFita, acabamentos: totAcabamentos, ferragens: totFerragens, acessorios: totAcessorios },
@@ -2345,6 +2358,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     {amb.itensEspeciais.map(ie => (
                                                         <ItemEspecialCard key={ie.id} item={ie} bibItems={bibItems} readOnly={readOnly}
                                                             onUpdate={newItem => upItemEspecial(amb.id, ie.id, newItem)}
+                                                            onCopy={() => copyItemEspecial(amb.id, ie.id)}
                                                             onRemove={() => removeItemEspecial(amb.id, ie.id)} />
                                                     ))}
                                                 </div>
