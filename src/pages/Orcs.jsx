@@ -758,8 +758,9 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                         {/* Engagement por Ambiente (heatmap) */}
                         {linkModal.viewsData?.section_resumo?.length > 0 && (
                             <div>
-                                <div className="text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>
-                                    ENGAGEMENT POR SEÇÃO
+                                <div className="text-xs font-semibold mb-2 flex items-center justify-between" style={{ color: 'var(--text-muted)' }}>
+                                    <span>ENGAGEMENT POR SEÇÃO</span>
+                                    <span className="text-[9px] font-normal">tempo que o cliente ficou em cada seção</span>
                                 </div>
                                 <div className="flex flex-col gap-1.5">
                                     {linkModal.viewsData.section_resumo.map((s, i) => {
@@ -768,21 +769,25 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                         const min = Math.floor(s.tempo / 60);
                                         const seg = s.tempo % 60;
                                         const tempoStr = min > 0 ? `${min}m${seg > 0 ? seg + 's' : ''}` : `${seg}s`;
-                                        // Cor gradiente: do azul (frio) ao vermelho (quente)
                                         const heat = s.pct / 100;
                                         const barColor = heat > 0.6 ? '#ef4444' : heat > 0.3 ? '#f97316' : heat > 0.15 ? '#f59e0b' : '#3b82f6';
                                         return (
                                             <div key={i} className="flex items-center gap-2">
-                                                <span className="text-[10px] font-medium w-32 truncate text-right" style={{ color: 'var(--text-secondary)' }}>
+                                                <span className="text-[10px] font-medium w-36 truncate text-right" style={{ color: 'var(--text-secondary)' }}>
                                                     {s.nome || s.id}
                                                 </span>
-                                                <div className="flex-1 h-4 rounded-full overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
+                                                <div className="flex-1 h-5 rounded-full overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
                                                     <div className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-1.5"
-                                                        style={{ width: `${barW}%`, background: barColor, minWidth: 24 }}>
-                                                        <span className="text-[8px] font-bold text-white whitespace-nowrap">{tempoStr}</span>
+                                                        style={{ width: `${barW}%`, background: barColor, minWidth: 28 }}>
+                                                        <span className="text-[9px] font-bold text-white whitespace-nowrap">{tempoStr}</span>
                                                     </div>
                                                 </div>
                                                 <span className="text-[9px] font-semibold w-8 text-right" style={{ color: barColor }}>{s.pct}%</span>
+                                                {s.entradas > 1 && (
+                                                    <span className="text-[8px] w-14 text-right" style={{ color: 'var(--text-muted)' }}>
+                                                        {s.entradas}× visto
+                                                    </span>
+                                                )}
                                             </div>
                                         );
                                     })}

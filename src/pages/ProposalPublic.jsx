@@ -63,20 +63,16 @@ export default function ProposalPublic({ token }) {
         heartbeatRef.current = setInterval(() => {
             const tempoSeg = Math.round((Date.now() - startTime.current) / 1000);
 
-            // Calcular scroll do iframe
+            // Calcular scroll da página (iframe é full-height, quem scrolla é o window)
             let scrollPct = 0;
             try {
-                const iframe = iframeRef.current;
-                if (iframe?.contentDocument) {
-                    const doc = iframe.contentDocument;
-                    const scrollTop = doc.documentElement.scrollTop || doc.body.scrollTop;
-                    const scrollHeight = doc.documentElement.scrollHeight || doc.body.scrollHeight;
-                    const clientHeight = doc.documentElement.clientHeight || doc.body.clientHeight;
-                    if (scrollHeight > clientHeight) {
-                        scrollPct = Math.round((scrollTop / (scrollHeight - clientHeight)) * 100);
-                    }
+                const scrollTop = window.scrollY || document.documentElement.scrollTop;
+                const scrollHeight = document.documentElement.scrollHeight;
+                const clientHeight = window.innerHeight;
+                if (scrollHeight > clientHeight) {
+                    scrollPct = Math.round((scrollTop / (scrollHeight - clientHeight)) * 100);
                 }
-            } catch { /* cross-origin fallback */ }
+            } catch { }
 
             fetch(`/api/portal/heartbeat/${token}`, {
                 method: 'POST',
@@ -107,6 +103,7 @@ export default function ProposalPublic({ token }) {
             clearInterval(heartbeatRef.current);
             window.removeEventListener('beforeunload', onUnload);
             window.removeEventListener('beforeprint', onBeforePrint);
+            if (iframeRef.current?._sectionCleanup) iframeRef.current._sectionCleanup();
         };
     }, [html, error, token]);
 
@@ -271,32 +268,55 @@ export default function ProposalPublic({ token }) {
                             iframe.style.height = (height + 60) + 'px';
                         }, 50);
 
-                        // ── Section tracking: Intersection Observer ──
+                        // ── Section tracking: scroll-based visibility ──
+                        // (IntersectionObserver não funciona porque o iframe é full-height,
+                        //  quem scrolla é o window pai, não o iframe)
                         try {
                             const sections = doc.querySelectorAll('[data-section]');
                             if (sections.length > 0) {
                                 const visibleSections = new Set();
+                                const prevVisible = new Set();
 
-                                const observer = new iframe.contentWindow.IntersectionObserver((entries) => {
-                                    entries.forEach(entry => {
-                                        const sid = entry.target.getAttribute('data-section');
-                                        if (entry.isIntersecting) {
-                                            visibleSections.add(sid);
-                                            // Registrar entrada no viewport
+                                // Calcular quais seções estão visíveis no viewport do navegador
+                                const updateVisibility = () => {
+                                    const iframeRect = iframe.getBoundingClientRect();
+                                    const vpH = window.innerHeight;
+                                    const nowVisible = new Set();
+
+                                    sections.forEach(el => {
+                                        const sid = el.getAttribute('data-section');
+                                        const elTop = iframeRect.top + el.offsetTop;
+                                        const elBottom = elTop + el.offsetHeight;
+
+                                        if (elBottom > 0 && elTop < vpH) {
+                                            nowVisible.add(sid);
                                             if (!sectionDataRef.current[sid]) {
                                                 sectionDataRef.current[sid] = {
                                                     tempo: 0, entradas: 0,
-                                                    nome: entry.target.getAttribute('data-section-nome') || '',
+                                                    nome: el.getAttribute('data-section-nome') || '',
                                                 };
                                             }
-                                            sectionDataRef.current[sid].entradas++;
-                                        } else {
-                                            visibleSections.delete(sid);
+                                            // Contar entrada apenas na transição invisível→visível
+                                            if (!prevVisible.has(sid)) {
+                                                sectionDataRef.current[sid].entradas++;
+                                            }
                                         }
                                     });
-                                }, { threshold: [0, 0.3] });
 
-                                sections.forEach(el => observer.observe(el));
+                                    visibleSections.clear();
+                                    prevVisible.clear();
+                                    nowVisible.forEach(sid => { visibleSections.add(sid); prevVisible.add(sid); });
+                                };
+
+                                // Throttle via requestAnimationFrame
+                                let scrollRaf = null;
+                                const onScroll = () => {
+                                    if (scrollRaf) return;
+                                    scrollRaf = requestAnimationFrame(() => { updateVisibility(); scrollRaf = null; });
+                                };
+                                window.addEventListener('scroll', onScroll, { passive: true });
+                                window.addEventListener('resize', onScroll, { passive: true });
+                                updateVisibility(); // checagem inicial
 
                                 // Timer de 1s: incrementar tempo das seções visíveis
                                 const sectionTimer = setInterval(() => {
@@ -307,10 +327,11 @@ export default function ProposalPublic({ token }) {
                                     });
                                 }, 1000);
 
-                                // Guardar cleanup no iframe
                                 iframe._sectionCleanup = () => {
                                     clearInterval(sectionTimer);
-                                    observer.disconnect();
+                                    window.removeEventListener('scroll', onScroll);
+                                    window.removeEventListener('resize', onScroll);
+                                    if (scrollRaf) cancelAnimationFrame(scrollRaf);
                                 };
                             }
 

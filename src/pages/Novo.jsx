@@ -1062,6 +1062,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const temVersoes = versoes.length > 1;
     const readOnly = (isLocked && !unlocked) || isSubstituida;
 
+    // ── Autosave ──────────────────────────────────────────────────────────────
+    const [saveStatus, setSaveStatus] = useState('idle'); // idle | dirty | saving | saved | error
+    const autosaveTimerRef = useRef(null);
+    const lastSavedPayloadRef = useRef(null);
+    const isMountedRef = useRef(true);
+
     // Colunas pré-aprovação onde o botão Aprovar fica visível
     const PRE_APPROVE_COLS = ['lead', 'orc', 'env', 'neg'];
 
@@ -1477,25 +1483,91 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const pvComDesconto = Math.max(0, tot.pvFinal - descontoR);
     const somaBlocos = pagamento.blocos.reduce((s, b) => s + (Number(b.percentual) || 0), 0);
 
+    // ── buildSavePayload: monta o objeto de dados para salvar ──
+    const buildSavePayload = () => {
+        const cl = clis.find(c => c.id === parseInt(cid));
+        return {
+            cliente_id: parseInt(cid) || null, cliente_nome: cl?.nome || '—',
+            projeto, numero, data_vencimento: dataVenc || null,
+            ambientes, obs, custo_material: tot.cm, valor_venda: pvComDesconto,
+            status: 'rascunho', taxas: localTaxas, padroes, pagamento,
+            prazo_entrega: prazoEntrega, endereco_obra: enderecoObra, validade_proposta: validadeProposta,
+            ...(unlocked ? { force_unlock: true } : {}),
+        };
+    };
+
+    // ── Autosave: inicializar baseline quando edita orçamento existente ──
+    useEffect(() => {
+        isMountedRef.current = true;
+        if (editOrc?.id) {
+            const timer = setTimeout(() => {
+                lastSavedPayloadRef.current = JSON.stringify(buildSavePayload());
+                setSaveStatus('saved');
+            }, 800);
+            return () => clearTimeout(timer);
+        }
+        return () => { isMountedRef.current = false; };
+    }, [editOrc?.id]);
+
+    // ── Autosave: watch state changes → debounce 5s → save silencioso ──
+    useEffect(() => {
+        if (!editOrc?.id || readOnly) return;
+        if (!lastSavedPayloadRef.current) return; // baseline não inicializado ainda
+
+        const currentPayload = JSON.stringify(buildSavePayload());
+        if (currentPayload === lastSavedPayloadRef.current) return;
+
+        setSaveStatus('dirty');
+
+        if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+
+        autosaveTimerRef.current = setTimeout(async () => {
+            if (!isMountedRef.current) return;
+            const payload = buildSavePayload();
+            const payloadStr = JSON.stringify(payload);
+            if (payloadStr === lastSavedPayloadRef.current) return;
+
+            setSaveStatus('saving');
+            try {
+                await api.put(`/orcamentos/${editOrc.id}`, payload);
+                if (!isMountedRef.current) return;
+                lastSavedPayloadRef.current = payloadStr;
+                setSaveStatus('saved');
+            } catch {
+                if (!isMountedRef.current) return;
+                setSaveStatus('error');
+            }
+        }, 5000);
+
+        return () => { if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current); };
+    }, [cid, projeto, numero, dataVenc, ambientes, obs, padroes, pagamento, localTaxas, prazoEntrega, enderecoObra, validadeProposta, tot.cm, pvComDesconto]);
+
+    // ── beforeunload: avisar se houver alterações não salvas ──
+    useEffect(() => {
+        const handler = (e) => {
+            if (saveStatus === 'dirty' || saveStatus === 'saving') {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+        window.addEventListener('beforeunload', handler);
+        return () => window.removeEventListener('beforeunload', handler);
+    }, [saveStatus]);
+
     const salvar = async () => {
         if (!cid) { notify('Selecione um cliente'); return; }
         if (ambientes.every(a => {
             if (a.tipo === 'manual') return (a.linhas || []).length === 0;
             return a.itens.length === 0 && (a.paineis || []).length === 0 && (a.itensEspeciais || []).length === 0;
         })) { notify('Adicione pelo menos um item'); return; }
-        const cl = clis.find(c => c.id === parseInt(cid));
         try {
-            const data = {
-                cliente_id: parseInt(cid), cliente_nome: cl?.nome || '—',
-                projeto, numero, data_vencimento: dataVenc || null,
-                ambientes, obs, custo_material: tot.cm, valor_venda: pvComDesconto,
-                status: 'rascunho', taxas: localTaxas, padroes, pagamento,
-                prazo_entrega: prazoEntrega, endereco_obra: enderecoObra, validade_proposta: validadeProposta,
-                ...(unlocked ? { force_unlock: true } : {}),
-            };
+            const data = buildSavePayload();
             if (editOrc?.id) await api.put(`/orcamentos/${editOrc.id}`, data);
             else await api.post('/orcamentos', data);
-            if (unlocked) setUnlocked(false); // Re-travar após salvar
+            if (unlocked) setUnlocked(false);
+            lastSavedPayloadRef.current = JSON.stringify(data);
+            setSaveStatus('saved');
+            if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
             notify('Orçamento salvo!'); reload();
         } catch (ex) { notify(ex.error || 'Erro ao salvar'); }
     };
@@ -1747,7 +1819,21 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             <CheckCircle size={16} /> Aprovar
                         </button>
                     )}
-                    {!readOnly && <button onClick={salvar} className={Z.btn}>Salvar</button>}
+                    {!readOnly && (
+                        <div className="flex items-center gap-2">
+                            {editOrc?.id && saveStatus !== 'idle' && (
+                                <span className="text-[11px] font-medium flex items-center gap-1 whitespace-nowrap" style={{
+                                    color: saveStatus === 'saved' ? '#22c55e' : saveStatus === 'saving' ? '#f59e0b' : saveStatus === 'error' ? '#ef4444' : '#94a3b8',
+                                }}>
+                                    {saveStatus === 'saved' && <><CheckCircle size={12} /> Salvo</>}
+                                    {saveStatus === 'saving' && <><RefreshCw size={12} className="animate-spin" /> Salvando...</>}
+                                    {saveStatus === 'dirty' && <><Clock size={12} /> Não salvo</>}
+                                    {saveStatus === 'error' && <><AlertTriangle size={12} /> Erro</>}
+                                </span>
+                            )}
+                            <button onClick={salvar} className={Z.btn}>Salvar</button>
+                        </div>
+                    )}
                     <button onClick={() => nav('orcs')} className={Z.btn2}>← Voltar</button>
                 </div>
             </div>
@@ -2448,7 +2534,21 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     <CheckCircle size={14} /> Aprovar Orçamento
                                 </button>
                             )}
-                            {!readOnly && <button onClick={salvar} className={`${Z.btn} w-full py-2.5 text-xs`}>Salvar Orçamento</button>}
+                            {!readOnly && (
+                                <>
+                                    <button onClick={salvar} className={`${Z.btn} w-full py-2.5 text-xs`}>Salvar Orçamento</button>
+                                    {editOrc?.id && saveStatus !== 'idle' && (
+                                        <div className="text-center text-[10px] font-medium flex items-center justify-center gap-1 mt-1" style={{
+                                            color: saveStatus === 'saved' ? '#22c55e' : saveStatus === 'saving' ? '#f59e0b' : saveStatus === 'error' ? '#ef4444' : '#94a3b8',
+                                        }}>
+                                            {saveStatus === 'saved' && <><CheckCircle size={10} /> Salvo automaticamente</>}
+                                            {saveStatus === 'saving' && <><RefreshCw size={10} className="animate-spin" /> Salvando...</>}
+                                            {saveStatus === 'dirty' && <><Clock size={10} /> Alterações não salvas</>}
+                                            {saveStatus === 'error' && <><AlertTriangle size={10} /> Erro ao salvar</>}
+                                        </div>
+                                    )}
+                                </>
+                            )}
                             <button onClick={async () => {
                                 if (pagamento.blocos.length === 0) {
                                     notify('Defina as condições de pagamento antes de gerar a proposta');
