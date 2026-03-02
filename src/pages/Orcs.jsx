@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { Z, Ic, Modal, tagStyle, tagClass } from '../ui';
 import { R$, KCOLS } from '../engine';
 import api from '../api';
-import { Copy, Download, SortAsc, SortDesc, Filter, AlertTriangle, Calendar, Flame, Eye as EyeIcon, RefreshCw, Share2, Printer, CheckCircle, FileText as FileTextIcon, Link2, Type, ZoomIn, Star, MousePointer } from 'lucide-react';
+import { Copy, Download, SortAsc, SortDesc, Filter, AlertTriangle, Calendar, Flame, Eye as EyeIcon, RefreshCw, Share2, Printer, CheckCircle, FileText as FileTextIcon, Link2, Type, ZoomIn, Star, MousePointer, DollarSign, Search, Zap, CheckCheck } from 'lucide-react';
 
 const dt = (s) => s ? new Date(s + 'Z').toLocaleDateString('pt-BR') : '—';
 const dtHr = (s) => s ? new Date(s + 'Z').toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -772,22 +772,22 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                             if (pctResumo > 50 && pctAmbs < 30) {
                                 perfil = 'Focado no Preço';
                                 perfilCor = '#ef4444';
-                                perfilIcon = '💰';
+                                perfilIcon = <DollarSign size={14} />;
                                 perfilDesc = `${pctResumo}% do tempo no resumo financeiro — cliente pode estar comparando preços`;
                             } else if (pctAmbs > 60) {
                                 perfil = 'Analisou Detalhes';
                                 perfilCor = '#22c55e';
-                                perfilIcon = '🔍';
+                                perfilIcon = <Search size={14} />;
                                 perfilDesc = `${pctAmbs}% do tempo nos ambientes — cliente interessado nos detalhes do projeto`;
                             } else if (tempoTotal < 30) {
                                 perfil = 'Visualização Rápida';
                                 perfilCor = '#f59e0b';
-                                perfilIcon = '⚡';
+                                perfilIcon = <Zap size={14} />;
                                 perfilDesc = `Apenas ${tempoTotal}s na proposta — pode não ter analisado a fundo`;
                             } else {
                                 perfil = 'Análise Equilibrada';
                                 perfilCor = '#3b82f6';
-                                perfilIcon = '✓';
+                                perfilIcon = <CheckCheck size={14} />;
                                 perfilDesc = `${pctAmbs}% nos ambientes, ${pctResumo}% no financeiro — análise balanceada`;
                             }
 
@@ -796,7 +796,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                     {/* Insight comportamental */}
                                     <div className="p-3 rounded-lg" style={{ background: `${perfilCor}08`, border: `1px solid ${perfilCor}20` }}>
                                         <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-sm">{perfilIcon}</span>
+                                            <span style={{ color: perfilCor }}>{perfilIcon}</span>
                                             <span className="text-xs font-bold" style={{ color: perfilCor }}>{perfil}</span>
                                         </div>
                                         <div className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>{perfilDesc}</div>
@@ -828,7 +828,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                 return (
                                                     <div key={i} className="flex items-center gap-2">
                                                         <span className="text-[10px] font-medium w-36 truncate text-right" style={{ color: 'var(--text-secondary)' }}>
-                                                            {isResumo ? `💰 ${s.nome || s.id}` : s.nome || s.id}
+                                                            {isResumo && <DollarSign size={10} className="inline mr-0.5" style={{ verticalAlign: 'middle' }} />}{s.nome || s.id}
                                                         </span>
                                                         <div className="flex-1 h-5 rounded-full overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
                                                             <div className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-1.5"
