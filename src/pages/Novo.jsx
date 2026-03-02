@@ -917,6 +917,75 @@ function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, readOnly }) {
     );
 }
 
+// ── Modal: Cadastro Rápido de Cliente ────────────────────────────────────────
+function QuickClientModal({ onClose, onCreated }) {
+    const [nome, setNome] = useState('');
+    const [tel, setTel] = useState('');
+    const [email, setEmail] = useState('');
+    const [tipo, setTipo] = useState('fisica');
+    const [doc, setDoc] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [err, setErr] = useState('');
+
+    const handleSave = async () => {
+        if (!nome.trim()) { setErr('Nome é obrigatório'); return; }
+        setSaving(true); setErr('');
+        try {
+            const novo = await api.post('/clientes', {
+                nome: nome.trim(), tel: tel.trim(), email: email.trim(),
+                tipo_pessoa: tipo,
+                ...(tipo === 'fisica' ? { cpf: doc.trim() } : { cnpj: doc.trim() }),
+            });
+            onCreated(novo.id);
+        } catch (ex) {
+            setErr(ex.error || 'Erro ao cadastrar');
+            setSaving(false);
+        }
+    };
+
+    return (
+        <Modal title="Cadastro Rápido de Cliente" close={onClose} w={420}>
+            <div className="flex flex-col gap-3">
+                <div>
+                    <label className={Z.lbl}>Nome *</label>
+                    <input value={nome} onChange={e => setNome(e.target.value)} className={Z.inp} placeholder="Nome completo" autoFocus />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <label className={Z.lbl}>Telefone</label>
+                        <input value={tel} onChange={e => setTel(e.target.value)} className={Z.inp} placeholder="(00) 00000-0000" />
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Email</label>
+                        <input value={email} onChange={e => setEmail(e.target.value)} className={Z.inp} placeholder="email@exemplo.com" type="email" />
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <label className={Z.lbl}>Tipo</label>
+                        <select value={tipo} onChange={e => { setTipo(e.target.value); setDoc(''); }} className={Z.inp}>
+                            <option value="fisica">Pessoa Física</option>
+                            <option value="juridica">Pessoa Jurídica</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>{tipo === 'fisica' ? 'CPF' : 'CNPJ'}</label>
+                        <input value={doc} onChange={e => setDoc(e.target.value)} className={Z.inp}
+                            placeholder={tipo === 'fisica' ? '000.000.000-00' : '00.000.000/0000-00'} />
+                    </div>
+                </div>
+                {err && <div className="text-xs text-red-500">{err}</div>}
+                <div className="flex justify-end gap-2 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                    <button onClick={onClose} className={Z.btn2}>Cancelar</button>
+                    <button onClick={handleSave} disabled={saving} className={Z.btn}>
+                        {saving ? <><RefreshCw size={14} className="animate-spin inline mr-1" />Salvando...</> : 'Salvar'}
+                    </button>
+                </div>
+            </div>
+        </Modal>
+    );
+}
+
 // ── Página principal ─────────────────────────────────────────────────────────
 export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, notify }) {
     const [cid, sc] = useState(editOrc?.cliente_id || '');
@@ -1061,6 +1130,9 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const isVersao = editOrc?.tipo === 'versao';
     const temVersoes = versoes.length > 1;
     const readOnly = (isLocked && !unlocked) || isSubstituida;
+
+    // ── Cadastro rápido de cliente ───────────────────────────────────────────
+    const [showQuickClient, setShowQuickClient] = useState(false);
 
     // ── Autosave ──────────────────────────────────────────────────────────────
     const [saveStatus, setSaveStatus] = useState('idle'); // idle | dirty | saving | saved | error
@@ -1845,7 +1917,23 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     <div className={Z.card}>
                         <h2 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}><Settings size={14} className="inline mr-1" />Dados do Projeto</h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                            <div><label className={Z.lbl}>Cliente *</label><select value={cid} onChange={e => sc(e.target.value)} className={Z.inp} disabled={readOnly}><option value="">Selecione...</option>{clis.map(c => <option key={c.id} value={c.id}>{c.nome}{c.arq ? ` (${c.arq})` : ''}</option>)}</select></div>
+                            <div>
+                                <label className={Z.lbl}>Cliente *</label>
+                                <div className="flex gap-1">
+                                    <select value={cid} onChange={e => sc(e.target.value)} className={`${Z.inp} flex-1`} disabled={readOnly}>
+                                        <option value="">Selecione...</option>
+                                        {clis.map(c => <option key={c.id} value={c.id}>{c.nome}{c.arq ? ` (${c.arq})` : ''}</option>)}
+                                    </select>
+                                    {!readOnly && (
+                                        <button onClick={() => setShowQuickClient(true)}
+                                            className="shrink-0 px-2.5 rounded-lg cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
+                                            style={{ border: '1px solid var(--border)', color: 'var(--primary)' }}
+                                            title="Cadastrar novo cliente">
+                                            <Plus size={16} />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
                             <div><label className={Z.lbl}>Nome do Projeto</label><input value={projeto} onChange={e => setProjeto(e.target.value)} placeholder="Ex: Cozinha Planejada" className={Z.inp} disabled={readOnly} /></div>
                             <div><label className={Z.lbl}>Nº da Proposta</label><input value={numero} onChange={e => setNumero(e.target.value)} placeholder="Auto" className={Z.inp} disabled={readOnly} /></div>
                             <div><label className={Z.lbl}>Válida até</label><input type="date" value={dataVenc} onChange={e => setDataVenc(e.target.value)} className={Z.inp} disabled={readOnly} /></div>
@@ -3141,6 +3229,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* ── Modal: Cadastro Rápido de Cliente ── */}
+            {showQuickClient && (
+                <QuickClientModal
+                    onClose={() => setShowQuickClient(false)}
+                    onCreated={(novoId) => { sc(String(novoId)); reload(); setShowQuickClient(false); notify('Cliente cadastrado'); }}
+                />
             )}
 
             {/* ── Modal: Salvar como Template ── */}

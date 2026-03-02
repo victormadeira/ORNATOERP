@@ -1128,9 +1128,9 @@ export default function Cli({ clis, reload, notify, nav }) {
                     {/* Tabs */}
                     <div className="flex gap-1 mb-5 p-1 rounded-xl" style={{ background: 'var(--bg-muted)' }}>
                         {[
-                            { id: 'basico', label: 'Dados Básicos', icon: <Ic.Usr /> },
-                            { id: 'endereco', label: 'Endereço', icon: <Ic.MapPin /> },
-                            { id: 'obs', label: 'Observações', icon: <Ic.File /> },
+                            { id: 'basico', label: 'Dados Básicos', icon: <User size={14} /> },
+                            { id: 'endereco', label: 'Endereço', icon: <MapPin size={14} /> },
+                            { id: 'obs', label: 'Observações', icon: <FileText size={14} /> },
                         ].map(t => (
                             <button key={t.id} onClick={() => setTab(t.id)}
                                 className={`flex-1 flex items-center justify-center gap-1.5 ${tabCls(t.id)}`}
@@ -1146,9 +1146,9 @@ export default function Cli({ clis, reload, notify, nav }) {
                             <div className="flex gap-3">
                                 {['fisica', 'juridica'].map(tp => (
                                     <button key={tp} onClick={() => sf({ ...f, tipo_pessoa: tp })}
-                                        className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${f.tipo_pessoa === tp ? 'border-[var(--primary)] text-white' : 'border-[var(--border)]'}`}
+                                        className={`flex-1 py-2.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${f.tipo_pessoa === tp ? 'border-[var(--primary)] text-white' : 'border-[var(--border)]'}`}
                                         style={f.tipo_pessoa === tp ? { background: 'var(--primary)' } : { color: 'var(--text-secondary)' }}>
-                                        {tp === 'fisica' ? <><Ic.Usr /> Pessoa Física</> : <><Ic.Building /> Pessoa Jurídica</>}
+                                        {tp === 'fisica' ? <><User size={14} /> Pessoa Física</> : <><Building2 size={14} /> Pessoa Jurídica</>}
                                     </button>
                                 ))}
                             </div>
