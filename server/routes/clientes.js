@@ -316,6 +316,9 @@ router.delete('/:id', requireAuth, (req, res) => {
                 db.prepare('DELETE FROM apontamentos_horas WHERE projeto_id = ?').run(p.id);
                 db.prepare('DELETE FROM etapas_projeto WHERE projeto_id = ?').run(p.id);
                 db.prepare('DELETE FROM ocorrencias_projeto WHERE projeto_id = ?').run(p.id);
+                db.prepare('DELETE FROM entrega_fotos WHERE projeto_id = ?').run(p.id);
+                db.prepare('DELETE FROM projeto_arquivos WHERE projeto_id = ?').run(p.id);
+                db.prepare("DELETE FROM notificacoes WHERE referencia_id = ? AND referencia_tipo = 'projeto'").run(p.id);
             }
             db.prepare('DELETE FROM projetos WHERE cliente_id = ?').run(id);
             // Orçamentos vinculados
