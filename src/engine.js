@@ -79,7 +79,8 @@ function rCalc(expr, d) {
             e = e.replace(new RegExp(`\\b${k}\\b`, "g"), String(d[k] || 0));
         }
         if (!SAFE_EXPR.test(e)) return 0;
-        return Function('"use strict";return(' + e + ')')();
+        const r = Function('"use strict";return(' + e + ')')();
+        return Number.isFinite(r) ? r : 0;
     } catch (_) { return 0; }
 }
 
@@ -307,7 +308,8 @@ function rCalcV2(expr, d) {
             }
         }
         if (!SAFE_EXPR.test(e)) return 0;
-        return Function('"use strict";return(' + e + ')')() || 0;
+        const r = Function('"use strict";return(' + e + ')')() || 0;
+        return Number.isFinite(r) ? r : 0;
     } catch (_) { return 0; }
 }
 

@@ -1227,7 +1227,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         setAmbientes([...ambientes, base]);
         setExpandedAmb(base.id);
     };
-    const removeAmb = id => setAmbientes(p => p.filter(a => a.id !== id));
+    const removeAmb = id => {
+        const amb = ambientes.find(a => a.id === id);
+        const nItens = (amb?.itens?.length || 0) + (amb?.paineis?.length || 0) + (amb?.itensEspeciais?.length || 0);
+        if (nItens > 0 && !confirm(`Remover "${amb?.nome || 'Ambiente'}" com ${nItens} item(ns)?`)) return;
+        setAmbientes(p => p.filter(a => a.id !== id));
+    };
 
     // ── Fase 5: Duplicar ambiente (deep clone com novos IDs) ──
     const duplicarAmbiente = (ambId) => {
@@ -1431,6 +1436,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     const res = calcItemV2(item.caixaDef, item.dims, item.mats, item.componentes.map(ci => ({
                         compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},
                         matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
+                        dimL: ci.dimL || 0, dimA: ci.dimA || 0, dimP: ci.dimP || 0,
+                        matIntInst: ci.matIntInst || '', matExtInst: ci.matExtInst || '',
                     })), bib, padroes);
                     const coef = item.caixaDef?.coef || 0;
                     const qtd = item.qtd || 1;
@@ -1485,7 +1492,9 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         const mkC = taxas.mk_chapas ?? 1.45;
                         const mkF = taxas.mk_fita ?? 1.45;
                         const mkMdo = taxas.mk_mdo ?? 0.80;
-                        ambCP += chapasCoef * mkC + fitaCoef * mkF + custoComCoef * mkMdo;
+                        const painelCP = chapasCoef * mkC + fitaCoef * mkF + custoComCoef * mkMdo;
+                        ambCP += painelCP;
+                        itemCostList.push({ itemId: painel.id, ambId: amb.id, custoItem: custoComCoef, itemCP: painelCP, coef: 0, ajuste: null });
                     }
                 } catch (_) { }
             });
@@ -1494,10 +1503,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 try {
                     const res = calcItemEspecial(ie, bibItems);
                     if (res.custo > 0) {
-                        const mkEsp = taxas.mk_acabamentos ?? 1.30;
+                        const mkEsp = taxas.mk_ferragens ?? 1.15;
                         cm += res.custo; ambCm += res.custo;
-                        // CP: custo × markup de acabamentos (tratamos como compra pronta)
-                        ambCP += res.custo * mkEsp;
+                        // Itens especiais = comprados prontos → categoria ferragens (sem coef dificuldade)
+                        totFerragens += res.custo;
+                        const ieCP = res.custo * mkEsp;
+                        ambCP += ieCP;
+                        itemCostList.push({ itemId: ie.id, ambId: amb.id, custoItem: res.custo, itemCP: ieCP, coef: 0, ajuste: null });
                     }
                 } catch (_) { }
             });
@@ -1576,7 +1588,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 lastSavedPayloadRef.current = JSON.stringify(buildSavePayload());
                 setSaveStatus('saved');
             }, 800);
-            return () => clearTimeout(timer);
+            return () => { clearTimeout(timer); isMountedRef.current = false; };
         }
         return () => { isMountedRef.current = false; };
     }, [editOrc?.id]);
@@ -2378,7 +2390,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     {ambientes.map(a => (
                                         <div key={a.id} className="flex justify-between text-xs">
                                             <span className="truncate" style={{ color: 'var(--text-muted)' }}>{a.nome}</span>
-                                            <span style={{ color: 'var(--text-secondary)' }}>{R$(tot.ambTotals.find(x => x.id === a.id)?.custo || 0)}</span>
+                                            <span style={{ color: 'var(--text-secondary)' }}>{R$((() => {
+                                                const d = tot.ambTotals.find(x => x.id === a.id);
+                                                if (!d) return 0;
+                                                if (d.manual) return d.custo || 0;
+                                                return tot.totalItemCP > 0 ? (d.cp || 0) / tot.totalItemCP * tot.pv : (d.custo || 0);
+                                            })())}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -2824,7 +2841,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         <div className="flex rounded overflow-hidden border flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
                             {['%', 'R$'].map(t => (
                                 <button key={t}
-                                    onClick={() => setPagamento(p => ({ ...p, desconto: { tipo: t, valor: 0 } }))}
+                                    onClick={() => setPagamento(p => ({ ...p, desconto: { ...p.desconto, tipo: t } }))}
                                     className="px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer"
                                     style={pagamento.desconto.tipo === t
                                         ? { background: 'var(--primary)', color: '#fff' }

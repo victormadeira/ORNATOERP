@@ -398,15 +398,15 @@ router.post('/:id/nova-versao', requireAuth, (req, res) => {
     const rootId = source.tipo === 'versao' ? source.parent_orc_id : source.id;
     const root = db.prepare('SELECT numero FROM orcamentos WHERE id = ?').get(rootId);
 
-    // Calcular próxima versão
-    const maxRow = db.prepare(`
-        SELECT MAX(versao) as mv FROM orcamentos
-        WHERE id = ? OR (parent_orc_id = ? AND tipo = 'versao')
-    `).get(rootId, rootId);
-    const novaVersao = (maxRow?.mv || 1) + 1;
-    const novoNumero = `${root.numero}-R${novaVersao}`;
-
     const criarVersao = db.transaction(() => {
+        // Calcular próxima versão DENTRO da transaction para evitar race condition
+        const maxRow = db.prepare(`
+            SELECT MAX(versao) as mv FROM orcamentos
+            WHERE id = ? OR (parent_orc_id = ? AND tipo = 'versao')
+        `).get(rootId, rootId);
+        const novaVersao = (maxRow?.mv || 1) + 1;
+        const novoNumero = `${root.numero}-R${novaVersao}`;
+
         // Marcar todas as versões da cadeia como substituídas
         db.prepare('UPDATE orcamentos SET versao_ativa = 0 WHERE id = ?').run(rootId);
         db.prepare("UPDATE orcamentos SET versao_ativa = 0 WHERE parent_orc_id = ? AND tipo = 'versao'").run(rootId);
@@ -432,11 +432,11 @@ router.post('/:id/nova-versao', requireAuth, (req, res) => {
             SELECT id FROM orcamentos WHERE parent_orc_id = ? AND tipo = 'versao'
         )`).run(newId, rootId, rootId);
 
-        return newId;
+        return { newId, novaVersao };
     });
 
     try {
-        const newId = criarVersao();
+        const { newId, novaVersao } = criarVersao();
         const orc = db.prepare('SELECT * FROM orcamentos WHERE id = ?').get(newId);
         parseOrcData(orc);
 
@@ -586,6 +586,10 @@ router.post('/', requireAuth, (req, res) => {
     const { cliente_id, cliente_nome, projeto, ambiente, ambientes, mods, taxas, padroes, pagamento, obs, custo_material, valor_venda, status, kb_col, numero, data_vencimento, prazo_entrega, endereco_obra, validade_proposta } = req.body;
     if (!cliente_id) return res.status(400).json({ error: 'Cliente obrigatório' });
 
+    // Validar tipos numéricos
+    const cm = Number(custo_material) || 0;
+    const vv = Number(valor_venda) || 0;
+
     // Store everything in mods_json — new format includes ambientes + taxas + padroes + pagamento + campos proposta
     const modsJson = ambientes
         ? JSON.stringify({ ambientes, taxas: taxas || null, projeto: projeto || '', padroes: padroes || null, pagamento: pagamento || null, prazo_entrega: prazo_entrega || '', endereco_obra: endereco_obra || '', validade_proposta: validade_proposta || '' })
@@ -596,7 +600,7 @@ router.post('/', requireAuth, (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
         req.user.id, cliente_id, cliente_nome || '', projeto || ambiente || '',
-        modsJson, obs || '', custo_material || 0, valor_venda || 0,
+        modsJson, obs || '', cm, vv,
         status || 'rascunho', kb_col || 'lead',
         numero || '', data_vencimento || null
     );
@@ -662,8 +666,8 @@ router.put('/:id', requireAuth, (req, res) => {
         projeto || ambiente || existing.ambiente,
         modsJson,
         obs ?? existing.obs,
-        custo_material ?? existing.custo_material,
-        valor_venda ?? existing.valor_venda,
+        custo_material != null ? Number(custo_material) || 0 : existing.custo_material,
+        valor_venda != null ? Number(valor_venda) || 0 : existing.valor_venda,
         status ?? existing.status,
         kb_col ?? existing.kb_col,
         numero ?? existing.numero,
@@ -671,26 +675,7 @@ router.put('/:id', requireAuth, (req, res) => {
         id
     );
 
-    // ── Fase 7: Atualizar uso_count dos materiais utilizados ──
-    try {
-        if (ambientes && Array.isArray(ambientes)) {
-            const materialCods = new Set();
-            for (const amb of ambientes) {
-                for (const item of (amb.itens || [])) {
-                    if (item.mats?.matInt) materialCods.add(item.mats.matInt);
-                    if (item.mats?.matExt) materialCods.add(item.mats.matExt);
-                    if (item.mats?.matFundo) materialCods.add(item.mats.matFundo);
-                    for (const comp of (item.componentes || [])) {
-                        if (comp.matExtComp) materialCods.add(comp.matExtComp);
-                    }
-                }
-            }
-            if (materialCods.size > 0) {
-                const stmtUso = db.prepare('UPDATE biblioteca SET uso_count = uso_count + 1 WHERE cod = ?');
-                for (const cod of materialCods) { try { stmtUso.run(cod); } catch(_) {} }
-            }
-        }
-    } catch (_) {}
+    // uso_count atualizado apenas na criação (POST), não a cada save
 
     const orc = db.prepare('SELECT * FROM orcamentos WHERE id = ?').get(id);
     parseOrcData(orc);
