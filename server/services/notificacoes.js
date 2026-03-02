@@ -41,6 +41,20 @@ export function logActivity(user_id, user_nome, acao, descricao, referencia_id, 
  * - Cria alertas de estoque baixo
  */
 export function syncFinancialNotifications() {
+    // ── Cleanup: desativar notificações duplicadas (manter só a mais recente por tipo+referência)
+    // Isso evita pile-up de notificações sobre o mesmo item ao longo dos dias
+    db.prepare(`
+        UPDATE notificacoes SET ativo = 0
+        WHERE tipo IN ('financeiro_vencido', 'financeiro_proximo', 'pagar_vencido', 'pagar_proximo', 'estoque_baixo')
+        AND ativo = 1
+        AND id NOT IN (
+            SELECT MAX(id) FROM notificacoes
+            WHERE tipo IN ('financeiro_vencido', 'financeiro_proximo', 'pagar_vencido', 'pagar_proximo', 'estoque_baixo')
+            AND ativo = 1
+            GROUP BY tipo, referencia_id, referencia_tipo
+        )
+    `).run();
+
     // 1. Desativar notificações de contas que já foram pagas ou não são mais pendentes
     db.prepare(`
         UPDATE notificacoes SET ativo = 0
@@ -65,7 +79,7 @@ export function syncFinancialNotifications() {
         for (const p of promover) stmtUp.run('financeiro_vencido', p.id);
     }
 
-    // 3. Criar notificações para contas vencidas sem notificação ativa
+    // 3. Criar notificações para contas vencidas (máx 1 por dia por conta)
     const vencidas = db.prepare(`
         SELECT cr.id, cr.descricao, cr.valor, cr.data_vencimento, p.nome as projeto_nome
         FROM contas_receber cr
@@ -74,7 +88,8 @@ export function syncFinancialNotifications() {
         AND cr.data_vencimento < date('now')
         AND cr.id NOT IN (
             SELECT referencia_id FROM notificacoes
-            WHERE tipo = 'financeiro_vencido' AND referencia_tipo = 'contas_receber' AND ativo = 1
+            WHERE tipo = 'financeiro_vencido' AND referencia_tipo = 'contas_receber'
+            AND criado_em > datetime('now', '-24 hours')
         )
     `).all();
 
@@ -93,7 +108,7 @@ export function syncFinancialNotifications() {
         );
     }
 
-    // 4. Criar notificações para contas próximas (7 dias)
+    // 4. Criar notificações para contas próximas (7 dias, máx 1 por dia por conta)
     const proximas = db.prepare(`
         SELECT cr.id, cr.descricao, cr.valor, cr.data_vencimento, p.nome as projeto_nome
         FROM contas_receber cr
@@ -103,7 +118,8 @@ export function syncFinancialNotifications() {
         AND cr.data_vencimento <= date('now', '+7 days')
         AND cr.id NOT IN (
             SELECT referencia_id FROM notificacoes
-            WHERE tipo IN ('financeiro_vencido', 'financeiro_proximo') AND referencia_tipo = 'contas_receber' AND ativo = 1
+            WHERE tipo IN ('financeiro_vencido', 'financeiro_proximo') AND referencia_tipo = 'contas_receber'
+            AND criado_em > datetime('now', '-24 hours')
         )
     `).all();
 
@@ -143,7 +159,7 @@ export function syncFinancialNotifications() {
         for (const p of promoverPagar) stmtUpPagar.run('pagar_vencido', p.id);
     }
 
-    // 7. Criar notificações para contas a pagar vencidas sem alerta ativo
+    // 7. Criar notificações para contas a pagar vencidas (máx 1 por dia por conta)
     const vencidasPagar = db.prepare(`
         SELECT cp.id, cp.descricao, cp.valor, cp.data_vencimento, cp.fornecedor,
                COALESCE(p.nome, '') as projeto_nome
@@ -153,7 +169,8 @@ export function syncFinancialNotifications() {
         AND cp.data_vencimento < date('now')
         AND cp.id NOT IN (
             SELECT referencia_id FROM notificacoes
-            WHERE tipo = 'pagar_vencido' AND referencia_tipo = 'contas_pagar' AND ativo = 1
+            WHERE tipo = 'pagar_vencido' AND referencia_tipo = 'contas_pagar'
+            AND criado_em > datetime('now', '-24 hours')
         )
     `).all();
 
@@ -173,7 +190,7 @@ export function syncFinancialNotifications() {
         );
     }
 
-    // 8. Criar notificações para contas a pagar próximas (7 dias)
+    // 8. Criar notificações para contas a pagar próximas (7 dias, máx 1 por dia por conta)
     const proximasPagar = db.prepare(`
         SELECT cp.id, cp.descricao, cp.valor, cp.data_vencimento, cp.fornecedor,
                COALESCE(p.nome, '') as projeto_nome
@@ -184,7 +201,8 @@ export function syncFinancialNotifications() {
         AND cp.data_vencimento <= date('now', '+7 days')
         AND cp.id NOT IN (
             SELECT referencia_id FROM notificacoes
-            WHERE tipo IN ('pagar_vencido', 'pagar_proximo') AND referencia_tipo = 'contas_pagar' AND ativo = 1
+            WHERE tipo IN ('pagar_vencido', 'pagar_proximo') AND referencia_tipo = 'contas_pagar'
+            AND criado_em > datetime('now', '-24 hours')
         )
     `).all();
 
@@ -201,7 +219,7 @@ export function syncFinancialNotifications() {
 
     // ─── ESTOQUE ─────────────────────────────────────────────────
 
-    // 9. Alertas de estoque baixo
+    // 9. Alertas de estoque baixo (máx 1 por dia por item)
     const estoqueBaixo = db.prepare(`
         SELECT e.material_id, b.nome, e.quantidade, e.quantidade_minima
         FROM estoque e
@@ -209,7 +227,8 @@ export function syncFinancialNotifications() {
         WHERE e.quantidade < e.quantidade_minima AND e.quantidade_minima > 0
         AND e.material_id NOT IN (
             SELECT referencia_id FROM notificacoes
-            WHERE tipo = 'estoque_baixo' AND referencia_tipo = 'estoque' AND ativo = 1
+            WHERE tipo = 'estoque_baixo' AND referencia_tipo = 'estoque'
+            AND criado_em > datetime('now', '-24 hours')
         )
     `).all();
 

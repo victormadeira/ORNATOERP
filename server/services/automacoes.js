@@ -183,15 +183,30 @@ function gerarContasRecorrentes() {
 
 function gerarNotificacoesInteligentes() {
     try {
-        const hoje = new Date().toISOString().slice(0, 10);
+        // ── Cleanup: desativar notificações duplicadas antigas (manter só a mais recente por tipo+referência)
+        // Isso evita pile-up de notificações sobre o mesmo item ao longo dos dias
+        db.prepare(`
+            UPDATE notificacoes SET ativo = 0
+            WHERE tipo IN ('financeiro_vencido', 'financeiro_proximo', 'pagar_vencido', 'pagar_proximo', 'etapa_atrasada', 'orcamento_parado')
+            AND ativo = 1
+            AND id NOT IN (
+                SELECT MAX(id) FROM notificacoes
+                WHERE tipo IN ('financeiro_vencido', 'financeiro_proximo', 'pagar_vencido', 'pagar_proximo', 'etapa_atrasada', 'orcamento_parado')
+                AND ativo = 1
+                GROUP BY tipo, referencia_id, referencia_tipo
+            )
+        `).run();
 
-        // 1. Contas a pagar vencendo amanhã
+        // 1. Contas a pagar vencendo amanhã (máx 1 por dia por conta — cooldown 24h)
         const amanha = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
         const contasAmanha = db.prepare(`
             SELECT id, descricao, valor FROM contas_pagar
             WHERE status = 'pendente' AND data_vencimento = ?
-            AND id NOT IN (SELECT referencia_id FROM notificacoes WHERE tipo = 'pagar_proximo' AND date(criado_em) = ?)
-        `).all(amanha, hoje);
+            AND id NOT IN (
+                SELECT referencia_id FROM notificacoes
+                WHERE tipo = 'pagar_proximo' AND criado_em > datetime('now', '-24 hours')
+            )
+        `).all(amanha);
         for (const c of contasAmanha) {
             createNotification('pagar_proximo',
                 `Conta vence amanhã: ${c.descricao}`,
@@ -199,12 +214,15 @@ function gerarNotificacoesInteligentes() {
                 c.id, 'contas_pagar');
         }
 
-        // 2. Contas a receber vencidas (não pagas)
+        // 2. Contas a receber vencidas — não pagas (máx 1 por dia por conta — cooldown 24h)
         const receberVencidas = db.prepare(`
             SELECT id, descricao, valor, data_vencimento FROM contas_receber
-            WHERE status = 'pendente' AND data_vencimento < ?
-            AND id NOT IN (SELECT referencia_id FROM notificacoes WHERE tipo = 'financeiro_vencido' AND date(criado_em) = ?)
-        `).all(hoje, hoje);
+            WHERE status = 'pendente' AND data_vencimento < date('now')
+            AND id NOT IN (
+                SELECT referencia_id FROM notificacoes
+                WHERE tipo = 'financeiro_vencido' AND criado_em > datetime('now', '-24 hours')
+            )
+        `).all();
         for (const c of receberVencidas) {
             createNotification('financeiro_vencido',
                 `Recebível vencido: ${c.descricao}`,
@@ -212,14 +230,17 @@ function gerarNotificacoesInteligentes() {
                 c.id, 'contas_receber');
         }
 
-        // 3. Orçamentos parados há mais de 7 dias (sem mudança de status)
+        // 3. Orçamentos parados há mais de 7 dias (1 a cada 7 dias por orçamento)
         const orcParados = db.prepare(`
             SELECT id, numero, cliente_nome, kb_col FROM orcamentos
             WHERE status NOT IN ('cancelado', 'aprovado')
             AND kb_col NOT IN ('ok', 'perdido', 'arq')
-            AND julianday(?) - julianday(COALESCE(atualizado_em, criado_em)) > 7
-            AND id NOT IN (SELECT referencia_id FROM notificacoes WHERE tipo = 'orcamento_parado' AND date(criado_em) >= date(?, '-7 days'))
-        `).all(hoje, hoje);
+            AND julianday('now') - julianday(COALESCE(atualizado_em, criado_em)) > 7
+            AND id NOT IN (
+                SELECT referencia_id FROM notificacoes
+                WHERE tipo = 'orcamento_parado' AND criado_em > datetime('now', '-7 days')
+            )
+        `).all();
         for (const o of orcParados) {
             createNotification('orcamento_parado',
                 `Orçamento #${o.numero} parado há +7 dias`,
@@ -227,16 +248,19 @@ function gerarNotificacoesInteligentes() {
                 o.id, 'orcamento');
         }
 
-        // 4. Etapas de projeto atrasadas
+        // 4. Etapas de projeto atrasadas (máx 1 por dia por etapa — cooldown 24h)
         const etapasAtrasadas = db.prepare(`
             SELECT e.id, e.nome as etapa_nome, e.data_vencimento, p.id as projeto_id, p.nome as projeto_nome
             FROM etapas_projeto e
             JOIN projetos p ON p.id = e.projeto_id
             WHERE e.status NOT IN ('concluida')
-            AND e.data_vencimento < ?
+            AND e.data_vencimento < date('now')
             AND p.status NOT IN ('concluido', 'suspenso')
-            AND e.id NOT IN (SELECT referencia_id FROM notificacoes WHERE tipo = 'etapa_atrasada' AND date(criado_em) = ?)
-        `).all(hoje, hoje);
+            AND e.id NOT IN (
+                SELECT referencia_id FROM notificacoes
+                WHERE tipo = 'etapa_atrasada' AND criado_em > datetime('now', '-24 hours')
+            )
+        `).all();
         for (const e of etapasAtrasadas) {
             createNotification('etapa_atrasada',
                 `Etapa atrasada: ${e.etapa_nome}`,
@@ -244,13 +268,16 @@ function gerarNotificacoesInteligentes() {
                 e.projeto_id, 'projeto');
         }
 
-        // 5. Aniversário de cliente hoje
-        const mesdia = hoje.slice(5); // MM-DD
+        // 5. Aniversário de cliente hoje (1 por dia por cliente)
+        const mesdia = new Date().toISOString().slice(5, 10); // MM-DD
         const aniversariantes = db.prepare(`
             SELECT id, nome, tel FROM clientes
             WHERE substr(data_nascimento, 6) = ?
-            AND id NOT IN (SELECT referencia_id FROM notificacoes WHERE tipo = 'cliente_aniversario' AND date(criado_em) = ?)
-        `).all(mesdia, hoje);
+            AND id NOT IN (
+                SELECT referencia_id FROM notificacoes
+                WHERE tipo = 'cliente_aniversario' AND criado_em > datetime('now', '-24 hours')
+            )
+        `).all(mesdia);
         for (const c of aniversariantes) {
             createNotification('cliente_aniversario',
                 `Aniversário: ${c.nome}`,
