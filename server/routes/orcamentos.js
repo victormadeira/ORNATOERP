@@ -22,6 +22,7 @@ function parseOrcData(row) {
             row.prazo_entrega = data.prazo_entrega || '';
             row.endereco_obra = data.endereco_obra || '';
             row.validade_proposta = data.validade_proposta || '';
+            row.validade_dias = data.validade_dias || parseInt(data.validade_proposta) || 15;
             row.mods = []; // compat
         } else if (Array.isArray(data)) {
             // Legacy format: mods_json was just an array of modules
@@ -583,7 +584,7 @@ router.post('/:id/duplicar', requireAuth, (req, res) => {
 // POST /api/orcamentos
 // ═══════════════════════════════════════════════════════
 router.post('/', requireAuth, (req, res) => {
-    const { cliente_id, cliente_nome, projeto, ambiente, ambientes, mods, taxas, padroes, pagamento, obs, custo_material, valor_venda, status, kb_col, numero, data_vencimento, prazo_entrega, endereco_obra, validade_proposta } = req.body;
+    const { cliente_id, cliente_nome, projeto, ambiente, ambientes, mods, taxas, padroes, pagamento, obs, custo_material, valor_venda, status, kb_col, numero, data_vencimento, prazo_entrega, endereco_obra, validade_proposta, validade_dias } = req.body;
     if (!cliente_id) return res.status(400).json({ error: 'Cliente obrigatório' });
 
     // Validar tipos numéricos
@@ -592,7 +593,7 @@ router.post('/', requireAuth, (req, res) => {
 
     // Store everything in mods_json — new format includes ambientes + taxas + padroes + pagamento + campos proposta
     const modsJson = ambientes
-        ? JSON.stringify({ ambientes, taxas: taxas || null, projeto: projeto || '', padroes: padroes || null, pagamento: pagamento || null, prazo_entrega: prazo_entrega || '', endereco_obra: endereco_obra || '', validade_proposta: validade_proposta || '' })
+        ? JSON.stringify({ ambientes, taxas: taxas || null, projeto: projeto || '', padroes: padroes || null, pagamento: pagamento || null, prazo_entrega: prazo_entrega || '', endereco_obra: endereco_obra || '', validade_proposta: validade_proposta || '', validade_dias: validade_dias || 15 })
         : JSON.stringify(mods || []);
 
     const result = db.prepare(`
@@ -642,11 +643,11 @@ router.put('/:id', requireAuth, (req, res) => {
         return res.status(403).json({ error: 'Versão substituída — somente leitura', substituida: true });
     }
 
-    const { cliente_id, cliente_nome, projeto, ambiente, ambientes, mods, taxas, padroes, pagamento, obs, custo_material, valor_venda, status, kb_col, numero, data_vencimento, prazo_entrega, endereco_obra, validade_proposta } = req.body;
+    const { cliente_id, cliente_nome, projeto, ambiente, ambientes, mods, taxas, padroes, pagamento, obs, custo_material, valor_venda, status, kb_col, numero, data_vencimento, prazo_entrega, endereco_obra, validade_proposta, validade_dias } = req.body;
 
     let modsJson;
     if (ambientes) {
-        modsJson = JSON.stringify({ ambientes, taxas: taxas || null, projeto: projeto || '', padroes: padroes || null, pagamento: pagamento || null, prazo_entrega: prazo_entrega || '', endereco_obra: endereco_obra || '', validade_proposta: validade_proposta || '' });
+        modsJson = JSON.stringify({ ambientes, taxas: taxas || null, projeto: projeto || '', padroes: padroes || null, pagamento: pagamento || null, prazo_entrega: prazo_entrega || '', endereco_obra: endereco_obra || '', validade_proposta: validade_proposta || '', validade_dias: validade_dias || 15 });
     } else if (mods) {
         modsJson = JSON.stringify(mods);
     } else {
@@ -700,26 +701,26 @@ router.delete('/:id', requireAuth, (req, res) => {
         return res.status(400).json({ error: 'Este orçamento possui um projeto vinculado. Remova o projeto antes de excluir o orçamento.' });
     }
 
-    // Limpar registros dependentes em ordem
+    // Limpar registros dependentes em ordem (respeitar FKs)
+    const cleanupOrc = (oid) => {
+        // section_views depende de proposta_acessos — deletar primeiro
+        db.prepare('DELETE FROM proposta_section_views WHERE orc_id = ?').run(oid);
+        db.prepare('DELETE FROM proposta_acessos WHERE orc_id = ?').run(oid);
+        db.prepare('DELETE FROM portal_tokens WHERE orc_id = ?').run(oid);
+        db.prepare('DELETE FROM ia_followups WHERE orc_id = ?').run(oid);
+        db.prepare('DELETE FROM contas_receber WHERE orc_id = ? AND projeto_id IS NULL').run(oid);
+    };
+
     const deleteRelated = db.transaction(() => {
-        // 1. Acessos de proposta
-        db.prepare('DELETE FROM proposta_acessos WHERE orc_id = ?').run(id);
-        // 2. Tokens do portal
-        db.prepare('DELETE FROM portal_tokens WHERE orc_id = ?').run(id);
-        // 3. Follow-ups da IA
-        db.prepare('DELETE FROM ia_followups WHERE orc_id = ?').run(id);
-        // 4. Contas a receber sem projeto (se tiver projeto, já bloqueou acima)
-        db.prepare('DELETE FROM contas_receber WHERE orc_id = ? AND projeto_id IS NULL').run(id);
-        // 5. Aditivos filhos (e seus dependentes)
+        // 1. Versões e aditivos filhos (e seus dependentes)
         const filhos = db.prepare('SELECT id FROM orcamentos WHERE parent_orc_id = ?').all(id);
         for (const f of filhos) {
-            db.prepare('DELETE FROM proposta_acessos WHERE orc_id = ?').run(f.id);
-            db.prepare('DELETE FROM portal_tokens WHERE orc_id = ?').run(f.id);
-            db.prepare('DELETE FROM ia_followups WHERE orc_id = ?').run(f.id);
-            db.prepare('DELETE FROM contas_receber WHERE orc_id = ? AND projeto_id IS NULL').run(f.id);
+            cleanupOrc(f.id);
             db.prepare('DELETE FROM orcamentos WHERE id = ?').run(f.id);
         }
-        // 6. O orçamento em si
+        // 2. Limpar dependências do orçamento principal
+        cleanupOrc(id);
+        // 3. O orçamento em si
         db.prepare('DELETE FROM orcamentos WHERE id = ?').run(id);
     });
 

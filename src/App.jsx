@@ -1,25 +1,33 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { useAuth } from './auth';
 import api from './api';
 import { Ic, Z } from './ui';
 import { AlertTriangle, Clock, CheckCircle2, Folder, BarChart2, AlertCircle, DollarSign, Calendar, Bell, MessageCircle, Camera, Gift, FileText, ClipboardList, Eye, Search, RefreshCw, Share2, Printer } from 'lucide-react';
 import LoginPage from './pages/Login';
 import Dash from './pages/Dash';
-import Cli from './pages/Cli';
-import Cat from './pages/Cat';
-import Orcs from './pages/Orcs';
-import Novo from './pages/Novo';
-import Kb from './pages/Kb';
-import Cfg from './pages/Cfg';
-import Users from './pages/Users';
-import Projetos from './pages/Projetos';
-import Estoque from './pages/Estoque';
-import ItemBuilder from './pages/ItemBuilder';
-import Mensagens from './pages/Mensagens';
-import AssistenteIA from './pages/AssistenteIA';
-import Relatorios from './pages/Relatorios';
-import Financeiro from './pages/Financeiro';
-import ProducaoCNC from './pages/ProducaoCNC';
+
+// ── Code splitting: lazy load de páginas pesadas ──────────────────────────
+const Cli = lazy(() => import('./pages/Cli'));
+const Cat = lazy(() => import('./pages/Cat'));
+const Orcs = lazy(() => import('./pages/Orcs'));
+const Novo = lazy(() => import('./pages/Novo'));
+const Kb = lazy(() => import('./pages/Kb'));
+const Cfg = lazy(() => import('./pages/Cfg'));
+const Users = lazy(() => import('./pages/Users'));
+const Projetos = lazy(() => import('./pages/Projetos'));
+const Estoque = lazy(() => import('./pages/Estoque'));
+const ItemBuilder = lazy(() => import('./pages/ItemBuilder'));
+const Mensagens = lazy(() => import('./pages/Mensagens'));
+const AssistenteIA = lazy(() => import('./pages/AssistenteIA'));
+const Relatorios = lazy(() => import('./pages/Relatorios'));
+const Financeiro = lazy(() => import('./pages/Financeiro'));
+const ProducaoCNC = lazy(() => import('./pages/ProducaoCNC'));
+
+const LazyFallback = () => (
+    <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--primary)' }} />
+    </div>
+);
 
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
@@ -602,7 +610,9 @@ export default function App() {
                 )}
 
                 <div className="min-h-full">
-                    {renderPage()}
+                    <Suspense fallback={<LazyFallback />}>
+                        {renderPage()}
+                    </Suspense>
                 </div>
             </main>
 

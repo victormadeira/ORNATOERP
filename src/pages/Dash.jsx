@@ -146,47 +146,94 @@ function FilaAtencao({ data, nav }) {
     );
 }
 
-// ── PipelineVisual ───────────────────────────────────────
+// ── PipelineVisual (Funil de Vendas) ─────────────────────
 function PipelineVisual({ data, total, nav }) {
     if (!data || data.length === 0) return null;
-    const max = Math.max(...data.map(d => d.valor), 1);
+    const totalQtd = data.reduce((s, d) => s + d.qtd, 0);
+    const firstQtd = data[0]?.qtd || 1;
 
     return (
         <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
-            <SectionHeader icon={BarChart3} title="Pipeline">
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)' }}>{R$(total)}</span>
+            <SectionHeader icon={PieChart} title="Funil de Vendas">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{totalQtd} propostas</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)' }}>{R$(total)}</span>
+                </div>
             </SectionHeader>
-            <div style={{ padding: '14px 20px' }}>
+            <div style={{ padding: '16px 20px' }}>
                 {data.map((s, i) => {
-                    const pct = Math.max((s.valor / max) * 100, s.qtd > 0 ? 5 : 0);
+                    const funnelPct = firstQtd > 0 ? Math.max((s.qtd / firstQtd) * 100, s.qtd > 0 ? 15 : 5) : 5;
+                    const convRate = i > 0 && data[i - 1].qtd > 0 ? ((s.qtd / data[i - 1].qtd) * 100).toFixed(0) : null;
                     return (
-                        <div key={s.id} onClick={() => nav('kb')}
-                            style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, cursor: 'pointer',
-                                animation: `chartFadeIn 0.4s ease ${i * 60}ms both` }}
-                            className="hover:opacity-80 transition-opacity">
-                            <div style={{ width: 10, height: 10, borderRadius: 3, flexShrink: 0,
-                                background: s.cor, boxShadow: `0 2px 6px ${s.cor}50`,
-                            }} />
-                            <div style={{ width: 90, fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {s.nome}
-                            </div>
-                            <div style={{ flex: 1, background: 'var(--bg-muted)', borderRadius: 99, height: 10, overflow: 'hidden' }}>
+                        <div key={s.id} style={{ animation: `chartFadeIn 0.4s ease ${i * 80}ms both` }}>
+                            {i > 0 && convRate !== null && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 20, margin: '2px 0' }}>
+                                    <div style={{ fontSize: 10, fontWeight: 600, color: Number(convRate) >= 50 ? '#22c55e' : Number(convRate) >= 25 ? '#f59e0b' : '#ef4444', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                        <ArrowDownRight size={10} /> {convRate}%
+                                    </div>
+                                </div>
+                            )}
+                            <div onClick={() => nav('kb')}
+                                style={{
+                                    display: 'flex', alignItems: 'center', cursor: 'pointer',
+                                    padding: '10px 14px', borderRadius: 10, marginBottom: 2, position: 'relative', overflow: 'hidden',
+                                    background: `linear-gradient(90deg, ${s.cor}15, transparent ${funnelPct}%)`,
+                                    transition: 'background 0.2s',
+                                }}
+                                className="hover:opacity-80 transition-opacity">
                                 <div style={{
-                                    width: `${pct}%`, height: '100%', borderRadius: 99,
-                                    background: `linear-gradient(90deg, ${s.cor}, ${s.cor}dd)`,
-                                    boxShadow: `0 2px 8px ${s.cor}40`,
+                                    position: 'absolute', left: 0, top: 0, bottom: 0,
+                                    width: `${funnelPct}%`, borderRadius: 10,
+                                    background: `linear-gradient(90deg, ${s.cor}25, ${s.cor}08)`,
+                                    animation: `chartSlideRight 0.6s ease ${i * 80 + 100}ms both`,
                                     transformOrigin: 'left',
-                                    animation: `chartSlideRight 0.6s ease ${i * 60 + 100}ms both`,
                                 }} />
-                            </div>
-                            <div style={{ minWidth: 50, textAlign: 'right' }}>
-                                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{s.qtd}</span>
-                                <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>{R$(s.valor)}</span>
+                                <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                                    background: `${s.cor}20`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    position: 'relative', zIndex: 1,
+                                }}>
+                                    <span style={{ fontSize: 13, fontWeight: 800, color: s.cor }}>{s.qtd}</span>
+                                </div>
+                                <div style={{ marginLeft: 12, flex: 1, position: 'relative', zIndex: 1 }}>
+                                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{s.nome}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{R$(s.valor)}</div>
+                                </div>
+                                <div style={{ position: 'relative', zIndex: 1, textAlign: 'right' }}>
+                                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                        {total > 0 ? ((s.valor / total) * 100).toFixed(0) : 0}%
+                                    </div>
+                                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>do total</div>
+                                </div>
                             </div>
                         </div>
                     );
                 })}
             </div>
+            {/* Resumo do funil */}
+            {data.length >= 2 && (
+                <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                    {(() => {
+                        const leads = data[0]?.qtd || 0;
+                        const aprovados = data.find(d => d.id === 'ok')?.qtd || 0;
+                        const txConv = leads > 0 ? ((aprovados / leads) * 100).toFixed(1) : '0';
+                        const ticketMedio = totalQtd > 0 ? total / totalQtd : 0;
+                        return (<>
+                            <div style={{ flex: 1, minWidth: 100, textAlign: 'center' }}>
+                                <div style={{ fontSize: 18, fontWeight: 800, color: '#22c55e' }}>{txConv}%</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Taxa de Conversão</div>
+                            </div>
+                            <div style={{ flex: 1, minWidth: 100, textAlign: 'center' }}>
+                                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--primary)' }}>{R$(ticketMedio)}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Ticket Médio</div>
+                            </div>
+                            <div style={{ flex: 1, minWidth: 100, textAlign: 'center' }}>
+                                <div style={{ fontSize: 18, fontWeight: 800, color: '#8b5cf6' }}>{totalQtd}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Total no Pipeline</div>
+                            </div>
+                        </>);
+                    })()}
+                </div>
+            )}
         </div>
     );
 }

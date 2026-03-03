@@ -336,7 +336,7 @@ export function buildPropostaHtml({
             <div class="sec-title">CONSIDERAÇÕES FINAIS</div>
             ${txtGarantia ? `<p class="txt">${txtGarantia}</p>` : ''}
             <p class="txt">Prazo de entrega: <strong>${prazoEntrega || 'A combinar'}</strong> após aprovação do projeto.</p>
-            <p class="txt">Validade desta proposta: <strong>${validadeProposta || '15 dias'}</strong>.</p>
+            <p class="txt">Validade desta proposta: <strong>${validadeProposta || '15 dias'}</strong>${orcamento.data_vencimento ? ` (até ${new Date(orcamento.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')})` : ''}.</p>
             ${enderecoObra ? `<p class="txt">Local da obra: <strong>${enderecoObra}</strong>.</p>` : ''}
             ${txtConsideracoes ? `<p class="txt">${txtConsideracoes}</p>` : ''}
             ${orcamento.obs ? `<p class="txt"><strong>Observações:</strong> ${orcamento.obs}</p>` : ''}

@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/auth.js';
@@ -35,6 +36,9 @@ const PORT = process.env.PORT || 3001;
 
 // Trust proxy (Nginx reverse proxy envia X-Forwarded-For)
 app.set('trust proxy', 1);
+
+// ═══ Gzip compression (reduz ~70% do tráfego JSON) ═══
+app.use(compression({ threshold: 1024 }));
 
 // ═══ Rate Limiters ═══════════════════════════════════════════════════
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Muitas tentativas. Tente novamente em 15 minutos.' }, standardHeaders: true, legacyHeaders: false });

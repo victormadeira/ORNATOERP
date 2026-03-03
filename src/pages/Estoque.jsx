@@ -435,6 +435,9 @@ export default function Estoque({ notify }) {
         notify('Configuração salva');
     };
 
+    const [estPage, setEstPage] = useState(1);
+    const EST_PER_PAGE = 30;
+
     // Filtros
     const filtered = materiais.filter(m => {
         const q = search.toLowerCase();
@@ -448,6 +451,9 @@ export default function Estoque({ notify }) {
         })();
         return matchQ && matchTipo && matchStatus;
     });
+    const estTotalPages = Math.ceil(filtered.length / EST_PER_PAGE);
+    const filteredPaged = filtered.slice((estPage - 1) * EST_PER_PAGE, estPage * EST_PER_PAGE);
+    useEffect(() => setEstPage(1), [search, filterTipo, filterStatus]);
 
     // Estatísticas
     const totalItens = materiais.length;
@@ -582,7 +588,7 @@ export default function Estoque({ notify }) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filtered.map((m, i) => {
+                                    {filteredPaged.map((m, i) => {
                                         const st = STATUS_COR(m.quantidade, m.quantidade_minima);
                                         return (
                                             <tr key={m.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}
@@ -626,6 +632,15 @@ export default function Estoque({ notify }) {
                                     })}
                                 </tbody>
                             </table>
+                            {estTotalPages > 1 && (
+                                <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--border)' }}>
+                                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{filtered.length} itens · Página {estPage}/{estTotalPages}</span>
+                                    <div className="flex gap-1">
+                                        <button onClick={() => setEstPage(p => Math.max(1, p - 1))} disabled={estPage <= 1} className={`${Z.btn2} text-xs py-1 px-3`} style={{ opacity: estPage <= 1 ? 0.4 : 1 }}>← Anterior</button>
+                                        <button onClick={() => setEstPage(p => Math.min(estTotalPages, p + 1))} disabled={estPage >= estTotalPages} className={`${Z.btn2} text-xs py-1 px-3`} style={{ opacity: estPage >= estTotalPages ? 0.4 : 1 }}>Próxima →</button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </>

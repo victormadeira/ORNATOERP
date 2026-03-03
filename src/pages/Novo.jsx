@@ -992,7 +992,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [cid, sc] = useState(editOrc?.cliente_id || '');
     const [projeto, setProjeto] = useState(editOrc?.projeto || '');
     const [numero, setNumero] = useState(editOrc?.numero || '');
-    const [dataVenc, setDataVenc] = useState(editOrc?.data_vencimento || '');
+    const [validadeDias, setValidadeDias] = useState(editOrc?.validade_dias || parseInt(editOrc?.validade_proposta) || 15);
     const [ambientes, setAmbientes] = useState(editOrc?.ambientes || []);
     const [obs, so] = useState(editOrc?.obs || '');
     const [expandedAmb, setExpandedAmb] = useState(null);
@@ -1101,7 +1101,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [empresa, setEmpresa] = useState(null);
     const [prazoEntrega, setPrazoEntrega] = useState(editOrc?.prazo_entrega || '45 dias úteis');
     const [enderecoObra, setEnderecoObra] = useState(editOrc?.endereco_obra || '');
-    const [validadeProposta, setValidadeProposta] = useState(editOrc?.validade_proposta || '15 dias');
+    // validade_proposta mantida para compatibilidade com orçamentos antigos
+    const validadeProposta = `${validadeDias} dias`;
+    const dataVenc = (() => {
+        const d = new Date();
+        d.setDate(d.getDate() + (Number(validadeDias) || 15));
+        return d.toISOString().slice(0, 10);
+    })();
     const [propostaModal, setPropostaModal] = useState(false);
     const [viewsData, setViewsData] = useState(null);
     const [showViews, setShowViews] = useState(false);
@@ -1588,7 +1594,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             projeto, numero, data_vencimento: dataVenc || null,
             ambientes, obs, custo_material: tot.cm, valor_venda: pvComDesconto,
             status: 'rascunho', taxas: localTaxas, padroes, pagamento,
-            prazo_entrega: prazoEntrega, endereco_obra: enderecoObra, validade_proposta: validadeProposta,
+            prazo_entrega: prazoEntrega, endereco_obra: enderecoObra, validade_proposta: validadeProposta, validade_dias: validadeDias,
             ...(unlocked ? { force_unlock: true } : {}),
         };
     };
@@ -1637,7 +1643,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         }, 5000);
 
         return () => { if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current); };
-    }, [cid, projeto, numero, dataVenc, ambientes, obs, padroes, pagamento, localTaxas, prazoEntrega, enderecoObra, validadeProposta, tot.cm, pvComDesconto]);
+    }, [cid, projeto, numero, validadeDias, ambientes, obs, padroes, pagamento, localTaxas, prazoEntrega, enderecoObra, tot.cm, pvComDesconto]);
 
     // ── beforeunload: avisar se houver alterações não salvas ──
     useEffect(() => {
@@ -1762,7 +1768,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 projeto, numero, data_vencimento: dataVenc || null,
                 ambientes, obs, custo_material: tot.cm, valor_venda: pvComDesconto,
                 status: 'rascunho', taxas: localTaxas, padroes, pagamento,
-                prazo_entrega: prazoEntrega, endereco_obra: enderecoObra, validade_proposta: validadeProposta,
+                prazo_entrega: prazoEntrega, endereco_obra: enderecoObra, validade_proposta: validadeProposta, validade_dias: validadeDias,
             };
             await api.put(`/orcamentos/${editOrc.id}`, data);
             // Agora move para aprovado
@@ -1961,12 +1967,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             </div>
                             <div><label className={Z.lbl}>Nome do Projeto</label><input value={projeto} onChange={e => setProjeto(e.target.value)} placeholder="Ex: Cozinha Planejada" className={Z.inp} disabled={readOnly} /></div>
                             <div><label className={Z.lbl}>Nº da Proposta</label><input value={numero} onChange={e => setNumero(e.target.value)} placeholder="Auto" className={Z.inp} disabled={readOnly} /></div>
-                            <div><label className={Z.lbl}>Válida até</label><input type="date" value={dataVenc} onChange={e => setDataVenc(e.target.value)} className={Z.inp} disabled={readOnly} /></div>
+                            <div><label className={Z.lbl}>Validade (dias)</label><input type="number" value={validadeDias} onChange={e => setValidadeDias(Number(e.target.value) || 15)} min="1" className={Z.inp} disabled={readOnly} /><span className="text-xs mt-0.5 block" style={{color:'var(--text-secondary)'}}>Até {new Date(dataVenc).toLocaleDateString('pt-BR')}</span></div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
                             <div><label className={Z.lbl}>Prazo de Entrega</label><input value={prazoEntrega} onChange={e => setPrazoEntrega(e.target.value)} placeholder="45 dias úteis" className={Z.inp} disabled={readOnly} /></div>
                             <div><label className={Z.lbl}>Endereço da Obra</label><input value={enderecoObra} onChange={e => setEnderecoObra(e.target.value)} placeholder="Rua, nº - Bairro" className={Z.inp} disabled={readOnly} /></div>
-                            <div><label className={Z.lbl}>Validade da Proposta</label><input value={validadeProposta} onChange={e => setValidadeProposta(e.target.value)} placeholder="15 dias" className={Z.inp} disabled={readOnly} /></div>
                         </div>
                         <div className="mt-3"><label className={Z.lbl}>Observações</label><input value={obs} onChange={e => so(e.target.value)} placeholder="Notas gerais..." className={Z.inp} disabled={readOnly} /></div>
                     </div>

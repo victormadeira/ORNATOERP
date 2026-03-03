@@ -906,12 +906,17 @@ export default function Cli({ clis, reload, notify, nav }) {
     const [confirmDel, setConfirmDel] = useState(null);
     const [cepLoading, setCepLoading] = useState(false);
     const [selectedId, setSelectedId] = useState(null);
+    const [cliPage, setCliPage] = useState(1);
+    const CLI_PER_PAGE = 30;
 
     const fl = clis.filter(c =>
         c.nome.toLowerCase().includes(sr.toLowerCase()) ||
         (c.tel || '').includes(sr) ||
         (c.email || '').toLowerCase().includes(sr.toLowerCase())
     );
+    const cliTotalPages = Math.ceil(fl.length / CLI_PER_PAGE);
+    const flPaged = fl.slice((cliPage - 1) * CLI_PER_PAGE, cliPage * CLI_PER_PAGE);
+    useEffect(() => setCliPage(1), [sr]);
 
     // Busca CEP na ViaCEP
     const buscarCEP = async (cep) => {
@@ -1023,7 +1028,7 @@ export default function Cli({ clis, reload, notify, nav }) {
                                         Nenhum cliente encontrado
                                     </td>
                                 </tr>
-                            ) : fl.map(c => (
+                            ) : flPaged.map(c => (
                                 <tr key={c.id} className="group hover:bg-[var(--bg-muted)] transition-colors cursor-pointer"
                                     onClick={() => setSelectedId(c.id)}>
                                     <td className="td-glass">
@@ -1073,6 +1078,15 @@ export default function Cli({ clis, reload, notify, nav }) {
                         </tbody>
                     </table>
                 </div>
+                {cliTotalPages > 1 && (
+                    <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--border)' }}>
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{fl.length} clientes · Página {cliPage}/{cliTotalPages}</span>
+                        <div className="flex gap-1">
+                            <button onClick={() => setCliPage(p => Math.max(1, p - 1))} disabled={cliPage <= 1} className={`${Z.btn2} text-xs py-1 px-3`} style={{ opacity: cliPage <= 1 ? 0.4 : 1 }}>← Anterior</button>
+                            <button onClick={() => setCliPage(p => Math.min(cliTotalPages, p + 1))} disabled={cliPage >= cliTotalPages} className={`${Z.btn2} text-xs py-1 px-3`} style={{ opacity: cliPage >= cliTotalPages ? 0.4 : 1 }}>Próxima →</button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Confirm Delete Modal */}

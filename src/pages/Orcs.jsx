@@ -25,6 +25,8 @@ export default function Orcs({ orcs, nav, reload, notify }) {
     const [periodoFilter, setPeriodoFilter] = useState(''); // 7d, 30d, 90d, custom
     const [sortBy, setSortBy] = useState('data_desc'); // data_desc, data_asc, valor_desc, valor_asc, cliente_asc, mod_desc
     const [showFilters, setShowFilters] = useState(false);
+    const [page, setPage] = useState(1);
+    const PER_PAGE = 25;
     const [confirmDel, setConfirmDel] = useState(null); // { id, nome }
     const [linkModal, setLinkModal] = useState(null); // { orc, token, views }
     const [loadingLink, setLoadingLink] = useState(null); // orc_id
@@ -117,6 +119,11 @@ export default function Orcs({ orcs, nav, reload, notify }) {
         });
         return list;
     }, [orcs, search, statusFilter, clienteFilter, periodoFilter, sortBy]);
+
+    // Paginação
+    const totalPages = Math.ceil(filtered.length / PER_PAGE);
+    const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+    useEffect(() => setPage(1), [search, statusFilter, clienteFilter, periodoFilter]);
 
     // ─── Deletar ───────────────────────────────────────────
     const del = async () => {
@@ -421,7 +428,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                 </tr>
                             </thead>
                             <tbody className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                                {filtered.map(o => {
+                                {paged.map(o => {
                                     const kc = KCOLS.find(c => c.id === (o.kb_col || 'lead'));
                                     const nAmb = (o.ambientes || []).length;
                                     const isLoadingThisLink = loadingLink === o.id;
@@ -677,6 +684,15 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                             )}
                         </table>
                     </div>
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--border)' }}>
+                            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{filtered.length} itens · Página {page}/{totalPages}</span>
+                            <div className="flex gap-1">
+                                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className={`${Z.btn2} text-xs py-1 px-3`} style={{ opacity: page <= 1 ? 0.4 : 1 }}>← Anterior</button>
+                                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className={`${Z.btn2} text-xs py-1 px-3`} style={{ opacity: page >= totalPages ? 0.4 : 1 }}>Próxima →</button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
