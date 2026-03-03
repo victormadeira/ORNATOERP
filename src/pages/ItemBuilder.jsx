@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Z, Ic } from '../ui';
 import { uid, R$, N, DB_CHAPAS, DB_FERRAGENS, DB_ACABAMENTOS, calcItemV2 } from '../engine';
 import api from '../api';
-import { Plus, Trash2, Edit2, Save, X, ChevronDown, ChevronRight, Box, Package, Wrench, Eye, EyeOff, Copy, Layers, Search } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, ChevronDown, ChevronRight, Box, Package, Wrench, Eye, EyeOff, Copy, Layers, Search, Download, Upload } from 'lucide-react';
 import RipadoCalc from './Ripado';
 
 // ── Safe formula evaluator ──────────────────────────────────────────────────
@@ -824,10 +824,53 @@ export default function ItemBuilder({ notify }) {
     const handleDelete = async (dbId) => {
         if (!confirm('Remover este item do catálogo?')) return;
         try {
-            await api.delete(`/catalogo/${dbId}`);
+            await api.del(`/catalogo/${dbId}`);
             notify?.('Item removido');
             await load();
         } catch (_) { notify?.('Erro ao remover'); }
+    };
+
+    const importCatRef = useRef(null);
+
+    // ── Export: JSON da aba atual (caixas ou componentes) ─────────────────────
+    const exportCatalogo = () => {
+        const data = aba === 'caixas' ? caixas : componentes;
+        if (!data.length) return alert('Nenhum item para exportar nesta aba.');
+        const clean = data.map(({ db_id, criado_em, ...rest }) => rest);
+        const json = JSON.stringify(clean, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `catalogo-${aba}-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    // ── Import: JSON → POST sequencial ───────────────────────────────────────
+    const importCatalogo = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file) return;
+        try {
+            const text = await file.text();
+            const arr = JSON.parse(text);
+            if (!Array.isArray(arr) || !arr.length) return alert('Arquivo vazio ou formato inválido. Esperado: array JSON.');
+            const invalidos = arr.filter(i => !i.nome);
+            if (invalidos.length) return alert(`${invalidos.length} item(ns) sem nome. Todos os itens precisam ter o campo "nome".`);
+            const tipoLabel = aba === 'caixas' ? 'caixa(s)' : 'componente(s)';
+            if (!confirm(`Importar ${arr.length} ${tipoLabel}?\nItens existentes não serão alterados.`)) return;
+            let ok = 0, erros = 0;
+            for (const item of arr) {
+                try {
+                    const tipoItem = item.tipo_item || (aba === 'caixas' ? 'caixa' : 'componente');
+                    await api.post('/catalogo', { tipo_item: tipoItem, ...item });
+                    ok++;
+                } catch { erros++; }
+            }
+            await load();
+            notify?.(`Importação concluída: ${ok} de ${arr.length} importados.${erros ? ` ${erros} erro(s).` : ''}`);
+        } catch { alert('Erro ao ler arquivo. Verifique se é um JSON válido.'); }
     };
 
     if (editing) {
@@ -862,11 +905,20 @@ export default function ItemBuilder({ notify }) {
                     <p className={Z.sub}>Defina Caixas e Componentes para usar nos orçamentos</p>
                 </div>
                 {aba !== 'paineis' && (
-                    <button onClick={() => setEditing({ tipo, item: tipo === 'caixa' ? { ...EMPTY_CAIXA } : { ...EMPTY_COMP } })}
-                        className={Z.btn}>
-                        <Plus size={14} /> {aba === 'caixas' ? 'Nova Caixa' : 'Novo Componente'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button onClick={exportCatalogo} className={`${Z.btn2} flex items-center gap-1 text-xs`} title="Exportar aba atual">
+                            <Download size={13} /> Exportar
+                        </button>
+                        <button onClick={() => importCatRef.current?.click()} className={`${Z.btn2} flex items-center gap-1 text-xs`} title="Importar JSON">
+                            <Upload size={13} /> Importar
+                        </button>
+                        <button onClick={() => setEditing({ tipo, item: tipo === 'caixa' ? { ...EMPTY_CAIXA } : { ...EMPTY_COMP } })}
+                            className={Z.btn}>
+                            <Plus size={14} /> {aba === 'caixas' ? 'Nova Caixa' : 'Novo Componente'}
+                        </button>
+                    </div>
                 )}
+                <input ref={importCatRef} type="file" accept=".json" onChange={importCatalogo} className="hidden" />
             </div>
 
             {/* Abas */}

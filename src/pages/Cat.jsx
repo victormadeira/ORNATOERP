@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Z, Ic } from '../ui';
 import { R$, N } from '../engine';
 import api from '../api';
-import { Plus, Trash2, Edit2, X, Check, Search, Package, Wrench, Layers, PaintBucket, AlertCircle, Square, Sofa, RectangleHorizontal, GlassWater, Shapes } from 'lucide-react';
+import { Plus, Trash2, Edit2, X, Check, Search, Package, Wrench, Layers, PaintBucket, AlertCircle, Square, Sofa, RectangleHorizontal, GlassWater, Shapes, Download, Upload } from 'lucide-react';
 
 function calcPrecoM2(item) {
     if (item.largura > 0 && item.altura > 0 && item.preco > 0) {
@@ -106,6 +106,61 @@ export default function Cat() {
     };
     const del = async (id) => { if (confirm('Excluir item?')) { await api.del(`/biblioteca/${id}`); load(); } };
     const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+    const importRef = useRef(null);
+
+    // ── Export: JSON da aba atual ─────────────────────────────────────────────
+    const exportBiblioteca = () => {
+        const data = items.filter(i => i.tipo === tab);
+        if (!data.length) return alert('Nenhum item para exportar nesta aba.');
+        const clean = data.map(({ id, ativo, criado_em, atualizado_em, ...rest }) => rest);
+        const json = JSON.stringify(clean, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `biblioteca-${tab}-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    // ── Import: JSON → POST sequencial ───────────────────────────────────────
+    const importBiblioteca = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file) return;
+        try {
+            const text = await file.text();
+            const arr = JSON.parse(text);
+            if (!Array.isArray(arr) || !arr.length) return alert('Arquivo vazio ou formato inválido. Esperado: array JSON.');
+            const invalidos = arr.filter(i => !i.nome);
+            if (invalidos.length) return alert(`${invalidos.length} item(ns) sem nome. Todos os itens precisam ter o campo "nome".`);
+            const tiposNoArquivo = [...new Set(arr.map(i => i.tipo))].join(', ');
+            if (!confirm(`Importar ${arr.length} item(ns) (${tiposNoArquivo})?\nItens existentes não serão alterados.`)) return;
+            let ok = 0, erros = 0;
+            for (const item of arr) {
+                try {
+                    await api.post('/biblioteca', {
+                        tipo: item.tipo || tab,
+                        cod: item.cod || '',
+                        nome: item.nome,
+                        descricao: item.descricao || '',
+                        unidade: item.unidade || 'un',
+                        preco: Number(item.preco) || 0,
+                        espessura: Number(item.espessura) || 0,
+                        largura: Number(item.largura) || 0,
+                        altura: Number(item.altura) || 0,
+                        perda_pct: Number(item.perda_pct) || 15,
+                        preco_m2: Number(item.preco_m2) || 0,
+                        fita_preco: Number(item.fita_preco) || 0,
+                        categoria: item.categoria || '',
+                    });
+                    ok++;
+                } catch { erros++; }
+            }
+            load();
+            alert(`Importação concluída: ${ok} de ${arr.length} item(ns) importados.${erros ? ` ${erros} erro(s).` : ''}`);
+        } catch { alert('Erro ao ler arquivo. Verifique se é um JSON válido.'); }
+    };
 
     const tabs = [
         { id: 'material', lb: 'Materiais', icon: Package, desc: 'Chapas MDF/MDP, compensados com controle de perda', color: '#3b82f6' },
@@ -126,9 +181,18 @@ export default function Cat() {
                     <h1 className={Z.h1}>Biblioteca</h1>
                     <p className={Z.sub}>Materiais, Ferragens e Acessórios — cadastro centralizado</p>
                 </div>
-                <button onClick={openNew} className={`${Z.btn} flex items-center gap-2`}>
-                    <Plus size={14} /> Novo {activeTab?.lb.slice(0, -1) || 'Item'}
-                </button>
+                <div className="flex items-center gap-2">
+                    <button onClick={exportBiblioteca} className={`${Z.btn2} flex items-center gap-1 text-xs`} title="Exportar aba atual">
+                        <Download size={13} /> Exportar
+                    </button>
+                    <button onClick={() => importRef.current?.click()} className={`${Z.btn2} flex items-center gap-1 text-xs`} title="Importar JSON">
+                        <Upload size={13} /> Importar
+                    </button>
+                    <button onClick={openNew} className={`${Z.btn} flex items-center gap-2`}>
+                        <Plus size={14} /> Novo {activeTab?.lb.slice(0, -1) || 'Item'}
+                    </button>
+                </div>
+                <input ref={importRef} type="file" accept=".json" onChange={importBiblioteca} className="hidden" />
             </div>
 
             {/* Tabs */}
