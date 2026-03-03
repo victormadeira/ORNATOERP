@@ -301,6 +301,51 @@ export function SearchableSelect({ value, onChange, options, groups, emptyOption
     );
 }
 
+// ─── Badge — badge/tag unificado ────────────────────────
+export function Badge({ label, color, icon: Icon }) {
+    return (
+        <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+            fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap',
+            color, background: `${color}15`,
+            border: `1px solid ${color}30`,
+            padding: '2px 8px', borderRadius: 20,
+        }}>
+            {Icon && <Icon size={10} />}{label}
+        </span>
+    );
+}
+
+// ─── KpiCard — card de métrica padronizado ──────────────
+export function KpiCard({ label, value, color, icon: Icon, sub }) {
+    return (
+        <div className="glass-card" style={{ padding: '18px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+                {Icon && (
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Icon size={14} style={{ color }} />
+                    </div>
+                )}
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 800, color }}>{value}</div>
+            {sub && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{sub}</div>}
+        </div>
+    );
+}
+
+// ─── SectionHeader — header padronizado para cards ──────
+export function SectionHeader({ icon: Icon, title, children }) {
+    return (
+        <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
+            <span style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                {Icon && <Icon size={15} style={{ color: 'var(--primary)' }} />} {title}
+            </span>
+            {children}
+        </div>
+    );
+}
+
 export function Modal({ title, close, children, w = 500 }) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={close}>

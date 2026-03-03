@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Z, Ic, Modal } from '../ui';
+import { colorBg, colorBorder } from '../theme';
 import api from '../api';
 import { useAuth } from '../auth';
 import {
@@ -14,9 +15,9 @@ import {
 const STATUS_LABELS = { ia: 'IA', humano: 'Humano', fechado: 'Fechado' };
 const STATUS_ICONS = { ia: <Bot size={12} />, humano: <User size={12} />, fechado: <Lock size={12} /> };
 const STATUS_COLORS = {
-    ia: { bg: '#8b5cf620', color: '#8b5cf6', border: '#8b5cf640' },
-    humano: { bg: '#22c55e20', color: '#22c55e', border: '#22c55e40' },
-    fechado: { bg: '#64748b20', color: '#64748b', border: '#64748b40' },
+    ia: { bg: colorBg('#8b5cf6'), color: '#8b5cf6', border: colorBorder('#8b5cf6') },
+    humano: { bg: colorBg('#22c55e'), color: '#22c55e', border: colorBorder('#22c55e') },
+    fechado: { bg: colorBg('#64748b'), color: '#64748b', border: colorBorder('#64748b') },
 };
 
 function timeAgo(dateStr) {
@@ -174,7 +175,7 @@ export default function Mensagens({ notify }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                             <MessageCircle size={22} style={{ color: '#22c55e' }} />
                             <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>WhatsApp</h2>
-                            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: '#22c55e20', color: '#22c55e', fontWeight: 600 }}>
+                            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: colorBg('#22c55e'), color: '#22c55e', fontWeight: 600 }}>
                                 {conversas.length}
                             </span>
                         </div>
@@ -309,7 +310,7 @@ export default function Mensagens({ notify }) {
                                                 onClick={() => setShowVincular(true)}
                                                 style={{
                                                     fontSize: 10, padding: '1px 6px', borderRadius: 4,
-                                                    background: '#f59e0b20', color: '#f59e0b', border: '1px solid #f59e0b40',
+                                                    background: colorBg('#f59e0b'), color: '#f59e0b', border: `1px solid ${colorBorder('#f59e0b')}`,
                                                     cursor: 'pointer', fontWeight: 600,
                                                 }}
                                             >
@@ -426,9 +427,9 @@ export default function Mensagens({ notify }) {
                                         onClick={() => setInterno(false)}
                                         style={{
                                             fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
-                                            background: !interno ? '#22c55e20' : 'transparent',
+                                            background: !interno ? colorBg('#22c55e') : 'transparent',
                                             color: !interno ? '#22c55e' : 'var(--text-muted)',
-                                            border: `1px solid ${!interno ? '#22c55e40' : 'var(--border)'}`,
+                                            border: `1px solid ${!interno ? colorBorder('#22c55e') : 'var(--border)'}`,
                                             fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
                                         }}
                                     >
@@ -440,7 +441,7 @@ export default function Mensagens({ notify }) {
                                             fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
                                             background: interno ? '#fef3c7' : 'transparent',
                                             color: interno ? '#92400e' : 'var(--text-muted)',
-                                            border: `1px solid ${interno ? '#fbbf2440' : 'var(--border)'}`,
+                                            border: `1px solid ${interno ? colorBorder('#fbbf24') : 'var(--border)'}`,
                                             fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
                                         }}
                                     >
@@ -453,8 +454,8 @@ export default function Mensagens({ notify }) {
                                         disabled={suggesting}
                                         style={{
                                             fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: suggesting ? 'wait' : 'pointer',
-                                            background: '#8b5cf620', color: '#8b5cf6',
-                                            border: '1px solid #8b5cf640', fontWeight: 600,
+                                            background: colorBg('#8b5cf6'), color: '#8b5cf6',
+                                            border: `1px solid ${colorBorder('#8b5cf6')}`, fontWeight: 600,
                                             marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4,
                                             opacity: suggesting ? 0.6 : 1,
                                         }}
@@ -478,7 +479,7 @@ export default function Mensagens({ notify }) {
                                         rows={2}
                                         style={{
                                             flex: 1, resize: 'none', fontSize: 14,
-                                            borderColor: interno ? '#fbbf2440' : undefined,
+                                            borderColor: interno ? colorBorder('#fbbf24') : undefined,
                                             background: interno ? '#fef3c705' : undefined,
                                         }}
                                     />

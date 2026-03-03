@@ -4,32 +4,14 @@ import {
     Building2, Filter, X, Repeat, Paperclip, FileText, Image, Upload,
     Eye, RefreshCw, TrendingUp, TrendingDown, Copy, ChevronRight,
     BarChart2, Archive, Receipt, ArrowDownCircle, ArrowUpCircle,
+    History, RotateCcw,
 } from 'lucide-react';
 import { R$ } from '../engine';
-import { Z, Modal, Spinner } from '../ui';
+import { Z, Modal, Spinner, Badge, KpiCard } from '../ui';
+import { CATEGORIAS, CAT_MAP, colorBg, colorBorder } from '../theme';
 import api from '../api';
 
 // ─── Constantes ─────────────────────────────────────────────────────
-const CATEGORIAS = [
-    { id: 'material',    label: 'Material',    color: '#3b82f6' },
-    { id: 'mao_de_obra', label: 'Mão de Obra', color: '#8b5cf6' },
-    { id: 'aluguel',     label: 'Aluguel',     color: '#06b6d4' },
-    { id: 'energia',     label: 'Energia',     color: '#eab308' },
-    { id: 'agua',        label: 'Água',        color: '#0ea5e9' },
-    { id: 'internet',    label: 'Internet',    color: '#6366f1' },
-    { id: 'telefone',    label: 'Telefone',    color: '#a855f7' },
-    { id: 'impostos',    label: 'Impostos',    color: '#ef4444' },
-    { id: 'manutencao',  label: 'Manutenção',  color: '#f97316' },
-    { id: 'transporte',  label: 'Transporte',  color: '#f59e0b' },
-    { id: 'ferramentas', label: 'Ferramentas', color: '#14b8a6' },
-    { id: 'terceirizado',label: 'Terceirizado',color: '#ec4899' },
-    { id: 'marketing',   label: 'Marketing',   color: '#8b5cf6' },
-    { id: 'software',    label: 'Software',    color: '#6366f1' },
-    { id: 'outros',      label: 'Outros',      color: '#94a3b8' },
-];
-const catMap = {};
-CATEGORIAS.forEach(c => { catMap[c.id] = c; });
-
 const MEIOS = ['PIX', 'Boleto', 'TED', 'Transferência', 'Cartão Crédito', 'Cartão Débito', 'Dinheiro', 'Cheque'];
 const FREQUENCIAS = [
     { id: 'semanal',    label: 'Semanal' },
@@ -65,15 +47,6 @@ function gerarParcelas(valorTotal, numParcelas, primeiraData, tipoIntervalo = 'm
     });
 }
 
-function StatusBadge({ st }) {
-    const Icon = st.icon;
-    return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: st.color, background: st.bg, padding: '2px 6px', borderRadius: 6, whiteSpace: 'nowrap' }}>
-            <Icon size={10} />{st.label}
-        </span>
-    );
-}
-
 function getStatusPagar(cp) {
     if (cp.status === 'pago') return { label: 'Pago',    color: '#22c55e', bg: '#f0fdf4', icon: Check };
     if (cp.vencida || (cp.data_vencimento && cp.data_vencimento < new Date().toISOString().slice(0, 10)))
@@ -94,17 +67,6 @@ function getStatusReceber(cr) {
         if (dias <= 7) return { label: `${dias}d`, color: '#f59e0b', bg: '#fffbeb', icon: Clock };
     }
     return { label: 'Pendente', color: '#6b7280', bg: '#f9fafb', icon: Clock };
-}
-
-// ─── Cards de resumo ────────────────────────────────────────────────
-function ResumoCard({ label, valor, color, sub }) {
-    return (
-        <div className={Z.card} style={{ padding: '14px 16px', borderLeft: `4px solid ${color}` }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color, marginTop: 2 }}>{R$(valor)}</div>
-            {sub && <div style={{ fontSize: 10, color, marginTop: 1 }}>{sub}</div>}
-        </div>
-    );
 }
 
 // ─── Tabela de Parcelas (Preview) ───────────────────────────────────
@@ -146,7 +108,7 @@ function PreviewParcelas({ parcelas, setParcelas, valorTotal }) {
 // ═══════════════════════════════════════════════════════════════
 // SEÇÃO: CONTAS A PAGAR
 // ═══════════════════════════════════════════════════════════════
-function SecaoPagar({ notify, projetos }) {
+function SecaoPagar({ notify, projetos, user }) {
     const [contas, setContas]     = useState([]);
     const [resumo, setResumo]     = useState(null);
     const [loading, setLoading]   = useState(true);
@@ -162,6 +124,10 @@ function SecaoPagar({ notify, projetos }) {
     const [anexos, setAnexos]     = useState([]);
     const [uploading, setUploading] = useState(false);
     const fileRef = useRef(null);
+    const [historicoId, setHistoricoId] = useState(null);
+
+    const canDelete = user?.role === 'admin' || user?.role === 'gerente';
+    const canViewHistory = user?.role === 'admin' || user?.role === 'gerente';
 
     const load = useCallback(() => {
         const p = new URLSearchParams({ status: aba === 'pagos' ? 'pago' : 'pendente' });
@@ -275,10 +241,10 @@ function SecaoPagar({ notify, projetos }) {
             {/* Resumo */}
             {resumo && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
-                    <ResumoCard label="Pendente"   valor={resumo.pendente}     color="#3b82f6" />
-                    <ResumoCard label="Vencido"    valor={resumo.vencido}      color="#ef4444" sub={resumo.qtd_vencidas > 0 ? `${resumo.qtd_vencidas} conta(s)` : null} />
-                    <ResumoCard label="Vence 7d"   valor={resumo.vencer_7d || 0} color="#f59e0b" sub={resumo.qtd_vencer_7d > 0 ? `${resumo.qtd_vencer_7d} conta(s)` : null} />
-                    <ResumoCard label="Pago (mês)" valor={resumo.pago_mes || 0} color="#22c55e" />
+                    <KpiCard label="Pendente"   value={R$(resumo.pendente)}     color="#3b82f6" />
+                    <KpiCard label="Vencido"    value={R$(resumo.vencido)}      color="#ef4444" sub={resumo.qtd_vencidas > 0 ? `${resumo.qtd_vencidas} conta(s)` : null} />
+                    <KpiCard label="Vence 7d"   value={R$(resumo.vencer_7d || 0)} color="#f59e0b" sub={resumo.qtd_vencer_7d > 0 ? `${resumo.qtd_vencer_7d} conta(s)` : null} />
+                    <KpiCard label="Pago (mês)" value={R$(resumo.pago_mes || 0)} color="#22c55e" />
                 </div>
             )}
 
@@ -420,11 +386,11 @@ function SecaoPagar({ notify, projetos }) {
                             <tbody>
                                 {filtradas.map(cp => {
                                     const st  = getStatusPagar(cp);
-                                    const cat = catMap[cp.categoria];
+                                    const cat = CAT_MAP[cp.categoria];
                                     const isPago = cp.status === 'pago';
                                     return (
                                         <tr key={cp.id} style={{ borderBottom: '1px solid var(--border)', opacity: isPago ? 0.65 : 1, background: !isPago && st.color === '#ef4444' ? '#fef2f218' : 'transparent' }}>
-                                            <td style={{ padding: '7px 6px' }}><StatusBadge st={st} /></td>
+                                            <td style={{ padding: '7px 6px' }}><Badge label={st.label} color={st.color} icon={st.icon} /></td>
                                             <td style={{ padding: '7px 6px' }}>
                                                 <div style={{ fontWeight: isPago ? 400 : 600, textDecoration: isPago ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                                                     {cp.descricao}
@@ -461,12 +427,22 @@ function SecaoPagar({ notify, projetos }) {
                                                         style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                         <Paperclip size={11} />
                                                     </button>
-                                                    <button onClick={() => delConta(cp.id)} title="Excluir"
-                                                        style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
-                                                        onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                                                        onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}>
-                                                        <Trash2 size={11} />
-                                                    </button>
+                                                    {canViewHistory && (
+                                                        <button onClick={() => setHistoricoId(cp.id)} title="Histórico"
+                                                            style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'transparent', color: '#8b5cf6', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
+                                                            onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                                            onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}>
+                                                            <History size={11} />
+                                                        </button>
+                                                    )}
+                                                    {canDelete && (
+                                                        <button onClick={() => delConta(cp.id)} title="Excluir"
+                                                            style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
+                                                            onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                                            onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}>
+                                                            <Trash2 size={11} />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
@@ -486,7 +462,7 @@ function SecaoPagar({ notify, projetos }) {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {resumo.por_categoria.map(pc => {
-                            const cat = catMap[pc.categoria];
+                            const cat = CAT_MAP[pc.categoria];
                             const pct = resumo.pendente > 0 ? (pc.total / resumo.pendente) * 100 : 0;
                             return (
                                 <div key={pc.categoria} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -537,6 +513,18 @@ function SecaoPagar({ notify, projetos }) {
                     </div>
                 </Modal>
             )}
+
+            {/* Modal Histórico */}
+            {historicoId && (
+                <HistoricoModal
+                    tipo="pagar"
+                    id={historicoId}
+                    onClose={() => setHistoricoId(null)}
+                    onReload={load}
+                    notify={notify}
+                    isAdmin={user?.role === 'admin'}
+                />
+            )}
         </div>
     );
 }
@@ -544,7 +532,7 @@ function SecaoPagar({ notify, projetos }) {
 // ═══════════════════════════════════════════════════════════════
 // SEÇÃO: CONTAS A RECEBER
 // ═══════════════════════════════════════════════════════════════
-function SecaoReceber({ notify, projetos }) {
+function SecaoReceber({ notify, projetos, user }) {
     const [contas, setContas]     = useState([]);
     const [resumo, setResumo]     = useState(null);
     const [loading, setLoading]   = useState(true);
@@ -555,6 +543,10 @@ function SecaoReceber({ notify, projetos }) {
     const emptyForm = { descricao: '', valor: '', data_vencimento: '', meio_pagamento: '', codigo_barras: '', nf_numero: '', observacao: '', projeto_id: '', parcelado: false, num_parcelas: 2, tipo_intervalo: 'mensal', intervalo_dias: 30 };
     const [form, setForm]         = useState(emptyForm);
     const [parcelas, setParcelas] = useState([]);
+    const [historicoId, setHistoricoId] = useState(null);
+
+    const canDelete = user?.role === 'admin' || user?.role === 'gerente';
+    const canViewHistory = user?.role === 'admin' || user?.role === 'gerente';
 
     const load = useCallback(() => {
         const p = new URLSearchParams({ status: aba === 'pagos' ? 'pago' : 'pendente' });
@@ -627,10 +619,10 @@ function SecaoReceber({ notify, projetos }) {
 
             {resumo && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
-                    <ResumoCard label="A Receber"      valor={resumo.pendente}      color="#3b82f6" />
-                    <ResumoCard label="Vencido"        valor={resumo.vencido}       color="#ef4444" sub={resumo.qtd_vencidas > 0 ? `${resumo.qtd_vencidas} conta(s)` : null} />
-                    <ResumoCard label="Recebido (mês)" valor={resumo.recebido_mes || 0} color="#22c55e" />
-                    <ResumoCard label="Total Recebido" valor={resumo.recebido || 0} color="#8b5cf6" />
+                    <KpiCard label="A Receber"      value={R$(resumo.pendente)}      color="#3b82f6" />
+                    <KpiCard label="Vencido"        value={R$(resumo.vencido)}       color="#ef4444" sub={resumo.qtd_vencidas > 0 ? `${resumo.qtd_vencidas} conta(s)` : null} />
+                    <KpiCard label="Recebido (mês)" value={R$(resumo.recebido_mes || 0)} color="#22c55e" />
+                    <KpiCard label="Total Recebido" value={R$(resumo.recebido || 0)} color="#8b5cf6" />
                 </div>
             )}
 
@@ -755,7 +747,7 @@ function SecaoReceber({ notify, projetos }) {
                                     const isRecebido = cr.status === 'pago';
                                     return (
                                         <tr key={cr.id} style={{ borderBottom: '1px solid var(--border)', opacity: isRecebido ? 0.65 : 1, background: !isRecebido && st.color === '#ef4444' ? '#fef2f218' : 'transparent' }}>
-                                            <td style={{ padding: '7px 6px' }}><StatusBadge st={st} /></td>
+                                            <td style={{ padding: '7px 6px' }}><Badge label={st.label} color={st.color} icon={st.icon} /></td>
                                             <td style={{ padding: '7px 6px' }}>
                                                 <div style={{ fontWeight: isRecebido ? 400 : 600, textDecoration: isRecebido ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
                                                     {cr.descricao}
@@ -783,12 +775,22 @@ function SecaoReceber({ notify, projetos }) {
                                                         style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${isRecebido ? '#22c55e' : '#d1d5db'}`, background: isRecebido ? '#22c55e' : 'transparent', color: isRecebido ? '#fff' : '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                                                         <Check size={11} />
                                                     </button>
-                                                    <button onClick={() => delConta(cr.id)} title="Excluir"
-                                                        style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
-                                                        onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                                                        onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}>
-                                                        <Trash2 size={11} />
-                                                    </button>
+                                                    {canViewHistory && (
+                                                        <button onClick={() => setHistoricoId(cr.id)} title="Histórico"
+                                                            style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'transparent', color: '#8b5cf6', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
+                                                            onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                                            onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}>
+                                                            <History size={11} />
+                                                        </button>
+                                                    )}
+                                                    {canDelete && (
+                                                        <button onClick={() => delConta(cr.id)} title="Excluir"
+                                                            style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
+                                                            onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                                            onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}>
+                                                            <Trash2 size={11} />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
@@ -799,6 +801,18 @@ function SecaoReceber({ notify, projetos }) {
                     </div>
                 )}
             </div>
+
+            {/* Modal Histórico */}
+            {historicoId && (
+                <HistoricoModal
+                    tipo="receber"
+                    id={historicoId}
+                    onClose={() => setHistoricoId(null)}
+                    onReload={load}
+                    notify={notify}
+                    isAdmin={user?.role === 'admin'}
+                />
+            )}
         </div>
     );
 }
@@ -904,7 +918,7 @@ function SecaoNFs({ notify }) {
                                             <td style={{ padding: '8px 8px', fontSize: 11, color: 'var(--primary)' }}>{nf.projeto_nome || '—'}</td>
                                             <td style={{ padding: '8px 8px', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{dtFmt(nf.data_vencimento)}</td>
                                             <td style={{ padding: '8px 8px', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{R$(nf.valor)}</td>
-                                            <td style={{ padding: '8px 8px' }}><StatusBadge st={st} /></td>
+                                            <td style={{ padding: '8px 8px' }}><Badge label={st.label} color={st.color} icon={st.icon} /></td>
                                             <td style={{ padding: '8px 8px', maxWidth: 200 }}>
                                                 {nf.nf_chave ? (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1014,8 +1028,8 @@ function SecaoFluxo() {
                 <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><BarChart2 size={14} /> Histórico Mensal</span>
                     <div style={{ display: 'flex', gap: 14, fontSize: 10, fontWeight: 600 }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: '#22c55e', display: 'inline-block' }} />Entradas</span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: '#ef4444', display: 'inline-block' }} />Saídas</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: 'linear-gradient(0deg, #22c55e, #4ade80)', display: 'inline-block' }} />Entradas</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: 'linear-gradient(0deg, #ef4444, #f87171)', display: 'inline-block' }} />Saídas</span>
                     </div>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
@@ -1026,13 +1040,25 @@ function SecaoFluxo() {
                                 <span style={{ position: 'absolute', left: 0, top: -8, fontSize: 8, color: 'var(--text-muted)' }}>{R$(maxVal * p)}</span>
                             </div>
                         ))}
-                        {rows.map(r => (
+                        {rows.map((r, ri) => (
                             <div key={r.mes} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, position: 'relative' }}>
                                 <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 132 }}>
                                     <div title={`Entradas: ${R$(r.entradas)}`}
-                                        style={{ width: 12, height: `${Math.max(2, (r.entradas / maxVal) * 132)}px`, background: '#22c55e', borderRadius: '3px 3px 0 0', transition: 'height 0.3s', cursor: 'default' }} />
+                                        style={{
+                                            width: 12, height: `${Math.max(2, (r.entradas / maxVal) * 132)}px`,
+                                            background: 'linear-gradient(0deg, #16a34a, #22c55e)',
+                                            borderRadius: '4px 4px 0 0', boxShadow: '0 -1px 6px rgba(34,197,94,0.2)',
+                                            transformOrigin: 'bottom', cursor: 'default',
+                                            animation: `chartGrowUp 0.5s ease ${ri * 60}ms both`,
+                                        }} />
                                     <div title={`Saídas: ${R$(r.saidas)}`}
-                                        style={{ width: 12, height: `${Math.max(2, (r.saidas / maxVal) * 132)}px`, background: '#ef4444', borderRadius: '3px 3px 0 0', transition: 'height 0.3s', cursor: 'default' }} />
+                                        style={{
+                                            width: 12, height: `${Math.max(2, (r.saidas / maxVal) * 132)}px`,
+                                            background: 'linear-gradient(0deg, #dc2626, #ef4444)',
+                                            borderRadius: '4px 4px 0 0', boxShadow: '0 -1px 6px rgba(239,68,68,0.2)',
+                                            transformOrigin: 'bottom', cursor: 'default',
+                                            animation: `chartGrowUp 0.5s ease ${ri * 60 + 30}ms both`,
+                                        }} />
                                 </div>
                                 <div style={{ position: 'absolute', bottom: 0, fontSize: 9, color: 'var(--text-muted)', fontWeight: 500, whiteSpace: 'nowrap', transform: 'rotate(-30deg)', transformOrigin: 'top center', marginTop: 4 }}>
                                     {mesFmt(r.mes)}
@@ -1103,6 +1129,230 @@ function SecaoFluxo() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// MODAL: HISTÓRICO DE ALTERAÇÕES
+// ═══════════════════════════════════════════════════════════════
+const LABEL_CAMPO = {
+    descricao: 'Descrição', valor: 'Valor', data_vencimento: 'Vencimento', status: 'Status',
+    data_pagamento: 'Dt. Pagamento', categoria: 'Categoria', fornecedor: 'Fornecedor',
+    meio_pagamento: 'Meio Pgto', projeto_id: 'Projeto', observacao: 'Observação',
+    nf_numero: 'Nº NF', nf_chave: 'Chave NFe', data: 'Data',
+};
+
+function HistoricoModal({ tipo, id, onClose, onReload, notify, isAdmin }) {
+    const [entries, setEntries] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [reverting, setReverting] = useState(null);
+
+    useEffect(() => {
+        setLoading(true);
+        api.get(`/financeiro/historico/${tipo}/${id}`)
+            .then(setEntries)
+            .catch(() => setEntries([]))
+            .finally(() => setLoading(false));
+    }, [tipo, id]);
+
+    const reverter = (entryId) => {
+        if (!window.confirm('Reverter para esta versão? Uma nova entrada será criada no histórico.')) return;
+        setReverting(entryId);
+        api.post(`/financeiro/reverter/${tipo}/${id}`, { atividade_id: entryId })
+            .then(() => {
+                notify('Revertido com sucesso!');
+                onReload();
+                // Re-fetch history
+                api.get(`/financeiro/historico/${tipo}/${id}`).then(setEntries).catch(() => {});
+            })
+            .catch(e => notify(e.error || 'Erro ao reverter'))
+            .finally(() => setReverting(null));
+    };
+
+    const fmtVal = (campo, val) => {
+        if (val === null || val === undefined || val === '') return '—';
+        if (campo === 'valor') return R$(parseFloat(val));
+        if (campo === 'status') return val === 'pago' ? 'Pago' : 'Pendente';
+        if (campo === 'data_vencimento' || campo === 'data_pagamento' || campo === 'data') return dtFmt(val);
+        return String(val);
+    };
+
+    return (
+        <Modal onClose={onClose} title={`Histórico — ${tipo === 'pagar' ? 'Conta a Pagar' : tipo === 'receber' ? 'Conta a Receber' : 'Despesa'} #${id}`}>
+            <div style={{ minWidth: 420, maxWidth: 600, maxHeight: '70vh', overflowY: 'auto' }}>
+                {loading ? <Spinner text="Carregando histórico..." />
+                : entries.length === 0 ? (
+                    <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                        <History size={24} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.4 }} />
+                        Nenhuma alteração registrada ainda.
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {entries.map(e => {
+                            let det = {};
+                            try { det = typeof e.detalhes === 'string' ? JSON.parse(e.detalhes) : (e.detalhes || {}); } catch { det = {}; }
+                            const campos = det.campos_alterados || [];
+                            const isDelete = e.acao === 'deletar' || e.acao === 'excluir_financeiro';
+                            const isRevert = e.acao === 'reverter_financeiro';
+                            const isCreate = e.acao === 'criar' || e.acao === 'criar_financeiro';
+
+                            return (
+                                <div key={e.id} style={{ padding: '12px 14px', background: 'var(--bg-secondary)', borderRadius: 8, borderLeft: `3px solid ${isDelete ? '#ef4444' : isRevert ? '#f59e0b' : isCreate ? '#22c55e' : '#3b82f6'}` }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
+                                            {e.user_nome || 'Sistema'}
+                                            <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6, fontSize: 10 }}>
+                                                {e.acao === 'editar_financeiro' ? 'editou' : isDelete ? 'excluiu' : isRevert ? 'reverteu' : isCreate ? 'criou' : e.acao}
+                                            </span>
+                                        </div>
+                                        <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                            {e.criado_em ? new Date(e.criado_em).toLocaleString('pt-BR') : ''}
+                                        </span>
+                                    </div>
+
+                                    {/* Diff de campos alterados */}
+                                    {campos.length > 0 && det.antes && det.depois && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+                                            {campos.map(c => (
+                                                <div key={c} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    <span style={{ fontWeight: 600, color: 'var(--text-secondary)', minWidth: 80 }}>{LABEL_CAMPO[c] || c}</span>
+                                                    <span style={{ color: '#ef4444', textDecoration: 'line-through', fontSize: 10 }}>{fmtVal(c, det.antes[c])}</span>
+                                                    <ChevronRight size={10} style={{ color: 'var(--text-muted)' }} />
+                                                    <span style={{ color: '#22c55e', fontWeight: 600, fontSize: 10 }}>{fmtVal(c, det.depois[c])}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Snapshot de exclusão */}
+                                    {isDelete && det.snapshot && (
+                                        <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-muted)' }}>
+                                            Excluído: {det.snapshot.descricao} — {R$(det.snapshot.valor)}
+                                        </div>
+                                    )}
+
+                                    {/* Botão reverter (admin) */}
+                                    {isAdmin && det.antes && !isCreate && (
+                                        <button onClick={() => reverter(e.id)} disabled={reverting === e.id}
+                                            style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: '#f59e0b', background: '#f59e0b18', border: '1px solid #f59e0b44', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
+                                            <RotateCcw size={10} /> {reverting === e.id ? 'Revertendo...' : 'Reverter para esta versão'}
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        </Modal>
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SEÇÃO: LIXEIRA (ADMIN ONLY)
+// ═══════════════════════════════════════════════════════════════
+function SecaoLixeira({ notify }) {
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [subAba, setSubAba] = useState('pagar');
+
+    const load = useCallback(() => {
+        setLoading(true);
+        api.get('/financeiro/lixeira').then(setItems).catch(() => setItems([])).finally(() => setLoading(false));
+    }, []);
+
+    useEffect(() => { load(); }, [load]);
+
+    const restaurar = (tipo, id) => {
+        if (!window.confirm('Restaurar este item? Ele voltará a aparecer nas listagens normais.')) return;
+        api.post(`/financeiro/restaurar/${tipo}/${id}`)
+            .then(() => { load(); notify('Item restaurado!'); })
+            .catch(e => notify(e.error || 'Erro ao restaurar'));
+    };
+
+    const excluirPermanente = (tipo, id) => {
+        if (!window.confirm('EXCLUIR PERMANENTEMENTE? Esta ação não pode ser desfeita!')) return;
+        api.del(`/financeiro/lixeira/${tipo}/${id}`)
+            .then(() => { load(); notify('Excluído permanentemente'); })
+            .catch(e => notify(e.error || 'Erro ao excluir'));
+    };
+
+    const filtrados = items.filter(i => i._tipo === subAba);
+
+    return (
+        <div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+                Itens excluídos — restaure ou exclua permanentemente
+            </div>
+
+            {/* Sub-abas */}
+            <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
+                {[
+                    { id: 'pagar',    label: 'Contas a Pagar', color: '#ef4444' },
+                    { id: 'receber',  label: 'Contas a Receber', color: '#22c55e' },
+                    { id: 'despesas', label: 'Despesas Projeto', color: '#3b82f6' },
+                ].map((t, i) => (
+                    <button key={t.id} onClick={() => setSubAba(t.id)} style={{
+                        padding: '6px 14px', fontSize: 11, fontWeight: 600,
+                        border: '1px solid var(--border)',
+                        background: subAba === t.id ? t.color : 'var(--bg-card)',
+                        color: subAba === t.id ? '#fff' : 'var(--text-secondary)',
+                        borderRadius: 6, cursor: 'pointer',
+                    }}>
+                        {t.label}
+                    </button>
+                ))}
+            </div>
+
+            <div className={Z.card} style={{ overflow: 'hidden' }}>
+                {loading ? <Spinner text="Carregando lixeira..." />
+                : filtrados.length === 0 ? (
+                    <div style={{ padding: 48, textAlign: 'center' }}>
+                        <Trash2 size={28} style={{ color: 'var(--text-muted)', margin: '0 auto 8px', display: 'block', opacity: 0.3 }} />
+                        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Lixeira vazia</div>
+                    </div>
+                ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', minWidth: 600, borderCollapse: 'collapse', fontSize: 12 }}>
+                            <thead>
+                                <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                                    {['Descrição', 'Valor', 'Excluído por', 'Data exclusão', ''].map((h, i) => (
+                                        <th key={i} style={{ padding: '7px 8px', textAlign: i === 1 ? 'right' : i === 4 ? 'center' : 'left', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>{h}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filtrados.map(it => (
+                                    <tr key={`${it._tipo}-${it.id}`} style={{ borderBottom: '1px solid var(--border)' }}>
+                                        <td style={{ padding: '8px 8px', fontWeight: 500 }}>
+                                            {it.descricao}
+                                            {it.fornecedor && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{it.fornecedor}</div>}
+                                        </td>
+                                        <td style={{ padding: '8px 8px', textAlign: 'right', fontWeight: 700 }}>{R$(it.valor)}</td>
+                                        <td style={{ padding: '8px 8px', fontSize: 11, color: 'var(--text-secondary)' }}>{it.deletado_por_nome || '—'}</td>
+                                        <td style={{ padding: '8px 8px', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                            {it.deletado_em ? new Date(it.deletado_em).toLocaleString('pt-BR') : '—'}
+                                        </td>
+                                        <td style={{ padding: '8px 8px', textAlign: 'center' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
+                                                <button onClick={() => restaurar(it._tipo, it.id)} title="Restaurar"
+                                                    style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: '#22c55e', background: '#22c55e14', border: '1px solid #22c55e44', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
+                                                    <RotateCcw size={10} /> Restaurar
+                                                </button>
+                                                <button onClick={() => excluirPermanente(it._tipo, it.id)} title="Excluir permanentemente"
+                                                    style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: '#ef4444', background: '#ef444414', border: '1px solid #ef444444', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
+                                                    <Trash2 size={10} /> Permanente
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL
 // ═══════════════════════════════════════════════════════════════
 export default function Financeiro({ notify, user, nav }) {
@@ -1118,6 +1368,7 @@ export default function Financeiro({ notify, user, nav }) {
         { id: 'receber', label: 'A Receber',       icon: ArrowDownCircle, color: '#22c55e' },
         { id: 'nfs',     label: 'Arquivo NF',      icon: Receipt,         color: '#3b82f6' },
         { id: 'fluxo',   label: 'Fluxo de Caixa',  icon: BarChart2,       color: '#8b5cf6' },
+        ...(user?.role === 'admin' ? [{ id: 'lixeira', label: 'Lixeira', icon: Trash2, color: '#94a3b8' }] : []),
     ];
 
     return (
@@ -1156,10 +1407,11 @@ export default function Financeiro({ notify, user, nav }) {
             </div>
 
             {/* Seção ativa */}
-            {secao === 'pagar'   && <SecaoPagar   notify={notify} projetos={projetos} />}
-            {secao === 'receber' && <SecaoReceber  notify={notify} projetos={projetos} />}
+            {secao === 'pagar'   && <SecaoPagar   notify={notify} projetos={projetos} user={user} />}
+            {secao === 'receber' && <SecaoReceber  notify={notify} projetos={projetos} user={user} />}
             {secao === 'nfs'     && <SecaoNFs      notify={notify} />}
             {secao === 'fluxo'   && <SecaoFluxo    />}
+            {secao === 'lixeira' && <SecaoLixeira  notify={notify} />}
         </div>
     );
 }

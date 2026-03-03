@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
-import { Ic, Z, Modal, Spinner } from '../ui';
+import { Ic, Z, Modal, Spinner, tagStyle, tagClass } from '../ui';
 import { R$, N } from '../engine';
 import { useAuth } from '../auth';
 import {
     Package, PlusCircle, ArrowUpCircle, ArrowDownCircle, AlertTriangle,
     Search, Filter, RefreshCw, MapPin, Sliders, History, TrendingDown,
     TrendingUp, BarChart3, ChevronDown, CheckCircle2, Users, Clock,
-    UserPlus, Trash2, Edit2, Phone, Briefcase, DollarSign
+    UserPlus, Trash2, Edit2, Phone, Briefcase, DollarSign, Layers, Plus, X
 } from 'lucide-react';
 
 // ─── Constantes ─────────────────────────────
@@ -101,6 +101,247 @@ function MovModal({ tipo, materiais, projetos, onClose, onSave }) {
     );
 }
 
+// ─── Modal de Saída em Lote ──────────────────
+function SaidaLoteModal({ materiais, projetos, onClose, onSave, notify }) {
+    const [projetoId, setProjetoId] = useState('');
+    const [descricao, setDescricao] = useState('');
+    const [itens, setItens] = useState([]);  // { material_id, nome, unidade, qtdOrcada, qtdJaSaiu, qtdSaida, checked, estoque }
+    const [saving, setSaving] = useState(false);
+    const [loadingOrc, setLoadingOrc] = useState(false);
+    const [addSearch, setAddSearch] = useState('');
+    const [showAdd, setShowAdd] = useState(false);
+
+    // Map de estoque por material_id
+    const estoqueMap = {};
+    materiais.forEach(m => { estoqueMap[m.id] = m.quantidade || 0; });
+
+    const carregarDoOrcamento = async () => {
+        if (!projetoId) return;
+        setLoadingOrc(true);
+        try {
+            const res = await api.get(`/estoque/projeto/${projetoId}/comparativo`);
+            const comp = res.comparativo || res;
+            const novos = comp.filter(c => c.material_id).map(c => ({
+                material_id: c.material_id,
+                nome: c.nome,
+                unidade: c.unidade || 'un',
+                qtdOrcada: c.orcado_qtd || 0,
+                qtdJaSaiu: c.gasto_qtd || 0,
+                qtdSaida: Math.max(0, (c.orcado_qtd || 0) - (c.gasto_qtd || 0)),
+                checked: (c.orcado_qtd || 0) - (c.gasto_qtd || 0) > 0,
+                estoque: estoqueMap[c.material_id] || 0,
+            }));
+            setItens(novos);
+        } catch { notify('Erro ao carregar materiais do orçamento'); }
+        setLoadingOrc(false);
+    };
+
+    const toggleItem = (idx) => {
+        const n = [...itens];
+        n[idx] = { ...n[idx], checked: !n[idx].checked };
+        setItens(n);
+    };
+
+    const updateQtd = (idx, val) => {
+        const n = [...itens];
+        n[idx] = { ...n[idx], qtdSaida: parseFloat(val) || 0 };
+        setItens(n);
+    };
+
+    const removeItem = (idx) => {
+        setItens(itens.filter((_, i) => i !== idx));
+    };
+
+    const addItem = (mat) => {
+        if (itens.find(i => i.material_id === mat.id)) {
+            notify('Material já está na lista');
+            return;
+        }
+        setItens([...itens, {
+            material_id: mat.id,
+            nome: mat.nome,
+            unidade: mat.unidade || 'un',
+            qtdOrcada: 0,
+            qtdJaSaiu: 0,
+            qtdSaida: 1,
+            checked: true,
+            estoque: estoqueMap[mat.id] || 0,
+        }]);
+        setShowAdd(false);
+        setAddSearch('');
+    };
+
+    const selecionados = itens.filter(i => i.checked && i.qtdSaida > 0);
+    const totalEstimado = selecionados.reduce((s, i) => {
+        const mat = materiais.find(m => m.id === i.material_id);
+        return s + (i.qtdSaida * (mat?.preco || 0));
+    }, 0);
+    const temErroSaldo = selecionados.some(i => i.qtdSaida > i.estoque);
+
+    const confirmar = async () => {
+        if (selecionados.length === 0) return notify('Selecione ao menos 1 item');
+        if (temErroSaldo && !window.confirm('Alguns itens excedem o saldo disponível. Deseja continuar mesmo assim?')) return;
+        setSaving(true);
+        try {
+            const res = await api.post('/estoque/saida-lote', {
+                projeto_id: projetoId ? parseInt(projetoId) : null,
+                descricao: descricao || 'Saída em lote',
+                itens: selecionados.map(i => ({ material_id: i.material_id, quantidade: i.qtdSaida })),
+            });
+            const msg = res.erros?.length > 0
+                ? `${res.processados} saída(s) ok, ${res.erros.length} erro(s)`
+                : `${res.processados} saída(s) registradas!`;
+            notify(msg);
+            onSave();
+            onClose();
+        } catch (e) {
+            notify(e.error || 'Erro ao processar saídas');
+        }
+        setSaving(false);
+    };
+
+    const addFiltered = materiais.filter(m => {
+        const q = addSearch.toLowerCase();
+        return q && (m.nome.toLowerCase().includes(q) || (m.cod || '').toLowerCase().includes(q));
+    }).slice(0, 8);
+
+    return (
+        <Modal title="Saída em Lote" close={onClose} w={750}>
+            <div style={{ display: 'grid', gap: 14 }}>
+                {/* Projeto + Descrição */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div>
+                        <label className={Z.lbl}>Projeto (opcional)</label>
+                        <select className={Z.inp} style={{ fontSize: 13 }} value={projetoId} onChange={e => setProjetoId(e.target.value)}>
+                            <option value="">— Sem projeto —</option>
+                            {projetos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Descrição</label>
+                        <input className={Z.inp} style={{ fontSize: 13 }} value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Ex: Produção Cozinha..." />
+                    </div>
+                </div>
+
+                {/* Botão Carregar do Orçamento */}
+                {projetoId && (
+                    <button onClick={carregarDoOrcamento} disabled={loadingOrc} className={Z.btn}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', background: '#8b5cf6' }}>
+                        {loadingOrc ? <><RefreshCw size={13} className="animate-spin" /> Carregando...</> : <><Layers size={13} /> Carregar materiais do orçamento</>}
+                    </button>
+                )}
+
+                {/* Tabela de Itens */}
+                {itens.length > 0 && (
+                    <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', maxHeight: 360, overflowY: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                            <thead>
+                                <tr style={{ background: 'var(--bg-secondary)', position: 'sticky', top: 0, zIndex: 1 }}>
+                                    <th style={{ padding: '6px 8px', width: 30, textAlign: 'center' }}>
+                                        <input type="checkbox" checked={itens.every(i => i.checked)} onChange={() => {
+                                            const allChecked = itens.every(i => i.checked);
+                                            setItens(itens.map(i => ({ ...i, checked: !allChecked })));
+                                        }} />
+                                    </th>
+                                    <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)' }}>MATERIAL</th>
+                                    <th style={{ padding: '6px 8px', textAlign: 'center', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)' }}>ORÇADO</th>
+                                    <th style={{ padding: '6px 8px', textAlign: 'center', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)' }}>JÁ SAIU</th>
+                                    <th style={{ padding: '6px 8px', textAlign: 'center', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', minWidth: 90 }}>QTD SAÍDA</th>
+                                    <th style={{ padding: '6px 8px', textAlign: 'center', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)' }}>ESTOQUE</th>
+                                    <th style={{ padding: '6px 8px', width: 30 }}></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {itens.map((it, idx) => {
+                                    const semSaldo = it.qtdSaida > it.estoque;
+                                    return (
+                                        <tr key={it.material_id} style={{ borderTop: '1px solid var(--border)', opacity: it.checked ? 1 : 0.4, background: semSaldo && it.checked ? '#fef2f208' : 'transparent' }}>
+                                            <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                                                <input type="checkbox" checked={it.checked} onChange={() => toggleItem(idx)} />
+                                            </td>
+                                            <td style={{ padding: '6px 8px' }}>
+                                                <div style={{ fontWeight: 600, fontSize: 12 }}>{it.nome}</div>
+                                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{it.unidade}</div>
+                                            </td>
+                                            <td style={{ padding: '6px 8px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
+                                                {it.qtdOrcada > 0 ? N(it.qtdOrcada, 1) : '—'}
+                                            </td>
+                                            <td style={{ padding: '6px 8px', textAlign: 'center', fontSize: 11, color: it.qtdJaSaiu > 0 ? '#f59e0b' : 'var(--text-muted)' }}>
+                                                {it.qtdJaSaiu > 0 ? N(it.qtdJaSaiu, 1) : '—'}
+                                            </td>
+                                            <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                                                <input type="number" step="0.01" min="0" className={Z.inp}
+                                                    style={{ width: 80, fontSize: 12, textAlign: 'center', margin: '0 auto', display: 'block', color: semSaldo ? '#ef4444' : undefined, fontWeight: 600 }}
+                                                    value={it.qtdSaida || ''} onChange={e => updateQtd(idx, e.target.value)} />
+                                            </td>
+                                            <td style={{ padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: semSaldo ? '#ef4444' : '#22c55e' }}>
+                                                {N(it.estoque, 1)}
+                                            </td>
+                                            <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                                                <button onClick={() => removeItem(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2 }} title="Remover">
+                                                    <X size={12} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* Adicionar item manual */}
+                <div style={{ position: 'relative' }}>
+                    <button onClick={() => setShowAdd(!showAdd)} className={Z.btn2}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, width: '100%', justifyContent: 'center' }}>
+                        <Plus size={13} /> Adicionar item manualmente
+                    </button>
+                    {showAdd && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', marginTop: 4 }}>
+                            <input className={Z.inp} style={{ fontSize: 12, marginBottom: 6 }} placeholder="Buscar material..." autoFocus
+                                value={addSearch} onChange={e => setAddSearch(e.target.value)} />
+                            {addFiltered.length === 0 && addSearch && (
+                                <div style={{ padding: 8, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>Nenhum material encontrado</div>
+                            )}
+                            {addFiltered.map(m => (
+                                <div key={m.id} onClick={() => addItem(m)}
+                                    style={{ padding: '6px 8px', fontSize: 12, cursor: 'pointer', borderRadius: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = ''}>
+                                    <span style={{ fontWeight: 500 }}>{m.nome} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({m.unidade})</span></span>
+                                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Est: {N(m.quantidade, 1)}</span>
+                                </div>
+                            ))}
+                            <button onClick={() => { setShowAdd(false); setAddSearch(''); }}
+                                style={{ width: '100%', marginTop: 4, fontSize: 10, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>Fechar</button>
+                        </div>
+                    )}
+                </div>
+
+                {/* Resumo */}
+                {selecionados.length > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 12 }}>
+                        <span style={{ fontWeight: 600 }}>
+                            {selecionados.length} item(ns) selecionado(s)
+                            {temErroSaldo && <span style={{ color: '#ef4444', marginLeft: 8 }}>Alguns excedem o saldo!</span>}
+                        </span>
+                        <span style={{ fontWeight: 700, color: '#ef4444' }}>Total estimado: {R$(totalEstimado)}</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
+                <button className={Z.btn2} onClick={onClose}>Cancelar</button>
+                <button className={Z.btn} onClick={confirmar} disabled={saving || selecionados.length === 0}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#ef4444' }}>
+                    <ArrowUpCircle size={14} /> {saving ? 'Processando...' : `Confirmar ${selecionados.length} Saída(s)`}
+                </button>
+            </div>
+        </Modal>
+    );
+}
+
 // ─── Modal de Configuração (mínimo + localização) ────
 function ConfigModal({ material, onClose, onSave }) {
     const [min, setMin] = useState(material.quantidade_minima || 0);
@@ -147,6 +388,7 @@ export default function Estoque({ notify }) {
     const [filterStatus, setFilterStatus] = useState('');
     const [movModal, setMovModal] = useState(null);    // 'entrada' | 'saida' | 'ajuste'
     const [configModal, setConfigModal] = useState(null); // material object
+    const [saidaLoteModal, setSaidaLoteModal] = useState(false);
     const [tab, setTab] = useState('estoque');          // 'estoque' | 'movimentacoes' | 'mao_de_obra' | 'colaboradores'
 
     // Mão de obra / Colaboradores state
@@ -217,6 +459,7 @@ export default function Estoque({ notify }) {
             {/* Modais */}
             {movModal && <MovModal tipo={movModal} materiais={materiais} projetos={projetos} onClose={() => setMovModal(null)} onSave={handleMov} />}
             {configModal && <ConfigModal material={configModal} onClose={() => setConfigModal(null)} onSave={handleConfig} />}
+            {saidaLoteModal && <SaidaLoteModal materiais={materiais} projetos={projetos} onClose={() => setSaidaLoteModal(false)} onSave={loadAll} notify={notify} />}
 
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
@@ -233,6 +476,9 @@ export default function Estoque({ notify }) {
                     </button>
                     <button onClick={() => setMovModal('ajuste')} className={Z.btn2} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <RefreshCw size={14} /> Ajuste
+                    </button>
+                    <button onClick={() => setSaidaLoteModal(true)} className={Z.btn} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f97316' }}>
+                        <Layers size={14} /> Saída em Lote
                     </button>
                 </div>
             </div>
@@ -358,10 +604,7 @@ export default function Estoque({ notify }) {
                                                     {m.quantidade_minima > 0 ? `${N(m.quantidade_minima, 1)} ${m.unidade}` : '—'}
                                                 </td>
                                                 <td style={{ padding: '10px 14px' }}>
-                                                    <span style={{
-                                                        fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
-                                                        background: st.bg, color: st.color, border: `1px solid ${st.color}30`
-                                                    }}>{st.label}</span>
+                                                    <span className={tagClass} style={tagStyle(st.color)}>{st.label}</span>
                                                 </td>
                                                 <td style={{ padding: '10px 14px', color: 'var(--text-muted)', fontSize: 12 }}>
                                                     {m.localizacao ? (
@@ -679,12 +922,7 @@ export default function Estoque({ notify }) {
                                                 {c.telefone ? <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={11} /> {c.telefone}</span> : '—'}
                                             </td>
                                             <td style={{ padding: '10px 14px' }}>
-                                                <span style={{
-                                                    fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
-                                                    background: c.ativo === false ? '#fef2f2' : '#f0fdf4',
-                                                    color: c.ativo === false ? '#ef4444' : '#22c55e',
-                                                    border: `1px solid ${c.ativo === false ? '#ef444430' : '#22c55e30'}`,
-                                                }}>{c.ativo === false ? 'Inativo' : 'Ativo'}</span>
+                                                <span className={tagClass} style={tagStyle(c.ativo === false ? '#ef4444' : '#22c55e')}>{c.ativo === false ? 'Inativo' : 'Ativo'}</span>
                                             </td>
                                             <td style={{ padding: '10px 14px' }}>
                                                 {isGerente && (

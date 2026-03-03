@@ -306,11 +306,28 @@ router.get('/:id/termo-entrega', requireAuth, (req, res) => {
         const totalPago = parcelas.filter(p => p.status === 'pago').reduce((s, p) => s + (p.valor || 0), 0);
         const totalPendente = parcelas.filter(p => p.status === 'pendente').reduce((s, p) => s + (p.valor || 0), 0);
 
-        // Parse ambientes do orçamento vinculado
+        // Parse ambientes do orçamento vinculado (suporta array de módulos e objeto legado)
         let ambientes = [];
         try {
-            const data = JSON.parse(proj.mods_json || '{}');
-            ambientes = data.ambientes || [];
+            const mods = proj.mods_json ? JSON.parse(proj.mods_json) : [];
+            if (Array.isArray(mods)) {
+                const ambMap = new Map();
+                for (const mod of mods) {
+                    if (Array.isArray(mod.ambientes)) {
+                        for (const amb of mod.ambientes) {
+                            if (amb.nome && !ambMap.has(amb.nome)) {
+                                ambMap.set(amb.nome, amb);
+                            }
+                        }
+                    }
+                }
+                ambientes = [...ambMap.values()];
+            } else if (mods && mods.ambientes) {
+                ambientes = mods.ambientes;
+            }
+            if (proj.orc_ambiente && ambientes.length === 0) {
+                ambientes = [{ nome: proj.orc_ambiente, itens: [] }];
+            }
         } catch (_) {}
 
         // Dados da empresa
@@ -328,7 +345,7 @@ router.get('/:id/termo-entrega', requireAuth, (req, res) => {
         let entregaFotos = [];
         try {
             entregaFotos = db.prepare(
-                'SELECT id, ambiente_idx, item_idx, filename, nota, criado_em FROM entrega_fotos WHERE projeto_id = ? ORDER BY ambiente_idx, item_idx, criado_em'
+                'SELECT id, ambiente_idx, item_idx, filename, nota, criado_em, ambiente FROM entrega_fotos WHERE projeto_id = ? ORDER BY ambiente_idx, item_idx, criado_em'
             ).all(proj.id);
         } catch (_) {}
 
@@ -354,7 +371,7 @@ router.get('/:id/termo-entrega', requireAuth, (req, res) => {
 router.get('/:id/entrega-fotos', requireAuth, (req, res) => {
     try {
         const fotos = db.prepare(`
-            SELECT id, ambiente_idx, item_idx, filename, nota, criado_em
+            SELECT id, ambiente_idx, item_idx, filename, nota, criado_em, ambiente
             FROM entrega_fotos WHERE projeto_id = ? ORDER BY ambiente_idx, item_idx, criado_em DESC
         `).all(parseInt(req.params.id));
 
@@ -375,7 +392,7 @@ router.get('/:id/entrega-fotos', requireAuth, (req, res) => {
 router.post('/:id/entrega-fotos', requireAuth, async (req, res) => {
     try {
         const projeto_id = parseInt(req.params.id);
-        const { filename, data, ambiente_idx, item_idx, nota } = req.body;
+        const { filename, data, ambiente_idx, item_idx, nota, ambiente } = req.body;
         if (!filename || !data) return res.status(400).json({ error: 'Filename e data obrigatórios' });
 
         // Validar tipo de arquivo (apenas imagens)
@@ -414,9 +431,9 @@ router.post('/:id/entrega-fotos', requireAuth, async (req, res) => {
         }
 
         const insertResult = db.prepare(`
-            INSERT INTO entrega_fotos (projeto_id, ambiente_idx, item_idx, filename, nota, gdrive_file_id)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `).run(projeto_id, ambiente_idx ?? 0, item_idx ?? null, safeName, nota || '', gdriveFileId);
+            INSERT INTO entrega_fotos (projeto_id, ambiente_idx, item_idx, filename, nota, gdrive_file_id, ambiente)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(projeto_id, ambiente_idx ?? 0, item_idx ?? null, safeName, nota || '', gdriveFileId, ambiente || '');
 
         res.json({ ok: true, id: Number(insertResult.lastInsertRowid), nome: safeName, url: `/api/drive/arquivo/${projeto_id}/entrega/${safeName}` });
     } catch (ex) {

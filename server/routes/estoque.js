@@ -209,6 +209,89 @@ router.post('/saida', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// POST /api/estoque/saida-lote — saída de múltiplos itens
+// ═══════════════════════════════════════════════════
+router.post('/saida-lote', requireAuth, (req, res) => {
+    const { itens, projeto_id, descricao } = req.body;
+    if (!Array.isArray(itens) || itens.length === 0) {
+        return res.status(400).json({ error: 'Envie ao menos 1 item' });
+    }
+
+    // Validar saldos antes de iniciar
+    const erros = [];
+    const validados = [];
+    for (const item of itens) {
+        if (!item.material_id || !item.quantidade || item.quantidade <= 0) {
+            erros.push({ material_id: item.material_id, erro: 'Quantidade inválida' });
+            continue;
+        }
+        const est = db.prepare('SELECT id, quantidade FROM estoque WHERE material_id = ?').get(item.material_id);
+        if (!est) {
+            erros.push({ material_id: item.material_id, erro: 'Material sem estoque cadastrado' });
+            continue;
+        }
+        if (est.quantidade < item.quantidade) {
+            const mat = db.prepare('SELECT nome FROM biblioteca WHERE id = ?').get(item.material_id);
+            erros.push({
+                material_id: item.material_id,
+                nome: mat?.nome,
+                erro: `Saldo insuficiente (disponível: ${est.quantidade}, solicitado: ${item.quantidade})`,
+            });
+            continue;
+        }
+        validados.push({ ...item, estoque_id: est.id });
+    }
+
+    if (erros.length > 0 && validados.length === 0) {
+        return res.status(400).json({ error: 'Nenhum item válido', erros });
+    }
+
+    // Executar em transação
+    const run = db.transaction(() => {
+        for (const item of validados) {
+            db.prepare('UPDATE estoque SET quantidade = quantidade - ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?')
+                .run(item.quantidade, item.estoque_id);
+
+            const mat = db.prepare('SELECT preco, nome FROM biblioteca WHERE id = ?').get(item.material_id);
+            db.prepare(`
+                INSERT INTO movimentacoes_estoque (material_id, projeto_id, tipo, quantidade, valor_unitario, descricao, criado_por)
+                VALUES (?, ?, 'saida', ?, ?, ?, ?)
+            `).run(
+                item.material_id,
+                projeto_id || null,
+                item.quantidade,
+                mat?.preco || 0,
+                descricao || 'Saída em lote',
+                req.user.id
+            );
+        }
+    });
+
+    try {
+        run();
+    } catch (err) {
+        return res.status(500).json({ error: 'Erro ao processar saídas: ' + err.message });
+    }
+
+    // Sync despesa do projeto (1 vez)
+    if (projeto_id) {
+        try { syncMaterialExpense(projeto_id); } catch (_) { }
+    }
+
+    try {
+        const nomes = validados.map(v => {
+            const m = db.prepare('SELECT nome FROM biblioteca WHERE id = ?').get(v.material_id);
+            return `${v.quantidade}x ${m?.nome || v.material_id}`;
+        }).join(', ');
+        logActivity(req.user.id, req.user.nome, 'saida_lote_estoque',
+            `Saída em lote de ${validados.length} itens: ${nomes}`,
+            projeto_id || null, 'estoque', { itens: validados.map(v => ({ material_id: v.material_id, quantidade: v.quantidade })), projeto_id: projeto_id || null });
+    } catch (_) { }
+
+    res.json({ ok: true, processados: validados.length, erros });
+});
+
+// ═══════════════════════════════════════════════════
 // POST /api/estoque/ajuste — ajuste de inventário
 // ═══════════════════════════════════════════════════
 router.post('/ajuste', requireAuth, (req, res) => {

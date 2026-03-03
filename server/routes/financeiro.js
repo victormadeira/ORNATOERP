@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import db from '../db.js';
-import { requireAuth } from '../auth.js';
+import { requireAuth, requireRole } from '../auth.js';
 import { logActivity } from '../services/notificacoes.js';
 import fs from 'fs';
 import path from 'path';
@@ -11,6 +11,25 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
 
 const router = Router();
+
+// ═══════════════════════════════════════════════════
+// HELPER: snapshot diff para auditoria
+// ═══════════════════════════════════════════════════
+const DIFF_FIELDS = ['descricao','valor','data_vencimento','status','data_pagamento',
+    'categoria','fornecedor','meio_pagamento','projeto_id','observacao','nf_numero','nf_chave','data'];
+
+function snapshotDiff(antes, depois) {
+    const campos_alterados = [];
+    for (const f of DIFF_FIELDS) {
+        if (antes[f] !== undefined && depois[f] !== undefined && String(antes[f] ?? '') !== String(depois[f] ?? '')) {
+            campos_alterados.push(f);
+        }
+    }
+    return { antes, depois, campos_alterados };
+}
+
+// Condição padrão para excluir soft-deleted
+const ND = '(deletado = 0 OR deletado IS NULL)';
 
 // ═══════════════════════════════════════════════════
 // CATEGORIAS DE DESPESA
@@ -30,6 +49,7 @@ router.get('/lembretes', requireAuth, (req, res) => {
         FROM contas_receber cr
         JOIN projetos p ON p.id = cr.projeto_id
         WHERE cr.status = 'pendente' AND cr.data_vencimento < date('now')
+        AND ${ND.replace(/deletado/g, 'cr.deletado')}
         ORDER BY cr.data_vencimento ASC
     `).all();
 
@@ -40,6 +60,7 @@ router.get('/lembretes', requireAuth, (req, res) => {
         WHERE cr.status = 'pendente'
         AND cr.data_vencimento >= date('now')
         AND cr.data_vencimento <= date('now', '+7 days')
+        AND ${ND.replace(/deletado/g, 'cr.deletado')}
         ORDER BY cr.data_vencimento ASC
     `).all();
 
@@ -66,7 +87,8 @@ router.get('/pagar', requireAuth, (req, res) => {
     const { status, categoria, periodo_inicio, periodo_fim, projeto_id, pago_inicio, pago_fim } = req.query;
     let sql = `SELECT cp.*, p.nome as projeto_nome,
                (SELECT COUNT(*) FROM contas_pagar_anexos WHERE conta_pagar_id = cp.id) as anexos_count
-               FROM contas_pagar cp LEFT JOIN projetos p ON p.id = cp.projeto_id WHERE 1=1`;
+               FROM contas_pagar cp LEFT JOIN projetos p ON p.id = cp.projeto_id
+               WHERE ${ND.replace(/deletado/g, 'cp.deletado')}`;
     const params = [];
 
     if (status) { sql += ' AND cp.status = ?'; params.push(status); }
@@ -175,11 +197,23 @@ router.post('/pagar/parcelado', requireAuth, (req, res) => {
     res.json({ ids, grupo_parcela_id: ids[0] });
 });
 
-// PUT /api/financeiro/pagar/:id — atualizar conta a pagar
+// PUT /api/financeiro/pagar/:id — atualizar conta a pagar (com auditoria)
 router.put('/pagar/:id', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    const antes = db.prepare(`SELECT * FROM contas_pagar WHERE id=? AND ${ND}`).get(id);
+    if (!antes) return res.status(404).json({ error: 'Conta não encontrada' });
+
     const { descricao, valor, data_vencimento, status, data_pagamento, categoria,
             fornecedor, meio_pagamento, codigo_barras, projeto_id, observacao,
             nf_numero, nf_chave } = req.body;
+
+    // Permissão: vendedor não pode alterar valor nem status
+    if (req.user.role === 'vendedor') {
+        if (valor !== undefined && Number(valor) !== antes.valor)
+            return res.status(403).json({ error: 'Sem permissão para alterar valor' });
+        if (status !== undefined && status !== antes.status)
+            return res.status(403).json({ error: 'Sem permissão para alterar status' });
+    }
 
     const cat = CATEGORIAS_PAGAR.includes(categoria) ? categoria : undefined;
     const dataPgto = status === 'pago' && !data_pagamento
@@ -197,22 +231,39 @@ router.put('/pagar/:id', requireAuth, (req, res) => {
         descricao, valor, data_vencimento || null, status || 'pendente', dataPgto,
         cat || 'outros', fornecedor || '', meio_pagamento || '', codigo_barras || '',
         projeto_id ? parseInt(projeto_id) : null, observacao || '',
-        nf_numero || '', nf_chave || '',
-        parseInt(req.params.id)
+        nf_numero || '', nf_chave || '', id
     );
 
+    // Audit logging — sempre (não só quando status='pago')
     try {
-        if (status === 'pago') {
-            logActivity(req.user.id, req.user.nome, 'pagar', `Pagou conta "${descricao}" R$${Number(valor).toFixed(2)}`, parseInt(req.params.id), 'contas_pagar');
+        const depois = db.prepare('SELECT * FROM contas_pagar WHERE id=?').get(id);
+        const diff = snapshotDiff(antes, depois);
+        if (diff.campos_alterados.length > 0) {
+            const acao = status === 'pago' && antes.status !== 'pago' ? 'pagar' : 'editar';
+            logActivity(req.user.id, req.user.nome, acao,
+                `${acao === 'pagar' ? 'Pagou' : 'Editou'} conta a pagar "${antes.descricao}" [${diff.campos_alterados.join(', ')}]`,
+                id, 'contas_pagar', diff);
         }
     } catch (_) { }
 
     res.json({ ok: true });
 });
 
-// DELETE /api/financeiro/pagar/:id
-router.delete('/pagar/:id', requireAuth, (req, res) => {
-    db.prepare('DELETE FROM contas_pagar WHERE id=?').run(parseInt(req.params.id));
+// DELETE /api/financeiro/pagar/:id — soft delete (admin/gerente)
+router.delete('/pagar/:id', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
+    const id = parseInt(req.params.id);
+    const conta = db.prepare(`SELECT * FROM contas_pagar WHERE id=? AND ${ND}`).get(id);
+    if (!conta) return res.status(404).json({ error: 'Conta não encontrada' });
+
+    db.prepare('UPDATE contas_pagar SET deletado=1, deletado_em=CURRENT_TIMESTAMP, deletado_por=? WHERE id=?')
+      .run(req.user.id, id);
+
+    try {
+        logActivity(req.user.id, req.user.nome, 'excluir',
+            `Excluiu conta a pagar "${conta.descricao}" R$${Number(conta.valor).toFixed(2)}`,
+            id, 'contas_pagar', { snapshot: conta });
+    } catch (_) { }
+
     res.json({ ok: true });
 });
 
@@ -346,12 +397,12 @@ router.get('/pagar/resumo', requireAuth, (req, res) => {
             COALESCE(SUM(CASE WHEN status = 'pago' AND data_pagamento >= date('now', 'start of month') THEN valor ELSE 0 END), 0) as pago_mes,
             COALESCE(SUM(CASE WHEN status = 'pendente' AND data_vencimento >= date('now') AND data_vencimento <= date('now', '+7 days') THEN valor ELSE 0 END), 0) as vencer_7d,
             COUNT(CASE WHEN status = 'pendente' AND data_vencimento >= date('now') AND data_vencimento <= date('now', '+7 days') THEN 1 END) as qtd_vencer_7d
-        FROM contas_pagar
+        FROM contas_pagar WHERE ${ND}
     `).get();
 
     const porCategoria = db.prepare(`
         SELECT categoria, COALESCE(SUM(valor), 0) as total, COUNT(*) as qtd
-        FROM contas_pagar WHERE status = 'pendente'
+        FROM contas_pagar WHERE status = 'pendente' AND ${ND}
         GROUP BY categoria ORDER BY total DESC
     `).all();
 
@@ -367,7 +418,8 @@ router.get('/receber', requireAuth, (req, res) => {
     const { status, projeto_id, periodo_inicio, periodo_fim } = req.query;
     let sql = `SELECT cr.*, p.nome as projeto_nome, p.token as projeto_token
                FROM contas_receber cr
-               JOIN projetos p ON p.id = cr.projeto_id WHERE 1=1`;
+               JOIN projetos p ON p.id = cr.projeto_id
+               WHERE ${ND.replace(/deletado/g, 'cr.deletado')}`;
     const params = [];
 
     if (status && status !== 'todos') { sql += ' AND cr.status = ?'; params.push(status); }
@@ -469,7 +521,7 @@ router.get('/receber/resumo', requireAuth, (req, res) => {
             COUNT(CASE WHEN status != 'pago' AND data_vencimento < date('now') THEN 1 END) as qtd_vencidas,
             COALESCE(SUM(CASE WHEN status = 'pago' AND data_pagamento >= date('now', 'start of month') THEN valor ELSE 0 END), 0) as recebido_mes,
             COALESCE(SUM(CASE WHEN status != 'pago' AND data_vencimento >= date('now') AND data_vencimento <= date('now', '+7 days') THEN valor ELSE 0 END), 0) as vencer_7d
-        FROM contas_receber
+        FROM contas_receber WHERE ${ND}
     `).get();
     res.json(r);
 });
@@ -490,7 +542,8 @@ router.get('/nfs', requireAuth, (req, res) => {
                (SELECT COUNT(*) FROM contas_pagar_anexos WHERE conta_pagar_id = cp.id AND tipo = 'nota_fiscal') as qtd_nf_anexos
         FROM contas_pagar cp
         LEFT JOIN projetos p ON p.id = cp.projeto_id
-        WHERE (cp.nf_numero != '' OR cp.nf_chave != ''
+        WHERE ${ND.replace(/deletado/g, 'cp.deletado')}
+        AND (cp.nf_numero != '' OR cp.nf_chave != ''
                OR EXISTS(SELECT 1 FROM contas_pagar_anexos a WHERE a.conta_pagar_id = cp.id AND a.tipo = 'nota_fiscal'))
     `;
     const params = [];
@@ -519,7 +572,7 @@ router.get('/fluxo', requireAuth, (req, res) => {
         SELECT strftime('%Y-%m', data_pagamento) as mes,
                COALESCE(SUM(valor), 0) as total
         FROM contas_pagar
-        WHERE status = 'pago' AND data_pagamento IS NOT NULL
+        WHERE status = 'pago' AND data_pagamento IS NOT NULL AND ${ND}
         AND data_pagamento >= date('now', '-11 months', 'start of month')
         GROUP BY mes ORDER BY mes ASC
     `).all();
@@ -529,7 +582,7 @@ router.get('/fluxo', requireAuth, (req, res) => {
         SELECT strftime('%Y-%m', data_pagamento) as mes,
                COALESCE(SUM(valor), 0) as total
         FROM contas_receber
-        WHERE status = 'pago' AND data_pagamento IS NOT NULL
+        WHERE status = 'pago' AND data_pagamento IS NOT NULL AND ${ND}
         AND data_pagamento >= date('now', '-11 months', 'start of month')
         GROUP BY mes ORDER BY mes ASC
     `).all();
@@ -539,7 +592,8 @@ router.get('/fluxo', requireAuth, (req, res) => {
         SELECT strftime('%Y-%m', data_vencimento) as mes,
                COALESCE(SUM(valor), 0) as total
         FROM contas_pagar
-        WHERE status = 'pendente' AND data_vencimento >= date('now', 'start of month')
+        WHERE status = 'pendente' AND ${ND}
+        AND data_vencimento >= date('now', 'start of month')
         AND data_vencimento < date('now', '+3 months')
         GROUP BY mes ORDER BY mes ASC
     `).all();
@@ -549,12 +603,154 @@ router.get('/fluxo', requireAuth, (req, res) => {
         SELECT strftime('%Y-%m', data_vencimento) as mes,
                COALESCE(SUM(valor), 0) as total
         FROM contas_receber
-        WHERE status != 'pago' AND data_vencimento >= date('now', 'start of month')
+        WHERE status != 'pago' AND ${ND}
+        AND data_vencimento >= date('now', 'start of month')
         AND data_vencimento < date('now', '+3 months')
         GROUP BY mes ORDER BY mes ASC
     `).all();
 
     res.json({ saidas, entradas, saidas_previstas: saidasPrev, entradas_previstas: entradasPrev });
+});
+
+// ═══════════════════════════════════════════════════════════
+// LIXEIRA, HISTÓRICO, RESTAURAR, REVERTER
+// DEVE vir antes de /:projeto_id para evitar conflito
+// ═══════════════════════════════════════════════════════════
+
+// GET /api/financeiro/lixeira — admin only
+router.get('/lixeira', requireAuth, requireRole('admin'), (req, res) => {
+    const pagar = db.prepare(`
+        SELECT cp.*, p.nome as projeto_nome, u.nome as deletado_por_nome
+        FROM contas_pagar cp
+        LEFT JOIN projetos p ON p.id = cp.projeto_id
+        LEFT JOIN users u ON u.id = cp.deletado_por
+        WHERE cp.deletado = 1
+        ORDER BY cp.deletado_em DESC
+    `).all();
+
+    const receber = db.prepare(`
+        SELECT cr.*, p.nome as projeto_nome, u.nome as deletado_por_nome
+        FROM contas_receber cr
+        LEFT JOIN projetos p ON p.id = cr.projeto_id
+        LEFT JOIN users u ON u.id = cr.deletado_por
+        WHERE cr.deletado = 1
+        ORDER BY cr.deletado_em DESC
+    `).all();
+
+    const despesas = db.prepare(`
+        SELECT d.*, p.nome as projeto_nome, u.nome as deletado_por_nome
+        FROM despesas_projeto d
+        LEFT JOIN projetos p ON p.id = d.projeto_id
+        LEFT JOIN users u ON u.id = d.deletado_por
+        WHERE d.deletado = 1
+        ORDER BY d.deletado_em DESC
+    `).all();
+
+    res.json({ pagar, receber, despesas });
+});
+
+// POST /api/financeiro/restaurar/:tipo/:id — admin only
+router.post('/restaurar/:tipo/:id', requireAuth, requireRole('admin'), (req, res) => {
+    const { tipo, id: idStr } = req.params;
+    const id = parseInt(idStr);
+    const tableMap = { pagar: 'contas_pagar', receber: 'contas_receber', despesas: 'despesas_projeto' };
+    const table = tableMap[tipo];
+    if (!table) return res.status(400).json({ error: 'Tipo inválido' });
+
+    const item = db.prepare(`SELECT * FROM ${table} WHERE id=? AND deletado=1`).get(id);
+    if (!item) return res.status(404).json({ error: 'Item não encontrado na lixeira' });
+
+    db.prepare(`UPDATE ${table} SET deletado=0, deletado_em=NULL, deletado_por=NULL WHERE id=?`).run(id);
+
+    try {
+        logActivity(req.user.id, req.user.nome, 'restaurar',
+            `Restaurou ${tipo} "${item.descricao}" R$${Number(item.valor).toFixed(2)}`,
+            id, table === 'despesas_projeto' ? 'despesas_projeto' : table, { snapshot: item });
+    } catch (_) { }
+
+    res.json({ ok: true });
+});
+
+// DELETE /api/financeiro/lixeira/:tipo/:id — exclusão permanente, admin only
+router.delete('/lixeira/:tipo/:id', requireAuth, requireRole('admin'), (req, res) => {
+    const { tipo, id: idStr } = req.params;
+    const id = parseInt(idStr);
+    const tableMap = { pagar: 'contas_pagar', receber: 'contas_receber', despesas: 'despesas_projeto' };
+    const table = tableMap[tipo];
+    if (!table) return res.status(400).json({ error: 'Tipo inválido' });
+
+    db.prepare(`DELETE FROM ${table} WHERE id=? AND deletado=1`).run(id);
+    res.json({ ok: true });
+});
+
+// GET /api/financeiro/historico/:tipo/:id — admin/gerente
+router.get('/historico/:tipo/:id', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
+    const { tipo, id: idStr } = req.params;
+    const refTipoMap = { pagar: 'contas_pagar', receber: 'contas_receber', despesas: 'despesas_projeto' };
+    const refTipo = refTipoMap[tipo];
+    if (!refTipo) return res.status(400).json({ error: 'Tipo inválido' });
+
+    const historico = db.prepare(`
+        SELECT * FROM atividades
+        WHERE referencia_id = ? AND referencia_tipo = ?
+        ORDER BY criado_em DESC
+        LIMIT 50
+    `).all(parseInt(idStr), refTipo);
+
+    historico.forEach(h => {
+        try { h.detalhes = JSON.parse(h.detalhes); } catch { h.detalhes = {}; }
+    });
+
+    res.json(historico);
+});
+
+// POST /api/financeiro/reverter/:tipo/:id — admin only
+router.post('/reverter/:tipo/:id', requireAuth, requireRole('admin'), (req, res) => {
+    const { tipo, id: idStr } = req.params;
+    const id = parseInt(idStr);
+    const { atividade_id } = req.body;
+    const tableMap = { pagar: 'contas_pagar', receber: 'contas_receber', despesas: 'despesas_projeto' };
+    const refTipoMap = { pagar: 'contas_pagar', receber: 'contas_receber', despesas: 'despesas_projeto' };
+    const table = tableMap[tipo];
+    if (!table) return res.status(400).json({ error: 'Tipo inválido' });
+
+    const atividade = db.prepare('SELECT * FROM atividades WHERE id=? AND referencia_id=? AND referencia_tipo=?')
+        .get(parseInt(atividade_id), id, refTipoMap[tipo]);
+    if (!atividade) return res.status(404).json({ error: 'Registro de histórico não encontrado' });
+
+    let detalhes;
+    try { detalhes = JSON.parse(atividade.detalhes); } catch { return res.status(400).json({ error: 'Snapshot inválido' }); }
+
+    const snapshot = detalhes.antes || detalhes.snapshot;
+    if (!snapshot) return res.status(400).json({ error: 'Sem snapshot para reverter' });
+
+    const antes = db.prepare(`SELECT * FROM ${table} WHERE id=?`).get(id);
+    if (!antes) return res.status(404).json({ error: 'Registro não encontrado' });
+
+    const SAFE_FIELDS = {
+        contas_pagar: ['descricao','valor','data_vencimento','status','data_pagamento','categoria','fornecedor','meio_pagamento','projeto_id','observacao','nf_numero','nf_chave'],
+        contas_receber: ['descricao','valor','data_vencimento','status','data_pagamento','meio_pagamento','observacao'],
+        despesas_projeto: ['descricao','valor','data','categoria','fornecedor','observacao'],
+    };
+
+    const fields = SAFE_FIELDS[table];
+    const sets = fields.map(f => `${f}=?`).join(', ');
+    const values = fields.map(f => snapshot[f] ?? null);
+
+    const hasAtualizado = table !== 'despesas_projeto';
+    const finalSql = hasAtualizado
+        ? `UPDATE ${table} SET ${sets}, atualizado_em=CURRENT_TIMESTAMP WHERE id=?`
+        : `UPDATE ${table} SET ${sets} WHERE id=?`;
+
+    db.prepare(finalSql).run(...values, id);
+
+    try {
+        logActivity(req.user.id, req.user.nome, 'reverter',
+            `Reverteu ${tipo} "${snapshot.descricao}" para versão de ${atividade.criado_em}`,
+            id, refTipoMap[tipo], { antes, revertido_para: snapshot, atividade_origem: atividade_id });
+    } catch (_) { }
+
+    res.json({ ok: true });
 });
 
 // ═══════════════════════════════════════════════════
@@ -568,7 +764,7 @@ router.get('/:projeto_id/despesas', requireAuth, (req, res) => {
         SELECT d.*, u.nome as criado_por_nome
         FROM despesas_projeto d
         LEFT JOIN users u ON u.id = d.criado_por
-        WHERE d.projeto_id = ?
+        WHERE d.projeto_id = ? AND ${ND.replace(/deletado/g, 'd.deletado')}
         ORDER BY d.data DESC, d.criado_em DESC
     `).all(projeto_id);
     res.json(despesas);
@@ -596,21 +792,53 @@ router.post('/:projeto_id/despesas', requireAuth, (req, res) => {
     res.json({ id: r.lastInsertRowid });
 });
 
-// PUT /api/financeiro/despesas/:id
+// PUT /api/financeiro/despesas/:id (com auditoria)
 router.put('/despesas/:id', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    const antes = db.prepare(`SELECT * FROM despesas_projeto WHERE id=? AND ${ND}`).get(id);
+    if (!antes) return res.status(404).json({ error: 'Despesa não encontrada' });
+
     const { descricao, valor, data, categoria, fornecedor, observacao } = req.body;
+
+    if (req.user.role === 'vendedor' && valor !== undefined && Number(valor) !== antes.valor) {
+        return res.status(403).json({ error: 'Sem permissão para alterar valor' });
+    }
+
     const cat = CATEGORIAS.includes(categoria) ? categoria : 'outros';
     db.prepare(`
         UPDATE despesas_projeto
         SET descricao=?, valor=?, data=?, categoria=?, fornecedor=?, observacao=?
         WHERE id=?
-    `).run(descricao, valor, data || null, cat, fornecedor || '', observacao || '', parseInt(req.params.id));
+    `).run(descricao, valor, data || null, cat, fornecedor || '', observacao || '', id);
+
+    try {
+        const depois = db.prepare('SELECT * FROM despesas_projeto WHERE id=?').get(id);
+        const diff = snapshotDiff(antes, depois);
+        if (diff.campos_alterados.length > 0) {
+            logActivity(req.user.id, req.user.nome, 'editar',
+                `Editou despesa "${antes.descricao}" [${diff.campos_alterados.join(', ')}]`,
+                id, 'despesas_projeto', diff);
+        }
+    } catch (_) { }
+
     res.json({ ok: true });
 });
 
-// DELETE /api/financeiro/despesas/:id
-router.delete('/despesas/:id', requireAuth, (req, res) => {
-    db.prepare('DELETE FROM despesas_projeto WHERE id=?').run(parseInt(req.params.id));
+// DELETE /api/financeiro/despesas/:id — soft delete (admin/gerente)
+router.delete('/despesas/:id', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
+    const id = parseInt(req.params.id);
+    const item = db.prepare(`SELECT * FROM despesas_projeto WHERE id=? AND ${ND}`).get(id);
+    if (!item) return res.status(404).json({ error: 'Despesa não encontrada' });
+
+    db.prepare('UPDATE despesas_projeto SET deletado=1, deletado_em=CURRENT_TIMESTAMP, deletado_por=? WHERE id=?')
+      .run(req.user.id, id);
+
+    try {
+        logActivity(req.user.id, req.user.nome, 'excluir',
+            `Excluiu despesa "${item.descricao}" R$${Number(item.valor).toFixed(2)}`,
+            id, 'despesas_projeto', { snapshot: item });
+    } catch (_) { }
+
     res.json({ ok: true });
 });
 
@@ -623,7 +851,7 @@ router.get('/:projeto_id/receber', requireAuth, (req, res) => {
     const projeto_id = parseInt(req.params.projeto_id);
     const contas = db.prepare(`
         SELECT * FROM contas_receber
-        WHERE projeto_id = ?
+        WHERE projeto_id = ? AND ${ND}
         ORDER BY data_vencimento ASC, criado_em ASC
     `).all(projeto_id);
 
@@ -654,11 +882,21 @@ router.post('/:projeto_id/receber', requireAuth, (req, res) => {
     res.json({ id: r.lastInsertRowid });
 });
 
-// PUT /api/financeiro/receber/:id — atualizar (marcar pago, editar, etc.)
+// PUT /api/financeiro/receber/:id — atualizar (com auditoria)
 router.put('/receber/:id', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    const antes = db.prepare(`SELECT * FROM contas_receber WHERE id=? AND ${ND}`).get(id);
+    if (!antes) return res.status(404).json({ error: 'Conta não encontrada' });
+
     const { descricao, valor, data_vencimento, status, data_pagamento, meio_pagamento, observacao } = req.body;
 
-    // Se marcou como pago e não tem data de pagamento, usar hoje
+    if (req.user.role === 'vendedor') {
+        if (valor !== undefined && Number(valor) !== antes.valor)
+            return res.status(403).json({ error: 'Sem permissão para alterar valor' });
+        if (status !== undefined && status !== antes.status)
+            return res.status(403).json({ error: 'Sem permissão para alterar status' });
+    }
+
     const dataPgto = status === 'pago' && !data_pagamento
         ? new Date().toISOString().slice(0, 10)
         : (data_pagamento || null);
@@ -669,24 +907,38 @@ router.put('/receber/:id', requireAuth, (req, res) => {
         WHERE id=?
     `).run(
         descricao, valor, data_vencimento || null, status || 'pendente',
-        dataPgto, meio_pagamento || '', observacao || '',
-        parseInt(req.params.id)
+        dataPgto, meio_pagamento || '', observacao || '', id
     );
 
     try {
-        if (status === 'pago') {
-            logActivity(req.user.id, req.user.nome, 'receber_pagamento',
-                `Registrou recebimento "${descricao}" R$${Number(valor).toFixed(2)}`,
-                parseInt(req.params.id), 'contas_receber');
+        const depois = db.prepare('SELECT * FROM contas_receber WHERE id=?').get(id);
+        const diff = snapshotDiff(antes, depois);
+        if (diff.campos_alterados.length > 0) {
+            const acao = status === 'pago' && antes.status !== 'pago' ? 'receber_pagamento' : 'editar';
+            logActivity(req.user.id, req.user.nome, acao,
+                `${acao === 'receber_pagamento' ? 'Registrou recebimento' : 'Editou conta a receber'} "${antes.descricao}" [${diff.campos_alterados.join(', ')}]`,
+                id, 'contas_receber', diff);
         }
     } catch (_) { }
 
     res.json({ ok: true });
 });
 
-// DELETE /api/financeiro/receber/:id
-router.delete('/receber/:id', requireAuth, (req, res) => {
-    db.prepare('DELETE FROM contas_receber WHERE id=?').run(parseInt(req.params.id));
+// DELETE /api/financeiro/receber/:id — soft delete (admin/gerente)
+router.delete('/receber/:id', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
+    const id = parseInt(req.params.id);
+    const conta = db.prepare(`SELECT * FROM contas_receber WHERE id=? AND ${ND}`).get(id);
+    if (!conta) return res.status(404).json({ error: 'Conta não encontrada' });
+
+    db.prepare('UPDATE contas_receber SET deletado=1, deletado_em=CURRENT_TIMESTAMP, deletado_por=? WHERE id=?')
+      .run(req.user.id, id);
+
+    try {
+        logActivity(req.user.id, req.user.nome, 'excluir',
+            `Excluiu conta a receber "${conta.descricao}" R$${Number(conta.valor).toFixed(2)}`,
+            id, 'contas_receber', { snapshot: conta });
+    } catch (_) { }
+
     res.json({ ok: true });
 });
 
@@ -700,7 +952,7 @@ router.post('/:projeto_id/importar-parcelas', requireAuth, (req, res) => {
 
     // Verificar se já importou
     const jaImportou = db.prepare(
-        'SELECT COUNT(*) as c FROM contas_receber WHERE projeto_id = ? AND auto_gerada = 1'
+        `SELECT COUNT(*) as c FROM contas_receber WHERE projeto_id = ? AND auto_gerada = 1 AND ${ND}`
     ).get(projeto_id);
     if (jaImportou.c > 0) return res.status(400).json({ error: 'Parcelas já importadas. Exclua as existentes primeiro.' });
 
@@ -790,11 +1042,11 @@ router.get('/:projeto_id/resumo', requireAuth, (req, res) => {
 
     // Despesas
     const despTotais = db.prepare(
-        'SELECT COALESCE(SUM(valor), 0) as total FROM despesas_projeto WHERE projeto_id = ?'
+        `SELECT COALESCE(SUM(valor), 0) as total FROM despesas_projeto WHERE projeto_id = ? AND ${ND}`
     ).get(projeto_id);
 
     const despPorCategoria = db.prepare(
-        'SELECT categoria, COALESCE(SUM(valor), 0) as total, COUNT(*) as qtd FROM despesas_projeto WHERE projeto_id = ? GROUP BY categoria ORDER BY total DESC'
+        `SELECT categoria, COALESCE(SUM(valor), 0) as total, COUNT(*) as qtd FROM despesas_projeto WHERE projeto_id = ? AND ${ND} GROUP BY categoria ORDER BY total DESC`
     ).all(projeto_id);
 
     // Contas a receber
@@ -804,7 +1056,7 @@ router.get('/:projeto_id/resumo', requireAuth, (req, res) => {
             COALESCE(SUM(CASE WHEN status = 'pago' THEN valor ELSE 0 END), 0) as recebido,
             COALESCE(SUM(CASE WHEN status != 'pago' THEN valor ELSE 0 END), 0) as pendente,
             COALESCE(SUM(CASE WHEN status != 'pago' AND data_vencimento < date('now') THEN valor ELSE 0 END), 0) as vencido
-        FROM contas_receber WHERE projeto_id = ?
+        FROM contas_receber WHERE projeto_id = ? AND ${ND}
     `).get(projeto_id);
 
     res.json({

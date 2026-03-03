@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Z, Ic, Modal } from '../ui';
+import { Z, Ic, Modal, tagStyle, tagClass } from '../ui';
 import api from '../api';
+import { STATUS_PROJ, colorBg, colorBorder } from '../theme';
 import {
     User, Phone, Mail, MapPin, Building2, Calendar, FileText, MessageCircle,
     TrendingUp, DollarSign, Target, Clock, ChevronRight, ArrowLeft,
@@ -95,7 +96,7 @@ function MetricCard({ icon, label, value, sub, color }) {
     return (
         <div className="glass-card p-4 flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: `${color}15`, color }}>
+                style={{ background: colorBg(color), color }}>
                 {icon}
             </div>
             <div className="min-w-0">
@@ -229,14 +230,12 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                     <div className="flex items-center gap-3 flex-wrap">
                         <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{cli.nome}</h1>
                         {cli.tipo_pessoa === 'juridica' && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                                style={{ background: '#8b5cf615', color: '#8b5cf6', border: '1px solid #8b5cf630' }}>
+                            <span className={tagClass} style={tagStyle('#8b5cf6')}>
                                 PJ
                             </span>
                         )}
                         {cli.origem && cli.origem !== 'manual' && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                                style={{ background: '#06b6d415', color: '#06b6d4', border: '1px solid #06b6d430' }}>
+                            <span className={tagClass} style={tagStyle('#06b6d4')}>
                                 {ORIGENS[cli.origem] || cli.origem}
                             </span>
                         )}
@@ -385,13 +384,11 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                                                     <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                                                         {o.numero || `#${o.id}`}
                                                     </span>
-                                                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                                                        style={{ background: `${KB_COLORS[o.kb_col] || '#94a3b8'}15`, color: KB_COLORS[o.kb_col] || '#94a3b8', border: `1px solid ${KB_COLORS[o.kb_col] || '#94a3b8'}30` }}>
+                                                    <span className={tagClass} style={tagStyle(KB_COLORS[o.kb_col] || '#94a3b8')}>
                                                         {KB_LABELS[o.kb_col] || o.kb_col}
                                                     </span>
                                                     {o.tipo === 'aditivo' && (
-                                                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                                                            style={{ background: '#f59e0b15', color: '#f59e0b', border: '1px solid #f59e0b30' }}>
+                                                        <span className={tagClass} style={tagStyle('#f59e0b')}>
                                                             Aditivo
                                                         </span>
                                                     )}
@@ -425,26 +422,18 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                                 </div>
                                 <div className="space-y-2">
                                     {projs.slice(0, 3).map(p => {
-                                        const statusMap = {
-                                            nao_iniciado: { label: 'Não iniciado', color: '#94a3b8' },
-                                            em_andamento: { label: 'Em andamento', color: '#1379F0' },
-                                            atrasado: { label: 'Atrasado', color: '#ef4444' },
-                                            concluido: { label: 'Concluído', color: '#22c55e' },
-                                            suspenso: { label: 'Suspenso', color: '#f59e0b' },
-                                        };
-                                        const st = statusMap[p.status] || { label: p.status, color: '#94a3b8' };
+                                        const st = STATUS_PROJ[p.status] || { label: p.status, color: '#94a3b8' };
                                         return (
                                             <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg transition-colors hover:bg-[var(--bg-muted)]"
                                                 style={{ border: '1px solid var(--border)' }}>
                                                 <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                                                    style={{ background: `${st.color}15`, color: st.color }}>
+                                                    style={{ background: colorBg(st.color), color: st.color }}>
                                                     <Briefcase size={14} />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{p.nome}</span>
-                                                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                                                            style={{ background: `${st.color}15`, color: st.color, border: `1px solid ${st.color}30` }}>
+                                                        <span className={tagClass} style={tagStyle(st.color)}>
                                                             {st.label}
                                                         </span>
                                                     </div>
@@ -495,7 +484,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                                         <div key={c.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-[var(--bg-muted)] transition-colors"
                                             style={{ border: '1px solid var(--border)' }}>
                                             <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                                                style={{ background: '#22c55e15', color: '#22c55e' }}>
+                                                style={{ background: colorBg('#22c55e'), color: '#22c55e' }}>
                                                 <MessageCircle size={14} />
                                             </div>
                                             <div className="flex-1 min-w-0">
@@ -613,15 +602,14 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                                     return (
                                         <div key={idx} className="relative flex gap-3 py-3 pl-1">
                                             <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10"
-                                                style={{ background: `${cfg.color}15`, color: cfg.color, border: `2px solid ${cfg.color}30` }}>
+                                                style={{ background: colorBg(cfg.color), color: cfg.color, border: `2px solid ${colorBorder(cfg.color)}` }}>
                                                 {cfg.icon}
                                             </div>
                                             <div className="flex-1 min-w-0 glass-card p-3" style={{ border: '1px solid var(--border)' }}>
                                                 <div className="flex items-start justify-between gap-2">
                                                     <div className="min-w-0">
                                                         <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                                                                style={{ background: `${cfg.color}15`, color: cfg.color }}>
+                                                            <span className={tagClass} style={tagStyle(cfg.color)}>
                                                                 {cfg.label}
                                                             </span>
                                                             <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
@@ -762,8 +750,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                                                 {o.ambiente || '—'}
                                             </td>
                                             <td className="td-glass">
-                                                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                                                    style={{ background: `${KB_COLORS[o.kb_col] || '#94a3b8'}15`, color: KB_COLORS[o.kb_col] || '#94a3b8', border: `1px solid ${KB_COLORS[o.kb_col] || '#94a3b8'}30` }}>
+                                                <span className={tagClass} style={tagStyle(KB_COLORS[o.kb_col] || '#94a3b8')}>
                                                     {KB_LABELS[o.kb_col] || o.kb_col}
                                                 </span>
                                             </td>
@@ -799,14 +786,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                     ) : (
                         <div className="space-y-3">
                             {projs.map(p => {
-                                const statusMap = {
-                                    nao_iniciado: { label: 'Não iniciado', color: '#94a3b8', bg: '#f1f5f9' },
-                                    em_andamento: { label: 'Em andamento', color: '#1379F0', bg: '#eff6ff' },
-                                    atrasado: { label: 'Atrasado', color: '#ef4444', bg: '#fef2f2' },
-                                    concluido: { label: 'Concluído', color: '#22c55e', bg: '#f0fdf4' },
-                                    suspenso: { label: 'Suspenso', color: '#f59e0b', bg: '#fffbeb' },
-                                };
-                                const st = statusMap[p.status] || { label: p.status, color: '#94a3b8', bg: '#f1f5f9' };
+                                const st = STATUS_PROJ[p.status] || { label: p.status, color: '#94a3b8', bg: '#f1f5f9' };
                                 return (
                                     <div key={p.id} className="glass-card p-4 flex items-center gap-4 hover:bg-[var(--bg-muted)] transition-colors cursor-pointer"
                                         onClick={() => nav && nav('proj')}>
@@ -817,8 +797,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{p.nome}</span>
-                                                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                                                    style={{ background: `${st.color}15`, color: st.color, border: `1px solid ${st.color}30` }}>
+                                                <span className={tagClass} style={tagStyle(st.color)}>
                                                     {st.label}
                                                 </span>
                                             </div>
@@ -1068,8 +1047,7 @@ export default function Cli({ clis, reload, notify, nav }) {
                                     <td className="td-glass text-sm" style={{ color: 'var(--text-secondary)' }}>{c.arq || '—'}</td>
                                     <td className="td-glass">
                                         {c.origem && c.origem !== 'manual' ? (
-                                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                                                style={{ background: '#06b6d415', color: '#06b6d4', border: '1px solid #06b6d430' }}>
+                                            <span className={tagClass} style={tagStyle('#06b6d4')}>
                                                 {ORIGENS[c.origem] || c.origem}
                                             </span>
                                         ) : (

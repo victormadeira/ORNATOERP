@@ -112,6 +112,31 @@ body{font-family:'Inter',Arial,Helvetica,sans-serif;color:#111;font-size:11px;pa
 .print-btn{display:block;margin:16px auto 0;padding:10px 36px;background:${cp};color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:bold;}
 .print-btn:hover{opacity:.9;}
 .btn-row{display:flex;justify-content:center;gap:12px;margin-top:16px;}
+
+.cl{margin-bottom:14px;page-break-inside:avoid;}
+.cl-hdr{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+.cl-hdr .cl-num{background:${cp};color:#fff;font-size:9px;font-weight:800;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.cl-hdr h4{font-size:10.5px;font-weight:700;color:${cp};text-transform:uppercase;margin:0;letter-spacing:0.3px;}
+.cl p,.cl li{font-size:10px;line-height:1.7;color:#333;}
+.cl ul{padding-left:16px;margin:4px 0 0;}
+.cl li{margin-bottom:2px;}
+.cl .sub-title{font-weight:700;color:#444;font-size:10px;margin:8px 0 4px;text-transform:uppercase;}
+
+.cl-box{border-radius:6px;padding:12px 14px;margin-bottom:14px;page-break-inside:avoid;}
+.cl-box.cobertura{background:#f0fdf4;border:1px solid #bbf7d0;}
+.cl-box.cobertura h4{color:#16a34a;}
+.cl-box.exclusao{background:#fef2f2;border:1px solid #fecaca;}
+.cl-box.exclusao h4{color:#dc2626;}
+.cl-box.cuidados{background:#fffbeb;border:1px solid #fde68a;}
+.cl-box.cuidados h4{color:${ca};}
+.cl-box h4{font-size:10px;font-weight:700;margin-bottom:6px;text-transform:uppercase;}
+.cl-box li{font-size:9.5px;line-height:1.7;color:#555;margin-bottom:1px;}
+.cl-box ul{padding-left:14px;margin:0;}
+
+.declaracao{background:${cp}06;border:1.5px solid ${cp}25;border-radius:6px;padding:14px 18px;margin:18px 0;page-break-inside:avoid;}
+.declaracao h3{font-size:11px;font-weight:bold;color:${cp};margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;}
+.declaracao p{font-size:10px;line-height:1.8;color:#333;}
+.declaracao .destaque{font-weight:700;color:${cp};}
 `;
 }
 
@@ -227,16 +252,22 @@ function ambienteTable(amb, ai, chapas, acabamentos, entregaFotos = []) {
 
 const CHECKLIST = [
     'Todos os módulos instalados e nivelados',
-    'Ferragens funcionando corretamente (dobradiças, puxadores, corrediças)',
+    'Ferragens funcionando corretamente (dobradiças, corrediças, amortecedores)',
+    'Portas e gavetas abrindo e fechando corretamente',
+    'Alinhamento e nivelamento de portas, frentes e gavetas',
+    'Puxadores e acessórios fixados corretamente',
     'Acabamento sem defeitos visíveis (riscos, manchas, lascas)',
-    'Medidas conferidas conforme orçamento aprovado',
     'Material e cor conforme aprovação do cliente',
-    'Local limpo após instalação',
+    'Medidas conferidas conforme orçamento aprovado',
+    'Eletrodomésticos embutidos encaixados corretamente (se aplicável)',
+    'Iluminação interna / LED funcionando (se aplicável)',
+    'Recortes de bancada, passa-fios e acabamentos verificados',
+    'Local limpo e organizado após instalação',
 ];
 
-function checklistHtml(items) {
+function checklistHtml(items, title) {
     return `<div class="checklist">
-    <h3>CHECKLIST DE VISTORIA</h3>
+    ${title ? `<h3>${title}</h3>` : ''}
     ${items.map(item => `<div class="check-item">
         <input type="checkbox" title="Marcar como conferido">
         <span class="check-label">${item}</span>
@@ -260,22 +291,24 @@ export function buildTermoEntregaHtml(data, config = {}) {
     const projNome = esc(projeto.nome || '—');
     const orcNumero = esc(projeto.orc_numero || '');
     const enderecoObra = esc((() => { try { return JSON.parse(projeto.mods_json || '{}').endereco_obra || ''; } catch (_) { return ''; } })());
+    const empresaNome = esc(empresa.nome) || 'a empresa';
 
-    const itensHtml = (ambientes || []).length > 0
-        ? (ambientes || []).map((amb, ai) => ambienteTable(amb, ai, chapas, acabamentos, entregaFotos)).join('')
+    let totalItens = 0;
+    (ambientes || []).forEach(amb => { totalItens += (amb.itens || amb.mods || []).length; });
+    const totalAmb = (ambientes || []).length;
+
+    const itensHtml = totalAmb > 0
+        ? ambientes.map((amb, ai) => ambienteTable(amb, ai, chapas, acabamentos, entregaFotos)).join('')
         : '<div class="empty">Nenhum ambiente/módulo vinculado a este projeto.</div>';
 
-    const garantia = garantiaTexto || 'Garantia de 5 (cinco) anos para defeitos de fabricação, em condições normais de uso. A garantia não cobre danos causados por mau uso, umidade excessiva, exposição direta ao sol ou modificações feitas por terceiros.';
+    const garantia = garantiaTexto || `Os móveis entregues possuem garantia contratual de 5 (cinco) anos para defeitos de fabricação, em condições normais de uso, conforme Art. 50 da Lei nº 8.078/90 (Código de Defesa do Consumidor). A garantia não cobre danos causados por mau uso, umidade excessiva, exposição direta ao sol ou modificações por terceiros. Consulte o Certificado de Garantia para detalhes completos de cobertura, exclusões e orientações de conservação.`;
 
-    const ocorrHtml = (ocorrencias || []).length > 0 ? `
-        <div class="section ressalvas">
-            <h3>PENDÊNCIAS / RESSALVAS</h3>
-            <table class="mt"><thead><tr><th>Assunto</th><th>Descrição</th><th>Status</th></tr></thead><tbody>
-            ${ocorrencias.map(oc => `<tr><td class="nome"><strong>${esc(oc.assunto)}</strong></td><td>${esc(oc.descricao) || '—'}</td><td style="color:#ef4444;font-weight:600">Pendente</td></tr>`).join('')}
-            </tbody></table>
-        </div>` : '';
+    const hasOcorr = (ocorrencias || []).length > 0;
+    const hasRessalvas = !!ressalvas;
 
-    const ressalvasHtml = ressalvas ? `<div class="section ressalvas"><h3>RESSALVAS</h3><p>${esc(ressalvas).replace(/\n/g, '<br>')}</p></div>` : '';
+    // Auto-incrementing section counter
+    let _sn = 0;
+    const sn = (title) => `<div class="cl-hdr"><div class="cl-num">${++_sn}</div><h4>${title}</h4></div>`;
 
     return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/><base href="${baseHref}"/><title>Termo de Entrega — ${clienteNome}</title><style>${buildBaseCSS(cp, ca)}</style></head><body>
 
@@ -284,12 +317,18 @@ ${watermarkHtml(watermarkSrc, watermarkOpacity)}
 
 ${headerHtml(empresa, 'TERMO DE ENTREGA', orcNumero ? `Ref.: ${orcNumero}` : '', dataHoje)}
 
-<div class="info-box">
-    <div class="fi"><label>Cliente</label><span>${clienteNome}</span></div>
-    <div class="fi"><label>Projeto</label><span>${projNome}</span></div>
-    <div class="fi"><label>Valor Total</label><span style="color:${cp};font-weight:700">${R(financeiro.valorTotal)}</span></div>
-    ${enderecoObra ? `<div class="fi" style="grid-column:span 2"><label>Endereço da Obra</label><span>${enderecoObra}</span></div>` : ''}
-    <div class="fi"><label>Data Início</label><span>${fmtDt(projeto.data_inicio)}</span></div>
+<!-- 1. IDENTIFICAÇÃO DO PROJETO -->
+<div class="cl">
+    ${sn('Identificação do Projeto')}
+    <div class="info-box">
+        <div class="fi"><label>Cliente</label><span>${clienteNome}</span></div>
+        <div class="fi"><label>Projeto</label><span>${projNome}</span></div>
+        <div class="fi"><label>Valor Total</label><span style="color:${cp};font-weight:700">${R(financeiro.valorTotal)}</span></div>
+        ${enderecoObra ? `<div class="fi" style="grid-column:span 2"><label>Endereço da Obra</label><span>${enderecoObra}</span></div>` : ''}
+        <div class="fi"><label>Data Início</label><span>${fmtDt(projeto.data_inicio)}</span></div>
+        ${orcNumero ? `<div class="fi"><label>Referência</label><span>${orcNumero}</span></div>` : ''}
+        <div class="fi"><label>Data de Entrega</label><span style="color:${cp};font-weight:600">${dataHoje}</span></div>
+    </div>
 </div>
 
 <div class="fill-tip no-print">
@@ -297,30 +336,84 @@ ${headerHtml(empresa, 'TERMO DE ENTREGA', orcNumero ? `Ref.: ${orcNumero}` : '',
     <span>Preencha os checkboxes e observações antes de imprimir. Os campos preenchidos serão preservados no PDF.</span>
 </div>
 
-<div class="section"><h3>ITENS ENTREGUES</h3>${itensHtml}</div>
-
-${checklistHtml(CHECKLIST)}
-${ocorrHtml}
-${ressalvasHtml}
-
-<div class="garantia-box"><h3>GARANTIA</h3><p>${garantia}</p></div>
-
-<div class="financeiro">
-    <h3>SITUAÇÃO FINANCEIRA</h3>
-    <div class="fin-row"><span>Valor do projeto:</span><span style="font-weight:600">${R(financeiro.valorTotal)}</span></div>
-    <div class="fin-row"><span>Valor pago:</span><span style="font-weight:600;color:#16a34a">${R(financeiro.totalPago)}</span></div>
-    ${financeiro.totalPendente > 0 ? `<div class="fin-row"><span>Saldo pendente:</span><span style="font-weight:600;color:#ef4444">${R(financeiro.totalPendente)}</span></div>` : ''}
-    <div class="fin-row total"><span>${financeiro.totalPendente > 0 ? 'SALDO A PAGAR' : 'QUITADO'}</span><span style="color:${financeiro.totalPendente > 0 ? '#ef4444' : '#16a34a'}">${financeiro.totalPendente > 0 ? R(financeiro.totalPendente) : 'R$ 0,00'}</span></div>
+<!-- 2. ITENS ENTREGUES -->
+<div class="cl">
+    ${sn('Itens Entregues')}
+    <p style="margin-bottom:8px">Relação de todos os móveis e itens entregues, organizados por ambiente. Total: <strong>${totalItens} item${totalItens !== 1 ? 'ns' : ''}</strong> em <strong>${totalAmb} ambiente${totalAmb !== 1 ? 's' : ''}</strong>.</p>
+    ${itensHtml}
 </div>
 
-${observacoes ? `<div class="obs"><h3>OBSERVAÇÕES</h3><p>${esc(observacoes).replace(/\n/g, '<br>')}</p></div>` : ''}
+<!-- 3. CHECKLIST DE VISTORIA -->
+<div class="cl">
+    ${sn('Checklist de Vistoria')}
+    <p style="margin-bottom:8px;font-size:9.5px;color:#666">Verificar cada item abaixo durante a vistoria. Marque o checkbox se aprovado ou registre a observação correspondente.</p>
+    ${checklistHtml(CHECKLIST)}
+</div>
+
+${(hasOcorr || hasRessalvas) ? `
+<!-- PENDÊNCIAS E RESSALVAS -->
+<div class="cl">
+    ${sn('Pendências e Ressalvas')}
+    ${hasOcorr ? `<table class="mt"><thead><tr><th>Assunto</th><th>Descrição</th><th>Status</th></tr></thead><tbody>
+    ${ocorrencias.map(oc => `<tr><td class="nome"><strong>${esc(oc.assunto)}</strong></td><td>${esc(oc.descricao) || '—'}</td><td style="color:#ef4444;font-weight:600">Pendente</td></tr>`).join('')}
+    </tbody></table>` : ''}
+    ${hasRessalvas ? `<div class="cl-box exclusao" style="margin-top:8px"><h4>Ressalvas</h4><p style="font-size:10px;line-height:1.6">${esc(ressalvas).replace(/\n/g, '<br>')}</p></div>` : ''}
+</div>` : ''}
+
+<!-- CONDIÇÕES DE GARANTIA -->
+<div class="cl">
+    ${sn('Condições de Garantia')}
+    <div class="cl-box cobertura">
+        <h4>Garantia Contratual</h4>
+        <p style="font-size:10px;line-height:1.7">${garantia}</p>
+    </div>
+</div>
+
+<!-- ORIENTAÇÕES PÓS-ENTREGA -->
+<div class="cl">
+    ${sn('Orientações de Conservação')}
+    <p style="margin-bottom:6px">Para manter a garantia vigente e preservar a durabilidade dos móveis, observe as seguintes orientações:</p>
+    <div class="cl-box cuidados">
+        <h4>Cuidados essenciais</h4>
+        <ul>
+            <li><strong>Limpeza:</strong> Utilize pano macio levemente umedecido com água e sabão neutro. Seque imediatamente. Nunca use produtos abrasivos, álcool, thinner ou esponjas de aço.</li>
+            <li><strong>Umidade:</strong> Evite contato prolongado com água ou líquidos. Seque derramamentos imediatamente. Mantenha o ambiente ventilado.</li>
+            <li><strong>Temperatura:</strong> Não apoie objetos quentes diretamente sobre as superfícies. Utilize apoios ou descansos térmicos.</li>
+            <li><strong>Capacidade de carga:</strong> Respeite os limites de peso das prateleiras e gavetas conforme indicado no projeto.</li>
+            <li><strong>Ferragens:</strong> Lubrifique dobradiças e corrediças com óleo fino a cada 6 meses. Verifique e reaperte parafusos aparentes periodicamente.</li>
+            <li><strong>Sol:</strong> Evite exposição direta e prolongada ao sol, que pode desbotar acabamentos e empenar painéis.</li>
+        </ul>
+    </div>
+    <p style="font-size:9px;color:#666"><strong>Nota:</strong> Orientações detalhadas constam no Certificado de Garantia. O descumprimento destas orientações pode acarretar a perda da garantia contratual.</p>
+</div>
+
+<!-- SITUAÇÃO FINANCEIRA -->
+<div class="cl">
+    ${sn('Situação Financeira')}
+    <div class="financeiro">
+        <div class="fin-row"><span>Valor do projeto:</span><span style="font-weight:600">${R(financeiro.valorTotal)}</span></div>
+        <div class="fin-row"><span>Valor pago:</span><span style="font-weight:600;color:#16a34a">${R(financeiro.totalPago)}</span></div>
+        ${financeiro.totalPendente > 0 ? `<div class="fin-row"><span>Saldo pendente:</span><span style="font-weight:600;color:#ef4444">${R(financeiro.totalPendente)}</span></div>` : ''}
+        <div class="fin-row total"><span>${financeiro.totalPendente > 0 ? 'SALDO A PAGAR' : 'QUITADO'}</span><span style="color:${financeiro.totalPendente > 0 ? '#ef4444' : '#16a34a'}">${financeiro.totalPendente > 0 ? R(financeiro.totalPendente) : 'R$ 0,00'}</span></div>
+    </div>
+</div>
+
+<!-- DECLARAÇÃO DE RECEBIMENTO -->
+<div class="declaracao">
+    <h3>Declaração de Recebimento e Aceitação</h3>
+    <p>Declaro, para os devidos fins, que recebi e vistoriei todos os móveis planejados descritos neste Termo de Entrega, fabricados e instalados por <span class="destaque">${empresaNome}</span>, referentes ao projeto <span class="destaque">${projNome}</span>${orcNumero ? ` (Ref.: ${orcNumero})` : ''}.</p>
+    <p style="margin-top:6px">Após inspeção detalhada conforme checklist de vistoria acima, ${hasOcorr || hasRessalvas ? 'considero os itens entregues <strong>com as ressalvas registradas neste documento</strong>' : 'considero os itens entregues <strong>em conformidade</strong> com o orçamento aprovado e as especificações acordadas'}.</p>
+    <p style="margin-top:6px">A garantia contratual passa a vigorar a partir desta data, conforme condições descritas neste termo e detalhadas no Certificado de Garantia emitido em documento separado.</p>
+</div>
+
+${observacoes ? `<div class="obs"><h3>Observações Adicionais</h3><p>${esc(observacoes).replace(/\n/g, '<br>')}</p></div>` : ''}
 
 ${assinaturasHtml(clienteNome, empresa.nome)}
 
 <div class="footer-legal">
     Este documento atesta a entrega e aceitação dos móveis e serviços descritos acima.
     Após a assinatura, a garantia passa a vigorar conforme os termos especificados.
-    ${orcNumero ? `Ref. Orçamento: ${orcNumero} · ` : ''}Projeto: ${projNome}
+    ${orcNumero ? `Ref. Orçamento: ${orcNumero} · ` : ''}Projeto: ${projNome} · ${empresaNome}
 </div>
 
 </div><!-- content-wrap -->
@@ -372,7 +465,7 @@ ${ai === 0 ? `<div class="fill-tip no-print">
     ${ambienteTable(amb, ai, chapas, acabamentos, entregaFotos)}
 </div>
 
-${checklistHtml(CHECKLIST)}
+${checklistHtml(CHECKLIST, 'CHECKLIST DE VISTORIA')}
 
 ${observacoes ? `<div class="obs"><h3>OBSERVAÇÕES</h3><p>${esc(observacoes).replace(/\n/g, '<br>')}</p></div>` : ''}
 
@@ -455,26 +548,6 @@ ${buildBaseCSS(cp, ca)}
 .cert-dados .cd.full{grid-column:span 2;}
 .cert-dados .cd.destaque span{color:${cp};font-weight:700;}
 
-.cl{margin-bottom:14px;page-break-inside:avoid;}
-.cl-hdr{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
-.cl-hdr .cl-num{background:${cp};color:#fff;font-size:9px;font-weight:800;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.cl-hdr h4{font-size:10.5px;font-weight:700;color:${cp};text-transform:uppercase;margin:0;letter-spacing:0.3px;}
-.cl p,.cl li{font-size:10px;line-height:1.7;color:#333;}
-.cl ul{padding-left:16px;margin:4px 0 0;}
-.cl li{margin-bottom:2px;}
-.cl .sub-title{font-weight:700;color:#444;font-size:10px;margin:8px 0 4px;text-transform:uppercase;}
-
-.cl-box{border-radius:6px;padding:12px 14px;margin-bottom:14px;page-break-inside:avoid;}
-.cl-box.cobertura{background:#f0fdf4;border:1px solid #bbf7d0;}
-.cl-box.cobertura h4{color:#16a34a;}
-.cl-box.exclusao{background:#fef2f2;border:1px solid #fecaca;}
-.cl-box.exclusao h4{color:#dc2626;}
-.cl-box.cuidados{background:#fffbeb;border:1px solid #fde68a;}
-.cl-box.cuidados h4{color:${ca};}
-.cl-box h4{font-size:10px;font-weight:700;margin-bottom:6px;text-transform:uppercase;}
-.cl-box li{font-size:9.5px;line-height:1.7;color:#555;margin-bottom:1px;}
-.cl-box ul{padding-left:14px;margin:0;}
-
 .cert-contato{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;background:${cp}06;border:1.5px solid ${cp}20;border-radius:6px;padding:12px 14px;margin:16px 0;font-size:10px;}
 .cert-contato .cc{text-align:center;}
 .cert-contato .cc label{display:block;font-size:8.5px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:2px;}
@@ -531,8 +604,22 @@ ${watermarkHtml(watermarkSrc, watermarkOpacity)}
 <div class="cl">
     <div class="cl-hdr"><div class="cl-num">3</div><h4>Cobertura da Garantia</h4></div>
     ${garantiaCustom ? `<p>${esc(garantiaCustom).replace(/\n/g, '<br>')}</p>` : `
+    <p style="margin-bottom:8px">A tabela abaixo detalha os componentes cobertos e seus respectivos prazos de garantia contratual:</p>
+    <table class="mt" style="margin-bottom:12px">
+        <thead><tr><th>Componente</th><th class="n" style="width:70px">Periodo</th><th>Cobertura</th></tr></thead>
+        <tbody>
+            <tr><td style="font-weight:600">Caixaria e estrutura (MDF/MDP)</td><td class="n">5 anos</td><td>Defeitos de fabricacao, empenamento estrutural</td></tr>
+            <tr><td style="font-weight:600">Frentes, tampos e paineis</td><td class="n">5 anos</td><td>Defeito de revestimento, laminado e pintura</td></tr>
+            <tr><td style="font-weight:600">Bordas (ABS/PVC)</td><td class="n">5 anos</td><td>Descolamento em condicoes normais de uso</td></tr>
+            <tr><td style="font-weight:600">Dobradicas e corredicas</td><td class="n">12 meses</td><td>Defeito de funcionamento, folgas excessivas</td></tr>
+            <tr><td style="font-weight:600">Puxadores e acessorios metalicos</td><td class="n">12 meses</td><td>Oxidacao e defeitos de fixacao</td></tr>
+            <tr><td style="font-weight:600">Iluminacao interna LED (se prev.)</td><td class="n">12 meses</td><td>Defeito de componente eletrico</td></tr>
+            <tr><td style="font-weight:600">Pintura / Lacagem</td><td class="n">3 anos</td><td>Descascamento, bolhas, amarelamento anormal</td></tr>
+        </tbody>
+    </table>
+    <p style="font-size:9px;color:#666;margin-bottom:8px">A garantia e contada a partir da data de instalacao e cobre exclusivamente defeitos de fabricacao e materiais. O prazo legal minimo previsto pelo CDC (Art. 26, II) e de 90 dias para bens duraveis.</p>
     <div class="cl-box cobertura">
-        <h4>Esta garantia cobre:</h4>
+        <h4>Detalhamento da cobertura:</h4>
         <ul>
             <li>Defeitos de fabricacao em materiais, chapas, paineis e acabamentos</li>
             <li>Descolamento de bordas (ABS/PVC), laminados e revestimentos em condicoes normais de uso</li>
@@ -543,7 +630,7 @@ ${watermarkHtml(watermarkSrc, watermarkOpacity)}
             <li>Pecas de reposicao para componentes com defeito de fabricacao</li>
         </ul>
     </div>`}
-    <p style="font-size:9px;color:#666"><strong>Nota:</strong> A cobertura abrange exclusivamente defeitos de fabricacao. Componentes de desgaste natural (feltros, amortecedores de impacto, vedacoes) possuem vida util propria e nao sao cobertos apos o periodo de uso regular.</p>
+    <p style="font-size:9px;color:#666"><strong>Nota:</strong> A cobertura abrange exclusivamente defeitos de fabricacao. Os prazos diferenciados na tabela acima consideram a natureza e vida util esperada de cada componente.</p>
 </div>
 
 <!-- CLAUSULA 4 — EXCLUSOES -->
@@ -580,24 +667,78 @@ ${watermarkHtml(watermarkSrc, watermarkOpacity)}
     </ul>
 </div>
 
-<!-- CLAUSULA 6 — CUIDADOS DE CONSERVACAO -->
-<div class="cl" style="page-break-before:auto;">
-    <div class="cl-hdr"><div class="cl-num">6</div><h4>Orientacoes de Uso e Conservacao</h4></div>
-    <p>Para manter a garantia vigente e assegurar a durabilidade dos moveis, o CONSUMIDOR devera observar as seguintes orientacoes:</p>
+<!-- CLAUSULA 6 — GUIA COMPLETO DE CUIDADOS E CONSERVACAO -->
+<div class="cl" style="page-break-before:always;">
+    <div class="cl-hdr"><div class="cl-num">6</div><h4>Guia de Uso, Conservacao e Cuidados</h4></div>
+    <p>Para manter a garantia vigente e assegurar a durabilidade dos moveis por muitos anos, o CONSUMIDOR devera observar atentamente as orientacoes abaixo. O descumprimento destas orientacoes podera acarretar a perda da garantia contratual.</p>
+
+    <p class="sub-title" style="margin-top:10px">6.1 — Umidade e Agua</p>
     <div class="cl-box cuidados">
-        <h4>Boas praticas de conservacao</h4>
         <ul>
-            <li><strong>Limpeza:</strong> Utilize apenas pano macio e limpo, levemente umedecido com agua e sabao neutro. Seque imediatamente com pano seco. Nunca use produtos abrasivos, esponjas de aco, alcool, thinner, acetona, cloro ou desengordurantes.</li>
-            <li><strong>Umidade:</strong> Evite contato prolongado com agua ou liquidos. Seque imediatamente qualquer derramamento. Mantenha o ambiente ventilado.</li>
-            <li><strong>Temperatura:</strong> Nao apoie objetos quentes diretamente sobre as superficies (panelas, pratos quentes). Utilize apoios ou descansos termicos.</li>
-            <li><strong>Peso:</strong> Respeite a capacidade de carga das prateleiras e gavetas indicada no projeto. Nao force portas, gavetas ou basculantes.</li>
-            <li><strong>Sol:</strong> Evite exposicao direta e prolongada ao sol, que pode desbotar acabamentos, ressecar e empenar os paineis.</li>
-            <li><strong>Ferragens:</strong> Verifique e reaperte parafusos aparentes periodicamente. Lubrifique dobradicas e corredicas com oleo fino a cada 6 (seis) meses.</li>
-            <li><strong>Instalacao:</strong> Nao instale moveis em contato direto com fontes de calor (fogao, forno, aquecedores) sem protecao termica adequada.</li>
-            <li><strong>Eletrodomesticos:</strong> Lava-loucas e fornos embutidos devem possuir isolamento termico adequado para proteger os paineis adjacentes.</li>
+            <li><strong>Nunca deixe agua acumular sobre os moveis.</strong> O MDF e um material sensivel a umidade. Se respingar ou cair agua sobre o produto, seque imediatamente com pano seco e de alta absorcao. O acumulo de umidade causa estufamento irreversivel da estrutura.</li>
+            <li><strong>Cuidado com vapor em cozinhas e banheiros.</strong> Evite o excesso de vapor de panelas diretamente sobre os armarios. Mantenha sempre o exaustor ou ventilacao em funcionamento durante o cozimento. Em banheiros, ventile o ambiente apos o banho.</li>
+            <li><strong>Limpeza correta das superficies.</strong> Utilize apenas pano macio levemente umedecido com agua e sabao neutro. Seque imediatamente. Jamais utilize esponjas abrasivas, palha de aco, alcool, thinner, solventes, agua sanitaria, acetona, cloro ou produtos com pH acido ou alcalino.</li>
         </ul>
     </div>
-    <p style="font-size:9px;color:#666"><strong>Importante:</strong> O descumprimento das orientacoes acima podera acarretar a perda da garantia contratual para os danos decorrentes.</p>
+
+    <p class="sub-title">6.2 — Capacidade de Carga e Uso Adequado</p>
+    <div class="cl-box cuidados">
+        <h4>Capacidades maximas de carga</h4>
+        <table class="mt" style="margin-bottom:8px">
+            <thead><tr><th>Componente</th><th class="n" style="width:100px">Carga Maxima</th></tr></thead>
+            <tbody>
+                <tr><td>Prateleiras em MDF 15mm (vao ate 50cm)</td><td class="n">15 kg</td></tr>
+                <tr><td>Prateleiras em MDF 18mm (vao ate 60cm)</td><td class="n">20 kg</td></tr>
+                <tr><td>Prateleiras em MDF 25mm (vao ate 90cm)</td><td class="n">30 kg</td></tr>
+                <tr><td>Gavetas (carga distribuida)</td><td class="n">10 kg</td></tr>
+                <tr><td>Tampos e bancadas</td><td class="n">Conforme projeto</td></tr>
+            </tbody>
+        </table>
+        <ul>
+            <li><strong>Distribua o peso uniformemente</strong> nas prateleiras. Nunca concentre o peso nas laterais ou no centro. A distribuicao uniforme evita o empenamento da peca — defeito mecanico permanente NAO coberto pela garantia quando causado por sobrecarga.</li>
+            <li><strong>Nao ultrapasse a capacidade de projeto.</strong> Os moveis foram projetados para uso residencial ou comercial leve. Nao os utilize para fins diferentes do especificado. Sobrecargas causam danos permanentes e anulam a garantia.</li>
+            <li><strong>Aguarde 24 horas antes de colocar peso.</strong> Apos a instalacao, aguarde pelo menos 24 horas antes de colocar objetos nos armarios e prateleiras. Esse periodo e necessario para que as fixacoes e cola atinjam sua resistencia maxima.</li>
+        </ul>
+    </div>
+
+    <p class="sub-title">6.3 — Protecao contra Riscos e Impactos</p>
+    <div class="cl-box cuidados">
+        <ul>
+            <li><strong>Proteja as superficies de objetos cortantes.</strong> Jamais apoie facas, chaves ou ferramentas diretamente sobre tampos e prateleiras. Utilize tabuas de corte e protetores de superficie.</li>
+            <li><strong>Nao sente ou apoie-se sobre os tampos.</strong> Tampos e bancadas nao foram projetados para suportar o peso de uma pessoa. Sentar, subir ou se apoiar pode causar quebras, empenamentos e danos estruturais.</li>
+            <li><strong>Cuidado com a fita de borda (ABS).</strong> A fita de borda protege as bordas do MDF da umidade. Qualquer impacto brusco pode provocar seu desprendimento. Se isso ocorrer, contate o FORNECEDOR imediatamente para avaliacao.</li>
+        </ul>
+    </div>
+
+    <p class="sub-title">6.4 — Calor, Luz Solar e Temperatura</p>
+    <div class="cl-box cuidados">
+        <ul>
+            <li><strong>Evite exposicao direta a luz solar.</strong> Raios solares diretos e continuos degradam os revestimentos, alteram a cor e ressecam a estrutura do MDF. Utilize persianas, cortinas ou peliculas nas janelas proximas aos moveis.</li>
+            <li><strong>Nao coloque objetos quentes sobre tampos.</strong> Panelas, travessas e utensilios aquecidos nunca devem ser apoiados diretamente sobre tampos. O calor pode causar bolhas, manchas e deformacoes permanentes no laminado. Use sempre suportes ou descansos termicos.</li>
+            <li><strong>Atencao com ambientes climatizados.</strong> Em ambientes com ar-condicionado, mantenha a umidade relativa do ar entre 40% e 65%. Ambientes muito secos podem ressecar as juncoes e provocar microfissuras. Nao instale moveis em contato direto com fontes de calor (fogao, forno, aquecedores) sem protecao termica adequada.</li>
+            <li><strong>Eletrodomesticos embutidos.</strong> Lava-loucas e fornos embutidos devem possuir isolamento termico adequado para proteger os paineis adjacentes.</li>
+        </ul>
+    </div>
+
+    <p class="sub-title">6.5 — Controle de Pragas e Desinsetizacao</p>
+    <div class="cl-box cuidados">
+        <ul>
+            <li><strong>Desinsetize o imovel regularmente.</strong> Realize desinsetizacao profissional no minimo a cada 6 meses (semestralmente). O MDF nao e o material de maior preferencia de cupins, mas ambientes infestados podem ser afetados. O FORNECEDOR nao se responsabiliza por danos causados por pragas.</li>
+            <li><strong>Atencao aos produtos utilizados na desinsetizacao.</strong> Informe ao profissional quais produtos sao utilizados e certifique-se de que nao agridam o laminado, as bordas de ABS ou as ferragens dos moveis. Produtos muito acidos podem causar danos irreversiveis.</li>
+        </ul>
+    </div>
+
+    <p class="sub-title">6.6 — Manutencao Periodica Recomendada</p>
+    <table class="mt" style="margin-top:6px">
+        <thead><tr><th>Frequencia</th><th>Acao Recomendada</th></tr></thead>
+        <tbody>
+            <tr><td class="n" style="font-weight:600;white-space:nowrap">Semanal</td><td>Limpeza suave das superficies com pano macio levemente umido e sabao neutro</td></tr>
+            <tr><td class="n" style="font-weight:600;white-space:nowrap">Mensal</td><td>Verificar alinhamento de portas e gavetas; ajustar se necessario</td></tr>
+            <tr><td class="n" style="font-weight:600;white-space:nowrap">Trimestral</td><td>Aplicar lubrificante (oleo de silicone) nas dobradicas e corredicas</td></tr>
+            <tr><td class="n" style="font-weight:600;white-space:nowrap">Semestral</td><td>Desinsetizacao profissional do imovel; verificar bordas e fixacoes</td></tr>
+            <tr><td class="n" style="font-weight:600;white-space:nowrap">Anual</td><td>Verificacao do nivelamento dos modulos; inspecao geral de bordas e acabamentos</td></tr>
+        </tbody>
+    </table>
 </div>
 
 <!-- CLAUSULA 7 — DISPOSICOES GERAIS -->

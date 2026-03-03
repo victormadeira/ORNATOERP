@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { Z, Ic } from '../ui';
 import api from '../api';
 import { R$ } from '../engine';
+import { STATUS_PROJ } from '../theme';
 import {
     FileText, Download, Calendar, Users, Briefcase, DollarSign,
     BarChart3, Clock, Filter, Table, ChevronDown
@@ -19,11 +20,6 @@ const KB_LABELS = {
     lead: 'Lead', orc: 'Orçamento', env: 'Enviado', neg: 'Negociação',
     ok: 'Aprovado', prod: 'Produção', mont: 'Montagem',
     arq: 'Arquivo', perdido: 'Perdido'
-};
-
-const STATUS_PROJ = {
-    nao_iniciado: 'Não iniciado', em_andamento: 'Em andamento',
-    atrasado: 'Atrasado', concluido: 'Concluído', suspenso: 'Suspenso',
 };
 
 // ── CSV Export ──────────────────────────────────────
@@ -129,7 +125,7 @@ const COLUMNS = {
         { key: 'nome', label: 'Projeto' },
         { key: 'cliente_nome', label: 'Cliente' },
         { key: 'orc_numero', label: 'Orçamento' },
-        { key: 'status', label: 'Status', fmt: v => STATUS_PROJ[v] || v },
+        { key: 'status', label: 'Status', fmt: v => STATUS_PROJ[v]?.label || v },
         { key: 'valor_venda', label: 'Valor Venda', fmt: v => R$(v) },
         { key: 'recebido', label: 'Recebido', fmt: v => R$(v) },
         { key: 'a_receber', label: 'A Receber', fmt: v => R$(v) },
@@ -412,8 +408,8 @@ export default function Relatorios({ notify }) {
                             { label: 'Saldo', value: R$(data.resumo?.saldo), color: data.resumo?.saldo >= 0 ? '#22c55e' : '#ef4444' },
                         ].map((c, i) => (
                             <div key={i} className="glass-card report-summary-card p-3 text-center">
-                                <div className="text-[10px] font-semibold mb-1" style={{ color: '#64748b' }}>{c.label}</div>
-                                <div className="text-base font-bold" style={{ color: c.color }}>{c.value}</div>
+                                <div className="font-semibold mb-1" style={{ fontSize: 11, color: '#64748b' }}>{c.label}</div>
+                                <div style={{ fontSize: 24, fontWeight: 800, color: c.color }}>{c.value}</div>
                             </div>
                         ))}
                     </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
-import { Ic, Z, Modal, Spinner } from '../ui';
+import { Ic, Z, Modal, Spinner, Badge } from '../ui';
+import { STATUS_PROJ, STATUS_ETAPA, CATEGORIAS as CAT_DESPESAS, CAT_MAP, colorBg, colorBorder } from '../theme';
 import { R$, N, DB_CHAPAS, DB_ACABAMENTOS } from '../engine';
 import { buildTermoEntregaHtml, buildTermoPorAmbienteHtml, buildCertificadoGarantiaHtml } from './TermoEntregaHtml';
 import {
@@ -11,55 +12,65 @@ import {
     Scissors, Layers, Ruler, ClipboardList, ShoppingCart,
     ChevronDown, ChevronRight, Printer, X as XIcon, Pencil, Clipboard,
     Eye, EyeOff, Upload, Trash2 as Trash2Icon, FileCheck, Shield,
-    Camera, Image as ImageIcon, CheckCircle2, XCircle
+    Camera, Image as ImageIcon, CheckCircle2, XCircle,
+    ClipboardCheck, Factory, Paintbrush, Truck, Wrench, ListChecks
 } from 'lucide-react';
 
 // ─── Helpers ──────────────────────────────────────
 const dtFmt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const dtInput = (s) => s ? s.slice(0, 10) : '';
 
-const STATUS_PROJ = {
-    nao_iniciado: { label: 'Não iniciado', color: '#94a3b8', bg: '#f1f5f9' },
-    em_andamento: { label: 'Em andamento', color: '#1379F0', bg: '#eff6ff' },
-    atrasado:     { label: 'Atrasado',     color: '#ef4444', bg: '#fef2f2' },
-    concluido:    { label: 'Concluído',    color: '#22c55e', bg: '#f0fdf4' },
-    suspenso:     { label: 'Suspenso',     color: '#f59e0b', bg: '#fffbeb' },
+// ─── Helpers Gantt Premium ──────────────────────────────
+const calcProgressoERP = (etapa) => {
+    if (etapa.progresso > 0) return Math.min(etapa.progresso, 100);
+    if (etapa.status === 'concluida') return 100;
+    if (etapa.status === 'nao_iniciado' || etapa.status === 'pendente') return 0;
+    if (!etapa.data_inicio || !etapa.data_vencimento) return 0;
+    const s = new Date(etapa.data_inicio + 'T12:00:00').getTime();
+    const end = new Date(etapa.data_vencimento + 'T12:00:00').getTime();
+    const now = Date.now();
+    if (now <= s) return 0;
+    if (now >= end) return 100;
+    return Math.round(((now - s) / (end - s)) * 100);
 };
 
-const STATUS_ETAPA = {
-    nao_iniciado: { label: 'Não iniciado', color: '#64748b' },
-    pendente:     { label: 'Pendente',     color: '#64748b' },
-    em_andamento: { label: 'Em andamento', color: '#1379F0' },
-    concluida:    { label: 'Concluída',    color: '#22c55e' },
-    atrasada:     { label: 'Atrasada',     color: '#ef4444' },
+const getEtapaIconERP = (nome) => {
+    const n = (nome || '').toLowerCase();
+    if (/medi|levantamento/.test(n)) return Ruler;
+    if (/aprova/.test(n)) return ClipboardCheck;
+    if (/compra|material/.test(n)) return ShoppingCart;
+    if (/produ|fabrica/.test(n)) return Factory;
+    if (/acabamento|pintura/.test(n)) return Paintbrush;
+    if (/entrega/.test(n)) return Truck;
+    if (/instala|montagem/.test(n)) return Wrench;
+    return ListChecks;
 };
 
-const CATEGORIAS_DESPESA = [
-    { id: 'material', label: 'Material', color: '#3b82f6' },
-    { id: 'mao_de_obra', label: 'Mão de Obra', color: '#8b5cf6' },
-    { id: 'transporte', label: 'Transporte', color: '#f59e0b' },
-    { id: 'terceirizado', label: 'Terceirizado', color: '#ec4899' },
-    { id: 'ferramentas', label: 'Ferramentas', color: '#6366f1' },
-    { id: 'acabamento', label: 'Acabamento', color: '#14b8a6' },
-    { id: 'instalacao', label: 'Instalação', color: '#f97316' },
-    { id: 'outros', label: 'Outros', color: '#94a3b8' },
-];
-const catMap = {}; CATEGORIAS_DESPESA.forEach(c => { catMap[c.id] = c; });
-
-const Badge = ({ status, map }) => {
-    const s = (map || STATUS_PROJ)[status] || { label: status, color: '#94a3b8', bg: '#f1f5f9' };
-    return (
-        <span style={{
-            background: s.bg || `${s.color}15`, color: s.color,
-            border: `1px solid ${s.color}40`,
-            fontSize: 11, fontWeight: 700, padding: '2px 9px',
-            borderRadius: 20, whiteSpace: 'nowrap'
-        }}>{s.label}</span>
-    );
+const calcDiasRestantesERP = (etapa) => {
+    if (!etapa.data_vencimento) return null;
+    const end = new Date(etapa.data_vencimento + 'T12:00:00').getTime();
+    const dias = Math.ceil((end - Date.now()) / 86400000);
+    if (dias < 0) return { texto: `${Math.abs(dias)}d atrasado`, atrasado: true };
+    if (dias === 0) return { texto: 'Vence hoje', atrasado: false };
+    return { texto: `${dias}d restante`, atrasado: false };
 };
 
-// ─── Gantt Chart (CSS puro) ────────────────────────────
+const GANTT_ERP_STYLES = `
+@keyframes ganttShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes ganttPulseGlow { 0%, 100% { box-shadow: 0 0 4px 1px rgba(239,68,68,0.3); } 50% { box-shadow: 0 0 10px 3px rgba(239,68,68,0.55); } }
+@keyframes ganttTodayPulse { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
+@keyframes ganttSlideIn { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes ganttCheckPop { 0% { transform: scale(0); opacity: 0; } 60% { transform: scale(1.3); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes ganttDashMove { 0% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -20; } }
+@keyframes ganttDiamondPulse { 0%, 100% { transform: rotate(45deg) scale(1); } 50% { transform: rotate(45deg) scale(1.15); } }
+.gantt-diamond-erp:hover { transform: rotate(45deg) scale(1.35) !important; filter: brightness(1.1); }
+.gantt-bar-erp:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,0.2) !important; }
+`;
+
+// ─── Gantt Chart Premium (ERP) ────────────────────────────
 function GanttChart({ etapas, onEdit, zoom = 1 }) {
+    const [hoveredIdx, setHoveredIdx] = useState(null);
+
     if (!etapas || etapas.length === 0) return (
         <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
             Nenhuma etapa cadastrada
@@ -75,8 +86,6 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
 
     const toMs = d => new Date(d + 'T12:00:00').getTime();
     const DAY = 86400000;
-
-    // Auto-enquadramento: 2 dias antes, 7 dias depois
     const rawMin = Math.min(...dts.map(toMs));
     const rawMax = Math.max(...dts.map(toMs));
     const minMs = rawMin - 2 * DAY;
@@ -88,45 +97,34 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
     const todayPct = ((today - minMs) / totalMs) * 100;
     const showToday = todayPct >= -2 && todayPct <= 102;
 
-    // Gerar marcações de datas (grid lines)
     const spanDays = (rawMax - rawMin) / DAY;
     const gridLines = [];
     if (spanDays <= 60) {
-        // Linhas semanais (cada segunda-feira)
         let d = new Date(minMs);
-        d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); // próxima segunda
+        d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
         while (d.getTime() <= maxMs) {
             const pct = (d.getTime() - minMs) / totalMs * 100;
-            if (pct > 0 && pct < 100) {
-                gridLines.push({ pct, label: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) });
-            }
+            if (pct > 0 && pct < 100) gridLines.push({ pct, label: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) });
             d.setDate(d.getDate() + 7);
         }
     } else {
-        // Linhas mensais (dia 1 de cada mês)
-        let d = new Date(minMs);
-        d.setDate(1);
-        d.setMonth(d.getMonth() + 1);
+        let d = new Date(minMs); d.setDate(1); d.setMonth(d.getMonth() + 1);
         while (d.getTime() <= maxMs) {
             const pct = (d.getTime() - minMs) / totalMs * 100;
-            if (pct > 0 && pct < 100) {
-                gridLines.push({ pct, label: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) });
-            }
+            if (pct > 0 && pct < 100) gridLines.push({ pct, label: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) });
             d.setMonth(d.getMonth() + 1);
         }
     }
 
-    // Header: meses
     const months = [];
-    let cur = new Date(minMs);
-    cur.setDate(1);
-    while (cur.getTime() <= maxMs) {
-        const pct = (cur.getTime() - minMs) / totalMs * 100;
-        months.push({ label: cur.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }), pct: Math.max(0, pct) });
-        cur.setMonth(cur.getMonth() + 1);
+    { let cur = new Date(minMs); cur.setDate(1);
+      while (cur.getTime() <= maxMs) {
+          const pct = (cur.getTime() - minMs) / totalMs * 100;
+          months.push({ label: cur.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }), pct: Math.max(0, pct) });
+          cur.setMonth(cur.getMonth() + 1);
+      }
     }
 
-    // Build map for dependency lookup
     const etapaMap = {};
     etapas.forEach(e => { etapaMap[e.id] = e; });
 
@@ -137,137 +135,283 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
     };
 
     const minW = Math.round(600 * zoom);
-    const shortDt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
+    const ROW_H = 48;
 
-    // Detectar se barra é estreita (< 12% da largura total)
-    const isNarrow = (widthPct) => widthPct < 12;
+    const getBarStyle = (status) => {
+        const base = { position: 'absolute', height: 30, borderRadius: 10, display: 'flex', alignItems: 'center', overflow: 'hidden', zIndex: 2, cursor: onEdit ? 'pointer' : 'default', transition: 'transform 0.2s, box-shadow 0.2s' };
+        switch (status) {
+            case 'em_andamento':
+                return { ...base, background: 'linear-gradient(90deg, #1379F0, #3b93f7, #1379F0)', backgroundSize: '200% 100%', animation: 'ganttShimmer 2.5s ease-in-out infinite', boxShadow: '0 3px 10px rgba(19,121,240,0.35)' };
+            case 'concluida':
+                return { ...base, background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 2px 8px rgba(34,197,94,0.25)' };
+            case 'nao_iniciado': case 'pendente':
+                return { ...base, background: 'var(--bg-muted)', border: 'none' };
+            case 'atrasada':
+                return { ...base, background: 'linear-gradient(135deg, #ef4444, #dc2626)', animation: 'ganttPulseGlow 2s ease-in-out infinite' };
+            default:
+                return { ...base, background: '#64748b' };
+        }
+    };
 
     return (
-        <div style={{ overflowX: 'auto' }}>
-            {/* Timeline header — duas linhas: meses em cima, datas embaixo */}
-            <div style={{ position: 'relative', borderRadius: '6px 6px 0 0', border: '1px solid var(--border)', borderBottom: 'none', minWidth: minW, overflow: 'hidden' }}>
-                {/* Linha 1: Meses */}
-                <div style={{ position: 'relative', height: 22, background: 'var(--bg-muted)', borderBottom: '1px solid var(--border)' }}>
-                    {months.map((m, i) => {
-                        // Calcular largura de cada mês
-                        const nextPct = i < months.length - 1 ? months[i + 1].pct : 100;
-                        const mWidth = nextPct - Math.max(0, m.pct);
+        <div>
+            <style>{GANTT_ERP_STYLES}</style>
+
+            {/* ── Split Layout: Sidebar + Timeline ── */}
+            <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+
+                {/* Sidebar */}
+                <div style={{ width: 200, flexShrink: 0, borderRight: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
+                    {/* Sidebar header */}
+                    <div style={{ height: 42, display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid var(--border)' }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>Etapas</span>
+                    </div>
+                    {/* Sidebar rows */}
+                    {etapas.map((e, i) => {
+                        const st = STATUS_ETAPA[e.status] || STATUS_ETAPA.nao_iniciado;
+                        const EIcon = getEtapaIconERP(e.nome);
+                        const prog = calcProgressoERP(e);
+                        const isActive = e.status === 'em_andamento';
+                        const isOverdue = e.status === 'atrasada';
                         return (
-                            <div key={`m${i}`} style={{
-                                position: 'absolute', left: `${Math.max(0, m.pct)}%`, width: `${mWidth}%`,
-                                fontSize: 11, color: 'var(--text-muted)', fontWeight: 700,
-                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                                lineHeight: '22px', paddingLeft: 8, boxSizing: 'border-box',
-                                borderRight: i < months.length - 1 ? '1px solid var(--border)' : 'none',
-                            }}>{m.label}</div>
+                            <div key={e.id}
+                                onClick={() => onEdit && onEdit(e)}
+                                style={{
+                                    height: ROW_H, display: 'flex', alignItems: 'center', gap: 6,
+                                    padding: '0 12px', borderBottom: i < etapas.length - 1 ? '1px solid var(--border)' : 'none',
+                                    animation: `ganttSlideIn 0.4s ease ${i * 100}ms both`,
+                                    background: isActive ? 'rgba(19,121,240,0.04)' : isOverdue ? 'rgba(239,68,68,0.04)' : 'transparent',
+                                    borderLeft: isActive ? '3px solid #1379F0' : isOverdue ? '3px solid #ef4444' : '3px solid transparent',
+                                    cursor: onEdit ? 'pointer' : 'default',
+                                }}>
+                                <div style={{
+                                    width: 28, height: 28, borderRadius: 8,
+                                    background: `${st.color}15`, color: st.color,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                }}>
+                                    {e.status === 'concluida'
+                                        ? <CheckCircle2 size={15} style={{ animation: 'ganttCheckPop 0.5s ease both', animationDelay: `${i * 100 + 300}ms` }} />
+                                        : <EIcon size={14} />
+                                    }
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontWeight: 600, fontSize: 11, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={e.nome}>
+                                        {e.nome}
+                                    </div>
+                                    <div style={{ fontSize: 10, color: st.color, fontWeight: 600, marginTop: 1 }}>
+                                        {prog}%
+                                    </div>
+                                </div>
+                                {e.responsavel_nome && (
+                                    <div title={e.responsavel_nome} style={{
+                                        width: 20, height: 20, borderRadius: '50%', background: st.color, color: '#fff',
+                                        fontSize: 8, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        flexShrink: 0, border: '1.5px solid var(--bg-card)',
+                                    }}>{getInitials(e.responsavel_nome)}</div>
+                                )}
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: st.color, flexShrink: 0, boxShadow: isActive ? '0 0 6px rgba(19,121,240,0.5)' : isOverdue ? '0 0 6px rgba(239,68,68,0.5)' : 'none' }} />
+                            </div>
                         );
                     })}
                 </div>
-                {/* Linha 2: Datas do grid */}
-                <div style={{ position: 'relative', height: 18, background: 'var(--bg-card)' }}>
-                    {gridLines.map((g, i) => (
-                        <div key={`g${i}`} style={{
-                            position: 'absolute', left: `${g.pct}%`, top: '50%',
-                            transform: 'translate(-50%, -50%)',
-                            fontSize: 9, color: '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap',
-                        }}>{g.label}</div>
-                    ))}
+
+                {/* Timeline Area */}
+                <div style={{ flex: 1, overflowX: 'auto' }}>
+                    {/* Header */}
+                    <div style={{ minWidth: minW }}>
+                        <div style={{ position: 'relative', height: 24, background: 'var(--bg-muted)', borderBottom: '1px solid var(--border)' }}>
+                            {months.map((m, i) => {
+                                const nextPct = i < months.length - 1 ? months[i + 1].pct : 100;
+                                const mWidth = nextPct - Math.max(0, m.pct);
+                                return (
+                                    <div key={`m${i}`} style={{
+                                        position: 'absolute', left: `${Math.max(0, m.pct)}%`, width: `${mWidth}%`,
+                                        fontSize: 11, color: 'var(--text-muted)', fontWeight: 700,
+                                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                        lineHeight: '24px', paddingLeft: 10, boxSizing: 'border-box',
+                                        borderRight: i < months.length - 1 ? '1px solid var(--border)' : 'none',
+                                    }}>{m.label}</div>
+                                );
+                            })}
+                        </div>
+                        <div style={{ position: 'relative', height: 18, background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
+                            {gridLines.map((g, i) => (
+                                <div key={`g${i}`} style={{
+                                    position: 'absolute', left: `${g.pct}%`, top: '50%',
+                                    transform: 'translate(-50%, -50%)',
+                                    fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap', opacity: 0.7,
+                                }}>{g.label}</div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Bars container */}
+                    <div style={{ position: 'relative', minWidth: minW }}>
+                        {gridLines.map((g, i) => (
+                            <div key={`gl${i}`} style={{ position: 'absolute', left: `${g.pct}%`, top: 0, bottom: 0, width: 1, background: 'var(--border)', opacity: 0.3, zIndex: 0 }} />
+                        ))}
+                        {showToday && (
+                            <div style={{
+                                position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0,
+                                width: 2, background: '#ef4444', zIndex: 10,
+                                animation: 'ganttTodayPulse 2s ease-in-out infinite',
+                                boxShadow: '0 0 8px rgba(239,68,68,0.4)',
+                            }}>
+                                <div style={{
+                                    position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50%)',
+                                    background: '#ef4444', color: '#fff', fontSize: 8, fontWeight: 800,
+                                    padding: '1px 5px', borderRadius: 3, whiteSpace: 'nowrap', letterSpacing: '0.1em',
+                                }}>HOJE</div>
+                            </div>
+                        )}
+
+                        {etapas.map((e, i) => {
+                            if (!e.data_inicio && !e.data_vencimento) {
+                                return (
+                                    <div key={e.id} style={{ height: ROW_H, borderBottom: i < etapas.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
+                                        <span onClick={() => onEdit && onEdit(e)} style={{ fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer', fontStyle: 'italic' }}>
+                                            sem datas definidas
+                                        </span>
+                                    </div>
+                                );
+                            }
+                            const s = e.data_inicio ? toMs(e.data_inicio) : toMs(e.data_vencimento);
+                            const f = e.data_vencimento ? toMs(e.data_vencimento) : toMs(e.data_inicio);
+                            const durationDays = (f - s) / DAY;
+                            const isMilestone = durationDays < 1;
+                            const isShort = !isMilestone && durationDays <= 2;
+                            const left = Math.max(0, (s - minMs) / totalMs * 100);
+                            const width = isMilestone ? 0 : Math.max(isShort ? 4.5 : 2, (Math.max(f, s + DAY) - s) / totalMs * 100);
+                            const barStyle = getBarStyle(e.status);
+                            const prog = calcProgressoERP(e);
+                            const hasDep = e.dependencia_id && etapaMap[e.dependencia_id];
+                            const diasInfo = calcDiasRestantesERP(e);
+                            const isHovered = hoveredIdx === i;
+                            const milestoneColor = e.status === 'concluida' ? '#22c55e' : e.status === 'em_andamento' ? '#1379F0' : e.status === 'atrasada' ? '#ef4444' : 'var(--text-muted)';
+
+                            return (
+                                <div key={e.id} style={{
+                                    position: 'relative', height: ROW_H,
+                                    borderBottom: i < etapas.length - 1 ? '1px solid var(--border)' : 'none',
+                                    display: 'flex', alignItems: 'center',
+                                }}>
+                                    {hasDep && (
+                                        <div style={{ position: 'absolute', left: `${Math.max(0, (toMs(etapaMap[e.dependencia_id].data_vencimento || etapaMap[e.dependencia_id].data_inicio) - minMs) / totalMs * 100)}%`, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: 'var(--text-muted)', zIndex: 3, pointerEvents: 'none', fontWeight: 700 }}>→</div>
+                                    )}
+                                    {isMilestone ? (
+                                        <div style={{ position: 'absolute', left: `${left}%`, top: 0, bottom: 0, display: 'flex', alignItems: 'center', zIndex: 3, animation: `ganttSlideIn 0.5s ease ${i * 100}ms both` }}>
+                                            <div
+                                                className="gantt-diamond-erp"
+                                                onClick={() => onEdit && onEdit(e)}
+                                                onMouseEnter={() => setHoveredIdx(i)}
+                                                onMouseLeave={() => setHoveredIdx(null)}
+                                                style={{
+                                                    width: 22, height: 22, marginLeft: -11,
+                                                    background: e.status === 'nao_iniciado' || e.status === 'pendente'
+                                                        ? 'var(--bg-muted)'
+                                                        : `linear-gradient(135deg, ${milestoneColor}, ${milestoneColor}cc)`,
+                                                    border: e.status === 'nao_iniciado' || e.status === 'pendente'
+                                                        ? '2px dashed var(--border)'
+                                                        : `2px solid ${milestoneColor}`,
+                                                    borderRadius: 5,
+                                                    animation: 'ganttDiamondPulse 3s ease-in-out infinite',
+                                                    boxShadow: e.status !== 'nao_iniciado' && e.status !== 'pendente' ? `0 3px 12px ${milestoneColor}35` : 'none',
+                                                    cursor: onEdit ? 'pointer' : 'default',
+                                                    transition: 'filter 0.2s, box-shadow 0.2s',
+                                                }}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div
+                                            className="gantt-bar-erp"
+                                            onClick={() => onEdit && onEdit(e)}
+                                            onMouseEnter={() => setHoveredIdx(i)}
+                                            onMouseLeave={() => setHoveredIdx(null)}
+                                            style={{
+                                                ...barStyle,
+                                                left: `${left}%`, width: `${width}%`,
+                                                animation: `${barStyle.animation || ''}, ganttSlideIn 0.5s ease ${i * 100}ms both`.replace(/^,\s*/, ''),
+                                            }}
+                                        >
+                                            {(e.status === 'nao_iniciado' || e.status === 'pendente') && (
+                                                <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', borderRadius: 10 }}>
+                                                    <rect x="1" y="1" width="calc(100% - 2px)" height="calc(100% - 2px)" rx="9"
+                                                        fill="none" stroke="var(--border)" strokeWidth="1.5" strokeDasharray="6 4"
+                                                        style={{ animation: 'ganttDashMove 2s linear infinite' }} />
+                                                </svg>
+                                            )}
+                                            {e.status === 'em_andamento' && prog > 0 && prog < 100 && (
+                                                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${prog}%`, background: 'rgba(255,255,255,0.2)', borderRadius: '10px 0 0 10px' }} />
+                                            )}
+                                            {width > 10 && (
+                                                <span style={{
+                                                    position: 'relative', zIndex: 1, fontSize: 10, fontWeight: 700,
+                                                    color: (e.status === 'nao_iniciado' || e.status === 'pendente') ? 'var(--text-muted)' : '#fff',
+                                                    padding: '0 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                                }}>
+                                                    {dtFmt(e.data_inicio).slice(0, 5)} → {dtFmt(e.data_vencimento).slice(0, 5)}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {isHovered && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            left: `${Math.min(left + width / 2, 70)}%`,
+                                            top: ROW_H - 2,
+                                            transform: 'translateX(-50%)',
+                                            background: 'var(--bg-card)', border: '1px solid var(--border)',
+                                            borderRadius: 10, padding: '12px 16px', zIndex: 50,
+                                            boxShadow: '0 8px 24px rgba(0,0,0,0.15)', minWidth: 200, maxWidth: 280,
+                                            pointerEvents: 'none',
+                                        }}>
+                                            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{e.nome}</div>
+                                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>
+                                                {dtFmt(e.data_inicio)} → {dtFmt(e.data_vencimento)}
+                                            </div>
+                                            {diasInfo && e.status !== 'concluida' && (
+                                                <div style={{ fontSize: 11, color: diasInfo.atrasado ? '#ef4444' : '#22c55e', fontWeight: 600, marginBottom: 3 }}>
+                                                    {diasInfo.texto}
+                                                </div>
+                                            )}
+                                            {e.responsavel_nome && (
+                                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                    <UserIcon size={10} /> {e.responsavel_nome}
+                                                </div>
+                                            )}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                                                <div style={{ flex: 1, background: 'var(--border)', borderRadius: 99, height: 5, overflow: 'hidden' }}>
+                                                    <div style={{ width: `${prog}%`, height: '100%', background: STATUS_ETAPA[e.status]?.color || '#64748b', borderRadius: 99 }} />
+                                                </div>
+                                                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)' }}>{prog}%</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
-            {/* Bars container */}
-            <div style={{ position: 'relative', border: '1px solid var(--border)', borderRadius: '0 0 6px 6px', background: 'var(--bg-card)', minWidth: minW }}>
-                {/* Grid lines verticais */}
-                {gridLines.map((g, i) => (
-                    <div key={`gl${i}`} style={{ position: 'absolute', left: `${g.pct}%`, top: 0, bottom: 0, width: 1, background: 'var(--border)', opacity: 0.4, zIndex: 0 }} />
-                ))}
-                {/* Today indicator — linha vermelha com glow */}
-                {showToday && (
-                    <div style={{
-                        position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0,
-                        width: 1.5, background: '#ef4444', zIndex: 4,
-                        boxShadow: '0 0 6px 1px rgba(239,68,68,0.45), 0 0 2px 0px rgba(239,68,68,0.7)',
-                    }} />
-                )}
-                {etapas.map((e, i) => {
-                    if (!e.data_inicio && !e.data_vencimento) {
-                        return (
-                            <div key={e.id} style={{ position: 'relative', height: 44, borderBottom: i < etapas.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
-                                <span onClick={() => onEdit && onEdit(e)} style={{ fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', fontStyle: 'italic' }}>
-                                    {e.nome} — sem datas definidas
-                                </span>
-                            </div>
-                        );
-                    }
-                    const s = e.data_inicio ? toMs(e.data_inicio) : toMs(e.data_vencimento);
-                    const f = e.data_vencimento ? toMs(e.data_vencimento) : toMs(e.data_inicio);
-                    const left = Math.max(0, (s - minMs) / totalMs * 100);
-                    const width = Math.max(1.5, (Math.max(f, s + DAY) - s) / totalMs * 100);
-                    const color = STATUS_ETAPA[e.status]?.color || '#64748b';
-                    const progresso = e.progresso || 0;
-                    const isOverdue = e.data_vencimento && e.data_vencimento < todayStr && e.status !== 'concluida';
-                    const hasDep = e.dependencia_id && etapaMap[e.dependencia_id];
-                    const endLabel = shortDt(e.data_vencimento);
-                    const narrow = isNarrow(width);
-                    const barText = e.nome + (progresso > 0 ? ` (${progresso}%)` : '');
 
-                    return (
-                        <div key={e.id} style={{ position: 'relative', height: 44, borderBottom: i < etapas.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center' }}>
-                            {/* Dependency arrow indicator */}
-                            {hasDep && (
-                                <div style={{ position: 'absolute', left: `${Math.max(0, (toMs(etapaMap[e.dependencia_id].data_vencimento || etapaMap[e.dependencia_id].data_inicio) - minMs) / totalMs * 100)}%`, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#94a3b8', zIndex: 3, pointerEvents: 'none', fontWeight: 700 }}>→</div>
-                            )}
-                            {/* Etapa name to the left of bar (only if bar starts far enough right) */}
-                            {!narrow && left > 12 && (
-                                <div style={{ position: 'absolute', left: 4, right: `${100 - left}%`, fontSize: 11, color: 'var(--text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 4px' }}>{e.nome}</div>
-                            )}
-                            {/* Bar with progress fill */}
-                            <div
-                                onClick={() => onEdit && onEdit(e)}
-                                title={`${e.nome}\n${dtFmt(e.data_inicio)} → ${dtFmt(e.data_vencimento)}\n${e.responsavel_nome || 'Sem responsável'}\nProgresso: ${progresso}%`}
-                                style={{
-                                    position: 'absolute', left: `${left}%`, width: `${width}%`, height: 26,
-                                    background: `${color}30`, borderRadius: 5, overflow: 'hidden',
-                                    cursor: onEdit ? 'pointer' : 'default', transition: 'all 0.2s',
-                                    border: isOverdue ? `2px solid #ef4444` : `1.5px solid ${color}80`,
-                                }}
-                            >
-                                {/* Progress fill */}
-                                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${progresso}%`, background: `${color}50`, transition: 'width 0.3s' }} />
-                                {/* Bar text — only if not narrow */}
-                                {!narrow && (
-                                    <span style={{ position: 'relative', zIndex: 1, fontSize: 11, fontWeight: 600, color: '#1e293b', padding: '0 8px', whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: '26px', display: 'block' }}>
-                                        {barText}
-                                    </span>
-                                )}
-                            </div>
-                            {/* Info after bar: initials + date + (nome if narrow) */}
-                            <div style={{ position: 'absolute', left: `${Math.min(96, left + width + 0.5)}%`, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 4, zIndex: 3 }}>
-                                {e.responsavel_nome && (
-                                    <div style={{
-                                        width: 22, height: 22, borderRadius: '50%', background: color, color: '#fff',
-                                        fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        border: '2px solid var(--bg-card)', flexShrink: 0,
-                                    }}>{getInitials(e.responsavel_nome)}</div>
-                                )}
-                                {narrow && (
-                                    <span style={{ fontSize: 11, color: 'var(--text)', fontWeight: 600, whiteSpace: 'nowrap' }}>{barText}</span>
-                                )}
-                                {endLabel && (
-                                    <span style={{ fontSize: 10, color: isOverdue ? '#ef4444' : '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap' }}>{endLabel}</span>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
             {/* Legend */}
-            <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
-                {Object.entries(STATUS_ETAPA).filter(([k]) => k !== 'pendente').map(([k, v]) => (
-                    <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)' }}>
-                        <div style={{ width: 12, height: 12, background: v.color, borderRadius: 3 }} />
-                        {v.label}
+            <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
+                {[
+                    { label: 'Concluída', color: '#22c55e', extra: {} },
+                    { label: 'Em andamento', color: '#1379F0', extra: {} },
+                    { label: 'Não iniciado', color: '#64748b', extra: { border: '1.5px dashed var(--border)', background: 'transparent' } },
+                    { label: 'Atrasada', color: '#ef4444', extra: {} },
+                ].map(l => (
+                    <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)' }}>
+                        <div style={{ width: 18, height: 9, background: l.color, borderRadius: 3, ...l.extra }} />
+                        {l.label}
                     </div>
                 ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)' }}>
+                    <div style={{ width: 10, height: 10, background: '#1379F0', borderRadius: 2, transform: 'rotate(45deg)' }} />
+                    Marco
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)' }}>
                     <div style={{ width: 2, height: 12, background: '#ef4444', borderRadius: 1, boxShadow: '0 0 4px rgba(239,68,68,0.5)' }} />
                     Hoje
@@ -666,7 +810,7 @@ function TabCronograma({ data, load, notify, users }) {
                                             {isOverdue && <span style={{ color: '#ef4444', fontWeight: 600 }}>Atrasada</span>}
                                         </div>
                                     </div>
-                                    <Badge status={effectiveStatus} map={STATUS_ETAPA} />
+                                    <Badge label={STATUS_ETAPA[effectiveStatus]?.label || effectiveStatus} color={STATUS_ETAPA[effectiveStatus]?.color || '#64748b'} />
                                     <button onClick={() => setEditEtapa(e)} title="Editar etapa"
                                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: 4, opacity: 0.7 }}><Ic.Edit /></button>
                                     <button onClick={() => { if (window.confirm(`Excluir etapa "${e.nome}"?`)) deleteEtapa(e.id); }}
@@ -832,7 +976,7 @@ function TabFinanceiro({ data, notify }) {
                     <h3 style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>Despesas por Categoria</h3>
                     <div style={{ display: 'grid', gap: 6 }}>
                         {resumo.despesas_por_categoria.map(dc => {
-                            const cat = catMap[dc.categoria] || { label: dc.categoria, color: '#94a3b8' };
+                            const cat = CAT_MAP[dc.categoria] || { label: dc.categoria, color: '#94a3b8' };
                             const pct = resumo.total_despesas > 0 ? (dc.total / resumo.total_despesas) * 100 : 0;
                             return (
                                 <div key={dc.categoria} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -865,7 +1009,7 @@ function TabFinanceiro({ data, notify }) {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'end' }}>
                             <div><label className={Z.lbl}>Categoria</label>
                                 <select className={Z.inp} style={{ fontSize: 13 }} value={newDesp.categoria} onChange={e => setNewDesp(x => ({ ...x, categoria: e.target.value }))}>
-                                    {CATEGORIAS_DESPESA.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                                    {CAT_DESPESAS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                                 </select>
                             </div>
                             <div><label className={Z.lbl}>Fornecedor</label><input className={Z.inp} style={{ fontSize: 13 }} value={newDesp.fornecedor} onChange={e => setNewDesp(x => ({ ...x, fornecedor: e.target.value }))} /></div>
@@ -882,7 +1026,7 @@ function TabFinanceiro({ data, notify }) {
                             <thead><tr>{['Data', 'Descrição', 'Categoria', 'Fornecedor', 'Valor', ''].map(h => <th key={h} className={Z.th} style={{ fontSize: 11 }}>{h}</th>)}</tr></thead>
                             <tbody>
                                 {despesas.map(d => {
-                                    const cat = catMap[d.categoria] || { label: d.categoria, color: '#94a3b8' };
+                                    const cat = CAT_MAP[d.categoria] || { label: d.categoria, color: '#94a3b8' };
                                     return (
                                         <tr key={d.id} style={{ borderTop: '1px solid var(--border)' }}>
                                             <td style={{ padding: '8px 12px', fontSize: 12 }}>{dtFmt(d.data)}</td>
@@ -975,7 +1119,7 @@ function TabFinanceiro({ data, notify }) {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
                             <div><label className={Z.lbl}>Categoria</label>
                                 <select className={Z.inp} style={{ fontSize: 13 }} value={newCP.categoria} onChange={e => setNewCP(x => ({ ...x, categoria: e.target.value }))}>
-                                    {CATEGORIAS_DESPESA.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                                    {CAT_DESPESAS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                                 </select>
                             </div>
                             <div><label className={Z.lbl}>Fornecedor</label><input className={Z.inp} style={{ fontSize: 13 }} value={newCP.fornecedor} onChange={e => setNewCP(x => ({ ...x, fornecedor: e.target.value }))} /></div>
@@ -999,7 +1143,7 @@ function TabFinanceiro({ data, notify }) {
                             const proxima = cp.status !== 'pago' && cp.data_vencimento && !vencida && cp.data_vencimento <= new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
                             const bg = cp.status === 'pago' ? '#f0fdf4' : vencida ? '#fef2f2' : proxima ? '#fffbeb' : 'var(--bg-muted)';
                             const borderColor = cp.status === 'pago' ? '#22c55e' : vencida ? '#ef4444' : proxima ? '#f59e0b' : 'var(--border)';
-                            const cat = catMap[cp.categoria] || { label: cp.categoria, color: '#94a3b8' };
+                            const cat = CAT_MAP[cp.categoria] || { label: cp.categoria, color: '#94a3b8' };
                             return (
                                 <div key={cp.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10, background: bg, border: `1px solid ${borderColor}30`, borderLeft: `4px solid ${borderColor}` }}>
                                     <button onClick={() => togglePagCP(cp)} title={cp.status === 'pago' ? 'Reverter' : 'Marcar como pago'}
@@ -2185,6 +2329,30 @@ function TabEntrega({ data, notify }) {
 
     useEffect(() => { loadTermoData(); }, [data.id]);
 
+    // ── Compressão de imagem (max 1920px, JPEG 80%) ──
+    const compressImage = (file) => new Promise((resolve, reject) => {
+        const img = new Image();
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            img.onload = () => {
+                const MAX_SIZE = 1920;
+                let { width, height } = img;
+                if (width > MAX_SIZE || height > MAX_SIZE) {
+                    if (width > height) { height = Math.round(height * (MAX_SIZE / width)); width = MAX_SIZE; }
+                    else { width = Math.round(width * (MAX_SIZE / height)); height = MAX_SIZE; }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width; canvas.height = height;
+                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.80));
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+
     // ── Upload de foto de entrega ──
     const iniciarUpload = (ambIdx, itemIdx) => {
         pendingUploadRef.current = { ambIdx, itemIdx };
@@ -2198,38 +2366,36 @@ function TabEntrega({ data, notify }) {
         const { ambIdx, itemIdx } = pendingUploadRef.current;
 
         try {
-            const reader = new FileReader();
-            reader.onerror = () => { setUploadingKey(null); pendingUploadRef.current = null; notify('Erro ao ler arquivo'); };
-            reader.onload = async (ev) => {
-                try {
-                    const res = await api.post(`/projetos/${data.id}/entrega-fotos`, {
-                        filename: file.name,
-                        data: ev.target.result,
-                        ambiente_idx: ambIdx,
-                        item_idx: itemIdx,
-                    });
-                    if (res.ok) {
-                        setEntregaFotos(prev => [...prev, {
-                            id: res.id,
-                            ambiente_idx: ambIdx,
-                            item_idx: itemIdx,
-                            filename: res.nome,
-                            nota: '',
-                            url: res.url,
-                            criado_em: new Date().toISOString(),
-                        }]);
-                        notify('Foto adicionada');
-                    }
-                } catch (ex) {
-                    notify('Erro ao enviar foto');
-                } finally {
-                    setUploadingKey(null);
-                    pendingUploadRef.current = null;
-                }
-            };
-            reader.readAsDataURL(file);
-        } catch {
+            const compressedData = await compressImage(file);
+            const baseName = file.name.replace(/\.[^.]+$/, '');
+            const fileName = `${baseName}.jpg`;
+            const ambNome = (termoData?.ambientes || [])[ambIdx]?.nome || '';
+
+            const res = await api.post(`/projetos/${data.id}/entrega-fotos`, {
+                filename: fileName,
+                data: compressedData,
+                ambiente_idx: ambIdx,
+                item_idx: itemIdx,
+                ambiente: ambNome,
+            });
+            if (res.ok) {
+                setEntregaFotos(prev => [...prev, {
+                    id: res.id,
+                    ambiente_idx: ambIdx,
+                    item_idx: itemIdx,
+                    ambiente: ambNome,
+                    filename: res.nome,
+                    nota: '',
+                    url: res.url,
+                    criado_em: new Date().toISOString(),
+                }]);
+                notify('Foto adicionada');
+            }
+        } catch (ex) {
+            notify('Erro ao enviar foto');
+        } finally {
             setUploadingKey(null);
+            pendingUploadRef.current = null;
         }
         e.target.value = '';
     };
@@ -2404,6 +2570,46 @@ function TabEntrega({ data, notify }) {
 
                                     {isOpen && (
                                         <div className="flex flex-col">
+                                            {/* Foto geral do ambiente (sem item vinculado) */}
+                                            {(() => {
+                                                const fotosGerais = fotosDoItem(ai, null);
+                                                const isUploadingGeral = uploadingKey === `${ai}-null`;
+                                                return (
+                                                    <div className="px-4 py-3 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)', opacity: 0.9 }}>
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-xs font-semibold flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
+                                                                <Camera size={14} /> Fotos gerais do ambiente
+                                                            </span>
+                                                            <button
+                                                                onClick={(ev) => { ev.stopPropagation(); iniciarUpload(ai, null); }}
+                                                                disabled={isUploadingGeral}
+                                                                className={Z.btn2}
+                                                                style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                                                            >
+                                                                {isUploadingGeral
+                                                                    ? <><span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full" style={{ animation: 'spin 0.6s linear infinite' }} /> Enviando...</>
+                                                                    : <><Camera size={12} /> Foto do Ambiente</>
+                                                                }
+                                                            </button>
+                                                        </div>
+                                                        {fotosGerais.length > 0 && (
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {fotosGerais.map(f => (
+                                                                    <div key={f.id} className="relative group">
+                                                                        <img src={f.url} alt="" className="w-16 h-16 object-cover rounded-lg cursor-pointer"
+                                                                            style={{ border: '1px solid var(--border)' }} onClick={() => setPreviewImg(f.url)} />
+                                                                        <button onClick={() => deletarFoto(f.id)}
+                                                                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                            style={{ background: '#ef4444', color: '#fff' }} title="Remover foto">
+                                                                            <XIcon size={10} />
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
                                             {itens.map((item, ii) => {
                                                 const fotos = fotosDoItem(ai, ii);
                                                 const isUploading = uploadingKey === `${ai}-${ii}`;
@@ -2679,7 +2885,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user }) {
                 <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                         <h1 className={Z.h1}>{data.nome}</h1>
-                        <Badge status={data.status} />
+                        <Badge label={STATUS_PROJ[data.status]?.label || data.status} color={STATUS_PROJ[data.status]?.color || '#94a3b8'} />
                     </div>
                     <p className={Z.sub} style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         {data.cliente_nome && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><UserIcon size={12} /> {data.cliente_nome} ·</span>}
@@ -2825,7 +3031,7 @@ export default function Projetos({ orcs, notify, user, openProjectId, onProjectO
                                             {p.contas_vencidas > 0 && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}><DollarSign size={11} /> {p.contas_vencidas} vencida{p.contas_vencidas > 1 ? 's' : ''}</div>}
                                         </td>
                                         <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontSize: 14 }}>{p.cliente_nome || '—'}</td>
-                                        <td style={{ padding: '12px 16px' }}><Badge status={p.status} /></td>
+                                        <td style={{ padding: '12px 16px' }}><Badge label={STATUS_PROJ[p.status]?.label || p.status} color={STATUS_PROJ[p.status]?.color || '#94a3b8'} /></td>
                                         <td style={{ padding: '12px 16px', minWidth: 120 }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                                 <div style={{ flex: 1, background: 'var(--bg-muted)', borderRadius: 99, height: 6 }}>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import api from '../api';
 import { Ic, Z, Modal, Spinner, tagStyle, tagClass } from '../ui';
+import { colorBg, colorBorder } from '../theme';
 import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
 import EditorEtiquetas, { EtiquetaSVG } from '../components/EditorEtiquetas';
 
@@ -1253,7 +1254,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                                 </button>
                                 {/* Pending changes badge */}
                                 {pendingChanges > 0 && (
-                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: '#f59e0b20', color: '#f59e0b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: colorBg('#f59e0b'), color: '#f59e0b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
                                         title={`${pendingChanges} alteração(ões) salvas automaticamente`}>
                                         <Edit size={10} /> {pendingChanges}
                                     </span>
@@ -1396,8 +1397,8 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                                                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 4 }}>
                                                     <Box size={11} />
                                                     Chapa {ci + 1}
-                                                    {chapa.is_retalho && <span style={{ fontSize: 8, padding: '1px 4px', borderRadius: 3, background: '#06b6d420', color: '#06b6d4', fontWeight: 700 }}>RET</span>}
-                                                    {chapa.veio && chapa.veio !== 'sem_veio' && <span style={{ fontSize: 8, padding: '1px 4px', borderRadius: 3, background: '#8b5cf620', color: '#8b5cf6', fontWeight: 700 }}>VEIO</span>}
+                                                    {chapa.is_retalho && <span style={{ fontSize: 8, padding: '1px 4px', borderRadius: 3, background: colorBg('#06b6d4'), color: '#06b6d4', fontWeight: 700 }}>RET</span>}
+                                                    {chapa.veio && chapa.veio !== 'sem_veio' && <span style={{ fontSize: 8, padding: '1px 4px', borderRadius: 3, background: colorBg('#8b5cf6'), color: '#8b5cf6', fontWeight: 700 }}>VEIO</span>}
                                                 </div>
                                                 <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>
                                                     {chapa.pecas.length} pç · {chapa.aproveitamento.toFixed(1)}%
@@ -2907,9 +2908,9 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                     <div style={{
                         position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
                         padding: '4px 14px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                        background: dragCollision ? '#ef444420' : '#22c55e20',
+                        background: dragCollision ? colorBg('#ef4444') : colorBg('#22c55e'),
                         color: dragCollision ? '#ef4444' : '#22c55e',
-                        border: `1px solid ${dragCollision ? '#ef444440' : '#22c55e40'}`,
+                        border: `1px solid ${dragCollision ? colorBorder('#ef4444') : colorBorder('#22c55e')}`,
                         zIndex: 10, whiteSpace: 'nowrap',
                     }}>
                         {dragCollision ? '✕ Colisão! Solte para cancelar' : '✓ Posição válida'}
@@ -3011,8 +3012,8 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                         {chapa.cortes.map((c, ci) => (
                             <span key={ci} style={{
                                 fontSize: 10, padding: '3px 8px', borderRadius: 4,
-                                background: c.dir === 'Horizontal' ? '#3b82f620' : '#f59e0b20',
-                                border: `1px solid ${c.dir === 'Horizontal' ? '#3b82f640' : '#f59e0b40'}`,
+                                background: c.dir === 'Horizontal' ? colorBg('#3b82f6') : colorBg('#f59e0b'),
+                                border: `1px solid ${c.dir === 'Horizontal' ? colorBorder('#3b82f6') : colorBorder('#f59e0b')}`,
                                 color: c.dir === 'Horizontal' ? '#3b82f6' : '#f59e0b',
                                 fontWeight: 600,
                             }}>

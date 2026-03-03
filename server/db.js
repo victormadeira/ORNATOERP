@@ -972,6 +972,18 @@ const migrations = [
   "ALTER TABLE orcamentos ADD COLUMN versao_ativa INTEGER DEFAULT 1",
   // ═══ Analytics Avançado — Section Tracking + Interações ═══
   "ALTER TABLE proposta_acessos ADD COLUMN eventos_json TEXT DEFAULT ''",
+  // ═══ Soft Delete — Histórico Financeiro ═══
+  "ALTER TABLE contas_pagar ADD COLUMN deletado INTEGER DEFAULT 0",
+  "ALTER TABLE contas_pagar ADD COLUMN deletado_em DATETIME DEFAULT NULL",
+  "ALTER TABLE contas_pagar ADD COLUMN deletado_por INTEGER DEFAULT NULL",
+  "ALTER TABLE contas_receber ADD COLUMN deletado INTEGER DEFAULT 0",
+  "ALTER TABLE contas_receber ADD COLUMN deletado_em DATETIME DEFAULT NULL",
+  "ALTER TABLE contas_receber ADD COLUMN deletado_por INTEGER DEFAULT NULL",
+  "ALTER TABLE despesas_projeto ADD COLUMN deletado INTEGER DEFAULT 0",
+  "ALTER TABLE despesas_projeto ADD COLUMN deletado_em DATETIME DEFAULT NULL",
+  "ALTER TABLE despesas_projeto ADD COLUMN deletado_por INTEGER DEFAULT NULL",
+  // ═══ Entrega Fotos: ambiente texto (alinhado com montador_fotos) ═══
+  "ALTER TABLE entrega_fotos ADD COLUMN ambiente TEXT DEFAULT ''",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
@@ -1048,6 +1060,10 @@ const indexes = [
   // Analytics — Section Views
   "CREATE INDEX IF NOT EXISTS idx_section_views_orc ON proposta_section_views(orc_id)",
   "CREATE INDEX IF NOT EXISTS idx_section_views_acesso ON proposta_section_views(acesso_id)",
+  // Soft Delete — Financeiro
+  "CREATE INDEX IF NOT EXISTS idx_contas_pagar_deletado ON contas_pagar(deletado)",
+  "CREATE INDEX IF NOT EXISTS idx_contas_receber_deletado ON contas_receber(deletado)",
+  "CREATE INDEX IF NOT EXISTS idx_despesas_deletado ON despesas_projeto(deletado)",
 ];
 for (const sql of indexes) {
   try { db.exec(sql); } catch (_) { }

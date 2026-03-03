@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { MapPin, Phone, Mail, Calendar, MessageSquare, Lock, CheckCircle2, Printer, PauseCircle, Clock, Play, AlertCircle, Send, User, Camera, X, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
+import { MapPin, Phone, Mail, Calendar, MessageSquare, Lock, CheckCircle2, Printer, PauseCircle, Clock, Play, AlertCircle, Send, User, Camera, X, ChevronLeft, ChevronRight, ZoomIn, Ruler, ClipboardCheck, ShoppingCart, Factory, Paintbrush, Truck, Wrench, ListChecks } from 'lucide-react';
 
 const dtFmt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const timeFmt = (s) => {
@@ -24,8 +24,89 @@ const mkStatusProj = (accent) => ({
     suspenso:     { label: 'Suspenso',     color: '#f59e0b' },
 });
 
-// ─── Gantt simplificado para o portal público ──────────
+// ─── Helpers para o Gantt Premium ──────────────────────
+const calcProgresso = (etapa) => {
+    if (etapa.progresso > 0) return Math.min(etapa.progresso, 100);
+    if (etapa.status === 'concluida') return 100;
+    if (etapa.status === 'nao_iniciado' || etapa.status === 'pendente') return 0;
+    if (!etapa.data_inicio || !etapa.data_vencimento) return 0;
+    const s = new Date(etapa.data_inicio + 'T12:00:00').getTime();
+    const e = new Date(etapa.data_vencimento + 'T12:00:00').getTime();
+    const now = Date.now();
+    if (now <= s) return 0;
+    if (now >= e) return 100;
+    return Math.round(((now - s) / (e - s)) * 100);
+};
+
+const getEtapaIcon = (nome) => {
+    const n = (nome || '').toLowerCase();
+    if (/medi|levantamento/.test(n)) return Ruler;
+    if (/aprova/.test(n)) return ClipboardCheck;
+    if (/compra|material/.test(n)) return ShoppingCart;
+    if (/produ|fabrica/.test(n)) return Factory;
+    if (/acabamento|pintura/.test(n)) return Paintbrush;
+    if (/entrega/.test(n)) return Truck;
+    if (/instala|montagem/.test(n)) return Wrench;
+    return ListChecks;
+};
+
+const getEtapaDesc = (nome) => {
+    const n = (nome || '').toLowerCase();
+    if (/medi|levantamento/.test(n)) return 'Nosso técnico está realizando as medições precisas no local.';
+    if (/aprova/.test(n)) return 'O projeto está sendo revisado para garantir tudo perfeito.';
+    if (/compra|material/.test(n)) return 'Estamos adquirindo os materiais de alta qualidade para seu projeto.';
+    if (/produ|fabrica/.test(n)) return 'Seus móveis estão sendo fabricados com cuidado na nossa marcenaria.';
+    if (/acabamento|pintura/.test(n)) return 'Aplicando acabamentos finais para garantir qualidade e beleza.';
+    if (/entrega/.test(n)) return 'Seus móveis serão entregues e instalados por nossa equipe.';
+    if (/instala|montagem/.test(n)) return 'Nossa equipe está montando tudo com atenção aos detalhes.';
+    return 'Etapa em andamento no seu projeto.';
+};
+
+const calcDiasRestantes = (etapa) => {
+    if (!etapa.data_vencimento) return null;
+    const end = new Date(etapa.data_vencimento + 'T12:00:00').getTime();
+    const dias = Math.ceil((end - Date.now()) / 86400000);
+    if (dias < 0) return { texto: `${Math.abs(dias)} dia${Math.abs(dias) !== 1 ? 's' : ''} atrasado`, atrasado: true };
+    if (dias === 0) return { texto: 'Vence hoje', atrasado: false };
+    return { texto: `${dias} dia${dias !== 1 ? 's' : ''} restante${dias !== 1 ? 's' : ''}`, atrasado: false };
+};
+
+function AnimatedCounter({ value, duration = 1000 }) {
+    const [display, setDisplay] = useState(0);
+    useEffect(() => {
+        if (value <= 0) { setDisplay(0); return; }
+        let start = 0;
+        const step = value / (duration / 16);
+        const id = setInterval(() => {
+            start += step;
+            if (start >= value) { setDisplay(value); clearInterval(id); }
+            else setDisplay(Math.round(start));
+        }, 16);
+        return () => clearInterval(id);
+    }, [value]);
+    return display;
+}
+
+const GANTT_STYLES = `
+@keyframes ganttShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes ganttPulseGlow { 0%, 100% { box-shadow: 0 0 4px 1px rgba(239,68,68,0.3); } 50% { box-shadow: 0 0 10px 3px rgba(239,68,68,0.55); } }
+@keyframes ganttTodayPulse { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
+@keyframes ganttSlideIn { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes ganttCheckPop { 0% { transform: scale(0); opacity: 0; } 60% { transform: scale(1.3); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes ganttDashMove { 0% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -20; } }
+@keyframes ganttProgressFill { from { width: 0%; } }
+.gantt-bar:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important; }
+@keyframes ganttDiamondPulse { 0%, 100% { transform: rotate(45deg) scale(1); } 50% { transform: rotate(45deg) scale(1.15); } }
+.gantt-diamond:hover { transform: rotate(45deg) scale(1.35) !important; filter: brightness(1.1); }
+.gantt-tooltip { opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.gantt-bar:hover + .gantt-tooltip, .gantt-bar:hover ~ .gantt-tooltip { opacity: 1; }
+`;
+
+// ─── Gantt Premium para o portal público ──────────
 function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
+    const [hoveredIdx, setHoveredIdx] = useState(null);
+    const timelineRef = useRef(null);
+
     if (!etapas || etapas.length === 0) return null;
 
     const dts = etapas.flatMap(e => [e.data_inicio, e.data_vencimento].filter(Boolean));
@@ -33,8 +114,6 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
 
     const toMs = d => new Date(d + 'T12:00:00').getTime();
     const DAY = 86400000;
-
-    // Auto-enquadramento: 2 dias antes, 7 dias depois
     const rawMin = Math.min(...dts.map(toMs));
     const rawMax = Math.max(...dts.map(toMs));
     const minMs = rawMin - 2 * DAY;
@@ -45,7 +124,6 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
     const todayPct = ((today - minMs) / totalMs) * 100;
     const showToday = todayPct >= -2 && todayPct <= 102;
 
-    // Grid lines
     const spanDays = (rawMax - rawMin) / DAY;
     const gridLines = [];
     if (spanDays <= 60) {
@@ -66,130 +144,305 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
     }
 
     const months = [];
-    let cur = new Date(minMs);
-    cur.setDate(1);
-    while (cur.getTime() <= maxMs) {
-        const pct = (cur.getTime() - minMs) / totalMs * 100;
-        months.push({
-            label: cur.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
-            pct: Math.max(0, pct)
-        });
-        cur.setMonth(cur.getMonth() + 1);
+    { let cur = new Date(minMs); cur.setDate(1);
+      while (cur.getTime() <= maxMs) {
+          const pct = (cur.getTime() - minMs) / totalMs * 100;
+          months.push({ label: cur.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }), pct: Math.max(0, pct) });
+          cur.setMonth(cur.getMonth() + 1);
+      }
     }
 
-    const shortDt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
     const STATUS = mkStatusEtapa(accent);
+    const ROW_H = 48;
 
-    const isNarrow = (widthPct) => widthPct < 12;
+    // Etapa atual e previsão
+    const currentEtapa = etapas.find(e => e.status === 'em_andamento' || e.status === 'atrasada') || etapas.find(e => e.status !== 'concluida') || etapas[etapas.length - 1];
+    const lastEtapa = [...etapas].reverse().find(e => e.data_vencimento) || etapas[etapas.length - 1];
+    const globalProg = Math.round(etapas.reduce((sum, e) => sum + calcProgresso(e), 0) / etapas.length);
+
+    const getBarStyle = (status) => {
+        // No portal: atrasada mascarada como em_andamento
+        const effectiveStatus = status === 'atrasada' ? 'em_andamento' : status;
+        const base = { position: 'absolute', height: 30, borderRadius: 10, display: 'flex', alignItems: 'center', overflow: 'hidden', zIndex: 2, transition: 'transform 0.2s, box-shadow 0.2s' };
+        switch (effectiveStatus) {
+            case 'em_andamento':
+                return { ...base, background: `linear-gradient(90deg, ${accent}, ${accent}bb, ${accent})`, backgroundSize: '200% 100%', animation: 'ganttShimmer 2.5s ease-in-out infinite', boxShadow: `0 3px 10px ${accent}40` };
+            case 'concluida':
+                return { ...base, background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 2px 8px rgba(34,197,94,0.3)' };
+            case 'nao_iniciado': case 'pendente':
+                return { ...base, background: '#f8fafc', border: 'none' };
+            default:
+                return { ...base, background: '#94a3b8' };
+        }
+    };
 
     return (
-        <div style={{ overflowX: 'auto', marginTop: 8 }}>
-            {/* Header — duas linhas */}
-            <div style={{ borderRadius: '8px 8px 0 0', minWidth: 400, overflow: 'hidden' }}>
-                {/* Linha 1: Meses */}
-                <div style={{ position: 'relative', height: 22, background: primary }}>
-                    {months.map((m, i) => {
-                        const nextPct = i < months.length - 1 ? months[i + 1].pct : 100;
-                        const mWidth = nextPct - Math.max(0, m.pct);
+        <div>
+            <style>{GANTT_STYLES}</style>
+
+            {/* ── Context Header ── */}
+            <div style={{ marginBottom: 20, padding: '18px 22px', borderRadius: 14, background: `linear-gradient(135deg, ${primary}08, ${accent}08)`, border: `1px solid ${primary}15` }}>
+                <div style={{ fontSize: 15, color: '#334155', marginBottom: 4 }}>
+                    Seu projeto está na etapa: <strong style={{ color: primary }}>{currentEtapa.nome}</strong>
+                </div>
+                {lastEtapa.data_vencimento && (
+                    <div style={{ fontSize: 13, color: '#64748b', marginBottom: 14 }}>
+                        Previsão de entrega: <strong style={{ color: '#0f172a' }}>{dtFmt(lastEtapa.data_vencimento)}</strong>
+                    </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ flex: 1, background: '#e2e8f0', borderRadius: 99, height: 10, overflow: 'hidden' }}>
+                        <div style={{ width: `${globalProg}%`, height: '100%', background: `linear-gradient(90deg, ${accent}, ${primary})`, borderRadius: 99, animation: 'ganttProgressFill 1.2s ease-out' }} />
+                    </div>
+                    <span style={{ fontWeight: 800, fontSize: 16, color: accent, minWidth: 44, textAlign: 'right' }}>
+                        <AnimatedCounter value={globalProg} />%
+                    </span>
+                </div>
+            </div>
+
+            {/* ── Split Layout: Sidebar + Timeline ── */}
+            <div style={{ display: 'flex', borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0', background: '#fff' }}>
+
+                {/* Sidebar */}
+                <div style={{ width: 200, flexShrink: 0, borderRight: '1px solid #e2e8f0', background: '#fafbfc' }}>
+                    {/* Sidebar header */}
+                    <div style={{ height: 42, display: 'flex', alignItems: 'center', padding: '0 14px', borderBottom: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#94a3b8' }}>Etapas</span>
+                    </div>
+                    {/* Sidebar rows */}
+                    {etapas.map((e, i) => {
+                        const effectiveStatus = e.status === 'atrasada' ? 'em_andamento' : e.status;
+                        const st = STATUS[effectiveStatus] || STATUS.nao_iniciado;
+                        const Ic = getEtapaIcon(e.nome);
+                        const prog = calcProgresso(e);
+                        const isActive = e.status === 'em_andamento' || e.status === 'atrasada';
                         return (
-                            <div key={`m${i}`} style={{
-                                position: 'absolute', left: `${Math.max(0, m.pct)}%`, width: `${mWidth}%`,
-                                fontSize: 10, color: 'rgba(255,255,255,0.85)', fontWeight: 700,
-                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                                lineHeight: '22px', paddingLeft: 8, boxSizing: 'border-box',
-                                borderRight: i < months.length - 1 ? '1px solid rgba(255,255,255,0.15)' : 'none',
-                            }}>{m.label}</div>
+                            <div key={e.id} style={{
+                                height: ROW_H, display: 'flex', alignItems: 'center', gap: 8,
+                                padding: '0 14px', borderBottom: i < etapas.length - 1 ? '1px solid #f1f5f9' : 'none',
+                                animation: `ganttSlideIn 0.4s ease ${i * 100}ms both`,
+                                background: isActive ? `${accent}06` : 'transparent',
+                                borderLeft: isActive ? `3px solid ${accent}` : '3px solid transparent',
+                            }}>
+                                <div style={{
+                                    width: 30, height: 30, borderRadius: 8,
+                                    background: `${st.color}12`, color: st.color,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                }}>
+                                    {effectiveStatus === 'concluida'
+                                        ? <CheckCircle2 size={15} style={{ animation: 'ganttCheckPop 0.5s ease both', animationDelay: `${i * 100 + 300}ms` }} />
+                                        : <Ic size={14} />
+                                    }
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontWeight: 600, fontSize: 12, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={e.nome}>
+                                        {e.nome}
+                                    </div>
+                                    <div style={{ fontSize: 10, color: st.color, fontWeight: 600, marginTop: 1 }}>
+                                        <AnimatedCounter value={prog} />%
+                                    </div>
+                                </div>
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: st.color, flexShrink: 0, boxShadow: isActive ? `0 0 6px ${st.color}50` : 'none' }} />
+                            </div>
                         );
                     })}
                 </div>
-                {/* Linha 2: Datas do grid */}
-                <div style={{ position: 'relative', height: 18, background: `${primary}dd` }}>
-                    {gridLines.map((g, i) => (
-                        <div key={`g${i}`} style={{
-                            position: 'absolute', left: `${g.pct}%`, top: '50%',
-                            transform: 'translate(-50%, -50%)',
-                            fontSize: 9, color: 'rgba(255,255,255,0.55)', fontWeight: 600, whiteSpace: 'nowrap',
-                        }}>{g.label}</div>
-                    ))}
+
+                {/* Timeline Area */}
+                <div style={{ flex: 1, overflowX: 'auto' }} ref={timelineRef}>
+                    {/* Timeline header */}
+                    <div style={{ minWidth: 500 }}>
+                        {/* Meses */}
+                        <div style={{ position: 'relative', height: 24, background: primary }}>
+                            {months.map((m, i) => {
+                                const nextPct = i < months.length - 1 ? months[i + 1].pct : 100;
+                                const mWidth = nextPct - Math.max(0, m.pct);
+                                return (
+                                    <div key={`m${i}`} style={{
+                                        position: 'absolute', left: `${Math.max(0, m.pct)}%`, width: `${mWidth}%`,
+                                        fontSize: 11, color: 'rgba(255,255,255,0.9)', fontWeight: 700, letterSpacing: '0.03em',
+                                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                        lineHeight: '24px', paddingLeft: 10, boxSizing: 'border-box',
+                                        borderRight: i < months.length - 1 ? '1px solid rgba(255,255,255,0.15)' : 'none',
+                                    }}>{m.label}</div>
+                                );
+                            })}
+                        </div>
+                        {/* Semanas */}
+                        <div style={{ position: 'relative', height: 18, background: `${primary}ee`, borderBottom: '1px solid #e2e8f0' }}>
+                            {gridLines.map((g, i) => (
+                                <div key={`g${i}`} style={{
+                                    position: 'absolute', left: `${g.pct}%`, top: '50%',
+                                    transform: 'translate(-50%, -50%)',
+                                    fontSize: 9, color: 'rgba(255,255,255,0.5)', fontWeight: 600, whiteSpace: 'nowrap',
+                                }}>{g.label}</div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Bars container */}
+                    <div style={{ position: 'relative', minWidth: 500 }}>
+                        {/* Grid lines */}
+                        {gridLines.map((g, i) => (
+                            <div key={`gl${i}`} style={{ position: 'absolute', left: `${g.pct}%`, top: 0, bottom: 0, width: 1, background: '#e2e8f0', opacity: 0.5, zIndex: 0 }} />
+                        ))}
+
+                        {/* Today line */}
+                        {showToday && (
+                            <div style={{
+                                position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0,
+                                width: 2, background: '#ef4444', zIndex: 10,
+                                animation: 'ganttTodayPulse 2s ease-in-out infinite',
+                                boxShadow: '0 0 8px rgba(239,68,68,0.4)',
+                            }}>
+                                <div style={{
+                                    position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50%)',
+                                    background: '#ef4444', color: '#fff', fontSize: 8, fontWeight: 800,
+                                    padding: '1px 5px', borderRadius: 3, whiteSpace: 'nowrap', letterSpacing: '0.1em',
+                                }}>HOJE</div>
+                            </div>
+                        )}
+
+                        {/* Bars */}
+                        {etapas.map((e, i) => {
+                            if (!e.data_inicio && !e.data_vencimento) {
+                                return <div key={e.id} style={{ height: ROW_H, borderBottom: i < etapas.length - 1 ? '1px solid #f1f5f9' : 'none' }} />;
+                            }
+                            const s = e.data_inicio ? toMs(e.data_inicio) : toMs(e.data_vencimento);
+                            const f = e.data_vencimento ? toMs(e.data_vencimento) : toMs(e.data_inicio);
+                            const durationDays = (f - s) / DAY;
+                            const isMilestone = durationDays < 1;
+                            const isShort = !isMilestone && durationDays <= 2;
+                            const left = Math.max(0, (s - minMs) / totalMs * 100);
+                            const width = isMilestone ? 0 : Math.max(isShort ? 4.5 : 2, (Math.max(f, s + DAY) - s) / totalMs * 100);
+                            const effectiveStatus = e.status === 'atrasada' ? 'em_andamento' : e.status;
+                            const barStyle = getBarStyle(e.status);
+                            const prog = calcProgresso(e);
+                            const diasInfo = calcDiasRestantes(e);
+                            const isHovered = hoveredIdx === i;
+                            const milestoneColor = effectiveStatus === 'concluida' ? '#22c55e' : effectiveStatus === 'em_andamento' ? accent : '#94a3b8';
+
+                            return (
+                                <div key={e.id} style={{
+                                    position: 'relative', height: ROW_H,
+                                    borderBottom: i < etapas.length - 1 ? '1px solid #f1f5f9' : 'none',
+                                    display: 'flex', alignItems: 'center',
+                                }}>
+                                    {/* Bar or Milestone Diamond */}
+                                    {isMilestone ? (
+                                        <div style={{ position: 'absolute', left: `${left}%`, top: 0, bottom: 0, display: 'flex', alignItems: 'center', zIndex: 3, animation: `ganttSlideIn 0.5s ease ${i * 100}ms both` }}>
+                                            <div
+                                                className="gantt-diamond"
+                                                onMouseEnter={() => setHoveredIdx(i)}
+                                                onMouseLeave={() => setHoveredIdx(null)}
+                                                style={{
+                                                    width: 22, height: 22, marginLeft: -11,
+                                                    background: milestoneColor === '#94a3b8'
+                                                        ? '#f8fafc'
+                                                        : `linear-gradient(135deg, ${milestoneColor}, ${milestoneColor}cc)`,
+                                                    border: milestoneColor === '#94a3b8' ? '2px dashed #cbd5e1' : `2px solid ${milestoneColor}`,
+                                                    borderRadius: 5,
+                                                    animation: 'ganttDiamondPulse 3s ease-in-out infinite',
+                                                    boxShadow: milestoneColor !== '#94a3b8' ? `0 3px 12px ${milestoneColor}35` : 'none',
+                                                    cursor: 'default',
+                                                    transition: 'filter 0.2s, box-shadow 0.2s',
+                                                }}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div
+                                            className="gantt-bar"
+                                            onMouseEnter={() => setHoveredIdx(i)}
+                                            onMouseLeave={() => setHoveredIdx(null)}
+                                            style={{
+                                                ...barStyle,
+                                                left: `${left}%`, width: `${width}%`,
+                                                animation: `${barStyle.animation || ''}, ganttSlideIn 0.5s ease ${i * 100}ms both`.replace(/^,\s*/, ''),
+                                                cursor: 'default',
+                                            }}
+                                        >
+                                            {(effectiveStatus === 'nao_iniciado' || effectiveStatus === 'pendente') && (
+                                                <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', borderRadius: 10 }}>
+                                                    <rect x="1" y="1" width="calc(100% - 2px)" height="calc(100% - 2px)" rx="9"
+                                                        fill="none" stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="6 4"
+                                                        style={{ animation: 'ganttDashMove 2s linear infinite' }} />
+                                                </svg>
+                                            )}
+                                            {effectiveStatus === 'em_andamento' && prog > 0 && prog < 100 && (
+                                                <div style={{
+                                                    position: 'absolute', left: 0, top: 0, bottom: 0,
+                                                    width: `${prog}%`, background: 'rgba(255,255,255,0.2)',
+                                                    borderRadius: '10px 0 0 10px',
+                                                }} />
+                                            )}
+                                            {width > 10 && (
+                                                <span style={{
+                                                    position: 'relative', zIndex: 1, fontSize: 10, fontWeight: 700,
+                                                    color: (effectiveStatus === 'nao_iniciado' || effectiveStatus === 'pendente') ? '#94a3b8' : '#fff',
+                                                    padding: '0 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                                }}>
+                                                    {dtFmt(e.data_inicio).slice(0, 5)} → {dtFmt(e.data_vencimento).slice(0, 5)}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Tooltip */}
+                                    {isHovered && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            left: `${Math.min(left + width / 2, 70)}%`,
+                                            top: ROW_H - 2,
+                                            transform: 'translateX(-50%)',
+                                            background: '#fff', border: '1px solid #e2e8f0',
+                                            borderRadius: 12, padding: '14px 18px', zIndex: 50,
+                                            boxShadow: '0 8px 30px rgba(0,0,0,0.12)', minWidth: 220, maxWidth: 300,
+                                            pointerEvents: 'none',
+                                        }}>
+                                            <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a', marginBottom: 6 }}>{e.nome}</div>
+                                            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>
+                                                {dtFmt(e.data_inicio)} → {dtFmt(e.data_vencimento)}
+                                            </div>
+                                            {diasInfo && e.status !== 'concluida' && (
+                                                <div style={{ fontSize: 12, color: diasInfo.atrasado ? '#ef4444' : '#22c55e', fontWeight: 600, marginBottom: 6 }}>
+                                                    {diasInfo.texto}
+                                                </div>
+                                            )}
+                                            <div style={{ fontSize: 12, color: '#475569', marginBottom: 8, lineHeight: 1.5, fontStyle: 'italic' }}>
+                                                {e.status === 'concluida' ? 'Esta etapa foi concluída com sucesso!' : getEtapaDesc(e.nome)}
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 99, height: 6, overflow: 'hidden' }}>
+                                                    <div style={{ width: `${prog}%`, height: '100%', background: STATUS[effectiveStatus]?.color || '#94a3b8', borderRadius: 99 }} />
+                                                </div>
+                                                <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>{prog}%</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
 
-            <div style={{
-                position: 'relative', background: '#fff',
-                border: '1px solid #e2e8f0', borderTop: 'none',
-                borderRadius: '0 0 8px 8px', minWidth: 400
-            }}>
-                {/* Grid lines */}
-                {gridLines.map((g, i) => (
-                    <div key={`gl${i}`} style={{ position: 'absolute', left: `${g.pct}%`, top: 0, bottom: 0, width: 1, background: '#e2e8f0', opacity: 0.5, zIndex: 0 }} />
-                ))}
-                {/* Today line */}
-                {showToday && (
-                    <div style={{
-                        position: 'absolute', left: `${todayPct}%`,
-                        top: 0, bottom: 0, width: 1.5,
-                        background: '#ef4444', zIndex: 3,
-                        boxShadow: '0 0 6px 1px rgba(239,68,68,0.45), 0 0 2px 0px rgba(239,68,68,0.7)',
-                    }} />
-                )}
-
-                {etapas.map((e, i) => {
-                    if (!e.data_inicio && !e.data_vencimento) {
-                        return (
-                            <div key={e.id} style={{ position: 'relative', height: 40, borderBottom: i < etapas.length - 1 ? '1px solid #f1f5f9' : 'none', display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
-                                <span style={{ fontSize: 10, color: '#94a3b8', fontStyle: 'italic' }}>{e.nome}</span>
-                            </div>
-                        );
-                    }
-                    const s = e.data_inicio ? toMs(e.data_inicio) : toMs(e.data_vencimento);
-                    const f = e.data_vencimento ? toMs(e.data_vencimento) : toMs(e.data_inicio);
-                    const left = Math.max(0, (s - minMs) / totalMs * 100);
-                    const width = Math.max(1.5, (Math.max(f, s + DAY) - s) / totalMs * 100);
-                    const color = STATUS[e.status]?.color || '#94a3b8';
-                    const endLabel = shortDt(e.data_vencimento);
-                    const narrow = isNarrow(width);
-                    return (
-                        <div key={e.id} style={{
-                            position: 'relative', height: 40,
-                            borderBottom: i < etapas.length - 1 ? '1px solid #f1f5f9' : 'none',
-                            display: 'flex', alignItems: 'center'
-                        }}>
-                            <div style={{
-                                position: 'absolute',
-                                left: `${left}%`, width: `${width}%`,
-                                height: 22, background: color,
-                                borderRadius: 5, display: 'flex', alignItems: 'center',
-                                overflow: 'hidden', zIndex: 1,
-                                boxShadow: '0 1px 4px rgba(0,0,0,.15)'
-                            }}>
-                                {!narrow && (
-                                    <span style={{ fontSize: 10, color: '#fff', padding: '0 8px', whiteSpace: 'nowrap', overflow: 'hidden', fontWeight: 600 }}>
-                                        {e.nome}
-                                    </span>
-                                )}
-                            </div>
-                            {/* Info ao lado da barra */}
-                            <div style={{ position: 'absolute', left: `${Math.min(96, left + width + 0.5)}%`, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 4, zIndex: 2 }}>
-                                {narrow && (
-                                    <span style={{ fontSize: 10, color: '#334155', fontWeight: 600, whiteSpace: 'nowrap' }}>{e.nome}</span>
-                                )}
-                                {endLabel && (
-                                    <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap' }}>{endLabel}</span>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-
-            <div style={{ display: 'flex', gap: 14, marginTop: 10, flexWrap: 'wrap' }}>
-                {Object.entries(STATUS).filter(([k]) => k !== 'pendente').map(([k, v]) => (
-                    <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#64748b' }}>
-                        <div style={{ width: 12, height: 12, background: v.color, borderRadius: 3 }} />
-                        {v.label}
+            {/* Legend */}
+            <div style={{ display: 'flex', gap: 16, marginTop: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {[
+                    { label: 'Concluída', color: '#22c55e', style: {} },
+                    { label: 'Em andamento', color: accent, style: {} },
+                    { label: 'Não iniciado', color: '#94a3b8', style: { border: '1.5px dashed #94a3b8', background: 'transparent' } },
+                ].map(l => (
+                    <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#64748b' }}>
+                        <div style={{ width: 20, height: 10, background: l.color, borderRadius: 4, ...l.style }} />
+                        {l.label}
                     </div>
                 ))}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#64748b' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#64748b' }}>
+                    <div style={{ width: 10, height: 10, background: accent, borderRadius: 2, transform: 'rotate(45deg)' }} />
+                    Marco
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#64748b' }}>
                     <div style={{ width: 2, height: 12, background: '#ef4444', borderRadius: 1, boxShadow: '0 0 4px rgba(239,68,68,0.5)' }} />
                     Hoje
                 </div>
@@ -768,44 +1021,6 @@ export default function PortalCliente({ token }) {
 
                     <GanttPublic etapas={etapas} primary={primary} accent={accent} />
 
-                    {etapas.length > 0 && (
-                        <div style={{ marginTop: 24, display: 'grid', gap: 8 }}>
-                            {etapas.map((e) => {
-                                const st = STATUS_ETAPA[e.status] || STATUS_ETAPA.pendente;
-                                return (
-                                    <div key={e.id} style={{
-                                        display: 'flex', alignItems: 'center', gap: 14,
-                                        padding: '12px 16px', borderRadius: 10,
-                                        background: '#f8fafc',
-                                        borderLeft: `4px solid ${st.color}`,
-                                    }}>
-                                        <div style={{
-                                            width: 28, height: 28, borderRadius: '50%',
-                                            background: `${st.color}15`, border: `2px solid ${st.color}`,
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            flexShrink: 0, color: st.color
-                                        }}>
-                                            <st.Icon size={14} />
-                                        </div>
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div style={{ fontWeight: 600, fontSize: 14, color: '#0f172a' }}>{e.nome}</div>
-                                            {e.data_inicio && (
-                                                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                                                    {dtFmt(e.data_inicio)} → {dtFmt(e.data_vencimento)}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <span style={{
-                                            background: `${st.color}15`, color: st.color,
-                                            border: `1px solid ${st.color}30`,
-                                            fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
-                                            whiteSpace: 'nowrap'
-                                        }}>{st.label}</span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
                 </div>
 
                 {/* ─── Ocorrências (apenas públicas) ──────────── */}
