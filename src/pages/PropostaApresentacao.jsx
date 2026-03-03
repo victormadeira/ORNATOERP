@@ -423,7 +423,7 @@ export default function PropostaApresentacao({ token }) {
                                             boxShadow: `0 0 0 4px ${c2}30`,
                                         }}
                                     >
-                                        <span style={{ color: c1, fontWeight: 800, fontSize: 12 }}>{i + 1}</span>
+                                        <span style={{ color: '#fff', fontWeight: 800, fontSize: 13, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{i + 1}</span>
                                     </div>
                                     <div className="ap-tl-card" style={{ background: '#fff', border: `1px solid ${c2}20` }}>
                                         <div className="ap-tl-icon" style={{ color: c2 }}>
