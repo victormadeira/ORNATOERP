@@ -676,10 +676,10 @@ function buildCSS(c1, c2, cream) {
     .ap-portfolio-desc { font-size:13px; line-height:1.6; }
 
     /* Timeline mobile: linear à esquerda */
-    .ap-timeline { margin-top:32px; padding:0 8px; }
+    .ap-timeline { margin-top:32px; padding:0; }
     .ap-timeline-line { left:18px; }
     .ap-timeline-progress { left:18px; }
-    .ap-timeline-item { flex-direction:row !important; padding:0 0 0 48px !important; margin-bottom:24px; }
+    .ap-timeline-item { flex-direction:row !important; padding:0 8px 0 48px !important; margin-bottom:24px; }
     .ap-tl-dot { left:18px !important; width:24px; height:24px; }
     .ap-tl-dot span { font-size:11px !important; }
     .ap-tl-right { flex-direction:row !important; }
@@ -688,8 +688,8 @@ function buildCSS(c1, c2, cream) {
     .ap-tl-desc { font-size:12px; line-height:1.55; }
     .ap-tl-icon svg { width:20px; height:20px; }
 
-    /* Serra mobile */
-    .ap-saw-container { left:18px !important; }
+    /* Serra mobile — mesmo eixo da linha e dots */
+    .ap-saw-container { left:18px !important; transform:translate(-50%, -50%) !important; }
     .ap-saw-svg { width:44px; height:44px; }
     .ap-saw-glow { display:none; }
     .ap-chips-container { width:100px; height:100px; }
