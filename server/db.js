@@ -984,6 +984,17 @@ const migrations = [
   "ALTER TABLE despesas_projeto ADD COLUMN deletado_por INTEGER DEFAULT NULL",
   // ═══ Entrega Fotos: ambiente texto (alinhado com montador_fotos) ═══
   "ALTER TABLE entrega_fotos ADD COLUMN ambiente TEXT DEFAULT ''",
+  // ═══ Portfolio — fotos-vitrine da empresa para landing page ═══
+  `CREATE TABLE IF NOT EXISTS portfolio (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    titulo TEXT NOT NULL DEFAULT '',
+    designer TEXT DEFAULT '',
+    descricao TEXT DEFAULT '',
+    imagem TEXT NOT NULL,
+    ordem INTEGER DEFAULT 0,
+    ativo INTEGER DEFAULT 1,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

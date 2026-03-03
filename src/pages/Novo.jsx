@@ -2741,14 +2741,34 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
                     {/* Botão gerar/copiar link */}
                     {viewsData?.token ? (
-                        <div className="flex items-center gap-2 mb-2">
-                            <input readOnly value={`${window.location.origin}/proposta/${viewsData.token}`}
-                                className={`${Z.inp} flex-1 text-xs`} style={{ fontFamily: 'monospace' }}
-                                onClick={e => { e.target.select(); navigator.clipboard.writeText(e.target.value); notify('Link copiado!'); }} />
-                            <a href={`/proposta/${viewsData.token}`} target="_blank" rel="noreferrer"
-                                className="p-2 rounded cursor-pointer" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
-                                <ExternalLink size={14} />
-                            </a>
+                        <div className="flex flex-col gap-2 mb-2">
+                            <div>
+                                <div className="text-[10px] font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>
+                                    EXPERIÊNCIA COMPLETA
+                                    <span className="ml-1 px-1 py-0.5 rounded text-[8px] font-bold" style={{ background: '#dbeafe', color: '#1d4ed8' }}>REC</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <input readOnly value={`${window.location.origin}/apresentacao/${viewsData.token}`}
+                                        className={`${Z.inp} flex-1 text-xs`} style={{ fontFamily: 'monospace' }}
+                                        onClick={e => { e.target.select(); navigator.clipboard.writeText(e.target.value); notify('Link copiado!'); }} />
+                                    <a href={`/apresentacao/${viewsData.token}`} target="_blank" rel="noreferrer"
+                                        className="p-2 rounded cursor-pointer" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                                        <ExternalLink size={14} />
+                                    </a>
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-[10px] font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>DIRETO</div>
+                                <div className="flex items-center gap-2">
+                                    <input readOnly value={`${window.location.origin}/proposta/${viewsData.token}`}
+                                        className={`${Z.inp} flex-1 text-xs`} style={{ fontFamily: 'monospace' }}
+                                        onClick={e => { e.target.select(); navigator.clipboard.writeText(e.target.value); notify('Link copiado!'); }} />
+                                    <a href={`/proposta/${viewsData.token}`} target="_blank" rel="noreferrer"
+                                        className="p-2 rounded cursor-pointer" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                                        <ExternalLink size={14} />
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     ) : (
                         <button onClick={async () => {

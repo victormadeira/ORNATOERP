@@ -3,7 +3,7 @@ import { Z, Ic } from '../ui';
 import api from '../api';
 import { useAuth } from '../auth';
 import { DEFAULT_CONTRATO_TEMPLATE } from './ContratoHtml';
-import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database } from 'lucide-react';
+import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus } from 'lucide-react';
 
 const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
@@ -114,6 +114,9 @@ export default function Cfg({ taxas, reload, notify }) {
     const [backupLoading, setBackupLoading] = useState(false);
     const [backupResult, setBackupResult] = useState(null);
     const backupInputRef = useRef();
+    const [portfolio, setPortfolio] = useState([]);
+    const [portEdit, setPortEdit] = useState(null); // { titulo, designer, descricao, imagem } or null
+    const portImgRef = useRef();
 
     useEffect(() => {
         api.get('/config/empresa').then(d => {
@@ -149,7 +152,10 @@ export default function Cfg({ taxas, reload, notify }) {
                 upmobb_ativo: d.upmobb_ativo ?? 0,
             });
         }).catch(() => {});
+        api.get('/portfolio').then(setPortfolio).catch(() => {});
     }, []);
+
+    const loadPortfolio = () => api.get('/portfolio').then(setPortfolio).catch(() => {});
 
     const totalTaxas = (tx.imp || 0) + (tx.com || 0) + (tx.mont || 0) + (tx.lucro || 0) + (tx.frete || 0) + (tx.inst || 0);
 
@@ -268,6 +274,7 @@ export default function Cfg({ taxas, reload, notify }) {
                 {sectionBtn('drive', 'Google Drive', <Ic.Folder />)}
                 {sectionBtn('whatsapp', 'WhatsApp', <Ic.WhatsApp />)}
                 {sectionBtn('ia', 'Inteligência Artificial', <Ic.Sparkles />)}
+                {sectionBtn('portfolio', 'Portfolio', <Images size={16} />)}
                 {sectionBtn('backup', 'Backup', <Database size={16} />)}
             </div>
 
@@ -1510,6 +1517,142 @@ export default function Cfg({ taxas, reload, notify }) {
             )}
 
             {/* ─── Backup do Sistema ──────────────────────────── */}
+            {/* ─── Portfolio ────────────────────────────────────── */}
+            {activeSection === 'portfolio' && (
+                <div className="max-w-3xl">
+                    <div className={Z.card}>
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
+                                    <Images size={20} style={{ color: 'var(--primary)' }} />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Portfolio</h3>
+                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Fotos-vitrine que aparecem na apresentação para clientes</p>
+                                </div>
+                            </div>
+                            {isGerente && !portEdit && (
+                                <button
+                                    onClick={() => setPortEdit({ titulo: '', designer: '', descricao: '', imagem: '' })}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                                    style={{ background: 'var(--primary)' }}
+                                >
+                                    <Plus size={14} /> Adicionar
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Form add/edit */}
+                        {portEdit && (
+                            <div className="p-4 rounded-xl mb-4" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                    <div>
+                                        <label className={Z.lbl}>Título do Projeto</label>
+                                        <input className={Z.inp} value={portEdit.titulo} onChange={e => setPortEdit({ ...portEdit, titulo: e.target.value })} placeholder="Ex: Cozinha Moderna" />
+                                    </div>
+                                    <div>
+                                        <label className={Z.lbl}>Designer / Responsável</label>
+                                        <input className={Z.inp} value={portEdit.designer} onChange={e => setPortEdit({ ...portEdit, designer: e.target.value })} placeholder="Ex: Grace Dantas" />
+                                    </div>
+                                </div>
+                                <div className="mb-3">
+                                    <label className={Z.lbl}>Descrição (opcional)</label>
+                                    <textarea className={Z.inp} rows={2} value={portEdit.descricao} onChange={e => setPortEdit({ ...portEdit, descricao: e.target.value })} placeholder="Breve descrição do projeto..." />
+                                </div>
+                                <ImageUploader label="Foto do Projeto" image={portEdit.imagem} onChange={img => setPortEdit({ ...portEdit, imagem: img })} disabled={false} hint="Foto de alta qualidade · Máx. 600 KB" />
+                                <div className="flex gap-2 mt-3">
+                                    <button
+                                        onClick={async () => {
+                                            if (!portEdit.imagem) { notify?.('Adicione uma foto'); return; }
+                                            try {
+                                                if (portEdit.id) {
+                                                    await api.put(`/portfolio/${portEdit.id}`, portEdit);
+                                                } else {
+                                                    await api.post('/portfolio', portEdit);
+                                                }
+                                                notify?.('Portfolio salvo!');
+                                                setPortEdit(null);
+                                                loadPortfolio();
+                                            } catch (ex) { notify?.(ex.error || 'Erro ao salvar'); }
+                                        }}
+                                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white"
+                                        style={{ background: 'var(--primary)' }}
+                                    >
+                                        <Check size={14} /> {portEdit.id ? 'Atualizar' : 'Salvar'}
+                                    </button>
+                                    <button
+                                        onClick={() => setPortEdit(null)}
+                                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold"
+                                        style={{ color: 'var(--text-muted)' }}
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* List */}
+                        {portfolio.length === 0 && !portEdit ? (
+                            <div className="py-10 text-center text-xs rounded-lg" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                                <Images size={28} className="mx-auto mb-2 opacity-40" />
+                                Nenhuma foto no portfolio.<br />
+                                <span className="opacity-70">Adicione fotos para exibir na apresentação da proposta.</span>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-3">
+                                {portfolio.map((p, i) => (
+                                    <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                        <img src={p.imagem} alt={p.titulo} className="w-20 h-14 rounded-lg object-cover shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{p.titulo || 'Sem título'}</div>
+                                            {p.designer && <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{p.designer}</div>}
+                                        </div>
+                                        {isGerente && (
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <button onClick={async () => {
+                                                    if (i === 0) return;
+                                                    const ids = portfolio.map(x => x.id);
+                                                    [ids[i], ids[i - 1]] = [ids[i - 1], ids[i]];
+                                                    await api.put('/portfolio/reorder', { ids });
+                                                    loadPortfolio();
+                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
+                                                    <ArrowUp size={14} />
+                                                </button>
+                                                <button onClick={async () => {
+                                                    if (i === portfolio.length - 1) return;
+                                                    const ids = portfolio.map(x => x.id);
+                                                    [ids[i], ids[i + 1]] = [ids[i + 1], ids[i]];
+                                                    await api.put('/portfolio/reorder', { ids });
+                                                    loadPortfolio();
+                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
+                                                    <ArrowDown size={14} />
+                                                </button>
+                                                <button onClick={() => setPortEdit({ ...p })} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--primary)' }}>
+                                                    <Pencil size={14} />
+                                                </button>
+                                                <button onClick={async () => {
+                                                    if (!confirm('Remover esta foto do portfolio?')) return;
+                                                    await api.del(`/portfolio/${p.id}`);
+                                                    notify?.('Foto removida');
+                                                    loadPortfolio();
+                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: '#ef4444' }}>
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="mt-4 p-3 rounded-lg text-xs" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                            Estas fotos aparecem na <strong>apresentação da proposta</strong> (link de experiência completa).
+                            Recomendamos de 3 a 6 projetos com fotos de alta qualidade.
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {activeSection === 'backup' && (
                 <div className="max-w-2xl">
                     <div className={Z.card}>

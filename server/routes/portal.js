@@ -217,6 +217,46 @@ router.put('/update-html', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // GET /api/portal/public/:token — acesso público (sem auth) com rate limit
 // ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+// GET /api/portal/landing/:token — dados públicos para a landing page
+// ═══════════════════════════════════════════════════════════════════════════════
+router.get('/landing/:token', (req, res) => {
+    const { token } = req.params;
+
+    const portalToken = db.prepare('SELECT * FROM portal_tokens WHERE token = ? AND ativo = 1').get(token);
+    if (!portalToken) return res.status(404).json({ error: 'Link inválido ou expirado' });
+
+    const orc = db.prepare('SELECT id, cliente_nome, numero FROM orcamentos WHERE id = ?').get(portalToken.orc_id);
+    if (!orc) return res.status(404).json({ error: 'Proposta não encontrada' });
+
+    const emp = db.prepare(`
+        SELECT nome, telefone, email, site,
+               proposta_cor_primaria, proposta_cor_accent,
+               logo_sistema
+        FROM empresa_config WHERE id = 1
+    `).get();
+
+    const portfolio = db.prepare(
+        'SELECT id, titulo, designer, descricao, imagem FROM portfolio WHERE ativo = 1 ORDER BY ordem ASC, id ASC'
+    ).all();
+
+    res.json({
+        cliente_nome: orc.cliente_nome || '',
+        numero: orc.numero || '',
+        empresa: {
+            nome: emp?.nome || 'Marcenaria',
+            telefone: emp?.telefone || '',
+            email: emp?.email || '',
+            site: emp?.site || '',
+            logo: emp?.logo_sistema || '',
+            cor_primaria: emp?.proposta_cor_primaria || '#1B2A4A',
+            cor_accent: emp?.proposta_cor_accent || '#C9A96E',
+        },
+        portfolio,
+        proposta_token: token,
+    });
+});
+
 router.get('/public/:token', async (req, res) => {
     const { token } = req.params;
 

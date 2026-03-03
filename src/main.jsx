@@ -7,10 +7,14 @@ import ProposalPublic from './pages/ProposalPublic';
 import PortalCliente from './pages/PortalCliente';
 import MontadorUpload from './pages/MontadorUpload';
 import LandingPage from './pages/LandingPage';
+import PropostaApresentacao from './pages/PropostaApresentacao';
 
 // Detectar acesso público via query params OU path
 const params = new URLSearchParams(window.location.search);
 const path = window.location.pathname;
+
+// Suporta: /apresentacao/TOKEN
+const apresentacaoToken = (path.match(/^\/apresentacao\/([a-f0-9]+)$/i) || [])[1] || null;
 
 // Suporta: ?proposta=TOKEN ou /proposta/TOKEN
 const proposalToken = params.get('proposta')
@@ -34,6 +38,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
         {isLanding ? (
             <LandingPage />
+        ) : apresentacaoToken ? (
+            <PropostaApresentacao token={apresentacaoToken} />
         ) : proposalToken ? (
             <ProposalPublic token={proposalToken} />
         ) : portalToken ? (

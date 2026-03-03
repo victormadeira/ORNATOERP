@@ -880,22 +880,30 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                             </div>
                         )}
 
-                        {/* Link */}
-                        <div>
-                            <div className="text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>LINK PARA O CLIENTE</div>
-                            <div className="flex gap-2">
-                                <input
-                                    readOnly
-                                    value={`${window.location.origin}/?proposta=${linkModal.token}`}
-                                    className={`${Z.inp} flex-1 text-xs font-mono`}
-                                    onClick={e => e.target.select()}
-                                />
-                                <button
-                                    onClick={() => copiarLink(linkModal.token)}
-                                    className={`${Z.btn} shrink-0 text-xs`}
-                                >
-                                    <Ic.Copy /> Copiar
-                                </button>
+                        {/* Links */}
+                        <div className="flex flex-col gap-3">
+                            <div>
+                                <div className="text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>
+                                    LINK EXPERIÊNCIA COMPLETA
+                                    <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: '#dbeafe', color: '#1d4ed8' }}>RECOMENDADO</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <input readOnly value={`${window.location.origin}/apresentacao/${linkModal.token}`}
+                                        className={`${Z.inp} flex-1 text-xs font-mono`} onClick={e => e.target.select()} />
+                                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/apresentacao/${linkModal.token}`); notify('Link copiado!'); }}
+                                        className={`${Z.btn} shrink-0 text-xs`}><Ic.Copy /> Copiar</button>
+                                </div>
+                                <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Portfolio + timeline + apresentação antes do orçamento</p>
+                            </div>
+                            <div>
+                                <div className="text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>LINK DIRETO DA PROPOSTA</div>
+                                <div className="flex gap-2">
+                                    <input readOnly value={`${window.location.origin}/?proposta=${linkModal.token}`}
+                                        className={`${Z.inp} flex-1 text-xs font-mono`} onClick={e => e.target.select()} />
+                                    <button onClick={() => copiarLink(linkModal.token)}
+                                        className={`${Z.btn} shrink-0 text-xs`}><Ic.Copy /> Copiar</button>
+                                </div>
+                                <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Vai direto para o orçamento</p>
                             </div>
                         </div>
 
