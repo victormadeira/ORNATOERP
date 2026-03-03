@@ -28,32 +28,82 @@ const icons = {
     mail: (c) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
 };
 
-// ── SVG: Serra Circular ─────────────────────────────────────────────────────
-function SawBladeSVG({ color, size = 44 }) {
-    const teeth = 16;
-    const r = size / 2;
-    const inner = r * 0.55;
-    const outer = r * 0.92;
-    const mid = (inner + outer) / 2;
+// ── SVG: Serra Circular de Marcenaria (realista) ─────────────────────────────
+function SawBladeSVG({ color, size = 48 }) {
+    // Serra TCT (Tungsten Carbide Tipped) — 20 dentes com perfil ATB
+    const n = 20;
+    const C = 50;           // centro
+    const R = 47;           // raio ponta do dente
+    const Rd = 37;          // raio corpo do disco
+    const Rg = 33.5;        // raio fundo do gullet
+    const hole = 7;         // furo central
+
+    const p = (a, r) => [C + Math.cos(a) * r, C + Math.sin(a) * r];
+    const f = (v) => v.toFixed(2);
+
     let d = '';
-    for (let i = 0; i < teeth; i++) {
-        const a1 = (i / teeth) * Math.PI * 2;
-        const a2 = ((i + 0.35) / teeth) * Math.PI * 2;
-        const a3 = ((i + 0.5) / teeth) * Math.PI * 2;
-        const a4 = ((i + 0.85) / teeth) * Math.PI * 2;
-        const px = (a, rad) => (r + Math.cos(a) * rad).toFixed(2);
-        const py = (a, rad) => (r + Math.sin(a) * rad).toFixed(2);
-        d += `${i === 0 ? 'M' : 'L'}${px(a1, inner)} ${py(a1, inner)} `;
-        d += `L${px(a2, outer)} ${py(a2, outer)} `;
-        d += `L${px(a3, outer * 0.97)} ${py(a3, outer * 0.97)} `;
-        d += `L${px(a4, inner)} ${py(a4, inner)} `;
+    for (let i = 0; i < n; i++) {
+        const a0 = (i / n) * Math.PI * 2 - Math.PI / 2;
+        const a1 = ((i + 1) / n) * Math.PI * 2 - Math.PI / 2;
+        const step = a1 - a0;
+
+        // Posições angulares dos pontos-chave do dente
+        const aRake   = a0 + step * 0.05;  // face de ataque (quase reto)
+        const aTip    = a0 + step * 0.12;  // ponta do dente
+        const aBack1  = a0 + step * 0.22;  // início da costa
+        const aBack2  = a0 + step * 0.35;  // fim da costa → corpo
+        const aGulBot = a0 + step * 0.52;  // fundo do gullet
+        const aGulEnd = a0 + step * 0.75;  // saída do gullet
+        const aBody   = a0 + step * 0.90;  // corpo antes do próximo dente
+
+        const [x0, y0] = p(a0, Rd);
+        const [xR, yR] = p(aRake, R * 0.98);
+        const [xT, yT] = p(aTip, R);
+        const [xB1, yB1] = p(aBack1, R * 0.93);
+        const [xB2, yB2] = p(aBack2, Rd * 1.02);
+        const [xG, yG] = p(aGulBot, Rg);
+        const [xGE, yGE] = p(aGulEnd, Rd * 0.99);
+        const [xBd, yBd] = p(aBody, Rd);
+        const [xEnd, yEnd] = p(a1, Rd);
+
+        if (i === 0) d += `M${f(x0)} ${f(y0)} `;
+
+        // Face de ataque — quase reta saindo do corpo
+        d += `L${f(xR)} ${f(yR)} `;
+        // Ponta do dente
+        d += `L${f(xT)} ${f(yT)} `;
+        // Costas do dente — curva suave descendo
+        d += `Q${f(xB1)} ${f(yB1)} ${f(xB2)} ${f(yB2)} `;
+        // Gullet — curva côncava profunda
+        d += `Q${f(xG)} ${f(yG)} ${f(xGE)} ${f(yGE)} `;
+        // Corpo do disco até próximo dente
+        d += `L${f(xBd)} ${f(yBd)} `;
+        d += `L${f(xEnd)} ${f(yEnd)} `;
     }
     d += 'Z';
+
     return (
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="ap-saw-svg">
-            <circle cx={r} cy={r} r={r * 0.22} fill={color} opacity="0.3" />
-            <circle cx={r} cy={r} r={r * 0.12} fill={color} opacity="0.6" />
-            <path d={d} fill={color} opacity="0.85" />
+        <svg width={size} height={size} viewBox="0 0 100 100" className="ap-saw-svg">
+            <defs>
+                <mask id="saw-mask">
+                    <rect width="100" height="100" fill="white" />
+                    <circle cx={C} cy={C} r={hole} fill="black" />
+                </mask>
+            </defs>
+            {/* Disco + dentes */}
+            <path d={d} fill={color} mask="url(#saw-mask)" />
+            {/* Detalhes do furo central */}
+            <circle cx={C} cy={C} r={hole + 2} fill="none" stroke={color} strokeWidth="1" opacity="0.3" />
+            {/* Slots de expansão (4 cortes curvos decorativos no disco) */}
+            {[0, 1, 2, 3].map(j => {
+                const sa = (j / 4) * Math.PI * 2 + 0.3;
+                const ea = sa + 0.6;
+                const sr = 15, er = 24;
+                const [sx, sy] = p(sa, sr);
+                const [ex, ey] = p(ea, er);
+                return <path key={j} d={`M${f(sx)} ${f(sy)} Q${f(C + Math.cos((sa+ea)/2) * (sr+er)/2 * 0.85)} ${f(C + Math.sin((sa+ea)/2) * (sr+er)/2 * 0.85)} ${f(ex)} ${f(ey)}`}
+                    fill="none" stroke={color} strokeWidth="1.2" opacity="0.15" />;
+            })}
         </svg>
     );
 }
@@ -81,14 +131,16 @@ function useScrollReveal() {
 function useSawScroll(timelineRef, itemRefs, ready) {
     const [progress, setProgress] = useState(0);
     const [particles, setParticles] = useState([]);
+    const [done, setDone] = useState(false);
     const particleId = useRef(0);
     const lastProgress = useRef(0);
 
     useEffect(() => {
         if (!ready || !timelineRef.current) return;
         let ticking = false;
+        let finished = false;
         const onScroll = () => {
-            if (ticking) return;
+            if (ticking || finished) return;
             ticking = true;
             requestAnimationFrame(() => {
                 const tl = timelineRef.current;
@@ -104,12 +156,25 @@ function useSawScroll(timelineRef, itemRefs, ready) {
                 const p = Math.max(0, Math.min(1, scrolled / total));
                 setProgress(p);
 
-                // Spawn particles when moving
-                if (Math.abs(p - lastProgress.current) > 0.008 && p > 0.01 && p < 0.99) {
+                // Serra chegou ao final → marca como done permanente
+                if (p >= 0.95) {
+                    finished = true;
+                    // Revela todos os itens restantes
+                    itemRefs.current.forEach(el => {
+                        if (el && !el.classList.contains('revealed')) el.classList.add('revealed');
+                    });
+                    // Fade-out e desaparece
+                    setTimeout(() => { setDone(true); setParticles([]); }, 600);
+                    ticking = false;
+                    return;
+                }
+
+                // Spawn particles when moving downward
+                if (p > lastProgress.current && Math.abs(p - lastProgress.current) > 0.006 && p > 0.01) {
                     const id = ++particleId.current;
                     const side = Math.random() > 0.5 ? 1 : -1;
-                    setParticles(prev => [...prev.slice(-8), {
-                        id, x: side * (8 + Math.random() * 14), y: -2 + Math.random() * 6,
+                    setParticles(prev => [...prev.slice(-10), {
+                        id, x: side * (8 + Math.random() * 16), y: -2 + Math.random() * 6,
                         size: 2 + Math.random() * 3, opacity: 0.4 + Math.random() * 0.4,
                     }]);
                     setTimeout(() => setParticles(prev => prev.filter(pp => pp.id !== id)), 800);
@@ -134,7 +199,7 @@ function useSawScroll(timelineRef, itemRefs, ready) {
         return () => window.removeEventListener('scroll', onScroll);
     }, [ready]);
 
-    return { progress, particles };
+    return { progress, particles, done };
 }
 
 // ── Hook: counter animation ─────────────────────────────────────────────────
@@ -189,7 +254,7 @@ export default function PropostaApresentacao({ token }) {
     }, [data]);
 
     // Saw blade animation
-    const { progress: sawProgress, particles: sawParticles } = useSawScroll(timelineRef, itemRefs, !!data);
+    const { progress: sawProgress, particles: sawParticles, done: sawDone } = useSawScroll(timelineRef, itemRefs, !!data);
     const addItemRef = useCallback((el) => {
         if (el && !itemRefs.current.includes(el)) itemRefs.current.push(el);
     }, []);
@@ -201,10 +266,10 @@ export default function PropostaApresentacao({ token }) {
     const darkBg2 = adjustBrightness(c1, -15);
 
     // Counter values
-    const cnt1 = useCountUp(150, 2000, statsVisible);
-    const cnt2 = useCountUp(8, 1500, statsVisible);
-    const cnt3 = useCountUp(100, 2000, statsVisible);
-    const cnt4 = useCountUp(12, 1500, statsVisible);
+    const cnt1 = useCountUp(100, 2000, statsVisible);
+    const cnt2 = useCountUp(5, 1500, statsVisible);
+    const cnt3 = useCountUp(5, 1800, statsVisible);
+    const cnt4 = useCountUp(60, 2000, statsVisible);
 
     if (loading) return <LoadingScreen c1={c1} c2={c2} />;
     if (error) return <ErrorScreen error={error} />;
@@ -253,8 +318,8 @@ export default function PropostaApresentacao({ token }) {
                         <div className="ap-stats" ref={statsRef}>
                             <StatCard label="Projetos Entregues" value={`${cnt1}+`} color={c2} reveal={reveal} delay={0} />
                             <StatCard label="Anos de Experiência" value={cnt2} color={c2} reveal={reveal} delay={1} />
-                            <StatCard label="Clientes Satisfeitos" value={`${cnt3}%`} color={c2} reveal={reveal} delay={2} />
-                            <StatCard label="Meses de Garantia" value={cnt4} color={c2} reveal={reveal} delay={3} />
+                            <StatCard label="Máquinas Industriais" value={`${cnt3}+`} color={c2} reveal={reveal} delay={2} desc="Centro Nesting, Centro de Furação, Coladeira Industrial e Cabine de Pintura" />
+                            <StatCard label="Meses de Garantia" value={`até ${cnt4}`} color={c2} reveal={reveal} delay={3} />
                         </div>
                     </div>
                 </section>
@@ -307,12 +372,13 @@ export default function PropostaApresentacao({ token }) {
                                     height: `${sawProgress * 100}%`,
                                 }}
                             />
-                            {/* Serra circular */}
+                            {/* Serra circular — desaparece permanentemente ao terminar */}
+                            {!sawDone && (
                             <div
-                                className="ap-saw-container"
+                                className={`ap-saw-container${sawProgress >= 0.95 ? ' ap-saw-fade-out' : ''}`}
                                 style={{
                                     top: `${sawProgress * 100}%`,
-                                    opacity: sawProgress > 0.005 && sawProgress < 0.995 ? 1 : 0,
+                                    opacity: sawProgress > 0.005 ? 1 : 0,
                                 }}
                             >
                                 <SawBladeSVG color={c2} size={48} />
@@ -334,6 +400,7 @@ export default function PropostaApresentacao({ token }) {
                                     />
                                 ))}
                             </div>
+                            )}
                             {/* Items da timeline */}
                             {TIMELINE_STEPS.map((step, i) => (
                                 <div key={i} ref={addItemRef}
@@ -408,11 +475,12 @@ export default function PropostaApresentacao({ token }) {
 
 // ── Subcomponents ────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, color, reveal, delay }) {
+function StatCard({ label, value, color, reveal, delay, desc }) {
     return (
         <div ref={reveal} className="ap-reveal ap-stat-card" style={{ transitionDelay: `${delay * 0.1}s` }}>
             <div className="ap-stat-value" style={{ color }}>{value}</div>
             <div className="ap-stat-label">{label}</div>
+            {desc && <div className="ap-stat-desc">{desc}</div>}
         </div>
     );
 }
@@ -493,6 +561,7 @@ function buildCSS(c1, c2, cream) {
 .ap-stat-card { text-align:center; padding:24px 12px; border-radius:12px; background:rgba(255,255,255,0.7); }
 .ap-stat-value { font-size:clamp(28px, 4vw, 40px); font-weight:800; line-height:1; margin-bottom:6px; }
 .ap-stat-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; }
+.ap-stat-desc { font-size:10px; line-height:1.4; opacity:0.45; margin-top:4px; }
 
 /* ── Portfolio ── */
 .ap-portfolio-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:20px; margin-top:40px; }
@@ -521,7 +590,8 @@ function buildCSS(c1, c2, cream) {
 .ap-tl-desc { font-size:13px; line-height:1.6; }
 
 /* ── Saw Blade ── */
-.ap-saw-container { position:absolute; left:50%; transform:translate(-50%, -50%); z-index:5; pointer-events:none; transition:opacity 0.4s; }
+.ap-saw-container { position:absolute; left:50%; transform:translate(-50%, -50%); z-index:5; pointer-events:none; transition:opacity 0.4s ease; }
+.ap-saw-fade-out { opacity:0 !important; transition:opacity 0.5s ease !important; }
 .ap-saw-svg { animation:apSawSpin 1.5s linear infinite; filter:drop-shadow(0 2px 8px rgba(0,0,0,0.15)); }
 @keyframes apSawSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
 .ap-saw-particle { position:absolute; border-radius:50%; animation:apParticleFade 0.8s ease-out forwards; pointer-events:none; }
