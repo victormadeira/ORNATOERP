@@ -110,9 +110,11 @@ function SawBladeSVG({ color, size = 70 }) {
 // ── Cores das lascas de MDF ─────────────────────────────────────────────────
 const MDF_COLORS = ['#C4963C', '#D4A574', '#A0784C', '#8B6914', '#E8C9A0', '#B8956A', '#D2B48C', '#C19A6B'];
 
-// ── Hook: scroll reveal ─────────────────────────────────────────────────────
+// ── Hook: scroll reveal (robusto — observe imediato + fallback) ─────────────
 function useScrollReveal() {
     const refs = useRef([]);
+    const obsRef = useRef(null);
+
     useEffect(() => {
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(e => {
@@ -121,11 +123,29 @@ function useScrollReveal() {
                     observer.unobserve(e.target);
                 }
             });
-        }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+        }, { threshold: 0.1, rootMargin: '0px 0px -20px 0px' });
+        obsRef.current = observer;
+        // Observa refs que foram adicionados antes do observer estar pronto
         refs.current.forEach(el => el && observer.observe(el));
-        return () => observer.disconnect();
-    }, [refs.current.length]);
-    const addRef = useCallback((el) => { if (el && !refs.current.includes(el)) refs.current.push(el); }, []);
+
+        // Fallback: se após 2.5s algum elemento ainda não apareceu, força reveal
+        const fallback = setTimeout(() => {
+            refs.current.forEach(el => {
+                if (el && !el.classList.contains('revealed')) el.classList.add('revealed');
+            });
+        }, 2500);
+
+        return () => { observer.disconnect(); clearTimeout(fallback); };
+    }, []);
+
+    const addRef = useCallback((el) => {
+        if (el && !refs.current.includes(el)) {
+            refs.current.push(el);
+            // Se observer já existe, observa imediatamente
+            if (obsRef.current) obsRef.current.observe(el);
+        }
+    }, []);
+
     return addRef;
 }
 
