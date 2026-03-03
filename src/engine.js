@@ -267,13 +267,15 @@ export function calcMod(mod, bib = null) {
         }
     }
 
-    // FIX #5: CONSOLIDAR CHAPAS usando perda_pct individual de cada chapa
+    // FIX #5: CONSOLIDAR CHAPAS — custo proporcional (fracionário) por item
+    // Arredondamento para chapa inteira é feito no total do orçamento (Novo.jsx)
     Object.values(chapas).forEach(c => {
         const areaChapa = (c.mat.larg * c.mat.alt) / 1e6;
         const perda = c.mat.perda_pct != null ? c.mat.perda_pct : 15;
         const areaUtil = areaChapa * (1 - perda / 100);
-        c.n = areaUtil > 0 ? Math.ceil(c.area / areaUtil) : 1;
-        custo += c.n * c.mat.preco;
+        c.frac = areaUtil > 0 ? c.area / areaUtil : 1; // fracionário (ex: 0.25 chapas)
+        c.n = Math.ceil(c.frac); // inteiro (para referência)
+        custo += c.frac * c.mat.preco; // custo proporcional
     });
 
     const fitaPrecoDefault = fitasDB[0]?.preco || 0.85;
@@ -482,14 +484,15 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
         });
     });
 
-    // ── 4. Consolidar chapas ────────────────────────────────
+    // ── 4. Consolidar chapas (custo proporcional — arredondamento no total do orçamento)
     let custoChapas = 0;
     Object.values(chapas).forEach(c => {
         const areaChapa = (c.mat.larg * c.mat.alt) / 1e6;
         const perda = c.mat.perda_pct != null ? c.mat.perda_pct : 15;
         const areaUtil = areaChapa * (1 - perda / 100);
-        c.n = areaUtil > 0 ? Math.ceil(c.area / areaUtil) : 1;
-        const cc = c.n * c.mat.preco;
+        c.frac = areaUtil > 0 ? c.area / areaUtil : 1;
+        c.n = Math.ceil(c.frac);
+        const cc = c.frac * c.mat.preco; // proporcional
         custoChapas += cc;
         custo += cc;
     });

@@ -28,20 +28,37 @@ function calcAmbCustos(ambientes, bib, padroes, taxas) {
         let ambCm = 0;
         const itemDetails = [];
 
-        // ── Ambiente manual: linhas com valor de venda direto ──
+        // ── Ambiente manual: blocos descritivos ou linhas legadas ──
         if (amb.tipo === 'manual') {
             (amb.linhas || []).forEach(ln => {
-                const sub = (ln.qtd || 0) * (ln.valorUnit || 0);
-                ambCm += sub;
-                itemDetails.push({
-                    nome: ln.descricao || 'Item manual',
-                    dims: null,
-                    qtd: ln.qtd || 1,
-                    custo: sub,
-                    componentes: [],
-                    tipo: 'manual',
-                    mats: {},
-                });
+                if (ln.tipo === 'bloco') {
+                    const val = Number(ln.valor) || 0;
+                    ambCm += val;
+                    itemDetails.push({
+                        nome: ln.titulo || 'Item',
+                        descricaoBloco: ln.descricao || '',
+                        marcador: ln.marcador || 'bullet',
+                        dims: null,
+                        qtd: 1,
+                        custo: val,
+                        componentes: [],
+                        tipo: 'bloco',
+                        mats: {},
+                    });
+                } else {
+                    // Compatibilidade com linhas antigas
+                    const sub = (ln.qtd || 0) * (ln.valorUnit || 0);
+                    ambCm += sub;
+                    itemDetails.push({
+                        nome: ln.descricao || 'Item manual',
+                        dims: null,
+                        qtd: ln.qtd || 1,
+                        custo: sub,
+                        componentes: [],
+                        tipo: 'manual',
+                        mats: {},
+                    });
+                }
             });
             results.push({ id: amb.id, nome: amb.nome, custo: ambCm, itens: itemDetails, manual: true });
             return;
@@ -187,6 +204,25 @@ export function buildPropostaHtml({
         const showItemValor = nivel === 'detalhado';
 
         const itemsHtml = amb.itens.map(it => {
+            // ── Bloco descritivo: título + linhas com marcadores ──
+            if (it.tipo === 'bloco') {
+                const lines = (it.descricaoBloco || '').split('\n').filter(l => l.trim());
+                const marc = it.marcador || 'bullet';
+                const linesHtml = lines.map((l, i) => {
+                    const prefix = marc === 'bullet' ? '• ' : marc === 'number' ? `${i + 1}. ` : marc === 'dash' ? '— ' : '';
+                    return `<div class="bloco-line">${prefix}${l.trim()}</div>`;
+                }).join('');
+                return `<tr>
+                    <td class="td-desc">
+                        <span class="item-name">${it.nome}</span>
+                        ${linesHtml ? `<div class="bloco-desc">${linesHtml}</div>` : ''}
+                    </td>
+                    <td class="td-qtd">1</td>
+                    ${showItemValor ? `<td class="td-val">${R$(it.valorVenda)}</td>` : ''}
+                    ${showItemValor ? `<td class="td-sub">${R$(it.valorVenda)}</td>` : ''}
+                </tr>`;
+            }
+
             const descParts = [];
             descParts.push(it.nome);
             if (it.dims) {
@@ -507,6 +543,13 @@ export function buildPropostaHtml({
     .item-details {
         font-size: 10px; color: #777;
         margin-top: 2px; line-height: 1.5;
+    }
+    .bloco-desc {
+        margin-top: 4px; padding-left: 4px;
+    }
+    .bloco-line {
+        font-size: 10.5px; color: #555;
+        line-height: 1.7; padding: 0;
     }
 
     .amb-total {

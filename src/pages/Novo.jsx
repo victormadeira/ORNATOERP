@@ -525,7 +525,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
 function RelatorioItem({ res, chapasDB, fitasDB, coef, qtd }) {
     const custoFita = res.fita * (fitasDB[0]?.preco || 0.85);
     const custoFerragens = res.ferrList.reduce((s, f) => s + f.preco * f.qtd, 0);
-    const custoChapas = Object.values(res.chapas).reduce((s, c) => s + c.n * c.mat.preco, 0);
+    const custoChapas = Object.values(res.chapas).reduce((s, c) => s + (c.frac || c.n) * c.mat.preco, 0);
 
     const TYPE_COLOR = { caixa: 'var(--primary)', tamponamento: '#3b82f6', componente: '#16a34a', frente_externa: '#f59e0b' };
     const TYPE_LABEL = { caixa: 'Caixa', tamponamento: 'Tamp.', componente: 'Componente', frente_externa: 'Frente Ext.' };
@@ -563,15 +563,15 @@ function RelatorioItem({ res, chapasDB, fitasDB, coef, qtd }) {
                 <div>
                     <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1" style={{ color: 'var(--text-muted)' }}><Package size={10} /> Chapas Necessárias</div>
                     <table className="w-full border-collapse text-[10px]">
-                        <thead><tr>{['Material', 'Área (m²)', 'Chapas', 'Unit.', 'Total'].map(h => <th key={h} className={Z.th} style={{ padding: '3px 6px', fontSize: 9 }}>{h}</th>)}</tr></thead>
+                        <thead><tr>{['Material', 'Área (m²)', 'Uso', 'Unit.', 'Custo'].map(h => <th key={h} className={Z.th} style={{ padding: '3px 6px', fontSize: 9 }}>{h}</th>)}</tr></thead>
                         <tbody>
                             {Object.values(res.chapas).map((c, i) => (
                                 <tr key={i} className="hover:bg-[var(--bg-hover)]">
                                     <td className="td-glass" style={{ padding: '2px 6px' }}>{c.mat.nome}</td>
                                     <td className="td-glass text-right font-mono" style={{ padding: '2px 6px' }}>{N(c.area, 4)}</td>
-                                    <td className="td-glass text-center font-bold" style={{ padding: '2px 6px', color: 'var(--primary)' }}>{c.n}</td>
+                                    <td className="td-glass text-center font-bold" style={{ padding: '2px 6px', color: 'var(--primary)' }}>{N(c.frac || c.n, 2)} chp</td>
                                     <td className="td-glass text-right" style={{ padding: '2px 6px', color: 'var(--text-muted)' }}>{R$(c.mat.preco)}</td>
-                                    <td className="td-glass text-right font-semibold" style={{ padding: '2px 6px', color: 'var(--primary)' }}>{R$(c.n * c.mat.preco)}</td>
+                                    <td className="td-glass text-right font-semibold" style={{ padding: '2px 6px', color: 'var(--primary)' }}>{R$((c.frac || c.n) * c.mat.preco)}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -1226,7 +1226,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         setShowTipoAmbModal(false);
         const base = { id: uid(), nome: `Ambiente ${ambientes.length + 1}`, tipo: tipo || 'calculadora' };
         if (tipo === 'manual') {
-            base.linhas = [{ id: uid(), descricao: '', qtd: 1, valorUnit: 0 }];
+            base.linhas = [{ id: uid(), tipo: 'bloco', titulo: '', descricao: '', marcador: 'bullet', valor: 0 }];
             base.itens = []; base.paineis = []; base.itensEspeciais = [];
         } else {
             base.itens = []; base.paineis = []; base.itensEspeciais = [];
@@ -1441,7 +1441,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             // ── Ambiente Manual: valor = preco de venda direto (sem markup) ──
             if (amb.tipo === 'manual') {
                 (amb.linhas || []).forEach(ln => {
-                    ambCm += (ln.qtd || 0) * (ln.valorUnit || 0);
+                    if (ln.tipo === 'bloco') {
+                        ambCm += Number(ln.valor) || 0;
+                    } else {
+                        // compatibilidade com linhas antigas (descricao/qtd/valorUnit)
+                        ambCm += (ln.qtd || 0) * (ln.valorUnit || 0);
+                    }
                 });
                 manualTotal += ambCm;
                 ambTotals.push({ id: amb.id, custo: ambCm, manual: true });
@@ -1480,11 +1485,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     ambCP += itemCP;
                     itemCostList.push({ itemId: item.id, ambId: amb.id, custoItem: itemCusto, itemCP, coef, ajuste: item.ajuste || null });
                     Object.entries(res.chapas).forEach(([id, c]) => {
-                        if (!ca[id]) ca[id] = { mat: c.mat, area: 0, n: 0 };
+                        if (!ca[id]) ca[id] = { mat: c.mat, area: 0, n: 0, frac: 0 };
                         ca[id].area += c.area * qtd;
                         const perda = c.mat.perda_pct != null ? c.mat.perda_pct : 15;
                         const areaUtil = ((c.mat.larg * c.mat.alt) / 1e6) * (1 - perda / 100);
-                        ca[id].n = areaUtil > 0 ? Math.ceil(ca[id].area / areaUtil) : 1;
+                        ca[id].frac = areaUtil > 0 ? ca[id].area / areaUtil : 1;
+                        ca[id].n = Math.ceil(ca[id].frac); // chapas inteiras reais
                     });
                     res.ferrList.forEach(f => {
                         if (!fa[f.id]) fa[f.id] = { ...f, qtd: 0 };
@@ -1565,6 +1571,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         });
 
         const pvFinal = pv + totalAjustes + manualTotal;
+
+        // Economia de chapas: diferença entre arredondamento individual vs global
+        const chapasInteiras = Object.values(ca).reduce((s, c) => s + c.n, 0);
+        const chapasFrac = Object.values(ca).reduce((s, c) => s + (c.frac || 0), 0);
+        const chapasEconomia = Object.values(ca).reduce((s, c) => s + (c.n - (c.frac || 0)) * c.mat.preco, 0);
+
         return {
             cm, at, ft, ca, fa, pv, cp,
             pvErro: pvResult.erro, pvMsg: pvResult.msg,
@@ -1572,6 +1584,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             ambTotals, totalAjustes, pvFinal, manualTotal, totalItemCP, itemCostList,
             breakdown: pvResult.breakdown,
             cb: cp, // compatibilidade
+            chapasInteiras, chapasFrac, chapasEconomia,
         };
     }, [ambientes, taxas, bib]);
 
@@ -2029,54 +2042,93 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
                                     {isExpAmb && amb.tipo === 'manual' && (
                                         <div className="px-4 pb-4" style={{ borderTop: '1px solid var(--border)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
-                                            {/* ── Ambiente Manual: tabela de linhas ── */}
-                                            <div className="py-3" style={{ overflowX: 'auto' }}>
-                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                                                    <thead>
-                                                        <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                                                            <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Descricao</th>
-                                                            <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', width: 70 }}>Qtd</th>
-                                                            <th style={{ textAlign: 'right', padding: '6px 8px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', width: 120 }}>Valor Unit.</th>
-                                                            <th style={{ textAlign: 'right', padding: '6px 8px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', width: 110 }}>Subtotal</th>
-                                                            <th style={{ width: 36 }}></th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {(amb.linhas || []).map((ln, li) => (
-                                                            <tr key={ln.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                                                                <td style={{ padding: '6px 8px' }}>
-                                                                    <input value={ln.descricao} placeholder="Ex: Armário sob medida, Terceirização..."
+                                            {/* ── Ambiente Manual: Blocos Descritivos ── */}
+                                            <div className="py-3 flex flex-col gap-4">
+                                                {(amb.linhas || []).map((ln, li) => {
+                                                    // Compatibilidade: linhas antigas sem tipo='bloco'
+                                                    const isBloco = ln.tipo === 'bloco';
+                                                    if (!isBloco) {
+                                                        // Renderizar linha antiga como bloco simplificado
+                                                        return (
+                                                            <div key={ln.id} className="glass-card" style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 10 }}>
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <input value={ln.descricao} placeholder="Descrição do item"
                                                                         onChange={e => upAmb(amb.id, a => { a.linhas[li].descricao = e.target.value; })}
-                                                                        className={Z.inp} style={{ fontSize: 12, padding: '5px 8px' }} />
-                                                                </td>
-                                                                <td style={{ padding: '6px 4px', textAlign: 'center' }}>
-                                                                    <input type="number" value={ln.qtd} min={1}
+                                                                        className={Z.inp} style={{ fontSize: 13, flex: 1 }} />
+                                                                    <input type="number" value={ln.qtd} min={1} style={{ width: 50, textAlign: 'center' }}
                                                                         onChange={e => upAmb(amb.id, a => { a.linhas[li].qtd = Math.max(1, parseInt(e.target.value) || 1); })}
-                                                                        className={Z.inp} style={{ fontSize: 12, padding: '5px 4px', textAlign: 'center', width: 60 }} />
-                                                                </td>
-                                                                <td style={{ padding: '6px 4px', textAlign: 'right' }}>
-                                                                    <input type="number" value={ln.valorUnit} min={0} step={0.01}
+                                                                        className={Z.inp} />
+                                                                    <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>×</span>
+                                                                    <input type="number" value={ln.valorUnit} min={0} step={0.01} style={{ width: 100, textAlign: 'right' }}
                                                                         onChange={e => upAmb(amb.id, a => { a.linhas[li].valorUnit = parseFloat(e.target.value) || 0; })}
-                                                                        className={Z.inp} style={{ fontSize: 12, padding: '5px 8px', textAlign: 'right', width: 110 }} />
-                                                                </td>
-                                                                <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: 'var(--primary)', fontSize: 12 }}>
-                                                                    {R$((ln.qtd || 0) * (ln.valorUnit || 0))}
-                                                                </td>
-                                                                <td style={{ padding: '6px 4px', textAlign: 'center' }}>
-                                                                    {(amb.linhas || []).length > 1 && (
-                                                                        <button onClick={() => upAmb(amb.id, a => { a.linhas = a.linhas.filter(l => l.id !== ln.id); })}
-                                                                            className="p-1 rounded hover:bg-red-500/10 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
-                                                                            <Trash2 size={12} />
-                                                                        </button>
-                                                                    )}
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                                <button onClick={() => upAmb(amb.id, a => { a.linhas.push({ id: uid(), descricao: '', qtd: 1, valorUnit: 0 }); })}
-                                                    className={`${Z.btn2} text-xs py-1.5 px-3 mt-3`}>
-                                                    <Plus size={12} /> Adicionar item
+                                                                        className={Z.inp} />
+                                                                    <span className="font-bold text-xs" style={{ color: 'var(--primary)', minWidth: 70, textAlign: 'right' }}>{R$((ln.qtd || 0) * (ln.valorUnit || 0))}</span>
+                                                                    {(amb.linhas || []).length > 1 && <button onClick={() => upAmb(amb.id, a => { a.linhas = a.linhas.filter(l => l.id !== ln.id); })} className="p-1 rounded hover:bg-red-500/10 cursor-pointer" style={{ color: 'var(--text-muted)' }}><Trash2 size={12} /></button>}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    const MARCADORES = [
+                                                        { id: 'bullet', label: '•', title: 'Marcadores' },
+                                                        { id: 'number', label: '1.', title: 'Numerado' },
+                                                        { id: 'dash', label: '—', title: 'Traço' },
+                                                        { id: 'none', label: 'Aa', title: 'Sem marcador' },
+                                                    ];
+                                                    const previewLines = (ln.descricao || '').split('\n').filter(l => l.trim());
+                                                    return (
+                                                        <div key={ln.id} className="glass-card" style={{ padding: 0, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                                                            {/* Header do bloco */}
+                                                            <div style={{ padding: '10px 14px', background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--border)' }}>
+                                                                <input value={ln.titulo} placeholder="Título do bloco (ex: Complementos Banheiro)"
+                                                                    onChange={e => upAmb(amb.id, a => { a.linhas[li].titulo = e.target.value; })}
+                                                                    className={Z.inp} style={{ fontSize: 13, fontWeight: 600, flex: 1, background: 'transparent', border: 'none', padding: '2px 0' }} />
+                                                                <div className="flex items-center gap-1 shrink-0" style={{ borderLeft: '1px solid var(--border)', paddingLeft: 10 }}>
+                                                                    <span style={{ fontSize: 9, color: 'var(--text-muted)', marginRight: 4 }}>R$</span>
+                                                                    <input type="number" value={ln.valor} min={0} step={0.01}
+                                                                        onChange={e => upAmb(amb.id, a => { a.linhas[li].valor = parseFloat(e.target.value) || 0; })}
+                                                                        className={Z.inp} style={{ fontSize: 13, fontWeight: 700, textAlign: 'right', width: 110, color: 'var(--primary)' }} />
+                                                                </div>
+                                                                {(amb.linhas || []).length > 1 && (
+                                                                    <button onClick={() => upAmb(amb.id, a => { a.linhas = a.linhas.filter(l => l.id !== ln.id); })}
+                                                                        className="p-1.5 rounded hover:bg-red-500/10 cursor-pointer shrink-0" style={{ color: 'var(--text-muted)' }}>
+                                                                        <Trash2 size={13} />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            {/* Corpo: textarea + marcadores */}
+                                                            <div style={{ padding: '12px 14px' }}>
+                                                                <textarea value={ln.descricao}
+                                                                    placeholder="Descreva os itens (um por linha)&#10;Ex:&#10;Espelho sob medida 80×60cm&#10;2 nichos embutidos&#10;Porta toalha inox"
+                                                                    onChange={e => upAmb(amb.id, a => { a.linhas[li].descricao = e.target.value; })}
+                                                                    className={Z.inp}
+                                                                    rows={Math.max(3, previewLines.length + 1)}
+                                                                    style={{ fontSize: 12, lineHeight: 1.7, resize: 'vertical', minHeight: 72, fontFamily: 'inherit' }} />
+                                                                <div className="flex items-center justify-between mt-2">
+                                                                    <div className="flex items-center gap-1">
+                                                                        <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 4 }}>Marcador:</span>
+                                                                        {MARCADORES.map(m => (
+                                                                            <button key={m.id} title={m.title}
+                                                                                onClick={() => upAmb(amb.id, a => { a.linhas[li].marcador = m.id; })}
+                                                                                className="px-2 py-0.5 rounded text-xs cursor-pointer transition-all"
+                                                                                style={{
+                                                                                    background: ln.marcador === m.id ? 'var(--primary)' : 'var(--bg-muted)',
+                                                                                    color: ln.marcador === m.id ? '#fff' : 'var(--text-muted)',
+                                                                                    fontWeight: ln.marcador === m.id ? 700 : 400,
+                                                                                    border: `1px solid ${ln.marcador === m.id ? 'var(--primary)' : 'var(--border)'}`,
+                                                                                }}>
+                                                                                {m.label}
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{previewLines.length} {previewLines.length === 1 ? 'linha' : 'linhas'}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                                <button onClick={() => upAmb(amb.id, a => { a.linhas.push({ id: uid(), tipo: 'bloco', titulo: '', descricao: '', marcador: 'bullet', valor: 0 }); })}
+                                                    className={`${Z.btn2} text-xs py-1.5 px-3`}>
+                                                    <Plus size={12} /> Adicionar bloco
                                                 </button>
                                             </div>
                                         </div>
@@ -2596,6 +2648,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                     <span>{R$(v)}</span>
                                                                 </div>
                                                             ))}
+                                                            {tot.chapasEconomia > 0 && (
+                                                                <div className="flex justify-between text-[9px] mt-0.5 pt-0.5" style={{ borderTop: '1px dashed var(--border)', color: '#22c55e' }}>
+                                                                    <span>Otimização de chapas ({N(tot.chapasFrac, 1)} de {tot.chapasInteiras})</span>
+                                                                    <span>-{R$(tot.chapasEconomia)}</span>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
 
