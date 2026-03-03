@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Z, Ic, Modal, SearchableSelect } from '../ui';
 import { uid, R$, N, DB_CHAPAS, DB_ACABAMENTOS, DB_FERRAGENS, DB_FITAS, FERR_GROUPS, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, precoVenda, precoVendaV2, LOCKED_COLS, compareVersions } from '../engine';
 import api from '../api';
@@ -1147,6 +1147,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const lastSavedPayloadRef = useRef(null);
     const isMountedRef = useRef(true);
 
+
     // Colunas pré-aprovação onde o botão Aprovar fica visível
     const PRE_APPROVE_COLS = ['lead', 'orc', 'env', 'neg'];
 
@@ -1599,6 +1600,24 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const pvComDesconto = Math.max(0, tot.pvFinal - descontoR);
     const somaBlocos = pagamento.blocos.reduce((s, b) => s + (Number(b.percentual) || 0), 0);
 
+    // ── Sync proposta HTML: regenera e envia para o portal a cada save ─────
+    const syncPropostaHtml = useCallback(async () => {
+        if (!editOrc?.id || !viewsData?.token) return;
+        try {
+            let emp = empresa;
+            if (!emp) { emp = await api.get('/config/empresa'); setEmpresa(emp); }
+            const cl = clis.find(c => c.id === parseInt(cid));
+            const nivel = viewsData?.nivel || 'geral';
+            const html = buildPropostaHtml({
+                empresa: emp, cliente: cl,
+                orcamento: { numero, projeto, obs },
+                ambientes, tot, taxas: localTaxas, pagamento, pvComDesconto, bib, padroes,
+                nivel, prazoEntrega, enderecoObra, validadeProposta,
+            });
+            await api.put('/portal/update-html', { orc_id: editOrc.id, html_proposta: html, nivel });
+        } catch (_) { /* silencioso — sync é best-effort */ }
+    }, [editOrc?.id, viewsData?.token, viewsData?.nivel, empresa, cid, clis, numero, projeto, obs, ambientes, tot, localTaxas, pagamento, pvComDesconto, bib, padroes, prazoEntrega, enderecoObra, validadeProposta]);
+
     // ── buildSavePayload: monta o objeto de dados para salvar ──
     const buildSavePayload = () => {
         const cl = clis.find(c => c.id === parseInt(cid));
@@ -1649,6 +1668,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 if (!isMountedRef.current) return;
                 lastSavedPayloadRef.current = payloadStr;
                 setSaveStatus('saved');
+                // Sync proposta HTML no portal (async, best-effort)
+                syncPropostaHtml();
             } catch {
                 if (!isMountedRef.current) return;
                 setSaveStatus('error');
@@ -1656,7 +1677,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         }, 5000);
 
         return () => { if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current); };
-    }, [cid, projeto, numero, validadeDias, ambientes, obs, padroes, pagamento, localTaxas, prazoEntrega, enderecoObra, tot.cm, pvComDesconto]);
+    }, [cid, projeto, numero, validadeDias, ambientes, obs, padroes, pagamento, localTaxas, prazoEntrega, enderecoObra, tot.cm, pvComDesconto, syncPropostaHtml]);
 
     // ── beforeunload: avisar se houver alterações não salvas ──
     useEffect(() => {
@@ -1685,6 +1706,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             setSaveStatus('saved');
             if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
             notify('Orçamento salvo!'); reload();
+            // Sync proposta HTML no portal (async, best-effort)
+            syncPropostaHtml();
         } catch (ex) { notify(ex.error || 'Erro ao salvar'); }
     };
 
@@ -2868,7 +2891,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         </button>
                     )}
                     <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                        Ao gerar a proposta (PDF), o conteúdo do link é atualizado automaticamente.
+                        O conteúdo do link é atualizado automaticamente ao salvar.
                     </p>
 
                     {/* Painel de visualizações expandido */}

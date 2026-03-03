@@ -609,13 +609,17 @@ router.delete('/:id', requireAuth, (req, res) => {
 
     try {
         const deleteProjeto = db.transaction(() => {
+            // Ordem: respeitar FK dependencies (filhas antes de pais)
             db.prepare('DELETE FROM portal_mensagens WHERE projeto_id = ?').run(id);
+            // contas_pagar tem FK para despesas_projeto → deletar contas_pagar ANTES
+            db.prepare('DELETE FROM contas_pagar WHERE projeto_id = ?').run(id);
             db.prepare('DELETE FROM despesas_projeto WHERE projeto_id = ?').run(id);
             db.prepare('DELETE FROM contas_receber WHERE projeto_id = ?').run(id);
-            db.prepare('DELETE FROM contas_pagar WHERE projeto_id = ?').run(id);
             db.prepare('DELETE FROM movimentacoes_estoque WHERE projeto_id = ?').run(id);
+            // montador_fotos tem FK para montador_tokens → deletar fotos ANTES
             db.prepare('DELETE FROM montador_fotos WHERE projeto_id = ?').run(id);
             db.prepare('DELETE FROM montador_tokens WHERE projeto_id = ?').run(id);
+            // apontamentos_horas tem FK para etapas_projeto → deletar apontamentos ANTES
             db.prepare('DELETE FROM apontamentos_horas WHERE projeto_id = ?').run(id);
             db.prepare('DELETE FROM etapas_projeto WHERE projeto_id = ?').run(id);
             db.prepare('DELETE FROM ocorrencias_projeto WHERE projeto_id = ?').run(id);
