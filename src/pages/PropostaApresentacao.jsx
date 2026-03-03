@@ -371,7 +371,7 @@ export default function PropostaApresentacao({ token }) {
                                 className="ap-timeline-progress"
                                 style={{
                                     background: `linear-gradient(to bottom, ${c2}, ${c2}90)`,
-                                    height: `${sawProgress * 100}%`,
+                                    height: sawDone ? '100%' : `${sawProgress * 100}%`,
                                 }}
                             />
                             {/* Serra circular — desaparece permanentemente ao terminar */}
@@ -578,7 +578,7 @@ function buildCSS(c1, c2, cream) {
 .ap-portfolio-row { display:grid; grid-template-columns:1.2fr 1fr; gap:36px; align-items:center; }
 .ap-portfolio-row.ap-row-reverse { grid-template-columns:1fr 1.2fr; }
 .ap-portfolio-row.ap-row-reverse .ap-portfolio-img-wrap { order:2; }
-.ap-portfolio-row.ap-row-reverse .ap-portfolio-text { order:1; }
+.ap-portfolio-row.ap-row-reverse .ap-portfolio-text { order:1; text-align:right; }
 .ap-portfolio-img-wrap { position:relative; border-radius:14px; overflow:hidden; aspect-ratio:16/10; }
 .ap-portfolio-img { width:100%; height:100%; object-fit:cover; transition:transform 0.6s cubic-bezier(.16,1,.3,1); }
 .ap-portfolio-row:hover .ap-portfolio-img { transform:scale(1.04); }
