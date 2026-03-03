@@ -2122,18 +2122,27 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                     </div>
                                                                     <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{previewLines.length} {previewLines.length === 1 ? 'linha' : 'linhas'}</span>
                                                                 </div>
-                                                                {/* Preview: como ficará na proposta */}
+                                                                {/* Preview: como ficará na proposta (colapsável) */}
                                                                 {previewLines.length > 0 && (
-                                                                    <div style={{ marginTop: 10, padding: '10px 12px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px dashed var(--border)' }}>
-                                                                        <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Preview na proposta</div>
-                                                                        {previewLines.map((line, idx) => {
-                                                                            const prefix = ln.marcador === 'bullet' ? '• ' : ln.marcador === 'number' ? `${idx + 1}. ` : ln.marcador === 'dash' ? '— ' : '';
-                                                                            return (
-                                                                                <div key={idx} style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-                                                                                    {prefix}{line.trim()}
-                                                                                </div>
-                                                                            );
-                                                                        })}
+                                                                    <div style={{ marginTop: 8 }}>
+                                                                        <button onClick={() => upAmb(amb.id, a => { a.linhas[li]._previewOpen = !a.linhas[li]._previewOpen; })}
+                                                                            className="flex items-center gap-1.5 cursor-pointer" style={{ background: 'none', border: 'none', padding: 0 }}>
+                                                                            <Eye size={11} style={{ color: 'var(--text-muted)' }} />
+                                                                            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{ln._previewOpen ? 'Ocultar' : 'Ver'} preview</span>
+                                                                            <ChevronDown size={10} style={{ color: 'var(--text-muted)', transform: ln._previewOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                                                                        </button>
+                                                                        {ln._previewOpen && (
+                                                                            <div style={{ marginTop: 6, padding: '10px 12px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px dashed var(--border)' }}>
+                                                                                {previewLines.map((line, idx) => {
+                                                                                    const prefix = ln.marcador === 'bullet' ? '• ' : ln.marcador === 'number' ? `${idx + 1}. ` : ln.marcador === 'dash' ? '— ' : '';
+                                                                                    return (
+                                                                                        <div key={idx} style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+                                                                                            {prefix}{line.trim()}
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 )}
                                                             </div>
