@@ -7,16 +7,42 @@ import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConic
 
 const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
+// ── Comprime imagem via canvas (max 1200px, JPEG 80%) ─────────────────────
+function compressImage(file, maxW = 1200, quality = 0.8) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                // Se já é pequena o suficiente e não precisa resize, retorna direto
+                if (img.width <= maxW && file.size <= 150 * 1024) {
+                    resolve(e.target.result);
+                    return;
+                }
+                const canvas = document.createElement('canvas');
+                let w = img.width, h = img.height;
+                if (w > maxW) { h = Math.round(h * (maxW / w)); w = maxW; }
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
 // ── Logo Uploader ──────────────────────────────────────────────────────────
-function ImageUploader({ label, image, onChange, disabled, hint }) {
+function ImageUploader({ label, image, onChange, disabled, hint, maxSize = 2 * 1024 * 1024 }) {
     const inputRef = useRef();
 
-    const handleFile = (file) => {
+    const handleFile = async (file) => {
         if (!file) return;
-        if (file.size > 600 * 1024) { alert('Imagem muito grande. Máximo: 600 KB.'); return; }
-        const reader = new FileReader();
-        reader.onload = (e) => onChange(e.target.result);
-        reader.readAsDataURL(file);
+        if (file.size > maxSize) { alert(`Imagem muito grande. Máximo: ${Math.round(maxSize / 1024)} KB.`); return; }
+        const compressed = await compressImage(file);
+        onChange(compressed);
     };
 
     const onDrop = (e) => {

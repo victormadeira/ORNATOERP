@@ -635,24 +635,68 @@ function buildCSS(c1, c2, cream) {
 
 /* ── Mobile ── */
 @media (max-width:768px) {
-    .ap-section { padding:60px 0; }
-    .ap-stats { grid-template-columns:repeat(2, 1fr); gap:12px; }
-    .ap-portfolio-row, .ap-portfolio-row.ap-row-reverse { grid-template-columns:1fr !important; gap:16px; }
+    .ap-container { padding:0 16px; }
+    .ap-section { padding:48px 0; }
+    .ap-section-tag { font-size:10px; letter-spacing:0.2em; margin-bottom:8px; }
+    .ap-section-title { font-size:22px; margin-bottom:14px; }
+    .ap-about-text { font-size:14px; line-height:1.65; margin-bottom:32px; }
+
+    /* Stats mobile: 2 colunas menores */
+    .ap-stats { grid-template-columns:repeat(2, 1fr); gap:10px; }
+    .ap-stat-card { padding:18px 10px; border-radius:10px; }
+    .ap-stat-value { font-size:28px; }
+    .ap-stat-label { font-size:10px; }
+    .ap-stat-desc { font-size:9px; }
+
+    /* Portfolio mobile: empilhado, imagem + texto abaixo */
+    .ap-portfolio-list { gap:32px; margin-top:32px; }
+    .ap-portfolio-row, .ap-portfolio-row.ap-row-reverse { grid-template-columns:1fr !important; gap:14px; }
     .ap-portfolio-row.ap-row-reverse .ap-portfolio-img-wrap { order:1; }
-    .ap-portfolio-row.ap-row-reverse .ap-portfolio-text { order:2; }
-    .ap-portfolio-title { font-size:18px; }
-    .ap-portfolio-list { gap:36px; }
-    .ap-timeline-line { left:20px; }
-    .ap-timeline-progress { left:20px; }
-    .ap-timeline-item { flex-direction:row !important; padding:0 0 0 56px !important; }
-    .ap-tl-dot { left:20px !important; }
+    .ap-portfolio-row.ap-row-reverse .ap-portfolio-text { order:2; text-align:left; }
+    .ap-portfolio-img-wrap { aspect-ratio:16/9; border-radius:10px; }
+    .ap-portfolio-title { font-size:17px; }
+    .ap-portfolio-designer { font-size:12px; margin-bottom:6px; }
+    .ap-portfolio-desc { font-size:13px; line-height:1.6; }
+
+    /* Timeline mobile: linear à esquerda */
+    .ap-timeline { margin-top:32px; padding:0 8px; }
+    .ap-timeline-line { left:18px; }
+    .ap-timeline-progress { left:18px; }
+    .ap-timeline-item { flex-direction:row !important; padding:0 0 0 48px !important; margin-bottom:24px; }
+    .ap-tl-dot { left:18px !important; width:24px; height:24px; }
+    .ap-tl-dot span { font-size:11px !important; }
     .ap-tl-right { flex-direction:row !important; }
-    .ap-saw-container { left:20px !important; }
-    .ap-saw-svg { width:50px; height:50px; }
+    .ap-tl-card { padding:14px; border-radius:10px; }
+    .ap-tl-title { font-size:14px; }
+    .ap-tl-desc { font-size:12px; line-height:1.55; }
+    .ap-tl-icon svg { width:20px; height:20px; }
+
+    /* Serra mobile */
+    .ap-saw-container { left:18px !important; }
+    .ap-saw-svg { width:44px; height:44px; }
     .ap-saw-glow { display:none; }
-    .ap-chips-container { width:120px; height:120px; }
-    .ap-hero-logo { height:48px; }
-    .ap-cta { padding:60px 0; }
+    .ap-chips-container { width:100px; height:100px; }
+
+    /* Hero mobile */
+    .ap-hero-logo { height:44px; margin-bottom:24px; }
+    .ap-hero-divider { width:40px; margin-bottom:20px; }
+    .ap-hero-label { font-size:11px; letter-spacing:0.2em; }
+    .ap-hero-date { font-size:12px; }
+
+    /* CTA mobile */
+    .ap-cta { padding:48px 0; }
+    .ap-cta-btn { padding:14px 36px; font-size:14px; }
+    .ap-cta-contacts { gap:16px; }
+    .ap-contact-link { font-size:12px; }
+}
+
+/* ── Small phones ── */
+@media (max-width:380px) {
+    .ap-container { padding:0 12px; }
+    .ap-stats { gap:8px; }
+    .ap-stat-card { padding:14px 8px; }
+    .ap-stat-value { font-size:24px; }
+    .ap-timeline-item { padding:0 0 0 42px !important; }
 }
 `;
 }
