@@ -5,13 +5,13 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const TIMELINE_STEPS = [
-    { title: 'Aprovação do orçamento', desc: 'Apresentação detalhada da proposta financeira com todos os itens especificados e possibilidades de customização.', icon: 'doc' },
-    { title: 'Assinatura do contrato', desc: 'Formalização do acordo com especificações técnicas, prazos e garantias, assegurando transparência em todo o processo.', icon: 'pen' },
-    { title: 'Medição in loco', desc: 'Visita técnica para medição e análise do espaço, garantindo a perfeita adaptação dos móveis ao seu ambiente.', icon: 'ruler' },
-    { title: 'Aprovação do Caderno Técnico', desc: 'Documentamos cada acabamento e ferragem para garantir que o projeto final seja exatamente aquele que você aprovou.', icon: 'check' },
-    { title: 'Produção', desc: 'Fabricação com materiais premium: corte CNC de precisão e acabamento com fita de borda em coladeira industrial.', icon: 'gear' },
-    { title: 'Instalação e montagem', desc: 'Montagem por equipe especializada, com atenção aos detalhes e cuidado com seu espaço.', icon: 'tool' },
-    { title: 'Acompanhamento Pós-Venda', desc: 'Suporte completo para garantir sua total satisfação e cuidar do seu investimento.', icon: 'heart' },
+    { title: 'Aprovação do Orçamento', desc: 'Apresentação detalhada da proposta financeira com todos os itens especificados e possibilidades de customização.', icon: 'doc' },
+    { title: 'Assinatura do Contrato', desc: 'Formalização do acordo com especificações técnicas, prazos e garantias, assegurando transparência em todo o processo.', icon: 'pen' },
+    { title: 'Medição in Loco', desc: 'Visita técnica para medição e análise do espaço, garantindo a perfeita adaptação dos móveis e a realização do seu sonho como você imaginou.', icon: 'ruler' },
+    { title: 'Aprovação do Caderno Técnico', desc: 'Aprovação do Caderno Técnico onde suas escolhas viram lei! Documentamos cada acabamento e ferragem para garantir que o projeto final seja exatamente aquele que você aprovou.', icon: 'check' },
+    { title: 'Produção', desc: 'Fabricação com materiais premium: corte CNC de precisão e acabamento com fita de borda em coladeira industrial, com relatórios de acompanhamento do processo.', icon: 'gear' },
+    { title: 'Montagem e Instalação', desc: 'Montagem e instalação por equipe especializada, com atenção aos detalhes e cuidado com seu espaço, garantindo acabamento perfeito.', icon: 'tool' },
+    { title: 'Acompanhamento Pós-Venda', desc: 'Pós-venda com suporte completo para garantir sua total satisfação. E quando surgir aquela vontade de renovar outro ambiente, já sabe onde nos encontrar para o próximo sonho!', icon: 'heart' },
 ];
 
 // ── SVG Icons inline (zero dependência) ─────────────────────────────────────
@@ -28,85 +28,87 @@ const icons = {
     mail: (c) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
 };
 
-// ── SVG: Serra Circular de Marcenaria (realista) ─────────────────────────────
-function SawBladeSVG({ color, size = 48 }) {
-    // Serra TCT (Tungsten Carbide Tipped) — 20 dentes com perfil ATB
-    const n = 20;
-    const C = 50;           // centro
-    const R = 47;           // raio ponta do dente
-    const Rd = 37;          // raio corpo do disco
-    const Rg = 33.5;        // raio fundo do gullet
-    const hole = 7;         // furo central
+// ── SVG: Serra Circular Metálica (inspirada na referência) ───────────────────
+function SawBladeSVG({ color, size = 70 }) {
+    const teeth = 24;
+    const outerR = 50;
+    const innerR = 38;
+    const holeR = 6;
+    const toothDepth = 8;
 
-    const p = (a, r) => [C + Math.cos(a) * r, C + Math.sin(a) * r];
-    const f = (v) => v.toFixed(2);
-
+    // Gera path dos dentes (geometria da referência)
     let d = '';
-    for (let i = 0; i < n; i++) {
-        const a0 = (i / n) * Math.PI * 2 - Math.PI / 2;
-        const a1 = ((i + 1) / n) * Math.PI * 2 - Math.PI / 2;
-        const step = a1 - a0;
-
-        // Posições angulares dos pontos-chave do dente
-        const aRake   = a0 + step * 0.05;  // face de ataque (quase reto)
-        const aTip    = a0 + step * 0.12;  // ponta do dente
-        const aBack1  = a0 + step * 0.22;  // início da costa
-        const aBack2  = a0 + step * 0.35;  // fim da costa → corpo
-        const aGulBot = a0 + step * 0.52;  // fundo do gullet
-        const aGulEnd = a0 + step * 0.75;  // saída do gullet
-        const aBody   = a0 + step * 0.90;  // corpo antes do próximo dente
-
-        const [x0, y0] = p(a0, Rd);
-        const [xR, yR] = p(aRake, R * 0.98);
-        const [xT, yT] = p(aTip, R);
-        const [xB1, yB1] = p(aBack1, R * 0.93);
-        const [xB2, yB2] = p(aBack2, Rd * 1.02);
-        const [xG, yG] = p(aGulBot, Rg);
-        const [xGE, yGE] = p(aGulEnd, Rd * 0.99);
-        const [xBd, yBd] = p(aBody, Rd);
-        const [xEnd, yEnd] = p(a1, Rd);
-
-        if (i === 0) d += `M${f(x0)} ${f(y0)} `;
-
-        // Face de ataque — quase reta saindo do corpo
-        d += `L${f(xR)} ${f(yR)} `;
-        // Ponta do dente
-        d += `L${f(xT)} ${f(yT)} `;
-        // Costas do dente — curva suave descendo
-        d += `Q${f(xB1)} ${f(yB1)} ${f(xB2)} ${f(yB2)} `;
-        // Gullet — curva côncava profunda
-        d += `Q${f(xG)} ${f(yG)} ${f(xGE)} ${f(yGE)} `;
-        // Corpo do disco até próximo dente
-        d += `L${f(xBd)} ${f(yBd)} `;
-        d += `L${f(xEnd)} ${f(yEnd)} `;
+    const step = (2 * Math.PI) / teeth;
+    for (let i = 0; i < teeth; i++) {
+        const a = i * step;
+        const tipA = a + step * 0.15;
+        const gulA = a + step * 0.5;
+        const backA = a + step * 0.75;
+        const nextA = (i + 1) * step;
+        const tx = Math.cos(tipA) * outerR;
+        const ty = Math.sin(tipA) * outerR;
+        const gx = Math.cos(gulA) * (outerR - toothDepth);
+        const gy = Math.sin(gulA) * (outerR - toothDepth);
+        const bx = Math.cos(backA) * (outerR - toothDepth * 0.3);
+        const by = Math.sin(backA) * (outerR - toothDepth * 0.3);
+        const nx = Math.cos(nextA) * (outerR - toothDepth * 0.1);
+        const ny = Math.sin(nextA) * (outerR - toothDepth * 0.1);
+        d += `${i === 0 ? 'M' : 'L'}${tx.toFixed(1)} ${ty.toFixed(1)} `;
+        d += `L${gx.toFixed(1)} ${gy.toFixed(1)} `;
+        d += `L${bx.toFixed(1)} ${by.toFixed(1)} `;
+        d += `L${nx.toFixed(1)} ${ny.toFixed(1)} `;
     }
     d += 'Z';
 
+    // 6 slots de expansão
+    const slots = [];
+    for (let i = 0; i < 6; i++) {
+        const a = (i * 2 * Math.PI) / 6;
+        slots.push({ x1: (Math.cos(a) * 14).toFixed(1), y1: (Math.sin(a) * 14).toFixed(1), x2: (Math.cos(a) * 30).toFixed(1), y2: (Math.sin(a) * 30).toFixed(1) });
+    }
+
     return (
-        <svg width={size} height={size} viewBox="0 0 100 100" className="ap-saw-svg">
-            <defs>
-                <mask id="saw-mask">
-                    <rect width="100" height="100" fill="white" />
-                    <circle cx={C} cy={C} r={hole} fill="black" />
-                </mask>
-            </defs>
-            {/* Disco + dentes */}
-            <path d={d} fill={color} mask="url(#saw-mask)" />
-            {/* Detalhes do furo central */}
-            <circle cx={C} cy={C} r={hole + 2} fill="none" stroke={color} strokeWidth="1" opacity="0.3" />
-            {/* Slots de expansão (4 cortes curvos decorativos no disco) */}
-            {[0, 1, 2, 3].map(j => {
-                const sa = (j / 4) * Math.PI * 2 + 0.3;
-                const ea = sa + 0.6;
-                const sr = 15, er = 24;
-                const [sx, sy] = p(sa, sr);
-                const [ex, ey] = p(ea, er);
-                return <path key={j} d={`M${f(sx)} ${f(sy)} Q${f(C + Math.cos((sa+ea)/2) * (sr+er)/2 * 0.85)} ${f(C + Math.sin((sa+ea)/2) * (sr+er)/2 * 0.85)} ${f(ex)} ${f(ey)}`}
-                    fill="none" stroke={color} strokeWidth="1.2" opacity="0.15" />;
-            })}
-        </svg>
+        <div className="ap-saw-wrapper">
+            {/* Glow radial atrás da serra */}
+            <div className="ap-saw-glow" style={{ background: `radial-gradient(circle, ${color}30 0%, ${color}10 40%, transparent 70%)` }} />
+            <svg width={size} height={size} viewBox="-55 -55 110 110" className="ap-saw-svg">
+                <defs>
+                    <radialGradient id="apBladeGrad" cx="35%" cy="35%">
+                        <stop offset="0%" stopColor="#E8E0D0" />
+                        <stop offset="30%" stopColor="#C0B8A8" />
+                        <stop offset="60%" stopColor="#A09888" />
+                        <stop offset="85%" stopColor="#B8B0A0" />
+                        <stop offset="100%" stopColor="#908878" />
+                    </radialGradient>
+                    <radialGradient id="apTeethGrad" cx="50%" cy="50%">
+                        <stop offset="0%" stopColor="#D4C8B8" />
+                        <stop offset="50%" stopColor="#B0A898" />
+                        <stop offset="100%" stopColor="#C8C0B0" />
+                    </radialGradient>
+                    <linearGradient id="apShine" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="rgba(255,255,255,0.15)" />
+                        <stop offset="50%" stopColor="rgba(255,255,255,0)" />
+                        <stop offset="100%" stopColor="rgba(255,255,255,0.08)" />
+                    </linearGradient>
+                </defs>
+                {/* Disco corpo */}
+                <circle cx="0" cy="0" r={innerR} fill="url(#apBladeGrad)" />
+                {/* Dentes */}
+                <path d={d} fill="url(#apTeethGrad)" stroke="rgba(80,70,60,0.5)" strokeWidth="0.3" />
+                {/* Slots de expansão */}
+                {slots.map((s, i) => <line key={i} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} stroke="rgba(0,0,0,0.35)" strokeWidth="0.8" strokeLinecap="round" />)}
+                {/* Brilho */}
+                <circle cx="0" cy="0" r={outerR - 1} fill="url(#apShine)" />
+                {/* Furo central */}
+                <circle cx="0" cy="0" r={holeR} fill="#1a1a1a" stroke="rgba(100,90,80,0.6)" strokeWidth="0.5" />
+                <circle cx="0" cy="0" r={holeR + 3} fill="none" stroke="rgba(100,90,80,0.3)" strokeWidth="0.4" />
+            </svg>
+        </div>
     );
 }
+
+// ── Cores das lascas de MDF ─────────────────────────────────────────────────
+const MDF_COLORS = ['#C4963C', '#D4A574', '#A0784C', '#8B6914', '#E8C9A0', '#B8956A', '#D2B48C', '#C19A6B'];
 
 // ── Hook: scroll reveal ─────────────────────────────────────────────────────
 function useScrollReveal() {
@@ -334,16 +336,16 @@ export default function PropostaApresentacao({ token }) {
                                     Projetos que inspiram
                                 </h2>
                             </div>
-                            <div className="ap-portfolio-grid">
+                            <div className="ap-portfolio-list">
                                 {portfolio.map((p, i) => (
-                                    <div key={p.id} ref={reveal} className="ap-reveal ap-portfolio-card" style={{ transitionDelay: `${i * 0.1}s` }}>
+                                    <div key={p.id} ref={reveal} className={`ap-reveal ap-portfolio-row${i % 2 !== 0 ? ' ap-row-reverse' : ''}`} style={{ transitionDelay: `${i * 0.12}s` }}>
                                         <div className="ap-portfolio-img-wrap">
                                             <img src={p.imagem} alt={p.titulo} className="ap-portfolio-img" loading="lazy" />
-                                            <div className="ap-portfolio-overlay" style={{ background: `linear-gradient(transparent 40%, ${c1}E6 100%)` }}>
-                                                <h3 className="ap-portfolio-title" style={{ color: cream }}>{p.titulo}</h3>
-                                                {p.designer && <p className="ap-portfolio-designer" style={{ color: c2 }}>{p.designer}</p>}
-                                                {p.descricao && <p className="ap-portfolio-desc" style={{ color: `${cream}A0` }}>{p.descricao}</p>}
-                                            </div>
+                                        </div>
+                                        <div className="ap-portfolio-text">
+                                            <h3 className="ap-portfolio-title" style={{ color: cream }}>{p.titulo}</h3>
+                                            {p.designer && <p className="ap-portfolio-designer" style={{ color: c2 }}>{p.designer}</p>}
+                                            {p.descricao && <p className="ap-portfolio-desc" style={{ color: `${cream}A0` }}>{p.descricao}</p>}
                                         </div>
                                     </div>
                                 ))}
@@ -381,24 +383,32 @@ export default function PropostaApresentacao({ token }) {
                                     opacity: sawProgress > 0.005 ? 1 : 0,
                                 }}
                             >
-                                <SawBladeSVG color={c2} size={48} />
-                                {/* Partículas de serragem */}
-                                {sawParticles.map(p => (
-                                    <div
-                                        key={p.id}
-                                        className="ap-saw-particle"
-                                        style={{
-                                            left: `${p.x}px`,
-                                            top: `${p.y}px`,
-                                            width: p.size,
-                                            height: p.size,
-                                            background: c2,
-                                            '--px': `${p.x > 0 ? 6 + Math.random() * 12 : -6 - Math.random() * 12}px`,
-                                            '--py': `${8 + Math.random() * 16}px`,
-                                            '--p-opacity': p.opacity,
-                                        }}
-                                    />
-                                ))}
+                                <SawBladeSVG color={c2} size={70} />
+                                {/* Lascas de MDF voando */}
+                                {sawParticles.length > 0 && (
+                                    <div className="ap-chips-container">
+                                        {sawParticles.map((p, idx) => {
+                                            const side = p.x > 0 ? 1 : -1;
+                                            const isWide = idx % 3 !== 0;
+                                            const baseSize = 3 + (idx * 1.3) % 5;
+                                            const chipColor = MDF_COLORS[idx % MDF_COLORS.length];
+                                            return (
+                                                <div
+                                                    key={p.id}
+                                                    className="ap-mdf-chip"
+                                                    style={{
+                                                        width: isWide ? baseSize * 2.8 : baseSize * 1.2,
+                                                        height: isWide ? baseSize * 0.5 : baseSize * 1.2,
+                                                        borderRadius: isWide ? '1px' : '50%',
+                                                        background: chipColor,
+                                                        boxShadow: `0 0 4px ${chipColor}66`,
+                                                        animation: `apChipFly${side > 0 ? 'R' : 'L'}_${idx % 4} ${0.45 + (idx * 0.05) % 0.35}s ease-out ${idx * 0.04}s infinite`,
+                                                    }}
+                                                />
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                             )}
                             {/* Items da timeline */}
@@ -558,21 +568,24 @@ function buildCSS(c1, c2, cream) {
 
 /* ── Stats ── */
 .ap-stats { display:grid; grid-template-columns:repeat(4, 1fr); gap:20px; }
-.ap-stat-card { text-align:center; padding:24px 12px; border-radius:12px; background:rgba(255,255,255,0.7); }
-.ap-stat-value { font-size:clamp(28px, 4vw, 40px); font-weight:800; line-height:1; margin-bottom:6px; }
-.ap-stat-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; }
-.ap-stat-desc { font-size:10px; line-height:1.4; opacity:0.45; margin-top:4px; }
+.ap-stat-card { text-align:center; padding:28px 16px; border-radius:14px; background:rgba(255,255,255,0.85); box-shadow:0 2px 12px rgba(0,0,0,0.06); }
+.ap-stat-value { font-size:clamp(34px, 5vw, 52px); font-weight:900; line-height:1; margin-bottom:8px; letter-spacing:-0.02em; }
+.ap-stat-label { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; opacity:0.7; color:${c1}; }
+.ap-stat-desc { font-size:11px; line-height:1.5; opacity:0.5; margin-top:6px; color:${c1}; }
 
-/* ── Portfolio ── */
-.ap-portfolio-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:20px; margin-top:40px; }
-.ap-portfolio-card { border-radius:12px; overflow:hidden; }
-.ap-portfolio-img-wrap { position:relative; aspect-ratio:4/3; overflow:hidden; }
-.ap-portfolio-img { width:100%; height:100%; object-fit:cover; transition:transform 0.5s cubic-bezier(.16,1,.3,1); }
-.ap-portfolio-card:hover .ap-portfolio-img { transform:scale(1.06); }
-.ap-portfolio-overlay { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:flex-end; padding:20px; }
-.ap-portfolio-title { font-size:16px; font-weight:700; }
-.ap-portfolio-designer { font-size:12px; font-weight:600; margin-top:2px; }
-.ap-portfolio-desc { font-size:12px; line-height:1.5; margin-top:6px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+/* ── Portfolio — layout alternado imagem/texto ── */
+.ap-portfolio-list { display:flex; flex-direction:column; gap:48px; margin-top:48px; }
+.ap-portfolio-row { display:grid; grid-template-columns:1.2fr 1fr; gap:36px; align-items:center; }
+.ap-portfolio-row.ap-row-reverse { grid-template-columns:1fr 1.2fr; }
+.ap-portfolio-row.ap-row-reverse .ap-portfolio-img-wrap { order:2; }
+.ap-portfolio-row.ap-row-reverse .ap-portfolio-text { order:1; }
+.ap-portfolio-img-wrap { position:relative; border-radius:14px; overflow:hidden; aspect-ratio:16/10; }
+.ap-portfolio-img { width:100%; height:100%; object-fit:cover; transition:transform 0.6s cubic-bezier(.16,1,.3,1); }
+.ap-portfolio-row:hover .ap-portfolio-img { transform:scale(1.04); }
+.ap-portfolio-text { padding:8px 0; }
+.ap-portfolio-title { font-size:22px; font-weight:700; margin-bottom:6px; }
+.ap-portfolio-designer { font-size:13px; font-weight:600; margin-bottom:10px; }
+.ap-portfolio-desc { font-size:14px; line-height:1.7; opacity:0.75; }
 
 /* ── Timeline ── */
 .ap-timeline { position:relative; margin-top:48px; padding:0 20px; }
@@ -580,8 +593,8 @@ function buildCSS(c1, c2, cream) {
 .ap-timeline-progress { position:absolute; left:50%; top:0; width:3px; transform:translateX(-1.5px); border-radius:2px; transition:height 0.1s linear; z-index:1; }
 .ap-timeline-item { position:relative; display:flex; align-items:flex-start; margin-bottom:32px; }
 .ap-timeline-item:last-child { margin-bottom:0; }
-.ap-tl-left { flex-direction:row; padding-right:calc(50% + 28px); }
-.ap-tl-right { flex-direction:row-reverse; padding-left:calc(50% + 28px); }
+.ap-tl-left { flex-direction:row; padding-right:calc(50% + 52px); }
+.ap-tl-right { flex-direction:row-reverse; padding-left:calc(50% + 52px); }
 .ap-tl-dot { position:absolute; left:50%; top:12px; width:28px; height:28px; border-radius:50%; transform:translateX(-50%); display:flex; align-items:center; justify-content:center; z-index:2; transition:transform 0.4s cubic-bezier(.34,1.56,.64,1), box-shadow 0.4s; }
 .ap-timeline-item.revealed .ap-tl-dot { transform:translateX(-50%) scale(1.15); }
 .ap-tl-card { flex:1; padding:20px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.04); }
@@ -592,13 +605,24 @@ function buildCSS(c1, c2, cream) {
 /* ── Saw Blade ── */
 .ap-saw-container { position:absolute; left:50%; transform:translate(-50%, -50%); z-index:5; pointer-events:none; transition:opacity 0.4s ease; }
 .ap-saw-fade-out { opacity:0 !important; transition:opacity 0.5s ease !important; }
-.ap-saw-svg { animation:apSawSpin 1.5s linear infinite; filter:drop-shadow(0 2px 8px rgba(0,0,0,0.15)); }
+.ap-saw-wrapper { position:relative; }
+.ap-saw-glow { position:absolute; inset:-20px; border-radius:50%; filter:blur(15px); transform:scale(1.4); pointer-events:none; }
+.ap-saw-svg { animation:apSawSpin 2s linear infinite; position:relative; z-index:10; filter:drop-shadow(0 2px 12px rgba(0,0,0,0.25)); }
 @keyframes apSawSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-.ap-saw-particle { position:absolute; border-radius:50%; animation:apParticleFade 0.8s ease-out forwards; pointer-events:none; }
-@keyframes apParticleFade {
-    0% { transform:translate(0,0) scale(1); opacity:var(--p-opacity,0.6); }
-    100% { transform:translate(var(--px,10px), var(--py,18px)) scale(0); opacity:0; }
-}
+
+/* ── MDF Chips ── */
+.ap-chips-container { position:absolute; top:50%; left:50%; width:160px; height:160px; transform:translate(-50%,-50%); pointer-events:none; z-index:40; }
+.ap-mdf-chip { position:absolute; left:50%; top:50%; }
+
+/* Chip fly keyframes — 4 variations per side (inspired by reference) */
+@keyframes apChipFlyR_0 { 0%{opacity:0.85;transform:translate(-50%,-50%) rotate(0deg) translate(0,0)} 100%{opacity:0;transform:translate(-50%,-50%) rotate(200deg) translate(35px,-25px)} }
+@keyframes apChipFlyR_1 { 0%{opacity:0.9;transform:translate(-50%,-50%) rotate(0deg) translate(0,0)} 100%{opacity:0;transform:translate(-50%,-50%) rotate(140deg) translate(50px,-10px)} }
+@keyframes apChipFlyR_2 { 0%{opacity:0.8;transform:translate(-50%,-50%) rotate(0deg) translate(0,0)} 100%{opacity:0;transform:translate(-50%,-50%) rotate(260deg) translate(28px,15px)} }
+@keyframes apChipFlyR_3 { 0%{opacity:0.85;transform:translate(-50%,-50%) rotate(0deg) translate(0,0)} 100%{opacity:0;transform:translate(-50%,-50%) rotate(180deg) translate(42px,-18px)} }
+@keyframes apChipFlyL_0 { 0%{opacity:0.85;transform:translate(-50%,-50%) rotate(0deg) translate(0,0)} 100%{opacity:0;transform:translate(-50%,-50%) rotate(-200deg) translate(-35px,-20px)} }
+@keyframes apChipFlyL_1 { 0%{opacity:0.9;transform:translate(-50%,-50%) rotate(0deg) translate(0,0)} 100%{opacity:0;transform:translate(-50%,-50%) rotate(-140deg) translate(-48px,8px)} }
+@keyframes apChipFlyL_2 { 0%{opacity:0.8;transform:translate(-50%,-50%) rotate(0deg) translate(0,0)} 100%{opacity:0;transform:translate(-50%,-50%) rotate(-260deg) translate(-30px,-28px)} }
+@keyframes apChipFlyL_3 { 0%{opacity:0.85;transform:translate(-50%,-50%) rotate(0deg) translate(0,0)} 100%{opacity:0;transform:translate(-50%,-50%) rotate(-180deg) translate(-40px,12px)} }
 
 /* ── CTA ── */
 .ap-cta { position:relative; padding:100px 0; overflow:hidden; }
@@ -613,22 +637,22 @@ function buildCSS(c1, c2, cream) {
 @media (max-width:768px) {
     .ap-section { padding:60px 0; }
     .ap-stats { grid-template-columns:repeat(2, 1fr); gap:12px; }
-    .ap-portfolio-grid { grid-template-columns:1fr; }
+    .ap-portfolio-row, .ap-portfolio-row.ap-row-reverse { grid-template-columns:1fr !important; gap:16px; }
+    .ap-portfolio-row.ap-row-reverse .ap-portfolio-img-wrap { order:1; }
+    .ap-portfolio-row.ap-row-reverse .ap-portfolio-text { order:2; }
+    .ap-portfolio-title { font-size:18px; }
+    .ap-portfolio-list { gap:36px; }
     .ap-timeline-line { left:20px; }
     .ap-timeline-progress { left:20px; }
-    .ap-timeline-item { flex-direction:row !important; padding:0 0 0 52px !important; }
+    .ap-timeline-item { flex-direction:row !important; padding:0 0 0 56px !important; }
     .ap-tl-dot { left:20px !important; }
     .ap-tl-right { flex-direction:row !important; }
     .ap-saw-container { left:20px !important; }
-    .ap-saw-svg { width:36px; height:36px; }
+    .ap-saw-svg { width:50px; height:50px; }
+    .ap-saw-glow { display:none; }
+    .ap-chips-container { width:120px; height:120px; }
     .ap-hero-logo { height:48px; }
     .ap-cta { padding:60px 0; }
-}
-@media (max-width:640px) {
-    .ap-portfolio-grid { grid-template-columns:1fr; }
-}
-@media (min-width:641px) and (max-width:1023px) {
-    .ap-portfolio-grid { grid-template-columns:repeat(2, 1fr); }
 }
 `;
 }
