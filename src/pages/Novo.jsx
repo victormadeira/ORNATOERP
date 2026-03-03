@@ -2095,7 +2095,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                     </button>
                                                                 )}
                                                             </div>
-                                                            {/* Corpo: textarea + marcadores */}
+                                                            {/* Corpo: textarea + marcadores + preview */}
                                                             <div style={{ padding: '12px 14px' }}>
                                                                 <textarea value={ln.descricao}
                                                                     placeholder="Descreva os itens (um por linha)&#10;Ex:&#10;Espelho sob medida 80×60cm&#10;2 nichos embutidos&#10;Porta toalha inox"
@@ -2122,6 +2122,20 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                     </div>
                                                                     <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{previewLines.length} {previewLines.length === 1 ? 'linha' : 'linhas'}</span>
                                                                 </div>
+                                                                {/* Preview: como ficará na proposta */}
+                                                                {previewLines.length > 0 && (
+                                                                    <div style={{ marginTop: 10, padding: '10px 12px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px dashed var(--border)' }}>
+                                                                        <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Preview na proposta</div>
+                                                                        {previewLines.map((line, idx) => {
+                                                                            const prefix = ln.marcador === 'bullet' ? '• ' : ln.marcador === 'number' ? `${idx + 1}. ` : ln.marcador === 'dash' ? '— ' : '';
+                                                                            return (
+                                                                                <div key={idx} style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+                                                                                    {prefix}{line.trim()}
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     );

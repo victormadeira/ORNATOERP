@@ -204,7 +204,7 @@ export function buildPropostaHtml({
         const showItemValor = nivel === 'detalhado';
 
         const itemsHtml = amb.itens.map(it => {
-            // ── Bloco descritivo: título + linhas com marcadores ──
+            // ── Bloco descritivo: só linhas com marcadores (título é interno) ──
             if (it.tipo === 'bloco') {
                 const lines = (it.descricaoBloco || '').split('\n').filter(l => l.trim());
                 const marc = it.marcador || 'bullet';
@@ -214,8 +214,7 @@ export function buildPropostaHtml({
                 }).join('');
                 return `<tr>
                     <td class="td-desc">
-                        <span class="item-name">${it.nome}</span>
-                        ${linesHtml ? `<div class="bloco-desc">${linesHtml}</div>` : ''}
+                        ${linesHtml || '<span class="item-name">Item</span>'}
                     </td>
                     <td class="td-qtd">1</td>
                     ${showItemValor ? `<td class="td-val">${R$(it.valorVenda)}</td>` : ''}
