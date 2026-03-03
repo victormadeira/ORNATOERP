@@ -28,6 +28,36 @@ const icons = {
     mail: (c) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
 };
 
+// ── SVG: Serra Circular ─────────────────────────────────────────────────────
+function SawBladeSVG({ color, size = 44 }) {
+    const teeth = 16;
+    const r = size / 2;
+    const inner = r * 0.55;
+    const outer = r * 0.92;
+    const mid = (inner + outer) / 2;
+    let d = '';
+    for (let i = 0; i < teeth; i++) {
+        const a1 = (i / teeth) * Math.PI * 2;
+        const a2 = ((i + 0.35) / teeth) * Math.PI * 2;
+        const a3 = ((i + 0.5) / teeth) * Math.PI * 2;
+        const a4 = ((i + 0.85) / teeth) * Math.PI * 2;
+        const px = (a, rad) => (r + Math.cos(a) * rad).toFixed(2);
+        const py = (a, rad) => (r + Math.sin(a) * rad).toFixed(2);
+        d += `${i === 0 ? 'M' : 'L'}${px(a1, inner)} ${py(a1, inner)} `;
+        d += `L${px(a2, outer)} ${py(a2, outer)} `;
+        d += `L${px(a3, outer * 0.97)} ${py(a3, outer * 0.97)} `;
+        d += `L${px(a4, inner)} ${py(a4, inner)} `;
+    }
+    d += 'Z';
+    return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="ap-saw-svg">
+            <circle cx={r} cy={r} r={r * 0.22} fill={color} opacity="0.3" />
+            <circle cx={r} cy={r} r={r * 0.12} fill={color} opacity="0.6" />
+            <path d={d} fill={color} opacity="0.85" />
+        </svg>
+    );
+}
+
 // ── Hook: scroll reveal ─────────────────────────────────────────────────────
 function useScrollReveal() {
     const refs = useRef([]);
@@ -45,6 +75,66 @@ function useScrollReveal() {
     }, [refs.current.length]);
     const addRef = useCallback((el) => { if (el && !refs.current.includes(el)) refs.current.push(el); }, []);
     return addRef;
+}
+
+// ── Hook: serra scroll progress ─────────────────────────────────────────────
+function useSawScroll(timelineRef, itemRefs, ready) {
+    const [progress, setProgress] = useState(0);
+    const [particles, setParticles] = useState([]);
+    const particleId = useRef(0);
+    const lastProgress = useRef(0);
+
+    useEffect(() => {
+        if (!ready || !timelineRef.current) return;
+        let ticking = false;
+        const onScroll = () => {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(() => {
+                const tl = timelineRef.current;
+                if (!tl) { ticking = false; return; }
+                const rect = tl.getBoundingClientRect();
+                const viewH = window.innerHeight;
+                const triggerPoint = viewH * 0.55;
+                const start = rect.top;
+                const end = rect.bottom;
+                const total = end - start;
+                if (total <= 0) { ticking = false; return; }
+                const scrolled = triggerPoint - start;
+                const p = Math.max(0, Math.min(1, scrolled / total));
+                setProgress(p);
+
+                // Spawn particles when moving
+                if (Math.abs(p - lastProgress.current) > 0.008 && p > 0.01 && p < 0.99) {
+                    const id = ++particleId.current;
+                    const side = Math.random() > 0.5 ? 1 : -1;
+                    setParticles(prev => [...prev.slice(-8), {
+                        id, x: side * (8 + Math.random() * 14), y: -2 + Math.random() * 6,
+                        size: 2 + Math.random() * 3, opacity: 0.4 + Math.random() * 0.4,
+                    }]);
+                    setTimeout(() => setParticles(prev => prev.filter(pp => pp.id !== id)), 800);
+                }
+                lastProgress.current = p;
+
+                // Reveal items as saw passes them
+                itemRefs.current.forEach(el => {
+                    if (!el || el.classList.contains('revealed')) return;
+                    const elRect = el.getBoundingClientRect();
+                    const elMid = elRect.top + elRect.height * 0.3;
+                    if (elMid < triggerPoint + 40) {
+                        el.classList.add('revealed');
+                    }
+                });
+
+                ticking = false;
+            });
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+        return () => window.removeEventListener('scroll', onScroll);
+    }, [ready]);
+
+    return { progress, particles };
 }
 
 // ── Hook: counter animation ─────────────────────────────────────────────────
@@ -73,6 +163,8 @@ export default function PropostaApresentacao({ token }) {
     const [statsVisible, setStatsVisible] = useState(false);
     const statsRef = useRef(null);
     const reveal = useScrollReveal();
+    const timelineRef = useRef(null);
+    const itemRefs = useRef([]);
 
     // ── Fetch data ───────────────────────────────────────────────────────────
     useEffect(() => {
@@ -95,6 +187,12 @@ export default function PropostaApresentacao({ token }) {
         obs.observe(statsRef.current);
         return () => obs.disconnect();
     }, [data]);
+
+    // Saw blade animation
+    const { progress: sawProgress, particles: sawParticles } = useSawScroll(timelineRef, itemRefs, !!data);
+    const addItemRef = useCallback((el) => {
+        if (el && !itemRefs.current.includes(el)) itemRefs.current.push(el);
+    }, []);
 
     const c1 = data?.empresa?.cor_primaria || '#1B2A4A';
     const c2 = data?.empresa?.cor_accent || '#C9A96E';
@@ -189,8 +287,8 @@ export default function PropostaApresentacao({ token }) {
                     </section>
                 )}
 
-                {/* ═══ SEÇÃO 4: PROCESSO ═══ */}
-                <section className="ap-section" style={{ background: cream, color: c1 }}>
+                {/* ═══ SEÇÃO 4: PROCESSO (com serra animada) ═══ */}
+                <section className="ap-section ap-section-processo" style={{ background: cream, color: c1 }}>
                     <div className="ap-container">
                         <div ref={reveal} className="ap-reveal">
                             <p className="ap-section-tag" style={{ color: c2 }}>NOSSO PROCESSO</p>
@@ -198,14 +296,56 @@ export default function PropostaApresentacao({ token }) {
                                 Do projeto à realidade
                             </h2>
                         </div>
-                        <div className="ap-timeline">
-                            <div className="ap-timeline-line" style={{ background: `${c2}30` }} />
+                        <div className="ap-timeline" ref={timelineRef}>
+                            {/* Linha base (fundo) */}
+                            <div className="ap-timeline-line" style={{ background: `${c2}20` }} />
+                            {/* Linha de progresso (preenchida pela serra) */}
+                            <div
+                                className="ap-timeline-progress"
+                                style={{
+                                    background: `linear-gradient(to bottom, ${c2}, ${c2}90)`,
+                                    height: `${sawProgress * 100}%`,
+                                }}
+                            />
+                            {/* Serra circular */}
+                            <div
+                                className="ap-saw-container"
+                                style={{
+                                    top: `${sawProgress * 100}%`,
+                                    opacity: sawProgress > 0.005 && sawProgress < 0.995 ? 1 : 0,
+                                }}
+                            >
+                                <SawBladeSVG color={c2} size={48} />
+                                {/* Partículas de serragem */}
+                                {sawParticles.map(p => (
+                                    <div
+                                        key={p.id}
+                                        className="ap-saw-particle"
+                                        style={{
+                                            left: `${p.x}px`,
+                                            top: `${p.y}px`,
+                                            width: p.size,
+                                            height: p.size,
+                                            background: c2,
+                                            '--px': `${p.x > 0 ? 6 + Math.random() * 12 : -6 - Math.random() * 12}px`,
+                                            '--py': `${8 + Math.random() * 16}px`,
+                                            '--p-opacity': p.opacity,
+                                        }}
+                                    />
+                                ))}
+                            </div>
+                            {/* Items da timeline */}
                             {TIMELINE_STEPS.map((step, i) => (
-                                <div key={i} ref={reveal}
+                                <div key={i} ref={addItemRef}
                                     className={`ap-reveal ap-timeline-item ${i % 2 === 0 ? 'ap-tl-left' : 'ap-tl-right'}`}
-                                    style={{ transitionDelay: `${i * 0.08}s` }}
                                 >
-                                    <div className="ap-tl-dot" style={{ background: c2, boxShadow: `0 0 0 4px ${c2}30` }}>
+                                    <div
+                                        className="ap-tl-dot"
+                                        style={{
+                                            background: c2,
+                                            boxShadow: `0 0 0 4px ${c2}30`,
+                                        }}
+                                    >
                                         <span style={{ color: c1, fontWeight: 800, fontSize: 12 }}>{i + 1}</span>
                                     </div>
                                     <div className="ap-tl-card" style={{ background: '#fff', border: `1px solid ${c2}20` }}>
@@ -368,15 +508,27 @@ function buildCSS(c1, c2, cream) {
 /* ── Timeline ── */
 .ap-timeline { position:relative; margin-top:48px; padding:0 20px; }
 .ap-timeline-line { position:absolute; left:50%; top:0; bottom:0; width:2px; transform:translateX(-1px); }
+.ap-timeline-progress { position:absolute; left:50%; top:0; width:3px; transform:translateX(-1.5px); border-radius:2px; transition:height 0.1s linear; z-index:1; }
 .ap-timeline-item { position:relative; display:flex; align-items:flex-start; margin-bottom:32px; }
 .ap-timeline-item:last-child { margin-bottom:0; }
 .ap-tl-left { flex-direction:row; padding-right:calc(50% + 28px); }
 .ap-tl-right { flex-direction:row-reverse; padding-left:calc(50% + 28px); }
-.ap-tl-dot { position:absolute; left:50%; top:12px; width:28px; height:28px; border-radius:50%; transform:translateX(-50%); display:flex; align-items:center; justify-content:center; z-index:2; }
+.ap-tl-dot { position:absolute; left:50%; top:12px; width:28px; height:28px; border-radius:50%; transform:translateX(-50%); display:flex; align-items:center; justify-content:center; z-index:2; transition:transform 0.4s cubic-bezier(.34,1.56,.64,1), box-shadow 0.4s; }
+.ap-timeline-item.revealed .ap-tl-dot { transform:translateX(-50%) scale(1.15); }
 .ap-tl-card { flex:1; padding:20px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.04); }
 .ap-tl-icon { margin-bottom:10px; }
 .ap-tl-title { font-size:15px; font-weight:700; margin-bottom:6px; }
 .ap-tl-desc { font-size:13px; line-height:1.6; }
+
+/* ── Saw Blade ── */
+.ap-saw-container { position:absolute; left:50%; transform:translate(-50%, -50%); z-index:5; pointer-events:none; transition:opacity 0.4s; }
+.ap-saw-svg { animation:apSawSpin 1.5s linear infinite; filter:drop-shadow(0 2px 8px rgba(0,0,0,0.15)); }
+@keyframes apSawSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+.ap-saw-particle { position:absolute; border-radius:50%; animation:apParticleFade 0.8s ease-out forwards; pointer-events:none; }
+@keyframes apParticleFade {
+    0% { transform:translate(0,0) scale(1); opacity:var(--p-opacity,0.6); }
+    100% { transform:translate(var(--px,10px), var(--py,18px)) scale(0); opacity:0; }
+}
 
 /* ── CTA ── */
 .ap-cta { position:relative; padding:100px 0; overflow:hidden; }
@@ -393,9 +545,12 @@ function buildCSS(c1, c2, cream) {
     .ap-stats { grid-template-columns:repeat(2, 1fr); gap:12px; }
     .ap-portfolio-grid { grid-template-columns:1fr; }
     .ap-timeline-line { left:20px; }
+    .ap-timeline-progress { left:20px; }
     .ap-timeline-item { flex-direction:row !important; padding:0 0 0 52px !important; }
     .ap-tl-dot { left:20px !important; }
     .ap-tl-right { flex-direction:row !important; }
+    .ap-saw-container { left:20px !important; }
+    .ap-saw-svg { width:36px; height:36px; }
     .ap-hero-logo { height:48px; }
     .ap-cta { padding:60px 0; }
 }
