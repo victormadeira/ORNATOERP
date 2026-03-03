@@ -591,7 +591,7 @@ function buildCSS(c1, c2, cream) {
 .ap-timeline { position:relative; margin-top:48px; padding:0 20px; }
 .ap-timeline-line { position:absolute; left:50%; top:0; bottom:0; width:2px; transform:translateX(-1px); }
 .ap-timeline-progress { position:absolute; left:50%; top:0; width:3px; transform:translateX(-1.5px); border-radius:2px; transition:height 0.1s linear; z-index:1; }
-.ap-timeline-item { position:relative; display:flex; align-items:flex-start; margin-bottom:32px; }
+.ap-timeline-item { position:relative; display:flex; align-items:flex-start; margin-bottom:32px; z-index:3; }
 .ap-timeline-item:last-child { margin-bottom:0; }
 .ap-tl-left { flex-direction:row; padding-right:calc(50% + 52px); }
 .ap-tl-right { flex-direction:row-reverse; padding-left:calc(50% + 52px); }
