@@ -176,7 +176,106 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
         }
     };
 
-    return (
+    // Detectar mobile
+    const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 640);
+    useEffect(() => {
+        const onResize = () => setIsMobile(window.innerWidth < 640);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
+
+    // ── Mobile: Cards verticais (timeline simplificada) ──
+    const renderMobile = () => (
+        <div>
+            <style>{GANTT_STYLES}</style>
+
+            {/* Context Header */}
+            <div style={{ marginBottom: 16, padding: '14px 16px', borderRadius: 12, background: `linear-gradient(135deg, ${primary}08, ${accent}08)`, border: `1px solid ${primary}15` }}>
+                <div style={{ fontSize: 13, color: '#334155', marginBottom: 3 }}>
+                    Etapa atual: <strong style={{ color: primary }}>{currentEtapa.nome}</strong>
+                </div>
+                {lastEtapa.data_vencimento && (
+                    <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+                        Previsão: <strong style={{ color: '#0f172a' }}>{dtFmt(lastEtapa.data_vencimento)}</strong>
+                    </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ flex: 1, background: '#e2e8f0', borderRadius: 99, height: 8, overflow: 'hidden' }}>
+                        <div style={{ width: `${globalProg}%`, height: '100%', background: `linear-gradient(90deg, ${accent}, ${primary})`, borderRadius: 99, animation: 'ganttProgressFill 1.2s ease-out' }} />
+                    </div>
+                    <span style={{ fontWeight: 800, fontSize: 14, color: accent, minWidth: 38, textAlign: 'right' }}>
+                        <AnimatedCounter value={globalProg} />%
+                    </span>
+                </div>
+            </div>
+
+            {/* Etapas como cards verticais */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {etapas.map((e, i) => {
+                    const effectiveStatus = e.status === 'atrasada' ? 'em_andamento' : e.status;
+                    const st = STATUS[effectiveStatus] || STATUS.nao_iniciado;
+                    const Ic = getEtapaIcon(e.nome);
+                    const prog = calcProgresso(e);
+                    const isActive = e.status === 'em_andamento' || e.status === 'atrasada';
+                    const diasInfo = calcDiasRestantes(e);
+                    const isLast = i === etapas.length - 1;
+
+                    return (
+                        <div key={e.id} style={{ display: 'flex', gap: 0, animation: `ganttSlideIn 0.4s ease ${i * 80}ms both` }}>
+                            {/* Timeline vertical line + dot */}
+                            <div style={{ width: 36, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <div style={{
+                                    width: effectiveStatus === 'concluida' ? 28 : isActive ? 30 : 24,
+                                    height: effectiveStatus === 'concluida' ? 28 : isActive ? 30 : 24,
+                                    borderRadius: '50%',
+                                    background: effectiveStatus === 'concluida' ? '#22c55e' : isActive ? accent : '#f1f5f9',
+                                    border: effectiveStatus === 'nao_iniciado' || effectiveStatus === 'pendente' ? '2px dashed #cbd5e1' : `2px solid ${st.color}`,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                    boxShadow: isActive ? `0 0 12px ${accent}40` : 'none',
+                                    transition: 'all 0.3s',
+                                }}>
+                                    {effectiveStatus === 'concluida'
+                                        ? <CheckCircle2 size={14} color="#fff" style={{ animation: 'ganttCheckPop 0.5s ease both' }} />
+                                        : <Ic size={12} color={isActive ? '#fff' : st.color} />
+                                    }
+                                </div>
+                                {!isLast && (
+                                    <div style={{ width: 2, flex: 1, minHeight: 16, background: effectiveStatus === 'concluida' ? '#22c55e' : '#e2e8f0' }} />
+                                )}
+                            </div>
+
+                            {/* Card content */}
+                            <div style={{
+                                flex: 1, paddingBottom: isLast ? 0 : 12, paddingLeft: 10, minWidth: 0,
+                            }}>
+                                <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', marginBottom: 2 }}>{e.nome}</div>
+                                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>
+                                    {e.data_inicio && e.data_vencimento
+                                        ? `${dtFmt(e.data_inicio).slice(0, 5)} → ${dtFmt(e.data_vencimento).slice(0, 5)}`
+                                        : e.data_vencimento ? dtFmt(e.data_vencimento).slice(0, 5) : ''}
+                                    {diasInfo && e.status !== 'concluida' && (
+                                        <span style={{ marginLeft: 6, color: diasInfo.atrasado ? '#ef4444' : '#22c55e', fontWeight: 600 }}>
+                                            {diasInfo.texto}
+                                        </span>
+                                    )}
+                                </div>
+                                {/* Progress bar */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 99, height: 5, overflow: 'hidden' }}>
+                                        <div style={{ width: `${prog}%`, height: '100%', background: st.color, borderRadius: 99, transition: 'width 0.6s ease' }} />
+                                    </div>
+                                    <span style={{ fontSize: 10, fontWeight: 700, color: st.color, minWidth: 28 }}>{prog}%</span>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+
+    // ── Desktop: Gantt horizontal original ──
+    const renderDesktop = () => (
         <div>
             <style>{GANTT_STYLES}</style>
 
@@ -449,6 +548,8 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
             </div>
         </div>
     );
+
+    return isMobile ? renderMobile() : renderDesktop();
 }
 
 // ─── Chat de mensagens do portal ──────────────

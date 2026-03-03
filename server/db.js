@@ -995,6 +995,8 @@ const migrations = [
     ativo INTEGER DEFAULT 1,
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
+  // ═══ Template padrão de etapas (com durações) ═══
+  "ALTER TABLE empresa_config ADD COLUMN etapas_template_json TEXT DEFAULT '[]'",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

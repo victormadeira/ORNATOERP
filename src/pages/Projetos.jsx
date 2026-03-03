@@ -422,10 +422,28 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
 }
 
 // ─── Modal: Novo Projeto ──────────────────────────────
-const ETAPAS_PADRAO = [
-    'Medição e levantamento', 'Aprovação do projeto', 'Compra de materiais',
-    'Produção', 'Acabamento', 'Entrega e instalação'
+const ETAPAS_PADRAO_FALLBACK = [
+    { nome: 'Medição e levantamento', duracao_dias: 5 },
+    { nome: 'Aprovação do projeto', duracao_dias: 3 },
+    { nome: 'Compra de materiais', duracao_dias: 10 },
+    { nome: 'Produção', duracao_dias: 25 },
+    { nome: 'Acabamento', duracao_dias: 5 },
+    { nome: 'Entrega e instalação', duracao_dias: 5 },
 ];
+
+// Calcula datas sequenciais a partir de data de início + durações
+function calcEtapasDatas(etapas, dataInicioStr) {
+    if (!dataInicioStr) return etapas;
+    let cursor = new Date(dataInicioStr + 'T12:00:00');
+    return etapas.map(e => {
+        const dias = Number(e.duracao_dias) || 5;
+        const ini = new Date(cursor);
+        const fim = new Date(cursor);
+        fim.setDate(fim.getDate() + dias);
+        cursor = new Date(fim);
+        return { ...e, data_inicio: ini.toISOString().slice(0, 10), data_vencimento: fim.toISOString().slice(0, 10) };
+    });
+}
 
 function NovoProjetoModal({ orcs, onClose, onSave }) {
     const [nome, setNome] = useState('');
@@ -433,20 +451,56 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
     const [descricao, setDescricao] = useState('');
     const [dataInicio, setDataInicio] = useState('');
     const [dataVenc, setDataVenc] = useState('');
-    const [etapas, setEtapas] = useState(ETAPAS_PADRAO.map((n, i) => ({ nome: n, data_inicio: '', data_vencimento: '', key: i })));
+    const [etapas, setEtapas] = useState([]);
     const [saving, setSaving] = useState(false);
     const [err, setErr] = useState('');
     const [templates, setTemplates] = useState([]);
     const [showSaveTemplate, setShowSaveTemplate] = useState(false);
     const [templateNome, setTemplateNome] = useState('');
+    const [tplLoaded, setTplLoaded] = useState(false);
 
-    useEffect(() => { api.get('/projetos/templates/list').then(setTemplates).catch(() => {}); }, []);
+    // Carregar template padrão do empresa_config + templates salvos
+    useEffect(() => {
+        api.get('/projetos/templates/list').then(setTemplates).catch(() => {});
+        if (!tplLoaded) {
+            api.get('/config/empresa').then(cfg => {
+                let tpl = [];
+                try { tpl = JSON.parse(cfg.etapas_template_json || '[]'); } catch {}
+                if (!tpl.length) tpl = ETAPAS_PADRAO_FALLBACK;
+                setEtapas(tpl.map((e, i) => ({
+                    nome: e.nome || '', duracao_dias: e.duracao_dias || 5,
+                    data_inicio: '', data_vencimento: '', key: i
+                })));
+                setTplLoaded(true);
+            }).catch(() => {
+                setEtapas(ETAPAS_PADRAO_FALLBACK.map((e, i) => ({ ...e, data_inicio: '', data_vencimento: '', key: i })));
+                setTplLoaded(true);
+            });
+        }
+    }, []);
 
-    const addEtapa = () => setEtapas(e => [...e, { nome: '', data_inicio: '', data_vencimento: '', key: Date.now() }]);
+    // Auto-calcular datas quando data de início muda
+    useEffect(() => {
+        if (!dataInicio) return;
+        setEtapas(prev => {
+            const calculated = calcEtapasDatas(prev, dataInicio);
+            // Atualizar data de entrega com a última etapa
+            const last = calculated[calculated.length - 1];
+            if (last?.data_vencimento) setDataVenc(last.data_vencimento);
+            return calculated;
+        });
+    }, [dataInicio]);
+
+    const addEtapa = () => setEtapas(e => [...e, { nome: '', duracao_dias: 5, data_inicio: '', data_vencimento: '', key: Date.now() }]);
     const rmEtapa = (i) => setEtapas(e => e.filter((_, j) => j !== i));
 
     const loadTemplate = (tpl) => {
-        setEtapas(tpl.etapas.map((n, i) => ({ nome: typeof n === 'string' ? n : n.nome, data_inicio: '', data_vencimento: '', key: Date.now() + i })));
+        const newEtapas = tpl.etapas.map((n, i) => ({
+            nome: typeof n === 'string' ? n : n.nome,
+            duracao_dias: (typeof n === 'object' ? n.duracao_dias : null) || 5,
+            data_inicio: '', data_vencimento: '', key: Date.now() + i
+        }));
+        setEtapas(dataInicio ? calcEtapasDatas(newEtapas, dataInicio) : newEtapas);
     };
 
     const saveAsTemplate = () => {
@@ -465,6 +519,16 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
         });
     };
 
+    // Recalcular quando duração de uma etapa muda
+    const updateDuracao = (idx, dias) => {
+        setEtapas(prev => {
+            const updated = prev.map((e, i) => i === idx ? { ...e, duracao_dias: parseInt(dias) || 0 } : e);
+            return dataInicio ? calcEtapasDatas(updated, dataInicio) : updated;
+        });
+    };
+
+    const totalDias = etapas.reduce((s, e) => s + (Number(e.duracao_dias) || 0), 0);
+
     const handleSave = async () => {
         if (!nome.trim()) { setErr('Nome do projeto é obrigatório'); return; }
         setSaving(true);
@@ -477,7 +541,7 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
     };
 
     return (
-        <Modal title="Novo Projeto" close={onClose} w={620}>
+        <Modal title="Novo Projeto" close={onClose} w={660}>
             {err && <p style={{ color: '#ef4444', marginBottom: 12, fontSize: 13 }}>{err}</p>}
             <div style={{ display: 'grid', gap: 14 }}>
                 <div>
@@ -492,13 +556,20 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
                     </select>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div><label className={Z.lbl}>Data de Início</label><input type="date" className={Z.inp} value={dataInicio} onChange={e => setDataInicio(e.target.value)} /></div>
-                    <div><label className={Z.lbl}>Data de Entrega</label><input type="date" className={Z.inp} value={dataVenc} onChange={e => setDataVenc(e.target.value)} /></div>
+                    <div>
+                        <label className={Z.lbl}>Data de Início</label>
+                        <input type="date" className={Z.inp} value={dataInicio} onChange={e => setDataInicio(e.target.value)} />
+                        {dataInicio && <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>As datas das etapas serão calculadas automaticamente</p>}
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Data de Entrega {dataInicio && totalDias > 0 && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>({totalDias} dias)</span>}</label>
+                        <input type="date" className={Z.inp} value={dataVenc} onChange={e => setDataVenc(e.target.value)} />
+                    </div>
                 </div>
                 <div><label className={Z.lbl}>Descrição</label><textarea className={Z.inp} style={{ minHeight: 60, resize: 'vertical' }} value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Detalhes do projeto..." /></div>
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
-                        <label className={Z.lbl} style={{ margin: 0 }}>Etapas</label>
+                        <label className={Z.lbl} style={{ margin: 0 }}>Etapas {totalDias > 0 && <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 10 }}>({totalDias} dias total)</span>}</label>
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                             {templates.length > 0 && (
                                 <select onChange={e => { const t = templates.find(x => x.id === +e.target.value); if (t) loadTemplate(t); e.target.value = ''; }}
@@ -517,12 +588,21 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
                             <button className={Z.btn} style={{ fontSize: 11, padding: '4px 12px' }} onClick={saveAsTemplate}>Salvar</button>
                         </div>
                     )}
-                    <div style={{ display: 'grid', gap: 6 }}>
+                    {/* Header */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 100px 100px auto', gap: 6, alignItems: 'center', marginBottom: 4, padding: '0 2px' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nome</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Dias</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Início</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Fim</span>
+                        <span></span>
+                    </div>
+                    <div style={{ display: 'grid', gap: 4 }}>
                         {etapas.map((e, i) => (
-                            <div key={e.key} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px auto', gap: 6, alignItems: 'center' }}>
+                            <div key={e.key} style={{ display: 'grid', gridTemplateColumns: '1fr 60px 100px 100px auto', gap: 6, alignItems: 'center' }}>
                                 <input className={Z.inp} style={{ fontSize: 12, padding: '6px 10px' }} value={e.nome} onChange={ev => setEtapas(et => et.map((x, j) => j === i ? { ...x, nome: ev.target.value } : x))} placeholder={`Etapa ${i + 1}`} />
-                                <input type="date" className={Z.inp} style={{ fontSize: 11, padding: '6px 8px' }} value={e.data_inicio} onChange={ev => setEtapas(et => et.map((x, j) => j === i ? { ...x, data_inicio: ev.target.value } : x))} />
-                                <input type="date" className={Z.inp} style={{ fontSize: 11, padding: '6px 8px' }} value={e.data_vencimento} onChange={ev => setEtapas(et => et.map((x, j) => j === i ? { ...x, data_vencimento: ev.target.value } : x))} />
+                                <input type="number" min="1" max="365" className={Z.inp} style={{ fontSize: 11, padding: '6px 6px', textAlign: 'center' }} value={e.duracao_dias || ''} onChange={ev => updateDuracao(i, ev.target.value)} />
+                                <input type="date" className={Z.inp} style={{ fontSize: 10, padding: '6px 4px' }} value={e.data_inicio} onChange={ev => setEtapas(et => et.map((x, j) => j === i ? { ...x, data_inicio: ev.target.value } : x))} />
+                                <input type="date" className={Z.inp} style={{ fontSize: 10, padding: '6px 4px' }} value={e.data_vencimento} onChange={ev => setEtapas(et => et.map((x, j) => j === i ? { ...x, data_vencimento: ev.target.value } : x))} />
                                 <button type="button" onClick={() => rmEtapa(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4 }}><Ic.Trash /></button>
                             </div>
                         ))}

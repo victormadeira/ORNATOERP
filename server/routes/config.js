@@ -70,6 +70,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         wa_instance_url, wa_instance_name, wa_api_key, wa_webhook_token,
         ia_provider, ia_api_key, ia_model, ia_system_prompt, ia_temperatura, ia_ativa,
         upmobb_ativo,
+        etapas_template_json,
     } = req.body;
     db.prepare(`
     UPDATE empresa_config SET
@@ -85,6 +86,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
       wa_instance_url=?, wa_instance_name=?, wa_api_key=?, wa_webhook_token=?,
       ia_provider=?, ia_api_key=?, ia_model=?, ia_system_prompt=?, ia_temperatura=?, ia_ativa=?,
       upmobb_ativo=?,
+      etapas_template_json=?,
       atualizado_em=CURRENT_TIMESTAMP
     WHERE id=1
   `).run(
@@ -107,6 +109,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         ia_provider || 'anthropic', ia_api_key || '', ia_model || 'claude-sonnet-4',
         ia_system_prompt !== undefined ? ia_system_prompt : '', ia_temperatura ?? 0.7, ia_ativa ?? 0,
         upmobb_ativo ?? 0,
+        etapas_template_json !== undefined ? etapas_template_json : '[]',
     );
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
     res.json(emp);

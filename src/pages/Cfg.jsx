@@ -123,6 +123,7 @@ export default function Cfg({ taxas, reload, notify }) {
         ia_provider: 'anthropic', ia_api_key: '', ia_model: 'claude-sonnet-4',
         ia_system_prompt: '', ia_temperatura: 0.7, ia_ativa: 0,
         upmobb_ativo: 0,
+        etapas_template_json: '[]',
     });
     const [waStatus, setWaStatus] = useState(null);
     const [waQR, setWaQR] = useState(null);
@@ -176,6 +177,7 @@ export default function Cfg({ taxas, reload, notify }) {
                 ia_temperatura: d.ia_temperatura ?? 0.7,
                 ia_ativa: d.ia_ativa ?? 0,
                 upmobb_ativo: d.upmobb_ativo ?? 0,
+                etapas_template_json: d.etapas_template_json || '[]',
             });
         }).catch(() => {});
         api.get('/portfolio').then(setPortfolio).catch(() => {});
@@ -224,6 +226,7 @@ export default function Cfg({ taxas, reload, notify }) {
                 ia_temperatura: emp.ia_temperatura,
                 ia_ativa: emp.ia_ativa,
                 upmobb_ativo: emp.upmobb_ativo,
+                etapas_template_json: emp.etapas_template_json,
             });
             if (!silent) notify("Dados salvos!");
         }
@@ -301,6 +304,7 @@ export default function Cfg({ taxas, reload, notify }) {
                 {sectionBtn('whatsapp', 'WhatsApp', <Ic.WhatsApp />)}
                 {sectionBtn('ia', 'Inteligência Artificial', <Ic.Sparkles />)}
                 {sectionBtn('portfolio', 'Portfolio', <Images size={16} />)}
+                {sectionBtn('etapas', 'Etapas do Projeto', <CheckCircle2 size={16} />)}
                 {sectionBtn('backup', 'Backup', <Database size={16} />)}
             </div>
 
@@ -1678,6 +1682,118 @@ export default function Cfg({ taxas, reload, notify }) {
                     </div>
                 </div>
             )}
+
+            {/* ═══ SEÇÃO: Etapas do Projeto ═══ */}
+            {activeSection === 'etapas' && (() => {
+                let tplEtapas = [];
+                try { tplEtapas = JSON.parse(emp.etapas_template_json || '[]'); } catch { tplEtapas = []; }
+                if (tplEtapas.length === 0) tplEtapas = [
+                    { nome: 'Aprovação do Orçamento', duracao_dias: 3 },
+                    { nome: 'Assinatura do Contrato', duracao_dias: 2 },
+                    { nome: 'Medição in Loco', duracao_dias: 5 },
+                    { nome: 'Aprovação do Caderno Técnico', duracao_dias: 7 },
+                    { nome: 'Compra de Materiais', duracao_dias: 10 },
+                    { nome: 'Produção', duracao_dias: 25 },
+                    { nome: 'Acabamento', duracao_dias: 5 },
+                    { nome: 'Montagem e Instalação', duracao_dias: 5 },
+                ];
+
+                const updateTpl = (newEtapas) => {
+                    setEmp(prev => ({ ...prev, etapas_template_json: JSON.stringify(newEtapas) }));
+                };
+                const moveEtapa = (idx, dir) => {
+                    const arr = [...tplEtapas];
+                    const nIdx = idx + dir;
+                    if (nIdx < 0 || nIdx >= arr.length) return;
+                    [arr[idx], arr[nIdx]] = [arr[nIdx], arr[idx]];
+                    updateTpl(arr);
+                };
+                const totalDias = tplEtapas.reduce((s, e) => s + (Number(e.duracao_dias) || 0), 0);
+
+                return (
+                    <div className="max-w-2xl">
+                        <div className={Z.card}>
+                            <div className="flex items-center gap-3 mb-1">
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
+                                    <CheckCircle2 size={20} style={{ color: 'var(--primary)' }} />
+                                </div>
+                                <div>
+                                    <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Template Padrão de Etapas</h2>
+                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                        Etapas e durações aplicadas automaticamente ao criar um projeto
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mb-3 p-3 rounded-lg flex items-center justify-between" style={{ background: 'var(--bg-muted)' }}>
+                                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                    {tplEtapas.length} etapas | Duração total: <strong style={{ color: 'var(--text-primary)' }}>{totalDias} dias</strong>
+                                </span>
+                            </div>
+
+                            {/* Lista de etapas */}
+                            <div className="flex flex-col gap-1.5 mb-4">
+                                {tplEtapas.map((etapa, i) => (
+                                    <div key={i} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                        {/* Ordem / setas */}
+                                        <div className="flex flex-col gap-0.5 flex-shrink-0">
+                                            <button onClick={() => moveEtapa(i, -1)} disabled={i === 0}
+                                                className="p-0.5 rounded hover:bg-[var(--bg-hover)] cursor-pointer disabled:opacity-20" style={{ color: 'var(--text-muted)' }}>
+                                                <ArrowUp size={11} />
+                                            </button>
+                                            <button onClick={() => moveEtapa(i, 1)} disabled={i === tplEtapas.length - 1}
+                                                className="p-0.5 rounded hover:bg-[var(--bg-hover)] cursor-pointer disabled:opacity-20" style={{ color: 'var(--text-muted)' }}>
+                                                <ArrowDown size={11} />
+                                            </button>
+                                        </div>
+                                        {/* Número */}
+                                        <span className="text-[10px] font-bold w-5 text-center flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
+                                        {/* Nome */}
+                                        <input
+                                            value={etapa.nome}
+                                            onChange={e => { const arr = [...tplEtapas]; arr[i] = { ...arr[i], nome: e.target.value }; updateTpl(arr); }}
+                                            className={`${Z.inp} flex-1 text-xs`}
+                                            placeholder="Nome da etapa"
+                                        />
+                                        {/* Duração */}
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                            <input
+                                                type="number" min="1" max="365"
+                                                value={etapa.duracao_dias || ''}
+                                                onChange={e => { const arr = [...tplEtapas]; arr[i] = { ...arr[i], duracao_dias: parseInt(e.target.value) || 0 }; updateTpl(arr); }}
+                                                className={`${Z.inp} w-16 text-xs text-center`}
+                                                placeholder="Dias"
+                                            />
+                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>dias</span>
+                                        </div>
+                                        {/* Delete */}
+                                        <button onClick={() => { const arr = tplEtapas.filter((_, j) => j !== i); updateTpl(arr); }}
+                                            className="p-1 rounded hover:bg-red-50 cursor-pointer" style={{ color: '#ef4444' }}>
+                                            <Trash2 size={13} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Botões */}
+                            <div className="flex items-center justify-between">
+                                <button onClick={() => {
+                                    updateTpl([...tplEtapas, { nome: '', duracao_dias: 5 }]);
+                                }} className={`${Z.btn2} text-xs`}>
+                                    <Plus size={12} /> Adicionar etapa
+                                </button>
+                                <button onClick={() => { saveEmpresa(); }} className={`${Z.btn} text-xs`}>
+                                    Salvar Template
+                                </button>
+                            </div>
+
+                            <p className="text-[10px] mt-4" style={{ color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                                Ao criar um novo projeto, basta informar a data de início. As datas de cada etapa serão calculadas automaticamente com base nas durações acima, em sequência.
+                            </p>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {activeSection === 'backup' && (
                 <div className="max-w-2xl">
