@@ -328,13 +328,10 @@ export default function PropostaApresentacao({ token }) {
                         <div ref={reveal} className="ap-reveal">
                             <p className="ap-section-tag" style={{ color: c2 }}>QUEM SOMOS</p>
                             <h2 className="ap-section-title" style={{ color: c1 }}>
-                                Transformamos espaços em experiências únicas
+                                Transformamos espaços em experiências únicas.
                             </h2>
                             <p className="ap-about-text" style={{ color: `${c1}B0` }}>
-                                Somos especialistas em móveis planejados sob medida, unindo design autoral,
-                                tecnologia de ponta e materiais premium. Cada projeto é pensado para
-                                refletir a personalidade e o estilo de vida de nossos clientes, com acabamento
-                                impecável e atenção a cada detalhe.
+                                Somos especialistas em móveis planejados sob medida, unindo a precisão e a agilidade da tecnologia de ponta ao capricho e à essência da marcenaria fina tradicional. Trabalhamos com materiais de mais alta qualidade e processos modernos para garantir qualidade superior em cada entrega. Cada projeto é desenvolvido para refletir a personalidade e o estilo de vida de nossos clientes, com acabamento impecável e atenção absoluta aos detalhes.
                             </p>
                         </div>
                         <div className="ap-stats" ref={statsRef}>
