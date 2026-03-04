@@ -418,12 +418,12 @@ export function KpiCard({ label, value, color, icon: Icon, sub }) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
                 {Icon && (
-                    <div style={{ width: 28, height: 28, borderRadius: 8, background: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Icon size={14} style={{ color }} />
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--primary-alpha, rgba(19,121,240,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Icon size={14} style={{ color: 'var(--primary)' }} />
                     </div>
                 )}
             </div>
-            <div style={{ fontSize: 24, fontWeight: 800, color }}>{value}</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>{value}</div>
             {sub && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{sub}</div>}
         </div>
     );

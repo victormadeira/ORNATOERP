@@ -313,7 +313,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                         <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(245,158,11,0.12)', color: 'var(--warning)' }}>frente ext.</span>
                     )}
                     {temDimsCustom && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'rgba(59,130,246,0.12)', color: '#3b82f6' }}>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'var(--primary-alpha, rgba(19,121,240,0.08))', color: 'var(--primary)' }}>
                             dims. custom
                         </span>
                     )}
@@ -367,7 +367,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                     {(showDims || temDimsCustom) ? (
                         <div className="rounded-lg p-3 flex flex-col gap-2" style={{ background: 'rgba(59,130,246,0.04)', border: '1px solid rgba(59,130,246,0.18)' }}>
                             <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#3b82f6' }}>Dimensões personalizadas</span>
+                                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--primary)' }}>Dimensões personalizadas</span>
                                 <div className="flex gap-2">
                                     {temDimsCustom && (
                                         <button onClick={() => {
@@ -527,7 +527,7 @@ function RelatorioItem({ res, chapasDB, fitasDB, coef, qtd }) {
     const custoFerragens = res.ferrList.reduce((s, f) => s + f.preco * f.qtd, 0);
     const custoChapas = Object.values(res.chapas).reduce((s, c) => s + (c.frac || c.n) * c.mat.preco, 0);
 
-    const TYPE_COLOR = { caixa: 'var(--primary)', tamponamento: '#3b82f6', componente: '#16a34a', frente_externa: '#f59e0b' };
+    const TYPE_COLOR = { caixa: 'var(--primary)', tamponamento: 'var(--primary)', componente: '#64748b', frente_externa: '#94a3b8' };
     const TYPE_LABEL = { caixa: 'Caixa', tamponamento: 'Tamp.', componente: 'Componente', frente_externa: 'Frente Ext.' };
 
     return (
@@ -1825,20 +1825,20 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         <div className={Z.pg}>
             {/* ── Banner aditivo (referência ao pai) ── */}
             {isAditivo && (orcFull?.parent_info || editOrc?.parent_info) && (
-                <div className="mb-4 px-4 py-3 rounded-xl" style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)' }}>
+                <div className="mb-4 px-4 py-3 rounded-xl" style={{ background: 'var(--primary-alpha, rgba(19,121,240,0.08))', border: '1px solid var(--primary-ring, rgba(19,121,240,0.2))' }}>
                     <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-xs" style={{ color: '#3b82f6' }}>
+                        <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--primary)' }}>
                             <FilePlus2 size={16} />
-                            <span className="font-bold px-2 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.15)' }}>ADITIVO</span>
+                            <span className="font-bold px-2 py-0.5 rounded" style={{ background: 'var(--primary-ring, rgba(19,121,240,0.15))' }}>ADITIVO</span>
                             <span style={{ color: 'var(--text-secondary)' }}>Ref. orçamento <strong>{(orcFull?.parent_info || editOrc?.parent_info)?.numero}</strong> — {(orcFull?.parent_info || editOrc?.parent_info)?.cliente_nome}</span>
                         </div>
                         <button onClick={() => { api.get(`/orcamentos/${editOrc.parent_orc_id}`).then(o => nav('novo', o)).catch(() => notify('Erro ao abrir original')); }}
-                            className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer flex-shrink-0" style={{ background: 'rgba(59,130,246,0.12)', color: '#3b82f6' }}>
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer flex-shrink-0" style={{ background: 'var(--primary-alpha, rgba(19,121,240,0.08))', color: 'var(--primary)' }}>
                             Abrir Original
                         </button>
                     </div>
                     {(orcFull?.motivo_aditivo || editOrc?.motivo_aditivo) && (
-                        <div className="mt-2 text-[11px] px-3 py-1.5 rounded-lg" style={{ background: 'rgba(59,130,246,0.05)', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                        <div className="mt-2 text-[11px] px-3 py-1.5 rounded-lg" style={{ background: 'var(--primary-alpha, rgba(19,121,240,0.05))', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
                             <strong style={{ fontStyle: 'normal', color: 'var(--text-muted)' }}>Motivo:</strong> {orcFull?.motivo_aditivo || editOrc?.motivo_aditivo}
                         </div>
                     )}
@@ -1863,7 +1863,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         )}
                         {!isAditivo && !unlocked && (
                             <button onClick={() => { setMotivoAditivo(''); setShowAditivoModal(true); }}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ background: 'rgba(59,130,246,0.12)', color: '#3b82f6' }}>
+                                className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ background: 'var(--primary-alpha, rgba(19,121,240,0.08))', color: 'var(--primary)' }}>
                                 <FilePlus2 size={12} className="inline mr-1" /> Criar Aditivo
                             </button>
                         )}
@@ -1948,7 +1948,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         <button
                             onClick={() => setShowAprovarModal(true)}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition-all"
-                            style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', boxShadow: '0 2px 8px rgba(22,163,74,0.3)' }}
+                            style={{ background: 'var(--primary)', color: '#fff', boxShadow: '0 2px 8px var(--primary-ring, rgba(19,121,240,0.3))' }}
                         >
                             <CheckCircle size={16} /> Aprovar
                         </button>
@@ -1957,7 +1957,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         <div className="flex items-center gap-2">
                             {editOrc?.id && saveStatus !== 'idle' && (
                                 <span className="text-[11px] font-medium flex items-center gap-1 whitespace-nowrap" style={{
-                                    color: saveStatus === 'saved' ? 'var(--success)' : saveStatus === 'saving' ? 'var(--warning)' : saveStatus === 'error' ? 'var(--danger)' : 'var(--text-muted)',
+                                    color: saveStatus === 'saved' ? '#5B8C6B' : saveStatus === 'saving' ? '#C4924C' : saveStatus === 'error' ? 'var(--danger)' : 'var(--text-muted)',
                                 }}>
                                     {saveStatus === 'saved' && <><CheckCircle size={12} /> Salvo</>}
                                     {saveStatus === 'saving' && <><RefreshCw size={12} className="animate-spin" /> Salvando...</>}
@@ -2011,7 +2011,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         <div className="flex items-center justify-between mb-3">
                             <h2 className="text-sm font-semibold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}><Layers size={14} /> Ambientes ({ambientes.length})</h2>
                             {!readOnly && <div className="flex gap-2">
-                                {ambTemplates.length > 0 && <button onClick={() => setShowTipoAmbModal(true)} className={`${Z.btn2} text-xs py-1.5 px-3`} style={{ borderColor: '#16a34a40', color: 'var(--success)' }}><FilePlus2 size={13} /> Templates</button>}
+                                {ambTemplates.length > 0 && <button onClick={() => setShowTipoAmbModal(true)} className={`${Z.btn2} text-xs py-1.5 px-3`}><FilePlus2 size={13} /> Templates</button>}
                                 <button onClick={addAmbiente} className={`${Z.btn} text-xs py-1.5 px-3`}><Plus size={13} /> Ambiente</button>
                                 <button onClick={() => { setShowImportModal(true); setImportResult(null); }} className={`${Z.btn2} text-xs py-1.5 px-3`} style={{ borderColor: '#8b5cf640', color: '#8b5cf6' }}><Sparkles size={13} /> Importar JSON IA</button>
                             </div>}
@@ -2676,10 +2676,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     {/* Material (custo real) */}
                                                     <div>
                                                         <div className="flex justify-between items-center mb-0.5">
-                                                            <span className="text-[10px] font-semibold" style={{ color: '#3b82f6' }}>Material</span>
-                                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(matRaw)} <span className="font-semibold" style={{ color: '#3b82f6' }}>{pct(matRaw)}%</span></span>
+                                                            <span className="text-[10px] font-semibold" style={{ color: 'var(--primary)' }}>Material</span>
+                                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(matRaw)} <span className="font-semibold" style={{ color: 'var(--primary)' }}>{pct(matRaw)}%</span></span>
                                                         </div>
-                                                        <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(matRaw, '#3b82f6')}</div>
+                                                        <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(matRaw, 'var(--primary)')}</div>
                                                         {/* Sub-detalhamento material */}
                                                         <div className="mt-1 ml-2 flex flex-col gap-0.5">
                                                             {[[matChapas, 'Chapas'], [matFita, 'Fita'], [matFerr, 'Ferragens'], [matAcab, 'Acabamentos'], [matAcess, 'Acessórios']].filter(([v]) => v > 0).map(([v, l]) => (
@@ -2700,20 +2700,20 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     {/* Mão de Obra */}
                                                     <div>
                                                         <div className="flex justify-between items-center mb-0.5">
-                                                            <span className="text-[10px] font-semibold" style={{ color: 'var(--success)' }}>Mão de Obra</span>
-                                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(mdo)} <span className="font-semibold" style={{ color: 'var(--success)' }}>{pct(mdo)}%</span></span>
+                                                            <span className="text-[10px] font-semibold" style={{ color: '#64748b' }}>Mão de Obra</span>
+                                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(mdo)} <span className="font-semibold" style={{ color: '#64748b' }}>{pct(mdo)}%</span></span>
                                                         </div>
-                                                        <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(mdo, '#22c55e')}</div>
+                                                        <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(mdo, '#64748b')}</div>
                                                     </div>
 
                                                     {/* Custos Operacionais */}
                                                     {custOp > 0 && (
                                                         <div>
                                                             <div className="flex justify-between items-center mb-0.5">
-                                                                <span className="text-[10px] font-semibold" style={{ color: '#a855f7' }}>Custos Operacionais</span>
-                                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(custOp)} <span className="font-semibold" style={{ color: '#a855f7' }}>{pct(custOp)}%</span></span>
+                                                                <span className="text-[10px] font-semibold" style={{ color: '#94a3b8' }}>Custos Operacionais</span>
+                                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(custOp)} <span className="font-semibold" style={{ color: '#94a3b8' }}>{pct(custOp)}%</span></span>
                                                             </div>
-                                                            <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(custOp, '#a855f7')}</div>
+                                                            <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(custOp, '#94a3b8')}</div>
                                                         </div>
                                                     )}
 
@@ -2724,7 +2724,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     </div>
 
                                                     {/* Taxas individuais */}
-                                                    {[[impR, 'Impostos', '#ef4444', taxas.imp], [comR, 'Comissão', '#f59e0b', taxas.com], [lucroR, 'Lucro', '#059669', taxas.lucro], [instR, 'Instalação', '#8b5cf6', taxas.inst ?? 5], [freteR, 'Frete', '#6b7280', taxas.frete], [montR, 'Montagem', '#6b7280', taxas.mont]].filter(([v,,,t]) => t > 0).map(([v, l, cor, t]) => (
+                                                    {[[impR, 'Impostos', '#B86565', taxas.imp], [comR, 'Comissão', '#C4924C', taxas.com], [lucroR, 'Lucro', '#5B8C6B', taxas.lucro], [instR, 'Instalação', '#94a3b8', taxas.inst ?? 5], [freteR, 'Frete', '#94a3b8', taxas.frete], [montR, 'Montagem', '#94a3b8', taxas.mont]].filter(([v,,,t]) => t > 0).map(([v, l, cor, t]) => (
                                                         <div key={l}>
                                                             <div className="flex justify-between items-center mb-0.5">
                                                                 <span className="text-[10px] font-semibold" style={{ color: cor }}>{l} ({N(t,1)}%)</span>
@@ -2735,7 +2735,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     ))}
 
                                                     {/* Total = PV */}
-                                                    <div className="flex justify-between items-center py-1.5 px-2 rounded-md mt-1" style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)' }}>
+                                                    <div className="flex justify-between items-center py-1.5 px-2 rounded-md mt-1" style={{ background: 'var(--primary-alpha, rgba(19,121,240,0.06))', border: '1px solid var(--primary-ring, rgba(19,121,240,0.15))' }}>
                                                         <span className="text-[11px] font-bold" style={{ color: 'var(--primary)' }}>PREÇO VENDA</span>
                                                         <span className="text-[11px] font-bold" style={{ color: 'var(--primary)' }}>{R$(pv)} <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>100%</span></span>
                                                     </div>
@@ -2751,7 +2751,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 <button
                                     onClick={() => setShowAprovarModal(true)}
                                     className="w-full py-2.5 text-xs font-bold rounded-lg cursor-pointer flex items-center justify-center gap-1.5 transition-all"
-                                    style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', boxShadow: '0 2px 8px rgba(22,163,74,0.3)' }}
+                                    style={{ background: 'var(--primary)', color: '#fff', boxShadow: '0 2px 8px var(--primary-ring, rgba(19,121,240,0.3))' }}
                                 >
                                     <CheckCircle size={14} /> Aprovar Orçamento
                                 </button>
@@ -2836,7 +2836,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         {viewsData?.token && (
                             <button onClick={() => setShowViews(!showViews)}
                                 className="text-[10px] px-2 py-1 rounded flex items-center gap-1 cursor-pointer"
-                                style={{ background: 'rgba(59,130,246,0.08)', color: '#3b82f6', fontWeight: 600 }}>
+                                style={{ background: 'var(--primary-alpha, rgba(19,121,240,0.08))', color: 'var(--primary)', fontWeight: 600 }}>
                                 <Eye size={11} /> {viewsData.new_visits || 0} visualizações
                             </button>
                         )}
@@ -2894,10 +2894,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             {/* Resumo */}
                             <div className="grid grid-cols-4 gap-2 mb-3">
                                 {[
-                                    { label: 'Visualizações', value: viewsData.new_visits || 0, icon: <Eye size={12} />, color: '#3b82f6' },
-                                    { label: 'Dispositivos', value: viewsData.unique_devices || 0, icon: <Monitor size={12} />, color: '#8b5cf6' },
-                                    { label: 'Tempo máx.', value: viewsData.max_tempo > 60 ? `${Math.round(viewsData.max_tempo / 60)}min` : `${viewsData.max_tempo || 0}s`, icon: <Clock size={12} />, color: 'var(--warning)' },
-                                    { label: 'Scroll máx.', value: `${viewsData.max_scroll || 0}%`, icon: <BarChart3 size={12} />, color: '#10b981' },
+                                    { label: 'Visualizações', value: viewsData.new_visits || 0, icon: <Eye size={12} />, color: 'var(--primary)' },
+                                    { label: 'Dispositivos', value: viewsData.unique_devices || 0, icon: <Monitor size={12} />, color: 'var(--primary)' },
+                                    { label: 'Tempo máx.', value: viewsData.max_tempo > 60 ? `${Math.round(viewsData.max_tempo / 60)}min` : `${viewsData.max_tempo || 0}s`, icon: <Clock size={12} />, color: 'var(--primary)' },
+                                    { label: 'Scroll máx.', value: `${viewsData.max_scroll || 0}%`, icon: <BarChart3 size={12} />, color: 'var(--primary)' },
                                 ].map((m, i) => (
                                     <div key={i} className="text-center p-2 rounded-lg" style={{ background: 'var(--bg-muted)' }}>
                                         <div className="flex items-center justify-center gap-1 mb-1" style={{ color: m.color }}>{m.icon}</div>
@@ -2916,7 +2916,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             <div key={i} className="flex items-center justify-between p-2 rounded-lg text-xs"
                                                 style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
                                                 <div className="flex items-center gap-2">
-                                                    {d.dispositivo === 'Mobile' ? <Smartphone size={13} style={{ color: '#8b5cf6' }} /> : <Monitor size={13} style={{ color: '#3b82f6' }} />}
+                                                    {d.dispositivo === 'Mobile' ? <Smartphone size={13} style={{ color: 'var(--primary)' }} /> : <Monitor size={13} style={{ color: 'var(--primary)' }} />}
                                                     <div>
                                                         <div className="font-medium" style={{ color: 'var(--text-primary)' }}>
                                                             {d.os_name} · {d.navegador}
@@ -3622,7 +3622,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             onClick={aprovarOrcamento}
                                             disabled={aprovandoOrc}
                                             className="w-full py-2.5 text-sm font-bold rounded-lg cursor-pointer flex items-center justify-center gap-2 transition-all"
-                                            style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', opacity: aprovandoOrc ? 0.6 : 1 }}
+                                            style={{ background: 'var(--primary)', color: '#fff', opacity: aprovandoOrc ? 0.6 : 1 }}
                                         >
                                             <CheckCircle size={16} /> {aprovandoOrc ? 'Aprovando...' : 'Confirmar Aprovação'}
                                         </button>
@@ -3640,8 +3640,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     <div className="rounded-xl shadow-2xl max-w-sm w-full mx-4 text-center"
                         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                         <div className="p-6">
-                            <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: 'rgba(22,163,74,0.12)' }}>
-                                <CheckCircle size={32} style={{ color: 'var(--success)' }} />
+                            <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: 'var(--primary-alpha, rgba(19,121,240,0.12))' }}>
+                                <CheckCircle size={32} style={{ color: 'var(--primary)' }} />
                             </div>
                             <h3 className="text-lg font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Orçamento Aprovado!</h3>
                             <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
@@ -3651,7 +3651,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 <button
                                     onClick={() => { setProjetoCriadoInfo(null); nav('projetos'); }}
                                     className="flex-1 py-2.5 text-sm font-semibold rounded-lg cursor-pointer"
-                                    style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff' }}
+                                    style={{ background: 'var(--primary)', color: '#fff' }}
                                 >
                                     Abrir Projeto
                                 </button>

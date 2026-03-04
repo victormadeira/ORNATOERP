@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
-import { Z, Ic, Spinner, Badge, KpiCard, SectionHeader, PageHeader, TabBar } from '../ui';
-import { STATUS_PROJ, CAT_COLOR, CAT_LABEL, colorBg, colorBorder } from '../theme';
+import { Z, Ic, Spinner, Badge, SectionHeader, PageHeader, TabBar } from '../ui';
+import { STATUS_PROJ, CAT_COLOR, CAT_LABEL } from '../theme';
 import { R$, N } from '../engine';
 import {
     TrendingUp, TrendingDown, AlertTriangle, Clock, DollarSign,
@@ -56,12 +56,11 @@ function HeadlineMes({ data }) {
             </div>
             <div style={{ textAlign: 'right' }}>
                 <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                    padding: '6px 14px', borderRadius: 20,
-                    background: up ? colorBg('#22c55e') : colorBg('#ef4444'),
-                    color: up ? '#16a34a' : '#ef4444',
-                    fontWeight: 700, fontSize: 14,
-                    border: `1px solid ${up ? colorBorder('#22c55e') : colorBorder('#ef4444')}`,
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    padding: '4px 10px', borderRadius: 16,
+                    background: up ? '#16A34A08' : '#DC262608',
+                    color: up ? 'var(--success)' : 'var(--danger)',
+                    fontWeight: 600, fontSize: 12,
                 }}>
                     {up ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
                     {up && '+'}{data.pct_variacao}%
@@ -110,8 +109,8 @@ function FilaAtencao({ data, nav }) {
                                 </div>
                                 <span style={{
                                     fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
-                                    background: o.dias_parado > 30 ? '#ef444418' : '#f59e0b18',
-                                    color: o.dias_parado > 30 ? '#ef4444' : '#f59e0b',
+                                    background: o.dias_parado > 30 ? '#ef444418' : 'var(--bg-muted)',
+                                    color: o.dias_parado > 30 ? '#ef4444' : 'var(--text-muted)',
                                     whiteSpace: 'nowrap', flexShrink: 0,
                                 }}>{o.dias_parado}d</span>
                             </div>
@@ -134,8 +133,8 @@ function FilaAtencao({ data, nav }) {
                                     <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.projeto_nome}</div>
                                 </div>
                                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                    <div style={{ fontSize: 13, fontWeight: 700, color: '#ef4444' }}>{R$(c.valor)}</div>
-                                    <div style={{ fontSize: 10, color: '#ef4444' }}>{c.dias_atraso}d atraso</div>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--danger)' }}>{R$(c.valor)}</div>
+                                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{c.dias_atraso}d atraso</div>
                                 </div>
                             </div>
                         ))}
@@ -163,36 +162,28 @@ function PipelineVisual({ data, total, nav }) {
             <div style={{ padding: '16px 20px' }}>
                 {data.map((s, i) => {
                     const funnelPct = firstQtd > 0 ? Math.max((s.qtd / firstQtd) * 100, s.qtd > 0 ? 15 : 5) : 5;
-                    const convRate = i > 0 && data[i - 1].qtd > 0 ? ((s.qtd / data[i - 1].qtd) * 100).toFixed(0) : null;
                     return (
-                        <div key={s.id} style={{ animation: `chartFadeIn 0.4s ease ${i * 80}ms both` }}>
-                            {i > 0 && convRate !== null && (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 20, margin: '2px 0' }}>
-                                    <div style={{ fontSize: 10, fontWeight: 600, color: Number(convRate) >= 50 ? '#22c55e' : Number(convRate) >= 25 ? '#f59e0b' : '#ef4444', display: 'flex', alignItems: 'center', gap: 3 }}>
-                                        <ArrowDownRight size={10} /> {convRate}%
-                                    </div>
-                                </div>
-                            )}
+                        <div key={s.id} style={{ animation: 'chartFadeIn 0.4s ease both' }}>
                             <div onClick={() => nav('kb')}
                                 style={{
                                     display: 'flex', alignItems: 'center', cursor: 'pointer',
                                     padding: '10px 14px', borderRadius: 10, marginBottom: 2, position: 'relative', overflow: 'hidden',
-                                    background: `linear-gradient(90deg, ${s.cor}15, transparent ${funnelPct}%)`,
+                                    background: `linear-gradient(90deg, ${s.cor}08, transparent ${funnelPct}%)`,
                                     transition: 'background 0.2s',
                                 }}
                                 className="hover:opacity-80 transition-opacity">
                                 <div style={{
                                     position: 'absolute', left: 0, top: 0, bottom: 0,
                                     width: `${funnelPct}%`, borderRadius: 10,
-                                    background: `linear-gradient(90deg, ${s.cor}25, ${s.cor}08)`,
-                                    animation: `chartSlideRight 0.6s ease ${i * 80 + 100}ms both`,
+                                    background: `linear-gradient(90deg, ${s.cor}10, ${s.cor}05)`,
+                                    animation: 'chartSlideRight 0.6s ease 0.1s both',
                                     transformOrigin: 'left',
                                 }} />
                                 <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                                    background: `${s.cor}20`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     position: 'relative', zIndex: 1,
                                 }}>
-                                    <span style={{ fontSize: 13, fontWeight: 800, color: s.cor }}>{s.qtd}</span>
+                                    <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)' }}>{s.qtd}</span>
                                 </div>
                                 <div style={{ marginLeft: 12, flex: 1, position: 'relative', zIndex: 1 }}>
                                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{s.nome}</div>
@@ -219,7 +210,7 @@ function PipelineVisual({ data, total, nav }) {
                         const ticketMedio = totalQtd > 0 ? total / totalQtd : 0;
                         return (<>
                             <div style={{ flex: 1, minWidth: 100, textAlign: 'center' }}>
-                                <div style={{ fontSize: 18, fontWeight: 800, color: '#22c55e' }}>{txConv}%</div>
+                                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>{txConv}%</div>
                                 <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Taxa de Conversão</div>
                             </div>
                             <div style={{ flex: 1, minWidth: 100, textAlign: 'center' }}>
@@ -227,7 +218,7 @@ function PipelineVisual({ data, total, nav }) {
                                 <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Ticket Médio</div>
                             </div>
                             <div style={{ flex: 1, minWidth: 100, textAlign: 'center' }}>
-                                <div style={{ fontSize: 18, fontWeight: 800, color: '#8b5cf6' }}>{totalQtd}</div>
+                                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>{totalQtd}</div>
                                 <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Total no Pipeline</div>
                             </div>
                         </>);
@@ -242,10 +233,10 @@ function PipelineVisual({ data, total, nav }) {
 function FluxoCaixa({ data }) {
     if (!data) return null;
     const items = [
-        { label: 'Recebido este mes', value: data.recebido_mes, color: '#22c55e', icon: CheckCircle2 },
-        { label: 'A receber (30d)', value: data.entradas_30d, color: 'var(--primary)', icon: Calendar },
-        { label: 'A receber (60d)', value: data.entradas_60d, color: '#7e7ec8', icon: Calendar },
-        { label: 'Vencido (a receber)', value: data.entradas_vencidas, color: '#ef4444', icon: AlertTriangle },
+        { label: 'Recebido este mes', value: data.recebido_mes, color: 'var(--success)', icon: CheckCircle2 },
+        { label: 'A receber (30d)', value: data.entradas_30d, color: 'var(--text-secondary)', icon: Calendar },
+        { label: 'A receber (60d)', value: data.entradas_60d, color: 'var(--text-muted)', icon: Calendar },
+        { label: 'Vencido (a receber)', value: data.entradas_vencidas, color: 'var(--danger)', icon: AlertTriangle },
     ];
     const maxVal = Math.max(...items.map(i => i.value), 1);
 
@@ -267,8 +258,7 @@ function FluxoCaixa({ data }) {
                             <div style={{ background: 'var(--bg-muted)', borderRadius: 99, height: 8, overflow: 'hidden' }}>
                                 <div style={{
                                     width: `${pct}%`, height: '100%', borderRadius: 99,
-                                    background: `linear-gradient(90deg, ${it.color}, ${it.color}dd)`,
-                                    boxShadow: `0 1px 6px ${it.color}30`,
+                                    background: it.color,
                                     transformOrigin: 'left',
                                     animation: `chartSlideRight 0.5s ease ${i * 70 + 100}ms both`,
                                 }} />
@@ -282,9 +272,9 @@ function FluxoCaixa({ data }) {
                     <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
                         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.05em' }}>Saídas (Contas a Pagar)</div>
                         {[
-                            { label: 'Pago este mês', value: data.pago_mes, color: '#64748b', icon: CheckCircle2 },
-                            { label: 'A pagar (30d)', value: data.saidas_30d, color: '#f97316', icon: Calendar },
-                            { label: 'Vencido (a pagar)', value: data.saidas_vencidas, color: '#dc2626', icon: AlertTriangle },
+                            { label: 'Pago este mês', value: data.pago_mes, color: 'var(--text-muted)', icon: CheckCircle2 },
+                            { label: 'A pagar (30d)', value: data.saidas_30d, color: 'var(--text-secondary)', icon: Calendar },
+                            { label: 'Vencido (a pagar)', value: data.saidas_vencidas, color: 'var(--danger)', icon: AlertTriangle },
                         ].filter(it => it.value > 0).map((it, i) => {
                             const Icon = it.icon;
                             return (
@@ -353,7 +343,6 @@ function ProjetosAtivos({ data, total, nav }) {
                                     <div style={{
                                         width: `${pct}%`, height: '100%', borderRadius: 99,
                                         background: `linear-gradient(90deg, ${color}, ${color}dd)`,
-                                        boxShadow: `0 1px 4px ${color}25`,
                                         transformOrigin: 'left',
                                         animation: 'chartSlideRight 0.6s ease 0.1s both',
                                     }} />
@@ -364,7 +353,7 @@ function ProjetosAtivos({ data, total, nav }) {
                             {/* Mini financial + deadline */}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                                 <div style={{ display: 'flex', gap: 12 }}>
-                                    <span style={{ fontSize: 11, color: '#22c55e', fontWeight: 600 }}>
+                                    <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>
                                         <DollarSign size={10} style={{ display: 'inline', marginRight: 2 }} />
                                         {R$(p.recebido)}
                                     </span>
@@ -404,18 +393,18 @@ function ProjetosAtivos({ data, total, nav }) {
 
 // ── TimelineRecente (Log Real de Atividades) ────────────
 const ACAO_CONFIG = {
-    criar:               { icon: Plus,      color: '#22c55e', label: 'Criou' },
-    aprovar:             { icon: Check,     color: '#22c55e', label: 'Aprovou' },
-    mover_pipeline:      { icon: ArrowRight,color: '#3b82f6', label: 'Moveu' },
-    atualizar_status:    { icon: Activity,  color: '#8b5cf6', label: 'Status' },
-    editar:              { icon: Edit3,     color: '#3b82f6', label: 'Editou' },
-    pagar:               { icon: DollarSign,color: '#22c55e', label: 'Pagou' },
-    receber_pagamento:   { icon: DollarSign,color: '#16a34a', label: 'Recebeu' },
-    registrar_despesa:   { icon: DollarSign,color: '#f59e0b', label: 'Despesa' },
-    criar_conta_pagar:   { icon: DollarSign,color: '#ef4444', label: 'Conta' },
-    consumir_material:   { icon: Briefcase, color: '#f59e0b', label: 'Consumo' },
-    entrada_estoque:     { icon: Plus,      color: '#3b82f6', label: 'Entrada' },
-    excluir_movimentacao:{ icon: Trash2,    color: '#ef4444', label: 'Excluiu' },
+    criar:               { icon: Plus,      color: 'var(--primary)', label: 'Criou' },
+    aprovar:             { icon: Check,     color: 'var(--success)', label: 'Aprovou' },
+    mover_pipeline:      { icon: ArrowRight,color: 'var(--primary)', label: 'Moveu' },
+    atualizar_status:    { icon: Activity,  color: 'var(--primary)', label: 'Status' },
+    editar:              { icon: Edit3,     color: 'var(--primary)', label: 'Editou' },
+    pagar:               { icon: DollarSign,color: 'var(--success)', label: 'Pagou' },
+    receber_pagamento:   { icon: DollarSign,color: 'var(--success)', label: 'Recebeu' },
+    registrar_despesa:   { icon: DollarSign,color: 'var(--text-muted)', label: 'Despesa' },
+    criar_conta_pagar:   { icon: DollarSign,color: 'var(--text-muted)', label: 'Conta' },
+    consumir_material:   { icon: Briefcase, color: 'var(--text-muted)', label: 'Consumo' },
+    entrada_estoque:     { icon: Plus,      color: 'var(--primary)', label: 'Entrada' },
+    excluir_movimentacao:{ icon: Trash2,    color: 'var(--text-muted)', label: 'Excluiu' },
 };
 
 function tempoRelativo(dateStr) {
@@ -467,7 +456,7 @@ function TimelineRecente({ data, nav }) {
                             {/* Avatar com inicial do usuário */}
                             <div style={{
                                 width: 32, height: 32, borderRadius: '50%',
-                                background: `${cfg.color}18`, color: cfg.color,
+                                background: 'var(--bg-muted)', color: 'var(--text-secondary)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                                 fontSize: 13, fontWeight: 800,
                             }}>
@@ -480,14 +469,14 @@ function TimelineRecente({ data, nav }) {
                                 <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 }}>
                                     <span style={{
                                         fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 8,
-                                        background: `${cfg.color}15`, color: cfg.color,
+                                        background: 'var(--bg-muted)', color: 'var(--text-muted)',
                                     }}>{cfg.label}</span>
                                     <span>{ev.user_nome}</span>
                                     <span>·</span>
                                     <span>{tempoRelativo(ev.criado_em)}</span>
                                 </div>
                             </div>
-                            <Icon size={14} style={{ color: cfg.color, flexShrink: 0, opacity: 0.6 }} />
+                            <Icon size={14} style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.4 }} />
                         </div>
                     );
                 })}
@@ -503,17 +492,27 @@ function TimelineRecente({ data, nav }) {
 function FinanceiroKPI({ data }) {
     if (!data) return null;
     const cards = [
-        { label: 'Receita do Mês', value: data.receita_mes, color: '#22c55e', icon: ArrowUpRight, prefix: '' },
-        { label: 'Despesas do Mês', value: data.despesa_mes, color: '#ef4444', icon: ArrowDownRight, prefix: '-' },
-        { label: 'Lucro do Mês', value: data.lucro_mes, color: data.lucro_mes >= 0 ? '#16a34a' : '#dc2626', icon: DollarSign, prefix: '' },
-        { label: 'Margem', value: null, display: `${data.margem_pct}%`, color: data.margem_pct >= 20 ? '#16a34a' : data.margem_pct >= 0 ? '#f59e0b' : '#dc2626', icon: PieChart, prefix: '' },
+        { label: 'Receita do Mês', value: data.receita_mes, icon: ArrowUpRight, prefix: '' },
+        { label: 'Despesas do Mês', value: data.despesa_mes, icon: ArrowDownRight, prefix: '-' },
+        { label: 'Lucro do Mês', value: data.lucro_mes, icon: DollarSign, prefix: '' },
+        { label: 'Margem', value: null, display: `${data.margem_pct}%`, icon: PieChart, prefix: '' },
     ];
 
     return (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
             {cards.map((c, i) => {
                 const Icon = c.icon;
-                return <KpiCard key={i} label={c.label} value={c.display || `${c.prefix}${R$(Math.abs(c.value))}`} color={c.color} icon={Icon} />;
+                return (
+                    <div key={i} className="glass-card" style={{ padding: '18px 20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{c.label}</span>
+                            <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--primary-alpha, rgba(19,121,240,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Icon size={14} style={{ color: 'var(--primary)' }} />
+                            </div>
+                        </div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>{c.display || `${c.prefix}${R$(Math.abs(c.value))}`}</div>
+                    </div>
+                );
             })}
         </div>
     );
@@ -527,8 +526,8 @@ function GraficoBarras6Meses({ data }) {
         <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
             <SectionHeader icon={BarChart3} title="Receita vs Despesas (6 meses)">
                 <div style={{ display: 'flex', gap: 12, fontSize: 10, fontWeight: 600 }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 3, background: 'linear-gradient(0deg, #22c55e, #4ade80)', display: 'inline-block' }} /> Receita</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 3, background: 'linear-gradient(0deg, #ef4444, #f87171)', display: 'inline-block' }} /> Despesas</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 3, background: 'var(--primary)', display: 'inline-block' }} /> Receita</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 3, background: '#94a3b8', display: 'inline-block' }} /> Despesas</span>
                 </div>
             </SectionHeader>
             <div style={{ padding: '20px', display: 'flex', alignItems: 'flex-end', gap: 12, height: 220, position: 'relative' }}>
@@ -545,16 +544,14 @@ function GraficoBarras6Meses({ data }) {
                                 <div style={{
                                     flex: 1, borderRadius: '6px 6px 0 0', minHeight: m.receita > 0 ? 4 : 0,
                                     height: `${rPct}%`,
-                                    background: 'linear-gradient(0deg, #16a34a, #22c55e)',
-                                    boxShadow: '0 -2px 8px rgba(34,197,94,0.25)',
+                                    background: 'var(--primary)',
                                     transformOrigin: 'bottom',
                                     animation: `chartGrowUp 0.5s ease ${i * 80}ms both`,
                                 }} title={`Receita: ${R$(m.receita)}`} />
                                 <div style={{
                                     flex: 1, borderRadius: '6px 6px 0 0', minHeight: m.despesa > 0 ? 4 : 0,
                                     height: `${dPct}%`,
-                                    background: 'linear-gradient(0deg, #dc2626, #ef4444)',
-                                    boxShadow: '0 -2px 8px rgba(239,68,68,0.25)',
+                                    background: '#94a3b8',
                                     transformOrigin: 'bottom',
                                     animation: `chartGrowUp 0.5s ease ${i * 80 + 50}ms both`,
                                 }} title={`Despesas: ${R$(m.despesa)}`} />
@@ -581,7 +578,7 @@ function GraficoPizzaDespesas({ data }) {
     return (
         <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
             <SectionHeader icon={PieChart} title="Despesas por Categoria">
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#ef4444' }}>{R$(total)}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{R$(total)}</span>
             </SectionHeader>
             <div style={{ padding: '14px 20px' }}>
                 {data.map((d, i) => {
@@ -592,7 +589,7 @@ function GraficoPizzaDespesas({ data }) {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                                 <span style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                                     <span style={{ width: 8, height: 8, borderRadius: 3, display: 'inline-block',
-                                        background: color, boxShadow: `0 1px 4px ${color}40` }} />
+                                        background: color }} />
                                     {CAT_LABEL[d.categoria] || d.categoria}
                                 </span>
                                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>{R$(d.total)} ({pct}%)</span>
@@ -601,7 +598,6 @@ function GraficoPizzaDespesas({ data }) {
                                 <div style={{
                                     width: `${pct}%`, height: '100%', borderRadius: 99,
                                     background: `linear-gradient(90deg, ${color}, ${color}dd)`,
-                                    boxShadow: `0 1px 6px ${color}30`,
                                     transformOrigin: 'left',
                                     animation: `chartSlideRight 0.5s ease ${i * 50 + 80}ms both`,
                                 }} />
@@ -630,10 +626,10 @@ function TabelaTopProjetos({ data }) {
                         <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{p.cliente_nome}</div>
                     </div>
                     <div style={{ textAlign: 'right', fontSize: 12, fontWeight: 600 }}>{R$(p.valor_venda)}</div>
-                    <div style={{ textAlign: 'right', fontSize: 12, color: '#ef4444' }}>{R$(p.despesas)}</div>
-                    <div style={{ textAlign: 'right', fontSize: 12, fontWeight: 700, color: p.lucro >= 0 ? '#16a34a' : '#dc2626' }}>{R$(p.lucro)}</div>
+                    <div style={{ textAlign: 'right', fontSize: 12, color: '#B86565' }}>{R$(p.despesas)}</div>
+                    <div style={{ textAlign: 'right', fontSize: 12, fontWeight: 700, color: p.lucro >= 0 ? '#5B8C6B' : '#B86565' }}>{R$(p.lucro)}</div>
                     <div style={{ textAlign: 'center' }}>
-                        <Badge label={`${p.margem}%`} color={p.margem >= 20 ? '#16a34a' : p.margem >= 0 ? '#f59e0b' : '#ef4444'} />
+                        <Badge label={`${p.margem}%`} color={p.margem >= 20 ? '#5B8C6B' : p.margem >= 0 ? '#C4924C' : '#B86565'} />
                     </div>
                 </div>
             ))}
@@ -649,7 +645,7 @@ function FluxoProjetado({ data }) {
             <SectionHeader icon={Wallet} title="Fluxo de Caixa Projetado (90 dias)" />
             <div style={{ padding: '14px 20px' }}>
                 {data.map((m, i) => {
-                    const accentColor = m.saldo >= 0 ? '#22c55e' : '#ef4444';
+                    const accentColor = m.saldo >= 0 ? 'var(--primary)' : '#B86565';
                     const totalFlux = (m.entradas || 1) + (m.saidas || 1);
                     return (
                         <div key={i} style={{
@@ -659,26 +655,26 @@ function FluxoProjetado({ data }) {
                         }}>
                             <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, textTransform: 'capitalize', color: 'var(--text-primary)' }}>{m.label}</div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
-                                <span style={{ color: '#22c55e', fontWeight: 600 }}>Entradas: {R$(m.entradas)}</span>
-                                <span style={{ color: '#ef4444', fontWeight: 600 }}>Saídas: {R$(m.saidas)}</span>
+                                <span style={{ color: 'var(--primary)', fontWeight: 600 }}>Entradas: {R$(m.entradas)}</span>
+                                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Saídas: {R$(m.saidas)}</span>
                             </div>
                             <div style={{ display: 'flex', gap: 3, marginBottom: 4, height: 8, borderRadius: 99, overflow: 'hidden', background: 'var(--bg-card)' }}>
                                 <div style={{
                                     width: `${((m.entradas || 1) / totalFlux) * 100}%`, height: '100%',
-                                    background: 'linear-gradient(90deg, #16a34a, #22c55e)',
-                                    borderRadius: 99, boxShadow: '0 1px 6px rgba(34,197,94,0.25)',
+                                    background: 'var(--primary)',
+                                    borderRadius: 99,
                                     transformOrigin: 'left',
                                     animation: `chartSlideRight 0.5s ease ${i * 80 + 100}ms both`,
                                 }} />
                                 <div style={{
                                     width: `${((m.saidas || 1) / totalFlux) * 100}%`, height: '100%',
-                                    background: 'linear-gradient(90deg, #dc2626, #ef4444)',
-                                    borderRadius: 99, boxShadow: '0 1px 6px rgba(239,68,68,0.25)',
+                                    background: '#94a3b8',
+                                    borderRadius: 99,
                                     transformOrigin: 'left',
                                     animation: `chartSlideRight 0.5s ease ${i * 80 + 150}ms both`,
                                 }} />
                             </div>
-                            <div style={{ textAlign: 'right', fontSize: 12, fontWeight: 700, color: m.saldo >= 0 ? '#16a34a' : '#dc2626' }}>
+                            <div style={{ textAlign: 'right', fontSize: 12, fontWeight: 700, color: m.saldo >= 0 ? 'var(--primary)' : '#B86565' }}>
                                 Saldo: {m.saldo >= 0 ? '+' : ''}{R$(m.saldo)}
                             </div>
                         </div>
@@ -701,13 +697,13 @@ function ContasPagarProximas({ data, vencidas }) {
         <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
             <SectionHeader icon={Receipt} title="Contas a Pagar">
                 {vencidas && vencidas.qtd > 0 && (
-                    <Badge label={`${vencidas.qtd} vencida${vencidas.qtd > 1 ? 's' : ''} (${R$(vencidas.total)})`} color="#ef4444" />
+                    <Badge label={`${vencidas.qtd} vencida${vencidas.qtd > 1 ? 's' : ''} (${R$(vencidas.total)})`} color="#B86565" />
                 )}
             </SectionHeader>
             {data.map((c, i) => {
                 const isVencida = c.dias_ate < 0;
                 const isProxima = c.dias_ate >= 0 && c.dias_ate <= 7;
-                const color = isVencida ? '#ef4444' : isProxima ? '#f59e0b' : 'var(--text-muted)';
+                const color = isVencida ? '#B86565' : isProxima ? '#C4924C' : 'var(--text-muted)';
                 return (
                     <div key={c.id} style={{ padding: '10px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                         <div style={{ minWidth: 0, flex: 1 }}>
@@ -748,8 +744,8 @@ function TopClientes({ data }) {
                         </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)' }}>{R$(c.valor_total)}</div>
-                        <div style={{ fontSize: 10, color: '#22c55e' }}>recebido: {R$(c.recebido)}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{R$(c.valor_total)}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>recebido: {R$(c.recebido)}</div>
                     </div>
                 </div>
             ))}

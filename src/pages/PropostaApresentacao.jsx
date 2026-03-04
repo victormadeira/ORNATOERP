@@ -28,8 +28,18 @@ const icons = {
     mail: (c) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
 };
 
+const clamp = (v, min = 0, max = 1) => Math.max(min, Math.min(max, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+
 // ── SVG: Serra Circular Metálica (inspirada na referência) ───────────────────
-function SawBladeSVG({ color, size = 70 }) {
+function SawBladeSVG({
+    color,
+    size = 70,
+    spinSeconds = 2,
+    spinDirection = 1,
+    paused = false,
+    glowBoost = 0.5,
+}) {
     const teeth = 24;
     const outerR = 50;
     const innerR = 38;
@@ -67,11 +77,30 @@ function SawBladeSVG({ color, size = 70 }) {
         slots.push({ x1: (Math.cos(a) * 14).toFixed(1), y1: (Math.sin(a) * 14).toFixed(1), x2: (Math.cos(a) * 30).toFixed(1), y2: (Math.sin(a) * 30).toFixed(1) });
     }
 
+    const glowOuter = clamp(0.08 + glowBoost * 0.32, 0.08, 0.42);
+    const glowInner = clamp(0.04 + glowBoost * 0.2, 0.04, 0.24);
+
     return (
         <div className="ap-saw-wrapper">
             {/* Glow radial atrás da serra */}
-            <div className="ap-saw-glow" style={{ background: `radial-gradient(circle, ${color}30 0%, ${color}10 40%, transparent 70%)` }} />
-            <svg width={size} height={size} viewBox="-55 -55 110 110" className="ap-saw-svg">
+            <div
+                className="ap-saw-glow"
+                style={{
+                    background: `radial-gradient(circle, ${color}${Math.round(glowOuter * 255).toString(16).padStart(2, '0')} 0%, ${color}${Math.round(glowInner * 255).toString(16).padStart(2, '0')} 42%, transparent 72%)`,
+                }}
+            />
+            <svg
+                width={size}
+                height={size}
+                viewBox="-55 -55 110 110"
+                className="ap-saw-svg"
+                style={{
+                    animationDuration: `${spinSeconds}s`,
+                    animationDirection: spinDirection >= 0 ? 'normal' : 'reverse',
+                    animationPlayState: paused ? 'paused' : 'running',
+                    willChange: 'transform',
+                }}
+            >
                 <defs>
                     <radialGradient id="apBladeGrad" cx="35%" cy="35%">
                         <stop offset="0%" stopColor="#E8E0D0" />
@@ -108,19 +137,29 @@ function SawBladeSVG({ color, size = 70 }) {
 }
 
 // ── Canvas Particle System — Serragem realista ────────────────────────────
-function SawDustCanvas({ active, scrolling, direction = 1 }) {
+function SawDustCanvas({ active, scrolling, direction = 1, intensity = 0.45, reducedMotion = false }) {
     const canvasRef = useRef(null);
     const particles = useRef([]);
     const animRef = useRef(null);
+    const updateRef = useRef(null);
     const scrollingRef = useRef(false);
     const dirRef = useRef(1);
-
-    useEffect(() => { scrollingRef.current = scrolling; }, [scrolling]);
-    useEffect(() => { dirRef.current = direction; }, [direction]);
+    const intensityRef = useRef(clamp(intensity, 0, 1));
 
     useEffect(() => {
-        if (!active) {
+        scrollingRef.current = scrolling;
+        if (scrolling && active && !reducedMotion && !animRef.current && updateRef.current) {
+            animRef.current = requestAnimationFrame(updateRef.current);
+        }
+    }, [scrolling, active, reducedMotion]);
+    useEffect(() => { dirRef.current = direction; }, [direction]);
+    useEffect(() => { intensityRef.current = clamp(intensity, 0, 1); }, [intensity]);
+
+    useEffect(() => {
+        if (!active || reducedMotion) {
             if (animRef.current) cancelAnimationFrame(animRef.current);
+            animRef.current = null;
+            updateRef.current = null;
             particles.current = [];
             return;
         }
@@ -131,55 +170,60 @@ function SawDustCanvas({ active, scrolling, direction = 1 }) {
         const W = 160, H = 180;
         canvas.width = W * dpr;
         canvas.height = H * dpr;
-        canvas.style.width = W + 'px';
-        canvas.style.height = H + 'px';
+        canvas.style.width = `${W}px`;
+        canvas.style.height = `${H}px`;
 
         const ctx = canvas.getContext('2d');
-        ctx.scale(dpr, dpr);
+        if (!ctx) return;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
         const srcX = W / 2, srcY = H / 2;
         let lastSpawn = 0;
+        let lastTs = performance.now();
 
         const spawn = (now) => {
             if (!scrollingRef.current) return;
-            if (now - lastSpawn < 28) return;
+            const drive = intensityRef.current;
+            const spawnGap = lerp(36, 16, drive);
+            if (now - lastSpawn < spawnGap) return;
             lastSpawn = now;
 
             const baseAngle = dirRef.current > 0 ? -Math.PI / 2 : Math.PI / 2;
-            const n = 5 + Math.floor(Math.random() * 4);
+            const n = Math.max(3, Math.round(lerp(4, 11, drive) + Math.random() * 2));
+            const speedBoost = lerp(0.85, 1.8, drive);
 
             for (let i = 0; i < n; i++) {
                 const r = Math.random();
-                if (r < 0.50) {
-                    const angle = baseAngle + (Math.random() - 0.5) * Math.PI * 0.55;
-                    const speed = 0.4 + Math.random() * 1.4;
+                if (r < 0.48) {
+                    const angle = baseAngle + (Math.random() - 0.5) * Math.PI * 0.58;
+                    const speed = (0.35 + Math.random() * 1.35) * speedBoost;
                     particles.current.push({
                         x: srcX + (Math.random() - 0.5) * 14, y: srcY + (Math.random() - 0.5) * 8,
                         vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-                        radius: 0.4 + Math.random() * 0.8, life: 1,
-                        decay: 0.012 + Math.random() * 0.018,
+                        radius: 0.35 + Math.random() * 0.9, life: 1,
+                        decay: 0.01 + Math.random() * 0.017,
                         color: DUST_COLORS[Math.floor(Math.random() * DUST_COLORS.length)],
                         kind: 'dust',
                     });
-                } else if (r < 0.90) {
-                    const angle = baseAngle + (Math.random() - 0.5) * Math.PI * 0.4;
-                    const speed = 0.8 + Math.random() * 2;
+                } else if (r < 0.9) {
+                    const angle = baseAngle + (Math.random() - 0.5) * Math.PI * 0.42;
+                    const speed = (0.65 + Math.random() * 1.95) * speedBoost;
                     particles.current.push({
                         x: srcX + (Math.random() - 0.5) * 10, y: srcY + (Math.random() - 0.5) * 5,
                         vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-                        radius: 0.6 + Math.random() * 1.2, life: 1,
-                        decay: 0.016 + Math.random() * 0.02,
+                        radius: 0.55 + Math.random() * 1.35, life: 1,
+                        decay: 0.014 + Math.random() * 0.02,
                         color: MDF_COLORS[Math.floor(Math.random() * MDF_COLORS.length)],
                         kind: 'medium',
                     });
                 } else {
                     const angle = baseAngle + (Math.random() - 0.5) * Math.PI * 0.3;
-                    const speed = 1.5 + Math.random() * 2.5;
+                    const speed = (1.2 + Math.random() * 2.6) * speedBoost;
                     particles.current.push({
                         x: srcX + (Math.random() - 0.5) * 6, y: srcY,
                         vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-                        w: 1.5 + Math.random() * 2.5, h: 0.5 + Math.random() * 1,
-                        life: 1, decay: 0.025 + Math.random() * 0.03,
+                        w: 1.5 + Math.random() * 2.4, h: 0.5 + Math.random() * 1,
+                        life: 1, decay: 0.02 + Math.random() * 0.03,
                         color: MDF_COLORS[Math.floor(Math.random() * MDF_COLORS.length)],
                         kind: 'chip', rot: Math.random() * Math.PI * 2,
                         rotV: (Math.random() - 0.5) * 0.15,
@@ -189,45 +233,99 @@ function SawDustCanvas({ active, scrolling, direction = 1 }) {
         };
 
         const update = (now) => {
+            const dt = clamp((now - lastTs) / 16.67, 0.65, 2.2);
+            lastTs = now;
+
+            const ps = particles.current;
+            const hasWork = scrollingRef.current || ps.length > 0;
+            if (!hasWork) {
+                animRef.current = null;
+                return;
+            }
+
             ctx.clearRect(0, 0, W, H);
             spawn(now);
-            const ps = particles.current;
-            if (ps.length > 100) ps.splice(0, ps.length - 100);
+            if (ps.length > 140) ps.splice(0, ps.length - 140);
 
             for (let i = ps.length - 1; i >= 0; i--) {
                 const p = ps[i];
-                p.x += p.vx; p.y += p.vy; p.life -= p.decay;
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.life -= p.decay * dt;
 
-                if (p.kind === 'chip') { p.vy += 0.08; p.vx *= 0.97; }
-                else if (p.kind === 'medium') { p.vy += 0.02; p.vx *= 0.98; p.vx += (Math.random() - 0.5) * 0.1; p.vy += (Math.random() - 0.5) * 0.06; }
-                else { p.vy += 0.005; p.vx *= 0.99; p.vx += (Math.random() - 0.5) * 0.15; p.vy += (Math.random() - 0.5) * 0.05; }
+                if (p.kind === 'chip') {
+                    p.vy += 0.08 * dt;
+                    p.vx *= Math.pow(0.97, dt);
+                } else if (p.kind === 'medium') {
+                    p.vy += 0.02 * dt;
+                    p.vx *= Math.pow(0.98, dt);
+                    p.vx += (Math.random() - 0.5) * 0.08 * dt;
+                    p.vy += (Math.random() - 0.5) * 0.05 * dt;
+                } else {
+                    p.vy += 0.005 * dt;
+                    p.vx *= Math.pow(0.99, dt);
+                    p.vx += (Math.random() - 0.5) * 0.12 * dt;
+                    p.vy += (Math.random() - 0.5) * 0.04 * dt;
+                }
 
                 if (p.life <= 0) { ps.splice(i, 1); continue; }
                 const alpha = p.life < 0.3 ? p.life / 0.3 : 1;
 
                 if (p.kind === 'chip') {
-                    p.rot += p.rotV;
-                    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
-                    ctx.globalAlpha = alpha * 0.55; ctx.fillStyle = p.color;
+                    p.rot += p.rotV * dt;
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(p.rot);
+                    ctx.globalAlpha = alpha * 0.55;
+                    ctx.fillStyle = p.color;
                     ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
-                    ctx.restore(); ctx.globalAlpha = 1;
+                    ctx.restore();
+                    ctx.globalAlpha = 1;
                 } else if (p.kind === 'medium') {
-                    ctx.globalAlpha = alpha * 0.4; ctx.fillStyle = p.color;
-                    ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fill();
+                    ctx.globalAlpha = alpha * 0.4;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
                     ctx.globalAlpha = 1;
                 } else {
-                    ctx.globalAlpha = alpha * 0.25; ctx.fillStyle = p.color;
-                    ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fill();
+                    ctx.globalAlpha = alpha * 0.25;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
                     ctx.globalAlpha = 1;
                 }
             }
+
             animRef.current = requestAnimationFrame(update);
         };
 
+        updateRef.current = update;
         animRef.current = requestAnimationFrame(update);
-        return () => cancelAnimationFrame(animRef.current);
-    }, [active]);
 
+        const onVisibility = () => {
+            if (document.hidden) {
+                if (animRef.current) cancelAnimationFrame(animRef.current);
+                animRef.current = null;
+                return;
+            }
+            if (!animRef.current && updateRef.current && (scrollingRef.current || particles.current.length > 0)) {
+                lastTs = performance.now();
+                animRef.current = requestAnimationFrame(updateRef.current);
+            }
+        };
+
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => {
+            document.removeEventListener('visibilitychange', onVisibility);
+            if (animRef.current) cancelAnimationFrame(animRef.current);
+            animRef.current = null;
+            updateRef.current = null;
+        };
+    }, [active, reducedMotion]);
+
+    if (reducedMotion) return null;
     return (
         <canvas ref={canvasRef} style={{
             position: 'absolute', left: '50%', top: '50%',
@@ -280,14 +378,19 @@ function useScrollReveal() {
     return addRef;
 }
 
-// ── Hook: serra scroll progress (V2 — com direção e isScrolling) ───────────
+// ── Hook: serra scroll progress (V3 — direção + energia de rolagem) ─────────
 function useSawScroll(timelineRef, itemRefs, ready) {
     const [progress, setProgress] = useState(0);
     const [done, setDone] = useState(false);
     const [isScrolling, setIsScrolling] = useState(false);
     const [scrollDir, setScrollDir] = useState(1);
+    const [scrollEnergy, setScrollEnergy] = useState(0);
     const lastProgress = useRef(0);
+    const lastTickAt = useRef(0);
+    const lastMoveAt = useRef(0);
     const scrollTimeout = useRef(null);
+    const decayTimer = useRef(null);
+    const energyRef = useRef(0);
 
     useEffect(() => {
         if (!ready || !timelineRef.current) return;
@@ -311,26 +414,41 @@ function useSawScroll(timelineRef, itemRefs, ready) {
                 const p = Math.max(0, Math.min(1, scrolled / total));
                 setProgress(p);
 
-                if (p >= 0.95) {
+                if (p >= 0.985) {
                     finished = true;
+                    setProgress(0.995);
                     itemRefs.current.forEach(el => {
                         if (el && !el.classList.contains('revealed')) el.classList.add('revealed');
                     });
-                    setTimeout(() => setDone(true), 600);
+                    energyRef.current = 0;
+                    setScrollEnergy(0);
+                    setIsScrolling(false);
+                    setTimeout(() => setDone(true), 460);
                     ticking = false;
                     return;
                 }
 
-                // Detecta scroll ativo + direção
+                // Detecta scroll ativo + direção + "força" do scroll
+                const now = performance.now();
+                if (!lastTickAt.current) lastTickAt.current = now;
                 const delta = p - lastProgress.current;
                 const moving = Math.abs(delta) > 0.001;
                 if (moving) {
                     setIsScrolling(true);
                     setScrollDir(delta > 0 ? 1 : -1);
+
+                    const dt = Math.max(16, now - lastTickAt.current);
+                    const velocity = Math.abs(delta) / (dt / 16.67);
+                    const instantEnergy = clamp(velocity * 18, 0, 1);
+                    const blended = energyRef.current * 0.58 + instantEnergy * 0.42;
+                    energyRef.current = blended;
+                    setScrollEnergy(blended);
+                    lastMoveAt.current = now;
                 }
                 clearTimeout(scrollTimeout.current);
                 scrollTimeout.current = setTimeout(() => setIsScrolling(false), 120);
                 lastProgress.current = p;
+                lastTickAt.current = now;
 
                 // Reveal items as saw passes them
                 itemRefs.current.forEach(el => {
@@ -346,13 +464,24 @@ function useSawScroll(timelineRef, itemRefs, ready) {
 
         window.addEventListener('scroll', onScroll, { passive: true });
         onScroll();
+        decayTimer.current = setInterval(() => {
+            const idleMs = performance.now() - lastMoveAt.current;
+            if (idleMs < 120 || energyRef.current <= 0) return;
+            const next = energyRef.current * 0.86;
+            const final = next < 0.015 ? 0 : next;
+            if (final === energyRef.current) return;
+            energyRef.current = final;
+            setScrollEnergy(final);
+        }, 90);
+
         return () => {
             window.removeEventListener('scroll', onScroll);
             clearTimeout(scrollTimeout.current);
+            clearInterval(decayTimer.current);
         };
     }, [ready]);
 
-    return { progress, done, isScrolling, scrollDir };
+    return { progress, done, isScrolling, scrollDir, scrollEnergy };
 }
 
 // ── Hook: counter animation ─────────────────────────────────────────────────
@@ -360,7 +489,6 @@ function useCountUp(end, duration = 2000, trigger = false) {
     const [val, setVal] = useState(0);
     useEffect(() => {
         if (!trigger) return;
-        let start = 0;
         const t0 = performance.now();
         const step = (now) => {
             const p = Math.min((now - t0) / duration, 1);
@@ -373,6 +501,27 @@ function useCountUp(end, duration = 2000, trigger = false) {
     return val;
 }
 
+function usePrefersReducedMotion() {
+    const [reduce, setReduce] = useState(false);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.matchMedia) return;
+        const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const sync = () => setReduce(mql.matches);
+        sync();
+
+        if (mql.addEventListener) mql.addEventListener('change', sync);
+        else mql.addListener(sync);
+
+        return () => {
+            if (mql.removeEventListener) mql.removeEventListener('change', sync);
+            else mql.removeListener(sync);
+        };
+    }, []);
+
+    return reduce;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function PropostaApresentacao({ token }) {
     const [data, setData] = useState(null);
@@ -383,6 +532,7 @@ export default function PropostaApresentacao({ token }) {
     const reveal = useScrollReveal();
     const timelineRef = useRef(null);
     const itemRefs = useRef([]);
+    const reduceMotion = usePrefersReducedMotion();
 
     // ── Fetch data ───────────────────────────────────────────────────────────
     useEffect(() => {
@@ -407,17 +557,23 @@ export default function PropostaApresentacao({ token }) {
     }, [data]);
 
     // Saw blade animation
-    const { progress: sawProgress, done: sawDone, isScrolling, scrollDir } = useSawScroll(timelineRef, itemRefs, !!data);
+    const { progress: sawProgress, done: sawDone, isScrolling, scrollDir, scrollEnergy } = useSawScroll(timelineRef, itemRefs, !!data);
     const addItemRef = useCallback((el) => {
         if (el && !itemRefs.current.includes(el)) itemRefs.current.push(el);
     }, []);
     const sawActive = sawProgress > 0.01 && !sawDone;
+    const sawVisualProgress = sawDone ? 1 : clamp(1 - Math.pow(1 - sawProgress, 1.6), 0, 1);
+    const sawEntry = clamp(sawVisualProgress / 0.035, 0, 1);
+    const sawExit = sawVisualProgress > 0.93 ? clamp(1 - ((sawVisualProgress - 0.93) / 0.07), 0, 1) : 1;
+    const sawOpacity = clamp(sawEntry * sawExit, 0, 1);
+    const spinEnergy = reduceMotion ? 0 : clamp(scrollEnergy + (isScrolling ? 0.14 : 0), 0, 1);
+    const sawSpinSeconds = reduceMotion ? 999 : (sawActive ? lerp(3.4, 0.78, spinEnergy) : 5.8);
+    const sawGlowBoost = reduceMotion ? 0.1 : clamp(0.25 + spinEnergy * 0.9, 0.1, 1);
 
     const c1 = data?.empresa?.cor_primaria || '#1B2A4A';
     const c2 = data?.empresa?.cor_accent || '#C9A96E';
     const cream = '#F5F0E8';
     const darkBg = c1;
-    const darkBg2 = adjustBrightness(c1, -15);
 
     // Counter values
     const cnt1 = useCountUp(100, 2000, statsVisible);
@@ -449,7 +605,7 @@ export default function PropostaApresentacao({ token }) {
                             {new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </p>
                     </div>
-                    <div className="ap-scroll-hint ap-bounce">
+                    <div className={`ap-scroll-hint${reduceMotion ? '' : ' ap-bounce'}`}>
                         {icons.chevron(`${cream}60`)}
                     </div>
                 </section>
@@ -520,20 +676,33 @@ export default function PropostaApresentacao({ token }) {
                                 className="ap-timeline-progress"
                                 style={{
                                     background: `linear-gradient(to bottom, ${c2}, ${c2}90)`,
-                                    height: sawDone ? '100%' : `${sawProgress * 100}%`,
+                                    height: sawDone ? '100%' : `${sawVisualProgress * 100}%`,
                                 }}
                             />
                             {/* Serra circular — desaparece permanentemente ao terminar */}
                             {!sawDone && (
                             <div
-                                className={`ap-saw-container${sawProgress >= 0.95 ? ' ap-saw-fade-out' : ''}`}
+                                className={`ap-saw-container${sawVisualProgress >= 0.955 ? ' ap-saw-fade-out' : ''}`}
                                 style={{
-                                    top: `${sawProgress * 100}%`,
-                                    opacity: sawProgress > 0.005 ? 1 : 0,
+                                    top: `${sawVisualProgress * 100}%`,
+                                    opacity: sawOpacity,
                                 }}
                             >
-                                <SawBladeSVG color={c2} size={70} />
-                                <SawDustCanvas active={sawActive} scrolling={isScrolling} direction={scrollDir} />
+                                <SawBladeSVG
+                                    color={c2}
+                                    size={70}
+                                    spinSeconds={sawSpinSeconds}
+                                    spinDirection={scrollDir}
+                                    paused={!sawActive || reduceMotion}
+                                    glowBoost={sawGlowBoost}
+                                />
+                                <SawDustCanvas
+                                    active={sawActive && !reduceMotion}
+                                    scrolling={isScrolling}
+                                    direction={scrollDir}
+                                    intensity={spinEnergy}
+                                    reducedMotion={reduceMotion}
+                                />
                             </div>
                             )}
                             {/* Items da timeline */}
@@ -728,11 +897,11 @@ function buildCSS(c1, c2, cream) {
 .ap-tl-desc { font-size:13px; line-height:1.6; }
 
 /* ── Saw Blade ── */
-.ap-saw-container { position:absolute; left:50%; transform:translate(-50%, -50%); z-index:5; pointer-events:none; transition:opacity 0.4s ease; }
-.ap-saw-fade-out { opacity:0 !important; transition:opacity 0.5s ease !important; }
-.ap-saw-wrapper { position:relative; }
-.ap-saw-glow { position:absolute; inset:-20px; border-radius:50%; filter:blur(15px); transform:scale(1.4); pointer-events:none; }
-.ap-saw-svg { animation:apSawSpin 2s linear infinite; position:relative; z-index:10; filter:drop-shadow(0 2px 12px rgba(0,0,0,0.25)); }
+.ap-saw-container { position:absolute; left:50%; transform:translate(-50%, -50%); z-index:5; pointer-events:none; transition:top 0.16s cubic-bezier(.22,1,.36,1), opacity 0.28s ease, transform 0.45s cubic-bezier(.22,1,.36,1), filter 0.45s ease; will-change:top,opacity,transform,filter; }
+.ap-saw-fade-out { opacity:0 !important; transform:translate(-50%, -56%) scale(0.82) !important; filter:blur(1.6px); }
+.ap-saw-wrapper { position:relative; transform:translateZ(0); }
+.ap-saw-glow { position:absolute; inset:-20px; border-radius:50%; filter:blur(15px); transform:scale(1.4); pointer-events:none; transition:opacity 0.2s ease, transform 0.24s ease; will-change:opacity,transform; }
+.ap-saw-svg { animation:apSawSpin 2s linear infinite; position:relative; z-index:10; filter:drop-shadow(0 2px 12px rgba(0,0,0,0.25)); transform-origin:center; }
 @keyframes apSawSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
 
 /* ── CTA ── */
@@ -784,7 +953,7 @@ function buildCSS(c1, c2, cream) {
 
     /* Serra mobile — mesmo eixo da linha e dots */
     .ap-saw-container { left:18px !important; transform:translate(-50%, -50%) !important; }
-    .ap-saw-svg { width:44px; height:44px; }
+    .ap-saw-svg { width:40px; height:40px; }
     .ap-saw-glow { display:none; }
 
     /* Hero mobile */
@@ -798,6 +967,13 @@ function buildCSS(c1, c2, cream) {
     .ap-cta-btn { padding:14px 36px; font-size:14px; }
     .ap-cta-contacts { gap:16px; }
     .ap-contact-link { font-size:12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ap-bounce, .ap-saw-svg, .ap-loader { animation:none !important; }
+    .ap-reveal { opacity:1 !important; transform:none !important; transition:none !important; }
+    .ap-timeline-progress, .ap-saw-container, .ap-portfolio-img, .ap-cta-btn { transition:none !important; }
+    .ap-saw-glow { display:none !important; }
 }
 
 /* ── Small phones ── */

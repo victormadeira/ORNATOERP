@@ -48,23 +48,23 @@ function gerarParcelas(valorTotal, numParcelas, primeiraData, tipoIntervalo = 'm
 }
 
 function getStatusPagar(cp) {
-    if (cp.status === 'pago') return { label: 'Pago',    color: '#22c55e', bg: '#f0fdf4', icon: Check };
+    if (cp.status === 'pago') return { label: 'Pago',    color: '#5B8C6B', bg: '#f0fdf4', icon: Check };
     if (cp.vencida || (cp.data_vencimento && cp.data_vencimento < new Date().toISOString().slice(0, 10)))
-        return { label: 'Vencida', color: '#ef4444', bg: '#fef2f2', icon: AlertTriangle };
+        return { label: 'Vencida', color: '#B86565', bg: '#fef2f2', icon: AlertTriangle };
     if (cp.data_vencimento) {
         const dias = Math.ceil((new Date(cp.data_vencimento + 'T12:00:00') - new Date()) / 86400000);
-        if (dias <= 7) return { label: `${dias}d`, color: '#f59e0b', bg: '#fffbeb', icon: Clock };
+        if (dias <= 7) return { label: `${dias}d`, color: '#C4924C', bg: '#fffbeb', icon: Clock };
     }
     return { label: 'Pendente', color: '#6b7280', bg: '#f9fafb', icon: Clock };
 }
 
 function getStatusReceber(cr) {
-    if (cr.status === 'pago') return { label: 'Recebido', color: '#22c55e', bg: '#f0fdf4', icon: Check };
+    if (cr.status === 'pago') return { label: 'Recebido', color: '#5B8C6B', bg: '#f0fdf4', icon: Check };
     if (cr.vencida || (cr.data_vencimento && cr.data_vencimento < new Date().toISOString().slice(0, 10)))
-        return { label: 'Vencida', color: '#ef4444', bg: '#fef2f2', icon: AlertTriangle };
+        return { label: 'Vencida', color: '#B86565', bg: '#fef2f2', icon: AlertTriangle };
     if (cr.data_vencimento) {
         const dias = Math.ceil((new Date(cr.data_vencimento + 'T12:00:00') - new Date()) / 86400000);
-        if (dias <= 7) return { label: `${dias}d`, color: '#f59e0b', bg: '#fffbeb', icon: Clock };
+        if (dias <= 7) return { label: `${dias}d`, color: '#C4924C', bg: '#fffbeb', icon: Clock };
     }
     return { label: 'Pendente', color: '#6b7280', bg: '#f9fafb', icon: Clock };
 }
@@ -240,10 +240,10 @@ function SecaoPagar({ notify, projetos, user }) {
             {/* Resumo */}
             {resumo && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
-                    <KpiCard label="Pendente"   value={R$(resumo.pendente)}     color="#3b82f6" />
-                    <KpiCard label="Vencido"    value={R$(resumo.vencido)}      color="#ef4444" sub={resumo.qtd_vencidas > 0 ? `${resumo.qtd_vencidas} conta(s)` : null} />
-                    <KpiCard label="Vence 7d"   value={R$(resumo.vencer_7d || 0)} color="#f59e0b" sub={resumo.qtd_vencer_7d > 0 ? `${resumo.qtd_vencer_7d} conta(s)` : null} />
-                    <KpiCard label="Pago (mês)" value={R$(resumo.pago_mes || 0)} color="#22c55e" />
+                    <KpiCard label="Pendente"   value={R$(resumo.pendente)}     color="var(--primary)" />
+                    <KpiCard label="Vencido"    value={R$(resumo.vencido)}      color="var(--primary)" sub={resumo.qtd_vencidas > 0 ? `${resumo.qtd_vencidas} conta(s)` : null} />
+                    <KpiCard label="Vence 7d"   value={R$(resumo.vencer_7d || 0)} color="var(--primary)" sub={resumo.qtd_vencer_7d > 0 ? `${resumo.qtd_vencer_7d} conta(s)` : null} />
+                    <KpiCard label="Pago (mês)" value={R$(resumo.pago_mes || 0)} color="var(--primary)" />
                 </div>
             )}
 
@@ -388,7 +388,7 @@ function SecaoPagar({ notify, projetos, user }) {
                                     const cat = CAT_MAP[cp.categoria];
                                     const isPago = cp.status === 'pago';
                                     return (
-                                        <tr key={cp.id} style={{ borderBottom: '1px solid var(--border)', opacity: isPago ? 0.65 : 1, background: !isPago && st.color === '#ef4444' ? '#fef2f218' : 'transparent' }}>
+                                        <tr key={cp.id} style={{ borderBottom: '1px solid var(--border)', opacity: isPago ? 0.65 : 1, background: !isPago && st.color === '#B86565' ? '#fef2f218' : 'transparent' }}>
                                             <td style={{ padding: '7px 6px' }}><Badge label={st.label} color={st.color} icon={st.icon} /></td>
                                             <td style={{ padding: '7px 6px' }}>
                                                 <div style={{ fontWeight: isPago ? 400 : 600, textDecoration: isPago ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
@@ -411,15 +411,15 @@ function SecaoPagar({ notify, projetos, user }) {
                                                       : <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{cp.categoria}</span>}
                                             </td>
                                             <td style={{ padding: '7px 6px', fontSize: 11, color: cp.projeto_nome ? 'var(--primary)' : 'var(--text-muted)' }}>{cp.projeto_nome || '—'}</td>
-                                            <td style={{ padding: '7px 6px', textAlign: 'right', fontWeight: 700, color: isPago ? '#22c55e' : st.color === '#ef4444' ? '#ef4444' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cp.valor)}</td>
+                                            <td style={{ padding: '7px 6px', textAlign: 'right', fontWeight: 700, color: isPago ? '#5B8C6B' : st.color === '#B86565' ? '#B86565' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cp.valor)}</td>
                                             <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                 {dtFmt(cp.data_vencimento)}
-                                                {isPago && cp.data_pagamento && <div style={{ fontSize: 9, color: '#22c55e' }}>Pago {dtFmt(cp.data_pagamento)}</div>}
+                                                {isPago && cp.data_pagamento && <div style={{ fontSize: 9, color: '#5B8C6B' }}>Pago {dtFmt(cp.data_pagamento)}</div>}
                                             </td>
                                             <td style={{ padding: '7px 6px', textAlign: 'center' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'center', gap: 3 }}>
                                                     <button onClick={() => togglePago(cp)} title={isPago ? 'Reabrir' : 'Marcar pago'}
-                                                        style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${isPago ? '#22c55e' : '#d1d5db'}`, background: isPago ? '#22c55e' : 'transparent', color: isPago ? '#fff' : '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                                                        style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${isPago ? 'var(--primary)' : '#d1d5db'}`, background: isPago ? 'var(--primary)' : 'transparent', color: isPago ? '#fff' : '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                                                         <Check size={11} />
                                                     </button>
                                                     <button onClick={() => openAnexos(cp.id)} title="Anexos"
@@ -633,9 +633,9 @@ function SecaoReceber({ notify, projetos, user }) {
 
             {resumo && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
-                    <KpiCard label="A Receber"      value={R$(resumo.pendente)}      color="#3b82f6" />
-                    <KpiCard label="Vencido"        value={R$(resumo.vencido)}       color="#ef4444" sub={resumo.qtd_vencidas > 0 ? `${resumo.qtd_vencidas} conta(s)` : null} />
-                    <KpiCard label="Recebido (mês)" value={R$(resumo.recebido_mes || 0)} color="#22c55e" />
+                    <KpiCard label="A Receber"      value={R$(resumo.pendente)}      color="var(--primary)" />
+                    <KpiCard label="Vencido"        value={R$(resumo.vencido)}       color="var(--primary)" sub={resumo.qtd_vencidas > 0 ? `${resumo.qtd_vencidas} conta(s)` : null} />
+                    <KpiCard label="Recebido (mês)" value={R$(resumo.recebido_mes || 0)} color="var(--primary)" />
                     <KpiCard label="Total Recebido" value={R$(resumo.recebido || 0)} color="#8b5cf6" />
                 </div>
             )}
@@ -712,7 +712,7 @@ function SecaoReceber({ notify, projetos, user }) {
                     <button key={t} onClick={() => setAba(t)} style={{
                         padding: '8px 20px', fontSize: 12, fontWeight: 600,
                         border: '1px solid var(--border)',
-                        background: aba === t ? '#22c55e' : 'var(--bg-card)',
+                        background: aba === t ? 'var(--primary)' : 'var(--bg-card)',
                         color: aba === t ? '#fff' : 'var(--text-secondary)',
                         borderRadius: i === 0 ? '8px 0 0 8px' : '0 8px 8px 0', cursor: 'pointer',
                     }}>
@@ -760,12 +760,12 @@ function SecaoReceber({ notify, projetos, user }) {
                                     const st = getStatusReceber(cr);
                                     const isRecebido = cr.status === 'pago';
                                     return (
-                                        <tr key={cr.id} style={{ borderBottom: '1px solid var(--border)', opacity: isRecebido ? 0.65 : 1, background: !isRecebido && st.color === '#ef4444' ? '#fef2f218' : 'transparent' }}>
+                                        <tr key={cr.id} style={{ borderBottom: '1px solid var(--border)', opacity: isRecebido ? 0.65 : 1, background: !isRecebido && st.color === '#B86565' ? '#fef2f218' : 'transparent' }}>
                                             <td style={{ padding: '7px 6px' }}><Badge label={st.label} color={st.color} icon={st.icon} /></td>
                                             <td style={{ padding: '7px 6px' }}>
                                                 <div style={{ fontWeight: isRecebido ? 400 : 600, textDecoration: isRecebido ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
                                                     {cr.descricao}
-                                                    {cr.parcela_total > 0 && <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 4, background: '#dcfce7', color: '#16a34a', fontWeight: 600 }}>{cr.parcela_num}/{cr.parcela_total}</span>}
+                                                    {cr.parcela_total > 0 && <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 4, background: 'var(--primary-alpha, rgba(19,121,240,0.08))', color: 'var(--primary)', fontWeight: 600 }}>{cr.parcela_num}/{cr.parcela_total}</span>}
                                                     {cr.auto_gerada === 1 && <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 4, background: '#ede9fe', color: '#7c3aed', fontWeight: 500 }}>Auto</span>}
                                                 </div>
                                                 {cr.nf_numero && <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>NF: {cr.nf_numero}</div>}
@@ -778,15 +778,15 @@ function SecaoReceber({ notify, projetos, user }) {
                                             </td>
                                             <td style={{ padding: '7px 6px', fontSize: 11, color: 'var(--primary)' }}>{cr.projeto_nome || '—'}</td>
                                             <td style={{ padding: '7px 6px', fontSize: 11, color: 'var(--text-secondary)' }}>{cr.meio_pagamento || '—'}</td>
-                                            <td style={{ padding: '7px 6px', textAlign: 'right', fontWeight: 700, color: isRecebido ? '#22c55e' : st.color === '#ef4444' ? '#ef4444' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cr.valor)}</td>
+                                            <td style={{ padding: '7px 6px', textAlign: 'right', fontWeight: 700, color: isRecebido ? '#5B8C6B' : st.color === '#B86565' ? '#B86565' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cr.valor)}</td>
                                             <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                 {dtFmt(cr.data_vencimento)}
-                                                {isRecebido && cr.data_pagamento && <div style={{ fontSize: 9, color: '#22c55e' }}>Rec. {dtFmt(cr.data_pagamento)}</div>}
+                                                {isRecebido && cr.data_pagamento && <div style={{ fontSize: 9, color: '#5B8C6B' }}>Rec. {dtFmt(cr.data_pagamento)}</div>}
                                             </td>
                                             <td style={{ padding: '7px 6px', textAlign: 'center' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'center', gap: 3 }}>
                                                     <button onClick={() => toggleRecebido(cr)} title={isRecebido ? 'Reabrir' : 'Marcar recebido'}
-                                                        style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${isRecebido ? '#22c55e' : '#d1d5db'}`, background: isRecebido ? '#22c55e' : 'transparent', color: isRecebido ? '#fff' : '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                                                        style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${isRecebido ? 'var(--primary)' : '#d1d5db'}`, background: isRecebido ? 'var(--primary)' : 'transparent', color: isRecebido ? '#fff' : '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                                                         <Check size={11} />
                                                     </button>
                                                     {canViewHistory && (
@@ -949,7 +949,7 @@ function SecaoNFs({ notify }) {
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                                         <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={nf.nf_chave}>{nf.nf_chave}</span>
                                                         <button onClick={() => copiarChave(nf.nf_chave, nf.id)} title="Copiar chave"
-                                                            style={{ border: 'none', background: 'none', cursor: 'pointer', color: copiada === nf.id ? '#22c55e' : 'var(--primary)', padding: 0, display: 'flex', flexShrink: 0 }}>
+                                                            style={{ border: 'none', background: 'none', cursor: 'pointer', color: copiada === nf.id ? '#5B8C6B' : 'var(--primary)', padding: 0, display: 'flex', flexShrink: 0 }}>
                                                             {copiada === nf.id ? <Check size={12} /> : <Copy size={12} />}
                                                         </button>
                                                     </div>
@@ -1030,21 +1030,21 @@ function SecaoFluxo() {
 
             {/* Cards totais */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 20 }}>
-                <div className={Z.card} style={{ padding: '14px 16px', borderLeft: '4px solid #22c55e' }}>
+                <div className={Z.card} style={{ padding: '14px 16px', borderLeft: '4px solid var(--primary)' }}>
                     <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 4 }}>
                         <TrendingUp size={11} /> Entradas (12m)
                     </div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: '#22c55e', marginTop: 2 }}>{R$(totalEntradas)}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--primary)', marginTop: 2 }}>{R$(totalEntradas)}</div>
                 </div>
-                <div className={Z.card} style={{ padding: '14px 16px', borderLeft: '4px solid #ef4444' }}>
+                <div className={Z.card} style={{ padding: '14px 16px', borderLeft: '4px solid #94a3b8' }}>
                     <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 4 }}>
                         <TrendingDown size={11} /> Saídas (12m)
                     </div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: '#ef4444', marginTop: 2 }}>{R$(totalSaidas)}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#94a3b8', marginTop: 2 }}>{R$(totalSaidas)}</div>
                 </div>
-                <div className={Z.card} style={{ padding: '14px 16px', borderLeft: `4px solid ${saldoTotal >= 0 ? '#3b82f6' : '#f97316'}` }}>
+                <div className={Z.card} style={{ padding: '14px 16px', borderLeft: `4px solid ${saldoTotal >= 0 ? 'var(--primary)' : '#B86565'}` }}>
                     <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Saldo Período</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: saldoTotal >= 0 ? '#3b82f6' : '#f97316', marginTop: 2 }}>{R$(saldoTotal)}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: saldoTotal >= 0 ? 'var(--primary)' : '#B86565', marginTop: 2 }}>{R$(saldoTotal)}</div>
                 </div>
             </div>
 
@@ -1053,8 +1053,8 @@ function SecaoFluxo() {
                 <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><BarChart2 size={14} /> Histórico Mensal</span>
                     <div style={{ display: 'flex', gap: 14, fontSize: 10, fontWeight: 600 }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: 'linear-gradient(0deg, #22c55e, #4ade80)', display: 'inline-block' }} />Entradas</span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: 'linear-gradient(0deg, #ef4444, #f87171)', display: 'inline-block' }} />Saídas</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--primary)', display: 'inline-block' }} />Entradas</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: '#94a3b8', display: 'inline-block' }} />Saídas</span>
                     </div>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
@@ -1071,16 +1071,16 @@ function SecaoFluxo() {
                                     <div title={`Entradas: ${R$(r.entradas)}`}
                                         style={{
                                             width: 12, height: `${Math.max(2, (r.entradas / maxVal) * 132)}px`,
-                                            background: 'linear-gradient(0deg, #16a34a, #22c55e)',
-                                            borderRadius: '4px 4px 0 0', boxShadow: '0 -1px 6px rgba(34,197,94,0.2)',
+                                            background: 'var(--primary)',
+                                            borderRadius: '4px 4px 0 0', boxShadow: '0 -1px 6px rgba(19,121,240,0.2)',
                                             transformOrigin: 'bottom', cursor: 'default',
                                             animation: `chartGrowUp 0.5s ease ${ri * 60}ms both`,
                                         }} />
                                     <div title={`Saídas: ${R$(r.saidas)}`}
                                         style={{
                                             width: 12, height: `${Math.max(2, (r.saidas / maxVal) * 132)}px`,
-                                            background: 'linear-gradient(0deg, #dc2626, #ef4444)',
-                                            borderRadius: '4px 4px 0 0', boxShadow: '0 -1px 6px rgba(239,68,68,0.2)',
+                                            background: '#94a3b8',
+                                            borderRadius: '4px 4px 0 0', boxShadow: '0 -1px 6px rgba(148,163,184,0.2)',
                                             transformOrigin: 'bottom', cursor: 'default',
                                             animation: `chartGrowUp 0.5s ease ${ri * 60 + 30}ms both`,
                                         }} />
@@ -1110,9 +1110,9 @@ function SecaoFluxo() {
                             {rows.map(r => (
                                 <tr key={r.mes} style={{ borderBottom: '1px solid var(--border)' }}>
                                     <td style={{ padding: '8px 12px', fontWeight: 500 }}>{mesFmt(r.mes)}</td>
-                                    <td style={{ padding: '8px 12px', textAlign: 'right', color: '#22c55e', fontWeight: 600 }}>{r.entradas > 0 ? R$(r.entradas) : <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>—</span>}</td>
-                                    <td style={{ padding: '8px 12px', textAlign: 'right', color: '#ef4444', fontWeight: 600 }}>{r.saidas > 0 ? R$(r.saidas) : <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>—</span>}</td>
-                                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: r.saldo >= 0 ? '#3b82f6' : '#f97316' }}>{R$(r.saldo)}</td>
+                                    <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--primary)', fontWeight: 600 }}>{r.entradas > 0 ? R$(r.entradas) : <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>—</span>}</td>
+                                    <td style={{ padding: '8px 12px', textAlign: 'right', color: '#94a3b8', fontWeight: 600 }}>{r.saidas > 0 ? R$(r.saidas) : <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>—</span>}</td>
+                                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: r.saldo >= 0 ? 'var(--primary)' : '#B86565' }}>{R$(r.saldo)}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -1134,13 +1134,13 @@ function SecaoFluxo() {
                             return (
                                 <div key={mes} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 8 }}>
                                     <span style={{ width: 60, fontWeight: 600, fontSize: 12 }}>{mesFmt(mes)}</span>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#22c55e' }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--primary)' }}>
                                         <ArrowDownCircle size={12} /> {R$(ent)}
                                     </span>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#ef4444' }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#94a3b8' }}>
                                         <ArrowUpCircle size={12} /> {R$(sai)}
                                     </span>
-                                    <span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: 13, color: sal >= 0 ? '#3b82f6' : '#f97316' }}>
+                                    <span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: 13, color: sal >= 0 ? 'var(--primary)' : '#B86565' }}>
                                         {sal >= 0 ? '+' : ''}{R$(sal)}
                                     </span>
                                 </div>
@@ -1218,7 +1218,7 @@ function HistoricoModal({ tipo, id, onClose, onReload, notify, isAdmin }) {
                             const isCreate = e.acao === 'criar' || e.acao === 'criar_financeiro';
 
                             return (
-                                <div key={e.id} style={{ padding: '12px 14px', background: 'var(--bg-secondary)', borderRadius: 8, borderLeft: `3px solid ${isDelete ? '#ef4444' : isRevert ? '#f59e0b' : isCreate ? '#22c55e' : '#3b82f6'}` }}>
+                                <div key={e.id} style={{ padding: '12px 14px', background: 'var(--bg-secondary)', borderRadius: 8, borderLeft: `3px solid ${isDelete ? '#B86565' : isRevert ? '#C4924C' : isCreate ? '#5B8C6B' : 'var(--primary)'}` }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                                         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
                                             {e.user_nome || 'Sistema'}
@@ -1237,9 +1237,9 @@ function HistoricoModal({ tipo, id, onClose, onReload, notify, isAdmin }) {
                                             {campos.map(c => (
                                                 <div key={c} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
                                                     <span style={{ fontWeight: 600, color: 'var(--text-secondary)', minWidth: 80 }}>{LABEL_CAMPO[c] || c}</span>
-                                                    <span style={{ color: '#ef4444', textDecoration: 'line-through', fontSize: 10 }}>{fmtVal(c, det.antes[c])}</span>
+                                                    <span style={{ color: '#B86565', textDecoration: 'line-through', fontSize: 10 }}>{fmtVal(c, det.antes[c])}</span>
                                                     <ChevronRight size={10} style={{ color: 'var(--text-muted)' }} />
-                                                    <span style={{ color: '#22c55e', fontWeight: 600, fontSize: 10 }}>{fmtVal(c, det.depois[c])}</span>
+                                                    <span style={{ color: '#5B8C6B', fontWeight: 600, fontSize: 10 }}>{fmtVal(c, det.depois[c])}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -1255,7 +1255,7 @@ function HistoricoModal({ tipo, id, onClose, onReload, notify, isAdmin }) {
                                     {/* Botão reverter (admin) */}
                                     {isAdmin && det.antes && !isCreate && (
                                         <button onClick={() => setConfirmDel({ id: e.id, acao: 'reverter' })} disabled={reverting === e.id}
-                                            style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: '#f59e0b', background: '#f59e0b18', border: '1px solid #f59e0b44', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
+                                            style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: '#C4924C', background: '#C4924C18', border: '1px solid #C4924C44', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
                                             <RotateCcw size={10} /> {reverting === e.id ? 'Revertendo...' : 'Reverter para esta versão'}
                                         </button>
                                     )}
@@ -1318,9 +1318,9 @@ function SecaoLixeira({ notify }) {
             {/* Sub-abas */}
             <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
                 {[
-                    { id: 'pagar',    label: 'Contas a Pagar', color: '#ef4444' },
-                    { id: 'receber',  label: 'Contas a Receber', color: '#22c55e' },
-                    { id: 'despesas', label: 'Despesas Projeto', color: '#3b82f6' },
+                    { id: 'pagar',    label: 'Contas a Pagar', color: 'var(--primary)' },
+                    { id: 'receber',  label: 'Contas a Receber', color: 'var(--primary)' },
+                    { id: 'despesas', label: 'Despesas Projeto', color: 'var(--primary)' },
                 ].map((t, i) => (
                     <button key={t.id} onClick={() => setSubAba(t.id)} style={{
                         padding: '6px 14px', fontSize: 11, fontWeight: 600,
@@ -1366,11 +1366,11 @@ function SecaoLixeira({ notify }) {
                                         <td style={{ padding: '8px 8px', textAlign: 'center' }}>
                                             <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
                                                 <button onClick={() => setConfirmDel({ tipo: it._tipo, id: it.id, nome: it.descricao, acao: 'restaurar' })} title="Restaurar"
-                                                    style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: '#22c55e', background: '#22c55e14', border: '1px solid #22c55e44', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
+                                                    style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: '#5B8C6B', background: '#5B8C6B14', border: '1px solid #5B8C6B44', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
                                                     <RotateCcw size={10} /> Restaurar
                                                 </button>
                                                 <button onClick={() => setConfirmDel({ tipo: it._tipo, id: it.id, nome: it.descricao, acao: 'excluir' })} title="Excluir permanentemente"
-                                                    style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: '#ef4444', background: '#ef444414', border: '1px solid #ef444444', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
+                                                    style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: '#B86565', background: '#B8656514', border: '1px solid #B8656544', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
                                                     <Trash2 size={10} /> Permanente
                                                 </button>
                                             </div>
@@ -1415,9 +1415,9 @@ export default function Financeiro({ notify, user, nav }) {
     }, []);
 
     const SECOES = [
-        { id: 'pagar',   label: 'A Pagar',        icon: ArrowUpCircle,   color: '#ef4444' },
-        { id: 'receber', label: 'A Receber',       icon: ArrowDownCircle, color: '#22c55e' },
-        { id: 'nfs',     label: 'Arquivo NF',      icon: Receipt,         color: '#3b82f6' },
+        { id: 'pagar',   label: 'A Pagar',        icon: ArrowUpCircle,   color: 'var(--primary)' },
+        { id: 'receber', label: 'A Receber',       icon: ArrowDownCircle, color: 'var(--primary)' },
+        { id: 'nfs',     label: 'Arquivo NF',      icon: Receipt,         color: 'var(--primary)' },
         { id: 'fluxo',   label: 'Fluxo de Caixa',  icon: BarChart2,       color: '#8b5cf6' },
         ...(user?.role === 'admin' ? [{ id: 'lixeira', label: 'Lixeira', icon: Trash2, color: '#94a3b8' }] : []),
     ];

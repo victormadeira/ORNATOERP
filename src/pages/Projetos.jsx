@@ -56,15 +56,10 @@ const calcDiasRestantesERP = (etapa) => {
 };
 
 const GANTT_ERP_STYLES = `
-@keyframes ganttShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-@keyframes ganttPulseGlow { 0%, 100% { box-shadow: 0 0 4px 1px rgba(239,68,68,0.3); } 50% { box-shadow: 0 0 10px 3px rgba(239,68,68,0.55); } }
-@keyframes ganttTodayPulse { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
-@keyframes ganttSlideIn { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes ganttCheckPop { 0% { transform: scale(0); opacity: 0; } 60% { transform: scale(1.3); } 100% { transform: scale(1); opacity: 1; } }
-@keyframes ganttDashMove { 0% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -20; } }
-@keyframes ganttDiamondPulse { 0%, 100% { transform: rotate(45deg) scale(1); } 50% { transform: rotate(45deg) scale(1.15); } }
-.gantt-diamond-erp:hover { transform: rotate(45deg) scale(1.35) !important; filter: brightness(1.1); }
-.gantt-bar-erp:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,0.2) !important; }
+.gantt-bar-erp { transition: opacity 0.15s; }
+.gantt-bar-erp:hover { opacity: 0.85; }
+.gantt-diamond-erp { transition: transform 0.15s; }
+.gantt-diamond-erp:hover { transform: rotate(45deg) scale(1.15) !important; }
 `;
 
 // ─── Gantt Chart Premium (ERP) ────────────────────────────
@@ -138,16 +133,16 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
     const ROW_H = 48;
 
     const getBarStyle = (status) => {
-        const base = { position: 'absolute', height: 30, borderRadius: 10, display: 'flex', alignItems: 'center', overflow: 'hidden', zIndex: 2, cursor: onEdit ? 'pointer' : 'default', transition: 'transform 0.2s, box-shadow 0.2s' };
+        const base = { position: 'absolute', height: 30, borderRadius: 10, display: 'flex', alignItems: 'center', overflow: 'hidden', zIndex: 2, cursor: onEdit ? 'pointer' : 'default' };
         switch (status) {
             case 'em_andamento':
-                return { ...base, background: 'linear-gradient(90deg, var(--primary), #3b93f7, var(--primary))', backgroundSize: '200% 100%', animation: 'ganttShimmer 2.5s ease-in-out infinite', boxShadow: '0 3px 10px rgba(19,121,240,0.35)' };
+                return { ...base, background: 'linear-gradient(135deg, var(--primary), #3b93f7)', boxShadow: '0 2px 6px rgba(0,0,0,0.12)' };
             case 'concluida':
-                return { ...base, background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 2px 8px rgba(34,197,94,0.25)' };
+                return { ...base, background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' };
             case 'nao_iniciado': case 'pendente':
                 return { ...base, background: 'var(--bg-muted)', border: 'none' };
             case 'atrasada':
-                return { ...base, background: 'linear-gradient(135deg, #ef4444, #dc2626)', animation: 'ganttPulseGlow 2s ease-in-out infinite' };
+                return { ...base, background: 'linear-gradient(135deg, #ef4444, #dc2626)', boxShadow: '0 2px 6px rgba(239,68,68,0.2)' };
             default:
                 return { ...base, background: '#64748b' };
         }
@@ -179,7 +174,6 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                                 style={{
                                     height: ROW_H, display: 'flex', alignItems: 'center', gap: 6,
                                     padding: '0 12px', borderBottom: i < etapas.length - 1 ? '1px solid var(--border)' : 'none',
-                                    animation: `ganttSlideIn 0.4s ease ${i * 100}ms both`,
                                     background: isActive ? 'rgba(19,121,240,0.04)' : isOverdue ? 'rgba(239,68,68,0.04)' : 'transparent',
                                     borderLeft: isActive ? '3px solid var(--primary)' : isOverdue ? '3px solid #ef4444' : '3px solid transparent',
                                     cursor: onEdit ? 'pointer' : 'default',
@@ -190,7 +184,7 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                                 }}>
                                     {e.status === 'concluida'
-                                        ? <CheckCircle2 size={15} style={{ animation: 'ganttCheckPop 0.5s ease both', animationDelay: `${i * 100 + 300}ms` }} />
+                                        ? <CheckCircle2 size={15} />
                                         : <EIcon size={14} />
                                     }
                                 </div>
@@ -209,7 +203,7 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                                         flexShrink: 0, border: '1.5px solid var(--bg-card)',
                                     }}>{getInitials(e.responsavel_nome)}</div>
                                 )}
-                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: st.color, flexShrink: 0, boxShadow: isActive ? '0 0 6px rgba(19,121,240,0.5)' : isOverdue ? '0 0 6px rgba(239,68,68,0.5)' : 'none' }} />
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: st.color, flexShrink: 0 }} />
                             </div>
                         );
                     })}
@@ -254,8 +248,6 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                             <div style={{
                                 position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0,
                                 width: 2, background: '#ef4444', zIndex: 10,
-                                animation: 'ganttTodayPulse 2s ease-in-out infinite',
-                                boxShadow: '0 0 8px rgba(239,68,68,0.4)',
                             }}>
                                 <div style={{
                                     position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50%)',
@@ -299,7 +291,7 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                                         <div style={{ position: 'absolute', left: `${Math.max(0, (toMs(etapaMap[e.dependencia_id].data_vencimento || etapaMap[e.dependencia_id].data_inicio) - minMs) / totalMs * 100)}%`, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: 'var(--text-muted)', zIndex: 3, pointerEvents: 'none', fontWeight: 700 }}>→</div>
                                     )}
                                     {isMilestone ? (
-                                        <div style={{ position: 'absolute', left: `${left}%`, top: 0, bottom: 0, display: 'flex', alignItems: 'center', zIndex: 3, animation: `ganttSlideIn 0.5s ease ${i * 100}ms both` }}>
+                                        <div style={{ position: 'absolute', left: `${left}%`, top: 0, bottom: 0, display: 'flex', alignItems: 'center', zIndex: 3 }}>
                                             <div
                                                 className="gantt-diamond-erp"
                                                 onClick={() => onEdit && onEdit(e)}
@@ -314,10 +306,8 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                                                         ? '2px dashed var(--border)'
                                                         : `2px solid ${milestoneColor}`,
                                                     borderRadius: 5,
-                                                    animation: 'ganttDiamondPulse 3s ease-in-out infinite',
-                                                    boxShadow: e.status !== 'nao_iniciado' && e.status !== 'pendente' ? `0 3px 12px ${milestoneColor}35` : 'none',
+                                                    boxShadow: e.status !== 'nao_iniciado' && e.status !== 'pendente' ? `0 2px 6px ${milestoneColor}25` : 'none',
                                                     cursor: onEdit ? 'pointer' : 'default',
-                                                    transition: 'filter 0.2s, box-shadow 0.2s',
                                                 }}
                                             />
                                         </div>
@@ -330,14 +320,12 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                                             style={{
                                                 ...barStyle,
                                                 left: `${left}%`, width: `${width}%`,
-                                                animation: `${barStyle.animation || ''}, ganttSlideIn 0.5s ease ${i * 100}ms both`.replace(/^,\s*/, ''),
                                             }}
                                         >
                                             {(e.status === 'nao_iniciado' || e.status === 'pendente') && (
                                                 <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', borderRadius: 10 }}>
                                                     <rect x="1" y="1" width="calc(100% - 2px)" height="calc(100% - 2px)" rx="9"
-                                                        fill="none" stroke="var(--border)" strokeWidth="1.5" strokeDasharray="6 4"
-                                                        style={{ animation: 'ganttDashMove 2s linear infinite' }} />
+                                                        fill="none" stroke="var(--border)" strokeWidth="1.5" strokeDasharray="6 4" />
                                                 </svg>
                                             )}
                                             {e.status === 'em_andamento' && prog > 0 && prog < 100 && (
