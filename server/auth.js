@@ -1,8 +1,9 @@
 import jwt from 'jsonwebtoken';
+import { randomBytes } from 'crypto';
 
 const JWT_SECRET = process.env.JWT_SECRET || (() => {
     console.warn('⚠️  JWT_SECRET não definido! Usando fallback temporário. Defina JWT_SECRET em produção.');
-    return 'dev-only-secret-' + require('crypto').randomBytes(16).toString('hex');
+    return 'dev-only-secret-' + randomBytes(16).toString('hex');
 })();
 const JWT_EXPIRY = '24h';
 
