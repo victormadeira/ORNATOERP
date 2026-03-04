@@ -42,7 +42,7 @@ function parseUA(ua) {
 }
 
 // Geolocalização por IP (ipinfo.io — 50k req/mês grátis)
-const IPINFO_TOKEN = 'f4a5ba70f05a1c';
+const IPINFO_TOKEN = process.env.IPINFO_TOKEN || 'f4a5ba70f05a1c';
 async function geolocateIP(ip) {
     if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
         return { cidade: 'Local', estado: '', pais: '' };
@@ -192,10 +192,11 @@ router.post('/generate', requireAuth, (req, res) => {
         return res.json({ token: existing.token });
     }
 
-    // Gera novo token
+    // Gera novo token (expira em 90 dias)
     const token = randomBytes(20).toString('hex');
-    db.prepare('INSERT INTO portal_tokens (orc_id, token, html_proposta, nivel) VALUES (?, ?, ?, ?)')
-        .run(orc.id, token, html_proposta || '', nivel || 'geral');
+    const expiraEm = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+    db.prepare('INSERT INTO portal_tokens (orc_id, token, html_proposta, nivel, expira_em) VALUES (?, ?, ?, ?, ?)')
+        .run(orc.id, token, html_proposta || '', nivel || 'geral', expiraEm);
     res.json({ token });
 });
 
@@ -223,7 +224,7 @@ router.put('/update-html', requireAuth, (req, res) => {
 router.get('/landing/:token', (req, res) => {
     const { token } = req.params;
 
-    const portalToken = db.prepare('SELECT * FROM portal_tokens WHERE token = ? AND ativo = 1').get(token);
+    const portalToken = db.prepare('SELECT * FROM portal_tokens WHERE token = ? AND ativo = 1 AND (expira_em IS NULL OR expira_em > datetime(\'now\'))').get(token);
     if (!portalToken) return res.status(404).json({ error: 'Link inválido ou expirado' });
 
     const orc = db.prepare('SELECT id, cliente_nome, numero FROM orcamentos WHERE id = ?').get(portalToken.orc_id);
@@ -260,7 +261,7 @@ router.get('/landing/:token', (req, res) => {
 router.get('/public/:token', async (req, res) => {
     const { token } = req.params;
 
-    const portalToken = db.prepare('SELECT * FROM portal_tokens WHERE token = ? AND ativo = 1').get(token);
+    const portalToken = db.prepare('SELECT * FROM portal_tokens WHERE token = ? AND ativo = 1 AND (expira_em IS NULL OR expira_em > datetime(\'now\'))').get(token);
     if (!portalToken) return res.status(404).json({ error: 'Link inválido ou expirado' });
 
     const orc = db.prepare(`
@@ -574,7 +575,7 @@ router.post('/event/:token', async (req, res) => {
     const { tipo } = req.body;
     if (!tipo) return res.status(400).json({ error: 'tipo obrigatório' });
 
-    const portalToken = db.prepare('SELECT * FROM portal_tokens WHERE token = ? AND ativo = 1').get(token);
+    const portalToken = db.prepare('SELECT * FROM portal_tokens WHERE token = ? AND ativo = 1 AND (expira_em IS NULL OR expira_em > datetime(\'now\'))').get(token);
     if (!portalToken) return res.status(404).json({ error: 'Token inválido' });
 
     const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();

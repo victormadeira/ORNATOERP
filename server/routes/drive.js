@@ -13,6 +13,15 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const router = Router();
 
+// ── Upload: extensões permitidas e limite de tamanho ─────────────────────────
+const ALLOWED_EXTENSIONS = new Set([
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg',
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.txt',
+    '.dxf', '.dwg', '.step', '.stp', '.stl', '.3dm',
+    '.zip', '.rar', '.7z',
+]);
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
 // MIME types map
 const MIME_TYPES = {
     '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif',
@@ -181,8 +190,15 @@ router.post('/projeto/:id/upload', requireAuth, async (req, res) => {
     if (!filename || !data) return res.status(400).json({ error: 'Filename e data (base64) obrigatorios' });
 
     const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const ext = path.extname(safeName).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
+        return res.status(400).json({ error: `Tipo de arquivo não permitido: ${ext}. Extensões aceitas: ${[...ALLOWED_EXTENSIONS].join(', ')}` });
+    }
     const base64Data = data.includes(',') ? data.split(',')[1] : data;
     const buffer = Buffer.from(base64Data, 'base64');
+    if (buffer.length > MAX_FILE_SIZE) {
+        return res.status(400).json({ error: `Arquivo excede o limite de ${MAX_FILE_SIZE / 1024 / 1024}MB` });
+    }
     const mime = getMime(safeName);
 
     if (gdrive.isConfigured()) {

@@ -738,7 +738,7 @@ function PortalGaleria({ token, accent, primary }) {
         fetch(`/api/projetos/portal/${token}/fotos`)
             .then(r => r.json())
             .then(d => { if (Array.isArray(d)) setFotos(d); })
-            .catch(() => {})
+            .catch(e => console.error('Erro ao carregar fotos:', e))
             .finally(() => setLoading(false));
     }, [token]);
 

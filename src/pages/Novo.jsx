@@ -1017,10 +1017,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [bibItems, setBibItems] = useState([]);
 
     useEffect(() => {
-        api.get('/catalogo?tipo=caixa').then(setCaixas).catch(() => { });
-        api.get('/catalogo?tipo=componente').then(setComponentesCat).catch(() => { });
-        api.get('/biblioteca').then(setBibItems).catch(() => { });
-        api.get('/orcamentos/templates').then(setAmbTemplates).catch(() => { });
+        api.get('/catalogo?tipo=caixa').then(setCaixas).catch(e => notify(e.error || 'Erro ao carregar catálogo'));
+        api.get('/catalogo?tipo=componente').then(setComponentesCat).catch(e => notify(e.error || 'Erro ao carregar componentes'));
+        api.get('/biblioteca').then(setBibItems).catch(e => notify(e.error || 'Erro ao carregar biblioteca'));
+        api.get('/orcamentos/templates').then(setAmbTemplates).catch(e => notify(e.error || 'Erro ao carregar templates'));
     }, []);
 
     // ── Hidratação: ao carregar do banco, itens só têm caixaId/compId — precisamos injetar caixaDef/compDef do catálogo
@@ -1158,8 +1158,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             api.get(`/orcamentos/${editOrc.id}`).then(data => {
                 setOrcFull(data);
                 if (data.versoes && data.versoes.length > 1) setVersoes(data.versoes);
-            }).catch(() => {});
-            api.get(`/portal/views/${editOrc.id}`).then(setViewsData).catch(() => {});
+            }).catch(e => notify(e.error || 'Erro ao carregar orçamento'));
+            api.get(`/portal/views/${editOrc.id}`).then(setViewsData).catch(() => { /* views opcional */ });
         }
     }, [editOrc?.id]);
 
@@ -3213,7 +3213,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         window.open(URL.createObjectURL(blob), '_blank');
                                         // Salvar HTML no link público (atualiza se existir, cria se não)
                                         if (editOrc?.id) {
-                                            api.post('/portal/generate', { orc_id: editOrc.id, html_proposta: html, nivel: opt.id }).catch(() => {});
+                                            api.post('/portal/generate', { orc_id: editOrc.id, html_proposta: html, nivel: opt.id }).catch(e => notify(e.error || 'Erro ao salvar link público'));
                                         }
                                     } catch (ex) { notify(ex.detail || ex.error || 'Erro ao gerar proposta'); }
                                 }}

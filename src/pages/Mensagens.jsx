@@ -145,7 +145,7 @@ export default function Mensagens({ notify }) {
     // Carregar clientes para o modal de vincular
     useEffect(() => {
         if (showVincular) {
-            api.get('/clientes').then(setClientes).catch(() => {});
+            api.get('/clientes').then(setClientes).catch(e => notify(e.error || 'Erro ao carregar clientes'));
         }
     }, [showVincular]);
 
@@ -288,6 +288,7 @@ export default function Mensagens({ notify }) {
                                     onClick={() => { setMobileShowChat(false); setActiveConv(null); }}
                                     className="md:hidden"
                                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+                                    title="Voltar"
                                 >
                                     <ArrowLeft size={18} style={{ color: 'var(--text-muted)' }} />
                                 </button>
@@ -492,6 +493,7 @@ export default function Mensagens({ notify }) {
                                             opacity: !input.trim() || sending ? 0.5 : 1,
                                             background: interno ? '#f59e0b' : undefined,
                                         }}
+                                        title="Enviar"
                                     >
                                         <Send size={16} />
                                     </button>

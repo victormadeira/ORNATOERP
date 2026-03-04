@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
-import { Ic, Z, Modal, Spinner, Badge } from '../ui';
+import { Ic, Z, Modal, ConfirmModal, Spinner, Badge } from '../ui';
 import { STATUS_PROJ, STATUS_ETAPA, CATEGORIAS as CAT_DESPESAS, CAT_MAP, colorBg, colorBorder } from '../theme';
 import { R$, N, DB_CHAPAS, DB_ACABAMENTOS } from '../engine';
 import { buildTermoEntregaHtml, buildTermoPorAmbienteHtml, buildCertificadoGarantiaHtml } from './TermoEntregaHtml';
@@ -461,7 +461,7 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
 
     // Carregar template padrão do empresa_config + templates salvos
     useEffect(() => {
-        api.get('/projetos/templates/list').then(setTemplates).catch(() => {});
+        api.get('/projetos/templates/list').then(setTemplates).catch(e => console.error('Erro ao carregar templates:', e));
         if (!tplLoaded) {
             api.get('/config/empresa').then(cfg => {
                 let tpl = [];
@@ -510,7 +510,7 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
         api.post('/projetos/templates', { nome: templateNome.trim(), etapas: nomes }).then(() => {
             api.get('/projetos/templates/list').then(setTemplates);
             setShowSaveTemplate(false); setTemplateNome('');
-        }).catch(() => {});
+        }).catch(e => console.error('Erro ao salvar template:', e));
     };
 
     const deleteTemplate = (id) => {
@@ -603,7 +603,7 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
                                 <input type="number" min="1" max="365" className={Z.inp} style={{ fontSize: 11, padding: '6px 6px', textAlign: 'center' }} value={e.duracao_dias || ''} onChange={ev => updateDuracao(i, ev.target.value)} />
                                 <input type="date" className={Z.inp} style={{ fontSize: 10, padding: '6px 4px' }} value={e.data_inicio} onChange={ev => setEtapas(et => et.map((x, j) => j === i ? { ...x, data_inicio: ev.target.value } : x))} />
                                 <input type="date" className={Z.inp} style={{ fontSize: 10, padding: '6px 4px' }} value={e.data_vencimento} onChange={ev => setEtapas(et => et.map((x, j) => j === i ? { ...x, data_vencimento: ev.target.value } : x))} />
-                                <button type="button" onClick={() => rmEtapa(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4 }}><Ic.Trash /></button>
+                                <button type="button" onClick={() => rmEtapa(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4 }} title="Excluir"><Ic.Trash /></button>
                             </div>
                         ))}
                     </div>
@@ -715,6 +715,7 @@ function TabCronograma({ data, load, notify, users }) {
     const [copied, setCopied] = useState(false);
     const [editEtapa, setEditEtapa] = useState(null);
     const [ganttZoom, setGanttZoom] = useState(1);
+    const [confirmDel, setConfirmDel] = useState(null);
     const zoomLevels = [0.5, 0.75, 1, 1.5, 2, 3];
 
     const portalUrl = `${window.location.origin}/?portal=${data.token}`;
@@ -831,7 +832,7 @@ function TabCronograma({ data, load, notify, users }) {
                                     {users.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
                                 </select>
                             </div>
-                            <button onClick={addEtapa} className={Z.btn} style={{ padding: '8px 14px', fontSize: 13 }}><Ic.Check /></button>
+                            <button onClick={addEtapa} className={Z.btn} style={{ padding: '8px 14px', fontSize: 13 }} title="Confirmar"><Ic.Check /></button>
                         </div>
                     </div>
                 )}
@@ -893,7 +894,7 @@ function TabCronograma({ data, load, notify, users }) {
                                     <Badge label={STATUS_ETAPA[effectiveStatus]?.label || effectiveStatus} color={STATUS_ETAPA[effectiveStatus]?.color || '#64748b'} />
                                     <button onClick={() => setEditEtapa(e)} title="Editar etapa"
                                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: 4, opacity: 0.7 }}><Ic.Edit /></button>
-                                    <button onClick={() => { if (window.confirm(`Excluir etapa "${e.nome}"?`)) deleteEtapa(e.id); }}
+                                    <button onClick={() => setConfirmDel({ id: e.id, nome: e.nome })}
                                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4, opacity: 0.6 }} title="Excluir etapa"><Ic.Trash /></button>
                                 </div>
                             );
@@ -952,6 +953,17 @@ function TabCronograma({ data, load, notify, users }) {
                     </div>
                 )}
             </div>
+
+            {confirmDel && (
+                <ConfirmModal
+                    title="Excluir"
+                    message={`Tem certeza que deseja excluir a etapa "${confirmDel.nome}"? Esta ação não pode ser desfeita.`}
+                    confirmLabel="Excluir"
+                    danger
+                    onConfirm={() => { deleteEtapa(confirmDel.id); setConfirmDel(null); }}
+                    onCancel={() => setConfirmDel(null)}
+                />
+            )}
         </>
     );
 }
@@ -970,6 +982,7 @@ function TabFinanceiro({ data, notify }) {
     const [newDesp, setNewDesp] = useState({ descricao: '', valor: '', data: '', categoria: 'material', fornecedor: '' });
     const [newCR, setNewCR] = useState({ descricao: '', valor: '', data_vencimento: '', meio_pagamento: '' });
     const [newCP, setNewCP] = useState({ descricao: '', valor: '', data_vencimento: '', categoria: 'material', fornecedor: '', meio_pagamento: '' });
+    const [confirmDel, setConfirmDel] = useState(null);
 
     const MEIOS_PAG = ['PIX', 'Boleto', 'TED', 'Cartão', 'Dinheiro'];
 
@@ -989,7 +1002,7 @@ function TabFinanceiro({ data, notify }) {
             .catch(() => notify('Erro ao registrar despesa'));
     };
 
-    const delDespesa = (id) => { if (window.confirm('Excluir despesa?')) api.del(`/financeiro/despesas/${id}`).then(loadAll); };
+    const delDespesa = (id) => { api.del(`/financeiro/despesas/${id}`).then(loadAll); };
 
     const addCR = () => {
         if (!newCR.descricao || !newCR.valor) return;
@@ -1002,7 +1015,7 @@ function TabFinanceiro({ data, notify }) {
         api.put(`/financeiro/receber/${cr.id}`, { ...cr, status: cr.status === 'pago' ? 'pendente' : 'pago' }).then(loadAll);
     };
 
-    const delCR = (id) => { if (window.confirm('Excluir conta?')) api.del(`/financeiro/receber/${id}`).then(loadAll); };
+    const delCR = (id) => { api.del(`/financeiro/receber/${id}`).then(loadAll); };
 
     const importarParcelas = () => {
         api.post(`/financeiro/${data.id}/importar-parcelas`).then(r => { loadAll(); notify(`${r?.parcelas_criadas || 0} parcelas importadas!`); })
@@ -1026,7 +1039,7 @@ function TabFinanceiro({ data, notify }) {
         }).then(() => { loadAll(); notify(novoStatus === 'pago' ? 'Pago!' : 'Reaberto'); });
     };
 
-    const delCP = (id) => { if (window.confirm('Excluir conta a pagar?')) api.del(`/financeiro/pagar/${id}`).then(loadAll); };
+    const delCP = (id) => { api.del(`/financeiro/pagar/${id}`).then(loadAll); };
 
     const hoje = new Date().toISOString().slice(0, 10);
 
@@ -1114,7 +1127,7 @@ function TabFinanceiro({ data, notify }) {
                                             <td style={{ padding: '8px 12px' }}><span style={{ fontSize: 11, background: `${cat.color}15`, color: cat.color, padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>{cat.label}</span></td>
                                             <td style={{ padding: '8px 12px', color: 'var(--text-muted)', fontSize: 12 }}>{d.fornecedor || '—'}</td>
                                             <td style={{ padding: '8px 12px', fontWeight: 700, color: '#ef4444' }}>{R$(d.valor)}</td>
-                                            <td style={{ padding: '8px 12px' }}><button onClick={() => delDespesa(d.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', opacity: 0.5 }}><Trash2 size={14} /></button></td>
+                                            <td style={{ padding: '8px 12px' }}><button onClick={() => setConfirmDel({ id: d.id, nome: d.descricao, tipo: 'despesa' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', opacity: 0.5 }} title="Excluir"><Trash2 size={14} /></button></td>
                                         </tr>
                                     );
                                 })}
@@ -1174,7 +1187,7 @@ function TabFinanceiro({ data, notify }) {
                                         </div>
                                     </div>
                                     <div style={{ fontWeight: 700, fontSize: 15, color: cr.status === 'pago' ? '#22c55e' : vencida ? '#ef4444' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cr.valor)}</div>
-                                    <button onClick={() => delCR(cr.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4, opacity: 0.4 }}><Trash2 size={14} /></button>
+                                    <button onClick={() => setConfirmDel({ id: cr.id, nome: cr.descricao, tipo: 'receber' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4, opacity: 0.4 }} title="Excluir"><Trash2 size={14} /></button>
                                 </div>
                             );
                         })}
@@ -1243,7 +1256,7 @@ function TabFinanceiro({ data, notify }) {
                                         </div>
                                     </div>
                                     <div style={{ fontWeight: 700, fontSize: 15, color: cp.status === 'pago' ? '#22c55e' : vencida ? '#ef4444' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cp.valor)}</div>
-                                    <button onClick={() => delCP(cp.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4, opacity: 0.4 }}><Trash2 size={14} /></button>
+                                    <button onClick={() => setConfirmDel({ id: cp.id, nome: cp.descricao, tipo: 'pagar' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4, opacity: 0.4 }} title="Excluir"><Trash2 size={14} /></button>
                                 </div>
                             );
                         })}
@@ -1259,6 +1272,22 @@ function TabFinanceiro({ data, notify }) {
                     </div>
                 )}
             </div>
+
+            {confirmDel && (
+                <ConfirmModal
+                    title="Excluir"
+                    message={`Tem certeza que deseja excluir "${confirmDel.nome}"? Esta ação não pode ser desfeita.`}
+                    confirmLabel="Excluir"
+                    danger
+                    onConfirm={() => {
+                        if (confirmDel.tipo === 'despesa') delDespesa(confirmDel.id);
+                        else if (confirmDel.tipo === 'receber') delCR(confirmDel.id);
+                        else if (confirmDel.tipo === 'pagar') delCP(confirmDel.id);
+                        setConfirmDel(null);
+                    }}
+                    onCancel={() => setConfirmDel(null)}
+                />
+            )}
         </>
     );
 }
@@ -1275,14 +1304,15 @@ function TabEstoque({ data, notify, user }) {
     const [recalculando, setRecalculando] = useState(false);
     const [searchMat, setSearchMat] = useState('');
     const [showMatList, setShowMatList] = useState(false);
+    const [confirmDel, setConfirmDel] = useState(null);
     const matSearchRef = useRef(null);
 
     const canDelete = user && (user.role === 'admin' || user.role === 'gerente');
 
     const loadAll = useCallback(() => {
-        api.get(`/estoque/projeto/${data.id}/comparativo`).then(setComparativo).catch(() => {});
-        api.get(`/estoque/projeto/${data.id}`).then(setMovs).catch(() => {});
-        api.get('/estoque').then(setMateriais).catch(() => {});
+        api.get(`/estoque/projeto/${data.id}/comparativo`).then(setComparativo).catch(e => notify(e.error || 'Erro ao carregar comparativo'));
+        api.get(`/estoque/projeto/${data.id}`).then(setMovs).catch(e => notify(e.error || 'Erro ao carregar movimentações'));
+        api.get('/estoque').then(setMateriais).catch(e => notify(e.error || 'Erro ao carregar materiais'));
     }, [data.id]);
 
     useEffect(() => { loadAll(); }, [loadAll]);
@@ -1322,9 +1352,8 @@ function TabEstoque({ data, notify, user }) {
             .finally(() => setRecalculando(false));
     };
 
-    const excluirMov = (mov) => {
-        if (!window.confirm(`Excluir movimentação de ${mov.quantidade} ${mov.unidade || 'un'} de ${mov.material_nome}? O estoque será revertido automaticamente.`)) return;
-        api.del(`/estoque/movimentacao/${mov.id}`)
+    const excluirMov = (id) => {
+        api.del(`/estoque/movimentacao/${id}`)
             .then(() => { loadAll(); notify('Movimentação excluída e estoque revertido'); })
             .catch(e => notify(e.error || 'Erro ao excluir'));
     };
@@ -1488,7 +1517,7 @@ function TabEstoque({ data, notify, user }) {
                                     <td style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>{m.descricao}</td>
                                     {canDelete && (
                                         <td style={{ padding: '8px 6px', textAlign: 'center' }}>
-                                            <button onClick={() => excluirMov(m)} title="Excluir movimentação" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', opacity: 0.6, transition: 'opacity 0.15s', padding: 4 }}
+                                            <button onClick={() => setConfirmDel({ id: m.id, nome: `${m.quantidade} ${m.unidade || 'un'} de ${m.material_nome}` })} title="Excluir movimentação" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', opacity: 0.6, transition: 'opacity 0.15s', padding: 4 }}
                                                 onMouseEnter={e => e.currentTarget.style.opacity = 1}
                                                 onMouseLeave={e => e.currentTarget.style.opacity = 0.6}>
                                                 <Trash2 size={14} />
@@ -1502,6 +1531,17 @@ function TabEstoque({ data, notify, user }) {
                     </div>
                 )}
             </div>
+
+            {confirmDel && (
+                <ConfirmModal
+                    title="Excluir"
+                    message={`Tem certeza que deseja excluir a movimentação de ${confirmDel.nome}? O estoque será revertido automaticamente.`}
+                    confirmLabel="Excluir"
+                    danger
+                    onConfirm={() => { excluirMov(confirmDel.id); setConfirmDel(null); }}
+                    onCancel={() => setConfirmDel(null)}
+                />
+            )}
         </>
     );
 }
@@ -1521,10 +1561,11 @@ function TabArquivos({ data, notify }) {
     const [fotoLightbox, setFotoLightbox] = useState(null);
     const [editingMontador, setEditingMontador] = useState(null);
     const [editMontadorNome, setEditMontadorNome] = useState('');
+    const [confirmDel, setConfirmDel] = useState(null);
 
     const loadAll = useCallback(() => {
-        api.get(`/drive/projeto/${data.id}/arquivos`).then(setArquivos).catch(() => {});
-        api.get(`/montador/links/${data.id}`).then(setMontadorLinks).catch(() => {});
+        api.get(`/drive/projeto/${data.id}/arquivos`).then(setArquivos).catch(e => notify(e.error || 'Erro ao carregar arquivos'));
+        api.get(`/montador/links/${data.id}`).then(setMontadorLinks).catch(e => notify(e.error || 'Erro ao carregar links do montador'));
         api.get(`/montador/fotos/${data.id}`).then(setMontadorFotos).catch(() => setMontadorFotos([]));
     }, [data.id]);
 
@@ -1547,7 +1588,6 @@ function TabArquivos({ data, notify }) {
     };
 
     const deleteFile = (nome) => {
-        if (!window.confirm(`Excluir "${nome}"?`)) return;
         api.del(`/drive/arquivo/${data.id}/${encodeURIComponent(nome)}`).then(loadAll).catch(() => notify('Erro'));
     };
 
@@ -1612,7 +1652,7 @@ function TabArquivos({ data, notify }) {
                                 </div>
                                 <a href={`${API_BASE}${f.url}`} target="_blank" rel="noreferrer"
                                     style={{ color: 'var(--primary)', fontSize: 12, fontWeight: 600, textDecoration: 'none', padding: '4px 8px' }}>Abrir</a>
-                                <button onClick={() => deleteFile(f.nome)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4, opacity: 0.5 }}><Ic.Trash /></button>
+                                <button onClick={() => setConfirmDel({ id: f.nome, nome: f.nome, tipo: 'arquivo' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4, opacity: 0.5 }} title="Excluir"><Ic.Trash /></button>
                             </div>
                         ))}
                     </div>
@@ -1726,7 +1766,7 @@ function TabArquivos({ data, notify }) {
                                 }));
                             }
                             Promise.all(uploads).then(() => {
-                                api.get(`/montador/fotos/${data.id}`).then(setMontadorFotos).catch(() => {});
+                                api.get(`/montador/fotos/${data.id}`).then(setMontadorFotos).catch(e => notify(e.error || 'Erro ao recarregar fotos'));
                                 notify('Foto(s) enviada(s)!');
                             });
                             e.target.value = '';
@@ -1821,15 +1861,7 @@ function TabArquivos({ data, notify }) {
                             <button
                                 className={Z.btn2}
                                 style={{ fontSize: 11, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 4, color: '#ef4444', borderColor: '#ef444440' }}
-                                onClick={async () => {
-                                    if (!confirm('Excluir esta foto permanentemente?')) return;
-                                    try {
-                                        await api.del(`/montador/fotos/${fotoLightbox.id}`);
-                                        setMontadorFotos(prev => prev.filter(f => f.id !== fotoLightbox.id));
-                                        setFotoLightbox(null);
-                                        notify('Foto excluida');
-                                    } catch { notify('Erro ao excluir'); }
-                                }}
+                                onClick={() => setConfirmDel({ id: fotoLightbox.id, nome: 'esta foto', tipo: 'foto' })}
                             >
                                 <Trash2 size={12} /> Excluir
                             </button>
@@ -1856,6 +1888,28 @@ function TabArquivos({ data, notify }) {
                     </Modal>
                 )}
             </div>
+
+            {confirmDel && (
+                <ConfirmModal
+                    title="Excluir"
+                    message={`Tem certeza que deseja excluir "${confirmDel.nome}"? Esta ação não pode ser desfeita.`}
+                    confirmLabel="Excluir"
+                    danger
+                    onConfirm={async () => {
+                        if (confirmDel.tipo === 'arquivo') { deleteFile(confirmDel.id); }
+                        else if (confirmDel.tipo === 'foto') {
+                            try {
+                                await api.del(`/montador/fotos/${confirmDel.id}`);
+                                setMontadorFotos(prev => prev.filter(f => f.id !== confirmDel.id));
+                                setFotoLightbox(null);
+                                notify('Foto excluída');
+                            } catch { notify('Erro ao excluir'); }
+                        }
+                        setConfirmDel(null);
+                    }}
+                    onCancel={() => setConfirmDel(null)}
+                />
+            )}
         </>
     );
 }
@@ -2786,7 +2840,7 @@ function TabEntrega({ data, notify }) {
             {previewImg && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={() => setPreviewImg(null)}>
                     <button className="absolute top-4 right-4 text-white bg-white/20 rounded-full p-2 hover:bg-white/30"
-                        onClick={() => setPreviewImg(null)}>
+                        onClick={() => setPreviewImg(null)} title="Fechar">
                         <XIcon size={20} />
                     </button>
                     <img src={previewImg} alt="" className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg" />
@@ -2938,7 +2992,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user }) {
     }, [proj.id]);
 
     useEffect(() => { load(); }, [load]);
-    useEffect(() => { api.get('/projetos/users-list').then(setUsers).catch(() => {}); }, []);
+    useEffect(() => { api.get('/projetos/users-list').then(setUsers).catch(e => notify(e.error || 'Erro ao carregar usuários')); }, []);
 
     const updateStatus = (status) => {
         api.put(`/projetos/${proj.id}`, { ...data, status }).then(() => { load(); reload(); setEditStatus(false); }).catch(() => notify('Erro ao atualizar status'));
@@ -3018,6 +3072,7 @@ export default function Projetos({ orcs, notify, user, openProjectId, onProjectO
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
     const [loading, setLoading] = useState(true);
+    const [confirmDel, setConfirmDel] = useState(null);
 
     const load = useCallback(() => {
         setLoading(true);
@@ -3041,9 +3096,8 @@ export default function Projetos({ orcs, notify, user, openProjectId, onProjectO
         load();
         notify('Projeto criado com sucesso!');
     };
-    const handleDelete = (proj) => {
-        if (!window.confirm(`Excluir projeto "${proj.nome}"? Esta ação não pode ser desfeita.`)) return;
-        api.del(`/projetos/${proj.id}`).then(() => { load(); notify('Projeto excluído'); }).catch(() => notify('Erro ao excluir'));
+    const handleDelete = (id) => {
+        api.del(`/projetos/${id}`).then(() => { load(); notify('Projeto excluído'); }).catch(() => notify('Erro ao excluir'));
     };
 
     if (selected) return <ProjetoDetalhe proj={selected} onBack={() => setSelected(null)} orcs={orcs} notify={notify} reload={load} user={user} />;
@@ -3125,7 +3179,7 @@ export default function Projetos({ orcs, notify, user, openProjectId, onProjectO
                                         <td style={{ padding: '12px 16px', display: 'flex', gap: 2 }} onClick={e => e.stopPropagation()}>
                                             <button onClick={() => { const n = prompt('Nome do novo projeto:', `${p.nome} (cópia)`); if (n) api.post(`/projetos/${p.id}/duplicar`, { nome: n }).then(() => load()).catch(() => notify('Erro ao duplicar')); }}
                                                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: 6, borderRadius: 6, opacity: 0.6 }} title="Duplicar"><Ic.Copy /></button>
-                                            <button onClick={() => handleDelete(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 6, borderRadius: 6, opacity: 0.6 }} title="Excluir"><Ic.Trash /></button>
+                                            <button onClick={() => setConfirmDel({ id: p.id, nome: p.nome })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 6, borderRadius: 6, opacity: 0.6 }} title="Excluir"><Ic.Trash /></button>
                                         </td>
                                     </tr>
                                 );
@@ -3133,6 +3187,17 @@ export default function Projetos({ orcs, notify, user, openProjectId, onProjectO
                         </tbody>
                     </table>
                 </div>
+            )}
+
+            {confirmDel && (
+                <ConfirmModal
+                    title="Excluir"
+                    message={`Tem certeza que deseja excluir "${confirmDel.nome}"? Esta ação não pode ser desfeita.`}
+                    confirmLabel="Excluir"
+                    danger
+                    onConfirm={() => { handleDelete(confirmDel.id); setConfirmDel(null); }}
+                    onCancel={() => setConfirmDel(null)}
+                />
             )}
         </div>
     );

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Z, Ic, Modal, tagStyle, tagClass } from '../ui';
+import { Z, Ic, Modal, ConfirmModal, tagStyle, tagClass } from '../ui';
 import { R$, KCOLS } from '../engine';
 import api from '../api';
 import { Copy, Download, SortAsc, SortDesc, Filter, AlertTriangle, Calendar, Flame, Eye as EyeIcon, RefreshCw, Share2, Printer, CheckCircle, FileText as FileTextIcon, Link2, Type, ZoomIn, Star, MousePointer, DollarSign, Search, Zap, CheckCheck } from 'lucide-react';
@@ -36,7 +36,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
 
     // ─── Carregar scores ──────────────────────────────────
     useEffect(() => {
-        api.get('/portal/scores').then(setScores).catch(() => {});
+        api.get('/portal/scores').then(setScores).catch(e => notify(e.error || 'Erro ao carregar scores'));
     }, [orcs]);
 
     // ─── Lista de clientes únicos ────────────────────────────
@@ -698,27 +698,14 @@ export default function Orcs({ orcs, nav, reload, notify }) {
 
             {/* ─── Modal: Confirmar Exclusão ─────────────────── */}
             {confirmDel && (
-                <Modal title="Confirmar Exclusão" close={() => setConfirmDel(null)} w={420}>
-                    <div className="flex flex-col gap-5">
-                        <div className="flex items-start gap-3">
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: '#FEE2E2' }}>
-                                <span style={{ color: '#DC2626' }}><Ic.Alert /></span>
-                            </div>
-                            <div>
-                                <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
-                                    Excluir proposta de <strong>{confirmDel.nome}</strong>?
-                                </p>
-                                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                                    Esta ação não pode ser desfeita. O link público também será desativado.
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-3 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
-                            <button onClick={() => setConfirmDel(null)} className={Z.btn2}>Cancelar</button>
-                            <button onClick={del} className={Z.btnD}>Excluir</button>
-                        </div>
-                    </div>
-                </Modal>
+                <ConfirmModal
+                    title="Excluir"
+                    message={`Tem certeza que deseja excluir a proposta de "${confirmDel.nome}"? Esta ação não pode ser desfeita. O link público também será desativado.`}
+                    confirmLabel="Excluir"
+                    danger
+                    onConfirm={() => { del(); }}
+                    onCancel={() => setConfirmDel(null)}
+                />
             )}
 
             {/* ─── Modal: Link Público + Score + Timeline ──────── */}

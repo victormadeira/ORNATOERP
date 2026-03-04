@@ -267,6 +267,34 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ─── Form Validation ─── */
+.input-glass:user-invalid,
+.input-glass.input-error {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.08);
+}
+.input-glass:user-invalid:focus,
+.input-glass.input-error:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
+}
+.input-error-msg {
+  color: var(--danger);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  margin-top: 0.25rem;
+}
+.input-glass:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 /* ─── Selection ─── */
 ::selection {
   background: rgba(19, 121, 240, 0.2);

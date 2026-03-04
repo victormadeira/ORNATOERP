@@ -179,11 +179,11 @@ export default function Cfg({ taxas, reload, notify }) {
                 upmobb_ativo: d.upmobb_ativo ?? 0,
                 etapas_template_json: d.etapas_template_json || '[]',
             });
-        }).catch(() => {});
-        api.get('/portfolio').then(setPortfolio).catch(() => {});
+        }).catch(e => notify(e.error || 'Erro ao carregar configurações'));
+        api.get('/portfolio').then(setPortfolio).catch(e => notify(e.error || 'Erro ao carregar portfolio'));
     }, []);
 
-    const loadPortfolio = () => api.get('/portfolio').then(setPortfolio).catch(() => {});
+    const loadPortfolio = () => api.get('/portfolio').then(setPortfolio).catch(e => notify(e.error || 'Erro ao carregar portfolio'));
 
     const totalTaxas = (tx.imp || 0) + (tx.com || 0) + (tx.mont || 0) + (tx.lucro || 0) + (tx.frete || 0) + (tx.inst || 0);
 
@@ -1645,7 +1645,7 @@ export default function Cfg({ taxas, reload, notify }) {
                                                     [ids[i], ids[i - 1]] = [ids[i - 1], ids[i]];
                                                     await api.put('/portfolio/reorder', { ids });
                                                     loadPortfolio();
-                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
+                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }} title="Mover para cima">
                                                     <ArrowUp size={14} />
                                                 </button>
                                                 <button onClick={async () => {
@@ -1654,10 +1654,10 @@ export default function Cfg({ taxas, reload, notify }) {
                                                     [ids[i], ids[i + 1]] = [ids[i + 1], ids[i]];
                                                     await api.put('/portfolio/reorder', { ids });
                                                     loadPortfolio();
-                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
+                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }} title="Mover para baixo">
                                                     <ArrowDown size={14} />
                                                 </button>
-                                                <button onClick={() => setPortEdit({ ...p })} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--primary)' }}>
+                                                <button onClick={() => setPortEdit({ ...p })} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--primary)' }} title="Editar">
                                                     <Pencil size={14} />
                                                 </button>
                                                 <button onClick={async () => {
@@ -1665,7 +1665,7 @@ export default function Cfg({ taxas, reload, notify }) {
                                                     await api.del(`/portfolio/${p.id}`);
                                                     notify?.('Foto removida');
                                                     loadPortfolio();
-                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: '#ef4444' }}>
+                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: '#ef4444' }} title="Excluir">
                                                     <Trash2 size={14} />
                                                 </button>
                                             </div>
@@ -1738,11 +1738,11 @@ export default function Cfg({ taxas, reload, notify }) {
                                         {/* Ordem / setas */}
                                         <div className="flex flex-col gap-0.5 flex-shrink-0">
                                             <button onClick={() => moveEtapa(i, -1)} disabled={i === 0}
-                                                className="p-0.5 rounded hover:bg-[var(--bg-hover)] cursor-pointer disabled:opacity-20" style={{ color: 'var(--text-muted)' }}>
+                                                className="p-0.5 rounded hover:bg-[var(--bg-hover)] cursor-pointer disabled:opacity-20" style={{ color: 'var(--text-muted)' }} title="Mover para cima">
                                                 <ArrowUp size={11} />
                                             </button>
                                             <button onClick={() => moveEtapa(i, 1)} disabled={i === tplEtapas.length - 1}
-                                                className="p-0.5 rounded hover:bg-[var(--bg-hover)] cursor-pointer disabled:opacity-20" style={{ color: 'var(--text-muted)' }}>
+                                                className="p-0.5 rounded hover:bg-[var(--bg-hover)] cursor-pointer disabled:opacity-20" style={{ color: 'var(--text-muted)' }} title="Mover para baixo">
                                                 <ArrowDown size={11} />
                                             </button>
                                         </div>
@@ -1768,7 +1768,7 @@ export default function Cfg({ taxas, reload, notify }) {
                                         </div>
                                         {/* Delete */}
                                         <button onClick={() => { const arr = tplEtapas.filter((_, j) => j !== i); updateTpl(arr); }}
-                                            className="p-1 rounded hover:bg-red-50 cursor-pointer" style={{ color: '#ef4444' }}>
+                                            className="p-1 rounded hover:bg-red-50 cursor-pointer" style={{ color: '#ef4444' }} title="Excluir">
                                             <Trash2 size={13} />
                                         </button>
                                     </div>

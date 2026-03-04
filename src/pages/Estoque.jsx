@@ -398,9 +398,9 @@ export default function Estoque({ notify }) {
     const [apontForm, setApontForm] = useState(null);
     const [dashMO, setDashMO] = useState({ colaboradores_ativos: 0, horas_mes: 0, custo_mao_obra_mes: 0 });
 
-    const loadColaboradores = () => api.get('/recursos/colaboradores?todos=1').then(setColaboradores).catch(() => {});
-    const loadApontamentos = () => api.get('/recursos/apontamentos?limit=200').then(setApontamentos).catch(() => {});
-    const loadDashMO = () => api.get('/recursos/dashboard').then(setDashMO).catch(() => {});
+    const loadColaboradores = () => api.get('/recursos/colaboradores?todos=1').then(setColaboradores).catch(e => notify(e.error || 'Erro ao carregar colaboradores'));
+    const loadApontamentos = () => api.get('/recursos/apontamentos?limit=200').then(setApontamentos).catch(e => notify(e.error || 'Erro ao carregar apontamentos'));
+    const loadDashMO = () => api.get('/recursos/dashboard').then(setDashMO).catch(e => notify(e.error || 'Erro ao carregar dashboard MO'));
 
     const loadAll = useCallback(() => {
         setLoading(true);

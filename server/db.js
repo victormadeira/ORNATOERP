@@ -674,6 +674,8 @@ const migrations = [
   // portal_tokens v2 — armazenar HTML da proposta + nível
   "ALTER TABLE portal_tokens ADD COLUMN html_proposta TEXT DEFAULT ''",
   "ALTER TABLE portal_tokens ADD COLUMN nivel TEXT DEFAULT 'geral'",
+  // portal_tokens v3 — expiração de token
+  "ALTER TABLE portal_tokens ADD COLUMN expira_em TEXT",
   // proposta_acessos v2 — tracking avançado
   "ALTER TABLE proposta_acessos ADD COLUMN dispositivo TEXT DEFAULT ''",
   "ALTER TABLE proposta_acessos ADD COLUMN navegador TEXT DEFAULT ''",
@@ -1109,8 +1111,8 @@ if (!adminExists) {
   const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
   const hash = bcrypt.hashSync(adminPass, 10);
   db.prepare('INSERT INTO users (nome, email, senha_hash, role) VALUES (?, ?, ?, ?)').run('Administrador', 'admin@admin.com', hash, 'admin');
-  if (adminPass === 'admin123') console.log('* Admin criado: admin@admin.com / admin123 (ALTERE em producao via ADMIN_PASSWORD env)');
-  else console.log('* Admin criado: admin@admin.com (senha via env)');
+  if (adminPass === 'admin123') console.log('⚠️  Admin criado com senha padrão. Defina ADMIN_PASSWORD em produção!');
+  else console.log('✓ Admin criado: admin@admin.com (senha via env)');
 }
 
 const configExists = db.prepare('SELECT id FROM config_taxas WHERE id = 1').get();

@@ -346,6 +346,35 @@ export function SectionHeader({ icon: Icon, title, children }) {
     );
 }
 
+// ─── ConfirmModal — confirmação antes de ações destrutivas ──
+export function ConfirmModal({ title = 'Confirmar', message, confirmLabel = 'Confirmar', cancelLabel = 'Cancelar', danger = false, onConfirm, onCancel }) {
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onCancel}>
+            <div className="glass-card shadow-xl animate-fade-up" style={{ maxWidth: 400, width: '100%' }} onClick={e => e.stopPropagation()}>
+                <div className="p-5">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: danger ? 'rgba(220,38,38,0.1)' : 'rgba(19,121,240,0.1)', flexShrink: 0 }}>
+                            {danger
+                                ? <AlertCircle size={18} style={{ color: 'var(--danger)' }} />
+                                : <AlertCircle size={18} style={{ color: 'var(--primary)' }} />
+                            }
+                        </div>
+                        <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{title}</h3>
+                    </div>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 20, paddingLeft: 46 }}>{message}</p>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <button onClick={onCancel} className="btn-secondary" style={{ fontSize: 13, padding: '8px 16px' }}>{cancelLabel}</button>
+                        <button onClick={onConfirm} className={danger ? 'btn-danger' : 'btn-primary'}
+                            style={{ fontSize: 13, padding: '8px 16px', ...(danger ? { background: 'var(--danger)', color: '#fff', fontWeight: 600 } : {}) }}>
+                            {confirmLabel}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export function Modal({ title, close, children, w = 500 }) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={close}>

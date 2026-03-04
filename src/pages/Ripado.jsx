@@ -59,7 +59,7 @@ export default function Ripado({ embedded = false }) {
 
     // biblioteca
     const [bib, setBib] = useState([]);
-    useEffect(() => { api.get('/biblioteca').then(setBib).catch(() => {}); }, []);
+    useEffect(() => { api.get('/biblioteca').then(setBib).catch(e => console.error('Erro ao carregar biblioteca:', e)); }, []);
 
     const materiais = bib.filter(b => b.tipo === 'material');
 

@@ -31,7 +31,7 @@ export default function ProducaoCNC({ notify }) {
     const [configSection, setConfigSection] = useState('maquinas');
 
     const loadLotes = useCallback(() => {
-        api.get('/cnc/lotes').then(setLotes).catch(() => {});
+        api.get('/cnc/lotes').then(setLotes).catch(e => notify(e.error || 'Erro ao carregar lotes'));
     }, []);
 
     useEffect(() => { loadLotes(); }, [loadLotes]);
@@ -436,7 +436,7 @@ function TabPecas({ lotes, loteAtual, setLoteAtual, notify }) {
         setLoading(true);
         api.get(`/cnc/lotes/${loteAtual.id}`).then(d => {
             setPecas(d.pecas || []);
-        }).catch(() => {}).finally(() => setLoading(false));
+        }).catch(e => notify(e.error || 'Erro ao carregar peças')).finally(() => setLoading(false));
     }, [loteAtual]);
 
     useEffect(() => { load(); }, [load]);
@@ -780,7 +780,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
             }
 
             setPecasMap(map);
-        }).catch(() => {}).finally(() => setLoading(false));
+        }).catch(e => notify(e.error || 'Erro ao carregar plano')).finally(() => setLoading(false));
     }, [loteAtual]);
 
     useEffect(() => { loadPlano(); }, [loadPlano]);
@@ -3119,7 +3119,7 @@ function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
     const load = useCallback(() => {
         if (!loteAtual) return;
         setLoading(true);
-        api.get(`/cnc/etiquetas/${loteAtual.id}`).then(setEtiquetas).catch(() => {}).finally(() => setLoading(false));
+        api.get(`/cnc/etiquetas/${loteAtual.id}`).then(setEtiquetas).catch(e => notify(e.error || 'Erro ao carregar etiquetas')).finally(() => setLoading(false));
     }, [loteAtual]);
 
     useEffect(() => { load(); }, [load]);
@@ -3744,7 +3744,7 @@ function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
             const padrao = ms.find(m => m.padrao);
             if (padrao) setMaquinaId(String(padrao.id));
             else if (ms.length > 0) setMaquinaId(String(ms[0].id));
-        }).catch(() => {});
+        }).catch(e => notify(e.error || 'Erro ao carregar máquinas'));
     }, []);
 
     const maquinaSel = maquinas.find(m => String(m.id) === maquinaId);
@@ -3955,7 +3955,7 @@ function TabConfig({ notify, setEditorMode, setEditorTemplateId, initialSection,
 function CfgChapas({ notify }) {
     const [chapas, setChapas] = useState([]);
     const [modal, setModal] = useState(null);
-    const load = () => api.get('/cnc/chapas').then(setChapas).catch(() => {});
+    const load = () => api.get('/cnc/chapas').then(setChapas).catch(e => notify(e.error || 'Erro ao carregar chapas'));
     useEffect(() => { load(); }, []);
 
     const save = async (data) => {
@@ -4077,7 +4077,7 @@ function CfgFerramentas({ maquinaId, notify }) {
     const [modal, setModal] = useState(null);
     const load = useCallback(() => {
         const url = maquinaId ? `/cnc/ferramentas?maquina_id=${maquinaId}` : '/cnc/ferramentas';
-        api.get(url).then(setFerramentas).catch(() => {});
+        api.get(url).then(setFerramentas).catch(e => notify(e.error || 'Erro ao carregar ferramentas'));
     }, [maquinaId]);
     useEffect(() => { load(); }, [load]);
 
@@ -4248,7 +4248,7 @@ function FerramentaModal({ data, onSave, onClose }) {
 // Parâmetros do Otimizador
 function CfgParametros({ notify }) {
     const [cfg, setCfg] = useState(null);
-    const load = () => api.get('/cnc/config').then(setCfg).catch(() => {});
+    const load = () => api.get('/cnc/config').then(setCfg).catch(e => notify(e.error || 'Erro ao carregar configurações'));
     useEffect(() => { load(); }, []);
 
     const save = async () => {
@@ -4316,7 +4316,7 @@ function CfgMaquinas({ notify }) {
     const [modal, setModal] = useState(null);
     const [expandedId, setExpandedId] = useState(null);
 
-    const load = () => api.get('/cnc/maquinas').then(setMaquinas).catch(() => {});
+    const load = () => api.get('/cnc/maquinas').then(setMaquinas).catch(e => notify(e.error || 'Erro ao carregar máquinas'));
     useEffect(() => { load(); }, []);
 
     const save = async (data) => {
@@ -4997,7 +4997,7 @@ function UsinagemTipoModal({ data, onSave, onClose }) {
 // Retalhos
 function CfgRetalhos({ notify }) {
     const [retalhos, setRetalhos] = useState([]);
-    const load = () => api.get('/cnc/retalhos').then(setRetalhos).catch(() => {});
+    const load = () => api.get('/cnc/retalhos').then(setRetalhos).catch(e => notify(e.error || 'Erro ao carregar retalhos'));
     useEffect(() => { load(); }, []);
 
     const del = async (id) => {

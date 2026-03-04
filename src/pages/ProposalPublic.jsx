@@ -57,7 +57,7 @@ export default function ProposalPublic({ token }) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ resolucao, fingerprint, tempo_pagina: 0, scroll_max: 0 }),
-        }).catch(() => {});
+        }).catch(() => { /* tracking silencioso */ });
 
         // Heartbeat a cada 30s
         heartbeatRef.current = setInterval(() => {
@@ -78,7 +78,7 @@ export default function ProposalPublic({ token }) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(collectPayload(tempoSeg, scrollPct)),
-            }).catch(() => {});
+            }).catch(() => { /* tracking silencioso */ });
         }, 30000);
 
         // ── Detectar impressão ──

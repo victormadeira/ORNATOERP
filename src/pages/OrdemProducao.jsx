@@ -29,7 +29,7 @@ export default function OrdemProducao({ nav, editProjeto }) {
 
     // Carregar lista de projetos
     useEffect(() => {
-        api.get('/producao').then(setProjetos).catch(() => {});
+        api.get('/producao').then(setProjetos).catch(e => console.error('Erro ao carregar projetos:', e));
     }, []);
 
     // Carregar dados de produção do projeto selecionado

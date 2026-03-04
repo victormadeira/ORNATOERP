@@ -7,7 +7,7 @@ import {
     History, RotateCcw,
 } from 'lucide-react';
 import { R$ } from '../engine';
-import { Z, Modal, Spinner, Badge, KpiCard } from '../ui';
+import { Z, Modal, ConfirmModal, Spinner, Badge, KpiCard } from '../ui';
 import { CATEGORIAS, CAT_MAP, colorBg, colorBorder } from '../theme';
 import api from '../api';
 
@@ -125,6 +125,7 @@ function SecaoPagar({ notify, projetos, user }) {
     const [uploading, setUploading] = useState(false);
     const fileRef = useRef(null);
     const [historicoId, setHistoricoId] = useState(null);
+    const [confirmDel, setConfirmDel] = useState(null);
 
     const canDelete = user?.role === 'admin' || user?.role === 'gerente';
     const canViewHistory = user?.role === 'admin' || user?.role === 'gerente';
@@ -135,7 +136,7 @@ function SecaoPagar({ notify, projetos, user }) {
         if (fProjeto)   p.append('projeto_id', fProjeto);
         setLoading(true);
         api.get(`/financeiro/pagar?${p}`).then(setContas).catch(() => setContas([])).finally(() => setLoading(false));
-        api.get('/financeiro/pagar/resumo').then(setResumo).catch(() => {});
+        api.get('/financeiro/pagar/resumo').then(setResumo).catch(e => notify(e.error || 'Erro ao carregar resumo'));
     }, [aba, fCategoria, fProjeto]);
 
     useEffect(() => { load(); }, [load]);
@@ -181,7 +182,6 @@ function SecaoPagar({ notify, projetos, user }) {
     };
 
     const delConta = (id) => {
-        if (!window.confirm('Excluir esta conta?')) return;
         api.del(`/financeiro/pagar/${id}`).then(() => { load(); notify('Excluída'); }).catch(e => notify(e.error || 'Erro'));
     };
 
@@ -208,7 +208,6 @@ function SecaoPagar({ notify, projetos, user }) {
     };
 
     const delAnexo = (id) => {
-        if (!window.confirm('Excluir anexo?')) return;
         api.del(`/financeiro/pagar/anexos/${id}`).then(() => { setAnexos(prev => prev.filter(a => a.id !== id)); load(); notify('Anexo excluído'); });
     };
 
@@ -436,7 +435,7 @@ function SecaoPagar({ notify, projetos, user }) {
                                                         </button>
                                                     )}
                                                     {canDelete && (
-                                                        <button onClick={() => delConta(cp.id)} title="Excluir"
+                                                        <button onClick={() => setConfirmDel({ id: cp.id, nome: cp.descricao, tipo: 'conta' })} title="Excluir"
                                                             style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
                                                             onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                                                             onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}>
@@ -500,7 +499,7 @@ function SecaoPagar({ notify, projetos, user }) {
                                         </div>
                                         <a href={`/api/financeiro/pagar/anexo/${anexoModal}/${a.filename}`} target="_blank" rel="noreferrer"
                                             style={{ color: 'var(--primary)', display: 'flex' }} title="Abrir"><Eye size={15} /></a>
-                                        <button onClick={() => delAnexo(a.id)}
+                                        <button onClick={() => setConfirmDel({ id: a.id, nome: a.nome, tipo: 'anexo' })} title="Excluir"
                                             style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', opacity: 0.6 }}
                                             onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                                             onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}>
@@ -525,6 +524,21 @@ function SecaoPagar({ notify, projetos, user }) {
                     isAdmin={user?.role === 'admin'}
                 />
             )}
+
+            {confirmDel && (
+                <ConfirmModal
+                    title="Excluir"
+                    message={`Tem certeza que deseja excluir "${confirmDel.nome}"? Esta ação não pode ser desfeita.`}
+                    confirmLabel="Excluir"
+                    danger
+                    onConfirm={() => {
+                        if (confirmDel.tipo === 'anexo') delAnexo(confirmDel.id);
+                        else delConta(confirmDel.id);
+                        setConfirmDel(null);
+                    }}
+                    onCancel={() => setConfirmDel(null)}
+                />
+            )}
         </div>
     );
 }
@@ -544,6 +558,7 @@ function SecaoReceber({ notify, projetos, user }) {
     const [form, setForm]         = useState(emptyForm);
     const [parcelas, setParcelas] = useState([]);
     const [historicoId, setHistoricoId] = useState(null);
+    const [confirmDel, setConfirmDel] = useState(null);
 
     const canDelete = user?.role === 'admin' || user?.role === 'gerente';
     const canViewHistory = user?.role === 'admin' || user?.role === 'gerente';
@@ -553,7 +568,7 @@ function SecaoReceber({ notify, projetos, user }) {
         if (fProjeto) p.append('projeto_id', fProjeto);
         setLoading(true);
         api.get(`/financeiro/receber?${p}`).then(setContas).catch(() => setContas([])).finally(() => setLoading(false));
-        api.get('/financeiro/receber/resumo').then(setResumo).catch(() => {});
+        api.get('/financeiro/receber/resumo').then(setResumo).catch(e => notify(e.error || 'Erro ao carregar resumo'));
     }, [aba, fProjeto]);
 
     useEffect(() => { load(); }, [load]);
@@ -594,7 +609,6 @@ function SecaoReceber({ notify, projetos, user }) {
     };
 
     const delConta = (id) => {
-        if (!window.confirm('Excluir esta conta?')) return;
         api.del(`/financeiro/receber/${id}`).then(() => { load(); notify('Excluída'); }).catch(e => notify(e.error || 'Erro'));
     };
 
@@ -784,7 +798,7 @@ function SecaoReceber({ notify, projetos, user }) {
                                                         </button>
                                                     )}
                                                     {canDelete && (
-                                                        <button onClick={() => delConta(cr.id)} title="Excluir"
+                                                        <button onClick={() => setConfirmDel({ id: cr.id, nome: cr.descricao })} title="Excluir"
                                                             style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
                                                             onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                                                             onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}>
@@ -811,6 +825,17 @@ function SecaoReceber({ notify, projetos, user }) {
                     onReload={load}
                     notify={notify}
                     isAdmin={user?.role === 'admin'}
+                />
+            )}
+
+            {confirmDel && (
+                <ConfirmModal
+                    title="Excluir"
+                    message={`Tem certeza que deseja excluir "${confirmDel.nome}"? Esta ação não pode ser desfeita.`}
+                    confirmLabel="Excluir"
+                    danger
+                    onConfirm={() => { delConta(confirmDel.id); setConfirmDel(null); }}
+                    onCancel={() => setConfirmDel(null)}
                 />
             )}
         </div>
@@ -957,7 +982,7 @@ function SecaoFluxo() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        api.get('/financeiro/fluxo').then(setDados).catch(() => {}).finally(() => setLoading(false));
+        api.get('/financeiro/fluxo').then(setDados).catch(e => console.error('Erro ao carregar fluxo:', e)).finally(() => setLoading(false));
     }, []);
 
     if (loading) return <Spinner text="Carregando..." />;
@@ -1142,6 +1167,7 @@ function HistoricoModal({ tipo, id, onClose, onReload, notify, isAdmin }) {
     const [entries, setEntries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [reverting, setReverting] = useState(null);
+    const [confirmDel, setConfirmDel] = useState(null);
 
     useEffect(() => {
         setLoading(true);
@@ -1152,14 +1178,13 @@ function HistoricoModal({ tipo, id, onClose, onReload, notify, isAdmin }) {
     }, [tipo, id]);
 
     const reverter = (entryId) => {
-        if (!window.confirm('Reverter para esta versão? Uma nova entrada será criada no histórico.')) return;
         setReverting(entryId);
         api.post(`/financeiro/reverter/${tipo}/${id}`, { atividade_id: entryId })
             .then(() => {
                 notify('Revertido com sucesso!');
                 onReload();
                 // Re-fetch history
-                api.get(`/financeiro/historico/${tipo}/${id}`).then(setEntries).catch(() => {});
+                api.get(`/financeiro/historico/${tipo}/${id}`).then(setEntries).catch(e => notify(e.error || 'Erro ao recarregar histórico'));
             })
             .catch(e => notify(e.error || 'Erro ao reverter'))
             .finally(() => setReverting(null));
@@ -1229,7 +1254,7 @@ function HistoricoModal({ tipo, id, onClose, onReload, notify, isAdmin }) {
 
                                     {/* Botão reverter (admin) */}
                                     {isAdmin && det.antes && !isCreate && (
-                                        <button onClick={() => reverter(e.id)} disabled={reverting === e.id}
+                                        <button onClick={() => setConfirmDel({ id: e.id, acao: 'reverter' })} disabled={reverting === e.id}
                                             style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: '#f59e0b', background: '#f59e0b18', border: '1px solid #f59e0b44', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
                                             <RotateCcw size={10} /> {reverting === e.id ? 'Revertendo...' : 'Reverter para esta versão'}
                                         </button>
@@ -1240,6 +1265,16 @@ function HistoricoModal({ tipo, id, onClose, onReload, notify, isAdmin }) {
                     </div>
                 )}
             </div>
+
+            {confirmDel && (
+                <ConfirmModal
+                    title="Reverter"
+                    message="Reverter para esta versão? Uma nova entrada será criada no histórico."
+                    confirmLabel="Reverter"
+                    onConfirm={() => { reverter(confirmDel.id); setConfirmDel(null); }}
+                    onCancel={() => setConfirmDel(null)}
+                />
+            )}
         </Modal>
     );
 }
@@ -1251,6 +1286,7 @@ function SecaoLixeira({ notify }) {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [subAba, setSubAba] = useState('pagar');
+    const [confirmDel, setConfirmDel] = useState(null);
 
     const load = useCallback(() => {
         setLoading(true);
@@ -1260,14 +1296,12 @@ function SecaoLixeira({ notify }) {
     useEffect(() => { load(); }, [load]);
 
     const restaurar = (tipo, id) => {
-        if (!window.confirm('Restaurar este item? Ele voltará a aparecer nas listagens normais.')) return;
         api.post(`/financeiro/restaurar/${tipo}/${id}`)
             .then(() => { load(); notify('Item restaurado!'); })
             .catch(e => notify(e.error || 'Erro ao restaurar'));
     };
 
     const excluirPermanente = (tipo, id) => {
-        if (!window.confirm('EXCLUIR PERMANENTEMENTE? Esta ação não pode ser desfeita!')) return;
         api.del(`/financeiro/lixeira/${tipo}/${id}`)
             .then(() => { load(); notify('Excluído permanentemente'); })
             .catch(e => notify(e.error || 'Erro ao excluir'));
@@ -1331,11 +1365,11 @@ function SecaoLixeira({ notify }) {
                                         </td>
                                         <td style={{ padding: '8px 8px', textAlign: 'center' }}>
                                             <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
-                                                <button onClick={() => restaurar(it._tipo, it.id)} title="Restaurar"
+                                                <button onClick={() => setConfirmDel({ tipo: it._tipo, id: it.id, nome: it.descricao, acao: 'restaurar' })} title="Restaurar"
                                                     style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: '#22c55e', background: '#22c55e14', border: '1px solid #22c55e44', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
                                                     <RotateCcw size={10} /> Restaurar
                                                 </button>
-                                                <button onClick={() => excluirPermanente(it._tipo, it.id)} title="Excluir permanentemente"
+                                                <button onClick={() => setConfirmDel({ tipo: it._tipo, id: it.id, nome: it.descricao, acao: 'excluir' })} title="Excluir permanentemente"
                                                     style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: '#ef4444', background: '#ef444414', border: '1px solid #ef444444', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
                                                     <Trash2 size={10} /> Permanente
                                                 </button>
@@ -1348,6 +1382,23 @@ function SecaoLixeira({ notify }) {
                     </div>
                 )}
             </div>
+
+            {confirmDel && (
+                <ConfirmModal
+                    title={confirmDel.acao === 'restaurar' ? 'Restaurar' : 'Excluir Permanentemente'}
+                    message={confirmDel.acao === 'restaurar'
+                        ? `Restaurar "${confirmDel.nome}"? Ele voltará a aparecer nas listagens normais.`
+                        : `EXCLUIR "${confirmDel.nome}" PERMANENTEMENTE? Esta ação não pode ser desfeita!`}
+                    confirmLabel={confirmDel.acao === 'restaurar' ? 'Restaurar' : 'Excluir'}
+                    danger={confirmDel.acao === 'excluir'}
+                    onConfirm={() => {
+                        if (confirmDel.acao === 'restaurar') restaurar(confirmDel.tipo, confirmDel.id);
+                        else excluirPermanente(confirmDel.tipo, confirmDel.id);
+                        setConfirmDel(null);
+                    }}
+                    onCancel={() => setConfirmDel(null)}
+                />
+            )}
         </div>
     );
 }

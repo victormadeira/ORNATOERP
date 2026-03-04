@@ -778,14 +778,14 @@ export default function Dash({ nav, notify, user }) {
             setErr(true);
         }).finally(() => setLoading(false));
         // Carregar log real de atividades
-        api.get('/atividades?limit=10').then(setAtividades).catch(() => {});
+        api.get('/atividades?limit=10').then(setAtividades).catch(e => notify(e.error || 'Erro ao carregar atividades'));
     }, []);
 
     const loadFin = useCallback(() => {
         setFinLoading(true);
         api.get('/dashboard/financeiro').then(d => {
             setFinData(d);
-        }).catch(() => {}).finally(() => setFinLoading(false));
+        }).catch(e => notify(e.error || 'Erro ao carregar financeiro')).finally(() => setFinLoading(false));
     }, []);
 
     useEffect(() => {

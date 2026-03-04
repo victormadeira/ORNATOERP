@@ -242,7 +242,7 @@ export default function Users({ notify, meUser }) {
     const [permUser, setPermUser] = useState(null);
     const [f, setF] = useState({ nome: '', email: '', senha: '', role: 'vendedor' });
 
-    const load = () => api.get('/auth/users').then(setUsers).catch(() => { });
+    const load = () => api.get('/auth/users').then(setUsers).catch(e => notify(e.error || 'Erro ao carregar usuários'));
     useEffect(() => { load(); }, []);
 
     const criar = async () => {

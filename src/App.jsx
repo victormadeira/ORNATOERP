@@ -29,9 +29,46 @@ const LazyFallback = () => (
     </div>
 );
 
+// ── Error Boundary — captura erros React sem travar a tela inteira ──────────
+import { Component } from 'react';
+class ErrorBoundary extends Component {
+    constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+    static getDerivedStateFromError(error) { return { hasError: true, error }; }
+    componentDidCatch(error, info) { console.error('ErrorBoundary:', error, info.componentStack); }
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, gap: 16, padding: 40 }}>
+                    <div style={{ fontSize: 36 }}>⚠️</div>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>Algo deu errado</h3>
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', maxWidth: 400 }}>
+                        Ocorreu um erro inesperado nesta seção. Tente recarregar a página.
+                    </p>
+                    <button
+                        onClick={() => { this.setState({ hasError: false, error: null }); }}
+                        className="btn-primary"
+                        style={{ padding: '8px 24px', fontSize: 13 }}
+                    >
+                        Tentar Novamente
+                    </button>
+                    {this.state.error && (
+                        <details style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 500, wordBreak: 'break-all' }}>
+                            <summary style={{ cursor: 'pointer' }}>Detalhes técnicos</summary>
+                            <pre style={{ marginTop: 8, padding: 12, background: 'var(--bg-muted)', borderRadius: 8, overflow: 'auto', maxHeight: 120 }}>
+                                {this.state.error.message}
+                            </pre>
+                        </details>
+                    )}
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
-    const [pg, setPg] = useState("dash");
+    const [pg, setPg] = useState(() => localStorage.getItem('erp_page') || 'dash');
     const [sb, setSb] = useState(true);
     const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
     const [notif, setNotif] = useState(null);
@@ -73,11 +110,11 @@ export default function App() {
 
     const notify = (m) => { setNotif(m); setTimeout(() => setNotif(null), 3500); };
 
-    const loadClis = useCallback(() => { if (user) api.get('/clientes').then(setClis).catch(() => { }); }, [user]);
-    const loadOrcs = useCallback(() => { if (user) api.get('/orcamentos').then(setOrcs).catch(() => { }); }, [user]);
-    const loadTaxas = useCallback(() => { if (user) api.get('/config').then(setTaxas).catch(() => { }); }, [user]);
-    const loadNotifs = useCallback(() => { if (user) api.get('/notificacoes').then(setNotifs).catch(() => { }); }, [user]);
-    const loadWaUnread = useCallback(() => { if (user) api.get('/whatsapp/nao-lidas').then(d => setWaUnread(d.total)).catch(() => { }); }, [user]);
+    const loadClis = useCallback(() => { if (user) api.get('/clientes').then(setClis).catch(() => { /* polling silencioso */ }); }, [user]);
+    const loadOrcs = useCallback(() => { if (user) api.get('/orcamentos').then(setOrcs).catch(() => { /* polling silencioso */ }); }, [user]);
+    const loadTaxas = useCallback(() => { if (user) api.get('/config').then(setTaxas).catch(() => { /* polling silencioso */ }); }, [user]);
+    const loadNotifs = useCallback(() => { if (user) api.get('/notificacoes').then(setNotifs).catch(() => { /* polling silencioso */ }); }, [user]);
+    const loadWaUnread = useCallback(() => { if (user) api.get('/whatsapp/nao-lidas').then(d => setWaUnread(d.total)).catch(() => { /* polling silencioso */ }); }, [user]);
     const loadEmpresa = useCallback(() => {
         if (user) api.get('/config/empresa').then(d => {
             const ls = d.logo_sistema || '';
@@ -86,7 +123,7 @@ export default function App() {
             setEmpNome(nm);
             localStorage.setItem('logo_sistema', ls);
             localStorage.setItem('emp_nome', nm);
-        }).catch(() => {});
+        }).catch(() => { /* polling silencioso */ });
     }, [user]);
 
     useEffect(() => { loadClis(); loadOrcs(); loadTaxas(); loadNotifs(); loadWaUnread(); loadEmpresa(); }, [loadClis, loadOrcs, loadTaxas, loadNotifs, loadWaUnread, loadEmpresa]);
@@ -117,14 +154,14 @@ export default function App() {
             api.get(`/dashboard/busca?q=${encodeURIComponent(buscaQuery)}`).then(r => {
                 setBuscaResults(r);
                 setBuscaOpen(true);
-            }).catch(() => {});
+            }).catch(() => { /* busca silenciosa */ });
         }, 300);
         return () => clearTimeout(buscaTimer.current);
     }, [buscaQuery]);
 
     // Marcar UMA notificação como lida
     const markNotifRead = (id) => {
-        api.put(`/notificacoes/${id}/lida`).catch(() => {});
+        api.put(`/notificacoes/${id}/lida`).catch(() => { /* polling silencioso */ });
         setNotifs(prev => ({
             ...prev,
             notificacoes: prev.notificacoes.map(n => n.id === id ? { ...n, lida: 1 } : n),
@@ -134,7 +171,7 @@ export default function App() {
 
     // Marcar TODAS como lidas
     const markAllRead = () => {
-        api.put('/notificacoes/lidas').catch(() => {});
+        api.put('/notificacoes/lidas').catch(() => { /* polling silencioso */ });
         setNotifs(prev => ({
             ...prev,
             notificacoes: prev.notificacoes.map(n => ({ ...n, lida: 1 })),
@@ -170,6 +207,7 @@ export default function App() {
         if (p === "novo" && orc !== undefined) setEditOrc(orc);
         else if (p !== "novo") setEditOrc(null);
         setPg(p);
+        localStorage.setItem('erp_page', p);
         if (isMobile) setMobileOpen(false); // fechar sidebar mobile ao navegar
     };
 
@@ -610,9 +648,11 @@ export default function App() {
                 )}
 
                 <div className="min-h-full">
-                    <Suspense fallback={<LazyFallback />}>
-                        {renderPage()}
-                    </Suspense>
+                    <ErrorBoundary>
+                        <Suspense fallback={<LazyFallback />}>
+                            {renderPage()}
+                        </Suspense>
+                    </ErrorBoundary>
                 </div>
             </main>
 

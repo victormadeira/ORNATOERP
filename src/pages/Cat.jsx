@@ -70,7 +70,7 @@ export default function Cat() {
     const [form, setForm] = useState({ ...emptyItem });
     const [showForm, setShowForm] = useState(false);
 
-    const load = () => api.get('/biblioteca').then(setItems).catch(() => { });
+    const load = () => api.get('/biblioteca').then(setItems).catch(e => console.error('Erro ao carregar biblioteca:', e));
     useEffect(() => { load(); }, []);
 
     // Categorias existentes nas ferragens cadastradas (para o sub-filtro)
@@ -242,7 +242,7 @@ export default function Cat() {
                 <div className={`${Z.card} mb-4`} style={{ borderLeft: `3px solid ${activeTab?.color || 'var(--primary)'}` }}>
                     <div className="flex items-center justify-between mb-3">
                         <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{editId ? 'Editar' : 'Novo'} {activeTab?.lb.slice(0, -1)}</h3>
-                        <button onClick={() => setShowForm(false)} className="p-1 rounded hover:bg-[var(--bg-hover)]"><X size={14} /></button>
+                        <button onClick={() => setShowForm(false)} className="p-1 rounded hover:bg-[var(--bg-hover)]" title="Fechar"><X size={14} /></button>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div className="col-span-2"><label className={Z.lbl}>Nome *</label><input value={form.nome} onChange={e => setF('nome', e.target.value)} className={Z.inp} placeholder="Ex: MDF 18mm" autoFocus /></div>

@@ -20,7 +20,7 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
                 if (d.logo_sistema) { setLogoSistema(d.logo_sistema); localStorage.setItem('logo_sistema', d.logo_sistema); }
                 if (d.nome) { setEmpNome(d.nome); localStorage.setItem('emp_nome', d.nome); }
             })
-            .catch(() => {});
+            .catch(() => { /* branding opcional */ });
     }, [logoProp]);
 
     const handleSubmit = async (e) => {

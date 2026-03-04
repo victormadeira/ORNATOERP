@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Z, Ic } from '../ui';
+import { Z, Ic, ConfirmModal } from '../ui';
 import { uid, R$, N, DB_CHAPAS, DB_FERRAGENS, DB_ACABAMENTOS, calcItemV2 } from '../engine';
 import api from '../api';
 import { Plus, Trash2, Edit2, Save, X, ChevronDown, ChevronRight, Box, Package, Wrench, Eye, EyeOff, Copy, Layers, Search, Download, Upload } from 'lucide-react';
@@ -509,7 +509,7 @@ function CaixaEditor({ initial, onSave, onCancel }) {
                             <div><label className={Z.lbl}>Qtd</label><input type="number" min="1" max="10" value={p.qtd} onChange={e => updPeca(i, 'qtd', parseInt(e.target.value) || 1)} className={`${Z.inp} text-xs text-center`} /></div>
                             <div><label className={Z.lbl}>Material</label><select value={p.mat} onChange={e => updPeca(i, 'mat', e.target.value)} className={`${Z.inp} text-xs`}>{MAT_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
                             <div><label className={Z.lbl}>Fita de Borda</label><FitaToggle value={p.fita} onChange={v => updPeca(i, 'fita', v)} /></div>
-                            <div><label className={Z.lbl}>&nbsp;</label><button onClick={() => delPeca(i)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={14} /></button></div>
+                            <div><label className={Z.lbl}>&nbsp;</label><button onClick={() => delPeca(i)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Excluir"><Trash2 size={14} /></button></div>
                         </div>
                     ))}
             </div>
@@ -530,7 +530,7 @@ function CaixaEditor({ initial, onSave, onCancel }) {
                             <div><label className={Z.lbl} title="Área do tamponamento em mm²">Fórmula (mm²)</label><FormulaInput value={t.calc} onChange={v => updTamp(i, 'calc', v)} vars={caixaVars} testVars={caixaTestVars} placeholder="A*P" suggestions={FORMULAS_CAIXA} /></div>
                             <div><label className={Z.lbl}>Material</label><select value={t.mat} onChange={e => updTamp(i, 'mat', e.target.value)} className={`${Z.inp} text-xs`}>{MAT_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
                             <div><label className={Z.lbl}>Fita</label><FitaToggle value={t.fita} onChange={v => updTamp(i, 'fita', v)} /></div>
-                            <div><label className={Z.lbl}>&nbsp;</label><button onClick={() => delTamp(i)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={14} /></button></div>
+                            <div><label className={Z.lbl}>&nbsp;</label><button onClick={() => delTamp(i)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Excluir"><Trash2 size={14} /></button></div>
                         </div>
                     ))}
             </div>
@@ -655,7 +655,7 @@ function ComponenteEditor({ initial, onSave, onCancel }) {
                             <div><label className={Z.lbl}>Mín</label><input type="number" value={v.min} onChange={e => updVar(i, 'min', +e.target.value)} className={`${Z.inp} text-xs`} /></div>
                             <div><label className={Z.lbl}>Máx</label><input type="number" value={v.max} onChange={e => updVar(i, 'max', +e.target.value)} className={`${Z.inp} text-xs`} /></div>
                             <div><label className={Z.lbl}>Unidade</label><input value={v.unit} onChange={e => updVar(i, 'unit', e.target.value)} className={`${Z.inp} text-xs`} placeholder="mm" /></div>
-                            <button onClick={() => delVar(i)} className="mt-4 p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={14} /></button>
+                            <button onClick={() => delVar(i)} className="mt-4 p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Excluir"><Trash2 size={14} /></button>
                         </div>
                     ))}
             </div>
@@ -696,7 +696,7 @@ function ComponenteEditor({ initial, onSave, onCancel }) {
                             <div><label className={Z.lbl}>Qtd</label><input type="number" min="1" max="10" value={p.qtd} onChange={e => updPeca(i, 'qtd', parseInt(e.target.value) || 1)} className={`${Z.inp} text-xs text-center`} /></div>
                             <div><label className={Z.lbl}>Material</label><select value={p.mat} onChange={e => updPeca(i, 'mat', e.target.value)} className={`${Z.inp} text-xs`}>{MAT_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
                             <div><label className={Z.lbl}>Fita</label><FitaToggle value={p.fita} onChange={v => updPeca(i, 'fita', v)} /></div>
-                            <div><label className={Z.lbl}>&nbsp;</label><button onClick={() => delPeca(i)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={14} /></button></div>
+                            <div><label className={Z.lbl}>&nbsp;</label><button onClick={() => delPeca(i)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Excluir"><Trash2 size={14} /></button></div>
                         </div>
                     ))}
             </div>
@@ -745,7 +745,7 @@ function ComponenteEditor({ initial, onSave, onCancel }) {
                                     Ativo padrão
                                 </label>
                             </div>
-                            <div><label className={Z.lbl}>&nbsp;</label><button onClick={() => delSub(i)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={14} /></button></div>
+                            <div><label className={Z.lbl}>&nbsp;</label><button onClick={() => delSub(i)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Excluir"><Trash2 size={14} /></button></div>
                         </div>
                     ))}
             </div>
@@ -754,7 +754,7 @@ function ComponenteEditor({ initial, onSave, onCancel }) {
             <div className={Z.card}>
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Preview de Cálculo</h3>
-                    <button onClick={() => setShowPreview(p => !p)} className={Z.btn2 + ' text-xs py-1 px-2'}>{showPreview ? <EyeOff size={12} /> : <Eye size={12} />}</button>
+                    <button onClick={() => setShowPreview(p => !p)} className={Z.btn2 + ' text-xs py-1 px-2'} title={showPreview ? 'Ocultar preview' : 'Mostrar preview'}>{showPreview ? <EyeOff size={12} /> : <Eye size={12} />}</button>
                 </div>
                 {showPreview && (
                     <>
@@ -790,6 +790,7 @@ export default function ItemBuilder({ notify }) {
     const [editing, setEditing] = useState(null); // { tipo, item } | null
     const [loading, setLoading] = useState(false);
     const [busca, setBusca] = useState('');
+    const [confirmDel, setConfirmDel] = useState(null);
 
     const load = async () => {
         try {
@@ -822,7 +823,6 @@ export default function ItemBuilder({ notify }) {
     };
 
     const handleDelete = async (dbId) => {
-        if (!confirm('Remover este item do catálogo?')) return;
         try {
             await api.del(`/catalogo/${dbId}`);
             notify?.('Item removido');
@@ -954,7 +954,7 @@ export default function ItemBuilder({ notify }) {
                         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
                     />
                     {busca && (
-                        <button onClick={() => setBusca('')} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 transition-opacity">
+                        <button onClick={() => setBusca('')} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 transition-opacity" title="Limpar busca">
                             <X size={13} style={{ color: 'var(--text-muted)' }} />
                         </button>
                     )}
@@ -1009,12 +1009,23 @@ export default function ItemBuilder({ notify }) {
                             <div className="flex gap-2 mt-auto pt-2" style={{ borderTop: '1px solid var(--border)' }}>
                                 <button onClick={() => setEditing({ tipo, item: JSON.parse(JSON.stringify(item)) })} className={`${Z.btn2} flex-1 text-xs py-1.5`}><Edit2 size={12} /> Editar</button>
                                 <button onClick={() => setEditing({ tipo, item: { ...(JSON.parse(JSON.stringify(item))), db_id: undefined, nome: item.nome + ' (cópia)' } })} className={`${Z.btn2} text-xs py-1.5 px-2`} title="Duplicar"><Copy size={12} /></button>
-                                <button onClick={() => handleDelete(item.db_id)} className="text-xs py-1.5 px-2 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400 transition-colors" title="Remover"><Trash2 size={12} /></button>
+                                <button onClick={() => setConfirmDel({ id: item.db_id, nome: item.nome })} className="text-xs py-1.5 px-2 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400 transition-colors" title="Remover"><Trash2 size={12} /></button>
                             </div>
                         </div>
                     ))}
                 </div>
             ))}
+
+            {confirmDel && (
+                <ConfirmModal
+                    title="Excluir"
+                    message={`Tem certeza que deseja excluir "${confirmDel.nome}"? Esta ação não pode ser desfeita.`}
+                    confirmLabel="Excluir"
+                    danger
+                    onConfirm={() => { handleDelete(confirmDel.id); setConfirmDel(null); }}
+                    onCancel={() => setConfirmDel(null)}
+                />
+            )}
         </div>
     );
 }

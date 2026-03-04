@@ -32,6 +32,7 @@ export function AuthProvider({ children }) {
 
     const logout = () => {
         localStorage.removeItem('erp_token');
+        localStorage.removeItem('erp_page');
         setUser(null);
     };
 
