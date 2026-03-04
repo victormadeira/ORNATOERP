@@ -95,6 +95,13 @@ const GANTT_STYLES = `
 @keyframes ganttCheckPop { 0% { transform: scale(0); opacity: 0; } 60% { transform: scale(1.3); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes ganttDashMove { 0% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -20; } }
 @keyframes ganttProgressFill { from { width: 0%; } }
+@keyframes ganttBarShine { 0% { left: -40%; } 100% { left: 140%; } }
+.gantt-progress-active { position: relative; overflow: hidden; }
+.gantt-progress-active::after {
+  content: ''; position: absolute; top: 0; left: -40%; width: 30%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  animation: ganttBarShine 2.4s ease-in-out infinite;
+}
 .gantt-bar:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important; }
 @keyframes ganttDiamondPulse { 0%, 100% { transform: rotate(45deg) scale(1); } 50% { transform: rotate(45deg) scale(1.15); } }
 .gantt-diamond:hover { transform: rotate(45deg) scale(1.35) !important; filter: brightness(1.1); }
@@ -201,7 +208,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ flex: 1, background: '#e2e8f0', borderRadius: 99, height: 8, overflow: 'hidden' }}>
-                        <div style={{ width: `${globalProg}%`, height: '100%', background: `linear-gradient(90deg, ${accent}, ${primary})`, borderRadius: 99, animation: 'ganttProgressFill 1.2s ease-out' }} />
+                        <div className={globalProg < 100 ? 'gantt-progress-active' : ''} style={{ width: `${globalProg}%`, height: '100%', background: `linear-gradient(90deg, ${accent}, ${primary})`, borderRadius: 99, animation: 'ganttProgressFill 1.2s ease-out' }} />
                     </div>
                     <span style={{ fontWeight: 800, fontSize: 14, color: accent, minWidth: 38, textAlign: 'right' }}>
                         <AnimatedCounter value={globalProg} />%
@@ -262,7 +269,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                 {/* Progress bar */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 99, height: 5, overflow: 'hidden' }}>
-                                        <div style={{ width: `${prog}%`, height: '100%', background: st.color, borderRadius: 99, transition: 'width 0.6s ease' }} />
+                                        <div className={isActive ? 'gantt-progress-active' : ''} style={{ width: `${prog}%`, height: '100%', background: st.color, borderRadius: 99, transition: 'width 0.6s ease' }} />
                                     </div>
                                     <span style={{ fontSize: 10, fontWeight: 700, color: st.color, minWidth: 28 }}>{prog}%</span>
                                 </div>
@@ -291,7 +298,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ flex: 1, background: '#e2e8f0', borderRadius: 99, height: 10, overflow: 'hidden' }}>
-                        <div style={{ width: `${globalProg}%`, height: '100%', background: `linear-gradient(90deg, ${accent}, ${primary})`, borderRadius: 99, animation: 'ganttProgressFill 1.2s ease-out' }} />
+                        <div className={globalProg < 100 ? 'gantt-progress-active' : ''} style={{ width: `${globalProg}%`, height: '100%', background: `linear-gradient(90deg, ${accent}, ${primary})`, borderRadius: 99, animation: 'ganttProgressFill 1.2s ease-out' }} />
                     </div>
                     <span style={{ fontWeight: 800, fontSize: 16, color: accent, minWidth: 44, textAlign: 'right' }}>
                         <AnimatedCounter value={globalProg} />%
@@ -1024,6 +1031,13 @@ export default function PortalCliente({ token }) {
         <div style={{ minHeight: '100vh', background: '#f1f5f9', fontFamily: font, padding: '32px 16px' }}>
             <style>{`
                 @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+                @keyframes ganttBarShine { 0% { left: -40%; } 100% { left: 140%; } }
+                .gantt-progress-active { position: relative; overflow: hidden; }
+                .gantt-progress-active::after {
+                    content: ''; position: absolute; top: 0; left: -40%; width: 30%; height: 100%;
+                    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+                    animation: ganttBarShine 2.4s ease-in-out infinite;
+                }
                 .portal-card { animation: fadeUp 0.4s ease; max-width: 800px; margin: 0 auto; }
                 @media print { body { background: white !important; } .no-print { display: none !important; } }
             `}</style>
@@ -1106,8 +1120,8 @@ export default function PortalCliente({ token }) {
                         <div>
                             <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Progresso</div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <div style={{ flex: 1, background: '#e2e8f0', borderRadius: 99, height: 8 }}>
-                                    <div style={{ width: `${concluidasPct}%`, height: '100%', background: accent, borderRadius: 99, transition: 'width 0.5s' }} />
+                                <div style={{ flex: 1, background: '#e2e8f0', borderRadius: 99, height: 8, overflow: 'hidden' }}>
+                                    <div className={concluidasPct < 100 ? 'gantt-progress-active' : ''} style={{ width: `${concluidasPct}%`, height: '100%', background: accent, borderRadius: 99, transition: 'width 0.5s' }} />
                                 </div>
                                 <span style={{ fontWeight: 700, color: accent, fontSize: 14 }}>{concluidasPct}%</span>
                             </div>

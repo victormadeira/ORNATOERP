@@ -999,6 +999,8 @@ const migrations = [
   )`,
   // ═══ Template padrão de etapas (com durações) ═══
   "ALTER TABLE empresa_config ADD COLUMN etapas_template_json TEXT DEFAULT '[]'",
+  // ═══ Cor primária do sistema (white-label) ═══
+  "ALTER TABLE empresa_config ADD COLUMN sistema_cor_primaria TEXT DEFAULT '#1379F0'",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

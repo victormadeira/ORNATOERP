@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Z, Ic, Modal, SearchableSelect } from '../ui';
+import { Z, Ic, Modal, SearchableSelect, PageHeader } from '../ui';
 import { uid, R$, N, DB_CHAPAS, DB_ACABAMENTOS, DB_FERRAGENS, DB_FITAS, FERR_GROUPS, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, precoVenda, precoVendaV2, LOCKED_COLS, compareVersions } from '../engine';
 import api from '../api';
 import RelatorioMateriais, { buildRelatorioHtml } from './RelatorioMateriais';
@@ -215,7 +215,7 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, placeholder
                             <div className="px-3 pt-2 pb-1"><span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: 'var(--text-muted)' }}>Itens Especiais</span></div>
                             <button onClick={() => { onAddPainel(); setQ(''); setOpen(false); }}
                                 className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
-                                style={{ color: '#f59e0b' }}
+                                style={{ color: 'var(--warning)' }}
                                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.08)'}
                                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                 <Layers size={14} />
@@ -299,18 +299,18 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
     const temMatsCustom = !!(ci.matIntInst || ci.matExtInst);
 
     return (
-        <div className="rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border)', borderLeft: '3px solid #16a34a' }}>
+        <div className="rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border)', borderLeft: '3px solid var(--success)' }}>
             <div className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)]"
                 onClick={() => setExp(p => !p)}>
                 <div className="flex items-center gap-2 flex-wrap">
                     {exp ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                    <Package size={12} style={{ color: '#16a34a' }} />
+                    <Package size={12} style={{ color: 'var(--success)' }} />
                     <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{compDef.nome}</span>
                     {(ci.qtd || 1) > 1 && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}>×{ci.qtd}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: 'rgba(22,163,74,0.12)', color: 'var(--success)' }}>×{ci.qtd}</span>
                     )}
                     {hasFrenteExt && ci.matExtComp && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>frente ext.</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(245,158,11,0.12)', color: 'var(--warning)' }}>frente ext.</span>
                     )}
                     {temDimsCustom && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'rgba(59,130,246,0.12)', color: '#3b82f6' }}>
@@ -324,7 +324,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                     )}
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold" style={{ color: '#16a34a' }}>{R$(custoComp)}</span>
+                    <span className="text-xs font-bold" style={{ color: 'var(--success)' }}>{R$(custoComp)}</span>
                     <button onClick={e => { e.stopPropagation(); onRemove(); }} className="p-0.5 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><X size={12} /></button>
                 </div>
             </div>
@@ -474,8 +474,8 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                     {hasFrenteExt && (
                         <div className="rounded-lg p-3 flex flex-col gap-2" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)' }}>
                             <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#f59e0b' }}>Frente Externa — Material Exclusivo</span>
-                                <Info size={11} style={{ color: '#f59e0b' }} title="A frente externa pode ter acabamento e material diferente do interior da gaveta — impacta diretamente no preço." />
+                                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--warning)' }}>Frente Externa — Material Exclusivo</span>
+                                <Info size={11} style={{ color: 'var(--warning)' }} title="A frente externa pode ter acabamento e material diferente do interior da gaveta — impacta diretamente no preço." />
                             </div>
                             <div>
                                 <label className={Z.lbl}>Material da Frente Externa</label>
@@ -630,20 +630,20 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove }) {
     const up = (patch) => onUpdate({ ...painel, ...patch });
 
     return (
-        <div className="rounded-lg border overflow-hidden mb-2" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', borderLeft: '3px solid #f59e0b' }}>
+        <div className="rounded-lg border overflow-hidden mb-2" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', borderLeft: '3px solid var(--warning)' }}>
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)]" onClick={() => setExp(!exp)}>
                 <div className="flex items-center gap-2">
                     {exp ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                    <Layers size={13} style={{ color: '#f59e0b' }} />
+                    <Layers size={13} style={{ color: 'var(--warning)' }} />
                     <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>{painel.nome || 'Painel Ripado'}</span>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: '#f59e0b15', color: '#f59e0b' }}>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: '#f59e0b15', color: 'var(--warning)' }}>
                         {painel.tipo === 'muxarabi' ? 'Muxarabi' : 'Ripado'}
                     </span>
                     {calc && <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>{calc.nV} rip · {N(calc.mlTotal)}m</span>}
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="font-bold text-xs" style={{ color: '#f59e0b' }}>{R$(custo)}</span>
+                    <span className="font-bold text-xs" style={{ color: 'var(--warning)' }}>{R$(custo)}</span>
                     <button onClick={e => { e.stopPropagation(); onRemove(); }} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>
                 </div>
             </div>
@@ -663,7 +663,7 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove }) {
                                 {[['ripado', 'Ripado'], ['muxarabi', 'Muxarabi']].map(([id, lb]) => (
                                     <button key={id} onClick={() => up({ tipo: id })}
                                         className="flex-1 py-1.5 rounded text-xs font-semibold transition-all"
-                                        style={painel.tipo === id ? { background: '#f59e0b', color: '#fff' } : { background: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                                        style={painel.tipo === id ? { background: 'var(--warning)', color: '#fff' } : { background: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
                                         {lb}
                                     </button>
                                 ))}
@@ -679,8 +679,8 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove }) {
                     </div>
 
                     {/* Ripas V */}
-                    <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-card)', borderColor: '#f59e0b30', borderLeft: '3px solid #f59e0b' }}>
-                        <span className="text-[10px] uppercase tracking-widest font-bold block mb-2" style={{ color: '#f59e0b' }}>Ripas Verticais</span>
+                    <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-card)', borderColor: '#f59e0b30', borderLeft: '3px solid var(--warning)' }}>
+                        <span className="text-[10px] uppercase tracking-widest font-bold block mb-2" style={{ color: 'var(--warning)' }}>Ripas Verticais</span>
                         <div className="grid grid-cols-3 gap-2">
                             <div><label className={Z.lbl}>Largura (mm)</label><input type="number" className={Z.inp} min={5} value={painel.wV || 40} onChange={e => up({ wV: +e.target.value })} /></div>
                             <div><label className={Z.lbl}>Espessura (mm)</label><input type="number" className={Z.inp} min={3} value={painel.eV || 18} onChange={e => up({ eV: +e.target.value })} /></div>
@@ -762,7 +762,7 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove }) {
                             </div>
                             <div className="mt-2 pt-2 flex justify-between text-xs" style={{ borderTop: '1px solid var(--border)' }}>
                                 <span style={{ color: 'var(--text-muted)' }}>Custo c/ dificuldade (×{N(coef, 2)}):</span>
-                                <strong style={{ color: '#f59e0b' }}>{R$(calc.custoMaterial * coef)}</strong>
+                                <strong style={{ color: 'var(--warning)' }}>{R$(calc.custoMaterial * coef)}</strong>
                             </div>
                         </div>
                     )}
@@ -1849,15 +1849,15 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             {isLocked && (
                 <div className="mb-4 px-4 py-3 rounded-xl flex items-center justify-between gap-3" style={{ background: unlocked ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.12)', border: `1px solid ${unlocked ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.35)'}` }}>
                     <div className="flex items-center gap-2 text-xs">
-                        {unlocked ? <Unlock size={16} style={{ color: '#f59e0b' }} /> : <Lock size={16} style={{ color: '#f59e0b' }} />}
-                        <span style={{ color: '#f59e0b', fontWeight: 700 }}>
+                        {unlocked ? <Unlock size={16} style={{ color: 'var(--warning)' }} /> : <Lock size={16} style={{ color: 'var(--warning)' }} />}
+                        <span style={{ color: 'var(--warning)', fontWeight: 700 }}>
                             {unlocked ? 'Desbloqueado temporariamente — salve para re-travar' : 'Orçamento aprovado — edição bloqueada'}
                         </span>
                     </div>
                     <div className="flex items-center gap-2">
                         {!unlocked && (
                             <button onClick={() => { setUnlockText(''); setShowUnlockModal(true); }}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
+                                className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ background: 'rgba(245,158,11,0.15)', color: 'var(--warning)' }}>
                                 <Unlock size={12} className="inline mr-1" /> Desbloquear
                             </button>
                         )}
@@ -1874,13 +1874,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             {/* ── Banner versão substituída ── */}
             {isSubstituida && (
                 <div className="mb-4 px-4 py-3 rounded-xl flex items-center justify-between gap-3" style={{ background: 'rgba(100,116,139,0.08)', border: '1px solid rgba(100,116,139,0.25)' }}>
-                    <div className="flex items-center gap-2 text-xs" style={{ color: '#64748b' }}>
+                    <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
                         <GitBranch size={16} />
                         <span className="font-bold">VERSÃO SUBSTITUÍDA — somente leitura</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <button onClick={ativarVersao}
-                            className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ background: 'rgba(34,197,94,0.12)', color: '#16a34a' }}>
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ background: 'rgba(34,197,94,0.12)', color: 'var(--success)' }}>
                             <Star size={12} className="inline mr-1" /> Tornar ativa
                         </button>
                         {versoes.length > 1 && (() => {
@@ -1896,7 +1896,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             const ativa = versoes.find(v => v.versao_ativa === 1 || v.versao_ativa === true);
                             return ativa ? (
                                 <button onClick={() => { api.get(`/orcamentos/${ativa.id}`).then(o => nav('novo', o)).catch(() => notify('Erro')); }}
-                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ background: 'rgba(100,116,139,0.12)', color: '#64748b' }}>
+                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ background: 'rgba(100,116,139,0.12)', color: 'var(--text-muted)' }}>
                                     Abrir ativa <ArrowRight size={12} className="inline ml-1" />
                                 </button>
                             ) : null;
@@ -1918,7 +1918,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 className="text-[11px] font-semibold px-2.5 py-1 rounded-lg cursor-pointer transition-all"
                                 style={{
                                     background: isCurrent ? 'var(--primary)' : isAtiva ? 'rgba(34,197,94,0.12)' : 'rgba(100,116,139,0.08)',
-                                    color: isCurrent ? '#fff' : isAtiva ? '#16a34a' : '#94a3b8',
+                                    color: isCurrent ? '#fff' : isAtiva ? 'var(--success)' : 'var(--text-muted)',
                                     border: `1px solid ${isCurrent ? 'var(--primary)' : isAtiva ? 'rgba(34,197,94,0.3)' : 'rgba(100,116,139,0.15)'}`,
                                     opacity: isCurrent ? 1 : 0.85,
                                 }}>
@@ -1936,12 +1936,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 </div>
             )}
 
-            <div className="flex justify-between items-start mb-5">
-                <div>
-                    <h1 className={Z.h1}>{editOrc ? 'Editar' : 'Novo'} Orçamento</h1>
-                    <p className={Z.sub}>Ambientes → Caixas → Componentes</p>
-                </div>
-                <div className="flex gap-2">
+            <PageHeader icon={FileText} title={`${editOrc ? 'Editar' : 'Novo'} Orçamento`} subtitle="Ambientes → Caixas → Componentes">
                     {editOrc?.id && !isSubstituida && !isLocked && !isAditivo && !temVersoes && (
                         <button onClick={() => { setMotivoVersao(''); setShowVersaoModal(true); }}
                             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all"
@@ -1962,7 +1957,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         <div className="flex items-center gap-2">
                             {editOrc?.id && saveStatus !== 'idle' && (
                                 <span className="text-[11px] font-medium flex items-center gap-1 whitespace-nowrap" style={{
-                                    color: saveStatus === 'saved' ? '#22c55e' : saveStatus === 'saving' ? '#f59e0b' : saveStatus === 'error' ? '#ef4444' : '#94a3b8',
+                                    color: saveStatus === 'saved' ? 'var(--success)' : saveStatus === 'saving' ? 'var(--warning)' : saveStatus === 'error' ? 'var(--danger)' : 'var(--text-muted)',
                                 }}>
                                     {saveStatus === 'saved' && <><CheckCircle size={12} /> Salvo</>}
                                     {saveStatus === 'saving' && <><RefreshCw size={12} className="animate-spin" /> Salvando...</>}
@@ -1974,8 +1969,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         </div>
                     )}
                     <button onClick={() => nav('orcs')} className={Z.btn2}>← Voltar</button>
-                </div>
-            </div>
+            </PageHeader>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                 {/* ── Coluna principal ── */}
@@ -2017,7 +2011,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         <div className="flex items-center justify-between mb-3">
                             <h2 className="text-sm font-semibold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}><Layers size={14} /> Ambientes ({ambientes.length})</h2>
                             {!readOnly && <div className="flex gap-2">
-                                {ambTemplates.length > 0 && <button onClick={() => setShowTipoAmbModal(true)} className={`${Z.btn2} text-xs py-1.5 px-3`} style={{ borderColor: '#16a34a40', color: '#16a34a' }}><FilePlus2 size={13} /> Templates</button>}
+                                {ambTemplates.length > 0 && <button onClick={() => setShowTipoAmbModal(true)} className={`${Z.btn2} text-xs py-1.5 px-3`} style={{ borderColor: '#16a34a40', color: 'var(--success)' }}><FilePlus2 size={13} /> Templates</button>}
                                 <button onClick={addAmbiente} className={`${Z.btn} text-xs py-1.5 px-3`}><Plus size={13} /> Ambiente</button>
                                 <button onClick={() => { setShowImportModal(true); setImportResult(null); }} className={`${Z.btn2} text-xs py-1.5 px-3`} style={{ borderColor: '#8b5cf640', color: '#8b5cf6' }}><Sparkles size={13} /> Importar JSON IA</button>
                             </div>}
@@ -2049,7 +2043,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     : `${amb.itens.length} caixa${amb.itens.length !== 1 ? 's' : ''}${(amb.paineis || []).length > 0 ? ` · ${amb.paineis.length} painel${amb.paineis.length > 1 ? 'is' : ''}` : ''}${(amb.itensEspeciais || []).length > 0 ? ` · ${amb.itensEspeciais.length} especial${amb.itensEspeciais.length > 1 ? 'is' : ''}` : ''}`
                                                 }
                                             </span>
-                                            {amb.tipo === 'manual' && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: '#f59e0b18', color: '#f59e0b', border: '1px solid #f59e0b30' }}>Manual</span>}
+                                            {amb.tipo === 'manual' && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: '#f59e0b18', color: 'var(--warning)', border: '1px solid #f59e0b30' }}>Manual</span>}
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <span className="font-bold text-sm" style={{ color: 'var(--primary)' }}>{R$(ambPv)}</span>
@@ -2240,7 +2234,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                 {(item.qtd || 1) > 1 && <span className="text-[9px] px-1 rounded font-bold" style={{ background: 'rgba(19,121,240,0.1)', color: 'var(--primary)' }}>×{item.qtd}</span>}
                                                                 {item.componentes.length > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>{item.componentes.length} comp.</span>}
                                                                 {ajusteR !== 0 && (
-                                                                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: ajusteR > 0 ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)', color: ajusteR > 0 ? '#16a34a' : '#ef4444' }}>
+                                                                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: ajusteR > 0 ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)', color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>
                                                                         {ajusteR > 0 ? '+' : ''}{aj.tipo === '%' ? `${aj.valor}%` : R$(ajusteR)}
                                                                     </span>
                                                                 )}
@@ -2311,7 +2305,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                             style={ajusteR !== 0 ? { borderColor: ajusteR > 0 ? 'rgba(22,163,74,0.5)' : 'rgba(239,68,68,0.5)' } : {}}
                                                                         />
                                                                         {ajusteR !== 0 && (
-                                                                            <span className="text-xs whitespace-nowrap font-bold" style={{ color: ajusteR > 0 ? '#16a34a' : '#ef4444' }}>
+                                                                            <span className="text-xs whitespace-nowrap font-bold" style={{ color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>
                                                                                 {ajusteR > 0 ? '+' : ''}{R$(ajusteR)}
                                                                             </span>
                                                                         )}
@@ -2320,7 +2314,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                         <div className="text-[10px] mt-1.5 flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
                                                                             <span>Base: {R$(precoItem)}</span>
                                                                             <span>→</span>
-                                                                            <span className="font-semibold" style={{ color: ajusteR > 0 ? '#16a34a' : '#ef4444' }}>Final: {R$(precoItemFinal)}</span>
+                                                                            <span className="font-semibold" style={{ color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>Final: {R$(precoItemFinal)}</span>
                                                                         </div>
                                                                     )}
                                                                 </div>
@@ -2385,10 +2379,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                 {/* Componentes */}
                                                                 <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
                                                                     <div className="flex items-center justify-between mb-2">
-                                                                        <span className="text-[10px] uppercase tracking-widest font-bold" style={{ color: '#16a34a' }}>Componentes ({item.componentes.length})</span>
+                                                                        <span className="text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--success)' }}>Componentes ({item.componentes.length})</span>
                                                                         <button onClick={() => setAddCompModal({ ambId: amb.id, itemId: item.id })}
                                                                             className="text-[10px] px-2 py-0.5 rounded font-semibold cursor-pointer flex items-center gap-1"
-                                                                            style={{ background: '#16a34a', color: '#fff' }}>
+                                                                            style={{ background: 'var(--success)', color: '#fff' }}>
                                                                             <Plus size={10} /> Adicionar
                                                                         </button>
                                                                     </div>
@@ -2441,7 +2435,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             {/* ── Painéis Ripados ── */}
                                             {(amb.paineis || []).length > 0 && (
                                                 <div className="mt-2">
-                                                    <div className="text-[10px] uppercase tracking-widest font-bold mb-2 flex items-center gap-1.5" style={{ color: '#f59e0b' }}>
+                                                    <div className="text-[10px] uppercase tracking-widest font-bold mb-2 flex items-center gap-1.5" style={{ color: 'var(--warning)' }}>
                                                         <Layers size={10} /> Painéis ({amb.paineis.length})
                                                     </div>
                                                     {amb.paineis.map(painel => (
@@ -2538,8 +2532,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             </div>
                             {tot.manualTotal > 0 && (
                                 <div className="mt-1 flex justify-between text-xs">
-                                    <span style={{ color: '#f59e0b' }}>Amb. Manuais (direto)</span>
-                                    <span className="font-bold" style={{ color: '#f59e0b' }}>{R$(tot.manualTotal)}</span>
+                                    <span style={{ color: 'var(--warning)' }}>Amb. Manuais (direto)</span>
+                                    <span className="font-bold" style={{ color: 'var(--warning)' }}>{R$(tot.manualTotal)}</span>
                                 </div>
                             )}
 
@@ -2624,7 +2618,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         {tot.totalAjustes !== 0 && (
                                             <div className="text-[9px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
                                                 Base: {R$(tot.pv)}&nbsp;
-                                                <span style={{ color: tot.totalAjustes > 0 ? '#16a34a' : '#ef4444', fontWeight: 600 }}>
+                                                <span style={{ color: tot.totalAjustes > 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
                                                     {tot.totalAjustes > 0 ? '+' : ''}{R$(tot.totalAjustes)}
                                                 </span>
                                             </div>
@@ -2695,7 +2689,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                 </div>
                                                             ))}
                                                             {tot.chapasEconomia > 0 && (
-                                                                <div className="flex justify-between text-[9px] mt-0.5 pt-0.5" style={{ borderTop: '1px dashed var(--border)', color: '#22c55e' }}>
+                                                                <div className="flex justify-between text-[9px] mt-0.5 pt-0.5" style={{ borderTop: '1px dashed var(--border)', color: 'var(--success)' }}>
                                                                     <span>Otimização de chapas ({N(tot.chapasFrac, 1)} de {tot.chapasInteiras})</span>
                                                                     <span>-{R$(tot.chapasEconomia)}</span>
                                                                 </div>
@@ -2706,8 +2700,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     {/* Mão de Obra */}
                                                     <div>
                                                         <div className="flex justify-between items-center mb-0.5">
-                                                            <span className="text-[10px] font-semibold" style={{ color: '#22c55e' }}>Mão de Obra</span>
-                                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(mdo)} <span className="font-semibold" style={{ color: '#22c55e' }}>{pct(mdo)}%</span></span>
+                                                            <span className="text-[10px] font-semibold" style={{ color: 'var(--success)' }}>Mão de Obra</span>
+                                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(mdo)} <span className="font-semibold" style={{ color: 'var(--success)' }}>{pct(mdo)}%</span></span>
                                                         </div>
                                                         <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(mdo, '#22c55e')}</div>
                                                     </div>
@@ -2767,7 +2761,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     <button onClick={salvar} className={`${Z.btn} w-full py-2.5 text-xs`}>Salvar Orçamento</button>
                                     {editOrc?.id && saveStatus !== 'idle' && (
                                         <div className="text-center text-[10px] font-medium flex items-center justify-center gap-1 mt-1" style={{
-                                            color: saveStatus === 'saved' ? '#22c55e' : saveStatus === 'saving' ? '#f59e0b' : saveStatus === 'error' ? '#ef4444' : '#94a3b8',
+                                            color: saveStatus === 'saved' ? 'var(--success)' : saveStatus === 'saving' ? 'var(--warning)' : saveStatus === 'error' ? 'var(--danger)' : 'var(--text-muted)',
                                         }}>
                                             {saveStatus === 'saved' && <><CheckCircle size={10} /> Salvo automaticamente</>}
                                             {saveStatus === 'saving' && <><RefreshCw size={10} className="animate-spin" /> Salvando...</>}
@@ -2902,7 +2896,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 {[
                                     { label: 'Visualizações', value: viewsData.new_visits || 0, icon: <Eye size={12} />, color: '#3b82f6' },
                                     { label: 'Dispositivos', value: viewsData.unique_devices || 0, icon: <Monitor size={12} />, color: '#8b5cf6' },
-                                    { label: 'Tempo máx.', value: viewsData.max_tempo > 60 ? `${Math.round(viewsData.max_tempo / 60)}min` : `${viewsData.max_tempo || 0}s`, icon: <Clock size={12} />, color: '#f59e0b' },
+                                    { label: 'Tempo máx.', value: viewsData.max_tempo > 60 ? `${Math.round(viewsData.max_tempo / 60)}min` : `${viewsData.max_tempo || 0}s`, icon: <Clock size={12} />, color: 'var(--warning)' },
                                     { label: 'Scroll máx.', value: `${viewsData.max_scroll || 0}%`, icon: <BarChart3 size={12} />, color: '#10b981' },
                                 ].map((m, i) => (
                                     <div key={i} className="text-center p-2 rounded-lg" style={{ background: 'var(--bg-muted)' }}>
@@ -2974,7 +2968,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             <div className={`${Z.card} mt-5`} style={readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}}>
                 <h2 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
                     <CreditCard size={14} /> Condições de Pagamento
-                    {readOnly && <Lock size={12} style={{ color: '#f59e0b' }} />}
+                    {readOnly && <Lock size={12} style={{ color: 'var(--warning)' }} />}
                 </h2>
 
                 {/* Desconto Global */}
@@ -3002,7 +2996,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         {descontoR > 0 && (
                             <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: 'var(--text-muted)' }}>
                                 <span>Base: <strong style={{ color: 'var(--text-primary)' }}>{R$(tot.pvFinal)}</strong></span>
-                                <span style={{ color: '#ef4444' }}>− {R$(descontoR)}</span>
+                                <span style={{ color: 'var(--danger)' }}>− {R$(descontoR)}</span>
                                 <span>Final: <strong style={{ color: 'var(--primary)', fontSize: 13 }}>{R$(pvComDesconto)}</strong></span>
                             </div>
                         )}
@@ -3259,7 +3253,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
                             {importResult && (
                                 <div className="mt-3 p-3 rounded-lg" style={{ background: '#22c55e10', border: '1px solid #22c55e30' }}>
-                                    <div className="flex items-center gap-2 text-xs font-bold" style={{ color: '#22c55e' }}>
+                                    <div className="flex items-center gap-2 text-xs font-bold" style={{ color: 'var(--success)' }}>
                                         <CheckCircle size={14} /> Importado com sucesso!
                                     </div>
                                     <div className="flex gap-2 mt-2 flex-wrap">
@@ -3268,7 +3262,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             { label: 'Itens', val: importResult.stats.itens },
                                             { label: 'Componentes', val: importResult.stats.componentes },
                                         ].map(s => (
-                                            <span key={s.label} className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#22c55e15', color: '#22c55e' }}>
+                                            <span key={s.label} className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#22c55e15', color: 'var(--success)' }}>
                                                 {s.val} {s.label}
                                             </span>
                                         ))}
@@ -3276,7 +3270,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     {importResult.warnings?.length > 0 && (
                                         <div className="mt-2">
                                             {importResult.warnings.map((w, i) => (
-                                                <div key={i} className="text-[10px] flex items-center gap-1 mt-1" style={{ color: '#f59e0b' }}>
+                                                <div key={i} className="text-[10px] flex items-center gap-1 mt-1" style={{ color: 'var(--warning)' }}>
                                                     <AlertTriangle size={10} /> {w}
                                                 </div>
                                             ))}
@@ -3326,10 +3320,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 <button onClick={() => createAmbiente('manual')}
                                     className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md"
                                     style={{ borderColor: '#f59e0b40', background: '#f59e0b08' }}>
-                                    <div style={{ width: 44, height: 44, borderRadius: 12, background: '#f59e0b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--warning)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                         <FileText size={22} />
                                     </div>
-                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b' }}>Manual</span>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--warning)' }}>Manual</span>
                                     <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.3 }}>Descricao livre com valores manuais</span>
                                 </button>
 
@@ -3356,7 +3350,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             <div key={tpl.id} className="flex items-center gap-2 p-2 rounded-lg border transition-all hover:border-[var(--primary)]"
                                                 style={{ borderColor: 'var(--border)', background: 'var(--bg-muted)' }}>
                                                 <button onClick={() => createFromTemplate(tpl)} className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer" title="Usar template">
-                                                    <Layers size={15} style={{ color: '#16a34a', flexShrink: 0 }} />
+                                                    <Layers size={15} style={{ color: 'var(--success)', flexShrink: 0 }} />
                                                     <div className="flex flex-col min-w-0">
                                                         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }} className="truncate">{tpl.nome}</span>
                                                         {tpl.categoria && <span style={{ fontSize: 9, color: 'var(--text-muted)' }} className="truncate">{tpl.categoria}</span>}
@@ -3452,17 +3446,17 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     onClick={() => addComp(addCompModal.ambId, addCompModal.itemId, comp)}
                                     className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-[#16a34a]/40 hover:bg-[var(--bg-hover)] text-left w-full mb-1.5"
                                     style={{ borderColor: 'var(--border)' }}>
-                                    <Package size={16} style={{ color: '#16a34a', marginTop: 2, flexShrink: 0 }} />
+                                    <Package size={16} style={{ color: 'var(--success)', marginTop: 2, flexShrink: 0 }} />
                                     <div className="flex-1">
                                         <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{comp.nome}</div>
                                         <div className="text-[10px] mt-0.5 flex gap-2 flex-wrap" style={{ color: 'var(--text-muted)' }}>
                                             {comp.desc && <span>{comp.desc}</span>}
-                                            {comp.frente_externa?.ativa && <span className="font-semibold" style={{ color: '#f59e0b' }}>+ frente externa</span>}
+                                            {comp.frente_externa?.ativa && <span className="font-semibold" style={{ color: 'var(--warning)' }}>+ frente externa</span>}
                                             {(comp.sub_itens || []).length > 0 && <span>{(comp.sub_itens || []).length} ferragem(ns)</span>}
                                             {(comp.vars || []).length > 0 && <span>{(comp.vars || []).map(v => `${v.id}=${v.default}${v.unit}`).join(', ')}</span>}
                                         </div>
                                     </div>
-                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded" style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}>×{1 + comp.coef}</span>
+                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded" style={{ background: 'rgba(22,163,74,0.12)', color: 'var(--success)' }}>×{1 + comp.coef}</span>
                                 </button>
                             ))}
                         </div>
@@ -3594,7 +3588,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
                         onClick={e => e.stopPropagation()}>
                         <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
-                            <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: '#16a34a' }}>
+                            <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: 'var(--success)' }}>
                                 <CheckCircle size={16} /> Aprovar Orçamento
                             </h3>
                             <button onClick={() => setShowAprovarModal(false)} className="p-1 rounded hover:bg-[var(--bg-hover)] cursor-pointer"><X size={16} /></button>
@@ -3616,7 +3610,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 return (
                                     <div>
                                         <div className="p-3 rounded-lg mb-4 text-xs" style={{ background: 'rgba(22,163,74,0.08)', color: 'var(--text-secondary)', border: '1px solid rgba(22,163,74,0.2)' }}>
-                                            <strong style={{ color: '#16a34a' }}>Tudo certo!</strong> Ao aprovar, o orçamento será travado para edição e um projeto será criado automaticamente com as etapas padrão e contas a receber.
+                                            <strong style={{ color: 'var(--success)' }}>Tudo certo!</strong> Ao aprovar, o orçamento será travado para edição e um projeto será criado automaticamente com as etapas padrão e contas a receber.
                                         </div>
                                         <div className="flex flex-col gap-2 mb-4 text-xs" style={{ color: 'var(--text-secondary)' }}>
                                             <div className="flex justify-between"><span>Cliente:</span><strong>{clis.find(c => c.id === parseInt(cid))?.nome || '—'}</strong></div>
@@ -3647,7 +3641,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                         <div className="p-6">
                             <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: 'rgba(22,163,74,0.12)' }}>
-                                <CheckCircle size={32} style={{ color: '#16a34a' }} />
+                                <CheckCircle size={32} style={{ color: 'var(--success)' }} />
                             </div>
                             <h3 className="text-lg font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Orçamento Aprovado!</h3>
                             <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
@@ -3681,7 +3675,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
                         onClick={e => e.stopPropagation()}>
                         <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
-                            <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: '#f59e0b' }}>
+                            <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: 'var(--warning)' }}>
                                 <ShieldAlert size={16} /> Desbloquear Edição
                             </h3>
                             <button onClick={() => setShowUnlockModal(false)} className="p-1 rounded hover:bg-[var(--bg-hover)] cursor-pointer"><X size={16} /></button>
@@ -3784,13 +3778,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                                                 <strong>{v1.versao === 1 ? 'v1' : `R${v1.versao}`}</strong> {R$(v1.valor_venda)} → <strong>{v2.versao === 1 ? 'v1' : `R${v2.versao}`}</strong> {R$(v2.valor_venda)}
                                             </div>
-                                            <span className="text-sm font-bold" style={{ color: valorDiff >= 0 ? '#16a34a' : '#dc2626' }}>
+                                            <span className="text-sm font-bold" style={{ color: valorDiff >= 0 ? 'var(--success)' : '#dc2626' }}>
                                                 {valorDiff >= 0 ? '+' : ''}{R$(valorDiff)} ({valorDiff >= 0 ? '+' : ''}{N(pctDiff, 1)}%)
                                             </span>
                                         </div>
                                         {/* Ambientes adicionados */}
                                         {diff.ambientes.added.map((a, i) => (
-                                            <div key={`add-${i}`} className="px-3 py-2 rounded-lg text-xs" style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', color: '#16a34a' }}>
+                                            <div key={`add-${i}`} className="px-3 py-2 rounded-lg text-xs" style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', color: 'var(--success)' }}>
                                                 <strong>+ Adicionado:</strong> {a.nome} ({a.itensCount} itens)
                                             </div>
                                         ))}
@@ -3805,14 +3799,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             <div key={`mod-${i}`} className="rounded-lg overflow-hidden" style={{ border: '1px solid rgba(245,158,11,0.2)' }}>
                                                 <div className="px-3 py-2 text-xs font-bold" style={{ background: 'rgba(245,158,11,0.08)', color: '#d97706' }}>~ Modificado: {a.nome}</div>
                                                 <div className="px-3 py-2 flex flex-col gap-1.5 text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-                                                    {a.itens.added.map((it, j) => <div key={`ia-${j}`} style={{ color: '#16a34a' }}>+ {it.nome} {it.dims ? `(${it.dims.l}×${it.dims.a})` : ''}</div>)}
+                                                    {a.itens.added.map((it, j) => <div key={`ia-${j}`} style={{ color: 'var(--success)' }}>+ {it.nome} {it.dims ? `(${it.dims.l}×${it.dims.a})` : ''}</div>)}
                                                     {a.itens.removed.map((it, j) => <div key={`ir-${j}`} style={{ color: '#dc2626' }}>- {it.nome} {it.dims ? `(${it.dims.l}×${it.dims.a})` : ''}</div>)}
                                                     {a.itens.modified.map((it, j) => (
                                                         <div key={`im-${j}`} style={{ color: '#d97706' }}>~ {it.nome}: {it.diffs.map(d => `${d.campo} ${d.de}→${d.para}`).join(', ')}</div>
                                                     ))}
-                                                    {a.paineis.added.map((p, j) => <div key={`pa-${j}`} style={{ color: '#16a34a' }}>+ Painel: {p.nome}</div>)}
+                                                    {a.paineis.added.map((p, j) => <div key={`pa-${j}`} style={{ color: 'var(--success)' }}>+ Painel: {p.nome}</div>)}
                                                     {a.paineis.removed.map((p, j) => <div key={`pr-${j}`} style={{ color: '#dc2626' }}>- Painel: {p.nome}</div>)}
-                                                    {a.itensEspeciais.added.map((e, j) => <div key={`ea-${j}`} style={{ color: '#16a34a' }}>+ Especial: {e.nome}</div>)}
+                                                    {a.itensEspeciais.added.map((e, j) => <div key={`ea-${j}`} style={{ color: 'var(--success)' }}>+ Especial: {e.nome}</div>)}
                                                     {a.itensEspeciais.removed.map((e, j) => <div key={`er-${j}`} style={{ color: '#dc2626' }}>- Especial: {e.nome}</div>)}
                                                 </div>
                                             </div>
@@ -3826,7 +3820,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         {/* Taxas */}
                                         {diff.taxas.changed.length > 0 && (
                                             <div className="rounded-lg overflow-hidden" style={{ border: '1px solid rgba(100,116,139,0.2)' }}>
-                                                <div className="px-3 py-2 text-xs font-bold" style={{ background: 'rgba(100,116,139,0.06)', color: '#64748b' }}>Taxas alteradas</div>
+                                                <div className="px-3 py-2 text-xs font-bold" style={{ background: 'rgba(100,116,139,0.06)', color: 'var(--text-muted)' }}>Taxas alteradas</div>
                                                 <div className="px-3 py-2 flex flex-col gap-1 text-[11px]" style={{ color: 'var(--text-secondary)' }}>
                                                     {diff.taxas.changed.map((t, i) => <div key={i}>{t.label}: {t.de} → {t.para}</div>)}
                                                 </div>
@@ -3834,7 +3828,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         )}
                                         {/* Pagamento */}
                                         {diff.pagamento.changed && (
-                                            <div className="px-3 py-2 rounded-lg text-[11px]" style={{ background: 'rgba(100,116,139,0.04)', color: '#64748b', border: '1px solid rgba(100,116,139,0.15)' }}>
+                                            <div className="px-3 py-2 rounded-lg text-[11px]" style={{ background: 'rgba(100,116,139,0.04)', color: 'var(--text-muted)', border: '1px solid rgba(100,116,139,0.15)' }}>
                                                 Condições de pagamento foram alteradas
                                             </div>
                                         )}

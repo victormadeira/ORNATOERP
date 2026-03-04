@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Z, Ic, Modal } from '../ui';
+import { Z, Ic, Modal, PageHeader } from '../ui';
 import api from '../api';
 import { Shield, ShieldOff, Trash2, Check, Key } from 'lucide-react';
 
@@ -273,15 +273,11 @@ export default function Users({ notify, meUser }) {
 
     return (
         <div className={Z.pg}>
-            <div className="flex justify-between items-start mb-6">
-                <div>
-                    <h1 className={Z.h1}>Usuários</h1>
-                    <p className={Z.sub}>{users.length} cadastrado{users.length !== 1 ? 's' : ''} no sistema</p>
-                </div>
+            <PageHeader icon={Shield} title="Usuários" subtitle={`${users.length} cadastrado${users.length !== 1 ? 's' : ''} no sistema`}>
                 <button onClick={() => setMoNovo(true)} className={Z.btn}>
                     <Ic.Plus /> Novo Usuário
                 </button>
-            </div>
+            </PageHeader>
 
             <div className={`${Z.card} !p-0 overflow-hidden`}>
                 <table className="w-full border-collapse text-left">

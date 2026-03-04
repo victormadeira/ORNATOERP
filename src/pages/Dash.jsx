@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
-import { Z, Ic, Spinner, Badge, KpiCard, SectionHeader } from '../ui';
+import { Z, Ic, Spinner, Badge, KpiCard, SectionHeader, PageHeader, TabBar } from '../ui';
 import { STATUS_PROJ, CAT_COLOR, CAT_LABEL, colorBg, colorBorder } from '../theme';
 import { R$, N } from '../engine';
 import {
@@ -243,7 +243,7 @@ function FluxoCaixa({ data }) {
     if (!data) return null;
     const items = [
         { label: 'Recebido este mes', value: data.recebido_mes, color: '#22c55e', icon: CheckCircle2 },
-        { label: 'A receber (30d)', value: data.entradas_30d, color: '#1379F0', icon: Calendar },
+        { label: 'A receber (30d)', value: data.entradas_30d, color: 'var(--primary)', icon: Calendar },
         { label: 'A receber (60d)', value: data.entradas_60d, color: '#7e7ec8', icon: Calendar },
         { label: 'Vencido (a receber)', value: data.entradas_vencidas, color: '#ef4444', icon: AlertTriangle },
     ];
@@ -833,7 +833,7 @@ export default function Dash({ nav, notify, user }) {
                     <p className={Z.sub}>{today}</p>
                 </div>
                 <div className="glass-card" style={{ textAlign: 'center', padding: 40 }}>
-                    <AlertTriangle size={32} style={{ color: '#f59e0b', margin: '0 auto 12px' }} />
+                    <AlertTriangle size={32} style={{ color: 'var(--warning)', margin: '0 auto 12px' }} />
                     <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 12 }}>Erro ao carregar dashboard</p>
                     <button onClick={load} className={`${Z.btn} text-xs`}>Tentar novamente</button>
                 </div>
@@ -844,33 +844,15 @@ export default function Dash({ nav, notify, user }) {
     return (
         <div className={Z.pg}>
             {/* ── Header + Tabs ── */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                <div>
-                    <h1 className={Z.h1}>{greet()}, bem-vindo!</h1>
-                    <p className={Z.sub} style={{ marginBottom: 0 }}>{today}</p>
-                </div>
-                <div style={{ display: 'flex', gap: 4, background: 'var(--bg-muted)', borderRadius: 10, padding: 3 }}>
-                    {[
-                        { id: 'geral', label: 'Visão Geral', icon: Activity },
-                        ...(!isVendedor ? [{ id: 'financeiro', label: 'Financeiro', icon: DollarSign }] : []),
-                    ].map(t => {
-                        const Icon = t.icon;
-                        return (
-                            <button key={t.id} onClick={() => setTab(t.id)}
-                                style={{
-                                    padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                                    border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-                                    background: tab === t.id ? 'var(--bg-card)' : 'transparent',
-                                    color: tab === t.id ? 'var(--primary)' : 'var(--text-muted)',
-                                    boxShadow: tab === t.id ? '0 1px 3px rgba(0,0,0,.1)' : 'none',
-                                    display: 'flex', alignItems: 'center', gap: 5,
-                                }}>
-                                <Icon size={13} /> {t.label}
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
+            <PageHeader icon={Activity} title={`${greet()}, bem-vindo!`} subtitle={today} />
+            <TabBar
+                tabs={[
+                    { id: 'geral', label: 'Visão Geral', icon: Activity },
+                    ...(!isVendedor ? [{ id: 'financeiro', label: 'Financeiro', icon: DollarSign }] : []),
+                ]}
+                active={tab}
+                onChange={setTab}
+            />
 
             {/* ═══ TAB GERAL ═══ */}
             {tab === 'geral' && (
@@ -959,7 +941,7 @@ export default function Dash({ nav, notify, user }) {
                     </>
                 ) : (
                     <div className="glass-card" style={{ textAlign: 'center', padding: 40 }}>
-                        <AlertTriangle size={32} style={{ color: '#f59e0b', margin: '0 auto 12px' }} />
+                        <AlertTriangle size={32} style={{ color: 'var(--warning)', margin: '0 auto 12px' }} />
                         <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 12 }}>Erro ao carregar dados financeiros</p>
                         <button onClick={loadFin} className={`${Z.btn} text-xs`}>Tentar novamente</button>
                     </div>

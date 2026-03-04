@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Z, Ic } from '../ui';
+import { Z, Ic, PageHeader, EmptyState } from '../ui';
 import api from '../api';
 import { R$ } from '../engine';
 import { STATUS_PROJ } from '../theme';
@@ -257,12 +257,7 @@ export default function Relatorios({ notify }) {
             `}</style>
 
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 no-print">
-                <div>
-                    <h1 className={Z.h1}>Relatórios</h1>
-                    <p className={Z.sub}>Exporte dados em CSV ou imprima como PDF</p>
-                </div>
-            </div>
+            <PageHeader icon={BarChart3} title="Relatórios" subtitle="Exporte dados em CSV ou imprima como PDF" />
 
             {/* Report Selector */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 no-print">
@@ -334,8 +329,8 @@ export default function Relatorios({ notify }) {
             {data && !loading && data.tipo !== 'financeiro' && (
                 <div>
                     {/* Print Header */}
-                    <div className="print-only" style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '2.5px solid #1379F0' }}>
-                        <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1379F0', marginBottom: 3 }}>
+                    <div className="print-only" style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '2.5px solid var(--primary)' }}>
+                        <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--primary)', marginBottom: 3 }}>
                             Relatório de {reportCfg?.label}
                         </h2>
                         <p style={{ fontSize: 11, color: '#64748b' }}>
@@ -389,8 +384,8 @@ export default function Relatorios({ notify }) {
             {data && !loading && data.tipo === 'financeiro' && (
                 <div>
                     {/* Print Header */}
-                    <div className="print-only" style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '2.5px solid #1379F0' }}>
-                        <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1379F0', marginBottom: 3 }}>Relatório Financeiro</h2>
+                    <div className="print-only" style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '2.5px solid var(--primary)' }}>
+                        <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--primary)', marginBottom: 3 }}>Relatório Financeiro</h2>
                         <p style={{ fontSize: 11, color: '#64748b' }}>
                             Período: {dtFmt(data.periodo?.inicio)} a {dtFmt(data.periodo?.fim)}
                             {' · '}Emitido em {new Date().toLocaleDateString('pt-BR')}
@@ -401,14 +396,14 @@ export default function Relatorios({ notify }) {
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
                         {[
                             { label: 'Total a Receber', value: R$(data.resumo?.totalReceber), color: '#3b82f6' },
-                            { label: 'Recebido', value: R$(data.resumo?.totalRecebido), color: '#22c55e' },
-                            { label: 'Total a Pagar', value: R$(data.resumo?.totalPagar), color: '#f59e0b' },
-                            { label: 'Pago', value: R$(data.resumo?.totalPago), color: '#ef4444' },
+                            { label: 'Recebido', value: R$(data.resumo?.totalRecebido), color: 'var(--success)' },
+                            { label: 'Total a Pagar', value: R$(data.resumo?.totalPagar), color: 'var(--warning)' },
+                            { label: 'Pago', value: R$(data.resumo?.totalPago), color: 'var(--danger)' },
                             { label: 'Despesas', value: R$(data.resumo?.totalDespesas), color: '#8b5cf6' },
-                            { label: 'Saldo', value: R$(data.resumo?.saldo), color: data.resumo?.saldo >= 0 ? '#22c55e' : '#ef4444' },
+                            { label: 'Saldo', value: R$(data.resumo?.saldo), color: data.resumo?.saldo >= 0 ? 'var(--success)' : 'var(--danger)' },
                         ].map((c, i) => (
                             <div key={i} className="glass-card report-summary-card p-3 text-center">
-                                <div className="font-semibold mb-1" style={{ fontSize: 11, color: '#64748b' }}>{c.label}</div>
+                                <div className="font-semibold mb-1" style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.label}</div>
                                 <div style={{ fontSize: 24, fontWeight: 800, color: c.color }}>{c.value}</div>
                             </div>
                         ))}
@@ -484,11 +479,11 @@ export default function Relatorios({ notify }) {
 
             {/* Empty state when no report selected */}
             {!selected && (
-                <div className="glass-card p-16 text-center no-print" style={{ color: 'var(--text-muted)' }}>
-                    <BarChart3 size={40} className="mx-auto mb-4 opacity-30" />
-                    <p className="text-sm font-medium">Selecione um tipo de relatório acima</p>
-                    <p className="text-xs mt-1">Escolha entre Clientes, Orçamentos, Projetos, Financeiro, Conversão ou Vendedores</p>
-                </div>
+                <EmptyState
+                    icon={BarChart3}
+                    title="Selecione um tipo de relatório acima"
+                    description="Escolha entre Clientes, Orçamentos, Projetos, Financeiro, Conversão ou Vendedores"
+                />
             )}
         </div>
     );

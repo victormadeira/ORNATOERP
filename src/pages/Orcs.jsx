@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Z, Ic, Modal, ConfirmModal, tagStyle, tagClass } from '../ui';
+import { Z, Ic, Modal, ConfirmModal, tagStyle, tagClass, PageHeader } from '../ui';
 import { R$, KCOLS } from '../engine';
 import api from '../api';
 import { Copy, Download, SortAsc, SortDesc, Filter, AlertTriangle, Calendar, Flame, Eye as EyeIcon, RefreshCw, Share2, Printer, CheckCircle, FileText as FileTextIcon, Link2, Type, ZoomIn, Star, MousePointer, DollarSign, Search, Zap, CheckCheck } from 'lucide-react';
@@ -277,20 +277,14 @@ export default function Orcs({ orcs, nav, reload, notify }) {
     return (
         <div className={Z.pg}>
             {/* ─── Header ──────────────────────────────────── */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <div>
-                    <h1 className={Z.h1}>Orçamentos</h1>
-                    <p className={Z.sub}>{orcs.length} propostas · portfólio total {R$(orcs.reduce((s, o) => s + (o.valor_venda || 0), 0))}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <button onClick={exportCSV} className={Z.btn2} title="Exportar CSV" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
-                        <Download size={14} /> CSV
-                    </button>
-                    <button onClick={() => nav("novo", null)} className={Z.btn}>
-                        <Ic.Plus /> Novo Orçamento
-                    </button>
-                </div>
-            </div>
+            <PageHeader icon={FileTextIcon} title="Orçamentos" subtitle={`${orcs.length} propostas · portfólio total ${R$(orcs.reduce((s, o) => s + (o.valor_venda || 0), 0))}`}>
+                <button onClick={exportCSV} className={Z.btn2} title="Exportar CSV" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
+                    <Download size={14} /> CSV
+                </button>
+                <button onClick={() => nav("novo", null)} className={Z.btn}>
+                    <Ic.Plus /> Novo Orçamento
+                </button>
+            </PageHeader>
 
             {/* ─── Filtros ──────────────────────────────────── */}
             <div className="flex flex-col gap-3 mb-6">

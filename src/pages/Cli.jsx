@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Z, Ic, Modal, ConfirmModal, tagStyle, tagClass } from '../ui';
+import { Z, Ic, Modal, ConfirmModal, tagStyle, tagClass, PageHeader, TabBar } from '../ui';
 import api from '../api';
 import { STATUS_PROJ, colorBg, colorBorder } from '../theme';
 import {
@@ -210,13 +210,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
         ? timeline
         : timeline.filter(e => e.tipo === tlFilter);
 
-    const TABS = [
-        { id: 'resumo', label: 'Resumo', icon: <BarChart3 size={14} /> },
-        { id: 'timeline', label: 'Timeline', icon: <Clock size={14} /> },
-        { id: 'notas', label: 'Notas', icon: <Edit size={14} />, count: notas.length },
-        { id: 'orcamentos', label: 'Orçamentos', icon: <FileText size={14} />, count: orcs.length },
-        { id: 'projetos', label: 'Projetos', icon: <Briefcase size={14} />, count: projs.length },
-    ];
+
 
     return (
         <div>
@@ -301,21 +295,17 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 mb-5 p-1 rounded-xl overflow-x-auto" style={{ background: 'var(--bg-muted)' }}>
-                {TABS.map(t => (
-                    <button key={t.id} onClick={() => setTab(t.id)}
-                        className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${tab === t.id ? 'text-white' : 'hover:bg-[var(--bg-hover)]'}`}
-                        style={tab === t.id ? { background: 'var(--primary)', color: '#fff' } : { color: 'var(--text-secondary)' }}>
-                        {t.icon} {t.label}
-                        {t.count !== undefined && t.count > 0 && (
-                            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold"
-                                style={{ background: tab === t.id ? 'rgba(255,255,255,0.25)' : 'var(--bg-hover)', color: tab === t.id ? '#fff' : 'var(--text-muted)' }}>
-                                {t.count}
-                            </span>
-                        )}
-                    </button>
-                ))}
-            </div>
+            <TabBar
+                tabs={[
+                    { id: 'resumo', label: 'Resumo', icon: BarChart3 },
+                    { id: 'timeline', label: 'Timeline', icon: Clock },
+                    { id: 'notas', label: 'Notas', icon: Edit, badge: notas.length },
+                    { id: 'orcamentos', label: 'Orçamentos', icon: FileText, badge: orcs.length },
+                    { id: 'projetos', label: 'Projetos', icon: Briefcase, badge: projs.length },
+                ]}
+                active={tab}
+                onChange={setTab}
+            />
 
             {/* ═══ Tab: Resumo ═══ */}
             {tab === 'resumo' && (
@@ -967,8 +957,7 @@ export default function Cli({ clis, reload, notify, nav }) {
         } catch (ex) { notify(ex.error || 'Erro ao excluir'); }
     };
 
-    const tabCls = (t) => `px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${tab === t ? 'text-white' : 'hover:bg-[var(--bg-hover)]'}`;
-    const tabStyle = (t) => tab === t ? { background: 'var(--primary)', color: '#fff' } : { color: 'var(--text-secondary)' };
+
 
     // ── If a client is selected, show detail view ──
     if (selectedId) {
@@ -988,15 +977,11 @@ export default function Cli({ clis, reload, notify, nav }) {
     return (
         <div className={Z.pg}>
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <div>
-                    <h1 className={Z.h1}>Clientes</h1>
-                    <p className={Z.sub}>{clis.length} registros cadastrados</p>
-                </div>
+            <PageHeader icon={User} title="Clientes" subtitle={`${clis.length} registros cadastrados`}>
                 <button onClick={() => abrirModal()} className={Z.btn}>
                     <Ic.Plus /> Novo Cliente
                 </button>
-            </div>
+            </PageHeader>
 
             {/* Search */}
             <div className="mb-6 max-w-sm relative">
@@ -1105,19 +1090,15 @@ export default function Cli({ clis, reload, notify, nav }) {
             {mo && (
                 <Modal title={ed ? 'Editar Cliente' : 'Novo Cliente'} close={() => sm(false)} w={620}>
                     {/* Tabs */}
-                    <div className="flex gap-1 mb-5 p-1 rounded-xl" style={{ background: 'var(--bg-muted)' }}>
-                        {[
-                            { id: 'basico', label: 'Dados Básicos', icon: <User size={14} /> },
-                            { id: 'endereco', label: 'Endereço', icon: <MapPin size={14} /> },
-                            { id: 'obs', label: 'Observações', icon: <FileText size={14} /> },
-                        ].map(t => (
-                            <button key={t.id} onClick={() => setTab(t.id)}
-                                className={`flex-1 flex items-center justify-center gap-1.5 ${tabCls(t.id)}`}
-                                style={tabStyle(t.id)}>
-                                {t.icon} {t.label}
-                            </button>
-                        ))}
-                    </div>
+                    <TabBar
+                        tabs={[
+                            { id: 'basico', label: 'Dados Básicos', icon: User },
+                            { id: 'endereco', label: 'Endereço', icon: MapPin },
+                            { id: 'obs', label: 'Observações', icon: FileText },
+                        ]}
+                        active={tab}
+                        onChange={setTab}
+                    />
 
                     {/* Tab: Dados Básicos */}
                     {tab === 'basico' && (

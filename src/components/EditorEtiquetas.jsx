@@ -638,7 +638,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
           style={{ fontSize: 11, padding: '4px 8px', minWidth: 160, fontWeight: 600, borderRadius: 6 }}
         >
           {templates.map(t => (
-            <option key={t.id} value={t.id}>{t.nome}{t.padrao ? ' ★' : ''}</option>
+            <option key={t.id} value={t.id}>{t.nome}{t.padrao ? ' [Padrao]' : ''}</option>
           ))}
         </select>
 

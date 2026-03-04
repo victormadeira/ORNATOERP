@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
-import { Ic, Z, Modal, Spinner, tagStyle, tagClass } from '../ui';
+import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState } from '../ui';
 import { R$, N } from '../engine';
 import { useAuth } from '../auth';
 import {
@@ -30,7 +30,7 @@ function MovModal({ tipo, materiais, projetos, onClose, onSave }) {
     const [searchMat, setSearchMat] = useState('');
 
     const title = tipo === 'entrada' ? 'Registrar Entrada' : tipo === 'saida' ? 'Registrar Saída' : 'Ajuste de Inventário';
-    const icon = tipo === 'entrada' ? <ArrowDownCircle size={16} color="#22c55e" /> : tipo === 'saida' ? <ArrowUpCircle size={16} color="#ef4444" /> : <RefreshCw size={16} color="#1379F0" />;
+    const icon = tipo === 'entrada' ? <ArrowDownCircle size={16} color="var(--success)" /> : tipo === 'saida' ? <ArrowUpCircle size={16} color="var(--danger)" /> : <RefreshCw size={16} color="var(--primary)" />;
 
     const filteredMat = materiais.filter(m => {
         const q = searchMat.toLowerCase();
@@ -467,36 +467,29 @@ export default function Estoque({ notify }) {
             {configModal && <ConfigModal material={configModal} onClose={() => setConfigModal(null)} onSave={handleConfig} />}
             {saidaLoteModal && <SaidaLoteModal materiais={materiais} projetos={projetos} onClose={() => setSaidaLoteModal(false)} onSave={loadAll} notify={notify} />}
 
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-                <div>
-                    <h1 className={Z.h1}>Gestão de Recursos</h1>
-                    <p className={Z.sub}>Materiais, mão de obra e custos do projeto</p>
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <button onClick={() => setMovModal('entrada')} className={Z.btn} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#22c55e' }}>
-                        <ArrowDownCircle size={14} /> Entrada
-                    </button>
-                    <button onClick={() => setMovModal('saida')} className={Z.btn} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#ef4444' }}>
-                        <ArrowUpCircle size={14} /> Saída
-                    </button>
-                    <button onClick={() => setMovModal('ajuste')} className={Z.btn2} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <RefreshCw size={14} /> Ajuste
-                    </button>
-                    <button onClick={() => setSaidaLoteModal(true)} className={Z.btn} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f97316' }}>
-                        <Layers size={14} /> Saída em Lote
-                    </button>
-                </div>
-            </div>
+            <PageHeader icon={Package} title="Gestão de Recursos" subtitle="Materiais, mão de obra e custos do projeto">
+                <button onClick={() => setMovModal('entrada')} className={Z.btn} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--success)' }}>
+                    <ArrowDownCircle size={14} /> Entrada
+                </button>
+                <button onClick={() => setMovModal('saida')} className={Z.btn} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--danger)' }}>
+                    <ArrowUpCircle size={14} /> Saída
+                </button>
+                <button onClick={() => setMovModal('ajuste')} className={Z.btn2} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <RefreshCw size={14} /> Ajuste
+                </button>
+                <button onClick={() => setSaidaLoteModal(true)} className={Z.btn} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f97316' }}>
+                    <Layers size={14} /> Saída em Lote
+                </button>
+            </PageHeader>
 
             {/* Cards de Resumo */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
                 <div className={Z.card} style={{ padding: '16px 18px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                        <Package size={16} color="#1379F0" />
+                        <Package size={16} color="var(--primary)" />
                         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Total de Itens</span>
                     </div>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: '#1379F0' }}>{totalItens}</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--primary)' }}>{totalItens}</div>
                 </div>
                 <div className={Z.card} style={{ padding: '16px 18px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -518,7 +511,7 @@ export default function Estoque({ notify }) {
             {/* Alertas */}
             {alertas.length > 0 && (
                 <div style={{ marginBottom: 20, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: '14px 18px' }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: '#ef4444', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--danger)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                         <AlertTriangle size={14} /> Materiais abaixo do mínimo
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -531,23 +524,12 @@ export default function Estoque({ notify }) {
                 </div>
             )}
 
-            {/* Tabs */}
-            <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '2px solid var(--border)' }}>
-                {[
-                    { id: 'estoque', label: 'Materiais', icon: <Package size={14} /> },
-                    { id: 'movimentacoes', label: 'Movimentações', icon: <History size={14} /> },
-                    { id: 'mao_de_obra', label: 'Mão de Obra', icon: <Clock size={14} /> },
-                    { id: 'colaboradores', label: 'Colaboradores', icon: <Users size={14} /> },
-                ].map(t => (
-                    <button key={t.id} onClick={() => setTab(t.id)} style={{
-                        padding: '10px 18px', fontSize: 13, fontWeight: 600,
-                        border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                        background: tab === t.id ? 'var(--primary)' : 'transparent',
-                        color: tab === t.id ? '#fff' : 'var(--text-muted)',
-                        borderRadius: '8px 8px 0 0', transition: 'all 0.15s',
-                    }}>{t.icon} {t.label}</button>
-                ))}
-            </div>
+            <TabBar tabs={[
+                { id: 'estoque', label: 'Materiais', icon: Package },
+                { id: 'movimentacoes', label: 'Movimentações', icon: History },
+                { id: 'mao_de_obra', label: 'Mão de Obra', icon: Clock },
+                { id: 'colaboradores', label: 'Colaboradores', icon: Users },
+            ]} active={tab} onChange={setTab} />
 
             {tab === 'estoque' && (
                 <>
@@ -572,11 +554,7 @@ export default function Estoque({ notify }) {
                     {loading ? (
                         <Spinner text="Carregando materiais..." />
                     ) : filtered.length === 0 ? (
-                        <div className={Z.card} style={{ textAlign: 'center', padding: 48 }}>
-                            <p style={{ color: 'var(--text-muted)', fontSize: 15 }}>
-                                {materiais.length === 0 ? 'Nenhum material cadastrado na biblioteca.' : 'Nenhum resultado para os filtros selecionados.'}
-                            </p>
-                        </div>
+                        <EmptyState icon={Package} title={materiais.length === 0 ? 'Nenhum material cadastrado na biblioteca' : 'Nenhum resultado para os filtros selecionados'} />
                     ) : (
                         <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto' }}>
                             <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse' }}>
@@ -649,9 +627,7 @@ export default function Estoque({ notify }) {
             {tab === 'movimentacoes' && (
                 <>
                     {movs.length === 0 ? (
-                        <div className={Z.card} style={{ textAlign: 'center', padding: 48 }}>
-                            <p style={{ color: 'var(--text-muted)', fontSize: 15 }}>Nenhuma movimentação registrada.</p>
-                        </div>
+                        <EmptyState icon={History} title="Nenhuma movimentação registrada" />
                     ) : (
                         <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto' }}>
                             <table style={{ width: '100%', minWidth: 650, borderCollapse: 'collapse' }}>
@@ -665,10 +641,10 @@ export default function Estoque({ notify }) {
                                 <tbody>
                                     {movs.map((m, i) => {
                                         const tipoInfo = m.tipo === 'entrada'
-                                            ? { label: '↓ Entrada', color: '#22c55e', bg: '#f0fdf4' }
+                                            ? { label: '↓ Entrada', color: 'var(--success)', bg: '#f0fdf4' }
                                             : m.tipo === 'saida'
-                                                ? { label: '↑ Saída', color: '#ef4444', bg: '#fef2f2' }
-                                                : { label: '↻ Ajuste', color: '#1379F0', bg: '#eff6ff' };
+                                                ? { label: '↑ Saída', color: 'var(--danger)', bg: '#fef2f2' }
+                                                : { label: '↻ Ajuste', color: 'var(--primary)', bg: '#eff6ff' };
                                         return (
                                             <tr key={m.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
                                                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
@@ -682,7 +658,7 @@ export default function Estoque({ notify }) {
                                                 </td>
                                                 <td style={{ padding: '10px 14px', fontWeight: 600, fontSize: 14 }}>{m.material_nome}</td>
                                                 <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: 14 }}>
-                                                    <span style={{ color: m.tipo === 'entrada' ? '#22c55e' : m.tipo === 'saida' ? '#ef4444' : '#1379F0' }}>
+                                                    <span style={{ color: m.tipo === 'entrada' ? 'var(--success)' : m.tipo === 'saida' ? 'var(--danger)' : 'var(--primary)' }}>
                                                         {m.tipo === 'entrada' ? '+' : m.tipo === 'saida' ? '-' : ''}{N(Math.abs(m.quantidade), 1)}
                                                     </span>
                                                     <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>{m.unidade}</span>
@@ -707,10 +683,10 @@ export default function Estoque({ notify }) {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
                         <div className={Z.card} style={{ padding: '16px 18px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                                <Clock size={16} color="#1379F0" />
+                                <Clock size={16} color="var(--primary)" />
                                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Total Horas Mês</span>
                             </div>
-                            <div style={{ fontSize: 24, fontWeight: 800, color: '#1379F0' }}>{N(dashMO.horas_mes, 1)}</div>
+                            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--primary)' }}>{N(dashMO.horas_mes, 1)}</div>
                         </div>
                         <div className={Z.card} style={{ padding: '16px 18px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -721,10 +697,10 @@ export default function Estoque({ notify }) {
                         </div>
                         <div className={Z.card} style={{ padding: '16px 18px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                                <Users size={16} color="#22c55e" />
+                                <Users size={16} color="var(--success)" />
                                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Colaboradores Ativos</span>
                             </div>
-                            <div style={{ fontSize: 24, fontWeight: 800, color: '#22c55e' }}>{dashMO.colaboradores_ativos}</div>
+                            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--success)' }}>{dashMO.colaboradores_ativos}</div>
                         </div>
                     </div>
 
@@ -797,9 +773,7 @@ export default function Estoque({ notify }) {
 
                     {/* Tabela de apontamentos */}
                     {apontamentos.length === 0 ? (
-                        <div className={Z.card} style={{ textAlign: 'center', padding: 48 }}>
-                            <p style={{ color: 'var(--text-muted)', fontSize: 15 }}>Nenhum apontamento registrado.</p>
-                        </div>
+                        <EmptyState icon={Clock} title="Nenhum apontamento registrado" />
                     ) : (
                         <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto' }}>
                             <table style={{ width: '100%', minWidth: 650, borderCollapse: 'collapse' }}>
@@ -818,7 +792,7 @@ export default function Estoque({ notify }) {
                                             </td>
                                             <td style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13 }}>{a.colaborador_nome || '—'}</td>
                                             <td style={{ padding: '10px 14px', fontSize: 13, color: 'var(--text-muted)' }}>{a.projeto_nome || '—'}</td>
-                                            <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: 14, color: '#1379F0' }}>{N(a.horas, 1)}</td>
+                                            <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: 14, color: 'var(--primary)' }}>{N(a.horas, 1)}</td>
                                             <td style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, color: '#8b5cf6' }}>{R$(a.valor)}</td>
                                             <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)' }}>{a.descricao || '—'}</td>
                                             <td style={{ padding: '10px 14px' }}>
@@ -908,9 +882,7 @@ export default function Estoque({ notify }) {
 
                     {/* Tabela de colaboradores */}
                     {colaboradores.length === 0 ? (
-                        <div className={Z.card} style={{ textAlign: 'center', padding: 48 }}>
-                            <p style={{ color: 'var(--text-muted)', fontSize: 15 }}>Nenhum colaborador cadastrado.</p>
-                        </div>
+                        <EmptyState icon={Users} title="Nenhum colaborador cadastrado" />
                     ) : (
                         <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto' }}>
                             <table style={{ width: '100%', minWidth: 550, borderCollapse: 'collapse' }}>

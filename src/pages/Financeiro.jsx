@@ -7,7 +7,7 @@ import {
     History, RotateCcw,
 } from 'lucide-react';
 import { R$ } from '../engine';
-import { Z, Modal, ConfirmModal, Spinner, Badge, KpiCard } from '../ui';
+import { Z, Modal, ConfirmModal, Spinner, Badge, KpiCard, PageHeader, TabBar } from '../ui';
 import { CATEGORIAS, CAT_MAP, colorBg, colorBorder } from '../theme';
 import api from '../api';
 
@@ -1425,37 +1425,14 @@ export default function Financeiro({ notify, user, nav }) {
     return (
         <div style={{ padding: '24px 32px', maxWidth: 1280, margin: '0 auto' }}>
             {/* Header */}
-            <div style={{ marginBottom: 20 }}>
-                <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <DollarSign size={22} style={{ color: 'var(--primary)' }} />
-                    Financeiro
-                </h1>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-                    Controle de contas, recebimentos, notas fiscais e fluxo de caixa
-                </p>
-            </div>
+            <PageHeader icon={DollarSign} title="Financeiro" subtitle="Controle de contas, recebimentos, notas fiscais e fluxo de caixa" />
 
             {/* Navegação por seção */}
-            <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-                {SECOES.map(s => {
-                    const Icon = s.icon;
-                    const ativo = secao === s.id;
-                    return (
-                        <button key={s.id} onClick={() => setSecao(s.id)}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: 7,
-                                padding: '9px 18px', fontSize: 13, fontWeight: 600,
-                                borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s',
-                                border: ativo ? 'none' : '1px solid var(--border)',
-                                background: ativo ? s.color : 'var(--bg-card)',
-                                color: ativo ? '#fff' : 'var(--text-secondary)',
-                                boxShadow: ativo ? `0 2px 8px ${s.color}44` : 'none',
-                            }}>
-                            <Icon size={14} /> {s.label}
-                        </button>
-                    );
-                })}
-            </div>
+            <TabBar
+                tabs={SECOES.map(s => ({ id: s.id, label: s.label, icon: s.icon }))}
+                active={secao}
+                onChange={setSecao}
+            />
 
             {/* Seção ativa */}
             {secao === 'pagar'   && <SecaoPagar   notify={notify} projetos={projetos} user={user} />}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Z, Ic, Modal } from '../ui';
+import { Z, Ic, Modal, PageHeader, TabBar, EmptyState } from '../ui';
 import api from '../api';
 import { useAuth } from '../auth';
 import {
@@ -222,48 +222,18 @@ export default function AssistenteIA({ notify }) {
 
     // ═══ Tabs ═══
     const TABS = [
-        { id: 'followups', label: 'Follow-ups', icon: <TrendingUp size={14} /> },
-        { id: 'chat', label: 'Consultar CRM', icon: <Bot size={14} /> },
-        { id: 'resumo', label: 'Resumo Semanal', icon: <FileText size={14} /> },
-        { id: 'conhecimento', label: 'Base de Conhecimento', icon: <BookOpen size={14} /> },
-        { id: 'conteudo', label: 'Conteúdo Marketing', icon: <Megaphone size={14} /> },
+        { id: 'followups', label: 'Follow-ups', icon: TrendingUp },
+        { id: 'chat', label: 'Consultar CRM', icon: Bot },
+        { id: 'resumo', label: 'Resumo Semanal', icon: FileText },
+        { id: 'conhecimento', label: 'Base de Conhecimento', icon: BookOpen },
+        { id: 'conteudo', label: 'Conteúdo Marketing', icon: Megaphone },
     ];
 
     return (
         <div className={Z.pg}>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-                <div style={{
-                    width: 40, height: 40, borderRadius: 12,
-                    background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                    <Sparkles size={20} color="#fff" />
-                </div>
-                <div>
-                    <h1 className={Z.h1} style={{ margin: 0 }}>Assistente IA</h1>
-                    <p className={Z.sub} style={{ margin: 0 }}>Inteligência artificial para gestão de clientes e CRM</p>
-                </div>
-            </div>
+            <PageHeader icon={Sparkles} title="Assistente IA" subtitle="Inteligência artificial para gestão de clientes e CRM" />
 
-            {/* Tabs */}
-            <div style={{ display: 'flex', gap: 4, marginBottom: 20, flexWrap: 'wrap' }}>
-                {TABS.map(t => (
-                    <button
-                        key={t.id}
-                        onClick={() => setTab(t.id)}
-                        style={{
-                            padding: '8px 16px', fontSize: 13, fontWeight: 600,
-                            border: 'none', cursor: 'pointer', borderRadius: 8,
-                            background: tab === t.id ? 'var(--primary)' : 'var(--bg-muted)',
-                            color: tab === t.id ? '#fff' : 'var(--text-muted)',
-                            display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s',
-                        }}
-                    >
-                        {t.icon} {t.label}
-                    </button>
-                ))}
-            </div>
+            <TabBar tabs={TABS} active={tab} onChange={setTab} />
 
             {/* ═══ Tab: Follow-ups ═══ */}
             {tab === 'followups' && (
@@ -284,11 +254,7 @@ export default function AssistenteIA({ notify }) {
                     </div>
 
                     {followups.length === 0 && !loading && (
-                        <div className={Z.card} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
-                            <Bot size={40} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-                            <p style={{ fontSize: 14 }}>Nenhum follow-up pendente.</p>
-                            <p style={{ fontSize: 12 }}>Clique em "Gerar Sugestões" para a IA analisar seu funil de vendas.</p>
-                        </div>
+                        <EmptyState icon={Bot} title="Nenhum follow-up pendente" description='Clique em "Gerar Sugestões" para a IA analisar seu funil de vendas.' />
                     )}
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -487,11 +453,7 @@ export default function AssistenteIA({ notify }) {
                     </div>
 
                     {contextos.length === 0 && (
-                        <div className={Z.card} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
-                            <BookOpen size={40} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-                            <p style={{ fontSize: 14 }}>Nenhuma entrada na base de conhecimento.</p>
-                            <p style={{ fontSize: 12 }}>Adicione informações para a IA usar nas respostas aos clientes.</p>
-                        </div>
+                        <EmptyState icon={BookOpen} title="Nenhuma entrada na base de conhecimento" description="Adicione informações para a IA usar nas respostas aos clientes." />
                     )}
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -529,7 +491,7 @@ export default function AssistenteIA({ notify }) {
                                                     title={ctx.ativo ? 'Desativar' : 'Ativar'}
                                                 >
                                                     {ctx.ativo
-                                                        ? <ToggleRight size={20} style={{ color: '#22c55e' }} />
+                                                        ? <ToggleRight size={20} style={{ color: 'var(--success)' }} />
                                                         : <ToggleLeft size={20} style={{ color: 'var(--text-muted)' }} />
                                                     }
                                                 </button>
@@ -538,7 +500,7 @@ export default function AssistenteIA({ notify }) {
                                                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
                                                     title="Excluir"
                                                 >
-                                                    <Trash2 size={14} style={{ color: '#ef4444' }} />
+                                                    <Trash2 size={14} style={{ color: 'var(--danger)' }} />
                                                 </button>
                                             </div>
                                         )}
@@ -688,11 +650,7 @@ export default function AssistenteIA({ notify }) {
                     </div>
 
                     {mktConteudos.length === 0 && (
-                        <div className={Z.card} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>
-                            <Megaphone size={36} style={{ margin: '0 auto 10px', opacity: 0.3 }} />
-                            <p style={{ fontSize: 13 }}>Nenhum conteúdo salvo ainda.</p>
-                            <p style={{ fontSize: 12 }}>Gere conteúdo acima e salve no calendário.</p>
-                        </div>
+                        <EmptyState icon={Megaphone} title="Nenhum conteúdo salvo ainda" description="Gere conteúdo acima e salve no calendário." />
                     )}
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

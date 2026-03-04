@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Z, Ic } from '../ui';
 import api from '../api';
 import { useAuth } from '../auth';
+import { applyPrimaryColor } from '../theme';
 import { DEFAULT_CONTRATO_TEMPLATE } from './ContratoHtml';
 import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus } from 'lucide-react';
 
@@ -114,6 +115,7 @@ export default function Cfg({ taxas, reload, notify }) {
     const [emp, setEmp] = useState({
         nome: '', cnpj: '', endereco: '', cidade: '', estado: '', cep: '',
         telefone: '', email: '', site: '', logo: '', logo_sistema: '', logo_watermark: '', logo_watermark_opacity: 0.04,
+        sistema_cor_primaria: '#1379F0',
         contrato_template: '',
         proposta_cor_primaria: '#1B2A4A', proposta_cor_accent: '#C9A96E',
         proposta_sobre: '', proposta_garantia: '', proposta_consideracoes: '', proposta_rodape: '',
@@ -156,6 +158,7 @@ export default function Cfg({ taxas, reload, notify }) {
                 logo_watermark: d.logo_watermark_path || '',
                 logo_watermark_opacity: d.logo_watermark_opacity ?? 0.04,
                 contrato_template: d.contrato_template || '',
+                sistema_cor_primaria: d.sistema_cor_primaria || '#1379F0',
                 proposta_cor_primaria: d.proposta_cor_primaria || '#1B2A4A',
                 proposta_cor_accent: d.proposta_cor_accent || '#C9A96E',
                 proposta_sobre: d.proposta_sobre || '',
@@ -205,6 +208,7 @@ export default function Cfg({ taxas, reload, notify }) {
                 logo_watermark: emp.logo_watermark,
                 logo_watermark_opacity: emp.logo_watermark_opacity,
                 contrato_template: emp.contrato_template,
+                sistema_cor_primaria: emp.sistema_cor_primaria,
                 proposta_cor_primaria: emp.proposta_cor_primaria,
                 proposta_cor_accent: emp.proposta_cor_accent,
                 proposta_sobre: emp.proposta_sobre,
@@ -339,18 +343,44 @@ export default function Cfg({ taxas, reload, notify }) {
                                         Formatos aceitos: <strong>PNG, JPG, SVG, WebP</strong> · Máx. 600 KB<br />
                                         Recomendado: fundo transparente (PNG) ou branco, mín. 200×80 px
                                     </div>
-                                    {emp.logo && (
-                                        <div style={{ marginTop: 12, padding: '8px 14px', borderRadius: 8, background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
-                                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Preview na proposta</div>
-                                            <div style={{ background: '#1379F0', borderRadius: 6, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                <img src={emp.logo} alt="Logo preview" style={{ height: 36, objectFit: 'contain', maxWidth: 120, background: 'transparent' }} />
-                                                <div style={{ color: '#fff', fontSize: 12 }}>
-                                                    <div style={{ fontWeight: 700 }}>{emp.nome || 'Nome da Empresa'}</div>
-                                                    {emp.cnpj && <div style={{ opacity: 0.8, fontSize: 10 }}>CNPJ: {emp.cnpj}</div>}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
+                                </div>
+                            </div>
+
+                            {/* Cor do Sistema (white-label) */}
+                            <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                                <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8, fontSize: 13 }}>Cor do Sistema</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                                    <div style={{ position: 'relative' }}>
+                                        <input type="color" value={emp.sistema_cor_primaria || '#1379F0'}
+                                            onChange={e => {
+                                                setEmp({ ...emp, sistema_cor_primaria: e.target.value });
+                                                applyPrimaryColor(e.target.value);
+                                            }}
+                                            disabled={!isGerente}
+                                            style={{ width: 44, height: 44, border: '2px solid var(--border)', borderRadius: 10, cursor: 'pointer', padding: 2, background: 'var(--bg-card)' }}
+                                        />
+                                    </div>
+                                    <input value={emp.sistema_cor_primaria || '#1379F0'}
+                                        onChange={e => {
+                                            setEmp({ ...emp, sistema_cor_primaria: e.target.value });
+                                            if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) applyPrimaryColor(e.target.value);
+                                        }}
+                                        className={Z.inp} style={{ width: 110, fontSize: 13, fontFamily: 'monospace' }}
+                                        disabled={!isGerente} placeholder="#1379F0"
+                                    />
+                                    <div style={{ display: 'flex', gap: 6 }}>
+                                        {['#1379F0', '#8B5CF6', '#059669', '#EA580C', '#DC2626', '#0891B2', '#4F46E5', '#D946EF'].map(c => (
+                                            <button key={c} onClick={() => { setEmp({ ...emp, sistema_cor_primaria: c }); applyPrimaryColor(c); }}
+                                                disabled={!isGerente}
+                                                style={{
+                                                    width: 28, height: 28, borderRadius: 8, background: c, border: emp.sistema_cor_primaria === c ? '2px solid var(--text-primary)' : '2px solid transparent',
+                                                    cursor: 'pointer', transition: 'all .15s',
+                                                }}
+                                                title={c}
+                                            />
+                                        ))}
+                                    </div>
+                                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Define a cor de botões, links e destaques em todo o sistema</span>
                                 </div>
                             </div>
                         </div>
@@ -417,21 +447,6 @@ export default function Cfg({ taxas, reload, notify }) {
                             </div>
                         </div>
 
-                        {/* Preview do cabeçalho */}
-                        {emp.nome && (
-                            <div className="mt-5 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-                                <div className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>
-                                    Preview — Cabeçalho da Proposta
-                                </div>
-                                <div className="rounded-lg p-3 text-xs" style={{ background: 'var(--primary)', color: '#fff' }}>
-                                    <div className="font-bold text-sm">{emp.nome}</div>
-                                    {emp.cnpj && <div className="opacity-80 text-[10px]">CNPJ: {emp.cnpj}</div>}
-                                    {(emp.cidade || emp.estado) && <div className="mt-1 opacity-85 flex items-center gap-1"><Ic.MapPin /> {[emp.cidade, emp.estado].filter(Boolean).join(', ')}</div>}
-                                    {emp.telefone && <div className="opacity-85 flex items-center gap-1"><Ic.Phone /> {emp.telefone}</div>}
-                                    {emp.email && <div className="opacity-85 flex items-center gap-1"><Ic.Mail /> {emp.email}</div>}
-                                </div>
-                            </div>
-                        )}
                     </div>
 
                     {isGerente ? (
@@ -678,23 +693,6 @@ export default function Cfg({ taxas, reload, notify }) {
                                         />
                                     </div>
                                     <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Detalhes dourados, linhas de destaque</div>
-                                </div>
-                            </div>
-                            {/* Preview miniatura */}
-                            <div className="mt-4 rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)', background: '#fff' }}>
-                                <div style={{ padding: '10px 16px', borderBottom: `2.5px solid ${emp.proposta_cor_primaria}`, display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    {emp.logo && <img src={emp.logo} alt="" style={{ height: 30, objectFit: 'contain' }} />}
-                                    <div>
-                                        <div style={{ fontSize: 12, fontWeight: 800, color: emp.proposta_cor_primaria, textTransform: 'uppercase' }}>{emp.nome || 'Nome da Empresa'}</div>
-                                        {emp.cnpj && <div style={{ fontSize: 8, color: '#888' }}>CNPJ: {emp.cnpj}</div>}
-                                    </div>
-                                </div>
-                                <div style={{ padding: '8px 16px', textAlign: 'center', fontSize: 11, fontWeight: 700, color: emp.proposta_cor_primaria, borderBottom: '1px solid #eee' }}>
-                                    PROPOSTA N° ORN-2026-00001
-                                </div>
-                                <div style={{ padding: '6px 16px 8px', display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#888' }}>
-                                    <span>Cliente: Maria Silva</span>
-                                    <span>R$ 12.500,00</span>
                                 </div>
                             </div>
                         </div>

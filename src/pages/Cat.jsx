@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Z, Ic } from '../ui';
+import { Z, Ic, PageHeader, TabBar, EmptyState } from '../ui';
 import { R$, N } from '../engine';
 import api from '../api';
 import { Plus, Trash2, Edit2, X, Check, Search, Package, Wrench, Layers, PaintBucket, AlertCircle, Square, Sofa, RectangleHorizontal, GlassWater, Shapes, Download, Upload } from 'lucide-react';
@@ -163,53 +163,38 @@ export default function Cat() {
     };
 
     const tabs = [
-        { id: 'material', lb: 'Materiais', icon: Package, desc: 'Chapas MDF/MDP, compensados com controle de perda', color: '#3b82f6' },
-        { id: 'acabamento', lb: 'Acabamentos', icon: PaintBucket, desc: 'BP, lâminas, lacas — preço por m²', color: '#8b5cf6' },
-        { id: 'ferragem', lb: 'Ferragens', icon: Wrench, desc: 'Dobradiças, corrediças, puxadores — só preço e unidade', color: '#f59e0b' },
-        { id: 'acessorio', lb: 'Acessórios', icon: Layers, desc: 'Cabideiros, sapateiras, cestos aramados', color: '#10b981' },
-        { id: 'espelho', lb: 'Espelhos', icon: Square, desc: 'Espelhos bisotê, lapidados — preço por m²', color: '#06b6d4' },
-        { id: 'estofado', lb: 'Estofados', icon: Sofa, desc: 'Tecidos, couros, painéis estofados — preço por m²', color: '#ec4899' },
-        { id: 'aluminio', lb: 'Alumínio', icon: RectangleHorizontal, desc: 'Perfis e portas de alumínio — preço por metro linear', color: '#94a3b8' },
-        { id: 'vidro', lb: 'Vidros', icon: GlassWater, desc: 'Temperados, laminados — preço por m²', color: '#22d3ee' },
+        { id: 'material', label: 'Materiais', icon: Package },
+        { id: 'acabamento', label: 'Acabamentos', icon: PaintBucket },
+        { id: 'ferragem', label: 'Ferragens', icon: Wrench },
+        { id: 'acessorio', label: 'Acessórios', icon: Layers },
+        { id: 'espelho', label: 'Espelhos', icon: Square },
+        { id: 'estofado', label: 'Estofados', icon: Sofa },
+        { id: 'aluminio', label: 'Alumínio', icon: RectangleHorizontal },
+        { id: 'vidro', label: 'Vidros', icon: GlassWater },
     ];
     const activeTab = tabs.find(t => t.id === tab);
 
     return (
         <div className={Z.pg}>
-            <div className="mb-5 flex justify-between items-start">
-                <div>
-                    <h1 className={Z.h1}>Biblioteca</h1>
-                    <p className={Z.sub}>Materiais, Ferragens e Acessórios — cadastro centralizado</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <button onClick={exportBiblioteca} className={`${Z.btn2} flex items-center gap-1 text-xs`} title="Exportar aba atual">
-                        <Download size={13} /> Exportar
-                    </button>
-                    <button onClick={() => importRef.current?.click()} className={`${Z.btn2} flex items-center gap-1 text-xs`} title="Importar JSON">
-                        <Upload size={13} /> Importar
-                    </button>
-                    <button onClick={openNew} className={`${Z.btn} flex items-center gap-2`}>
-                        <Plus size={14} /> Novo {activeTab?.lb.slice(0, -1) || 'Item'}
-                    </button>
-                </div>
-                <input ref={importRef} type="file" accept=".json" onChange={importBiblioteca} className="hidden" />
-            </div>
+            <PageHeader icon={Shapes} title="Biblioteca" subtitle="Materiais, Ferragens e Acessórios — cadastro centralizado">
+                <button onClick={exportBiblioteca} className={`${Z.btn2} flex items-center gap-1 text-xs`} title="Exportar aba atual">
+                    <Download size={13} /> Exportar
+                </button>
+                <button onClick={() => importRef.current?.click()} className={`${Z.btn2} flex items-center gap-1 text-xs`} title="Importar JSON">
+                    <Upload size={13} /> Importar
+                </button>
+                <button onClick={openNew} className={`${Z.btn} flex items-center gap-2`}>
+                    <Plus size={14} /> Novo {activeTab?.label.slice(0, -1) || 'Item'}
+                </button>
+            </PageHeader>
+            <input ref={importRef} type="file" accept=".json" onChange={importBiblioteca} className="hidden" />
 
             {/* Tabs */}
-            <div className="flex gap-2 mb-5 overflow-x-auto pb-1 scrollbar-none">
-                {tabs.map(t => {
-                    const I = t.icon; const active = tab === t.id;
-                    const count = items.filter(i => i.tipo === t.id).length;
-                    return (
-                        <button key={t.id} onClick={() => { setTab(t.id); setSearch(''); setCatFiltro(''); setShowForm(false); }}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap border ${active ? 'shadow-sm' : 'hover:bg-[var(--bg-hover)]'}`}
-                            style={active ? { background: `${t.color}15`, borderColor: `${t.color}40`, color: t.color } : { borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
-                            <I size={15} /> {t.lb}
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: active ? `${t.color}20` : 'var(--bg-muted)' }}>{count}</span>
-                        </button>
-                    );
-                })}
-            </div>
+            <TabBar
+                tabs={tabs.map(t => ({ ...t, badge: items.filter(i => i.tipo === t.id).length || undefined }))}
+                active={tab}
+                onChange={v => { setTab(v); setSearch(''); setCatFiltro(''); setShowForm(false); }}
+            />
 
             {/* Sub-filtro de categorias (só na aba Ferragens) */}
             {tab === 'ferragem' && categoriasFerragem.length > 0 && (
@@ -217,14 +202,14 @@ export default function Cat() {
                     <button
                         onClick={() => setCatFiltro('')}
                         className="px-3 py-1 rounded-full text-xs font-medium border transition-all"
-                        style={!catFiltro ? { background: '#f59e0b20', borderColor: '#f59e0b60', color: '#f59e0b' } : { borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+                        style={!catFiltro ? { background: 'color-mix(in srgb, var(--warning) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--warning) 37%, transparent)', color: 'var(--warning)' } : { borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
                         Todas
                     </button>
                     {categoriasFerragem.map(cat => (
                         <button key={cat}
                             onClick={() => setCatFiltro(cat === catFiltro ? '' : cat)}
                             className="px-3 py-1 rounded-full text-xs font-medium border transition-all capitalize"
-                            style={catFiltro === cat ? { background: '#f59e0b20', borderColor: '#f59e0b60', color: '#f59e0b' } : { borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+                            style={catFiltro === cat ? { background: 'color-mix(in srgb, var(--warning) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--warning) 37%, transparent)', color: 'var(--warning)' } : { borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
                             {cat}
                         </button>
                     ))}
@@ -234,14 +219,14 @@ export default function Cat() {
             {/* Search */}
             <div className="relative mb-4">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Buscar ${activeTab?.lb || ''}...`} className={`${Z.inp} !pl-9`} />
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Buscar ${activeTab?.label || ''}...`} className={`${Z.inp} !pl-9`} />
             </div>
 
             {/* Inline Form */}
             {showForm && (
-                <div className={`${Z.card} mb-4`} style={{ borderLeft: `3px solid ${activeTab?.color || 'var(--primary)'}` }}>
+                <div className={`${Z.card} mb-4`} style={{ borderLeft: '3px solid var(--primary)' }}>
                     <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{editId ? 'Editar' : 'Novo'} {activeTab?.lb.slice(0, -1)}</h3>
+                        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{editId ? 'Editar' : 'Novo'} {activeTab?.label.slice(0, -1)}</h3>
                         <button onClick={() => setShowForm(false)} className="p-1 rounded hover:bg-[var(--bg-hover)]" title="Fechar"><X size={14} /></button>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -327,14 +312,11 @@ export default function Cat() {
                 </div>
             )}
 
-            {/* ═══ Items Table ═══ */}
+            {/* Items Table */}
             {(
                 <div className={Z.card + " !p-0 overflow-hidden"}>
                     {filtered.length === 0 ? (
-                        <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>
-                            <AlertCircle size={28} className="mx-auto mb-2 opacity-40" />
-                            <p className="text-sm">Nenhum item encontrado</p>
-                        </div>
+                        <EmptyState icon={AlertCircle} title="Nenhum item encontrado" description={`Nenhum resultado para a busca em ${activeTab?.label || 'itens'}`} />
                     ) : (
                         <table className="w-full text-left">
                             <thead>
@@ -364,13 +346,13 @@ export default function Cat() {
                                             <td className="td-glass text-xs">{item.perda_pct > 0 ? `${item.perda_pct}%` : '—'}</td>
                                             <td className="td-glass text-right text-xs" style={{ color: 'var(--text-secondary)' }}>{R$(item.preco)}</td>
                                             <td className="td-glass text-right font-bold text-xs" style={{ color: 'var(--primary)' }}>{R$(calcPrecoM2(item))}</td>
-                                            <td className="td-glass text-right text-xs" style={{ color: item.fita_preco > 0 ? '#f59e0b' : 'var(--text-muted)' }}>{item.fita_preco > 0 ? R$(item.fita_preco) + '/m' : '—'}</td>
+                                            <td className="td-glass text-right text-xs" style={{ color: item.fita_preco > 0 ? 'var(--warning)' : 'var(--text-muted)' }}>{item.fita_preco > 0 ? R$(item.fita_preco) + '/m' : '—'}</td>
                                         </>}
 
                                         {tab === 'acabamento' && <td className="td-glass text-right font-bold text-xs" style={{ color: 'var(--primary)' }}>{item.preco > 0 ? R$(item.preco) + '/m²' : 'Incluso'}</td>}
 
                                         {tab === 'ferragem' && <>
-                                            <td className="td-glass text-xs capitalize" style={{ color: item.categoria ? '#f59e0b' : 'var(--text-muted)' }}>{item.categoria || '—'}</td>
+                                            <td className="td-glass text-xs capitalize" style={{ color: item.categoria ? 'var(--warning)' : 'var(--text-muted)' }}>{item.categoria || '—'}</td>
                                             <td className="td-glass text-xs" style={{ color: 'var(--text-muted)' }}>{item.unidade}</td>
                                             <td className="td-glass text-right font-bold text-xs" style={{ color: 'var(--primary)' }}>{R$(item.preco)}</td>
                                         </>}
@@ -407,9 +389,7 @@ export default function Cat() {
 
             {/* Stats footer */}
             <div className="mt-4 flex gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
-                {tabs.map(t => (
-                    <span key={t.id}><span className="inline-block w-2 h-2 rounded-full mr-1" style={{ background: t.color }} />{t.lb}: {items.filter(i => i.tipo === t.id).length}</span>
-                ))}
+                <span>Total: {items.length} itens em {tabs.length} categorias</span>
             </div>
         </div>
     );

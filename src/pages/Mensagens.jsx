@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Z, Ic, Modal } from '../ui';
+import { Z, Ic, Modal, PageHeader, TabBar, EmptyState } from '../ui';
 import { colorBg, colorBorder } from '../theme';
 import api from '../api';
 import { useAuth } from '../auth';
@@ -173,9 +173,9 @@ export default function Mensagens({ notify }) {
                     {/* Header */}
                     <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid var(--border)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                            <MessageCircle size={22} style={{ color: '#22c55e' }} />
+                            <MessageCircle size={22} style={{ color: 'var(--success)' }} />
                             <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>WhatsApp</h2>
-                            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: colorBg('#22c55e'), color: '#22c55e', fontWeight: 600 }}>
+                            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: colorBg('#22c55e'), color: 'var(--success)', fontWeight: 600 }}>
                                 {conversas.length}
                             </span>
                         </div>
@@ -246,7 +246,7 @@ export default function Mensagens({ notify }) {
                                                     {c.nao_lidas > 0 && (
                                                         <span style={{
                                                             fontSize: 10, fontWeight: 700, color: '#fff',
-                                                            background: '#22c55e', borderRadius: 99,
+                                                            background: 'var(--success)', borderRadius: 99,
                                                             minWidth: 18, height: 18, display: 'flex',
                                                             alignItems: 'center', justifyContent: 'center', padding: '0 5px',
                                                         }}>
@@ -311,7 +311,7 @@ export default function Mensagens({ notify }) {
                                                 onClick={() => setShowVincular(true)}
                                                 style={{
                                                     fontSize: 10, padding: '1px 6px', borderRadius: 4,
-                                                    background: colorBg('#f59e0b'), color: '#f59e0b', border: `1px solid ${colorBorder('#f59e0b')}`,
+                                                    background: colorBg('#f59e0b'), color: 'var(--warning)', border: `1px solid ${colorBorder('#f59e0b')}`,
                                                     cursor: 'pointer', fontWeight: 600,
                                                 }}
                                             >
@@ -429,7 +429,7 @@ export default function Mensagens({ notify }) {
                                         style={{
                                             fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
                                             background: !interno ? colorBg('#22c55e') : 'transparent',
-                                            color: !interno ? '#22c55e' : 'var(--text-muted)',
+                                            color: !interno ? 'var(--success)' : 'var(--text-muted)',
                                             border: `1px solid ${!interno ? colorBorder('#22c55e') : 'var(--border)'}`,
                                             fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
                                         }}
@@ -491,7 +491,7 @@ export default function Mensagens({ notify }) {
                                         style={{
                                             padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 6,
                                             opacity: !input.trim() || sending ? 0.5 : 1,
-                                            background: interno ? '#f59e0b' : undefined,
+                                            background: interno ? 'var(--warning)' : undefined,
                                         }}
                                         title="Enviar"
                                     >

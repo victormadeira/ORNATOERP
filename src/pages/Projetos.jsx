@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
-import { Ic, Z, Modal, ConfirmModal, Spinner, Badge } from '../ui';
+import { Ic, Z, Modal, ConfirmModal, Spinner, Badge, PageHeader } from '../ui';
 import { STATUS_PROJ, STATUS_ETAPA, CATEGORIAS as CAT_DESPESAS, CAT_MAP, colorBg, colorBorder } from '../theme';
 import { R$, N, DB_CHAPAS, DB_ACABAMENTOS } from '../engine';
 import { buildTermoEntregaHtml, buildTermoPorAmbienteHtml, buildCertificadoGarantiaHtml } from './TermoEntregaHtml';
@@ -141,7 +141,7 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
         const base = { position: 'absolute', height: 30, borderRadius: 10, display: 'flex', alignItems: 'center', overflow: 'hidden', zIndex: 2, cursor: onEdit ? 'pointer' : 'default', transition: 'transform 0.2s, box-shadow 0.2s' };
         switch (status) {
             case 'em_andamento':
-                return { ...base, background: 'linear-gradient(90deg, #1379F0, #3b93f7, #1379F0)', backgroundSize: '200% 100%', animation: 'ganttShimmer 2.5s ease-in-out infinite', boxShadow: '0 3px 10px rgba(19,121,240,0.35)' };
+                return { ...base, background: 'linear-gradient(90deg, var(--primary), #3b93f7, var(--primary))', backgroundSize: '200% 100%', animation: 'ganttShimmer 2.5s ease-in-out infinite', boxShadow: '0 3px 10px rgba(19,121,240,0.35)' };
             case 'concluida':
                 return { ...base, background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 2px 8px rgba(34,197,94,0.25)' };
             case 'nao_iniciado': case 'pendente':
@@ -181,7 +181,7 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                                     padding: '0 12px', borderBottom: i < etapas.length - 1 ? '1px solid var(--border)' : 'none',
                                     animation: `ganttSlideIn 0.4s ease ${i * 100}ms both`,
                                     background: isActive ? 'rgba(19,121,240,0.04)' : isOverdue ? 'rgba(239,68,68,0.04)' : 'transparent',
-                                    borderLeft: isActive ? '3px solid #1379F0' : isOverdue ? '3px solid #ef4444' : '3px solid transparent',
+                                    borderLeft: isActive ? '3px solid var(--primary)' : isOverdue ? '3px solid #ef4444' : '3px solid transparent',
                                     cursor: onEdit ? 'pointer' : 'default',
                                 }}>
                                 <div style={{
@@ -287,7 +287,7 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                             const hasDep = e.dependencia_id && etapaMap[e.dependencia_id];
                             const diasInfo = calcDiasRestantesERP(e);
                             const isHovered = hoveredIdx === i;
-                            const milestoneColor = e.status === 'concluida' ? '#22c55e' : e.status === 'em_andamento' ? '#1379F0' : e.status === 'atrasada' ? '#ef4444' : 'var(--text-muted)';
+                            const milestoneColor = e.status === 'concluida' ? '#22c55e' : e.status === 'em_andamento' ? 'var(--primary)' : e.status === 'atrasada' ? '#ef4444' : 'var(--text-muted)';
 
                             return (
                                 <div key={e.id} style={{
@@ -399,7 +399,7 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
             <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
                 {[
                     { label: 'Concluída', color: '#22c55e', extra: {} },
-                    { label: 'Em andamento', color: '#1379F0', extra: {} },
+                    { label: 'Em andamento', color: 'var(--primary)', extra: {} },
                     { label: 'Não iniciado', color: '#64748b', extra: { border: '1.5px dashed var(--border)', background: 'transparent' } },
                     { label: 'Atrasada', color: '#ef4444', extra: {} },
                 ].map(l => (
@@ -409,7 +409,7 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                     </div>
                 ))}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)' }}>
-                    <div style={{ width: 10, height: 10, background: '#1379F0', borderRadius: 2, transform: 'rotate(45deg)' }} />
+                    <div style={{ width: 10, height: 10, background: 'var(--primary)', borderRadius: 2, transform: 'rotate(45deg)' }} />
                     Marco
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)' }}>
@@ -1049,7 +1049,7 @@ function TabFinanceiro({ data, notify }) {
             {resumo && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px,1fr))', gap: 12, marginBottom: 20 }}>
                     {[
-                        { label: 'Orçado', valor: resumo.orcado, icon: <Receipt size={16} />, color: '#1379F0' },
+                        { label: 'Orçado', valor: resumo.orcado, icon: <Receipt size={16} />, color: 'var(--primary)' },
                         { label: 'Despesas', valor: resumo.total_despesas, icon: <TrendingDown size={16} />, color: '#ef4444' },
                         { label: 'Recebido', valor: resumo.total_recebido, icon: <TrendingUp size={16} />, color: '#22c55e' },
                         { label: 'Pendente', valor: resumo.total_pendente, icon: <Clock size={16} />, color: '#f59e0b' },
@@ -1143,7 +1143,7 @@ function TabFinanceiro({ data, notify }) {
                     <h2 style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 7 }}><ArrowUpCircle size={16} color="#22c55e" /> Contas a Receber</h2>
                     <div style={{ display: 'flex', gap: 6 }}>
                         {contas.filter(c => c.auto_gerada).length === 0 && data.orc_id && (
-                            <button onClick={importarParcelas} className={Z.btn2} style={{ fontSize: 12, padding: '6px 12px', color: '#1379F0' }}>⬇ Importar do orçamento</button>
+                            <button onClick={importarParcelas} className={Z.btn2} style={{ fontSize: 12, padding: '6px 12px', color: 'var(--primary)' }}>⬇ Importar do orçamento</button>
                         )}
                         <button onClick={() => setShowCRForm(!showCRForm)} className={Z.btn2} style={{ fontSize: 12, padding: '6px 12px' }}><PlusCircle size={12} /> Adicionar</button>
                     </div>
@@ -1375,7 +1375,7 @@ function TabEstoque({ data, notify, user }) {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
                         <div style={{ background: '#eff6ff', borderRadius: 10, padding: 14, textAlign: 'center' }}>
                             <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Orçado</div>
-                            <div style={{ fontSize: 18, fontWeight: 800, color: '#1379F0' }}>{R$(comparativo.totais.orcado)}</div>
+                            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--primary)' }}>{R$(comparativo.totais.orcado)}</div>
                         </div>
                         <div style={{ background: '#fef2f2', borderRadius: 10, padding: 14, textAlign: 'center' }}>
                             <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Gasto</div>
@@ -1399,7 +1399,7 @@ function TabEstoque({ data, notify, user }) {
                             {comparativo.comparativo.map((c, i) => (
                                 <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
                                     <td style={{ padding: '8px 12px', fontWeight: 600 }}>{c.nome}</td>
-                                    <td style={{ padding: '8px 12px', color: '#1379F0' }}>{R$(c.orcado_valor)}</td>
+                                    <td style={{ padding: '8px 12px', color: 'var(--primary)' }}>{R$(c.orcado_valor)}</td>
                                     <td style={{ padding: '8px 12px', color: '#ef4444' }}>{R$(c.gasto_valor)}</td>
                                     <td style={{ padding: '8px 12px', fontWeight: 700, color: c.dif_valor >= 0 ? '#22c55e' : '#ef4444' }}>{R$(c.dif_valor)}</td>
                                 </tr>
@@ -3115,13 +3115,9 @@ export default function Projetos({ orcs, notify, user, openProjectId, onProjectO
         <div className={Z.pg}>
             {showNew && <NovoProjetoModal orcs={orcs} onClose={() => setShowNew(false)} onSave={handleCreate} />}
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-                <div>
-                    <h1 className={Z.h1}>Projetos</h1>
-                    <p className={Z.sub}>Acompanhe cronograma, financeiro e estoque de cada projeto</p>
-                </div>
+            <PageHeader icon={ClipboardList} title="Projetos" subtitle="Acompanhe cronograma, financeiro e estoque de cada projeto">
                 <button onClick={() => setShowNew(true)} className={Z.btn} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Ic.Plus /> Novo Projeto</button>
-            </div>
+            </PageHeader>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px,1fr))', gap: 12, marginBottom: 20 }}>
                 {Object.entries(STATUS_PROJ).map(([k, v]) => (

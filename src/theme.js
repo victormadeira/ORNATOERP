@@ -2,10 +2,44 @@
 // theme.js — Fonte Única de Verdade para Design Tokens
 // ═══════════════════════════════════════════════════════════
 
+// ─── Helpers internos ────────────────────────────────
+function hexToRgb(hex) {
+    const h = hex.replace('#', '');
+    const n = parseInt(h, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function rgbToHex(r, g, b) {
+    return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+function darken(hex, pct) {
+    const [r, g, b] = hexToRgb(hex);
+    const f = 1 - pct;
+    return rgbToHex(Math.round(r * f), Math.round(g * f), Math.round(b * f));
+}
+
+// ─── Aplicar cor primária dinâmica (white-label) ─────
+export function applyPrimaryColor(hex) {
+    if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+    const root = document.documentElement;
+    const [r, g, b] = hexToRgb(hex);
+    root.style.setProperty('--primary', hex);
+    root.style.setProperty('--primary-hover', darken(hex, 0.12));
+    root.style.setProperty('--primary-light', `rgba(${r},${g},${b},0.08)`);
+    root.style.setProperty('--primary-ring', `rgba(${r},${g},${b},0.2)`);
+    root.style.setProperty('--primary-alpha', `rgba(${r},${g},${b},0.08)`);
+    localStorage.setItem('sistema_cor_primaria', hex);
+}
+
+// Restaurar cor do localStorage no boot (antes do React montar)
+const savedPrimary = typeof localStorage !== 'undefined' && localStorage.getItem('sistema_cor_primaria');
+if (savedPrimary) applyPrimaryColor(savedPrimary);
+
 // ─── Status de Projetos ─────────────────────────────
 export const STATUS_PROJ = {
     nao_iniciado: { label: 'Não iniciado', color: '#94a3b8', bg: '#f1f5f9' },
-    em_andamento: { label: 'Em andamento', color: '#1379F0', bg: '#eff6ff' },
+    em_andamento: { label: 'Em andamento', color: 'var(--primary)', bg: 'var(--primary-light)' },
     atrasado:     { label: 'Atrasado',     color: '#ef4444', bg: '#fef2f2' },
     concluido:    { label: 'Concluído',    color: '#22c55e', bg: '#f0fdf4' },
     suspenso:     { label: 'Suspenso',     color: '#f59e0b', bg: '#fffbeb' },
@@ -15,7 +49,7 @@ export const STATUS_PROJ = {
 export const STATUS_ETAPA = {
     nao_iniciado: { label: 'Não iniciado', color: '#64748b' },
     pendente:     { label: 'Pendente',     color: '#64748b' },
-    em_andamento: { label: 'Em andamento', color: '#1379F0' },
+    em_andamento: { label: 'Em andamento', color: 'var(--primary)' },
     concluida:    { label: 'Concluída',    color: '#22c55e' },
     atrasada:     { label: 'Atrasada',     color: '#ef4444' },
 };
@@ -50,7 +84,7 @@ CATEGORIAS.forEach(c => { CAT_COLOR[c.id] = c.color; CAT_LABEL[c.id] = c.label; 
 
 // ─── Cores Semânticas ───────────────────────────────
 export const COLORS = {
-    primary: '#1379F0',
+    get primary() { return getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#1379F0'; },
     success: '#22c55e',
     danger:  '#ef4444',
     warning: '#f59e0b',

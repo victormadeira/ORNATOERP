@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Z, Ic } from '../ui';
+import { Z, Ic, PageHeader, TabBar, EmptyState } from '../ui';
 import { R$, KCOLS, KCOLS_ARCHIVE } from '../engine';
-import { Archive, XCircle, RotateCcw, Search, Filter, Calendar, GripVertical } from 'lucide-react';
+import { Archive, XCircle, RotateCcw, Search, Filter, Calendar, GripVertical, Kanban } from 'lucide-react';
 import api from '../api';
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
@@ -211,38 +211,17 @@ export default function Kb({ orcs, reload, notify, nav }) {
 
     return (
         <div className={Z.pg}>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                <div>
-                    <h1 className={Z.h1}>Pipeline CRM</h1>
-                    <p className={Z.sub} style={{ marginBottom: 0 }}>Arraste os cards entre etapas ou use os botoes</p>
-                </div>
+            <PageHeader icon={Kanban} title="Pipeline CRM" subtitle="Arraste os cards entre etapas ou use os botoes" />
 
-                {/* Tabs */}
-                <div style={{ display: 'flex', gap: 4, background: 'var(--bg-muted)', borderRadius: 10, padding: 3 }}>
-                    <button onClick={() => setTab('pipeline')}
-                        style={{
-                            padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                            border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-                            background: tab === 'pipeline' ? 'var(--bg-card)' : 'transparent',
-                            color: tab === 'pipeline' ? 'var(--primary)' : 'var(--text-muted)',
-                            boxShadow: tab === 'pipeline' ? '0 1px 3px rgba(0,0,0,.1)' : 'none',
-                        }}>
-                        Pipeline ({orcsAtivos.length})
-                    </button>
-                    <button onClick={() => setTab('arquivo')}
-                        style={{
-                            padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                            border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-                            background: tab === 'arquivo' ? 'var(--bg-card)' : 'transparent',
-                            color: tab === 'arquivo' ? 'var(--text-primary)' : 'var(--text-muted)',
-                            boxShadow: tab === 'arquivo' ? '0 1px 3px rgba(0,0,0,.1)' : 'none',
-                        }}>
-                        <Archive size={12} style={{ display: 'inline', marginRight: 4 }} />
-                        Arquivo ({orcsArquivados.length})
-                    </button>
-                </div>
-            </div>
+            {/* Tabs */}
+            <TabBar
+                tabs={[
+                    { id: 'pipeline', label: `Pipeline (${orcsAtivos.length})` },
+                    { id: 'arquivo', label: `Arquivo (${orcsArquivados.length})`, icon: Archive },
+                ]}
+                active={tab}
+                onChange={setTab}
+            />
 
             {/* PIPELINE TAB */}
             {tab === 'pipeline' && (
@@ -325,12 +304,11 @@ export default function Kb({ orcs, reload, notify, nav }) {
 
                     {/* Lista */}
                     {arquivoFiltrado.length === 0 ? (
-                        <div className="glass-card" style={{ textAlign: 'center', padding: 40 }}>
-                            <Archive size={32} style={{ color: 'var(--text-muted)', opacity: 0.35, margin: '0 auto 12px' }} />
-                            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                                {orcsArquivados.length === 0 ? 'Nenhum orcamento arquivado ainda' : 'Nenhum resultado para o filtro'}
-                            </p>
-                        </div>
+                        <EmptyState
+                            icon={Archive}
+                            title={orcsArquivados.length === 0 ? 'Nenhum orcamento arquivado ainda' : 'Nenhum resultado para o filtro'}
+                            description="Orcamentos arquivados ou perdidos aparecem aqui"
+                        />
                     ) : (
                         <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
                             {/* Header tabela */}
@@ -410,11 +388,11 @@ export default function Kb({ orcs, reload, notify, nav }) {
                     {/* Resumo */}
                     {orcsArquivados.length > 0 && (
                         <div style={{ marginTop: 12, display: 'flex', gap: 16, justifyContent: 'center' }}>
-                            <span style={{ fontSize: 11, color: '#64748b' }}>
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                                 <Archive size={10} style={{ display: 'inline', marginRight: 4 }} />
                                 {orcsArquivados.filter(o => o.kb_col === 'arquivo').length} arquivados ({R$(orcsArquivados.filter(o => o.kb_col === 'arquivo').reduce((s, o) => s + (o.valor_venda || 0), 0))})
                             </span>
-                            <span style={{ fontSize: 11, color: '#dc2626' }}>
+                            <span style={{ fontSize: 11, color: 'var(--danger)' }}>
                                 <XCircle size={10} style={{ display: 'inline', marginRight: 4 }} />
                                 {orcsArquivados.filter(o => o.kb_col === 'perdido').length} perdidos ({R$(orcsArquivados.filter(o => o.kb_col === 'perdido').reduce((s, o) => s + (o.valor_venda || 0), 0))})
                             </span>

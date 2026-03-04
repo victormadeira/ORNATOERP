@@ -1764,11 +1764,11 @@ function GcodeSimCanvas({ gcode, chapa }) {
             if (tool) {
                 const col = toolColors[tool] || '#f9e2af';
                 ctx.fillStyle = col; ctx.font = 'bold 10px sans-serif';
-                ctx.fillText(`🔧 ${tool}`, 10, hy); hy += 16;
+                ctx.fillText(`[${tool}]`, 10, hy); hy += 16;
             }
             if (op) {
                 ctx.fillStyle = '#89b4fa'; ctx.font = '10px sans-serif';
-                ctx.fillText(`📐 ${op}`, 10, hy);
+                ctx.fillText(`Op: ${op}`, 10, hy);
             }
         }
 
@@ -1895,7 +1895,7 @@ function GcodeSimCanvas({ gcode, chapa }) {
                     </span>
                 ))}
                 {toolEntries.length === 0 && <span style={{ fontSize: 10, color: '#6c7086' }}>Sem trocas de ferramenta</span>}
-                {activeOp && <span style={{ marginLeft: 'auto', fontSize: 10, color: '#89b4fa', fontWeight: 600 }}>📐 {activeOp}</span>}
+                {activeOp && <span style={{ marginLeft: 'auto', fontSize: 10, color: '#89b4fa', fontWeight: 600 }}>Op: {activeOp}</span>}
             </div>
         </div>
     );
@@ -2758,7 +2758,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                         }}>
                             <div style={{ fontWeight: 700, marginBottom: 4, color: 'var(--text-primary)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                                 {piece?.descricao || `Peça #${p.pecaId}`}
-                                {p.locked && <span style={{ color: '#fbbf24', fontSize: 10 }}>🔒</span>}
+                                {p.locked && <Lock size={10} style={{ color: '#fbbf24' }} />}
                             </div>
                             {/* Classification badge */}
                             <div style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -2913,7 +2913,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                         border: `1px solid ${dragCollision ? colorBorder('#ef4444') : colorBorder('#22c55e')}`,
                         zIndex: 10, whiteSpace: 'nowrap',
                     }}>
-                        {dragCollision ? '✕ Colisão! Solte para cancelar' : '✓ Posição válida'}
+                        {dragCollision ? 'Colisao! Solte para cancelar' : 'Posicao valida'}
                     </div>
                 )}
             </div>
@@ -2922,7 +2922,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
             <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ fontWeight: 600 }}>{chapa.pecas.length} peça(s)</span>
                 {chapa.pecas.filter(p => p.locked).length > 0 && (
-                    <span style={{ color: '#fbbf24', fontWeight: 600 }}>🔒 {chapa.pecas.filter(p => p.locked).length} travada(s)</span>
+                    <span style={{ color: '#fbbf24', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Lock size={11} /> {chapa.pecas.filter(p => p.locked).length} travada(s)</span>
                 )}
                 {(chapa.retalhos?.length || 0) > 0 && <span style={{ color: '#22c55e' }}>{chapa.retalhos.length} retalho(s)</span>}
                 {chapa.kerf > 0 && <span>Kerf: {chapa.kerf}mm</span>}
@@ -3806,7 +3806,7 @@ function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                                 {maquinas.length === 0 && <option value="">Nenhuma máquina cadastrada</option>}
                                 {maquinas.map(m => (
                                     <option key={m.id} value={m.id}>
-                                        {m.nome} {m.fabricante ? `(${m.fabricante} ${m.modelo})` : ''} {m.padrao ? '★' : ''} [{m.total_ferramentas} ferr.]
+                                        {m.nome} {m.fabricante ? `(${m.fabricante} ${m.modelo})` : ''} {m.padrao ? '[Padrao]' : ''} [{m.total_ferramentas} ferr.]
                                     </option>
                                 ))}
                             </select>
@@ -4537,8 +4537,8 @@ function MaquinaModal({ data, onSave, onClose }) {
                     </div>
                     <div style={{ gridColumn: '1/-1', padding: '6px 10px', background: '#3b82f615', borderRadius: 6, fontSize: 11, color: '#60a5fa', lineHeight: 1.5 }}>
                         {f.z_origin === 'material'
-                            ? '⚠ Z=0 no topo: profundidades serão negativas (ex: Z-15.7mm). Menos comum.'
-                            : '✓ Z=0 na mesa: Z positivo = acima da mesa, corte passante ≈ Z=0mm. Mais comum.'}
+                            ? 'Z=0 no topo: profundidades serao negativas (ex: Z-15.7mm). Menos comum.'
+                            : 'Z=0 na mesa: Z positivo = acima da mesa, corte passante = Z=0mm. Mais comum.'}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <label style={{ fontSize: 12, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -4633,7 +4633,7 @@ function MaquinaModal({ data, onSave, onClose }) {
                         </label>
                         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px', lineHeight: 1.5 }}>
                             Deixa pequenas pontes de material que seguram fisicamente a peça. Precisam ser lixadas depois do corte.
-                            <br /><span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ Não recomendado para MDF melamínico — as tabs podem quebrar a melamina ao serem removidas.</span>
+                            <br /><span style={{ color: 'var(--warning)', fontWeight: 600 }}>Aviso: Nao recomendado para MDF melaminico -- as tabs podem quebrar a melamina ao serem removidas.</span>
                         </p>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
                             <div><label className={Z.lbl}>Largura tab (mm)</label><input type="number" value={f.tab_largura ?? 4} onChange={e => upd('tab_largura', Number(e.target.value))} className={Z.inp} step="0.5" /></div>

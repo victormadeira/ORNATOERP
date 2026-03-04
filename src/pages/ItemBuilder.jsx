@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Z, Ic, ConfirmModal } from '../ui';
+import { Z, Ic, ConfirmModal, PageHeader, TabBar } from '../ui';
 import { uid, R$, N, DB_CHAPAS, DB_FERRAGENS, DB_ACABAMENTOS, calcItemV2 } from '../engine';
 import api from '../api';
 import { Plus, Trash2, Edit2, Save, X, ChevronDown, ChevronRight, Box, Package, Wrench, Eye, EyeOff, Copy, Layers, Search, Download, Upload } from 'lucide-react';
@@ -899,13 +899,9 @@ export default function ItemBuilder({ notify }) {
 
     return (
         <div className={Z.pg}>
-            <div className="flex justify-between items-start mb-5">
-                <div>
-                    <h1 className={Z.h1}>Catálogo de Itens</h1>
-                    <p className={Z.sub}>Defina Caixas e Componentes para usar nos orçamentos</p>
-                </div>
+            <PageHeader icon={Box} title="Catálogo de Itens" subtitle="Defina Caixas e Componentes para usar nos orçamentos">
                 {aba !== 'paineis' && (
-                    <div className="flex items-center gap-2">
+                    <>
                         <button onClick={exportCatalogo} className={`${Z.btn2} flex items-center gap-1 text-xs`} title="Exportar aba atual">
                             <Download size={13} /> Exportar
                         </button>
@@ -916,27 +912,20 @@ export default function ItemBuilder({ notify }) {
                             className={Z.btn}>
                             <Plus size={14} /> {aba === 'caixas' ? 'Nova Caixa' : 'Novo Componente'}
                         </button>
-                    </div>
+                    </>
                 )}
                 <input ref={importCatRef} type="file" accept=".json" onChange={importCatalogo} className="hidden" />
-            </div>
+            </PageHeader>
 
-            {/* Abas */}
-            <div className="flex gap-1 mb-4 p-1 rounded-lg" style={{ background: 'var(--bg-muted)', width: 'fit-content' }}>
-                {[['caixas', 'Caixas', Box], ['componentes', 'Componentes', Package], ['paineis', 'Painéis Especiais', Layers]].map(([id, lb, Icon]) => (
-                    <button key={id} onClick={() => { setAba(id); setBusca(''); }}
-                        className="flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-semibold transition-all"
-                        style={aba === id ? { background: 'var(--primary)', color: '#fff' } : { color: 'var(--text-muted)' }}>
-                        <Icon size={13} /> {lb}
-                        {id !== 'paineis' && (
-                            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[9px]"
-                                style={aba === id ? { background: 'rgba(255,255,255,0.2)', color: '#fff' } : { background: 'var(--bg-card)', color: 'var(--text-muted)' }}>
-                                {id === 'caixas' ? caixas.length : componentes.length}
-                            </span>
-                        )}
-                    </button>
-                ))}
-            </div>
+            <TabBar
+                tabs={[
+                    { id: 'caixas', label: 'Caixas', icon: Box },
+                    { id: 'componentes', label: 'Componentes', icon: Package },
+                    { id: 'paineis', label: 'Painéis Especiais', icon: Layers },
+                ]}
+                active={aba}
+                onChange={(id) => { setAba(id); setBusca(''); }}
+            />
 
             {/* Painéis Especiais — calculadora embebida */}
             {aba === 'paineis' && <RipadoCalc embedded />}

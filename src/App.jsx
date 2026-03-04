@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import { useAuth } from './auth';
 import api from './api';
 import { Ic, Z } from './ui';
-import { AlertTriangle, Clock, CheckCircle2, Folder, BarChart2, AlertCircle, DollarSign, Calendar, Bell, MessageCircle, Camera, Gift, FileText, ClipboardList, Eye, Search, RefreshCw, Share2, Printer } from 'lucide-react';
+import { applyPrimaryColor } from './theme';
+import { AlertTriangle, Clock, CheckCircle2, Folder, BarChart2, AlertCircle, DollarSign, Calendar, Bell, MessageCircle, Camera, Gift, FileText, ClipboardList, Eye, Search, RefreshCw, Share2, Printer, ChevronDown } from 'lucide-react';
 import LoginPage from './pages/Login';
 import Dash from './pages/Dash';
 
@@ -39,7 +40,9 @@ class ErrorBoundary extends Component {
         if (this.state.hasError) {
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, gap: 16, padding: 40 }}>
-                    <div style={{ fontSize: 36 }}>⚠️</div>
+                    <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(220,38,38,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <AlertTriangle size={28} style={{ color: 'var(--danger)' }} />
+                    </div>
                     <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>Algo deu errado</h3>
                     <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', maxWidth: 400 }}>
                         Ocorreu um erro inesperado nesta seção. Tente recarregar a página.
@@ -92,6 +95,11 @@ export default function App() {
     const buscaRef = useRef(null);
     const buscaTimer = useRef(null);
 
+    // Estado de colapso dos grupos do menu (salvo em localStorage)
+    const [collapsed, setCollapsed] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('menu_collapsed') || '{}'); } catch { return {}; }
+    });
+
     // Detectar mobile via resize
     useEffect(() => {
         const onResize = () => {
@@ -123,6 +131,8 @@ export default function App() {
             setEmpNome(nm);
             localStorage.setItem('logo_sistema', ls);
             localStorage.setItem('emp_nome', nm);
+            // White-label: aplicar cor primária do sistema
+            if (d.sistema_cor_primaria) applyPrimaryColor(d.sistema_cor_primaria);
         }).catch(() => { /* polling silencioso */ });
     }, [user]);
 
@@ -221,7 +231,7 @@ export default function App() {
     );
     if (!user) return <LoginPage dark={dark} setDark={setDark} logoSistema={logoSistema} empNome={empNome} />;
 
-    // Todos os itens de menu disponíveis (exceto "users" que é sempre admin-only)
+    // Todos os itens de menu (flat para breadcrumb e busca)
     const ALL_MENUS = [
         { id: "dash", lb: "Home", ic: Ic.Dash },
         { id: "cli", lb: "Clientes", ic: Ic.Usr },
@@ -230,29 +240,62 @@ export default function App() {
         { id: "orcs", lb: "Orçamentos", ic: Ic.File },
         { id: "kb", lb: "Pipeline CRM", ic: Ic.Kb },
         { id: "proj", lb: "Projetos", ic: Ic.Briefcase },
-        { id: "estoque", lb: "Gestão de Recursos", ic: Ic.Briefcase },
+        { id: "estoque", lb: "Gestão de Recursos", ic: Ic.Warehouse },
         { id: "financeiro", lb: "Financeiro", ic: Ic.Dollar },
         { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
-        { id: "relatorios", lb: "Relatórios", ic: Ic.BarChart },
+        { id: "relatorios", lb: "Relatórios", ic: Ic.PieChart },
         { id: "cnc", lb: "Corte e Produção", ic: Ic.Scissors },
         { id: "cfg", lb: "Config & Taxas", ic: Ic.Gear },
-    ];
-
-    // Filtra menus por permissões do usuário (admin vê tudo; outros respeitam permissions)
-    const userPerms = (() => { try { return user?.permissions ? JSON.parse(user.permissions) : null; } catch { return null; } })();
-    const isVendedor = user?.role === 'vendedor';
-    const mn = [
-        ...(isAdmin
-            ? ALL_MENUS
-            : ALL_MENUS.filter(m => {
-                // Vendedor nunca vê financeiro
-                if (isVendedor && m.id === 'financeiro') return false;
-                return !userPerms || userPerms.length === 0 || userPerms.includes(m.id);
-            })
-        ),
         ...(isAdmin ? [{ id: "users", lb: "Usuários", ic: Ic.Users }] : []),
     ];
+
+    // Filtro por permissões
+    const userPerms = (() => { try { return user?.permissions ? JSON.parse(user.permissions) : null; } catch { return null; } })();
+    const isVendedor = user?.role === 'vendedor';
+    const canSee = (id) => {
+        if (isAdmin) return true;
+        if (isVendedor && id === 'financeiro') return false;
+        return !userPerms || userPerms.length === 0 || userPerms.includes(id);
+    };
+
+    // Menu agrupado com categorias colapsáveis
+    const MENU_GROUPS = [
+        { id: 'top', items: [{ id: "dash", lb: "Home", ic: Ic.Dash }] },
+        { id: 'comercial', label: 'Comercial', icon: Ic.Handshake, items: [
+            { id: "cli", lb: "Clientes", ic: Ic.Usr },
+            { id: "orcs", lb: "Orçamentos", ic: Ic.File },
+            { id: "kb", lb: "Pipeline CRM", ic: Ic.Kb },
+            { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
+        ]},
+        { id: 'producao', label: 'Produção', icon: Ic.Factory, items: [
+            { id: "cat", lb: "Biblioteca", ic: Ic.Box },
+            { id: "catalogo_itens", lb: "Engenharia", ic: Ic.Package },
+            { id: "cnc", lb: "Corte e Produção", ic: Ic.Scissors },
+        ]},
+        { id: 'gestao', label: 'Gestão', icon: Ic.LineChart, items: [
+            { id: "proj", lb: "Projetos", ic: Ic.Briefcase },
+            { id: "estoque", lb: "Recursos", ic: Ic.Warehouse },
+            { id: "financeiro", lb: "Financeiro", ic: Ic.Dollar },
+            { id: "relatorios", lb: "Relatórios", ic: Ic.PieChart },
+        ]},
+        { id: 'sistema', label: 'Sistema', icon: Ic.Cog, items: [
+            { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
+            { id: "cfg", lb: "Configurações", ic: Ic.Gear },
+            ...(isAdmin ? [{ id: "users", lb: "Usuários", ic: Ic.Users }] : []),
+        ]},
+    ];
+
+    const toggleGroup = (gid) => {
+        const next = { ...collapsed, [gid]: !collapsed[gid] };
+        setCollapsed(next);
+        localStorage.setItem('menu_collapsed', JSON.stringify(next));
+    };
+    // Auto-expandir grupo do item ativo
+    const activeGroup = MENU_GROUPS.find(g => g.items.some(m => m.id === pg));
+    if (activeGroup && collapsed[activeGroup.id]) {
+        collapsed[activeGroup.id] = false;
+    }
 
     const renderPage = () => {
         switch (pg) {
@@ -335,42 +378,85 @@ export default function App() {
                     )}
                 </div>
 
-                {/* Nav Items */}
-                <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
-                    {mn.map(m => {
-                        const active = pg === m.id;
-                        const I = m.ic;
+                {/* Nav Items — agrupado */}
+                <nav className="flex-1 overflow-y-auto py-2 px-2">
+                    {MENU_GROUPS.map(g => {
+                        const visibleItems = g.items.filter(m => canSee(m.id));
+                        if (visibleItems.length === 0) return null;
+                        const isTop = g.id === 'top';
+                        const isOpen = !collapsed[g.id];
+
+                        // Badge counts para itens
                         const vencidasReceberCount = notifs.notificacoes.filter(n => !n.lida && n.tipo === 'financeiro_vencido').length;
                         const vencidasPagarCount = notifs.notificacoes.filter(n => !n.lida && n.tipo === 'pagar_vencido').length;
-                        const showBadge = (m.id === 'proj' && vencidasReceberCount > 0 && !active) || (m.id === 'financeiro' && vencidasPagarCount > 0 && !active) || (m.id === 'whatsapp' && waUnread > 0 && !active);
-                        const badgeNum = m.id === 'whatsapp' ? waUnread : m.id === 'financeiro' ? vencidasPagarCount : vencidasReceberCount;
-                        const badgeBg = m.id === 'whatsapp' ? '#22c55e' : '#ef4444';
+                        const getBadge = (id) => {
+                            if (id === 'whatsapp' && waUnread > 0) return { num: waUnread, bg: '#22c55e' };
+                            if (id === 'financeiro' && vencidasPagarCount > 0) return { num: vencidasPagarCount, bg: '#ef4444' };
+                            if (id === 'proj' && vencidasReceberCount > 0) return { num: vencidasReceberCount, bg: '#ef4444' };
+                            return null;
+                        };
+
                         return (
-                            <button key={m.id} onClick={() => nav(m.id)}
-                                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-150 cursor-pointer group
-                                    ${active ? 'font-semibold' : 'hover:bg-[var(--bg-hover)]'}`}
-                                style={active ? { background: 'var(--primary)', color: '#fff' } : { color: 'var(--text-secondary)' }}>
-                                <span className="shrink-0 relative">
-                                    <I />
-                                    {showBadge && (
-                                        <span style={{
-                                            position: 'absolute', top: -3, right: -4,
-                                            width: 8, height: 8, borderRadius: '50%',
-                                            background: badgeBg, border: '2px solid var(--bg-sidebar)',
+                            <div key={g.id} style={{ marginBottom: isTop ? 4 : 0 }}>
+                                {/* Label do grupo */}
+                                {!isTop && (sb || isMobile) && (
+                                    <button onClick={() => toggleGroup(g.id)} style={{
+                                        display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                                        padding: '8px 10px 4px', background: 'none', border: 'none', cursor: 'pointer',
+                                    }}>
+                                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>
+                                            {g.label}
+                                        </span>
+                                        <ChevronDown size={12} style={{
+                                            color: 'var(--text-muted)', transition: 'transform .2s',
+                                            transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
                                         }} />
-                                    )}
-                                </span>
-                                {(sb || isMobile) && (
-                                    <span className="text-[13px] flex-1 text-left whitespace-nowrap">{m.lb}</span>
+                                    </button>
                                 )}
-                                {(sb || isMobile) && showBadge && (
-                                    <span style={{
-                                        fontSize: 10, fontWeight: 700, background: badgeBg, color: '#fff',
-                                        padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center',
-                                    }}>{badgeNum}</span>
+                                {!isTop && !(sb || isMobile) && (
+                                    <div style={{ height: 1, background: 'var(--border)', margin: '6px 8px' }} />
                                 )}
-                                {(sb || isMobile) && !active && !showBadge && <span className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--text-muted)' }}><Ic.ChevR /></span>}
-                            </button>
+
+                                {/* Itens do grupo */}
+                                <div style={{
+                                    overflow: 'hidden', transition: 'max-height .2s ease',
+                                    maxHeight: (isTop || isOpen || !(sb || isMobile)) ? 500 : 0,
+                                }}>
+                                    <div className="space-y-0.5" style={{ paddingTop: isTop ? 0 : 2 }}>
+                                        {visibleItems.map(m => {
+                                            const active = pg === m.id;
+                                            const I = m.ic;
+                                            const badge = !active ? getBadge(m.id) : null;
+                                            return (
+                                                <button key={m.id} onClick={() => nav(m.id)}
+                                                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-150 cursor-pointer group
+                                                        ${active ? 'font-semibold' : 'hover:bg-[var(--bg-hover)]'}`}
+                                                    style={active ? { background: 'var(--primary)', color: '#fff' } : { color: 'var(--text-secondary)' }}>
+                                                    <span className="shrink-0 relative">
+                                                        <I />
+                                                        {badge && !(sb || isMobile) && (
+                                                            <span style={{
+                                                                position: 'absolute', top: -3, right: -4,
+                                                                width: 8, height: 8, borderRadius: '50%',
+                                                                background: badge.bg, border: '2px solid var(--bg-sidebar)',
+                                                            }} />
+                                                        )}
+                                                    </span>
+                                                    {(sb || isMobile) && (
+                                                        <span className="text-[13px] flex-1 text-left whitespace-nowrap">{m.lb}</span>
+                                                    )}
+                                                    {(sb || isMobile) && badge && (
+                                                        <span style={{
+                                                            fontSize: 10, fontWeight: 700, background: badge.bg, color: '#fff',
+                                                            padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center',
+                                                        }}>{badge.num}</span>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
                         );
                     })}
                 </nav>

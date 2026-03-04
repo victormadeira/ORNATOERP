@@ -9,18 +9,22 @@ import {
     BarChart2, Calendar, ArrowRight, Briefcase, Printer, ClipboardList,
     Image, DollarSign, MessageSquare, HardHat, AlertTriangle, Wrench,
     BarChart3, ClipboardCheck, PauseCircle, PlayCircle, UserCheck, Warehouse,
-    MessageCircle, Sparkles, Bot, Scissors
+    MessageCircle, Sparkles, Bot, Scissors,
+    // Novos ícones para menu agrupado e páginas
+    Library, Cpu, FolderKanban, Wallet, ShieldCheck, Handshake,
+    Factory, LineChart, Cog, Star, PieChart, FileSpreadsheet, Kanban,
+    InboxIcon, PackageSearch
 } from 'lucide-react';
 
 export const Ic = {
     Dash: () => <LayoutDashboard size={18} />,
-    Usr: () => <User size={18} />,
-    Box: () => <Box size={18} />,
-    File: () => <FileText size={18} />,
+    Usr: () => <UserCheck size={18} />,
+    Box: () => <Library size={18} />,
+    File: () => <FileSpreadsheet size={18} />,
     Calc: () => <Calculator size={18} />,
-    Kb: () => <Trello size={18} />,
+    Kb: () => <Kanban size={18} />,
     Gear: () => <Settings size={18} />,
-    Users: () => <Users size={18} />,
+    Users: () => <ShieldCheck size={18} />,
     Menu: () => <Menu size={20} />,
     X: () => <X size={16} />,
     Plus: () => <Plus size={14} />,
@@ -51,7 +55,7 @@ export const Ic = {
     FolderOpen: () => <FolderOpen size={18} />,
     Alert: () => <AlertCircle size={16} />,
     Check: () => <CheckCircle2 size={16} />,
-    Package: () => <Package size={18} />,
+    Package: () => <Cpu size={18} />,
     Ruler: () => <Ruler size={16} />,
     Layers: () => <Layers size={18} />,
     Tag: () => <Tag size={14} />,
@@ -59,11 +63,11 @@ export const Ic = {
     BarChart: () => <BarChart2 size={18} />,
     Calendar: () => <Calendar size={16} />,
     Arrow: () => <ArrowRight size={14} />,
-    Briefcase: () => <Briefcase size={18} />,
+    Briefcase: () => <FolderKanban size={18} />,
     Printer: () => <Printer size={14} />,
     OS: () => <ClipboardList size={14} />,
     Image: () => <Image size={22} />,
-    Dollar: () => <DollarSign size={18} />,
+    Dollar: () => <Wallet size={18} />,
     Message: () => <MessageSquare size={16} />,
     HardHat: () => <HardHat size={18} />,
     AlertTriangle: () => <AlertTriangle size={14} />,
@@ -77,6 +81,13 @@ export const Ic = {
     Sparkles: () => <Sparkles size={18} />,
     Bot: () => <Bot size={14} />,
     Scissors: () => <Scissors size={18} />,
+    Star: () => <Star size={12} />,
+    // Ícones para grupos do menu
+    Handshake: () => <Handshake size={14} />,
+    Factory: () => <Factory size={14} />,
+    LineChart: () => <LineChart size={14} />,
+    Cog: () => <Cog size={14} />,
+    PieChart: () => <PieChart size={18} />,
 };
 
 export const Z = {
@@ -84,6 +95,9 @@ export const Z = {
     btn: "btn-primary",
     btn2: "btn-secondary",
     btnD: "btn-danger",
+    btnSm: "btn-primary btn-sm",
+    btn2Sm: "btn-secondary btn-sm",
+    btnDSm: "btn-danger btn-sm",
     card: "glass-card p-3 sm:p-5",
     h1: "text-xl font-semibold mb-0.5",
     sub: "text-sm text-[var(--text-muted)] mb-5",
@@ -91,6 +105,87 @@ export const Z = {
     th: "th-glass text-left",
     pg: "p-2 sm:p-3 md:p-6 lg:p-8 max-w-7xl mx-auto w-full",
 };
+
+// ─── PageHeader — cabeçalho padronizado de página ─────────
+export function PageHeader({ icon: Icon, title, subtitle, children }) {
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                {Icon && (
+                    <div style={{
+                        width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+                        background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                        <Icon size={20} style={{ color: '#fff' }} />
+                    </div>
+                )}
+                <div style={{ minWidth: 0 }}>
+                    <h1 className={Z.h1} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</h1>
+                    {subtitle && <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>{subtitle}</p>}
+                </div>
+            </div>
+            {children && <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>{children}</div>}
+        </div>
+    );
+}
+
+// ─── TabBar — abas padronizadas ───────────────────────────
+export function TabBar({ tabs, active, onChange }) {
+    return (
+        <div style={{
+            display: 'flex', gap: 0, borderBottom: '2px solid var(--border)',
+            overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
+            marginBottom: 20,
+        }}>
+            {tabs.map(t => {
+                const isActive = active === t.id;
+                return (
+                    <button key={t.id} onClick={() => onChange(t.id)} style={{
+                        display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px',
+                        fontSize: 13, fontWeight: isActive ? 700 : 500, cursor: 'pointer',
+                        color: isActive ? 'var(--primary)' : 'var(--text-muted)',
+                        borderBottom: isActive ? '2px solid var(--primary)' : '2px solid transparent',
+                        background: 'none', border: 'none', borderBottomWidth: 2,
+                        marginBottom: -2, whiteSpace: 'nowrap', transition: 'all .15s',
+                        fontFamily: 'var(--font-sans)',
+                    }}>
+                        {t.icon && <t.icon size={15} />}
+                        {t.label}
+                        {t.badge != null && t.badge > 0 && (
+                            <span style={{
+                                fontSize: 10, fontWeight: 700, background: 'var(--danger)', color: '#fff',
+                                padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center',
+                            }}>{t.badge}</span>
+                        )}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
+// ─── EmptyState — estado vazio padronizado ────────────────
+export function EmptyState({ icon: Icon, title, description, action }) {
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: 12 }}>
+            {Icon && (
+                <div style={{
+                    width: 56, height: 56, borderRadius: 16,
+                    background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                    <Icon size={28} style={{ color: 'var(--text-muted)' }} />
+                </div>
+            )}
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-secondary)', margin: 0 }}>{title}</h3>
+            {description && <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, textAlign: 'center', maxWidth: 320 }}>{description}</p>}
+            {action && (
+                <button onClick={action.onClick} className={Z.btn} style={{ marginTop: 8, fontSize: 13 }}>
+                    <Plus size={14} /> {action.label}
+                </button>
+            )}
+        </div>
+    );
+}
 
 export const tagStyle = (c) => ({
     backgroundColor: c ? `${c}15` : 'var(--bg-muted)',
