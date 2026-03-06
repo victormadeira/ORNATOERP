@@ -11,13 +11,14 @@ const MEIO_LABEL = {
     boleto: 'Boleto', cheque: 'Cheque', '': 'Sem definir',
 };
 
-// ── Agrupar ferragens por tipo ──────────────────────────────────────────────
+// ── Agrupar ferragens por tipo (usa campo categoria) ────────────────────────
 function groupFerragens(fa) {
     const groups = { 'Corrediças': [], 'Dobradiças': [], 'Puxadores': [], 'Outros': [] };
     Object.values(fa).forEach(f => {
-        if (FERR_GROUPS.corredica.includes(f.id)) groups['Corrediças'].push(f);
-        else if (FERR_GROUPS.dobradica.includes(f.id)) groups['Dobradiças'].push(f);
-        else if (FERR_GROUPS.puxador.includes(f.id)) groups['Puxadores'].push(f);
+        const cat = (f.categoria || '').toLowerCase();
+        if (cat === FERR_GROUPS.corredica.toLowerCase()) groups['Corrediças'].push(f);
+        else if (cat === FERR_GROUPS.dobradica.toLowerCase()) groups['Dobradiças'].push(f);
+        else if (cat.includes('puxador')) groups['Puxadores'].push(f);
         else groups['Outros'].push(f);
     });
     return groups;
@@ -51,11 +52,12 @@ function calcAmbReports(ambientes, bib, padroes) {
                     fitaByMat[matId].metros += v.metros * qtd;
                 });
                 Object.entries(res.chapas).forEach(([id, c]) => {
-                    if (!ca[id]) ca[id] = { mat: c.mat, area: 0, n: 0 };
+                    if (!ca[id]) ca[id] = { mat: c.mat, area: 0, frac: 0, n: 0 };
                     ca[id].area += c.area * qtd;
                     const perda = c.mat.perda_pct != null ? c.mat.perda_pct : 15;
                     const areaUtil = ((c.mat.larg * c.mat.alt) / 1e6) * (1 - perda / 100);
-                    ca[id].n = areaUtil > 0 ? Math.ceil(ca[id].area / areaUtil) : 1;
+                    ca[id].frac = areaUtil > 0 ? ca[id].area / areaUtil : 1;
+                    ca[id].n = Math.ceil(ca[id].frac);
                     // Resolver nome do material para fita
                     if (fitaByMat[id]) fitaByMat[id].matNome = c.mat.nome;
                 });
@@ -77,27 +79,30 @@ function calcAmbReports(ambientes, bib, padroes) {
                 if (res.matV && res.chapasV > 0) {
                     const id = res.matV.id;
                     const areaV = res.mlV * (painel.wV || 40) / 1000 * qtd;
-                    if (!ca[id]) ca[id] = { mat: res.matV, area: 0, n: 0 };
+                    if (!ca[id]) ca[id] = { mat: res.matV, area: 0, frac: 0, n: 0 };
                     ca[id].area += areaV;
-                    ca[id].n += res.chapasV * qtd;
+                    ca[id].frac += res.chapasV * qtd;
+                    ca[id].n = Math.ceil(ca[id].frac);
                 }
                 // Chapas das ripas horizontais (muxarabi)
                 if (res.matH && res.chapasH > 0) {
                     const id = res.matH.id;
                     const _wH = painel.mesmasRipas ? (painel.wV || 40) : (painel.wH || 40);
                     const areaH = res.mlH * _wH / 1000 * qtd;
-                    if (!ca[id]) ca[id] = { mat: res.matH, area: 0, n: 0 };
+                    if (!ca[id]) ca[id] = { mat: res.matH, area: 0, frac: 0, n: 0 };
                     ca[id].area += areaH;
-                    ca[id].n += res.chapasH * qtd;
+                    ca[id].frac += res.chapasH * qtd;
+                    ca[id].n = Math.ceil(ca[id].frac);
                 }
                 // Substrato
                 if (res.matSub && painel.temSubstrato) {
                     const id = res.matSub.id;
-                    if (!ca[id]) ca[id] = { mat: res.matSub, area: 0, n: 0 };
+                    if (!ca[id]) ca[id] = { mat: res.matSub, area: 0, frac: 0, n: 0 };
                     ca[id].area += res.areaSubstrato * qtd;
                     const perda = res.matSub.perda_pct != null ? res.matSub.perda_pct : 15;
                     const areaUtil = ((res.matSub.largura * res.matSub.altura) / 1e6) * (1 - perda / 100);
-                    ca[id].n = areaUtil > 0 ? Math.ceil(ca[id].area / areaUtil) : 1;
+                    ca[id].frac = areaUtil > 0 ? ca[id].area / areaUtil : 1;
+                    ca[id].n = Math.ceil(ca[id].frac);
                 }
                 // Fitas dos ripados
                 if (res.fitaTotal > 0) {
@@ -135,7 +140,8 @@ function TabelaChapas({ ca, title }) {
                         <th style={{ textAlign: 'left', padding: '6px 8px', color: '#555' }}>Material</th>
                         <th style={{ textAlign: 'center', padding: '6px 8px', color: '#555' }}>Espessura</th>
                         <th style={{ textAlign: 'right', padding: '6px 8px', color: '#555' }}>Área (m²)</th>
-                        <th style={{ textAlign: 'center', padding: '6px 8px', color: '#555' }}>Chapas</th>
+                        <th style={{ textAlign: 'center', padding: '6px 8px', color: '#555' }}>Uso</th>
+                        <th style={{ textAlign: 'center', padding: '6px 8px', color: '#555' }}>Compra</th>
                         <th style={{ textAlign: 'right', padding: '6px 8px', color: '#555' }}>Unit.</th>
                         <th style={{ textAlign: 'right', padding: '6px 8px', color: '#555', fontWeight: 700 }}>Subtotal</th>
                     </tr>
@@ -146,6 +152,7 @@ function TabelaChapas({ ca, title }) {
                             <td style={{ padding: '5px 8px' }}>{c.mat.nome}</td>
                             <td style={{ textAlign: 'center', padding: '5px 8px', color: '#888' }}>{c.mat.esp}mm</td>
                             <td style={{ textAlign: 'right', padding: '5px 8px' }}>{N(c.area, 2)}</td>
+                            <td style={{ textAlign: 'center', padding: '5px 8px', color: '#1a56db' }}>{N(c.frac || c.n, 2)}</td>
                             <td style={{ textAlign: 'center', padding: '5px 8px', fontWeight: 600, color: '#1a56db' }}>{c.n}</td>
                             <td style={{ textAlign: 'right', padding: '5px 8px', color: '#888' }}>{R$(c.mat.preco)}</td>
                             <td style={{ textAlign: 'right', padding: '5px 8px', fontWeight: 600 }}>{R$(c.n * c.mat.preco)}</td>
@@ -238,7 +245,8 @@ export function buildRelatorioHtml({ empresa, orcamento, ambientes, tot, taxas, 
                 <th style="text-align:left;padding:6px 8px;color:${corPrimaria};font-size:10px;text-transform:uppercase;letter-spacing:.5px">Material</th>
                 <th style="text-align:center;padding:6px 8px;color:${corPrimaria};font-size:10px">Esp.</th>
                 <th style="text-align:right;padding:6px 8px;color:${corPrimaria};font-size:10px">Área (m²)</th>
-                <th style="text-align:center;padding:6px 8px;color:${corPrimaria};font-size:10px">Chapas</th>
+                <th style="text-align:center;padding:6px 8px;color:${corPrimaria};font-size:10px">Uso</th>
+                <th style="text-align:center;padding:6px 8px;color:${corPrimaria};font-size:10px">Compra</th>
                 <th style="text-align:right;padding:6px 8px;color:${corPrimaria};font-size:10px">Unit.</th>
                 <th style="text-align:right;padding:6px 8px;color:${corPrimaria};font-size:10px;font-weight:700">Subtotal</th>
             </tr></thead><tbody>
@@ -246,6 +254,7 @@ export function buildRelatorioHtml({ empresa, orcamento, ambientes, tot, taxas, 
                 <td style="padding:5px 8px;font-weight:500">${c.mat.nome}</td>
                 <td style="text-align:center;padding:5px 8px;color:#888">${c.mat.esp}mm</td>
                 <td style="text-align:right;padding:5px 8px">${N(c.area, 2)}</td>
+                <td style="text-align:center;padding:5px 8px;color:${corPrimaria}">${N(c.frac || c.n, 2)}</td>
                 <td style="text-align:center;padding:5px 8px;font-weight:700;color:${corPrimaria}">${c.n}</td>
                 <td style="text-align:right;padding:5px 8px;color:#888">${R$(c.mat.preco)}</td>
                 <td style="text-align:right;padding:5px 8px;font-weight:600">${R$(c.n * c.mat.preco)}</td>
