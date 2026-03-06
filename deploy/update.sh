@@ -12,6 +12,10 @@ echo "════════════════════════�
 echo "  Atualizando Ornato ERP..."
 echo "═══════════════════════════════════════════════"
 
+# 0. Corrigir permissoes (caso root tenha alterado arquivos)
+echo "[0/6] Corrigindo permissoes..."
+chown -R ornato:ornato "$APP_DIR"
+
 # 1. Pull
 echo "[1/6] Baixando atualizacoes..."
 sudo -u ornato git pull origin main
