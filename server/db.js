@@ -1001,6 +1001,32 @@ const migrations = [
   "ALTER TABLE empresa_config ADD COLUMN etapas_template_json TEXT DEFAULT '[]'",
   // ═══ Cor primária do sistema (white-label) ═══
   "ALTER TABLE empresa_config ADD COLUMN sistema_cor_primaria TEXT DEFAULT '#1379F0'",
+  // ═══ Landing Page pública (conteúdo dinâmico) ═══
+  "ALTER TABLE empresa_config ADD COLUMN landing_ativo INTEGER DEFAULT 1",
+  "ALTER TABLE empresa_config ADD COLUMN landing_titulo TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN landing_subtitulo TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN landing_descricao TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN landing_cta_primaria TEXT DEFAULT 'Solicitar orçamento'",
+  "ALTER TABLE empresa_config ADD COLUMN landing_cta_secundaria TEXT DEFAULT 'Falar no WhatsApp'",
+  "ALTER TABLE empresa_config ADD COLUMN landing_form_titulo TEXT DEFAULT 'Solicite um atendimento'",
+  "ALTER TABLE empresa_config ADD COLUMN landing_form_descricao TEXT DEFAULT 'Preencha os dados para receber contato da equipe Ornato.'",
+  "ALTER TABLE empresa_config ADD COLUMN landing_cta_titulo TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN landing_cta_descricao TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN landing_texto_rodape TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN landing_prova_titulo TEXT DEFAULT 'Clientes que confiaram na Ornato'",
+  "ALTER TABLE empresa_config ADD COLUMN landing_provas_json TEXT DEFAULT '[]'",
+  "ALTER TABLE empresa_config ADD COLUMN landing_logo TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN landing_hero_imagem TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN landing_hero_video_url TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN landing_hero_video_poster TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN landing_grafismo_imagem TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN landing_cor_fundo TEXT DEFAULT '#1E1917'",
+  "ALTER TABLE empresa_config ADD COLUMN landing_cor_destaque TEXT DEFAULT '#93614C'",
+  "ALTER TABLE empresa_config ADD COLUMN landing_cor_neutra TEXT DEFAULT '#847974'",
+  "ALTER TABLE empresa_config ADD COLUMN landing_cor_clara TEXT DEFAULT '#DDD2CC'",
+  "ALTER TABLE empresa_config ADD COLUMN landing_servicos_json TEXT DEFAULT '[]'",
+  "ALTER TABLE empresa_config ADD COLUMN landing_diferenciais_json TEXT DEFAULT '[]'",
+  "ALTER TABLE empresa_config ADD COLUMN landing_etapas_json TEXT DEFAULT '[]'",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
@@ -1166,6 +1192,19 @@ if (bibCount.c === 0) {
   ins.run('acessorio', 'cestoAr', 'Cesto Aramado', '', 'un', 65.90, 0, 0, 0, 0, 0);
   ins.run('material', 'fita_pvc', 'Fita de Borda PVC', 'Fita de borda 22mm', 'm', 0.85, 0, 0, 0, 0, 0);
   console.log('[OK] Biblioteca inicial criada');
+}
+
+// Backfill: categoria nas ferragens que não têm (seed inicial não setava)
+{
+  const updates = [
+    ['corr350',  'corrediça'], ['corr400',  'corrediça'], ['corr500',  'corrediça'], ['corrFH',   'corrediça'],
+    ['dob110',   'dobradiça'], ['dob165',   'dobradiça'],
+    ['pux128',   'puxador'],   ['pux160',   'puxador'],   ['pux256',   'puxador'],
+  ];
+  const upd = db.prepare("UPDATE biblioteca SET categoria = ? WHERE cod = ? AND (categoria IS NULL OR categoria = '')");
+  let n = 0;
+  for (const [cod, cat] of updates) { n += upd.run(cat, cod).changes; }
+  if (n > 0) console.log(`[OK] Categoria atualizada em ${n} ferragem(ns)`);
 }
 
 // ═══════════════════════════════════════════════════════

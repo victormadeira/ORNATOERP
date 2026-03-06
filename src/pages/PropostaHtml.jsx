@@ -259,10 +259,11 @@ export function buildPropostaHtml({
                     .map(([siId]) => {
                         const si = subDefs.find(s => s.id === siId);
                         if (!si) return '';
-                        // Resolver ferragem efetiva via padrões globais
+                        // Resolver ferragem efetiva via padrões globais (por categoria)
                         let effId = si.ferrId;
-                        for (const [grp, ids] of Object.entries(FERR_GROUPS)) {
-                            if (ids.includes(si.ferrId) && padroes?.[grp]) { effId = padroes[grp]; break; }
+                        const siCat = ferragensDB.find(f => f.id === si.ferrId)?.categoria?.toLowerCase() || '';
+                        for (const [grp, cat] of Object.entries(FERR_GROUPS)) {
+                            if (siCat === cat.toLowerCase() && padroes?.[grp]) { effId = padroes[grp]; break; }
                         }
                         const fe = ferragensDB.find(f => f.id === effId) || ferragensDB.find(f => f.id === si.ferrId);
                         return fe?.nome || si.nome || '';

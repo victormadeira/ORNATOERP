@@ -246,7 +246,6 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, placeholder
 // ── Componente: editor de instância de componente dentro de uma caixa ────────
 function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRemove, chapasDB, acabDB, ferragensDB, globalPadroes }) {
     const [exp, setExp] = useState(true);
-    const [showDims, setShowDims] = useState(false);
 
     const custoComp = useMemo(() => {
         if (!compDef) return 0;
@@ -330,7 +329,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
             </div>
             {exp && (
                 <div className="px-3 pb-3 pt-2 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
-                    {/* Quantidade e variáveis próprias */}
+                    {/* Quantidade, variáveis e dimensões — tudo inline */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                         <div>
                             <label className={Z.lbl}>Quantidade</label>
@@ -338,8 +337,29 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                                 onChange={e => onUpdate({ ...ci, qtd: Math.max(1, +e.target.value || 1) })}
                                 className={Z.inp} />
                         </div>
+                        {/* Dimensões do componente (L, P, etc.) */}
+                        {dimFields.map(({ id, label, auto }) => (
+                            <div key={id}>
+                                <label className={Z.lbl}>
+                                    {label} (mm)
+                                    {!ci[id] && <span className="text-[9px] ml-1" style={{ color: 'var(--text-muted)' }}>(auto)</span>}
+                                </label>
+                                <input
+                                    type="number" min="0" max="5000"
+                                    value={ci[id] > 0 ? ci[id] : ''}
+                                    placeholder={auto ? `${auto}` : 'Auto'}
+                                    onChange={e => {
+                                        const v = Math.max(0, +e.target.value || 0);
+                                        onUpdate({ ...ci, [id]: v });
+                                    }}
+                                    className={Z.inp}
+                                    style={ci[id] > 0 ? { borderColor: 'rgba(59,130,246,0.5)', background: 'rgba(59,130,246,0.04)' } : {}}
+                                />
+                            </div>
+                        ))}
+                        {/* Variáveis próprias (ex: Altura da Gaveta) */}
                         {(compDef.vars || []).map(v => {
-                            const isAuto = v.default === 0; // vars com default=0 são derivadas da caixa
+                            const isAuto = v.default === 0;
                             const curVal = ci.vars?.[v.id];
                             return (
                                 <div key={v.id}>
@@ -362,60 +382,6 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                             );
                         })}
                     </div>
-
-                    {/* ── Dimensões da instância ── */}
-                    {(showDims || temDimsCustom) ? (
-                        <div className="rounded-lg p-3 flex flex-col gap-2" style={{ background: 'rgba(59,130,246,0.04)', border: '1px solid rgba(59,130,246,0.18)' }}>
-                            <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--primary)' }}>Dimensões personalizadas</span>
-                                <div className="flex gap-2">
-                                    {temDimsCustom && (
-                                        <button onClick={() => {
-                                            const reset = {};
-                                            dimFields.forEach(f => { reset[f.id] = 0; });
-                                            onUpdate({ ...ci, ...reset });
-                                        }}
-                                            className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer hover:bg-red-500/10"
-                                            style={{ color: 'var(--text-muted)' }}>
-                                            Resetar
-                                        </button>
-                                    )}
-                                    <button onClick={() => setShowDims(false)}
-                                        className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer hover:bg-[var(--bg-hover)]"
-                                        style={{ color: 'var(--text-muted)' }}>
-                                        Fechar
-                                    </button>
-                                </div>
-                            </div>
-                            <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${dimFields.length}, minmax(0, 1fr))` }}>
-                                {dimFields.map(({ id, label, auto }) => (
-                                    <div key={id}>
-                                        <label className={Z.lbl}>{label}</label>
-                                        <input
-                                            type="number" min="0" max="5000"
-                                            value={ci[id] > 0 ? ci[id] : ''}
-                                            placeholder={auto ? `Herdar do módulo: ${auto}mm` : 'Herdar do módulo'}
-                                            onChange={e => {
-                                                const v = Math.max(0, +e.target.value || 0);
-                                                onUpdate({ ...ci, [id]: v });
-                                            }}
-                                            className={Z.inp}
-                                            style={ci[id] > 0 ? { borderColor: 'rgba(59,130,246,0.5)', background: 'rgba(59,130,246,0.04)' } : {}}
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    ) : (
-                        <button
-                            onClick={() => setShowDims(true)}
-                            className="text-[11px] py-1.5 px-3 rounded-lg border border-dashed transition-colors text-left"
-                            style={{ borderColor: 'rgba(59,130,246,0.3)', color: 'rgba(59,130,246,0.7)' }}
-                            onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(59,130,246,0.6)'; e.currentTarget.style.background = 'rgba(59,130,246,0.04)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(59,130,246,0.3)'; e.currentTarget.style.background = 'transparent'; }}>
-                            + Alterar dimensões
-                        </button>
-                    )}
 
                     {/* ── Materiais da instância ── */}
                     <div className="rounded-lg p-3 flex flex-col gap-2" style={{ background: 'rgba(168,85,247,0.04)', border: '1px solid rgba(168,85,247,0.18)' }}>
@@ -2221,6 +2187,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     res = calcItemV2(item.caixaDef, item.dims, item.mats, item.componentes.map(ci => ({
                                                         compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},
                                                         matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
+                                                        dimL: ci.dimL || 0, dimA: ci.dimA || 0, dimP: ci.dimP || 0,
+                                                        matIntInst: ci.matIntInst || '', matExtInst: ci.matExtInst || '',
                                                     })), bib, padroes);
                                                 } catch (_) { }
 
