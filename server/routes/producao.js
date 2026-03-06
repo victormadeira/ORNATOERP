@@ -51,6 +51,19 @@ function resolveMat(alias, mats) {
 // ═══════════════════════════════════════════════════════
 // Carregar biblioteca de materiais do banco
 // ═══════════════════════════════════════════════════════
+// Ferragens embutidas (fallback quando banco não tem todas)
+const FALLBACK_FERRAGENS = [
+    { id: "corr350", nome: "Corrediça 350mm",         preco: 28.90, un: "par", categoria: "corrediça" },
+    { id: "corr400", nome: "Corrediça 400mm",         preco: 32.90, un: "par", categoria: "corrediça" },
+    { id: "corr500", nome: "Corrediça 500mm",         preco: 42.90, un: "par", categoria: "corrediça" },
+    { id: "corrFH",  nome: "Corrediça Full Ext. Soft",preco: 68.90, un: "par", categoria: "corrediça" },
+    { id: "dob110",  nome: "Dobradiça 110° Amort.",   preco:  8.90, un: "un",  categoria: "dobradiça" },
+    { id: "dob165",  nome: "Dobradiça 165° Amort.",   preco: 14.90, un: "un",  categoria: "dobradiça" },
+    { id: "pux128",  nome: "Puxador 128mm",           preco: 12.90, un: "un",  categoria: "puxador"   },
+    { id: "pux160",  nome: "Puxador 160mm",           preco: 14.90, un: "un",  categoria: "puxador"   },
+    { id: "pux256",  nome: "Puxador 256mm",           preco: 18.90, un: "un",  categoria: "puxador"   },
+];
+
 function loadBiblioteca() {
     const rows = db.prepare('SELECT * FROM biblioteca WHERE ativo = 1').all();
     const chapas = rows.filter(r => r.tipo === 'material').map(r => ({
@@ -59,10 +72,14 @@ function loadBiblioteca() {
         preco: r.preco || 0, perda_pct: r.perda_pct ?? 15,
         fita_preco: r.fita_preco || 0,
     }));
-    const ferragens = rows.filter(r => r.tipo === 'ferragem').map(r => ({
+    const dbFerr = rows.filter(r => r.tipo === 'ferragem' || r.tipo === 'acessorio').map(r => ({
         id: r.cod, nome: r.nome, preco: r.preco || 0,
         un: r.unidade || 'un', categoria: (r.categoria || '').toLowerCase(),
     }));
+    // Mescla com fallback para garantir que ferragens referenciadas por componentes existam
+    const ferragens = dbFerr.length > 0
+        ? [...dbFerr, ...FALLBACK_FERRAGENS.filter(df => !dbFerr.find(bf => bf.id === df.id))]
+        : FALLBACK_FERRAGENS;
     const acabamentos = rows.filter(r => r.tipo === 'acabamento').map(r => ({
         id: r.cod, nome: r.nome, preco: r.preco || r.preco_m2 || 0,
         preco_m2: r.preco_m2 || 0, un: r.unidade || 'm²',

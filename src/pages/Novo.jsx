@@ -1055,9 +1055,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         // Top 5 chapas mais usadas
         const topChapas = [...chapas].sort((a, b) => (b.uso_count || 0) - (a.uso_count || 0)).filter(c => c.uso_count > 0).slice(0, 5);
         const topAcab = [...acabamentos].sort((a, b) => (b.uso_count || 0) - (a.uso_count || 0)).filter(c => c.uso_count > 0).slice(0, 5);
+        // Mescla ferragens do banco com fallback embutido (garante que ferragens referenciadas por componentes existam)
+        const mergedFerragens = ferragens.length > 0
+            ? [...ferragens, ...DB_FERRAGENS.filter(df => !ferragens.find(bf => bf.id === df.id))]
+            : DB_FERRAGENS;
         return {
             chapas: chapas.length > 0 ? chapas : DB_CHAPAS,
-            ferragens: ferragens.length > 0 ? ferragens : DB_FERRAGENS,
+            ferragens: mergedFerragens,
             acabamentos: acabamentos.length > 0 ? acabamentos : DB_ACABAMENTOS,
             fitas: fitas.length > 0 ? fitas : DB_FITAS,
             topChapas,

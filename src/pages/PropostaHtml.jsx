@@ -1,4 +1,4 @@
-import { R$, N, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, precoVenda, FERR_GROUPS } from '../engine';
+import { R$, N, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, precoVenda, FERR_GROUPS, DB_FERRAGENS } from '../engine';
 
 // ── Meios de pagamento (display) ────────────────────────────────────────────
 const MEIO_LABEL = {
@@ -251,7 +251,7 @@ export function buildPropostaHtml({
                 })
                 .filter(Boolean);
 
-            const ferragensDB = bib?.ferragens || [];
+            const ferragensDB = bib?.ferragens || DB_FERRAGENS;
             const ferragens = (it.componentes || []).flatMap(c => {
                 const subDefs = c.compDef?.sub_itens || [];
                 return Object.entries(c.subItens || {})

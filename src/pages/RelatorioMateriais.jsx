@@ -35,6 +35,8 @@ function calcAmbReports(ambientes, bib, padroes) {
                     (item.componentes || []).map(ci => ({
                         compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},
                         matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
+                        dimL: ci.dimL || 0, dimA: ci.dimA || 0, dimP: ci.dimP || 0,
+                        matIntInst: ci.matIntInst || '', matExtInst: ci.matExtInst || '',
                     })),
                     bib, padroes,
                 );

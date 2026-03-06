@@ -317,7 +317,11 @@ function rCalcV2(expr, d) {
 
 export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null, globalPadroes = {}) {
     const chapasDB = bib?.chapas || DB_CHAPAS;
-    const ferragensDB = bib?.ferragens || DB_FERRAGENS;
+    // Mescla ferragens do banco com fallback embutido (evita perder ferragens quando banco tem dados parciais)
+    const bibFerr = bib?.ferragens || [];
+    const ferragensDB = bibFerr.length > 0
+        ? [...bibFerr, ...DB_FERRAGENS.filter(df => !bibFerr.find(bf => bf.id === df.id))]
+        : DB_FERRAGENS;
     const acabDB = bib?.acabamentos || DB_ACABAMENTOS;
     const fitasDB = bib?.fitas || DB_FITAS;
     const fitaPrecoDefault = fitasDB[0]?.preco || 0.85;
