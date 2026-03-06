@@ -999,6 +999,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [expandedItem, setExpandedItem] = useState(null);
     const [reportItemId, setReportItemId] = useState(null);
     const [addCompModal, setAddCompModal] = useState(null); // { ambId, itemId }
+    const [compSearch, setCompSearch] = useState('');
     const [showTipoAmbModal, setShowTipoAmbModal] = useState(false);
     const [ambTemplates, setAmbTemplates] = useState([]);
     const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(null); // ambId
@@ -1015,6 +1016,21 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [caixas, setCaixas] = useState([]);
     const [componentesCat, setComponentesCat] = useState([]);
     const [bibItems, setBibItems] = useState([]);
+
+    const componentesFiltrados = useMemo(() => {
+        const q = compSearch.trim().toLowerCase();
+        if (!q) return componentesCat;
+        return componentesCat.filter(comp => {
+            const nome = (comp.nome || '').toLowerCase();
+            const desc = (comp.desc || comp.descricao || '').toLowerCase();
+            const cat = (comp.cat || '').toLowerCase();
+            return nome.includes(q) || desc.includes(q) || cat.includes(q);
+        });
+    }, [componentesCat, compSearch]);
+
+    useEffect(() => {
+        if (!addCompModal) setCompSearch('');
+    }, [addCompModal]);
 
     useEffect(() => {
         api.get('/catalogo?tipo=caixa').then(setCaixas).catch(e => notify(e.error || 'Erro ao carregar catálogo'));
@@ -3441,24 +3457,59 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     <p className="text-sm">Nenhum componente cadastrado</p>
                                     <p className="text-xs mt-1">Vá em <strong>Catálogo de Itens</strong> para criar</p>
                                 </div>
-                            ) : componentesCat.map(comp => (
-                                <button key={comp.db_id}
-                                    onClick={() => addComp(addCompModal.ambId, addCompModal.itemId, comp)}
-                                    className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-[#16a34a]/40 hover:bg-[var(--bg-hover)] text-left w-full mb-1.5"
-                                    style={{ borderColor: 'var(--border)' }}>
-                                    <Package size={16} style={{ color: 'var(--success)', marginTop: 2, flexShrink: 0 }} />
-                                    <div className="flex-1">
-                                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{comp.nome}</div>
-                                        <div className="text-[10px] mt-0.5 flex gap-2 flex-wrap" style={{ color: 'var(--text-muted)' }}>
-                                            {comp.desc && <span>{comp.desc}</span>}
-                                            {comp.frente_externa?.ativa && <span className="font-semibold" style={{ color: 'var(--warning)' }}>+ frente externa</span>}
-                                            {(comp.sub_itens || []).length > 0 && <span>{(comp.sub_itens || []).length} ferragem(ns)</span>}
-                                            {(comp.vars || []).length > 0 && <span>{(comp.vars || []).map(v => `${v.id}=${v.default}${v.unit}`).join(', ')}</span>}
+                            ) : (
+                                <>
+                                    <div className="mb-2">
+                                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border"
+                                            style={{ borderColor: 'var(--border)', background: 'var(--bg-muted)' }}>
+                                            <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                                            <input
+                                                type="text"
+                                                value={compSearch}
+                                                onChange={e => setCompSearch(e.target.value)}
+                                                placeholder="Buscar componente por nome, descrição..."
+                                                className="w-full bg-transparent outline-none text-sm"
+                                                style={{ color: 'var(--text-primary)' }}
+                                            />
+                                            {compSearch && (
+                                                <button
+                                                    onClick={() => setCompSearch('')}
+                                                    className="p-0.5 rounded hover:bg-[var(--bg-hover)]"
+                                                    style={{ color: 'var(--text-muted)' }}>
+                                                    <X size={12} />
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                            {componentesFiltrados.length} de {componentesCat.length} componente(s)
                                         </div>
                                     </div>
-                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded" style={{ background: 'rgba(22,163,74,0.12)', color: 'var(--success)' }}>×{1 + comp.coef}</span>
-                                </button>
-                            ))}
+                                    {componentesFiltrados.length === 0 ? (
+                                        <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
+                                            <Search size={24} className="mx-auto mb-2 opacity-30" />
+                                            <p className="text-sm">Nenhum componente encontrado</p>
+                                            <p className="text-xs mt-1">Tente outro termo de busca</p>
+                                        </div>
+                                    ) : componentesFiltrados.map(comp => (
+                                        <button key={comp.db_id}
+                                            onClick={() => addComp(addCompModal.ambId, addCompModal.itemId, comp)}
+                                            className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-[#16a34a]/40 hover:bg-[var(--bg-hover)] text-left w-full mb-1.5"
+                                            style={{ borderColor: 'var(--border)' }}>
+                                            <Package size={16} style={{ color: 'var(--success)', marginTop: 2, flexShrink: 0 }} />
+                                            <div className="flex-1">
+                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{comp.nome}</div>
+                                                <div className="text-[10px] mt-0.5 flex gap-2 flex-wrap" style={{ color: 'var(--text-muted)' }}>
+                                                    {comp.desc && <span>{comp.desc}</span>}
+                                                    {comp.frente_externa?.ativa && <span className="font-semibold" style={{ color: 'var(--warning)' }}>+ frente externa</span>}
+                                                    {(comp.sub_itens || []).length > 0 && <span>{(comp.sub_itens || []).length} ferragem(ns)</span>}
+                                                    {(comp.vars || []).length > 0 && <span>{(comp.vars || []).map(v => `${v.id}=${v.default}${v.unit}`).join(', ')}</span>}
+                                                </div>
+                                            </div>
+                                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded" style={{ background: 'rgba(22,163,74,0.12)', color: 'var(--success)' }}>×{1 + comp.coef}</span>
+                                        </button>
+                                    ))}
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
