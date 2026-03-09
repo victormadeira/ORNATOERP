@@ -31,8 +31,8 @@ const montadorToken = params.get('montador')
     || (path.match(/^\/montador\/([a-f0-9]+)$/i) || [])[1]
     || null;
 
-// Landing page pública: /contato ou /landing
-const isLanding = path === '/contato' || path === '/landing';
+// Landing page pública: /contato, /landing ou /landingpage
+const isLanding = ['/contato', '/landing', '/landingpage', '/landingpage/'].includes(path);
 
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>

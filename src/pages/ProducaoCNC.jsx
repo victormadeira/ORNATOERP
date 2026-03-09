@@ -4,6 +4,7 @@ import { Ic, Z, Modal, Spinner, tagStyle, tagClass } from '../ui';
 import { colorBg, colorBorder } from '../theme';
 import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
 import EditorEtiquetas, { EtiquetaSVG } from '../components/EditorEtiquetas';
+// GcodeSim3D removido — simulador 2D com cores por operação é suficiente
 
 const TABS = [
     { id: 'importar', lb: 'Importar', ic: Upload },
@@ -992,6 +993,8 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                         comprimento: chapaInfo.comprimento,
                         largura: chapaInfo.largura,
                         refilo: chapaInfo.refilo ?? 10,
+                        espessura: chapaInfo.espessura_real || chapaInfo.espessura || 18.5,
+                        material_code: chapaInfo.material_code || '',
                         pecas: (chapaInfo.pecas || []).map(p => ({ x: p.x, y: p.y, w: p.w, h: p.h, nome: p.nome })),
                         retalhos: chapaInfo.retalhos || [],
                     } : null,
@@ -1030,14 +1033,68 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
         setUndoStack(prev => [...prev.slice(-49), JSON.stringify(plano)]);
         setRedoStack([]);
 
-        // ═══ FIX: Salvar posição do scroll antes da atualização ═══
+        // ═══ Optimistic local update for move/rotate — no scroll jump ═══
+        if (params.action === 'move' && params.chapaIdx != null && params.pecaIdx != null) {
+            setPlano(prev => {
+                if (!prev?.chapas) return prev;
+                const chapas = prev.chapas.map((ch, ci) => {
+                    if (ci !== params.chapaIdx) return ch;
+                    const pecas = ch.pecas.map((p, pi) => {
+                        if (pi !== params.pecaIdx) return p;
+                        return { ...p, x: params.x, y: params.y };
+                    });
+                    return { ...ch, pecas };
+                });
+                return { ...prev, chapas };
+            });
+            setPendingChanges(prev => prev + 1);
+            // Sync to server in background (no await, no re-render from response)
+            api.put(`/cnc/plano/${loteAtual.id}/ajustar`, params).catch(err => {
+                if (err.collision) notify('Colisão detectada no servidor — desfazendo.');
+                else notify('Erro ao salvar posição: ' + (err.error || err.message));
+                // Revert on server error
+                setUndoStack(prev => {
+                    const last = prev[prev.length - 1];
+                    if (last) setPlano(JSON.parse(last));
+                    return prev.slice(0, -1);
+                });
+            });
+            return;
+        }
+
+        if (params.action === 'rotate' && params.chapaIdx != null && params.pecaIdx != null) {
+            setPlano(prev => {
+                if (!prev?.chapas) return prev;
+                const chapas = prev.chapas.map((ch, ci) => {
+                    if (ci !== params.chapaIdx) return ch;
+                    const pecas = ch.pecas.map((p, pi) => {
+                        if (pi !== params.pecaIdx) return p;
+                        return { ...p, w: p.h, h: p.w, rotated: !p.rotated };
+                    });
+                    return { ...ch, pecas };
+                });
+                return { ...prev, chapas };
+            });
+            setPendingChanges(prev => prev + 1);
+            api.put(`/cnc/plano/${loteAtual.id}/ajustar`, params).catch(() => {
+                setUndoStack(prev => {
+                    const last = prev[prev.length - 1];
+                    if (last) setPlano(JSON.parse(last));
+                    return prev.slice(0, -1);
+                });
+            });
+            return;
+        }
+
+        // ═══ Non-move actions: keep server round-trip with scroll preservation ═══
         const mainEl = document.querySelector('main');
         const savedScroll = mainEl?.scrollTop ?? 0;
         const restoreScroll = () => {
-            // Double rAF garante que React já renderizou antes de restaurar
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
-                    if (mainEl) mainEl.scrollTop = savedScroll;
+                    requestAnimationFrame(() => {
+                        if (mainEl) mainEl.scrollTop = savedScroll;
+                    });
                 });
             });
         };
@@ -1045,20 +1102,22 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
         try {
             const r = await api.put(`/cnc/plano/${loteAtual.id}/ajustar`, params);
             if (r.ok) {
-                // Zero-refresh: apply plano from response directly, no re-fetch
                 setPlano(r.plano);
                 setTransferArea(r.plano.transferencia || []);
                 setPendingChanges(prev => prev + 1);
-                // Update loteAtual stats without full re-fetch
                 if (r.aproveitamento != null) {
                     setLoteAtual(prev => prev ? { ...prev, aproveitamento: r.aproveitamento, total_chapas: r.plano?.chapas?.length || prev.total_chapas } : prev);
                 }
                 restoreScroll();
             }
         } catch (err) {
-            setUndoStack(prev => prev.slice(0, -1)); // Revert snapshot
-            if (err.collision) {
+            setUndoStack(prev => prev.slice(0, -1));
+            if (err.locked) {
+                notify(err.error || 'Chapa travada — destrave para editar.');
+            } else if (err.collision) {
                 notify('Colisão! Peça não pode ser colocada nesta posição.');
+            } else if (err.materialMismatch) {
+                notify(err.error || 'Material incompatível entre chapas.');
             } else {
                 notify('Erro: ' + (err.error || err.message));
             }
@@ -1164,6 +1223,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                                             <option value="maxrects">MaxRects (CNC livre)</option>
                                             <option value="shelf">Shelf (faixas horizontais)</option>
                                         </select>
+                                        {modo === 'guilhotina' && <p style={{ fontSize: 10, color: '#d97706', margin: '2px 0 0' }}>Cortes de ponta a ponta — aproveitamento típico 5-15% menor que CNC livre</p>}
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                                         <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Direção de corte</label>
@@ -1265,7 +1325,9 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                                     <Maximize2 size={13} /> Compactar
                                 </button>
                                 <button onClick={() => handleAdjust({ action: 're_optimize', chapaIdx: selectedChapa })} className={Z.btn2}
-                                    title="Re-otimizar chapa" style={{ padding: '6px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    disabled={plano?.chapas?.[selectedChapa]?.locked}
+                                    title={plano?.chapas?.[selectedChapa]?.locked ? 'Chapa travada — destrave para reotimizar' : 'Re-otimizar chapa'}
+                                    style={{ padding: '6px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, opacity: plano?.chapas?.[selectedChapa]?.locked ? 0.4 : 1 }}>
                                     <Zap size={13} /> Re-otimizar
                                 </button>
                                 <button onClick={() => {
@@ -1372,8 +1434,8 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                                                 onClick={() => { setSelectedChapa(ci); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
                                                 style={{
                                                     padding: 8, borderRadius: 8, cursor: 'pointer', transition: 'all .15s',
-                                                    background: isActive ? 'var(--primary-bg, rgba(230,126,34,0.08))' : 'var(--bg-card)',
-                                                    border: `2px solid ${isActive ? 'var(--primary)' : 'var(--border)'}`,
+                                                    background: isActive ? 'var(--primary-bg, rgba(230,126,34,0.08))' : chapa.locked ? 'rgba(59,130,246,0.05)' : 'var(--bg-card)',
+                                                    border: `2px solid ${chapa.locked ? '#3b82f6' : isActive ? 'var(--primary)' : 'var(--border)'}`,
                                                     boxShadow: isActive ? '0 0 0 1px var(--primary)' : 'none',
                                                 }}>
                                                 {/* Mini SVG */}
@@ -1399,6 +1461,14 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                                                     Chapa {ci + 1}
                                                     {chapa.is_retalho && <span style={{ fontSize: 8, padding: '1px 4px', borderRadius: 3, background: colorBg('#06b6d4'), color: '#06b6d4', fontWeight: 700 }}>RET</span>}
                                                     {chapa.veio && chapa.veio !== 'sem_veio' && <span style={{ fontSize: 8, padding: '1px 4px', borderRadius: 3, background: colorBg('#8b5cf6'), color: '#8b5cf6', fontWeight: 700 }}>VEIO</span>}
+                                                    <button onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (chapa.locked && !confirm('Destravar esta chapa? Ela poderá ser editada e reotimizada.')) return;
+                                                        handleAdjust({ action: chapa.locked ? 'unlock_sheet' : 'lock_sheet', chapaIdx: ci });
+                                                    }} title={chapa.locked ? 'Destravar chapa' : 'Travar chapa'}
+                                                    style={{ marginLeft: 'auto', padding: '1px 4px', borderRadius: 4, border: 'none', cursor: 'pointer', background: chapa.locked ? '#3b82f6' : 'transparent', color: chapa.locked ? '#fff' : 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
+                                                        {chapa.locked ? <Lock size={10} /> : <Unlock size={10} />}
+                                                    </button>
                                                 </div>
                                                 <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>
                                                     {chapa.pecas.length} pç · {chapa.aproveitamento.toFixed(1)}%
@@ -1433,65 +1503,74 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                                         </div>
                                     )}
                                     {/* ═══ BANDEJA DE TRANSFERÊNCIA ═══ */}
-                                    {transferArea.length > 0 && (
-                                        <div style={{ marginTop: 8, padding: 8, borderRadius: 8, background: 'var(--bg-card)', border: '2px dashed #f59e0b', position: 'relative' }}>
-                                            <div style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                <ArrowLeftRight size={11} /> Bandeja de Espera ({transferArea.length})
-                                            </div>
-                                            {transferArea.map((tp, ti) => {
-                                                const piece = pecasMap[tp.pecaId];
-                                                const targetChapa = plano.chapas[selectedChapa];
-                                                const isCompatible = !tp.fromMaterial || !targetChapa?.material || tp.fromMaterial === targetChapa.material;
-                                                const compatibleChapas = plano.chapas
-                                                    .map((ch, ci) => ({ idx: ci, material: ch.material, nome: ch.nome }))
-                                                    .filter(ch => !tp.fromMaterial || ch.material === tp.fromMaterial);
-
-                                                return (
-                                                    <div key={ti} style={{
-                                                        padding: '5px 7px', marginBottom: 4, borderRadius: 5, fontSize: 9,
-                                                        background: isCompatible ? 'var(--bg-muted)' : '#fef2f233',
-                                                        border: `1px solid ${isCompatible ? '#f59e0b44' : '#ef444466'}`,
-                                                        transition: 'all .15s',
-                                                    }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                            <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 10 }}>
-                                                                {piece?.descricao?.substring(0, 18) || `#${tp.pecaId}`}
-                                                            </div>
-                                                            <span style={{ fontSize: 8, padding: '1px 4px', borderRadius: 3,
-                                                                background: '#f59e0b22', color: '#f59e0b', fontWeight: 600 }}>
-                                                                {Math.round(tp.w)}×{Math.round(tp.h)}
-                                                            </span>
-                                                        </div>
-                                                        {tp.fromMaterial && (
-                                                            <div style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 2 }}>
-                                                                Material: {tp.fromMaterial}
-                                                            </div>
-                                                        )}
-                                                        <div style={{ display: 'flex', gap: 3, marginTop: 4, flexWrap: 'wrap' }}>
-                                                            {compatibleChapas.map(ch => (
-                                                                <button key={ch.idx}
-                                                                    onClick={() => handleAdjust({ action: 'from_transfer', transferIdx: ti, targetChapaIdx: ch.idx })}
-                                                                    className={Z.btn2}
-                                                                    style={{
-                                                                        padding: '2px 6px', fontSize: 8, fontWeight: 600,
-                                                                        background: ch.idx === selectedChapa ? '#f59e0b' : undefined,
-                                                                        color: ch.idx === selectedChapa ? '#fff' : '#f59e0b',
-                                                                        border: '1px solid #f59e0b44', borderRadius: 3,
-                                                                    }}>
-                                                                    → Ch {ch.idx + 1}
-                                                                </button>
-                                                            ))}
-                                                            {compatibleChapas.length === 0 && (
-                                                                <span style={{ fontSize: 8, color: '#ef4444', fontStyle: 'italic' }}>
-                                                                    Nenhuma chapa compatível
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
+                                    <div style={{
+                                        marginTop: 8, padding: 8, borderRadius: 8, position: 'sticky', bottom: 0, zIndex: 2,
+                                        background: transferArea.length > 0 ? 'var(--bg-card)' : 'var(--bg-muted)',
+                                        border: `2px ${transferArea.length > 0 ? 'solid' : 'dashed'} ${transferArea.length > 0 ? '#f59e0b' : 'var(--border)'}`,
+                                        transition: 'all .2s',
+                                    }}>
+                                        <div style={{ fontSize: 10, fontWeight: 700, color: transferArea.length > 0 ? '#f59e0b' : 'var(--text-muted)', textTransform: 'uppercase', marginBottom: transferArea.length > 0 ? 6 : 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                            <ArrowLeftRight size={11} /> Transferência {transferArea.length > 0 ? `(${transferArea.length})` : ''}
                                         </div>
-                                    )}
+                                        {transferArea.length === 0 && (
+                                            <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, fontStyle: 'italic' }}>
+                                                Clique direito em uma peça → "Mover para transferência"
+                                            </div>
+                                        )}
+                                        {transferArea.map((tp, ti) => {
+                                            const piece = pecasMap[tp.pecaId];
+                                            const targetChapa = plano.chapas[selectedChapa];
+                                            const tpMat = tp.fromMaterial;
+                                            const isCompatible = !tpMat || !targetChapa?.material_code || tpMat === (targetChapa.material_code || targetChapa.material);
+                                            const compatibleChapas = plano.chapas
+                                                .map((ch, ci) => ({ idx: ci, material_code: ch.material_code || ch.material, material: ch.material, nome: ch.nome }))
+                                                .filter(ch => !tpMat || tpMat === ch.material_code);
+
+                                            return (
+                                                <div key={ti} style={{
+                                                    padding: '5px 7px', marginBottom: 4, borderRadius: 5, fontSize: 9,
+                                                    background: isCompatible ? 'var(--bg-muted)' : '#fef2f233',
+                                                    border: `1px solid ${isCompatible ? '#f59e0b44' : '#ef444466'}`,
+                                                    transition: 'all .15s',
+                                                }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 10 }}>
+                                                            {piece?.descricao?.substring(0, 18) || tp.nome?.substring(0, 18) || `#${tp.pecaId}`}
+                                                        </div>
+                                                        <span style={{ fontSize: 8, padding: '1px 4px', borderRadius: 3,
+                                                            background: '#f59e0b22', color: '#f59e0b', fontWeight: 600 }}>
+                                                            {Math.round(tp.w)}x{Math.round(tp.h)}
+                                                        </span>
+                                                    </div>
+                                                    {tpMat && (
+                                                        <div style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 2 }}>
+                                                            {tpMat} {tp.espessura ? `· ${tp.espessura}mm` : ''}
+                                                        </div>
+                                                    )}
+                                                    <div style={{ display: 'flex', gap: 3, marginTop: 4, flexWrap: 'wrap' }}>
+                                                        {compatibleChapas.map(ch => (
+                                                            <button key={ch.idx}
+                                                                onClick={() => handleAdjust({ action: 'from_transfer', transferIdx: ti, targetChapaIdx: ch.idx })}
+                                                                className={Z.btn2}
+                                                                style={{
+                                                                    padding: '2px 6px', fontSize: 8, fontWeight: 600,
+                                                                    background: ch.idx === selectedChapa ? '#f59e0b' : undefined,
+                                                                    color: ch.idx === selectedChapa ? '#fff' : '#f59e0b',
+                                                                    border: '1px solid #f59e0b44', borderRadius: 3,
+                                                                }}>
+                                                                → Ch {ch.idx + 1}
+                                                            </button>
+                                                        ))}
+                                                        {compatibleChapas.length === 0 && (
+                                                            <span style={{ fontSize: 8, color: '#ef4444', fontStyle: 'italic' }}>
+                                                                Nenhuma chapa compatível
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
 
                                 {/* RIGHT: Detail view */}
@@ -1591,7 +1670,24 @@ function parseGcodeForSim(text) {
     return { moves, events };
 }
 
-// ─── Simulador 2D Canvas com Animação + Eventos de Ferramenta ───
+// ─── Categorias de operação CNC (cores por tipo) ───────────────────────────
+const OP_CATS = [
+    { key: 'contorno', pat: /contorno/i, color: '#a6e3a1', label: 'Contorno' },
+    { key: 'rebaixo',  pat: /rebaixo/i,  color: '#89b4fa', label: 'Rebaixo' },
+    { key: 'canal',    pat: /canal/i,    color: '#cba6f7', label: 'Canal' },
+    { key: 'furo',     pat: /furo/i,     color: '#f9e2af', label: 'Furo' },
+    { key: 'pocket',   pat: /pocket/i,   color: '#f38ba8', label: 'Pocket' },
+    { key: 'rasgo',    pat: /rasgo/i,    color: '#94e2d5', label: 'Rasgo' },
+    { key: 'gola',     pat: /gola/i,     color: '#fab387', label: 'Gola' },
+    { key: 'fresagem', pat: /fresagem/i, color: '#74c7ec', label: 'Fresagem' },
+];
+function getOpCat(op) {
+    const lo = (op || '').toLowerCase();
+    for (const c of OP_CATS) { if (c.pat.test(lo)) return c; }
+    return { key: 'outro', color: '#a6adc8', label: 'Outro' };
+}
+
+// ─── Simulador 2D Canvas com Animação + Cores por Operação ───
 function GcodeSimCanvas({ gcode, chapa }) {
     const canvasRef = useRef(null);
     const [zoom, setZoom] = useState(1);
@@ -1617,19 +1713,18 @@ function GcodeSimCanvas({ gcode, chapa }) {
         return { tool, op };
     }, [allEvents]);
 
-    // Cores por ferramenta (para diferenciar visualmente)
-    const toolColors = useMemo(() => {
-        const colors = ['#a6e3a1', '#89b4fa', '#f9e2af', '#cba6f7', '#f38ba8', '#94e2d5', '#fab387'];
-        const map = {};
-        let ci = 0;
-        for (const ev of allEvents) {
-            if (ev.type === 'tool' && !map[ev.label]) {
-                map[ev.label] = colors[ci % colors.length];
-                ci++;
-            }
+    // Categorias de operação encontradas (para legenda)
+    const foundOps = useMemo(() => {
+        const map = new Map();
+        for (const m of allMoves) {
+            if (m.type === 'G0') continue;
+            const cat = getOpCat(m.op);
+            if (!map.has(cat.key)) map.set(cat.key, cat);
         }
-        return map;
-    }, [allEvents]);
+        return [...map.values()];
+    }, [allMoves]);
+
+    // (toolColors removido — agora usamos cores por operação via getOpCat)
 
     // Renderizar canvas
     const renderCanvas = useCallback((moveLimit) => {
@@ -1693,37 +1788,39 @@ function GcodeSimCanvas({ gcode, chapa }) {
         const drawCount = moveLimit < 0 ? allMoves.length : Math.min(moveLimit + 1, allMoves.length);
         let rapidDist = 0, cutDist = 0;
 
-        // Desenhar moves até o limite (colorido por ferramenta)
+        // Desenhar moves até o limite (colorido por OPERAÇÃO + espessura por profundidade)
         for (let i = 0; i < drawCount; i++) {
             const m = allMoves[i];
             const x1 = tx(m.x1), y1 = ty(m.y1), x2 = tx(m.x2), y2 = ty(m.y2);
             const dist = Math.sqrt((m.x2 - m.x1) ** 2 + (m.y2 - m.y1) ** 2);
             ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
             if (m.type === 'G0') {
-                ctx.strokeStyle = '#f38ba830'; ctx.lineWidth = 0.5; ctx.setLineDash([3, 4]);
+                ctx.strokeStyle = '#f38ba825'; ctx.lineWidth = 0.4; ctx.setLineDash([2, 4]);
                 rapidDist += dist;
             } else {
-                const toolCol = (m.tool && toolColors[m.tool]) || '#a6e3a1';
-                const intensity = Math.min(1, Math.max(0.4, m.z2 < 0 ? 1 : 0.4));
-                ctx.strokeStyle = toolCol + Math.round(intensity * 255).toString(16).padStart(2, '0');
-                ctx.lineWidth = 1.2; ctx.setLineDash([]);
+                const cat = getOpCat(m.op);
+                const depth = Math.abs(m.z2);
+                const depthRatio = Math.min(depth / 20, 1);
+                // Intensidade: mais profundo = mais brilhante e mais grosso
+                const alpha = Math.round((0.5 + depthRatio * 0.5) * 255).toString(16).padStart(2, '0');
+                ctx.strokeStyle = cat.color + alpha;
+                ctx.lineWidth = 0.8 + depthRatio * 2.2; // 0.8px → 3px
+                ctx.setLineDash([]);
                 cutDist += dist;
             }
             ctx.stroke();
         }
         ctx.setLineDash([]);
 
-        // Marcadores de troca de ferramenta (diamantes amarelos)
+        // Marcadores de troca de ferramenta (diamantes)
         if (moveLimit < 0) {
-            // Modo estático: mostrar todas as trocas
             for (const ev of allEvents) {
                 if (ev.type === 'tool' && ev.moveIdx < allMoves.length) {
                     const m = allMoves[ev.moveIdx] || allMoves[0];
                     const cx = tx(m?.x1 ?? 0), cy = ty(m?.y1 ?? 0);
-                    const col = toolColors[ev.label] || '#f9e2af';
-                    ctx.fillStyle = col; ctx.globalAlpha = 0.7;
+                    ctx.fillStyle = '#f9e2af'; ctx.globalAlpha = 0.6;
                     ctx.beginPath();
-                    ctx.moveTo(cx, cy - 6); ctx.lineTo(cx + 4, cy); ctx.lineTo(cx, cy + 6); ctx.lineTo(cx - 4, cy);
+                    ctx.moveTo(cx, cy - 5); ctx.lineTo(cx + 3, cy); ctx.lineTo(cx, cy + 5); ctx.lineTo(cx - 3, cy);
                     ctx.closePath(); ctx.fill();
                     ctx.globalAlpha = 1;
                 }
@@ -1755,34 +1852,38 @@ function GcodeSimCanvas({ gcode, chapa }) {
             }
         }
 
-        // HUD: info da ferramenta e operação atual (canto superior esquerdo do canvas, abaixo do zoom info)
+        // HUD: info da ferramenta e operação atual
         if (moveLimit >= 0) {
             const { tool, op } = getActiveEventsAt(moveLimit);
+            const cat = getOpCat(op);
             const hudY = 30;
-            ctx.fillStyle = '#181825dd'; ctx.fillRect(4, hudY, 250, (tool ? 16 : 0) + (op ? 16 : 0) + 8);
+            ctx.fillStyle = '#181825dd'; ctx.fillRect(4, hudY, 280, (tool ? 16 : 0) + (op ? 16 : 0) + 8);
             let hy = hudY + 14;
             if (tool) {
-                const col = toolColors[tool] || '#f9e2af';
-                ctx.fillStyle = col; ctx.font = 'bold 10px sans-serif';
-                ctx.fillText(`[${tool}]`, 10, hy); hy += 16;
+                ctx.fillStyle = '#f9e2af'; ctx.font = 'bold 10px sans-serif';
+                ctx.fillText(`🔧 ${tool}`, 10, hy); hy += 16;
             }
             if (op) {
-                ctx.fillStyle = '#89b4fa'; ctx.font = '10px sans-serif';
-                ctx.fillText(`Op: ${op}`, 10, hy);
+                ctx.fillStyle = cat.color; ctx.font = 'bold 10px sans-serif';
+                ctx.fillText(`● ${cat.label}: ${op}`, 10, hy);
             }
         }
 
         // Barra de progresso no fundo do canvas
         if (moveLimit >= 0) {
             const pct = allMoves.length > 0 ? (moveLimit + 1) / allMoves.length : 0;
-            ctx.fillStyle = '#313244'; ctx.fillRect(0, H - 24, W, 24);
-            ctx.fillStyle = '#fab38740'; ctx.fillRect(0, H - 24, W * pct, 24);
-            // Marcadores de troca de ferramenta na barra de progresso
+            ctx.fillStyle = '#11111b'; ctx.fillRect(0, H - 24, W, 24);
+            ctx.fillStyle = '#fab38730'; ctx.fillRect(0, H - 24, W * pct, 24);
+            // Marcadores de troca de operação na barra de progresso
             for (const ev of allEvents) {
+                if (ev.type === 'op') {
+                    const evPct = ev.moveIdx / allMoves.length;
+                    const cat = getOpCat(ev.label);
+                    ctx.fillStyle = cat.color + '80'; ctx.fillRect(W * evPct - 1, H - 24, 2, 24);
+                }
                 if (ev.type === 'tool') {
                     const evPct = ev.moveIdx / allMoves.length;
-                    const col = toolColors[ev.label] || '#f9e2af';
-                    ctx.fillStyle = col; ctx.fillRect(W * evPct - 1, H - 24, 2, 24);
+                    ctx.fillStyle = '#f9e2af'; ctx.fillRect(W * evPct - 1, H - 24, 2, 24);
                 }
             }
             ctx.fillStyle = '#cdd6f4'; ctx.font = '10px monospace';
@@ -1791,7 +1892,7 @@ function GcodeSimCanvas({ gcode, chapa }) {
             ctx.fillStyle = '#cdd6f4'; ctx.font = '11px monospace';
             ctx.fillText(`Movimentos: ${allMoves.length}  |  Rapido: ${(rapidDist / 1000).toFixed(1)}m  |  Corte: ${(cutDist / 1000).toFixed(1)}m`, 10, H - 10);
         }
-    }, [gcode, chapa, allMoves, allEvents, toolColors, getActiveEventsAt, zoom, panOff]);
+    }, [gcode, chapa, allMoves, allEvents, getActiveEventsAt, zoom, panOff]);
 
     // Renderizar quando muda curMove, zoom ou pan
     useEffect(() => { renderCanvas(curMove); }, [curMove, renderCanvas]);
@@ -1837,8 +1938,6 @@ function GcodeSimCanvas({ gcode, chapa }) {
     const handleMouseMove = (e) => { if (panRef.current) setPanOff({ x: e.clientX - panRef.current.startX, y: e.clientY - panRef.current.startY }); };
     const handleMouseUp = () => { panRef.current = null; };
 
-    // Legenda de ferramentas
-    const toolEntries = Object.entries(toolColors);
     const { tool: activeTool, op: activeOp } = curMove >= 0 ? getActiveEventsAt(curMove) : { tool: '', op: '' };
 
     const btnSt = { padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer', borderRadius: 4, border: '1px solid #585b70', background: '#313244', color: '#cdd6f4', display: 'flex', alignItems: 'center', gap: 3 };
@@ -1886,16 +1985,24 @@ function GcodeSimCanvas({ gcode, chapa }) {
                     {curMove >= 0 ? `${curMove + 1}/${allMoves.length}` : `${allMoves.length} moves`}
                 </span>
             </div>
-            {/* Legenda de ferramentas + operação ativa */}
+            {/* Legenda de operações + ferramenta ativa */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: '#1e1e2e', borderRadius: '0 0 8px 8px', border: '1px solid var(--border)', borderTop: 'none', flexWrap: 'wrap' }}>
-                {toolEntries.length > 0 && toolEntries.map(([name, col]) => (
-                    <span key={name} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: activeTool === name ? col : '#6c7086', fontWeight: activeTool === name ? 700 : 400, transition: 'all 0.2s' }}>
-                        <span style={{ width: 8, height: 8, borderRadius: 2, background: col, display: 'inline-block', opacity: activeTool === name ? 1 : 0.5 }} />
-                        {name}
-                    </span>
-                ))}
-                {toolEntries.length === 0 && <span style={{ fontSize: 10, color: '#6c7086' }}>Sem trocas de ferramenta</span>}
-                {activeOp && <span style={{ marginLeft: 'auto', fontSize: 10, color: '#89b4fa', fontWeight: 600 }}>Op: {activeOp}</span>}
+                {/* Rapid sempre aparece */}
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#f38ba8', opacity: 0.6 }}>
+                    <span style={{ width: 12, height: 0, borderTop: '1px dashed #f38ba8', display: 'inline-block' }} />
+                    Rápido
+                </span>
+                {foundOps.map(cat => {
+                    const isActive = activeOp && getOpCat(activeOp).key === cat.key;
+                    return (
+                        <span key={cat.key} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: isActive ? cat.color : '#6c7086', fontWeight: isActive ? 700 : 400, transition: 'all 0.2s' }}>
+                            <span style={{ width: 8, height: 3, borderRadius: 1, background: cat.color, display: 'inline-block', opacity: isActive ? 1 : 0.5 }} />
+                            {cat.label}
+                        </span>
+                    );
+                })}
+                {foundOps.length === 0 && <span style={{ fontSize: 10, color: '#6c7086' }}>Sem operações identificadas</span>}
+                {activeTool && <span style={{ marginLeft: 'auto', fontSize: 10, color: '#f9e2af', fontWeight: 600 }}>🔧 {activeTool}</span>}
             </div>
         </div>
     );
@@ -1907,7 +2014,7 @@ function GcodePreviewModal({ data, onDownload, onClose }) {
     const lineCount = lines.length;
     const sizeKB = new Blob([gcode]).size / 1024;
     const [showFull, setShowFull] = useState(false);
-    const [abaPreview, setAbaPreview] = useState('codigo');
+    const [abaPreview, setAbaPreview] = useState('sim2d');
     const previewLines = showFull ? lines : lines.slice(0, 80);
     const textareaRef = useRef(null);
 
@@ -1958,7 +2065,7 @@ function GcodePreviewModal({ data, onDownload, onClose }) {
 
             {/* Tabs: Codigo | Simulador */}
             <div style={{ display: 'flex', gap: 2, marginBottom: 8 }}>
-                {[{ id: 'codigo', lb: 'Codigo' }, { id: 'simulador', lb: 'Simulador 2D' }].map(t => (
+                {[{ id: 'sim2d', lb: 'Simulador' }, { id: 'codigo', lb: 'Código' }].map(t => (
                     <button key={t.id} onClick={() => setAbaPreview(t.id)} style={{
                         padding: '5px 16px', fontSize: 11, fontWeight: abaPreview === t.id ? 700 : 500,
                         borderRadius: '6px 6px 0 0', cursor: 'pointer', transition: 'all .15s',
@@ -2011,7 +2118,7 @@ function GcodePreviewModal({ data, onDownload, onClose }) {
                 </div>
             )}
 
-            {abaPreview === 'simulador' && (
+            {abaPreview === 'sim2d' && (
                 <GcodeSimCanvas gcode={gcode} chapa={chapaData} />
             )}
 
@@ -2150,19 +2257,23 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
     const hasVeio = chapa.veio && chapa.veio !== 'sem_veio';
     const kerfPx = (kerfSize / 2) * scale;
 
-    // ─── Client-side AABB collision check ───
+    // ─── Client-side AABB collision check (com kerf, igual ao backend) ───
     const isColliding = useCallback((tx, ty, tw, th, exIdx) => {
+        const k = chapa.kerf || 0; // Expansão por kerf (largura do disco)
         for (let i = 0; i < chapa.pecas.length; i++) {
             if (i === exIdx) continue;
             const b = chapa.pecas[i];
-            if (tx < b.x + b.w && tx + tw > b.x && ty < b.y + b.h && ty + th > b.y) return true;
+            // Expandir a peça testada por kerf em todos os lados (mesma lógica do backend checkCollision)
+            if (tx - k < b.x + b.w && tx + tw + k > b.x && ty - k < b.y + b.h && ty + th + k > b.y) return true;
         }
         return false;
-    }, [chapa.pecas]);
+    }, [chapa.pecas, chapa.kerf]);
 
     // ─── Magnetic snap to adjacent edges ───
     const magneticSnap = useCallback((tx, ty, tw, th, exIdx) => {
-        const S = 5, kg = kerfSize / 2;
+        // Snap threshold adaptivo ao zoom: quanto mais zoom-out, mais tolerante (em mm)
+        const k = chapa.kerf || kerfSize || 0; // Usa kerf real da chapa (mesmo valor que isColliding/backend)
+        const S = Math.max(8, Math.min(25, 12 / (zoomLevel || 1)));
         const ref = chapa.refilo || 0;
         const uW = chapa.comprimento - 2 * ref, uH = chapa.largura - 2 * ref;
         let sx = tx, sy = ty;
@@ -2178,10 +2289,10 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
             const o = chapa.pecas[i];
             const overlapY = ty < o.y + o.h && ty + th > o.y;
             const overlapX = tx < o.x + o.w && tx + tw > o.x;
-            if (overlapY && Math.abs(tx - (o.x + o.w + kg)) < S) { sx = o.x + o.w + kg; guides.push({ t: 'v', p: o.x + o.w }); }
-            if (overlapY && Math.abs(tx + tw + kg - o.x) < S) { sx = o.x - tw - kg; guides.push({ t: 'v', p: o.x }); }
-            if (overlapX && Math.abs(ty - (o.y + o.h + kg)) < S) { sy = o.y + o.h + kg; guides.push({ t: 'h', p: o.y + o.h }); }
-            if (overlapX && Math.abs(ty + th + kg - o.y) < S) { sy = o.y - th - kg; guides.push({ t: 'h', p: o.y }); }
+            if (overlapY && Math.abs(tx - (o.x + o.w + k)) < S) { sx = o.x + o.w + k; guides.push({ t: 'v', p: o.x + o.w }); }
+            if (overlapY && Math.abs(tx + tw + k - o.x) < S) { sx = o.x - tw - k; guides.push({ t: 'v', p: o.x }); }
+            if (overlapX && Math.abs(ty - (o.y + o.h + k)) < S) { sy = o.y + o.h + k; guides.push({ t: 'h', p: o.y + o.h }); }
+            if (overlapX && Math.abs(ty + th + k - o.y) < S) { sy = o.y - th - k; guides.push({ t: 'h', p: o.y }); }
             // Align edges (same x or y start/end)
             if (Math.abs(tx - o.x) < S && overlapY) { sx = o.x; guides.push({ t: 'v', p: o.x }); }
             if (Math.abs(tx + tw - (o.x + o.w)) < S && overlapY) { sx = o.x + o.w - tw; guides.push({ t: 'v', p: o.x + o.w }); }
@@ -2189,7 +2300,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
             if (Math.abs(ty + th - (o.y + o.h)) < S && overlapX) { sy = o.y + o.h - th; guides.push({ t: 'h', p: o.y + o.h }); }
         }
         return { x: sx, y: sy, guides };
-    }, [chapa.pecas, chapa.refilo, chapa.comprimento, chapa.largura, kerfSize]);
+    }, [chapa.pecas, chapa.refilo, chapa.comprimento, chapa.largura, chapa.kerf, kerfSize, zoomLevel]);
 
     // ─── Pixel to MM ───
     const pixelToMM = (clientX, clientY) => {
@@ -2246,7 +2357,13 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
             setDragging(null); setDragCollision(false); setSnapGuides([]);
             return;
         }
+        const p = chapa.pecas[dragging.pecaIdx];
         const sx = Math.round(dragging.newX / 2) * 2, sy = Math.round(dragging.newY / 2) * 2;
+        // Re-check colisão na posição arredondada (evita desync com backend)
+        if (p && isColliding(sx, sy, p.w, p.h, dragging.pecaIdx)) {
+            setDragging(null); setDragCollision(false); setSnapGuides([]);
+            return;
+        }
         if (onAdjust && (Math.abs(sx - dragging.origX) > 1 || Math.abs(sy - dragging.origY) > 1)) {
             onAdjust({ action: 'move', chapaIdx: idx, pecaIdx: dragging.pecaIdx, x: sx, y: sy });
         }
@@ -2508,26 +2625,40 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                 fill="none" stroke="var(--text-muted)" strokeWidth={1} strokeDasharray="4 4" opacity={0.35} />;
                         })()}
 
-                        {/* Cut lines (toggle) */}
+                        {/* Cut lines (toggle) — formato GuillotineBin: {dir, x, y, length} */}
                         {showCuts && chapa.cortes && chapa.cortes.map((c, ci) => {
                             const isH = c.dir === 'Horizontal';
+                            // GuillotineBin format: x, y, length (position within usable area)
+                            const cx = (c.x != null ? c.x : 0) + refiloVal;
+                            const cy = (c.y != null ? c.y : (c.pos || 0)) + refiloVal;
+                            const len = c.length || (isH ? chapa.comprimento - 2 * refiloVal : chapa.largura - 2 * refiloVal);
                             return (
                                 <g key={`cut${ci}`}>
                                     {isH ? (
-                                        <line x1={refilo} y1={(c.pos + refiloVal) * scale} x2={svgW - refilo} y2={(c.pos + refiloVal) * scale}
-                                            stroke="#ef444480" strokeWidth={1} strokeDasharray="6 3" />
+                                        <line x1={cx * scale} y1={cy * scale}
+                                            x2={(cx + len) * scale} y2={cy * scale}
+                                            stroke="#ef444480" strokeWidth={1.5} strokeDasharray="6 3" />
                                     ) : (
-                                        <line x1={(c.pos + refiloVal) * scale} y1={refilo} x2={(c.pos + refiloVal) * scale} y2={svgH - refilo}
-                                            stroke="#f59e0b80" strokeWidth={1} strokeDasharray="6 3" />
+                                        <line x1={cx * scale} y1={cy * scale}
+                                            x2={cx * scale} y2={(cy + len) * scale}
+                                            stroke="#f59e0b80" strokeWidth={1.5} strokeDasharray="6 3" />
                                     )}
-                                    <text x={isH ? refilo + 3 : (c.pos + refiloVal) * scale + 2}
-                                        y={isH ? (c.pos + refiloVal) * scale - 2 : refilo + 10}
+                                    <text x={isH ? cx * scale + 3 : cx * scale + 2}
+                                        y={isH ? cy * scale - 2 : cy * scale + 10}
                                         fontSize={7} fill={isH ? '#ef4444' : '#f59e0b'} fontWeight={700}>
-                                        {c.seq}
+                                        {c.seq || (ci + 1)}
                                     </text>
                                 </g>
                             );
                         })}
+
+                        {/* ══ Sheet locked overlay ══ */}
+                        {chapa.locked && (
+                            <rect x={refilo} y={refilo}
+                                width={(chapa.comprimento - 2 * refiloVal) * scale}
+                                height={(chapa.largura - 2 * refiloVal) * scale}
+                                fill="rgba(59,130,246,0.06)" pointerEvents="none" />
+                        )}
 
                         {/* ══ PIECES with collision feedback, lock, selection ══ */}
                         {chapa.pecas.map((p, pi) => {
@@ -2540,7 +2671,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                             const piece = pecasMap[p.pecaId];
                             const isSelected = selectedPieces.includes(pi);
                             const isDragging = dragging?.pecaIdx === pi;
-                            const isLocked = p.locked;
+                            const isLocked = p.locked || chapa.locked;
 
                             // Dynamic colors during drag
                             let fillColor = color, fillOp = isHovered ? '40' : '25', strokeClr = color, strokeW = isHovered ? 2.5 : 1;

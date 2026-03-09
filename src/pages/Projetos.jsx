@@ -1908,17 +1908,39 @@ function TabArquivos({ data, notify }) {
 const prodThStyle = { padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', whiteSpace: 'nowrap' };
 const prodTdStyle = { padding: '8px 12px', whiteSpace: 'nowrap' };
 
-function TabProducao({ data, notify }) {
+function TabProducao({ data, notify, nav }) {
     const [prodData, setProdData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [subTab, setSubTab] = useState('corte');
     const [expandedMat, setExpandedMat] = useState({});
+    const [lotes, setLotes] = useState([]);
+    const [industrializando, setIndustrializando] = useState(false);
+
+    const loadLotes = useCallback(() => {
+        if (!data?.id) return;
+        api.get(`/projetos/${data.id}/lotes`).then(setLotes).catch(() => {});
+    }, [data?.id]);
 
     useEffect(() => {
         if (!data?.id) return;
         setLoading(true);
         api.get(`/producao/${data.id}`).then(d => { setProdData(d); setLoading(false); }).catch(() => setLoading(false));
-    }, [data?.id]);
+        loadLotes();
+    }, [data?.id, loadLotes]);
+
+    const handleIndustrializar = async () => {
+        setIndustrializando(true);
+        try {
+            const res = await api.post(`/projetos/${data.id}/industrializar`);
+            if (res?.error) throw new Error(res.error);
+            notify(`Industrialização criada: ${res.total_pecas} peças`);
+            loadLotes();
+        } catch (err) {
+            notify(err.message || 'Erro ao industrializar', 'error');
+        } finally {
+            setIndustrializando(false);
+        }
+    };
 
     if (loading) return <Spinner text="Carregando produção..." />;
 
@@ -1931,6 +1953,13 @@ function TabProducao({ data, notify }) {
     );
 
     const { resumo = {}, chapas, ferragens, fita, bom, pecas } = prodData || {};
+
+    const STATUS_LOTE = {
+        importado: { label: 'Importado', color: '#3b82f6', bg: '#eff6ff' },
+        otimizado: { label: 'Otimizado', color: '#8b5cf6', bg: '#f5f3ff' },
+        cortado: { label: 'Cortado', color: '#f59e0b', bg: '#fffbeb' },
+        pronto: { label: 'Pronto', color: '#22c55e', bg: '#f0fdf4' },
+    };
 
     // Agrupar peças por material
     const pecasPorMaterial = {};
@@ -1949,6 +1978,65 @@ function TabProducao({ data, notify }) {
 
     return (
         <div>
+            {/* ═══ Industrialização — Lotes vinculados + botão ═══ */}
+            <div className={Z.card} style={{ padding: 20, marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: lotes.length > 0 ? 12 : 0 }}>
+                    <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Factory size={16} style={{ color: 'var(--primary)' }} />
+                            Industrialização
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                            {lotes.length === 0 ? 'Nenhum lote de produção vinculado' : `${lotes.length} lote(s) vinculado(s)`}
+                        </div>
+                    </div>
+                    <button
+                        onClick={handleIndustrializar}
+                        disabled={industrializando}
+                        style={{
+                            padding: '8px 18px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10,
+                            background: 'linear-gradient(135deg, #e67e22, #d35400)', color: '#fff',
+                            cursor: industrializando ? 'wait' : 'pointer', opacity: industrializando ? 0.6 : 1,
+                            display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.2s',
+                        }}
+                    >
+                        <Factory size={14} />
+                        {industrializando ? 'Processando...' : 'Industrializar'}
+                    </button>
+                </div>
+                {lotes.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {lotes.map(lote => {
+                            const st = STATUS_LOTE[lote.status] || STATUS_LOTE.importado;
+                            return (
+                                <div key={lote.id} style={{
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    padding: '10px 14px', background: 'var(--bg-muted)', borderRadius: 8, fontSize: 13,
+                                }}>
+                                    <div>
+                                        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{lote.nome}</div>
+                                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                            {lote.total_pecas} peças · {lote.origem === 'orcamento' ? 'via orçamento' : lote.origem === 'sketchup' ? 'via SketchUp' : 'importação JSON'}
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{
+                                            padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                                            background: st.bg, color: st.color,
+                                        }}>{st.label}</span>
+                                        {lote.aproveitamento > 0 && (
+                                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                                {(lote.aproveitamento).toFixed(1)}%
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
             {/* KPIs */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 16 }}>
                 {[
@@ -2967,7 +3055,7 @@ function TabEntrega({ data, notify }) {
 // ═══════════════════════════════════════════════════════
 // DETALHE DO PROJETO (com tabs)
 // ═══════════════════════════════════════════════════════
-function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user }) {
+function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user, nav }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [editStatus, setEditStatus] = useState(false);
@@ -3042,7 +3130,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user }) {
 
             {/* Tab Content */}
             {tab === 'cronograma' && <TabCronograma data={data} load={load} notify={notify} users={users} />}
-            {tab === 'producao' && <TabProducao data={data} notify={notify} />}
+            {tab === 'producao' && <TabProducao data={data} notify={notify} nav={nav} />}
             {tab === 'financeiro' && <TabFinanceiro data={data} notify={notify} />}
             {tab === 'estoque' && <TabEstoque data={data} notify={notify} user={user} />}
             {tab === 'arquivos' && <TabArquivos data={data} notify={notify} />}
@@ -3053,7 +3141,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user }) {
 }
 
 // ─── Página Principal ─────────────────────────────────
-export default function Projetos({ orcs, notify, user, openProjectId, onProjectOpened }) {
+export default function Projetos({ orcs, notify, user, openProjectId, onProjectOpened, nav }) {
     const [projetos, setProjetos] = useState([]);
     const [selected, setSelected] = useState(null);
     const [showNew, setShowNew] = useState(false);
@@ -3088,7 +3176,7 @@ export default function Projetos({ orcs, notify, user, openProjectId, onProjectO
         api.del(`/projetos/${id}`).then(() => { load(); notify('Projeto excluído'); }).catch(() => notify('Erro ao excluir'));
     };
 
-    if (selected) return <ProjetoDetalhe proj={selected} onBack={() => setSelected(null)} orcs={orcs} notify={notify} reload={load} user={user} />;
+    if (selected) return <ProjetoDetalhe proj={selected} onBack={() => setSelected(null)} orcs={orcs} notify={notify} reload={load} user={user} nav={nav} />;
 
     const filtered = projetos.filter(p => {
         const q = search.toLowerCase();

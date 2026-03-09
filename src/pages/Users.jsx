@@ -3,22 +3,39 @@ import { Z, Ic, Modal, PageHeader } from '../ui';
 import api from '../api';
 import { Shield, ShieldOff, Trash2, Check, Key } from 'lucide-react';
 
-// Menus disponíveis para configurar permissões
-const MENUS = [
-    { id: 'dash',          label: 'Home',                  desc: 'Painel principal e dashboard' },
-    { id: 'cli',           label: 'Clientes',              desc: 'Cadastro e gestão de clientes' },
-    { id: 'cat',           label: 'Biblioteca',            desc: 'Chapas, materiais e ferragens' },
-    { id: 'catalogo_itens',label: 'Engenharia de Módulos', desc: 'Caixas, componentes e painéis' },
-    { id: 'orcs',          label: 'Orçamentos',            desc: 'Criar e gerenciar orçamentos' },
-    { id: 'kb',            label: 'Pipeline CRM',          desc: 'Funil de vendas Kanban' },
-    { id: 'proj',          label: 'Projetos',              desc: 'Acompanhamento de projetos' },
-    { id: 'estoque',       label: 'Gestão de Recursos',    desc: 'Estoque, materiais e mão de obra' },
-    { id: 'whatsapp',      label: 'WhatsApp',              desc: 'Mensagens e atendimento' },
-    { id: 'assistente',    label: 'Assistente IA',         desc: 'Chat e assistente inteligente' },
-    { id: 'relatorios',    label: 'Relatórios',            desc: 'Relatórios e análises' },
-    { id: 'cnc',           label: 'Corte e Produção',      desc: 'Plano de corte CNC, G-Code e máquinas' },
-    { id: 'cfg',           label: 'Config & Taxas',        desc: 'Configurações e taxas do sistema' },
+// Menus disponíveis para configurar permissões (espelha MENU_GROUPS do App.jsx)
+const MENU_SECTIONS = [
+    { label: 'Geral', items: [
+        { id: 'dash',           label: 'Dashboard',             desc: 'Painel principal e indicadores' },
+        { id: 'proj',           label: 'Projetos',              desc: 'Hub de projetos e acompanhamento' },
+    ]},
+    { label: 'Comercial', items: [
+        { id: 'cli',            label: 'Clientes',              desc: 'Cadastro e gestão de clientes' },
+        { id: 'orcs',           label: 'Orçamentos',            desc: 'Criar e gerenciar orçamentos' },
+        { id: 'kb',             label: 'Pipeline CRM',          desc: 'Funil de vendas Kanban' },
+        { id: 'whatsapp',       label: 'WhatsApp',              desc: 'Mensagens e atendimento' },
+    ]},
+    { label: 'Chão de Fábrica', items: [
+        { id: 'industrializacao', label: 'Ordens de Produção',  desc: 'Gerar e gerenciar ordens de produção' },
+        { id: 'cnc',            label: 'Corte & CNC',           desc: 'Plano de corte, nesting e G-Code' },
+        { id: 'producao_fabrica', label: 'Acompanhamento',      desc: 'Acompanhar etapas de produção' },
+        { id: 'expedicao',      label: 'Expedição',             desc: 'Controle de entrega e expedição' },
+    ]},
+    { label: 'Cadastros', items: [
+        { id: 'cat',            label: 'Materiais',             desc: 'Chapas, ferragens e insumos' },
+        { id: 'catalogo_itens', label: 'Engenharia',            desc: 'Módulos, componentes e painéis' },
+        { id: 'estoque',        label: 'Recursos',              desc: 'Estoque, materiais e mão de obra' },
+    ]},
+    { label: 'Gestão', items: [
+        { id: 'financeiro',     label: 'Financeiro',            desc: 'Contas a pagar/receber e fluxo de caixa' },
+        { id: 'relatorios',     label: 'Relatórios',            desc: 'Relatórios e análises gerenciais' },
+    ]},
+    { label: 'Sistema', items: [
+        { id: 'assistente',     label: 'Assistente IA',         desc: 'Chat e assistente inteligente' },
+        { id: 'cfg',            label: 'Configurações',         desc: 'Configurações e taxas do sistema' },
+    ]},
 ];
+const MENUS = MENU_SECTIONS.flatMap(s => s.items);
 
 const roleColor = r => r === 'admin' ? 'var(--primary)' : r === 'gerente' ? '#7eb8c8' : '#7eb87e';
 
@@ -66,9 +83,9 @@ function PermissoesModal({ user, close, onSave }) {
                     </div>
                 </div>
 
-                {/* Lista de menus */}
+                {/* Lista de menus agrupados por seção */}
                 {restrito && (
-                    <div className="flex flex-col gap-1.5">
+                    <div className="flex flex-col gap-3" style={{ maxHeight: 420, overflowY: 'auto' }}>
                         <div className="flex items-center justify-between mb-0.5">
                             <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Menus liberados</span>
                             <div className="flex gap-2">
@@ -82,26 +99,50 @@ function PermissoesModal({ user, close, onSave }) {
                                 </button>
                             </div>
                         </div>
-                        {MENUS.map(menu => {
-                            const on = selecionados.includes(menu.id);
+                        {MENU_SECTIONS.map(section => {
+                            const sectionIds = section.items.map(m => m.id);
+                            const allOn = sectionIds.every(id => selecionados.includes(id));
+                            const someOn = sectionIds.some(id => selecionados.includes(id));
+                            const toggleSection = () => {
+                                if (allOn) setSelecionados(p => p.filter(id => !sectionIds.includes(id)));
+                                else setSelecionados(p => [...new Set([...p, ...sectionIds])]);
+                            };
                             return (
-                                <button key={menu.id} onClick={() => toggleMenu(menu.id)}
-                                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer text-left w-full transition-colors"
-                                    style={{
-                                        background: on ? 'color-mix(in srgb, var(--primary) 8%, transparent)' : 'var(--bg-muted)',
-                                        border: `1px solid ${on ? 'color-mix(in srgb, var(--primary) 30%, transparent)' : 'var(--border)'}`,
-                                    }}>
-                                    <div className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors"
-                                        style={{ background: on ? 'var(--primary)' : 'var(--border)' }}>
-                                        {on && <Check size={10} color="white" strokeWidth={3} />}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-medium" style={{ color: on ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                                            {menu.label}
+                                <div key={section.label} className="flex flex-col gap-1">
+                                    <button onClick={toggleSection}
+                                        className="flex items-center gap-2 px-1 py-1 cursor-pointer rounded hover:bg-[var(--bg-hover)] transition-colors"
+                                        title={allOn ? 'Desmarcar seção' : 'Marcar seção toda'}>
+                                        <div className="w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+                                            style={{ background: allOn ? 'var(--primary)' : someOn ? 'color-mix(in srgb, var(--primary) 40%, var(--border))' : 'var(--border)' }}>
+                                            {(allOn || someOn) && <Check size={8} color="white" strokeWidth={3} />}
                                         </div>
-                                        <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{menu.desc}</div>
-                                    </div>
-                                </button>
+                                        <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+                                            {section.label}
+                                        </span>
+                                    </button>
+                                    {section.items.map(menu => {
+                                        const on = selecionados.includes(menu.id);
+                                        return (
+                                            <button key={menu.id} onClick={() => toggleMenu(menu.id)}
+                                                className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-left w-full transition-colors"
+                                                style={{
+                                                    background: on ? 'color-mix(in srgb, var(--primary) 8%, transparent)' : 'var(--bg-muted)',
+                                                    border: `1px solid ${on ? 'color-mix(in srgb, var(--primary) 30%, transparent)' : 'var(--border)'}`,
+                                                }}>
+                                                <div className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+                                                    style={{ background: on ? 'var(--primary)' : 'var(--border)' }}>
+                                                    {on && <Check size={10} color="white" strokeWidth={3} />}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-sm font-medium" style={{ color: on ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                                                        {menu.label}
+                                                    </div>
+                                                    <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{menu.desc}</div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             );
                         })}
                     </div>

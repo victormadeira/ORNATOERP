@@ -11,7 +11,19 @@ router.get('/config', (req, res) => {
     const emp = db.prepare(`
         SELECT nome, telefone, email, endereco, cidade,
                proposta_cor_primaria, proposta_cor_accent,
-               logo_sistema, proposta_sobre
+               logo_sistema, proposta_sobre,
+               landing_ativo,
+               landing_titulo, landing_subtitulo, landing_descricao,
+               landing_cta_primaria, landing_cta_secundaria,
+               landing_form_titulo, landing_form_descricao,
+               landing_cta_titulo, landing_cta_descricao, landing_texto_rodape,
+               landing_prova_titulo, landing_provas_json,
+               landing_logo,
+               landing_hero_imagem,
+               landing_hero_video_url, landing_hero_video_poster,
+               landing_grafismo_imagem,
+               landing_cor_fundo, landing_cor_destaque, landing_cor_neutra, landing_cor_clara,
+               landing_servicos_json, landing_diferenciais_json, landing_etapas_json
         FROM empresa_config WHERE id = 1
     `).get();
 

@@ -23,6 +23,10 @@ const AssistenteIA = lazy(() => import('./pages/AssistenteIA'));
 const Relatorios = lazy(() => import('./pages/Relatorios'));
 const Financeiro = lazy(() => import('./pages/Financeiro'));
 const ProducaoCNC = lazy(() => import('./pages/ProducaoCNC'));
+const PlanoCorte = lazy(() => import('./pages/PlanoCorte'));
+const Industrializacao = lazy(() => import('./pages/Industrializacao'));
+const ProducaoFabrica = lazy(() => import('./pages/ProducaoFabrica'));
+const Expedicao = lazy(() => import('./pages/Expedicao'));
 
 const LazyFallback = () => (
     <div className="flex items-center justify-center h-64">
@@ -245,7 +249,10 @@ export default function App() {
         { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
         { id: "relatorios", lb: "Relatórios", ic: Ic.PieChart },
-        { id: "cnc", lb: "Corte e Produção", ic: Ic.Scissors },
+        { id: "industrializacao", lb: "Ordens de Produção", ic: Ic.ClipList },
+        { id: "cnc", lb: "Corte & CNC", ic: Ic.Scissors },
+        { id: "producao_fabrica", lb: "Acompanhamento", ic: Ic.Factory },
+        { id: "expedicao", lb: "Expedição", ic: Ic.Truck },
         { id: "cfg", lb: "Config & Taxas", ic: Ic.Gear },
         ...(isAdmin ? [{ id: "users", lb: "Usuários", ic: Ic.Users }] : []),
     ];
@@ -261,21 +268,26 @@ export default function App() {
 
     // Menu agrupado com categorias colapsáveis
     const MENU_GROUPS = [
-        { id: 'top', items: [{ id: "dash", lb: "Home", ic: Ic.Dash }] },
+        { id: 'top', items: [{ id: "dash", lb: "Dashboard", ic: Ic.Dash }] },
+        { id: 'projetos_hub', items: [{ id: "proj", lb: "Projetos", ic: Ic.Briefcase }] },
         { id: 'comercial', label: 'Comercial', icon: Ic.Handshake, items: [
             { id: "cli", lb: "Clientes", ic: Ic.Usr },
             { id: "orcs", lb: "Orçamentos", ic: Ic.File },
             { id: "kb", lb: "Pipeline CRM", ic: Ic.Kb },
             { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         ]},
-        { id: 'producao', label: 'Produção', icon: Ic.Factory, items: [
-            { id: "cat", lb: "Biblioteca", ic: Ic.Box },
+        { id: 'chao_fabrica', label: 'Chão de Fábrica', icon: Ic.Factory, items: [
+            { id: "industrializacao", lb: "Ordens de Produção", ic: Ic.ClipList },
+            { id: "cnc", lb: "Corte & CNC", ic: Ic.Scissors },
+            { id: "producao_fabrica", lb: "Acompanhamento", ic: Ic.HardHat },
+            { id: "expedicao", lb: "Expedição", ic: Ic.Truck },
+        ]},
+        { id: 'cadastros', label: 'Cadastros', icon: Ic.Box, items: [
+            { id: "cat", lb: "Materiais", ic: Ic.Box },
             { id: "catalogo_itens", lb: "Engenharia", ic: Ic.Package },
-            { id: "cnc", lb: "Corte e Produção", ic: Ic.Scissors },
+            { id: "estoque", lb: "Recursos", ic: Ic.Warehouse },
         ]},
         { id: 'gestao', label: 'Gestão', icon: Ic.LineChart, items: [
-            { id: "proj", lb: "Projetos", ic: Ic.Briefcase },
-            { id: "estoque", lb: "Recursos", ic: Ic.Warehouse },
             { id: "financeiro", lb: "Financeiro", ic: Ic.Dollar },
             { id: "relatorios", lb: "Relatórios", ic: Ic.PieChart },
         ]},
@@ -305,16 +317,21 @@ export default function App() {
             case "orcs": return <Orcs orcs={orcs} nav={nav} reload={loadOrcs} notify={notify} />;
             case "novo": return <Novo clis={clis} taxas={taxas} editOrc={editOrc} nav={nav} reload={reload} notify={notify} />;
             case "kb": return <Kb orcs={orcs} reload={loadOrcs} notify={notify} nav={nav} />;
-            case "proj": return <Projetos orcs={orcs} notify={notify} user={user} openProjectId={openProjectId} onProjectOpened={() => setOpenProjectId(null)} />;
+            case "proj": return <Projetos orcs={orcs} notify={notify} user={user} openProjectId={openProjectId} onProjectOpened={() => setOpenProjectId(null)} nav={nav} />;
             case "estoque": return <Estoque notify={notify} />;
             case "financeiro": return <Financeiro notify={notify} user={user} nav={nav} />;
             case "whatsapp": return <Mensagens notify={notify} />;
             case "assistente": return <AssistenteIA notify={notify} />;
             case "catalogo_itens": return <ItemBuilder notify={notify} />;
             case "relatorios": return <Relatorios notify={notify} />;
+            case "plano_corte": return <PlanoCorte notify={notify} />;
             case "cnc": return <ProducaoCNC notify={notify} />;
             case "cfg": return <Cfg taxas={taxas} reload={loadTaxas} notify={notify} />;
             case "users": return isAdmin ? <Users notify={notify} meUser={user} /> : <Dash nav={nav} notify={notify} />;
+            // ── Novas páginas (Etapa 1) ──
+            case "industrializacao": return <Industrializacao notify={notify} nav={nav} />;
+            case "producao_fabrica": return <ProducaoFabrica notify={notify} user={user} />;
+            case "expedicao": return <Expedicao notify={notify} user={user} />;
             default: return <Dash nav={nav} notify={notify} />;
         }
     };

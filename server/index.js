@@ -25,7 +25,9 @@ import producaoRoutes from './routes/producao.js';
 import notificacoesRoutes from './routes/notificacoes.js';
 import atividadesRoutes from './routes/atividades.js';
 import cncRoutes from './routes/cnc.js';
+import planoCorteRoutes from './routes/plano-corte.js';
 import portfolioRoutes from './routes/portfolio.js';
+import industrializacaoRoutes from './routes/industrializacao.js';
 
 // Inicializa DB (efeito colateral — cria tabelas e seed)
 import './db.js';
@@ -92,7 +94,9 @@ app.use('/api/producao', producaoRoutes);
 app.use('/api/notificacoes', notificacoesRoutes);
 app.use('/api/atividades', atividadesRoutes);
 app.use('/api/cnc', cncRoutes);
+app.use('/api/plano-corte', planoCorteRoutes);
 app.use('/api/portfolio', portfolioRoutes);
+app.use('/api/industrializacao', industrializacaoRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));

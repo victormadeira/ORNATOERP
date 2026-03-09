@@ -3,6 +3,7 @@ import db from '../db.js';
 import { requireAuth } from '../auth.js';
 import { randomBytes } from 'crypto';
 import { createNotification, logActivity } from '../services/notificacoes.js';
+import { calcularListaCorte, loadBiblioteca } from './producao.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -772,6 +773,181 @@ router.put('/ocorrencias/:oc_id', requireAuth, (req, res) => {
     db.prepare('UPDATE ocorrencias_projeto SET status=? WHERE id=?')
         .run(status, parseInt(req.params.oc_id));
     res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// ETAPA 1 — Industrialização: Versões + Lotes + Ponte Orçamento→CNC
+// ═══════════════════════════════════════════════════════════════════
+
+// GET /api/projetos/:id/versoes — lista versões do projeto
+router.get('/:id/versoes', requireAuth, (req, res) => {
+    try {
+        const versoes = db.prepare(`
+            SELECT pv.*, o.cliente_nome, o.valor_venda, o.status as orc_status
+            FROM projeto_versoes pv
+            LEFT JOIN orcamentos o ON o.id = pv.orc_id
+            WHERE pv.projeto_id = ?
+            ORDER BY pv.versao DESC
+        `).all(parseInt(req.params.id));
+        res.json(versoes);
+    } catch (err) {
+        console.error('Erro ao listar versões:', err);
+        res.status(500).json({ error: 'Erro ao listar versões' });
+    }
+});
+
+// POST /api/projetos/:id/versoes — criar nova versão
+router.post('/:id/versoes', requireAuth, (req, res) => {
+    try {
+        const projetoId = parseInt(req.params.id);
+        const { tipo, orc_id, json_data, descricao } = req.body;
+
+        // Calcular próximo número de versão
+        const last = db.prepare('SELECT MAX(versao) as max FROM projeto_versoes WHERE projeto_id = ?').get(projetoId);
+        const nextVersao = (last?.max || 0) + 1;
+
+        // Desativar versões anteriores
+        db.prepare('UPDATE projeto_versoes SET ativa = 0 WHERE projeto_id = ?').run(projetoId);
+
+        const result = db.prepare(`
+            INSERT INTO projeto_versoes (projeto_id, tipo, orc_id, json_data, descricao, versao, ativa, criado_por)
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+        `).run(projetoId, tipo || 'orcamento', orc_id || null, json_data || '', descricao || '', nextVersao, req.user.id);
+
+        res.json({ id: Number(result.lastInsertRowid), versao: nextVersao });
+    } catch (err) {
+        console.error('Erro ao criar versão:', err);
+        res.status(500).json({ error: 'Erro ao criar versão' });
+    }
+});
+
+// GET /api/projetos/:id/lotes — lista lotes CNC vinculados ao projeto
+router.get('/:id/lotes', requireAuth, (req, res) => {
+    try {
+        const lotes = db.prepare(`
+            SELECT id, nome, cliente, projeto, status, total_pecas, total_chapas,
+                   aproveitamento, origem, orc_id, criado_em, atualizado_em
+            FROM cnc_lotes
+            WHERE projeto_id = ?
+            ORDER BY criado_em DESC
+        `).all(parseInt(req.params.id));
+        res.json(lotes);
+    } catch (err) {
+        console.error('Erro ao listar lotes:', err);
+        res.status(500).json({ error: 'Erro ao listar lotes' });
+    }
+});
+
+// POST /api/projetos/:id/industrializar — cria lote CNC a partir do orçamento do projeto
+router.post('/:id/industrializar', requireAuth, (req, res) => {
+    try {
+        const projetoId = parseInt(req.params.id);
+
+        // Buscar projeto com orçamento vinculado
+        const projeto = db.prepare(`
+            SELECT p.*, o.mods_json, o.cliente_nome, o.valor_venda, o.id as orc_id
+            FROM projetos p
+            LEFT JOIN orcamentos o ON o.id = p.orc_id
+            WHERE p.id = ?
+        `).get(projetoId);
+
+        if (!projeto) return res.status(404).json({ error: 'Projeto não encontrado' });
+        if (!projeto.orc_id) return res.status(400).json({ error: 'Projeto sem orçamento vinculado' });
+
+        // Parse mods_json do orçamento
+        let mods;
+        try { mods = JSON.parse(projeto.mods_json || '{}'); } catch { mods = {}; }
+
+        const ambientes = mods.ambientes || [];
+        if (ambientes.length === 0) return res.status(400).json({ error: 'Orçamento sem ambientes/peças' });
+
+        // Calcular lista de corte usando motor existente
+        const bib = loadBiblioteca();
+        const resultado = calcularListaCorte(mods, bib);
+
+        if (!resultado.pecas || resultado.pecas.length === 0) {
+            return res.status(400).json({ error: 'Nenhuma peça calculada a partir do orçamento' });
+        }
+
+        // Criar lote CNC vinculado ao projeto
+        const loteNome = `${projeto.nome} — Industrialização`;
+        const insertLote = db.prepare(`
+            INSERT INTO cnc_lotes (user_id, nome, cliente, projeto, codigo, vendedor, json_original, total_pecas, projeto_id, orc_id, origem)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'orcamento')
+        `);
+        const loteResult = insertLote.run(
+            req.user.id, loteNome, projeto.cliente_nome || '', projeto.nome || '',
+            '', '', JSON.stringify(mods), resultado.pecas.length,
+            projetoId, projeto.orc_id
+        );
+        const loteId = loteResult.lastInsertRowid;
+
+        // Inserir peças no formato cnc_pecas
+        const insertPeca = db.prepare(`
+            INSERT INTO cnc_pecas (lote_id, persistent_id, descricao, modulo_desc,
+              material, material_code, espessura, comprimento, largura, quantidade,
+              borda_frontal, acabamento, observacao)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+        `);
+
+        const insertMany = db.transaction((pecas) => {
+            let idx = 0;
+            for (const p of pecas) {
+                idx++;
+                const matCode = String(p.matId || '');
+                insertPeca.run(
+                    loteId,
+                    `ORC_${projeto.orc_id}_${idx}`,       // persistent_id
+                    p.nome || '',                           // descricao
+                    `${p.ambiente || ''} — ${p.modulo || ''}`, // modulo_desc
+                    p.matNome || '',                         // material
+                    matCode,                                // material_code
+                    p.espessura || 18,                      // espessura
+                    p.largura || 0,                         // comprimento (no calc, largura é W)
+                    p.altura || 0,                          // largura (no calc, altura é H)
+                    p.qtd || 1,                             // quantidade
+                    p.fita ? `${Math.round(p.fita)}m` : '', // borda simplificada
+                    '',                                     // acabamento
+                    `${p.tipo || 'caixa'} | ${p.ambiente || ''}` // observacao
+                );
+            }
+        });
+        insertMany(resultado.pecas);
+
+        // Criar versão se não existir
+        const versaoExiste = db.prepare('SELECT id FROM projeto_versoes WHERE projeto_id = ? AND orc_id = ?').get(projetoId, projeto.orc_id);
+        if (!versaoExiste) {
+            const lastV = db.prepare('SELECT MAX(versao) as max FROM projeto_versoes WHERE projeto_id = ?').get(projetoId);
+            db.prepare(`
+                INSERT INTO projeto_versoes (projeto_id, tipo, orc_id, descricao, versao, ativa, criado_por)
+                VALUES (?, 'orcamento', ?, 'Versão do orçamento original', ?, 1, ?)
+            `).run(projetoId, projeto.orc_id, (lastV?.max || 0) + 1, req.user.id);
+        }
+
+        // Notificar
+        try {
+            createNotification(
+                'producao_iniciada',
+                `Industrialização iniciada: ${projeto.nome}`,
+                `${resultado.pecas.length} peças enviadas para produção`,
+                projetoId, 'projeto', projeto.cliente_nome || '', req.user.id
+            );
+            logActivity(req.user.id, req.user.nome, 'industrializar',
+                `Industrializou projeto ${projeto.nome} (${resultado.pecas.length} peças)`,
+                projetoId, 'projeto');
+        } catch (_) {}
+
+        res.json({
+            ok: true,
+            lote_id: Number(loteId),
+            total_pecas: resultado.pecas.length,
+            nome: loteNome,
+            chapas: Object.keys(resultado.chapas || {}).length,
+        });
+    } catch (err) {
+        console.error('Erro ao industrializar:', err);
+        res.status(500).json({ error: 'Erro ao industrializar projeto' });
+    }
 });
 
 export default router;

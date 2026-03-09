@@ -8,6 +8,39 @@ import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConic
 
 const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
+const LANDING_SERVICOS_DEFAULT = [
+    { titulo: 'Cozinhas planejadas', descricao: 'Projetos sob medida para cozinhas funcionais, elegantes e atemporais.' },
+    { titulo: 'Closets e dormitórios', descricao: 'Soluções personalizadas para organização, conforto e acabamento premium.' },
+    { titulo: 'Home office e living', descricao: 'Ambientes inteligentes com design sofisticado para trabalho e convivência.' },
+];
+
+const LANDING_DIFERENCIAIS_DEFAULT = [
+    { titulo: 'Marcenaria de alto padrão', descricao: 'Materiais selecionados e execução técnica com acabamento impecável.' },
+    { titulo: 'Atendimento consultivo', descricao: 'Entendemos sua rotina e traduzimos em soluções personalizadas.' },
+    { titulo: 'Compromisso com prazo', descricao: 'Planejamento claro, acompanhamento próximo e entrega confiável.' },
+];
+
+const LANDING_ETAPAS_DEFAULT = [
+    { titulo: 'Briefing e conceito', descricao: 'Levantamento do estilo de vida, necessidades e referências do projeto.' },
+    { titulo: 'Projeto executivo', descricao: 'Detalhamento técnico, materiais e validação de cada ambiente.' },
+    { titulo: 'Produção e instalação', descricao: 'Fabricação própria e montagem com padrão de acabamento Ornato.' },
+];
+
+const LANDING_PROVAS_DEFAULT = [
+    { nome: 'Cliente Ornato', projeto: 'Cozinha Planejada', depoimento: 'Atendimento impecável e resultado além do esperado.' },
+    { nome: 'Cliente Ornato', projeto: 'Closet Sob Medida', depoimento: 'Qualidade de acabamento excelente e instalação muito organizada.' },
+    { nome: 'Cliente Ornato', projeto: 'Sala Integrada', depoimento: 'Projeto elegante, funcional e com execução no prazo combinado.' },
+];
+
+function parseJsonList(value, fallback) {
+    try {
+        const parsed = JSON.parse(value || '[]');
+        return Array.isArray(parsed) ? parsed : fallback;
+    } catch {
+        return fallback;
+    }
+}
+
 // ── Comprime imagem via canvas (max 1200px, JPEG 80%) ─────────────────────
 function compressImage(file, maxW = 1200, quality = 0.8) {
     return new Promise((resolve) => {
@@ -126,6 +159,31 @@ export default function Cfg({ taxas, reload, notify }) {
         ia_system_prompt: '', ia_temperatura: 0.7, ia_ativa: 0,
         upmobb_ativo: 0,
         etapas_template_json: '[]',
+        landing_ativo: 1,
+        landing_titulo: 'Sua casa merece marcenaria de alto padrão, feita para durar e encantar.',
+        landing_subtitulo: 'Marcenaria sob medida',
+        landing_descricao: 'Projetamos, produzimos e instalamos ambientes sob medida com acabamento premium e atendimento consultivo.',
+        landing_cta_primaria: 'Solicitar orçamento',
+        landing_cta_secundaria: 'Falar no WhatsApp',
+        landing_form_titulo: 'Solicite seu atendimento',
+        landing_form_descricao: 'Preencha em 30 segundos e receba contato da nossa equipe para orçamento e orientação.',
+        landing_cta_titulo: 'Vamos transformar seu ambiente?',
+        landing_cta_descricao: 'Fale com a Ornato e receba um plano inicial personalizado para seu projeto.',
+        landing_texto_rodape: '',
+        landing_prova_titulo: 'Clientes que confiaram na Ornato',
+        landing_provas_json: JSON.stringify(LANDING_PROVAS_DEFAULT),
+        landing_logo: '',
+        landing_hero_imagem: '',
+        landing_hero_video_url: '',
+        landing_hero_video_poster: '',
+        landing_grafismo_imagem: '',
+        landing_cor_fundo: '#1E1917',
+        landing_cor_destaque: '#93614C',
+        landing_cor_neutra: '#847974',
+        landing_cor_clara: '#DDD2CC',
+        landing_servicos_json: JSON.stringify(LANDING_SERVICOS_DEFAULT),
+        landing_diferenciais_json: JSON.stringify(LANDING_DIFERENCIAIS_DEFAULT),
+        landing_etapas_json: JSON.stringify(LANDING_ETAPAS_DEFAULT),
     });
     const [waStatus, setWaStatus] = useState(null);
     const [waQR, setWaQR] = useState(null);
@@ -181,6 +239,31 @@ export default function Cfg({ taxas, reload, notify }) {
                 ia_ativa: d.ia_ativa ?? 0,
                 upmobb_ativo: d.upmobb_ativo ?? 0,
                 etapas_template_json: d.etapas_template_json || '[]',
+                landing_ativo: d.landing_ativo ?? 1,
+                landing_titulo: d.landing_titulo || 'Sua casa merece marcenaria de alto padrão, feita para durar e encantar.',
+                landing_subtitulo: d.landing_subtitulo || 'Marcenaria sob medida',
+                landing_descricao: d.landing_descricao || 'Projetamos, produzimos e instalamos ambientes sob medida com acabamento premium e atendimento consultivo.',
+                landing_cta_primaria: d.landing_cta_primaria || 'Solicitar orçamento',
+                landing_cta_secundaria: d.landing_cta_secundaria || 'Falar no WhatsApp',
+                landing_form_titulo: d.landing_form_titulo || 'Solicite seu atendimento',
+                landing_form_descricao: d.landing_form_descricao || 'Preencha em 30 segundos e receba contato da nossa equipe para orçamento e orientação.',
+                landing_cta_titulo: d.landing_cta_titulo || 'Vamos transformar seu ambiente?',
+                landing_cta_descricao: d.landing_cta_descricao || 'Fale com a Ornato e receba um plano inicial personalizado para seu projeto.',
+                landing_texto_rodape: d.landing_texto_rodape || '',
+                landing_prova_titulo: d.landing_prova_titulo || 'Clientes que confiaram na Ornato',
+                landing_provas_json: d.landing_provas_json || JSON.stringify(LANDING_PROVAS_DEFAULT),
+                landing_logo: d.landing_logo || '',
+                landing_hero_imagem: d.landing_hero_imagem || '',
+                landing_hero_video_url: d.landing_hero_video_url || '',
+                landing_hero_video_poster: d.landing_hero_video_poster || '',
+                landing_grafismo_imagem: d.landing_grafismo_imagem || '',
+                landing_cor_fundo: d.landing_cor_fundo || '#1E1917',
+                landing_cor_destaque: d.landing_cor_destaque || '#93614C',
+                landing_cor_neutra: d.landing_cor_neutra || '#847974',
+                landing_cor_clara: d.landing_cor_clara || '#DDD2CC',
+                landing_servicos_json: d.landing_servicos_json || JSON.stringify(LANDING_SERVICOS_DEFAULT),
+                landing_diferenciais_json: d.landing_diferenciais_json || JSON.stringify(LANDING_DIFERENCIAIS_DEFAULT),
+                landing_etapas_json: d.landing_etapas_json || JSON.stringify(LANDING_ETAPAS_DEFAULT),
             });
         }).catch(e => notify(e.error || 'Erro ao carregar configurações'));
         api.get('/portfolio').then(setPortfolio).catch(e => notify(e.error || 'Erro ao carregar portfolio'));
@@ -231,6 +314,31 @@ export default function Cfg({ taxas, reload, notify }) {
                 ia_ativa: emp.ia_ativa,
                 upmobb_ativo: emp.upmobb_ativo,
                 etapas_template_json: emp.etapas_template_json,
+                landing_ativo: emp.landing_ativo,
+                landing_titulo: emp.landing_titulo,
+                landing_subtitulo: emp.landing_subtitulo,
+                landing_descricao: emp.landing_descricao,
+                landing_cta_primaria: emp.landing_cta_primaria,
+                landing_cta_secundaria: emp.landing_cta_secundaria,
+                landing_form_titulo: emp.landing_form_titulo,
+                landing_form_descricao: emp.landing_form_descricao,
+                landing_cta_titulo: emp.landing_cta_titulo,
+                landing_cta_descricao: emp.landing_cta_descricao,
+                landing_texto_rodape: emp.landing_texto_rodape,
+                landing_prova_titulo: emp.landing_prova_titulo,
+                landing_provas_json: emp.landing_provas_json,
+                landing_logo: emp.landing_logo,
+                landing_hero_imagem: emp.landing_hero_imagem,
+                landing_hero_video_url: emp.landing_hero_video_url,
+                landing_hero_video_poster: emp.landing_hero_video_poster,
+                landing_grafismo_imagem: emp.landing_grafismo_imagem,
+                landing_cor_fundo: emp.landing_cor_fundo,
+                landing_cor_destaque: emp.landing_cor_destaque,
+                landing_cor_neutra: emp.landing_cor_neutra,
+                landing_cor_clara: emp.landing_cor_clara,
+                landing_servicos_json: emp.landing_servicos_json,
+                landing_diferenciais_json: emp.landing_diferenciais_json,
+                landing_etapas_json: emp.landing_etapas_json,
             });
             if (!silent) notify("Dados salvos!");
         }
@@ -291,6 +399,13 @@ export default function Cfg({ taxas, reload, notify }) {
         </button>
     );
 
+    const landingServicos = parseJsonList(emp.landing_servicos_json, LANDING_SERVICOS_DEFAULT);
+    const landingDiferenciais = parseJsonList(emp.landing_diferenciais_json, LANDING_DIFERENCIAIS_DEFAULT);
+    const landingEtapas = parseJsonList(emp.landing_etapas_json, LANDING_ETAPAS_DEFAULT);
+    const landingProvas = parseJsonList(emp.landing_provas_json, LANDING_PROVAS_DEFAULT);
+    const updateLandingList = (field, list) => setEmp(prev => ({ ...prev, [field]: JSON.stringify(list) }));
+    const landingUrl = typeof window !== 'undefined' ? `${window.location.origin}/landingpage` : '/landingpage';
+
     return (
         <div className={Z.pg}>
             <div className="mb-6">
@@ -307,6 +422,7 @@ export default function Cfg({ taxas, reload, notify }) {
                 {sectionBtn('drive', 'Google Drive', <Ic.Folder />)}
                 {sectionBtn('whatsapp', 'WhatsApp', <Ic.WhatsApp />)}
                 {sectionBtn('ia', 'Inteligência Artificial', <Ic.Sparkles />)}
+                {sectionBtn('landing', 'Landing Page', <Ic.Star />)}
                 {sectionBtn('portfolio', 'Portfolio', <Images size={16} />)}
                 {sectionBtn('etapas', 'Etapas do Projeto', <CheckCircle2 size={16} />)}
                 {sectionBtn('backup', 'Backup', <Database size={16} />)}
@@ -1541,6 +1657,401 @@ export default function Cfg({ taxas, reload, notify }) {
                             </div>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* ─── Landing Page ─────────────────────────────────── */}
+            {activeSection === 'landing' && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <div className="lg:col-span-2">
+                        <div className={Z.card}>
+                            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                                <div>
+                                    <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Publicação da Landing</h3>
+                                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                                        Página pública em <strong>/landingpage</strong>, sem acesso ao ERP.
+                                    </p>
+                                </div>
+                                <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer" style={{ color: 'var(--text-secondary)' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={Boolean(emp.landing_ativo)}
+                                        onChange={e => setEmp({ ...emp, landing_ativo: e.target.checked ? 1 : 0 })}
+                                        disabled={!isGerente}
+                                    />
+                                    Landing ativa
+                                </label>
+                            </div>
+
+                            <div className="rounded-lg p-3" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                <div className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: 'var(--text-muted)' }}>URL pública</div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <code className="text-xs px-2 py-1 rounded" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>{landingUrl}</code>
+                                    <button onClick={() => window.open('/landingpage', '_blank')} className={Z.btn2} style={{ padding: '6px 10px', fontSize: 11 }}>
+                                        <Ic.ExternalLink /> Abrir
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className={Z.card + ' mt-4'}>
+                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Hero, CTA e Formulário</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="md:col-span-2">
+                                    <label className={Z.lbl}>Subtítulo</label>
+                                    <input className={Z.inp} value={emp.landing_subtitulo} onChange={e => setEmp({ ...emp, landing_subtitulo: e.target.value })} disabled={!isGerente} placeholder="Ex: Marcenaria sob medida" />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className={Z.lbl}>Título principal</label>
+                                    <input className={Z.inp} value={emp.landing_titulo} onChange={e => setEmp({ ...emp, landing_titulo: e.target.value })} disabled={!isGerente} />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className={Z.lbl}>Descrição curta</label>
+                                    <textarea className={Z.inp} rows={3} value={emp.landing_descricao} onChange={e => setEmp({ ...emp, landing_descricao: e.target.value })} disabled={!isGerente} />
+                                </div>
+                                <div>
+                                    <label className={Z.lbl}>Texto botão principal</label>
+                                    <input className={Z.inp} value={emp.landing_cta_primaria} onChange={e => setEmp({ ...emp, landing_cta_primaria: e.target.value })} disabled={!isGerente} />
+                                </div>
+                                <div>
+                                    <label className={Z.lbl}>Texto botão secundário</label>
+                                    <input className={Z.inp} value={emp.landing_cta_secundaria} onChange={e => setEmp({ ...emp, landing_cta_secundaria: e.target.value })} disabled={!isGerente} />
+                                </div>
+                                <div>
+                                    <label className={Z.lbl}>Título do bloco final</label>
+                                    <input className={Z.inp} value={emp.landing_cta_titulo} onChange={e => setEmp({ ...emp, landing_cta_titulo: e.target.value })} disabled={!isGerente} />
+                                </div>
+                                <div>
+                                    <label className={Z.lbl}>Descrição do bloco final</label>
+                                    <input className={Z.inp} value={emp.landing_cta_descricao} onChange={e => setEmp({ ...emp, landing_cta_descricao: e.target.value })} disabled={!isGerente} />
+                                </div>
+                                <div>
+                                    <label className={Z.lbl}>Título do formulário</label>
+                                    <input className={Z.inp} value={emp.landing_form_titulo} onChange={e => setEmp({ ...emp, landing_form_titulo: e.target.value })} disabled={!isGerente} />
+                                </div>
+                                <div>
+                                    <label className={Z.lbl}>Descrição do formulário</label>
+                                    <input className={Z.inp} value={emp.landing_form_descricao} onChange={e => setEmp({ ...emp, landing_form_descricao: e.target.value })} disabled={!isGerente} />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className={Z.lbl}>Título da prova social</label>
+                                    <input className={Z.inp} value={emp.landing_prova_titulo} onChange={e => setEmp({ ...emp, landing_prova_titulo: e.target.value })} disabled={!isGerente} placeholder="Ex: Clientes que confiaram na Ornato" />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className={Z.lbl}>Texto de rodapé da landing (opcional)</label>
+                                    <input className={Z.inp} value={emp.landing_texto_rodape} onChange={e => setEmp({ ...emp, landing_texto_rodape: e.target.value })} disabled={!isGerente} placeholder="Ex: Ornato Studio | São Luís - MA" />
+                                </div>
+                            </div>
+
+                            <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div className="md:col-span-2">
+                                        <label className={Z.lbl}>URL do vídeo institucional (opcional)</label>
+                                        <input
+                                            className={Z.inp}
+                                            value={emp.landing_hero_video_url}
+                                            onChange={e => setEmp({ ...emp, landing_hero_video_url: e.target.value })}
+                                            disabled={!isGerente}
+                                            placeholder="Ex: https://.../institucional.mp4 ou link do YouTube"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <ImageUploader
+                                            label="Logo exclusiva da landing (opcional)"
+                                            image={emp.landing_logo}
+                                            onChange={landing_logo => setEmp({ ...emp, landing_logo })}
+                                            disabled={!isGerente}
+                                            hint="Se vazio, usa a logo padrão do sistema"
+                                        />
+                                    </div>
+                                    <ImageUploader
+                                        label="Imagem de destaque (fallback)"
+                                        image={emp.landing_hero_imagem}
+                                        onChange={landing_hero_imagem => setEmp({ ...emp, landing_hero_imagem })}
+                                        disabled={!isGerente}
+                                        hint="Usada quando não houver vídeo"
+                                    />
+                                    <ImageUploader
+                                        label="Poster do vídeo (opcional)"
+                                        image={emp.landing_hero_video_poster}
+                                        onChange={landing_hero_video_poster => setEmp({ ...emp, landing_hero_video_poster })}
+                                        disabled={!isGerente}
+                                        hint="Capa exibida antes do vídeo iniciar"
+                                    />
+                                    <div className="md:col-span-2">
+                                        <ImageUploader
+                                            label="Grafismo de fundo (opcional)"
+                                            image={emp.landing_grafismo_imagem}
+                                            onChange={landing_grafismo_imagem => setEmp({ ...emp, landing_grafismo_imagem })}
+                                            disabled={!isGerente}
+                                            hint="Imagem escura para textura no hero (recomendado 1920x1080)"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className={Z.card + ' mt-4'}>
+                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Paleta da Landing</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {[
+                                    ['landing_cor_fundo', 'Fundo escuro', '#1E1917'],
+                                    ['landing_cor_destaque', 'Destaque cobre', '#93614C'],
+                                    ['landing_cor_neutra', 'Neutra/tipografia', '#847974'],
+                                    ['landing_cor_clara', 'Clara/superfícies', '#DDD2CC'],
+                                ].map(([field, label, fallback]) => (
+                                    <div key={field}>
+                                        <label className={Z.lbl}>{label}</label>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="color"
+                                                value={emp[field] || fallback}
+                                                onChange={e => setEmp({ ...emp, [field]: e.target.value })}
+                                                disabled={!isGerente}
+                                                style={{ width: 44, height: 36, border: '1px solid var(--border)', borderRadius: 8, background: 'transparent' }}
+                                            />
+                                            <input
+                                                className={Z.inp}
+                                                value={emp[field] || fallback}
+                                                onChange={e => setEmp({ ...emp, [field]: e.target.value })}
+                                                disabled={!isGerente}
+                                                style={{ fontFamily: 'monospace' }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div className={Z.card}>
+                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Diretriz Aplicada</h3>
+                            <div className="text-[11px] leading-6" style={{ color: 'var(--text-muted)' }}>
+                                A landing segue o manual Ornato com:
+                                <ul style={{ margin: '8px 0 0 16px' }}>
+                                    <li>paleta oficial digital (#DDD2CC, #93614C, #847974, #1E1917)</li>
+                                    <li>estética sóbria e luxuosa com grafismos diagonais</li>
+                                    <li>captação de leads integrada ao CRM</li>
+                                    <li>rota pública isolada do ERP em <code>/landingpage</code></li>
+                                </ul>
+                            </div>
+                            <div className="mt-3 text-[11px] rounded-lg p-2.5" style={{ background: 'var(--bg-muted)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
+                                Mantenha a copy curta e objetiva para aumentar conversão.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="lg:col-span-3 grid grid-cols-1 lg:grid-cols-3 gap-5">
+                        <div className={Z.card}>
+                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Serviços</h3>
+                            <div className="flex flex-col gap-2">
+                                {landingServicos.map((item, idx) => (
+                                    <div key={`serv-${idx}`} className="p-2 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                        <input
+                                            className={Z.inp}
+                                            placeholder="Título"
+                                            value={item.titulo || ''}
+                                            onChange={e => {
+                                                const next = landingServicos.map((s, i) => i === idx ? { ...s, titulo: e.target.value } : s);
+                                                updateLandingList('landing_servicos_json', next);
+                                            }}
+                                            disabled={!isGerente}
+                                        />
+                                        <textarea
+                                            className={Z.inp}
+                                            rows={2}
+                                            placeholder="Descrição"
+                                            value={item.descricao || ''}
+                                            onChange={e => {
+                                                const next = landingServicos.map((s, i) => i === idx ? { ...s, descricao: e.target.value } : s);
+                                                updateLandingList('landing_servicos_json', next);
+                                            }}
+                                            disabled={!isGerente}
+                                            style={{ marginTop: 8 }}
+                                        />
+                                        {isGerente && (
+                                            <button
+                                                onClick={() => updateLandingList('landing_servicos_json', landingServicos.filter((_, i) => i !== idx))}
+                                                className="text-[11px] mt-2"
+                                                style={{ color: '#ef4444' }}
+                                            >
+                                                Remover
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            {isGerente && (
+                                <button onClick={() => updateLandingList('landing_servicos_json', [...landingServicos, { titulo: '', descricao: '' }])} className={Z.btn2} style={{ marginTop: 10, fontSize: 12 }}>
+                                    <Plus size={14} /> Adicionar Serviço
+                                </button>
+                            )}
+                        </div>
+
+                        <div className={Z.card}>
+                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Diferenciais</h3>
+                            <div className="flex flex-col gap-2">
+                                {landingDiferenciais.map((item, idx) => (
+                                    <div key={`dif-${idx}`} className="p-2 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                        <input
+                                            className={Z.inp}
+                                            placeholder="Título"
+                                            value={item.titulo || ''}
+                                            onChange={e => {
+                                                const next = landingDiferenciais.map((s, i) => i === idx ? { ...s, titulo: e.target.value } : s);
+                                                updateLandingList('landing_diferenciais_json', next);
+                                            }}
+                                            disabled={!isGerente}
+                                        />
+                                        <textarea
+                                            className={Z.inp}
+                                            rows={2}
+                                            placeholder="Descrição"
+                                            value={item.descricao || ''}
+                                            onChange={e => {
+                                                const next = landingDiferenciais.map((s, i) => i === idx ? { ...s, descricao: e.target.value } : s);
+                                                updateLandingList('landing_diferenciais_json', next);
+                                            }}
+                                            disabled={!isGerente}
+                                            style={{ marginTop: 8 }}
+                                        />
+                                        {isGerente && (
+                                            <button
+                                                onClick={() => updateLandingList('landing_diferenciais_json', landingDiferenciais.filter((_, i) => i !== idx))}
+                                                className="text-[11px] mt-2"
+                                                style={{ color: '#ef4444' }}
+                                            >
+                                                Remover
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            {isGerente && (
+                                <button onClick={() => updateLandingList('landing_diferenciais_json', [...landingDiferenciais, { titulo: '', descricao: '' }])} className={Z.btn2} style={{ marginTop: 10, fontSize: 12 }}>
+                                    <Plus size={14} /> Adicionar Diferencial
+                                </button>
+                            )}
+                        </div>
+
+                        <div className={Z.card}>
+                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Etapas de Atendimento</h3>
+                            <div className="flex flex-col gap-2">
+                                {landingEtapas.map((item, idx) => (
+                                    <div key={`etp-${idx}`} className="p-2 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                        <input
+                                            className={Z.inp}
+                                            placeholder={`Etapa ${idx + 1}`}
+                                            value={item.titulo || ''}
+                                            onChange={e => {
+                                                const next = landingEtapas.map((s, i) => i === idx ? { ...s, titulo: e.target.value } : s);
+                                                updateLandingList('landing_etapas_json', next);
+                                            }}
+                                            disabled={!isGerente}
+                                        />
+                                        <textarea
+                                            className={Z.inp}
+                                            rows={2}
+                                            placeholder="Descrição"
+                                            value={item.descricao || ''}
+                                            onChange={e => {
+                                                const next = landingEtapas.map((s, i) => i === idx ? { ...s, descricao: e.target.value } : s);
+                                                updateLandingList('landing_etapas_json', next);
+                                            }}
+                                            disabled={!isGerente}
+                                            style={{ marginTop: 8 }}
+                                        />
+                                        {isGerente && (
+                                            <button
+                                                onClick={() => updateLandingList('landing_etapas_json', landingEtapas.filter((_, i) => i !== idx))}
+                                                className="text-[11px] mt-2"
+                                                style={{ color: '#ef4444' }}
+                                            >
+                                                Remover
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            {isGerente && (
+                                <button onClick={() => updateLandingList('landing_etapas_json', [...landingEtapas, { titulo: '', descricao: '' }])} className={Z.btn2} style={{ marginTop: 10, fontSize: 12 }}>
+                                    <Plus size={14} /> Adicionar Etapa
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="lg:col-span-3">
+                        <div className={Z.card}>
+                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Depoimentos (Prova Social)</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                {landingProvas.map((item, idx) => (
+                                    <div key={`prv-${idx}`} className="p-2 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                        <input
+                                            className={Z.inp}
+                                            placeholder="Nome do cliente"
+                                            value={item.nome || ''}
+                                            onChange={e => {
+                                                const next = landingProvas.map((p, i) => i === idx ? { ...p, nome: e.target.value } : p);
+                                                updateLandingList('landing_provas_json', next);
+                                            }}
+                                            disabled={!isGerente}
+                                        />
+                                        <input
+                                            className={Z.inp}
+                                            placeholder="Projeto"
+                                            value={item.projeto || ''}
+                                            onChange={e => {
+                                                const next = landingProvas.map((p, i) => i === idx ? { ...p, projeto: e.target.value } : p);
+                                                updateLandingList('landing_provas_json', next);
+                                            }}
+                                            disabled={!isGerente}
+                                            style={{ marginTop: 8 }}
+                                        />
+                                        <textarea
+                                            className={Z.inp}
+                                            rows={3}
+                                            placeholder="Depoimento"
+                                            value={item.depoimento || ''}
+                                            onChange={e => {
+                                                const next = landingProvas.map((p, i) => i === idx ? { ...p, depoimento: e.target.value } : p);
+                                                updateLandingList('landing_provas_json', next);
+                                            }}
+                                            disabled={!isGerente}
+                                            style={{ marginTop: 8 }}
+                                        />
+                                        {isGerente && (
+                                            <button
+                                                onClick={() => updateLandingList('landing_provas_json', landingProvas.filter((_, i) => i !== idx))}
+                                                className="text-[11px] mt-2"
+                                                style={{ color: '#ef4444' }}
+                                            >
+                                                Remover
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            {isGerente && (
+                                <button
+                                    onClick={() => updateLandingList('landing_provas_json', [...landingProvas, { nome: '', projeto: '', depoimento: '' }])}
+                                    className={Z.btn2}
+                                    style={{ marginTop: 10, fontSize: 12 }}
+                                >
+                                    <Plus size={14} /> Adicionar Depoimento
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {isGerente && (
+                        <div className="lg:col-span-3 flex justify-end">
+                            <button onClick={saveEmpresa} className={Z.btn}>
+                                <Ic.Check /> Salvar Landing Page
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 

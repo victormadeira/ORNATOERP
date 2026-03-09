@@ -631,6 +631,17 @@ db.exec(`
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
     atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  -- Versionamento de planos de corte (snapshots transacionais)
+  CREATE TABLE IF NOT EXISTS cnc_plano_versions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lote_id INTEGER NOT NULL REFERENCES cnc_lotes(id),
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    plano_json TEXT NOT NULL,
+    acao_origem TEXT NOT NULL,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_plano_versions_lote ON cnc_plano_versions(lote_id);
 `);
 
 // ═══════════════════════════════════════════════════════
@@ -1027,6 +1038,56 @@ const migrations = [
   "ALTER TABLE empresa_config ADD COLUMN landing_servicos_json TEXT DEFAULT '[]'",
   "ALTER TABLE empresa_config ADD COLUMN landing_diferenciais_json TEXT DEFAULT '[]'",
   "ALTER TABLE empresa_config ADD COLUMN landing_etapas_json TEXT DEFAULT '[]'",
+  // ═══ Projetista Visual (DESCONTINUADO — tabela mantida para dados legados) ═══
+  `CREATE TABLE IF NOT EXISTS projetos_visual (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id),
+    nome TEXT NOT NULL DEFAULT 'Novo Projeto',
+    cliente_nome TEXT DEFAULT '',
+    json_data TEXT NOT NULL DEFAULT '{}',
+    orc_id INTEGER REFERENCES orcamentos(id),
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ═══════════════════════════════════════════════════════
+  // ETAPA 1 — Reestruturação: Projeto Hub + Industrialização
+  // ═══════════════════════════════════════════════════════
+
+  // Vincular cnc_lotes a projetos/orçamentos
+  "ALTER TABLE cnc_lotes ADD COLUMN projeto_id INTEGER REFERENCES projetos(id)",
+  "ALTER TABLE cnc_lotes ADD COLUMN orc_id INTEGER REFERENCES orcamentos(id)",
+  "ALTER TABLE cnc_lotes ADD COLUMN origem TEXT DEFAULT 'json_import'",
+
+  // Versionamento de projetos
+  `CREATE TABLE IF NOT EXISTS projeto_versoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projeto_id INTEGER NOT NULL REFERENCES projetos(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL DEFAULT 'orcamento',
+    orc_id INTEGER REFERENCES orcamentos(id),
+    json_data TEXT DEFAULT '',
+    descricao TEXT DEFAULT '',
+    versao INTEGER DEFAULT 1,
+    ativa INTEGER DEFAULT 1,
+    criado_por INTEGER REFERENCES users(id),
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ═══════════════════════════════════════════════════════
+  // ETAPA 2 — Industrialização: Ordens de Produção
+  // ═══════════════════════════════════════════════════════
+  `CREATE TABLE IF NOT EXISTS ordens_producao (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projeto_id INTEGER NOT NULL REFERENCES projetos(id) ON DELETE CASCADE,
+    versao_id INTEGER REFERENCES projeto_versoes(id),
+    lote_id INTEGER REFERENCES cnc_lotes(id),
+    numero TEXT NOT NULL,
+    status TEXT DEFAULT 'rascunho',
+    readiness_json TEXT DEFAULT '{}',
+    criado_por INTEGER REFERENCES users(id),
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
@@ -1100,6 +1161,16 @@ const indexes = [
   "CREATE INDEX IF NOT EXISTS idx_cnc_maquinas_user ON cnc_maquinas(user_id)",
   // Versionamento
   "CREATE INDEX IF NOT EXISTS idx_orc_versao ON orcamentos(parent_orc_id, tipo, versao)",
+  // Projetista Visual (DESCONTINUADO)
+  "CREATE INDEX IF NOT EXISTS idx_projetos_visual_user ON projetos_visual(user_id)",
+  // Industrialização — Etapa 1
+  "CREATE INDEX IF NOT EXISTS idx_cnc_lotes_projeto ON cnc_lotes(projeto_id)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_lotes_orc ON cnc_lotes(orc_id)",
+  "CREATE INDEX IF NOT EXISTS idx_projeto_versoes_projeto ON projeto_versoes(projeto_id)",
+  // Ordens de Produção — Etapa 2
+  "CREATE INDEX IF NOT EXISTS idx_ordens_producao_projeto ON ordens_producao(projeto_id)",
+  "CREATE INDEX IF NOT EXISTS idx_ordens_producao_lote ON ordens_producao(lote_id)",
+  "CREATE INDEX IF NOT EXISTS idx_ordens_producao_status ON ordens_producao(status)",
   // Analytics — Section Views
   "CREATE INDEX IF NOT EXISTS idx_section_views_orc ON proposta_section_views(orc_id)",
   "CREATE INDEX IF NOT EXISTS idx_section_views_acesso ON proposta_section_views(acesso_id)",

@@ -1,1288 +1,31 @@
 import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth } from '../auth.js';
+import {
+    MaxRectsBin, SkylineBin, GuillotineBin, ShelfBin,
+    intersects, isContainedIn, pruneFreeList, clipRect, clipAndKeep,
+    classifyBySize, scoreResult, verifyNoOverlaps, repairOverlaps, compactBin,
+    runNestingPass, runFillFirst, runStripPacking, runBRKGA, ruinAndRecreate,
+    gerarSequenciaCortes, setVacuumAware, getVacuumAware,
+    optimizeLastBin, crossBinOptimize,
+} from '../lib/nesting-engine.js';
+import { isPythonAvailable, callPython } from '../lib/python-bridge.js';
 
 const router = Router();
 
 // ═══════════════════════════════════════════════════════════════════
-// ENGINE DE NESTING 2D — State-of-the-Art
-// Baseado em:
-//   • Jukka Jylanki, "A Thousand Ways to Pack the Bin" (MaxRects-BSSF/CP)
-//   • Skyline Bottom-Left com Waste Map (stb_rect_pack / Vernay)
-//   • GDRR-2BP (Ruin & Recreate + Late Acceptance Hill Climbing)
-//   • BRKGA — Biased Random-Key Genetic Algorithm (Gonçalves & Resende)
-//   • Corte guilhotina com SLA (Shorter Leftover Axis)
-//   • Multi-pass portfolio (40+ combinações paralelas)
+// ENGINE DE NESTING: importado de ../lib/nesting-engine.js
 // ═══════════════════════════════════════════════════════════════════
 
-// ─── Module-level state for vacuum-aware nesting ──────────────────
-let _vacuumAware = false; // Set per-optimization run, read by bin constructors
-
-// ─── Helpers MaxRects ────────────────────────────────────────────
-function intersects(a, b) {
-    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-}
-function isContainedIn(a, b) {
-    return a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h;
-}
-function pruneFreeList(rects) {
-    const result = [];
-    for (let i = 0; i < rects.length; i++) {
-        let dominated = false;
-        for (let j = 0; j < rects.length; j++) {
-            if (i === j) continue;
-            if (isContainedIn(rects[i], rects[j])) { dominated = true; break; }
-        }
-        if (!dominated) result.push(rects[i]);
-    }
-    return result;
-}
-
-// ─── Clip & Keep: resolver sobreposição de freeRects ─────────────
-// MaxRects mantém freeRects sobrepostos intencionalmente.
-// Clip & Keep produz retângulos NÃO sobrepostos para uso como sobras físicas.
-function clipRect(a, b) {
-    // Clipa rect A removendo intersecção com rect B → 0-4 retângulos
-    if (a.x >= b.x + b.w || b.x >= a.x + a.w || a.y >= b.y + b.h || b.y >= a.y + a.h) return [a];
-    const result = [];
-    if (a.y < b.y) result.push({ x: a.x, y: a.y, w: a.w, h: b.y - a.y });
-    if (a.y + a.h > b.y + b.h) result.push({ x: a.x, y: b.y + b.h, w: a.w, h: (a.y + a.h) - (b.y + b.h) });
-    const oy1 = Math.max(a.y, b.y), oy2 = Math.min(a.y + a.h, b.y + b.h);
-    if (oy2 > oy1) {
-        if (a.x < b.x) result.push({ x: a.x, y: oy1, w: b.x - a.x, h: oy2 - oy1 });
-        if (a.x + a.w > b.x + b.w) result.push({ x: b.x + b.w, y: oy1, w: (a.x + a.w) - (b.x + b.w), h: oy2 - oy1 });
-    }
-    return result;
-}
-function clipAndKeep(freeRects, sobraMinW, sobraMinH) {
-    const candidates = freeRects
-        .filter(fr => {
-            const w = Math.round(fr.w), h = Math.round(fr.h);
-            return (w >= sobraMinW && h >= sobraMinH) || (h >= sobraMinW && w >= sobraMinH);
-        })
-        .sort((a, b) => (b.w * b.h) - (a.w * a.h));
-    const accepted = [];
-    for (const cand of candidates) {
-        let remaining = [{ x: cand.x, y: cand.y, w: cand.w, h: cand.h }];
-        for (const acc of accepted) {
-            remaining = remaining.flatMap(r => clipRect(r, acc));
-        }
-        const valid = remaining.filter(r => {
-            const w = Math.round(r.w), h = Math.round(r.h);
-            return (w >= sobraMinW && h >= sobraMinH) || (h >= sobraMinW && w >= sobraMinH);
-        });
-        if (valid.length > 0) {
-            valid.sort((a, b) => (b.w * b.h) - (a.w * a.h));
-            accepted.push(valid[0]);
-        }
-    }
-    return accepted;
-}
-
-// ─── MaxRectsBin (CNC livre — sem restrição guilhotina) ──────────
-// Agora com 5 heurísticas: BSSF, BLSF, BAF, BL, CP (Contact Point)
-class MaxRectsBin {
-    constructor(width, height, spacing) {
-        this.binW = width; this.binH = height; this.spacing = spacing;
-        this.vacuumAware = _vacuumAware;
-        this.freeRects = [{ x: 0, y: 0, w: width, h: height }];
-        this.usedRects = [];
-    }
-    // Calcula comprimento de contato com bordas do bin e peças adjacentes
-    _contactLength(x, y, w, h) {
-        let score = 0;
-        if (x === 0 || x + w >= this.binW) score += h;
-        if (y === 0 || y + h >= this.binH) score += w;
-        for (const used of this.usedRects) {
-            const uw = used.realW || used.w, uh = used.realH || used.h;
-            // Adjacência horizontal
-            if (Math.abs(used.x + uw - x) < 1 || Math.abs(x + w - used.x) < 1) {
-                const overlap = Math.min(y + h, used.y + uh) - Math.max(y, used.y);
-                if (overlap > 0) score += overlap;
-            }
-            // Adjacência vertical
-            if (Math.abs(used.y + uh - y) < 1 || Math.abs(y + h - used.y) < 1) {
-                const overlap = Math.min(x + w, used.x + uw) - Math.max(x, used.x);
-                if (overlap > 0) score += overlap;
-            }
-        }
-        return score;
-    }
-    _tryFit(free, pw, ph, heuristic) {
-        const w = pw + this.spacing, h = ph + this.spacing;
-        if (w > free.w || h > free.h) return null;
-        let sc;
-        switch (heuristic) {
-            case 'BLSF': sc = Math.max(free.w - w, free.h - h); break;
-            case 'BAF':  sc = (free.w * free.h) - (w * h); break;
-            case 'BL':   sc = free.y * 100000 + free.x; break;
-            case 'CP':   sc = -this._contactLength(free.x, free.y, pw, ph); break; // Negativo pq maior contato = melhor
-            default:     sc = Math.min(free.w - w, free.h - h); break; // BSSF
-        }
-        return { x: free.x, y: free.y, w, h, realW: pw, realH: ph, score: sc };
-    }
-    findBest(pw, ph, allowRotate, heuristic = 'BSSF', pieceClass = 'normal') {
-        let bestScore = Infinity, bestRect = null;
-        const centerX = this.binW / 2, centerY = this.binH / 2;
-        const maxDist = Math.sqrt(centerX * centerX + centerY * centerY);
-        for (const free of this.freeRects) {
-            const applyVacuum = (fit) => {
-                if (!fit || !this.vacuumAware || pieceClass === 'normal') return fit;
-                const pcx = fit.x + fit.realW / 2, pcy = fit.y + fit.realH / 2;
-                const dist = Math.sqrt((pcx - centerX) ** 2 + (pcy - centerY) ** 2) / maxDist;
-                const weight = pieceClass === 'super_pequena' ? 0.4 : 0.2;
-                fit.score += dist * weight * Math.abs(fit.score || 1);
-                return fit;
-            };
-            const norm = applyVacuum(this._tryFit(free, pw, ph, heuristic));
-            if (norm && norm.score < bestScore) { bestScore = norm.score; bestRect = { ...norm, rotated: false }; }
-            if (allowRotate) {
-                const rot = applyVacuum(this._tryFit(free, ph, pw, heuristic));
-                if (rot && rot.score < bestScore) { bestScore = rot.score; bestRect = { ...rot, realW: ph, realH: pw, rotated: true }; }
-            }
-        }
-        return bestRect;
-    }
-    placeRect(rect) {
-        const newFree = [];
-        for (const free of this.freeRects) {
-            if (!intersects(rect, free)) { newFree.push(free); continue; }
-            if (rect.x > free.x) newFree.push({ x: free.x, y: free.y, w: rect.x - free.x, h: free.h });
-            if (rect.x + rect.w < free.x + free.w) newFree.push({ x: rect.x + rect.w, y: free.y, w: (free.x + free.w) - (rect.x + rect.w), h: free.h });
-            if (rect.y > free.y) newFree.push({ x: free.x, y: free.y, w: free.w, h: rect.y - free.y });
-            if (rect.y + rect.h < free.y + free.h) newFree.push({ x: free.x, y: rect.y + rect.h, w: free.w, h: (free.y + free.h) - (rect.y + rect.h) });
-        }
-        this.freeRects = pruneFreeList(newFree);
-        this.usedRects.push(rect);
-    }
-    occupancy() {
-        let area = 0;
-        for (const r of this.usedRects) area += r.realW * r.realH;
-        return area / (this.binW * this.binH) * 100;
-    }
-}
-
-// ─── SkylineBin (Bottom-Left com Waste Map) ──────────────────────
-// Algoritmo Skyline: mantém contorno superior, peças empilham como Tetris
-// Com Waste Map para preencher espaços abaixo do skyline
-class SkylineBin {
-    constructor(width, height, spacing) {
-        this.binW = width; this.binH = height; this.spacing = spacing;
-        this.skyline = [{ x: 0, y: 0, w: width }]; // segmentos do contorno
-        this.usedRects = [];
-        // Waste map: free rects abaixo do skyline (para peças pequenas)
-        this.wasteRects = [];
-    }
-    _fitCheck(startIdx, w, h) {
-        let remainW = w;
-        let maxY = 0;
-        let i = startIdx;
-        if (this.skyline[i].x + w > this.binW) return -1;
-        while (remainW > 0) {
-            if (i >= this.skyline.length) return -1;
-            maxY = Math.max(maxY, this.skyline[i].y);
-            if (maxY + h > this.binH) return -1;
-            let segW;
-            if (i === startIdx) {
-                segW = Math.min(this.skyline[i].x + this.skyline[i].w - this.skyline[startIdx].x, remainW);
-            } else {
-                segW = Math.min(this.skyline[i].w, remainW);
-            }
-            remainW -= segW;
-            i++;
-        }
-        return maxY;
-    }
-    findBest(pw, ph, allowRotate, _heuristic) {
-        const sp = this.spacing;
-        // Tentar waste map primeiro (peças pequenas nos gaps)
-        for (let wi = 0; wi < this.wasteRects.length; wi++) {
-            const wr = this.wasteRects[wi];
-            if (pw + sp <= wr.w && ph + sp <= wr.h) {
-                return { x: wr.x, y: wr.y, w: pw + sp, h: ph + sp, realW: pw, realH: ph, rotated: false, wasteIdx: wi, score: -(wr.w * wr.h) };
-            }
-            if (allowRotate && ph + sp <= wr.w && pw + sp <= wr.h) {
-                return { x: wr.x, y: wr.y, w: ph + sp, h: pw + sp, realW: ph, realH: pw, rotated: true, wasteIdx: wi, score: -(wr.w * wr.h) };
-            }
-        }
-        // Skyline placement
-        let bestY = Infinity, bestX = Infinity, bestIdx = -1, bestRot = false;
-        const tryOrientation = (w, h, rot) => {
-            for (let i = 0; i < this.skyline.length; i++) {
-                const y = this._fitCheck(i, w + sp, h + sp);
-                if (y >= 0) {
-                    const topY = y + h + sp;
-                    if (topY < bestY || (topY === bestY && this.skyline[i].x < bestX)) {
-                        bestY = topY; bestX = this.skyline[i].x; bestIdx = i; bestRot = rot;
-                    }
-                }
-            }
-        };
-        tryOrientation(pw, ph, false);
-        if (allowRotate) tryOrientation(ph, pw, true);
-        if (bestIdx < 0) return null;
-        const rw = bestRot ? ph : pw, rh = bestRot ? pw : ph;
-        return { x: bestX, y: bestY - rh - sp, w: rw + sp, h: rh + sp, realW: rw, realH: rh, rotated: bestRot, skyIdx: bestIdx, score: bestY };
-    }
-    placeRect(info) {
-        const sp = this.spacing;
-        // Se veio do waste map
-        if (info.wasteIdx != null) {
-            const wr = this.wasteRects[info.wasteIdx];
-            // Dividir waste rect restante
-            const rightW = wr.w - info.w;
-            const bottomH = wr.h - info.h;
-            this.wasteRects.splice(info.wasteIdx, 1);
-            if (rightW > sp * 2) this.wasteRects.push({ x: wr.x + info.w, y: wr.y, w: rightW, h: wr.h });
-            if (bottomH > sp * 2) this.wasteRects.push({ x: wr.x, y: wr.y + info.h, w: info.w, h: bottomH });
-            const placed = { x: info.x, y: info.y, w: info.realW, h: info.realH, realW: info.realW, realH: info.realH, rotated: info.rotated };
-            this.usedRects.push(placed);
-            return placed;
-        }
-        const px = info.x, py = info.y, pw = info.w, ph = info.h;
-        // Registrar waste gaps (espaço abaixo da peça até o skyline)
-        let scanW = pw, scanIdx = info.skyIdx;
-        while (scanW > 0 && scanIdx < this.skyline.length) {
-            const seg = this.skyline[scanIdx];
-            const segStart = Math.max(seg.x, px);
-            const segEnd = Math.min(seg.x + seg.w, px + pw);
-            const segW = segEnd - segStart;
-            if (segW > 0 && py > seg.y) {
-                const gapH = py - seg.y;
-                if (gapH > sp * 2 && segW > sp * 2) {
-                    this.wasteRects.push({ x: segStart, y: seg.y, w: segW, h: gapH });
-                }
-            }
-            scanW -= segW;
-            scanIdx++;
-        }
-        // Atualizar skyline: novo segmento no topo da peça
-        const newSeg = { x: px, y: py + ph, w: pw };
-        const newSkyline = [];
-        let inserted = false;
-        for (const seg of this.skyline) {
-            const segRight = seg.x + seg.w;
-            const newRight = px + pw;
-            if (segRight <= px || seg.x >= newRight) {
-                newSkyline.push(seg); continue;
-            }
-            if (seg.x < px) newSkyline.push({ x: seg.x, y: seg.y, w: px - seg.x });
-            if (!inserted) { newSkyline.push(newSeg); inserted = true; }
-            if (segRight > newRight) newSkyline.push({ x: newRight, y: seg.y, w: segRight - newRight });
-        }
-        // Merge segmentos adjacentes de mesma altura
-        const merged = [newSkyline[0]];
-        for (let i = 1; i < newSkyline.length; i++) {
-            const last = merged[merged.length - 1];
-            if (Math.abs(last.y - newSkyline[i].y) < 0.5 && Math.abs(last.x + last.w - newSkyline[i].x) < 0.5) {
-                last.w += newSkyline[i].w;
-            } else {
-                merged.push(newSkyline[i]);
-            }
-        }
-        this.skyline = merged;
-        const placed = { x: px, y: py, w: info.realW, h: info.realH, realW: info.realW, realH: info.realH, rotated: info.rotated };
-        this.usedRects.push(placed);
-        return placed;
-    }
-    occupancy() {
-        let area = 0;
-        for (const r of this.usedRects) area += (r.realW || r.w) * (r.realH || r.h);
-        return area / (this.binW * this.binH) * 100;
-    }
-    get freeRects() {
-        const rects = [...this.wasteRects];
-        // Espaço acima do skyline
-        for (const seg of this.skyline) {
-            if (this.binH - seg.y > 1) rects.push({ x: seg.x, y: seg.y, w: seg.w, h: this.binH - seg.y });
-        }
-        return rects;
-    }
-    get cuts() { return []; }
-}
-
-// ─── GuillotineBin (esquadrejadeira — cortes ponta-a-ponta) ──────
-// Cada corte divide o retângulo livre em EXATAMENTE 2 sub-retângulos
-// splitDir: 'auto' (SLA), 'horizontal' (faixas), 'vertical' (colunas)
-class GuillotineBin {
-    constructor(width, height, kerf, splitDir = 'auto') {
-        this.binW = width; this.binH = height; this.kerf = kerf;
-        this.splitDir = splitDir; // 'auto' = SLA, 'horizontal' = faixas, 'vertical' = colunas
-        this.vacuumAware = _vacuumAware;
-        this.freeRects = [{ x: 0, y: 0, w: width, h: height }];
-        this.usedRects = [];
-        this.cuts = []; // sequência de cortes
-    }
-    findBest(pw, ph, allowRotate, heuristic = 'BSSF', pieceClass = 'normal') {
-        let bestScore = Infinity, bestIdx = -1, bestRotated = false;
-        const centerX = this.binW / 2, centerY = this.binH / 2;
-        const maxDist = Math.sqrt(centerX * centerX + centerY * centerY);
-        for (let i = 0; i < this.freeRects.length; i++) {
-            const f = this.freeRects[i];
-            const tryPlace = (tw, th, rot) => {
-                if (tw > f.w || th > f.h) return;
-                let sc;
-                switch (heuristic) {
-                    case 'BLSF': sc = Math.max(f.w - tw, f.h - th); break;
-                    case 'BAF':  sc = (f.w * f.h) - (tw * th); break;
-                    case 'BL':   sc = f.y * 100000 + f.x; break;
-                    default:     sc = Math.min(f.w - tw, f.h - th); break;
-                }
-                // Vacuum-aware: peças pequenas preferem centro, grandes preferem bordas
-                if (this.vacuumAware && pieceClass !== 'normal') {
-                    const pcx = f.x + tw / 2, pcy = f.y + th / 2;
-                    const dist = Math.sqrt((pcx - centerX) ** 2 + (pcy - centerY) ** 2) / maxDist; // 0=centro, 1=canto
-                    // Peças pequenas: penalizar distância do centro (preferir centro)
-                    // Multiplier proporcional: super_pequena = mais forte
-                    const weight = pieceClass === 'super_pequena' ? 0.4 : 0.2;
-                    sc += dist * weight * sc;
-                }
-                if (sc < bestScore) { bestScore = sc; bestIdx = i; bestRotated = rot; }
-            };
-            tryPlace(pw, ph, false);
-            if (allowRotate) tryPlace(ph, pw, true);
-        }
-        if (bestIdx < 0) return null;
-        const f = this.freeRects[bestIdx];
-        const rw = bestRotated ? ph : pw, rh = bestRotated ? pw : ph;
-        return { freeIdx: bestIdx, x: f.x, y: f.y, w: rw, h: rh, realW: rw, realH: rh, rotated: bestRotated, score: bestScore };
-    }
-    placeRect(info) {
-        const f = this.freeRects[info.freeIdx];
-        const pw = info.w, ph = info.h;
-        const kerf = this.kerf;
-        const placed = { x: f.x, y: f.y, w: pw, h: ph, realW: info.realW, realH: info.realH, rotated: info.rotated };
-
-        // Remover retângulo livre usado
-        this.freeRects.splice(info.freeIdx, 1);
-
-        // Sobras após o kerf
-        const rightW = f.w - pw - kerf;
-        const bottomH = f.h - ph - kerf;
-
-        if (rightW > 1 && bottomH > 1) {
-            // Decisão de split baseada na direção de corte configurada
-            let useVerticalSplit;
-            switch (this.splitDir) {
-                case 'horizontal':
-                    // Prioriza cortes horizontais (faixas): bottom pega largura total
-                    useVerticalSplit = false;
-                    break;
-                case 'vertical':
-                    // Prioriza cortes verticais (colunas): right pega altura total
-                    useVerticalSplit = true;
-                    break;
-                default: // 'auto' — SLA: split que maximiza o maior retalho
-                    const maxV = Math.max(rightW * f.h, pw * bottomH);
-                    const maxH = Math.max(rightW * ph, f.w * bottomH);
-                    useVerticalSplit = maxV >= maxH;
-            }
-
-            if (useVerticalSplit) {
-                // V-first: right pega altura total da free rect (colunas)
-                this.freeRects.push({ x: f.x + pw + kerf, y: f.y, w: rightW, h: f.h });
-                this.freeRects.push({ x: f.x, y: f.y + ph + kerf, w: pw, h: bottomH });
-                this.cuts.push({ dir: 'V', x: f.x + pw, y: f.y, len: f.h });
-                this.cuts.push({ dir: 'H', x: f.x, y: f.y + ph, len: pw });
-            } else {
-                // H-first: bottom pega largura total da free rect (faixas)
-                this.freeRects.push({ x: f.x, y: f.y + ph + kerf, w: f.w, h: bottomH });
-                this.freeRects.push({ x: f.x + pw + kerf, y: f.y, w: rightW, h: ph });
-                this.cuts.push({ dir: 'H', x: f.x, y: f.y + ph, len: f.w });
-                this.cuts.push({ dir: 'V', x: f.x + pw, y: f.y, len: ph });
-            }
-        } else if (rightW > 1) {
-            this.freeRects.push({ x: f.x + pw + kerf, y: f.y, w: rightW, h: f.h });
-            this.cuts.push({ dir: 'V', x: f.x + pw, y: f.y, len: f.h });
-        } else if (bottomH > 1) {
-            this.freeRects.push({ x: f.x, y: f.y + ph + kerf, w: f.w, h: bottomH });
-            this.cuts.push({ dir: 'H', x: f.x, y: f.y + ph, len: f.w });
-        }
-
-        this.usedRects.push(placed);
-        return placed;
-    }
-    occupancy() {
-        let area = 0;
-        for (const r of this.usedRects) area += r.realW * r.realH;
-        return area / (this.binW * this.binH) * 100;
-    }
-}
-
-// ─── ShelfBin (prateleira/faixa — ideal para esquadrejadeira) ────
-// Organiza peças em faixas horizontais (prateleiras). Cada prateleira
-// tem altura fixa (do peça mais alta). Naturalmente produz cortes guilhotina.
-// Baseado em Best Fit Decreasing Height (BFDH) — melhor algoritmo de shelf.
-class ShelfBin {
-    constructor(width, height, gap) {
-        this.binW = width; this.binH = height; this.gap = gap;
-        this.shelves = []; // { y, h, usedW, pieces[] }
-        this.usedRects = [];
-    }
-    findBest(pw, ph, allowRotate, _heuristic) {
-        let bestScore = Infinity, bestResult = null;
-        // Try existing shelves — Best Fit (minimize height waste)
-        for (let s = 0; s < this.shelves.length; s++) {
-            const shelf = this.shelves[s];
-            const freeW = this.binW - shelf.usedW;
-            // Normal
-            if (pw + this.gap <= freeW && ph <= shelf.h) {
-                const waste = shelf.h - ph; // vertical waste
-                if (waste < bestScore) {
-                    bestScore = waste;
-                    bestResult = { shelfIdx: s, newShelf: false,
-                        x: shelf.usedW, y: shelf.y, w: pw, h: ph,
-                        realW: pw, realH: ph, rotated: false, score: waste };
-                }
-            }
-            // Rotated
-            if (allowRotate && ph + this.gap <= freeW && pw <= shelf.h) {
-                const waste = shelf.h - pw;
-                if (waste < bestScore) {
-                    bestScore = waste;
-                    bestResult = { shelfIdx: s, newShelf: false,
-                        x: shelf.usedW, y: shelf.y, w: ph, h: pw,
-                        realW: ph, realH: pw, rotated: true, score: waste };
-                }
-            }
-        }
-        // Try new shelf (only if no existing shelf fits well, or none exist)
-        const nextY = this.shelves.length > 0
-            ? this.shelves[this.shelves.length - 1].y + this.shelves[this.shelves.length - 1].h + this.gap
-            : 0;
-        if (!bestResult || bestScore > ph * 0.3) { // If waste > 30% of piece height, try new shelf
-            if (nextY + ph <= this.binH && pw + this.gap <= this.binW) {
-                bestResult = { shelfIdx: this.shelves.length, newShelf: true, shelfH: ph,
-                    x: 0, y: nextY, w: pw, h: ph, realW: pw, realH: ph,
-                    rotated: false, score: 0 };
-            }
-            if (allowRotate && nextY + pw <= this.binH && ph + this.gap <= this.binW) {
-                if (!bestResult || pw < ph) { // prefer orientation that creates shorter shelf
-                    bestResult = { shelfIdx: this.shelves.length, newShelf: true, shelfH: pw,
-                        x: 0, y: nextY, w: ph, h: pw, realW: ph, realH: pw,
-                        rotated: true, score: 0 };
-                }
-            }
-        }
-        return bestResult;
-    }
-    placeRect(info) {
-        if (info.newShelf) {
-            this.shelves.push({ y: info.y, h: info.shelfH, usedW: info.w + this.gap, pieces: [] });
-        } else {
-            this.shelves[info.shelfIdx].usedW += info.w + this.gap;
-        }
-        const placed = { x: info.x, y: info.y, w: info.w, h: info.h,
-            realW: info.realW, realH: info.realH, rotated: info.rotated, pieceRef: info.pieceRef };
-        this.usedRects.push(placed);
-        return placed;
-    }
-    occupancy() {
-        let area = 0;
-        for (const r of this.usedRects) area += r.realW * r.realH;
-        return area / (this.binW * this.binH) * 100;
-    }
-    get freeRects() {
-        const rects = [];
-        const usedH = this.shelves.length > 0
-            ? this.shelves[this.shelves.length - 1].y + this.shelves[this.shelves.length - 1].h
-            : 0;
-        if (this.binH - usedH > 1) rects.push({ x: 0, y: usedH, w: this.binW, h: this.binH - usedH });
-        for (const shelf of this.shelves) {
-            const freeW = this.binW - shelf.usedW;
-            if (freeW > 1) rects.push({ x: shelf.usedW, y: shelf.y, w: freeW, h: shelf.h });
-        }
-        return rects;
-    }
-    get cuts() {
-        // Generate horizontal cuts between shelves
-        const cutsArr = [];
-        for (let i = 0; i < this.shelves.length; i++) {
-            const shelf = this.shelves[i];
-            // Horizontal cut at top of each shelf
-            if (shelf.y + shelf.h < this.binH) {
-                cutsArr.push({ dir: 'H', y: shelf.y + shelf.h, x: 0, len: this.binW });
-            }
-        }
-        return cutsArr;
-    }
-}
-
-// ─── Helpers de classificação e scoring ──────────────────────────
-
-function classifyBySize(pieces) {
-    if (pieces.length === 0) return { small: [], medium: [], large: [] };
-    const avgArea = pieces.reduce((s, p) => s + p.area, 0) / pieces.length;
-    const small = [], medium = [], large = [];
-    for (const p of pieces) {
-        if (p.area <= avgArea * 0.5) small.push(p);
-        else if (p.area <= avgArea * 1.5) medium.push(p);
-        else large.push(p);
-    }
-    return { small, medium, large };
-}
-
-function scoreResult(bins) {
-    if (bins.length === 0) return { bins: 0, avgOccupancy: 0, minOccupancy: 0, score: Infinity };
-    // REJECT solutions with overlapping pieces
-    if (!verifyNoOverlaps(bins)) return { bins: bins.length, avgOccupancy: 0, minOccupancy: 0, score: Infinity };
-    const occupancies = bins.map(b => b.occupancy());
-    const sorted = [...occupancies].sort((a, b) => b - a); // highest first
-    const n = bins.length;
-    const avgOccupancy = occupancies.reduce((s, o) => s + o, 0) / n;
-    const minOccupancy = Math.min(...occupancies);
-
-    // PRIMARY: fewer bins is overwhelmingly better (×15000)
-    let score = n * 15000;
-
-    // SECONDARY: maximize total utilization
-    const totalOcc = sorted.reduce((s, o) => s + o, 0);
-    score -= totalOcc * 30;
-
-    // TERTIARY: CONCENTRATE packing into fewer sheets (fill-first strategy)
-    // Sum of squares rewards higher individual occupancy:
-    //   [94,87,18] → 94²+87²+18² = 16729   vs   [66,66,66] → 66²×3 = 13068
-    // The concentrated solution gets 3661 more points of bonus
-    const sumSq = sorted.reduce((s, o) => s + o * o, 0);
-    score -= sumSq * 0.5;
-
-    // BONUS: reward very full bins (tight packing like commercial optimizers)
-    for (const occ of sorted) {
-        if (occ >= 90) score -= 800;
-        else if (occ >= 80) score -= 400;
-        else if (occ >= 70) score -= 150;
-    }
-
-    return { bins: n, avgOccupancy, minOccupancy, score };
-}
-
-// ─── Verificação de sobreposição (segurança) ────────────────────
-function verifyNoOverlaps(bins) {
-    for (let bi = 0; bi < bins.length; bi++) {
-        const bin = bins[bi];
-        for (let i = 0; i < bin.usedRects.length; i++) {
-            for (let j = i + 1; j < bin.usedRects.length; j++) {
-                const a = bin.usedRects[i], b = bin.usedRects[j];
-                const aw = a.realW || a.w, ah = a.realH || a.h;
-                const bw = b.realW || b.w, bh = b.realH || b.h;
-                if (a.x < b.x + bw && a.x + aw > b.x &&
-                    a.y < b.y + bh && a.y + ah > b.y) {
-                    console.warn(`  [OVERLAP] bin ${bi}: piece ${i} (${a.x},${a.y},${aw}x${ah}) vs piece ${j} (${b.x},${b.y},${bw}x${bh})`);
-                    return false;
-                }
-            }
-        }
-    }
-    return true;
-}
-
-// ─── Reparo de sobreposição (post-processing) ───────────────────
-// Se o algoritmo produzir sobreposições, reconstrói o layout peça por peça
-function repairOverlaps(bins, binW, binH, spacing, binType, kerf, splitDir = 'auto') {
-    for (let bi = 0; bi < bins.length; bi++) {
-        const bin = bins[bi];
-        // Check this bin for overlaps
-        let hasOverlap = false;
-        for (let i = 0; i < bin.usedRects.length && !hasOverlap; i++) {
-            for (let j = i + 1; j < bin.usedRects.length && !hasOverlap; j++) {
-                const a = bin.usedRects[i], b = bin.usedRects[j];
-                const aw = a.realW || a.w, ah = a.realH || a.h;
-                const bw = b.realW || b.w, bh = b.realH || b.h;
-                if (a.x < b.x + bw && a.x + aw > b.x && a.y < b.y + bh && a.y + ah > b.y) {
-                    hasOverlap = true;
-                }
-            }
-        }
-        if (!hasOverlap) continue;
-        console.warn(`  [REPAIR] Rebuilding bin ${bi} with ${bin.usedRects.length} pieces to fix overlaps`);
-        // Extract all pieces from this bin
-        const pieces = bin.usedRects.map(r => ({
-            ref: r.pieceRef, w: r.realW || r.w, h: r.realH || r.h,
-            allowRotate: r.allowRotate || false,
-            area: (r.realW || r.w) * (r.realH || r.h),
-        })).filter(p => p.ref);
-        // Sort by area desc (largest first — they're harder to place)
-        pieces.sort((a, b) => b.area - a.area);
-        // Rebuild using a fresh bin
-        const createBin = () => {
-            switch (binType) {
-                case 'shelf': return new ShelfBin(binW, binH, kerf || spacing);
-                case 'guillotine': return new GuillotineBin(binW, binH, kerf, splitDir);
-                default: return new MaxRectsBin(binW, binH, spacing);
-            }
-        };
-        const newBin = createBin();
-        const overflow = [];
-        for (const p of pieces) {
-            const rect = newBin.findBest(p.w, p.h, p.allowRotate, 'BSSF');
-            if (rect) {
-                rect.pieceRef = p.ref;
-                rect.allowRotate = p.allowRotate;
-                newBin.placeRect(rect);
-            } else {
-                overflow.push(p);
-            }
-        }
-        // Replace the bin
-        bins[bi] = newBin;
-        // If pieces overflowed, try to add to subsequent bins or create new bin
-        if (overflow.length > 0) {
-            for (const p of overflow) {
-                let placed = false;
-                for (let nextBi = bi + 1; nextBi < bins.length && !placed; nextBi++) {
-                    const rect = bins[nextBi].findBest(p.w, p.h, p.allowRotate, 'BSSF');
-                    if (rect) {
-                        rect.pieceRef = p.ref;
-                        rect.allowRotate = p.allowRotate;
-                        bins[nextBi].placeRect(rect);
-                        placed = true;
-                    }
-                }
-                if (!placed) {
-                    const extra = createBin();
-                    const rect = extra.findBest(p.w, p.h, p.allowRotate, 'BSSF');
-                    if (rect) {
-                        rect.pieceRef = p.ref;
-                        rect.allowRotate = p.allowRotate;
-                        extra.placeRect(rect);
-                        bins.push(extra);
-                    }
-                }
-            }
-        }
-    }
-    return bins;
-}
-
-// ─── Compactação por gravidade (empurra peças p/ canto superior-esquerdo) ──
-// Após o nesting, reduz gaps visuais empurrando cada peça o mais para
-// cima e para a esquerda possível, respeitando kerf entre peças.
-function compactBin(bin, binW, binH, kerf) {
-    if (!bin.usedRects || bin.usedRects.length <= 1) return;
-    const pieces = bin.usedRects;
-    const k = kerf || 0;
-
-    function collides(p, idx) {
-        const pw = p.realW || p.w, ph = p.realH || p.h;
-        for (let j = 0; j < pieces.length; j++) {
-            if (j === idx) continue;
-            const q = pieces[j];
-            const qw = q.realW || q.w, qh = q.realH || q.h;
-            if (p.x < q.x + qw + k && p.x + pw + k > q.x &&
-                p.y < q.y + qh + k && p.y + ph + k > q.y) return true;
-        }
-        return false;
-    }
-
-    // Múltiplas passadas até estabilizar
-    for (let pass = 0; pass < 5; pass++) {
-        let moved = false;
-        // Ordenar por posição (top-left first) para compactar em cascata
-        const order = pieces.map((_, i) => i).sort((a, b) => {
-            return (pieces[a].y + pieces[a].x) - (pieces[b].y + pieces[b].x);
-        });
-
-        for (const i of order) {
-            const p = pieces[i];
-            const pw = p.realW || p.w, ph = p.realH || p.h;
-
-            // Tentar mover para cima (reduzir Y)
-            if (p.y > 0) {
-                let bestY = p.y;
-                // Encontrar posições candidatas: y=0 ou logo abaixo de outra peça
-                const candidateYs = [0];
-                for (let j = 0; j < pieces.length; j++) {
-                    if (j === i) continue;
-                    const q = pieces[j];
-                    const qh = q.realH || q.h;
-                    candidateYs.push(q.y + qh + k);
-                }
-                candidateYs.sort((a, b) => a - b);
-                for (const cy of candidateYs) {
-                    if (cy >= p.y) break;
-                    if (cy + ph > binH) continue;
-                    const test = { ...p, y: cy };
-                    if (!collides(test, i)) { bestY = cy; break; }
-                }
-                if (bestY < p.y) { p.y = bestY; moved = true; }
-            }
-
-            // Tentar mover para esquerda (reduzir X)
-            if (p.x > 0) {
-                let bestX = p.x;
-                const candidateXs = [0];
-                for (let j = 0; j < pieces.length; j++) {
-                    if (j === i) continue;
-                    const q = pieces[j];
-                    const qw = q.realW || q.w;
-                    candidateXs.push(q.x + qw + k);
-                }
-                candidateXs.sort((a, b) => a - b);
-                for (const cx of candidateXs) {
-                    if (cx >= p.x) break;
-                    if (cx + pw > binW) continue;
-                    const test = { ...p, x: cx };
-                    if (!collides(test, i)) { bestX = cx; break; }
-                }
-                if (bestX < p.x) { p.x = bestX; moved = true; }
-            }
-        }
-        if (!moved) break;
-    }
-}
-
-// ─── Nesting pass genérico (4 tipos de bin) ──────────────────────
-// binType: 'maxrects' | 'guillotine' | 'shelf' | 'skyline'
-// splitDir: 'auto' | 'horizontal' | 'vertical' (afeta GuillotineBin)
-function runNestingPass(pieces, binW, binH, spacing, heuristic = 'BSSF', binType = 'guillotine', kerf = 4, splitDir = 'auto') {
-    const createBin = () => {
-        switch (binType) {
-            case 'shelf': return new ShelfBin(binW, binH, kerf || spacing);
-            case 'guillotine': return new GuillotineBin(binW, binH, kerf, splitDir);
-            case 'skyline': return new SkylineBin(binW, binH, kerf || spacing);
-            default: return new MaxRectsBin(binW, binH, kerf || spacing);
-        }
-    };
-
-    const bins = [createBin()];
-    for (const p of pieces) {
-        const pClass = p.classificacao || 'normal';
-        let bestBinIdx = -1, bestRect = null, bestFitScore = Infinity;
-        for (let bi = 0; bi < bins.length; bi++) {
-            const rect = bins[bi].findBest(p.w, p.h, p.allowRotate, heuristic, pClass);
-            if (rect) {
-                // Use internal score from bin (BSSF/BAF/etc) for better inter-bin comparison
-                const fitScore = rect.score != null ? rect.score : ((rect.w * rect.h) - (p.w * p.h));
-                if (fitScore < bestFitScore) {
-                    bestFitScore = fitScore; bestRect = rect; bestBinIdx = bi;
-                }
-                if (fitScore <= 0) break; // Perfect fit, stop searching
-            }
-        }
-        if (bestRect && bestBinIdx >= 0) {
-            bestRect.pieceRef = p.ref;
-            bestRect.allowRotate = p.allowRotate;
-            const placed = bins[bestBinIdx].placeRect(bestRect);
-            if (placed) { placed.pieceRef = p.ref; placed.allowRotate = p.allowRotate; }
-        } else {
-            const newBin = createBin();
-            const rect = newBin.findBest(p.w, p.h, p.allowRotate, heuristic, pClass);
-            if (rect) {
-                rect.pieceRef = p.ref;
-                rect.allowRotate = p.allowRotate;
-                const placed = newBin.placeRect(rect);
-                if (placed) { placed.pieceRef = p.ref; placed.allowRotate = p.allowRotate; }
-                bins.push(newBin);
-            }
-        }
-    }
-    // Compactar cada bin (gravidade p/ top-left) para melhor visual
-    for (const bin of bins) {
-        compactBin(bin, binW, binH, kerf);
-    }
-    return bins;
-}
-
-// ─── Fill-First Nesting: enche cada chapa ao MÁXIMO antes de abrir outra ───
-// Estratégia "bin-by-bin": para cada chapa, tenta colocar a melhor peça restante
-// até não caber mais nada. Produz chapas concentradas (94%+87%+18%) em vez de
-// distribuição uniforme (66%+66%+66%).
-function runFillFirst(pieces, binW, binH, spacing, heuristic = 'BSSF', binType = 'guillotine', kerf = 4, splitDir = 'auto') {
-    const createBin = () => {
-        switch (binType) {
-            case 'shelf': return new ShelfBin(binW, binH, kerf || spacing);
-            case 'guillotine': return new GuillotineBin(binW, binH, kerf, splitDir);
-            case 'skyline': return new SkylineBin(binW, binH, kerf || spacing);
-            default: return new MaxRectsBin(binW, binH, kerf || spacing);
-        }
-    };
-
-    const remaining = pieces.map((p, i) => ({ ...p, _idx: i }));
-    const bins = [];
-
-    while (remaining.length > 0) {
-        const bin = createBin();
-        let placedAny = true;
-
-        // Greedy: keep placing the best-fitting piece until nothing fits
-        while (placedAny && remaining.length > 0) {
-            placedAny = false;
-            let bestIdx = -1, bestRect = null, bestScore = Infinity;
-
-            for (let i = 0; i < remaining.length; i++) {
-                const p = remaining[i];
-                const pClass = p.classificacao || 'normal';
-                const rect = bin.findBest(p.w, p.h, p.allowRotate, heuristic, pClass);
-                if (rect) {
-                    const sc = rect.score != null ? rect.score : ((rect.w * rect.h) - (p.w * p.h));
-                    if (sc < bestScore) { bestScore = sc; bestRect = rect; bestIdx = i; }
-                }
-            }
-
-            if (bestIdx >= 0 && bestRect) {
-                const p = remaining.splice(bestIdx, 1)[0];
-                bestRect.pieceRef = p.ref;
-                bestRect.allowRotate = p.allowRotate;
-                const placed = bin.placeRect(bestRect);
-                if (placed) { placed.pieceRef = p.ref; placed.allowRotate = p.allowRotate; }
-                placedAny = true;
-            }
-        }
-
-        if (bin.usedRects.length > 0) {
-            bins.push(bin);
-        } else {
-            // Can't place any remaining piece — force into new bin one by one
-            if (remaining.length > 0) {
-                const p = remaining.shift();
-                const rect = bin.findBest(p.w, p.h, p.allowRotate, heuristic);
-                if (rect) {
-                    rect.pieceRef = p.ref;
-                    rect.allowRotate = p.allowRotate;
-                    bin.placeRect(rect);
-                    bins.push(bin);
-                }
-            }
-        }
-    }
-
-    // Compactar cada bin
-    for (const bin of bins) {
-        compactBin(bin, binW, binH, kerf);
-    }
-    return bins;
-}
-
-// ─── Nesting com strip-packing (faixas por altura similar) ───────
-// Agrupa peças com alturas similares em "faixas" horizontais
-// Produz layouts visualmente mais organizados e compactos
-function runStripPacking(pieces, binW, binH, kerf) {
-    if (pieces.length === 0) return [];
-
-    // Ordenar por altura descendente
-    const sorted = [...pieces].sort((a, b) => b.h - a.h);
-    const k = kerf || 4;
-
-    class StripBin {
-        constructor() {
-            this.strips = [];     // { y, h, pieces: [{x,y,w,h,...}] }
-            this.usedRects = [];
-            this.binW = binW;
-            this.binH = binH;
-        }
-        tryAdd(piece) {
-            const pw = piece.w, ph = piece.h;
-            // Try existing strips (best fit on height)
-            let bestStrip = -1, bestWaste = Infinity;
-            for (let s = 0; s < this.strips.length; s++) {
-                const strip = this.strips[s];
-                const freeW = binW - strip.usedW;
-                if (pw + k <= freeW && ph <= strip.h) {
-                    const waste = strip.h - ph;
-                    if (waste < bestWaste) { bestWaste = waste; bestStrip = s; }
-                }
-            }
-            if (bestStrip >= 0) {
-                const strip = this.strips[bestStrip];
-                const placed = {
-                    x: strip.usedW, y: strip.y,
-                    w: pw, h: ph, realW: pw, realH: ph,
-                    rotated: false, pieceRef: piece.ref, allowRotate: piece.allowRotate
-                };
-                strip.usedW += pw + k;
-                strip.pieces.push(placed);
-                this.usedRects.push(placed);
-                return true;
-            }
-            // Try rotation in existing strips
-            if (piece.allowRotate) {
-                for (let s = 0; s < this.strips.length; s++) {
-                    const strip = this.strips[s];
-                    const freeW = binW - strip.usedW;
-                    if (ph + k <= freeW && pw <= strip.h) {
-                        const placed = {
-                            x: strip.usedW, y: strip.y,
-                            w: ph, h: pw, realW: ph, realH: pw,
-                            rotated: true, pieceRef: piece.ref, allowRotate: piece.allowRotate
-                        };
-                        strip.usedW += ph + k;
-                        strip.pieces.push(placed);
-                        this.usedRects.push(placed);
-                        return true;
-                    }
-                }
-            }
-            // New strip
-            const nextY = this.strips.length > 0
-                ? this.strips[this.strips.length - 1].y + this.strips[this.strips.length - 1].h + k
-                : 0;
-            if (nextY + ph <= binH && pw <= binW) {
-                const strip = { y: nextY, h: ph, usedW: pw + k, pieces: [] };
-                const placed = {
-                    x: 0, y: nextY,
-                    w: pw, h: ph, realW: pw, realH: ph,
-                    rotated: false, pieceRef: piece.ref, allowRotate: piece.allowRotate
-                };
-                strip.pieces.push(placed);
-                this.strips.push(strip);
-                this.usedRects.push(placed);
-                return true;
-            }
-            // Try rotated in new strip
-            if (piece.allowRotate && nextY + pw <= binH && ph <= binW) {
-                const strip = { y: nextY, h: pw, usedW: ph + k, pieces: [] };
-                const placed = {
-                    x: 0, y: nextY,
-                    w: ph, h: pw, realW: ph, realH: pw,
-                    rotated: true, pieceRef: piece.ref, allowRotate: piece.allowRotate
-                };
-                strip.pieces.push(placed);
-                this.strips.push(strip);
-                this.usedRects.push(placed);
-                return true;
-            }
-            return false;
-        }
-        occupancy() {
-            let area = 0;
-            for (const r of this.usedRects) area += (r.realW || r.w) * (r.realH || r.h);
-            return area / (binW * binH) * 100;
-        }
-        get freeRects() {
-            const rects = [];
-            const usedH = this.strips.length > 0
-                ? this.strips[this.strips.length - 1].y + this.strips[this.strips.length - 1].h
-                : 0;
-            if (binH - usedH > 1) rects.push({ x: 0, y: usedH, w: binW, h: binH - usedH });
-            for (const strip of this.strips) {
-                const freeW = binW - strip.usedW;
-                if (freeW > 1) rects.push({ x: strip.usedW, y: strip.y, w: freeW, h: strip.h });
-            }
-            return rects;
-        }
-        get cuts() { return []; }
-    }
-
-    const bins = [new StripBin()];
-    for (const p of sorted) {
-        let placed = false;
-        for (const bin of bins) {
-            if (bin.tryAdd(p)) { placed = true; break; }
-        }
-        if (!placed) {
-            const newBin = new StripBin();
-            if (newBin.tryAdd(p)) bins.push(newBin);
-        }
-    }
-    // Compactar
-    for (const bin of bins) compactBin(bin, binW, binH, kerf);
-    return bins;
-}
-
-// ─── BRKGA — Biased Random-Key Genetic Algorithm ─────────────────
-// State-of-the-art para bin packing (Gonçalves & Resende, 2013)
-// Cromossomas são vetores de chaves aleatórias [0,1] decodificados deterministicamente
-function runBRKGA(pieces, binW, binH, spacing, binType, kerf, maxGen = 80, splitDir = 'auto') {
-    if (pieces.length <= 3) return null;
-    const n = pieces.length;
-    const POP_SIZE = Math.min(40, Math.max(20, n * 2));
-    const ELITE_FRAC = 0.20;
-    const MUTANT_FRAC = 0.15;
-    const INHERIT_PROB = 0.70;
-
-    const heuristics = ['BSSF', 'BAF', 'CP', 'BL'];
-    const binTypes = [binType];
-    if (!binTypes.includes('guillotine')) binTypes.push('guillotine');
-    if (!binTypes.includes('skyline')) binTypes.push('skyline');
-
-    // Decoder: chaves [0..n-1] = ordem, [n..2n-1] = rotação, [2n] = heurística, [2n+1] = binType
-    function decode(keys) {
-        const order = pieces.map((p, i) => ({ idx: i, key: keys[i] }));
-        order.sort((a, b) => a.key - b.key);
-
-        const sorted = order.map(o => {
-            const p = pieces[o.idx];
-            const rotate = p.allowRotate && keys[n + o.idx] > 0.5;
-            return rotate ? { ...p, w: p.h, h: p.w, allowRotate: p.allowRotate } : { ...p };
-        });
-
-        const hIdx = Math.floor(keys[2 * n] * heuristics.length) % heuristics.length;
-        const btIdx = Math.floor(keys[2 * n + 1] * binTypes.length) % binTypes.length;
-        const h = heuristics[hIdx];
-        const bt = binTypes[btIdx];
-
-        const bins = runNestingPass(sorted, binW, binH, spacing, h, bt, kerf, splitDir);
-        return scoreResult(bins);
-    }
-
-    // Inicializar população
-    const chromLen = 2 * n + 2;
-    let population = [];
-    for (let i = 0; i < POP_SIZE; i++) {
-        const keys = new Float64Array(chromLen);
-        for (let j = 0; j < chromLen; j++) keys[j] = Math.random();
-        population.push({ keys, fitness: Infinity });
-    }
-
-    // Seeds inteligentes: inserir como cromossomas com chaves que reproduzem boas ordenações
-    const seedSorts = [
-        (a, b) => b.area - a.area,             // area desc
-        (a, b) => b.maxSide - a.maxSide,        // maxside desc
-        (a, b) => b.h - a.h || b.w - a.w,       // height desc
-    ];
-    for (let si = 0; si < seedSorts.length && si < POP_SIZE; si++) {
-        const sorted = pieces.map((p, i) => ({ idx: i, ...p })).sort(seedSorts[si]);
-        const keys = new Float64Array(chromLen);
-        for (let j = 0; j < sorted.length; j++) keys[sorted[j].idx] = j / n;
-        for (let j = n; j < chromLen; j++) keys[j] = Math.random();
-        population[si] = { keys, fitness: Infinity };
-    }
-
-    let bestResult = null, bestFitness = Infinity;
-
-    for (let gen = 0; gen < maxGen; gen++) {
-        // Avaliar
-        for (const chr of population) {
-            if (chr.fitness === Infinity) chr.fitness = decode(chr.keys).score;
-            if (chr.fitness < bestFitness) { bestFitness = chr.fitness; bestResult = chr; }
-        }
-
-        population.sort((a, b) => a.fitness - b.fitness);
-        const eliteCount = Math.floor(POP_SIZE * ELITE_FRAC);
-        const mutantCount = Math.floor(POP_SIZE * MUTANT_FRAC);
-
-        const newPop = population.slice(0, eliteCount); // Manter elite
-
-        // Mutantes (imigrantes aleatórios)
-        for (let i = 0; i < mutantCount; i++) {
-            const keys = new Float64Array(chromLen);
-            for (let j = 0; j < chromLen; j++) keys[j] = Math.random();
-            newPop.push({ keys, fitness: Infinity });
-        }
-
-        // Crossover para preencher o resto
-        while (newPop.length < POP_SIZE) {
-            const elite = population[Math.floor(Math.random() * eliteCount)];
-            const nonElite = population[eliteCount + Math.floor(Math.random() * (POP_SIZE - eliteCount))];
-            const childKeys = new Float64Array(chromLen);
-            for (let j = 0; j < chromLen; j++) {
-                childKeys[j] = Math.random() < INHERIT_PROB ? elite.keys[j] : nonElite.keys[j];
-            }
-            newPop.push({ keys: childKeys, fitness: Infinity });
-        }
-
-        population = newPop;
-
-        // Early stop se já atingiu mínimo teórico
-        if (bestFitness < 15001) break; // 1 bin
-    }
-
-    if (!bestResult) return null;
-
-    // Decodificar o melhor resultado para obter os bins
-    const order = pieces.map((p, i) => ({ idx: i, key: bestResult.keys[i] }));
-    order.sort((a, b) => a.key - b.key);
-    const sorted = order.map(o => {
-        const p = pieces[o.idx];
-        const rotate = p.allowRotate && bestResult.keys[n + o.idx] > 0.5;
-        return rotate ? { ...p, w: p.h, h: p.w } : { ...p };
-    });
-    const hIdx = Math.floor(bestResult.keys[2 * n] * heuristics.length) % heuristics.length;
-    const btIdx = Math.floor(bestResult.keys[2 * n + 1] * binTypes.length) % binTypes.length;
-    const bins = runNestingPass(sorted, binW, binH, spacing, heuristics[hIdx], binTypes[btIdx], kerf, splitDir);
-
-    return { bins, score: scoreResult(bins) };
-}
-
-// ─── Ruin & Recreate + LAHC + Simulated Annealing ────────────────
-// Meta-heurística avançada com 8 tipos de perturbação
-function ruinAndRecreate(pieces, binW, binH, spacing, binType, kerf, maxIter = 500, splitDir = 'auto') {
-    if (pieces.length <= 3) return null;
-
-    const heuristics = ['BSSF', 'BLSF', 'BAF', 'BL', 'CP'];
-    const sortStrategies = [
-        (a, b) => b.area - a.area,
-        (a, b) => a.area - b.area,
-        (a, b) => b.perim - a.perim,
-        (a, b) => b.maxSide - a.maxSide,
-        (a, b) => a.maxSide - b.maxSide,
-        (a, b) => b.diff - a.diff,
-        (a, b) => b.h - a.h || b.w - a.w,
-        (a, b) => b.w - a.w || b.h - a.h,
-        // Aspect ratio (most square first)
-        (a, b) => { const ra = Math.min(a.w,a.h)/Math.max(a.w,a.h); const rb = Math.min(b.w,b.h)/Math.max(b.w,b.h); return rb - ra; },
-        // Diagonal desc
-        (a, b) => Math.sqrt(b.w*b.w+b.h*b.h) - Math.sqrt(a.w*a.w+a.h*a.h),
-        // Min side desc
-        (a, b) => Math.min(b.w, b.h) - Math.min(a.w, a.h),
-    ];
-
-    // Phase 1: best greedy seed (expanded search)
-    let bestBins = null, bestScore = { score: Infinity };
-    for (const sortFn of sortStrategies) {
-        const sorted = [...pieces].sort(sortFn);
-        for (const h of heuristics) {
-            const bins = runNestingPass(sorted, binW, binH, spacing, h, binType, kerf, splitDir);
-            const sc = scoreResult(bins);
-            if (sc.score < bestScore.score) { bestScore = sc; bestBins = bins; }
-        }
-    }
-
-    // Phase 1b: Try strip packing too
-    const stripBins = runStripPacking(pieces, binW, binH, kerf);
-    const stripSc = scoreResult(stripBins);
-    if (stripSc.score < bestScore.score) { bestScore = stripSc; bestBins = stripBins; }
-
-    // Phase 2: LAHC + SA perturbation with 8 strategies
-    const windowSize = 40;
-    const lahcWindow = new Array(windowSize).fill(bestScore.score);
-    let noImproveCount = 0;
-    const maxNoImprove = Math.min(maxIter * 0.7, 350);
-    let temperature = bestScore.score * 0.10;
-    const coolingRate = 0.993;
-
-    for (let iter = 0; iter < maxIter; iter++) {
-        temperature *= coolingRate;
-        let reconstructed;
-        const pertType = iter % 8;
-
-        switch (pertType) {
-            case 0: { // Random ruin — adaptive rate
-                const basePct = noImproveCount > maxNoImprove * 0.5 ? 0.35 : 0.15;
-                const ruinPct = basePct + Math.random() * 0.25;
-                const numR = Math.max(1, Math.floor(pieces.length * ruinPct));
-                const shuffled = [...pieces].sort(() => Math.random() - 0.5);
-                reconstructed = [
-                    ...shuffled.slice(numR).sort((a, b) => b.area - a.area),
-                    ...shuffled.slice(0, numR).sort((a, b) => b.area - a.area),
-                ];
-                break;
-            }
-            case 1: { // Targeted ruin — remove smallest pieces
-                const sorted = [...pieces].sort((a, b) => a.area - b.area);
-                const numR = Math.max(1, Math.floor(pieces.length * 0.25));
-                reconstructed = [
-                    ...sorted.slice(numR).sort((a, b) => b.area - a.area),
-                    ...sorted.slice(0, numR).sort((a, b) => b.area - a.area),
-                ];
-                break;
-            }
-            case 2: { // Pair swap — swap random pairs in best ordering
-                reconstructed = [...pieces].sort((a, b) => b.area - a.area);
-                const swaps = Math.max(1, Math.floor(Math.random() * Math.min(5, pieces.length / 2)));
-                for (let s = 0; s < swaps; s++) {
-                    const i = Math.floor(Math.random() * reconstructed.length);
-                    const j = Math.floor(Math.random() * reconstructed.length);
-                    [reconstructed[i], reconstructed[j]] = [reconstructed[j], reconstructed[i]];
-                }
-                break;
-            }
-            case 3: { // Height-focused ruin (good for shelf/strip)
-                const shuffled = [...pieces].sort(() => Math.random() - 0.5);
-                const numR = Math.max(1, Math.floor(pieces.length * 0.2));
-                reconstructed = [
-                    ...shuffled.slice(numR).sort((a, b) => b.h - a.h),
-                    ...shuffled.slice(0, numR).sort((a, b) => b.h - a.h),
-                ];
-                break;
-            }
-            case 4: { // Interleave large/small
-                const sorted = [...pieces].sort((a, b) => b.area - a.area);
-                reconstructed = [];
-                let lo = 0, hi = sorted.length - 1;
-                while (lo <= hi) {
-                    reconstructed.push(sorted[lo++]);
-                    if (lo <= hi) reconstructed.push(sorted[hi--]);
-                }
-                break;
-            }
-            case 5: { // Width-focused (group similar widths = better columns)
-                const shuffled = [...pieces].sort(() => Math.random() - 0.5);
-                const numR = Math.max(1, Math.floor(pieces.length * 0.2));
-                reconstructed = [
-                    ...shuffled.slice(numR).sort((a, b) => b.w - a.w),
-                    ...shuffled.slice(0, numR).sort((a, b) => b.w - a.w),
-                ];
-                break;
-            }
-            case 6: { // Dimension-match ruin — group pieces with complementary dimensions
-                // Peças cuja soma das larguras ≈ binW formam boas faixas
-                const sorted = [...pieces].sort((a, b) => b.w - a.w);
-                const used = new Set();
-                reconstructed = [];
-                for (let i = 0; i < sorted.length; i++) {
-                    if (used.has(i)) continue;
-                    reconstructed.push(sorted[i]);
-                    used.add(i);
-                    // Try to find a complement piece
-                    const remaining = binW - sorted[i].w;
-                    let bestJ = -1, bestDiff = Infinity;
-                    for (let j = i + 1; j < sorted.length; j++) {
-                        if (used.has(j)) continue;
-                        const d = Math.abs(sorted[j].w - remaining);
-                        if (d < bestDiff) { bestDiff = d; bestJ = j; }
-                    }
-                    if (bestJ >= 0 && bestDiff < binW * 0.3) {
-                        reconstructed.push(sorted[bestJ]);
-                        used.add(bestJ);
-                    }
-                }
-                break;
-            }
-            default: { // Block ruin — remove contiguous block + re-insert with varied sort
-                const start = Math.floor(Math.random() * pieces.length);
-                const blockSize = Math.max(2, Math.floor(pieces.length * 0.15 + Math.random() * pieces.length * 0.20));
-                const sorted = [...pieces].sort(sortStrategies[iter % sortStrategies.length]);
-                const block = sorted.splice(start % sorted.length, blockSize);
-                reconstructed = [...sorted, ...block.sort(() => Math.random() - 0.5)];
-            }
-        }
-
-        const h = heuristics[iter % heuristics.length];
-        const bins = runNestingPass(reconstructed, binW, binH, spacing, h, binType, kerf, splitDir);
-        const sc = scoreResult(bins);
-
-        const lahcIdx = iter % windowSize;
-        const delta = sc.score - lahcWindow[lahcIdx];
-        // Accept if better, or with SA probability (exploration)
-        const accepted = delta <= 0 || (temperature > 0.1 && Math.random() < Math.exp(-delta / Math.max(temperature, 0.1)));
-
-        if (accepted) {
-            lahcWindow[lahcIdx] = sc.score;
-            if (sc.score < bestScore.score) {
-                bestScore = sc; bestBins = bins;
-                noImproveCount = 0;
-            } else {
-                noImproveCount++;
-            }
-        } else {
-            noImproveCount++;
-        }
-
-        if (noImproveCount >= maxNoImprove) break;
-    }
-
-    return { bins: bestBins, score: bestScore };
-}
-
-// ─── Gerar sequência de cortes (para esquadrejadeira) ────────────
-function gerarSequenciaCortes(bin) {
-    if (!bin.cuts || bin.cuts.length === 0) return [];
-    // Ordenar: primeiro cortes horizontais (faixas), depois verticais dentro de cada faixa
-    const hCuts = bin.cuts.filter(c => c.dir === 'H').sort((a, b) => a.y - b.y);
-    const vCuts = bin.cuts.filter(c => c.dir === 'V').sort((a, b) => a.x - b.x);
-    let seq = 1;
-    return [
-        ...hCuts.map(c => ({ seq: seq++, dir: 'Horizontal', pos: Math.round(c.y), len: Math.round(c.len) })),
-        ...vCuts.map(c => ({ seq: seq++, dir: 'Vertical', pos: Math.round(c.x), len: Math.round(c.len) })),
-    ];
-}
-
-// ═══════════════════════════════════════════════════════
+// ── Compat: _vacuumAware via setVacuumAware/getVacuumAware ──────
+// As referências a _vacuumAware no código abaixo agora usam as
+// funções importadas setVacuumAware() e getVacuumAware().
+
+// ═══════════════════════════════════════════════════════════════════
 // JSON PARSING — Extrair peças do JSON do plugin
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 
-function parsePluginJSON(json) {
+export function parsePluginJSON(json) {
     const data = typeof json === 'string' ? JSON.parse(json) : json;
     const details = data.details_project || {};
     const machining = data.machining || {};
@@ -1393,22 +136,23 @@ function parsePluginJSON(json) {
 
 router.post('/lotes/importar', requireAuth, (req, res) => {
     try {
-        const { json, nome } = req.body;
+        const { json, nome, projeto_id, orc_id } = req.body;
         if (!json) return res.status(400).json({ error: 'JSON é obrigatório' });
 
         const { loteInfo, pecas } = parsePluginJSON(json);
         if (pecas.length === 0) return res.status(400).json({ error: 'Nenhuma peça encontrada no JSON' });
 
         const loteNome = nome || loteInfo.projeto || `Lote ${new Date().toLocaleDateString('pt-BR')}`;
+        const origem = projeto_id ? 'sketchup' : 'json_import';
 
         const insertLote = db.prepare(`
-            INSERT INTO cnc_lotes (user_id, nome, cliente, projeto, codigo, vendedor, json_original, total_pecas)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO cnc_lotes (user_id, nome, cliente, projeto, codigo, vendedor, json_original, total_pecas, projeto_id, orc_id, origem)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         const result = insertLote.run(
             req.user.id, loteNome, loteInfo.cliente, loteInfo.projeto,
             loteInfo.codigo, loteInfo.vendedor, typeof json === 'string' ? json : JSON.stringify(json),
-            pecas.length
+            pecas.length, projeto_id || null, orc_id || null, origem
         );
         const loteId = result.lastInsertRowid;
 
@@ -1497,7 +241,7 @@ router.put('/pecas/:id', requireAuth, (req, res) => {
 // GRUPO 3: Otimizador Nesting 2D — MaxRects-BSSF
 // ═══════════════════════════════════════════════════════
 
-router.post('/otimizar/:loteId', requireAuth, (req, res) => {
+router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
     try {
         const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
         if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
@@ -1507,589 +251,209 @@ router.post('/otimizar/:loteId', requireAuth, (req, res) => {
 
         const config = db.prepare('SELECT * FROM cnc_config WHERE id = 1').get() || {};
 
-        // Body overrides (frontend config panel can override saved defaults)
-        const body = req.body || {};
-        const spacing = body.espaco_pecas != null ? Number(body.espaco_pecas) : (config.espaco_pecas || 7);
-        const kerfPadrao = body.kerf != null ? Number(body.kerf) : (config.kerf_padrao || 4);
-        const modoRaw = body.modo != null ? body.modo : (config.usar_guilhotina !== 0 ? 'guilhotina' : 'maxrects');
-        // binType: 'maxrects', 'guillotine', or 'shelf'
-        const binType = modoRaw === 'maxrects' ? 'maxrects' : modoRaw === 'shelf' ? 'shelf' : 'guillotine';
-        const canGenerateCuts = binType !== 'maxrects'; // guillotine & shelf produce cut sequences
-        const useRetalhos = body.usar_retalhos != null ? !!body.usar_retalhos : (config.usar_retalhos !== 0);
-        const maxIter = body.iteracoes != null ? Number(body.iteracoes) : (config.iteracoes_otimizador || 300);
-        const considerarSobra = body.considerar_sobra != null ? !!body.considerar_sobra : (config.considerar_sobra !== 0);
-        const sobraMinW = body.sobra_min_largura != null ? Number(body.sobra_min_largura) : (config.sobra_min_largura || 300);
-        const sobraMinH = body.sobra_min_comprimento != null ? Number(body.sobra_min_comprimento) : (config.sobra_min_comprimento || 600);
-        const permitirRotacao = body.permitir_rotacao != null ? !!body.permitir_rotacao : null; // null = use grain logic
-        const refiloOverride = body.refilo != null ? Number(body.refilo) : null; // null = use sheet default
-        // Direção de corte: 'misto' (auto/SLA), 'horizontal' (faixas), 'vertical' (colunas)
-        const direcaoCorteRaw = body.direcao_corte || 'misto';
-        const splitDir = direcaoCorteRaw === 'horizontal' ? 'horizontal' : direcaoCorteRaw === 'vertical' ? 'vertical' : 'auto';
-
-        // Classificação de peças por tamanho (para CNC: vácuo, tabs, velocidade)
-        const limiarPequena = body.limiar_pequena != null ? Number(body.limiar_pequena) : 400;   // mm — menor dimensão
-        const limiarSuperPequena = body.limiar_super_pequena != null ? Number(body.limiar_super_pequena) : 200; // mm
-        const classificarPecas = body.classificar_pecas !== false; // ativo por padrão
-
-        const vacuumAware = body.vacuum_aware !== false; // ativo por padrão
-
-        function classifyPiece(w, h) {
-            if (!classificarPecas) return 'normal';
-            const minDim = Math.min(w, h);
-            if (minDim < limiarSuperPequena) return 'super_pequena';
-            if (minDim < limiarPequena) return 'pequena';
-            return 'normal';
+        // ═══ PYTHON OPTIMIZER (único motor) ═══════════════════════════
+        if (!(await isPythonAvailable())) {
+            return res.status(503).json({ error: 'Motor Python (CNC Optimizer) indisponível. Verifique se o serviço está rodando na porta 8000.' });
         }
+        console.log(`  [CNC] Usando motor Python para lote ${lote.id}`);
+        {
 
-        // Set vacuum-aware module state for bin constructors
-        _vacuumAware = vacuumAware;
+            const body = req.body || {};
+            const spacing = body.espaco_pecas != null ? Number(body.espaco_pecas) : (config.espaco_pecas || 7);
+            const kerfPadrao = body.kerf != null ? Number(body.kerf) : (config.kerf_padrao || 4);
+            const kerfOverride = body.kerf != null ? Number(body.kerf) : null;
+            const modoRaw = body.modo != null ? body.modo : (config.usar_guilhotina !== 0 ? 'guilhotina' : 'maxrects');
+            const binType = modoRaw === 'maxrects' ? 'maxrects' : modoRaw === 'shelf' ? 'shelf' : 'guillotine';
+            const useRetalhos = body.usar_retalhos != null ? !!body.usar_retalhos : (config.usar_retalhos !== 0);
+            const maxIter = body.iteracoes != null ? Number(body.iteracoes) : (config.iteracoes_otimizador || 300);
+            const considerarSobra = body.considerar_sobra != null ? !!body.considerar_sobra : (config.considerar_sobra !== 0);
+            const sobraMinW = body.sobra_min_largura != null ? Number(body.sobra_min_largura) : (config.sobra_min_largura || 300);
+            const sobraMinH = body.sobra_min_comprimento != null ? Number(body.sobra_min_comprimento) : (config.sobra_min_comprimento || 600);
+            const permitirRotacao = body.permitir_rotacao != null ? !!body.permitir_rotacao : null;
+            const refiloOverride = body.refilo != null ? Number(body.refilo) : null;
+            const direcaoCorteRaw = body.direcao_corte || 'misto';
+            const limiarPequena = body.limiar_pequena != null ? Number(body.limiar_pequena) : 400;
+            const limiarSuperPequena = body.limiar_super_pequena != null ? Number(body.limiar_super_pequena) : 200;
+            const classificarPecas = body.classificar_pecas !== false;
 
-        // Group pieces by material_code + espessura (normalize espessura=0 from material_code)
-        const groups = {};
-        for (const p of pecas) {
-            let esp = p.espessura || 0;
-            if (!esp && p.material_code) { const m = p.material_code.match(/_(\d+(?:\.\d+)?)_/); if (m) esp = parseFloat(m[1]); }
-            const key = `${p.material_code}__${esp}`;
-            if (!groups[key]) groups[key] = { material_code: p.material_code, espessura: esp || p.espessura, pieces: [] };
-            groups[key].pieces.push(p);
-        }
+            // Agrupar pecas pela CHAPA RESOLVIDA (não pelo material_code da peça)
+            // Isso garante que peças de materiais diferentes (mdf15, mdp15) que usam
+            // a mesma chapa física sejam otimizadas JUNTAS
+            const groups = {};
+            for (const p of pecas) {
+                let esp = p.espessura || 0;
+                if (!esp && p.material_code) { const m = p.material_code.match(/_(\d+(?:\.\d+)?)_/); if (m) esp = parseFloat(m[1]); }
 
-        const plano = {
-            chapas: [], retalhos: [], materiais: {}, modo: binType, direcao_corte: direcaoCorteRaw,
-            classificacao: { limiar_pequena: limiarPequena, limiar_super_pequena: limiarSuperPequena, ativo: classificarPecas },
-        };
-        let globalChapaIdx = 0;
-        let totalCombinacoes = 0;
+                // Resolver qual chapa essa peça vai usar (mesma lógica de fallback)
+                let chapa = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(p.material_code);
+                if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE ABS(espessura_real - ?) <= 1.0 AND ativo = 1 ORDER BY ABS(espessura_real - ?) ASC LIMIT 1').get(esp, esp);
+                if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE espessura_nominal = ? AND ativo = 1').get(esp);
+                if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE ativo = 1 ORDER BY comprimento DESC LIMIT 1').get();
 
-        // Reset all piece positions
-        db.prepare('UPDATE cnc_pecas SET chapa_idx = NULL, pos_x = 0, pos_y = 0, rotacionada = 0 WHERE lote_id = ?').run(lote.id);
-        db.prepare("DELETE FROM cnc_retalhos WHERE origem_lote = ?").run(String(lote.id));
-
-        for (const [groupKey, group] of Object.entries(groups)) {
-            // Find matching sheet
-            let chapa = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(group.material_code);
-            if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE espessura_real = ? AND ativo = 1').get(group.espessura);
-            if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE ativo = 1 ORDER BY comprimento DESC LIMIT 1').get();
-            if (!chapa) chapa = { comprimento: 2750, largura: 1850, refilo: 10, kerf: kerfPadrao, nome: 'Padrão 2750x1850', material_code: group.material_code, preco: 0, veio: 'sem_veio' };
-
-            const refilo = refiloOverride != null ? refiloOverride : (chapa.refilo || 10);
-            const kerf = chapa.kerf || kerfPadrao;
-            const binW = chapa.comprimento - 2 * refilo;
-            const binH = chapa.largura - 2 * refilo;
-            const chapaVeio = chapa.veio || 'sem_veio'; // sem_veio, horizontal, vertical
-            const temVeio = chapaVeio !== 'sem_veio';
-
-            // Expand pieces by quantity + GRAIN DIRECTION (veio)
-            const expanded = [];
-            for (const p of group.pieces) {
-                // Veio SEMPRE tem prioridade: material com veio NUNCA permite rotação
-                // permitirRotacao só afeta materiais sem veio
-                const allowRotate = temVeio ? false : (permitirRotacao != null ? permitirRotacao : true);
-
-                for (let q = 0; q < p.quantidade; q++) {
-                    expanded.push({
-                        ref: { pecaId: p.id, instancia: q },
-                        w: p.comprimento,
-                        h: p.largura,
-                        allowRotate,
-                        area: p.comprimento * p.largura,
-                        perim: 2 * (p.comprimento + p.largura),
-                        maxSide: Math.max(p.comprimento, p.largura),
-                        diff: Math.abs(p.comprimento - p.largura),
-                        classificacao: classifyPiece(p.comprimento, p.largura),
-                    });
-                }
+                // Agrupar pela chapa resolvida (ex: MDF_15.5_BRANCO_TX), não pela peça
+                const chapaKey = chapa ? `${chapa.material_code}__${chapa.espessura_real}` : `fallback__${esp}`;
+                if (!groups[chapaKey]) groups[chapaKey] = { material_code: chapa?.material_code || p.material_code, espessura: chapa?.espessura_real || esp, chapa_resolvida: chapa, pieces: [] };
+                groups[chapaKey].pieces.push(p);
             }
 
-            // ═══ FASE 1: Tentar usar retalhos existentes PRIMEIRO ═══
-            let pecasRestantes = [...expanded];
-            const retalhosUsados = [];
+            // Reset posicoes
+            db.prepare('UPDATE cnc_pecas SET chapa_idx = NULL, pos_x = 0, pos_y = 0, rotacionada = 0 WHERE lote_id = ?').run(lote.id);
+            db.prepare("DELETE FROM cnc_retalhos WHERE origem_lote = ?").run(String(lote.id));
 
-            if (useRetalhos) {
-                const retalhosDisp = db.prepare(
-                    'SELECT * FROM cnc_retalhos WHERE material_code = ? AND espessura_real = ? AND disponivel = 1 ORDER BY comprimento * largura DESC'
-                ).all(group.material_code, group.espessura);
+            const plano = { chapas: [], retalhos: [], materiais: {}, modo: binType, direcao_corte: direcaoCorteRaw,
+                classificacao: { limiar_pequena: limiarPequena, limiar_super_pequena: limiarSuperPequena, ativo: classificarPecas },
+            };
+            let globalChapaIdx = 0;
 
-                for (const ret of retalhosDisp) {
-                    if (pecasRestantes.length === 0) break;
-                    const retW = ret.comprimento, retH = ret.largura;
+            for (const [groupKey, group] of Object.entries(groups)) {
+                // Chapa já foi resolvida no agrupamento acima
+                let chapa = group.chapa_resolvida;
+                if (!chapa) chapa = { comprimento: 2750, largura: 1850, refilo: 10, kerf: kerfPadrao, nome: 'Padrão 2750x1850', material_code: group.material_code, preco: 0, veio: 'sem_veio' };
+                console.log(`  [CNC] Grupo ${groupKey}: ${group.pieces.length} peças → chapa ${chapa.material_code || chapa.nome}`);
 
-                    // Tentar encaixar peças no retalho
-                    const bins = runNestingPass(
-                        [...pecasRestantes].sort((a, b) => b.area - a.area),
-                        retW, retH, spacing, 'BSSF', binType, kerf, splitDir
-                    );
+                const refilo = refiloOverride != null ? refiloOverride : (chapa.refilo || 10);
+                const kerf = kerfOverride != null ? kerfOverride : (chapa.kerf || kerfPadrao);
+                const chapaVeio = chapa.veio || 'sem_veio';
 
-                    if (bins.length === 1 && bins[0].usedRects.length > 0) {
-                        const bin = bins[0];
-                        const chapaIdx = globalChapaIdx++;
-                        const chapaInfo = {
-                            idx: chapaIdx,
-                            material: `RETALHO: ${ret.nome}`,
-                            material_code: group.material_code,
-                            comprimento: retW, largura: retH, refilo: 0,
-                            preco: 0, veio: chapaVeio,
-                            aproveitamento: Math.round(bin.occupancy() * 100) / 100,
-                            is_retalho: true, retalho_id: ret.id,
-                            pecas: [], retalhos: [],
-                            cortes: canGenerateCuts ? gerarSequenciaCortes(bin) : [],
-                        };
+                // Retalhos disponiveis (busca pela chapa resolvida, não pela peça)
+                const retalhosDisp = useRetalhos
+                    ? db.prepare('SELECT * FROM cnc_retalhos WHERE material_code = ? AND ABS(espessura_real - ?) <= 1.0 AND disponivel = 1 ORDER BY comprimento * largura DESC')
+                        .all(chapa.material_code || group.material_code, chapa.espessura_real || group.espessura)
+                    : [];
 
-                        const placedRefs = new Set();
-                        const updatePeca = db.prepare('UPDATE cnc_pecas SET chapa_idx = ?, pos_x = ?, pos_y = ?, rotacionada = ? WHERE id = ? AND lote_id = ?');
-                        for (const rect of bin.usedRects) {
-                            if (!rect.pieceRef) continue;
-                            const { pecaId, instancia } = rect.pieceRef;
-                            if (instancia === 0) updatePeca.run(chapaIdx, rect.x, rect.y, rect.rotated ? 1 : 0, pecaId, lote.id);
-                            const clsR = classifyPiece(rect.realW, rect.realH);
-                            const pecaR = { pecaId, instancia, x: rect.x, y: rect.y, w: rect.realW, h: rect.realH, rotated: rect.rotated };
-                            if (clsR !== 'normal') pecaR.classificacao = clsR;
-                            chapaInfo.pecas.push(pecaR);
-                            placedRefs.add(`${pecaId}_${instancia}`);
+                // Enviar para Python
+                const pyResult = await callPython('optimize', {
+                    pieces: group.pieces.map(p => ({
+                        id: p.id, persistent_id: p.persistent_id || '',
+                        comprimento: p.comprimento, largura: p.largura,
+                        quantidade: p.quantidade, material_code: p.material_code,
+                        espessura: group.espessura,
+                        allow_rotate: chapaVeio !== 'sem_veio' ? false : (permitirRotacao != null ? permitirRotacao : true),
+                        lote_id: lote.id, descricao: p.descricao || '',
+                    })),
+                    sheets: [{
+                        id: chapa.id || 0, nome: chapa.nome || '',
+                        material_code: chapa.material_code || group.material_code,
+                        espessura_nominal: chapa.espessura_nominal || group.espessura,
+                        espessura_real: chapa.espessura_real || group.espessura,
+                        comprimento: chapa.comprimento, largura: chapa.largura,
+                        refilo, kerf, veio: chapaVeio, preco: chapa.preco || 0,
+                    }],
+                    scraps: retalhosDisp.map(r => ({
+                        id: r.id, material_code: r.material_code,
+                        espessura_real: r.espessura_real,
+                        comprimento: r.comprimento, largura: r.largura,
+                        disponivel: true,
+                    })),
+                    config: {
+                        spacing, kerf, modo: binType,
+                        permitir_rotacao: permitirRotacao,
+                        usar_retalhos: useRetalhos, iteracoes: maxIter,
+                        considerar_sobra: considerarSobra,
+                        sobra_min_largura: sobraMinW, sobra_min_comprimento: sobraMinH,
+                        direcao_corte: direcaoCorteRaw,
+                        limiar_pequena: limiarPequena, limiar_super_pequena: limiarSuperPequena,
+                        classificar_pecas: classificarPecas,
+                    },
+                });
+
+                if (!pyResult || !pyResult.ok) {
+                    const errMsg = pyResult?.error || 'Falha na otimização Python';
+                    console.error(`  [Python Bridge] Falha para grupo ${groupKey}: ${errMsg}`);
+                    return res.status(500).json({ error: `Erro na otimização do grupo ${group.material_code}: ${errMsg}` });
+                }
+
+                // Processar resultado Python — atualizar DB e montar plano
+                const updatePeca = db.prepare('UPDATE cnc_pecas SET chapa_idx = ?, pos_x = ?, pos_y = ?, rotacionada = ? WHERE id = ? AND lote_id = ?');
+
+                for (const pyChapa of pyResult.plano.chapas) {
+                    const chapaIdx = globalChapaIdx++;
+                    const chapaInfo = {
+                        idx: chapaIdx,
+                        material: chapa.nome || '',
+                        material_code: chapa.material_code || group.material_code,
+                        comprimento: chapa.comprimento, largura: chapa.largura,
+                        refilo, kerf,
+                        preco: chapa.preco || 0,
+                        veio: chapaVeio,
+                        aproveitamento: pyChapa.aproveitamento || 0,
+                        pecas: pyChapa.pecas || [],
+                        retalhos: pyChapa.retalhos || [],
+                        cortes: pyChapa.cortes || [],
+                    };
+
+                    // Atualizar posicoes das pecas no DB
+                    for (const pecaInfo of chapaInfo.pecas) {
+                        if (pecaInfo.instancia === 0) {
+                            updatePeca.run(chapaIdx, pecaInfo.x + refilo, pecaInfo.y + refilo, pecaInfo.rotated ? 1 : 0, pecaInfo.pecaId, lote.id);
                         }
-
-                        plano.chapas.push(chapaInfo);
-                        retalhosUsados.push(ret.id);
-                        db.prepare('UPDATE cnc_retalhos SET disponivel = 0 WHERE id = ?').run(ret.id);
-
-                        // Remover peças já colocadas
-                        pecasRestantes = pecasRestantes.filter(p => !placedRefs.has(`${p.ref.pecaId}_${p.ref.instancia}`));
                     }
-                }
-            }
 
-            if (pecasRestantes.length === 0) {
+                    // Criar retalhos no DB
+                    if (considerarSobra) {
+                        for (const s of chapaInfo.retalhos) {
+                            const w = Math.round(Math.max(s.w, s.h));
+                            const h = Math.round(Math.min(s.w, s.h));
+                            if (w >= sobraMinH && h >= sobraMinW) {
+                                db.prepare(`INSERT INTO cnc_retalhos (user_id, chapa_ref_id, nome, material_code, espessura_real, comprimento, largura, origem_lote)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                                    req.user.id, chapa.id || null,
+                                    `Retalho ${w}x${h}`, group.material_code, group.espessura, w, h, String(lote.id)
+                                );
+                            }
+                        }
+                    }
+
+                    plano.chapas.push(chapaInfo);
+                }
+
                 plano.materiais[groupKey] = {
                     material_code: group.material_code, espessura: group.espessura,
-                    total_pecas: expanded.length, total_chapas: plano.chapas.length - globalChapaIdx + 1,
-                    chapa_usada: chapa.nome, estrategia: 'retalhos_only',
-                    ocupacao_media: 0, retalhos_usados: retalhosUsados.length,
+                    total_pecas: group.pieces.reduce((s, p) => s + p.quantidade, 0),
+                    total_chapas: pyResult.total_chapas,
+                    chapa_usada: chapa.nome, estrategia: 'python_optimizer',
+                    ocupacao_media: pyResult.aproveitamento,
+                    kerf, veio: chapaVeio, retalhos_usados: 0,
                 };
-                continue;
             }
 
-            // ═══ FASE 2: Multi-pass greedy (expanded: 15+ sort strategies) ═══
-            const sortStrategies = [
-                { name: 'area_desc',    fn: (a, b) => b.area - a.area },
-                { name: 'perim_desc',   fn: (a, b) => b.perim - a.perim },
-                { name: 'maxside_desc', fn: (a, b) => b.maxSide - a.maxSide },
-                { name: 'diff_desc',    fn: (a, b) => b.diff - a.diff },
-                { name: 'area_asc',     fn: (a, b) => a.area - b.area },
-                { name: 'perim_asc',    fn: (a, b) => a.perim - b.perim },
-                { name: 'maxside_asc',  fn: (a, b) => a.maxSide - b.maxSide },
-                { name: 'w_h_desc',     fn: (a, b) => b.w - a.w || b.h - a.h },
-                { name: 'h_w_desc',     fn: (a, b) => b.h - a.h || b.w - a.w },
-                { name: 'ratio_sq',     fn: (a, b) => {
-                    const ra = Math.min(a.w, a.h) / Math.max(a.w, a.h);
-                    const rb = Math.min(b.w, b.h) / Math.max(b.w, b.h);
-                    return rb - ra; // most square first
-                }},
-                { name: 'ratio_thin',   fn: (a, b) => {
-                    const ra = Math.min(a.w, a.h) / Math.max(a.w, a.h);
-                    const rb = Math.min(b.w, b.h) / Math.max(b.w, b.h);
-                    return ra - rb; // thinnest first
-                }},
-                { name: 'diagonal',     fn: (a, b) => Math.sqrt(b.w*b.w+b.h*b.h) - Math.sqrt(a.w*a.w+a.h*a.h) },
-                { name: 'minside_desc', fn: (a, b) => Math.min(b.w, b.h) - Math.min(a.w, a.h) },
-                { name: 'w_asc_h_desc', fn: (a, b) => a.w - b.w || b.h - a.h },
-                { name: 'area_diff',    fn: (a, b) => (b.area - a.area) || (b.diff - a.diff) },
-            ];
+            // Se Python processou tudo com sucesso
+            if (plano.chapas.length > 0) {
+                // Stats de classificacao
+                const clsStats = { normal: 0, pequena: 0, super_pequena: 0 };
+                for (const ch of plano.chapas) {
+                    for (const p of ch.pecas) {
+                        const cls = p.classificacao || 'normal';
+                        clsStats[cls] = (clsStats[cls] || 0) + 1;
+                    }
+                }
+                plano.classificacao.stats = clsStats;
 
-            const { small, medium, large } = classifyBySize(pecasRestantes);
-            const tieredSets = [];
-            if (small.length + medium.length + large.length === pecasRestantes.length) {
-                tieredSets.push({ name: 'tiered_SMG', pieces: [...small.sort((a, b) => a.area - b.area), ...medium.sort((a, b) => a.area - b.area), ...large.sort((a, b) => a.area - b.area)] });
-                tieredSets.push({ name: 'tiered_GMS', pieces: [...large.sort((a, b) => b.area - a.area), ...medium.sort((a, b) => b.area - a.area), ...small.sort((a, b) => b.area - a.area)] });
-                // Intercalado
-                const interleaved = [];
-                const pools = [[...large].sort((a, b) => b.area - a.area), [...small].sort((a, b) => a.area - b.area), [...medium].sort((a, b) => b.area - a.area)];
-                while (pools.some(p => p.length > 0)) { for (const pool of pools) { if (pool.length > 0) interleaved.push(pool.shift()); } }
-                tieredSets.push({ name: 'tiered_mix', pieces: interleaved });
+                const totalChapas = plano.chapas.length;
+                const aprovMedio = totalChapas > 0
+                    ? Math.round(plano.chapas.reduce((s, c) => s + c.aproveitamento, 0) / totalChapas * 100) / 100
+                    : 0;
+
+                plano.aproveitamento = aprovMedio;
+                plano.config_usada = { spacing: config.espaco_pecas || 7, motor: 'python' };
+
+                db.prepare(`UPDATE cnc_lotes SET status = 'otimizado', total_chapas = ?, aproveitamento = ?, plano_json = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?`)
+                    .run(totalChapas, aprovMedio, JSON.stringify(plano), lote.id);
+
+                return res.json({
+                    ok: true,
+                    total_chapas: totalChapas,
+                    aproveitamento: aprovMedio,
+                    total_combinacoes_testadas: 0,
+                    modo: binType,
+                    motor: 'python',
+                    plano,
+                });
             }
-
-            const heuristics = ['BSSF', 'BLSF', 'BAF', 'BL', 'CP'];
-            let bestBins = null, bestBinScore = { score: Infinity }, bestStrategyName = '', bestBinType = binType;
-
-            // Calcular mínimo teórico de chapas
-            const totalPieceArea = pecasRestantes.reduce((s, p) => s + p.area, 0);
-            const sheetArea = binW * binH;
-            const minTeoricoChapas = Math.ceil(totalPieceArea / sheetArea);
-
-            // Try the selected binType + also try all 4 types to find the best result
-            const binTypesToTry = [binType];
-            if (!binTypesToTry.includes('guillotine')) binTypesToTry.push('guillotine');
-            if (!binTypesToTry.includes('shelf')) binTypesToTry.push('shelf');
-            if (!binTypesToTry.includes('maxrects')) binTypesToTry.push('maxrects');
-            if (!binTypesToTry.includes('skyline')) binTypesToTry.push('skyline');
-
-            // Adicionar sorts específicos por direção de corte
-            const dirSortStrategies = [...sortStrategies];
-            if (splitDir === 'horizontal') {
-                // Horizontal: priorizar agrupamento por alturas similares (faixas)
-                dirSortStrategies.push(
-                    { name: 'dir_h_group', fn: (a, b) => b.h - a.h || b.area - a.area },
-                    { name: 'dir_h_strip', fn: (a, b) => {
-                        // Agrupar peças com alturas similares (±10%) para faixas eficientes
-                        const ha = Math.round(a.h / 20) * 20;
-                        const hb = Math.round(b.h / 20) * 20;
-                        return hb - ha || b.w - a.w;
-                    }},
-                );
-            } else if (splitDir === 'vertical') {
-                // Vertical: priorizar agrupamento por larguras similares (colunas)
-                dirSortStrategies.push(
-                    { name: 'dir_v_group', fn: (a, b) => b.w - a.w || b.area - a.area },
-                    { name: 'dir_v_col', fn: (a, b) => {
-                        // Agrupar peças com larguras similares (±10%) para colunas eficientes
-                        const wa = Math.round(a.w / 20) * 20;
-                        const wb = Math.round(b.w / 20) * 20;
-                        return wb - wa || b.h - a.h;
-                    }},
-                );
-            }
-
-            for (const bt of binTypesToTry) {
-                for (const strat of dirSortStrategies) {
-                    const sorted = [...pecasRestantes].sort(strat.fn);
-                    for (const h of heuristics) {
-                        const bins = runNestingPass(sorted, binW, binH, spacing, h, bt, kerf, splitDir);
-                        const sc = scoreResult(bins);
-                        if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = bins; bestStrategyName = `${strat.name}+${h}+${bt}`; bestBinType = bt; }
-                        totalCombinacoes++;
-                    }
-                }
-                for (const ts of tieredSets) {
-                    for (const h of heuristics) {
-                        const bins = runNestingPass([...ts.pieces], binW, binH, spacing, h, bt, kerf, splitDir);
-                        const sc = scoreResult(bins);
-                        if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = bins; bestStrategyName = `${ts.name}+${h}+${bt}`; bestBinType = bt; }
-                        totalCombinacoes++;
-                    }
-                }
-            }
-
-            // ═══ FASE 2.5a: Fill-First — enche cada chapa ao máximo antes de abrir outra ═══
-            // Estratégia de empacotamento concentrado (como CutOptima, OptiCut, etc.)
-            for (const bt of binTypesToTry) {
-                for (const strat of dirSortStrategies) {
-                    const sorted = [...pecasRestantes].sort(strat.fn);
-                    for (const h of heuristics) {
-                        const bins = runFillFirst(sorted, binW, binH, spacing, h, bt, kerf, splitDir);
-                        const sc = scoreResult(bins);
-                        if (sc.score < bestBinScore.score) {
-                            bestBinScore = sc; bestBins = bins;
-                            bestStrategyName = `fillFirst+${strat.name}+${h}+${bt}`;
-                            bestBinType = bt;
-                        }
-                        totalCombinacoes++;
-                    }
-                }
-            }
-
-            // ═══ FASE 2.5b: Strip Packing (faixas por altura) ═══
-            // Especialmente bom para peças com alturas variadas (reguas + laterais + bases)
-            {
-                const stripBins = runStripPacking(pecasRestantes, binW, binH, kerf);
-                const sc = scoreResult(stripBins);
-                if (sc.score < bestBinScore.score) {
-                    bestBinScore = sc; bestBins = stripBins;
-                    bestStrategyName = 'strip_packing'; bestBinType = 'strip';
-                }
-                totalCombinacoes++;
-                // Also try strip with rotated pieces (swap w/h)
-                if (pecasRestantes.some(p => p.allowRotate)) {
-                    const rotated = pecasRestantes.map(p => p.allowRotate
-                        ? { ...p, w: p.h, h: p.w }
-                        : p);
-                    const stripBins2 = runStripPacking(rotated, binW, binH, kerf);
-                    const sc2 = scoreResult(stripBins2);
-                    if (sc2.score < bestBinScore.score) {
-                        bestBinScore = sc2; bestBins = stripBins2;
-                        bestStrategyName = 'strip_packing_rotated'; bestBinType = 'strip';
-                    }
-                    totalCombinacoes++;
-                }
-            }
-
-            // ═══ FASE 3: Ruin & Recreate (meta-heurística LAHC) ═══
-            const rrIter = Math.max(maxIter, 500); // Mínimo 500 iterações R&R
-            if (pecasRestantes.length > 3 && rrIter > 0) {
-                // Run R&R with all bin types too
-                for (const bt of binTypesToTry) {
-                    const rrResult = ruinAndRecreate(pecasRestantes, binW, binH, spacing, bt, kerf, rrIter, splitDir);
-                    if (rrResult && rrResult.score.score < bestBinScore.score) {
-                        bestBinScore = rrResult.score;
-                        bestBins = rrResult.bins;
-                        bestStrategyName = `ruin_recreate+LAHC+${bt}`;
-                        bestBinType = bt;
-                    }
-                    totalCombinacoes += rrIter;
-                }
-            }
-
-            // ═══ FASE 3.5: BRKGA — Genetic Algorithm com chaves aleatórias ═══
-            // Evolui populações de permutações + rotações para encontrar layout ótimo
-            if (pecasRestantes.length > 3 && bestBinScore.bins > minTeoricoChapas) {
-                const brkgaGen = Math.min(100, Math.max(40, pecasRestantes.length * 3));
-                const brkgaResult = runBRKGA(pecasRestantes, binW, binH, spacing, binType, kerf, brkgaGen, splitDir);
-                if (brkgaResult && brkgaResult.score.score < bestBinScore.score) {
-                    bestBinScore = brkgaResult.score;
-                    bestBins = brkgaResult.bins;
-                    bestStrategyName = `BRKGA_${brkgaGen}gen`;
-                    bestBinType = binType;
-                }
-                totalCombinacoes += brkgaGen * 40; // POP_SIZE * generations
-            }
-
-            // ═══ FASE 4: Consolidation — re-run nesting with compact strategies ═══
-            if (bestBins && bestBins.length > 1) {
-                // Collect all placed pieces and try compact-focused sort strategies
-                const compactPieces = [];
-                for (const bin of bestBins) {
-                    for (const r of bin.usedRects) {
-                        if (!r.pieceRef) continue;
-                        compactPieces.push({
-                            ref: r.pieceRef,
-                            w: r.realW || r.w,
-                            h: r.realH || r.h,
-                            allowRotate: r.allowRotate || false,
-                            area: (r.realW || r.w) * (r.realH || r.h),
-                            perim: 2 * ((r.realW || r.w) + (r.realH || r.h)),
-                            maxSide: Math.max(r.realW || r.w, r.realH || r.h),
-                            diff: Math.abs((r.realW || r.w) - (r.realH || r.h)),
-                        });
-                    }
-                }
-                // Extra compact strategies focused on tight packing
-                const compactSorts = [
-                    { name: 'compact_h_desc', fn: (a, b) => b.h - a.h || b.w - a.w },
-                    { name: 'compact_w_desc', fn: (a, b) => b.w - a.w || b.h - a.h },
-                    { name: 'compact_sqratio', fn: (a, b) => {
-                        const ra = Math.min(a.w, a.h) / Math.max(a.w, a.h);
-                        const rb = Math.min(b.w, b.h) / Math.max(b.w, b.h);
-                        return rb - ra; // most square first
-                    }},
-                ];
-                for (const cs of compactSorts) {
-                    const sorted = [...compactPieces].sort(cs.fn);
-                    for (const h of ['BSSF', 'BAF']) {
-                        for (const bt of binTypesToTry) {
-                            const newBins = runNestingPass(sorted, binW, binH, spacing, h, bt, kerf, splitDir);
-                            const sc = scoreResult(newBins);
-                            if (sc.score < bestBinScore.score) {
-                                bestBins = newBins; bestBinScore = sc; bestBinType = bt;
-                                bestStrategyName = `${cs.name}+${h}+${bt}+consolidated`;
-                            }
-                            totalCombinacoes++;
-                        }
-                    }
-                }
-            }
-
-            // ═══ FASE 5: Gap filling (SAFE — rebuild approach) ═══
-            // Agressivamente tenta reduzir número de chapas
-            if (bestBins && bestBins.length > 1) {
-                // Sempre tentar reduzir, não só quando última chapa < 60%
-                const allPieces = [];
-                for (const bin of bestBins) {
-                    for (const r of bin.usedRects) {
-                        if (!r.pieceRef) continue;
-                        allPieces.push({
-                            ref: r.pieceRef, w: r.realW || r.w, h: r.realH || r.h,
-                            allowRotate: r.allowRotate || false,
-                            area: (r.realW || r.w) * (r.realH || r.h),
-                            perim: 2 * ((r.realW || r.w) + (r.realH || r.h)),
-                            maxSide: Math.max(r.realW || r.w, r.realH || r.h),
-                            diff: Math.abs((r.realW || r.w) - (r.realH || r.h)),
-                        });
-                    }
-                }
-                const targetBins = bestBins.length - 1;
-                // Só faz sentido tentar se a área teórica cabe em menos chapas
-                if (targetBins >= minTeoricoChapas) {
-                    const gapSorts = [
-                        (a, b) => b.area - a.area,
-                        (a, b) => b.maxSide - a.maxSide,
-                        (a, b) => b.h - a.h || b.w - a.w,
-                        (a, b) => b.w - a.w || b.h - a.h,
-                        (a, b) => b.perim - a.perim,
-                        (a, b) => b.diff - a.diff,
-                    ];
-                    for (const sortFn of gapSorts) {
-                        for (const h of heuristics) {
-                            for (const bt of binTypesToTry) {
-                                const sorted = [...allPieces].sort(sortFn);
-                                const testBins = runNestingPass(sorted, binW, binH, spacing, h, bt, kerf, splitDir);
-                                if (testBins.length <= targetBins && verifyNoOverlaps(testBins)) {
-                                    const sc = scoreResult(testBins);
-                                    if (sc.score < bestBinScore.score) {
-                                        bestBins = testBins;
-                                        bestBinScore = sc;
-                                        bestBinType = bt;
-                                        bestStrategyName += '+gap_repack';
-                                    }
-                                }
-                                totalCombinacoes++;
-                            }
-                        }
-                    }
-                    // Also try strip packing for gap filling
-                    const stripTest = runStripPacking(allPieces, binW, binH, kerf);
-                    if (stripTest.length <= targetBins && verifyNoOverlaps(stripTest)) {
-                        const sc = scoreResult(stripTest);
-                        if (sc.score < bestBinScore.score) {
-                            bestBins = stripTest; bestBinScore = sc;
-                            bestBinType = 'strip'; bestStrategyName += '+strip_repack';
-                        }
-                    }
-                    // Also try fill-first for gap filling (concentrated packing)
-                    for (const bt of binTypesToTry) {
-                        for (const h of heuristics) {
-                            const ffBins = runFillFirst([...allPieces].sort((a, b) => b.area - a.area), binW, binH, spacing, h, bt, kerf, splitDir);
-                            const ffSc = scoreResult(ffBins);
-                            if (ffSc.score < bestBinScore.score) {
-                                bestBins = ffBins; bestBinScore = ffSc;
-                                bestBinType = bt; bestStrategyName += `+fillFirst_gap_${bt}`;
-                            }
-                            totalCombinacoes++;
-                        }
-                    }
-                }
-            }
-
-            // ═══ SAFETY: Verify no overlaps & repair if needed ═══
-            if (!verifyNoOverlaps(bestBins)) {
-                console.warn(`  [OVERLAP DETECTED] Repairing overlaps in ${groupKey}...`);
-                bestBins = repairOverlaps(bestBins, binW, binH, spacing, bestBinType, kerf, splitDir);
-                bestBinScore = scoreResult(bestBins);
-                if (!verifyNoOverlaps(bestBins)) {
-                    console.error(`  [OVERLAP STILL EXISTS] after repair in ${groupKey} — rebuilding from scratch`);
-                    // Last resort: rebuild ALL pieces from scratch with simple greedy
-                    const allPieces = [];
-                    for (const bin of bestBins) {
-                        for (const r of bin.usedRects) {
-                            if (r.pieceRef) allPieces.push({
-                                ref: r.pieceRef, w: r.realW || r.w, h: r.realH || r.h,
-                                allowRotate: r.allowRotate || false,
-                                area: (r.realW || r.w) * (r.realH || r.h),
-                                perim: 2 * ((r.realW || r.w) + (r.realH || r.h)),
-                                maxSide: Math.max(r.realW || r.w, r.realH || r.h),
-                                diff: Math.abs((r.realW || r.w) - (r.realH || r.h)),
-                            });
-                        }
-                    }
-                    allPieces.sort((a, b) => b.area - a.area);
-                    bestBins = runNestingPass(allPieces, binW, binH, spacing, 'BSSF', 'guillotine', kerf, splitDir);
-                    bestBinScore = scoreResult(bestBins);
-                    bestBinType = 'guillotine';
-                    bestStrategyName = 'fallback_guillotine';
-                }
-            }
-
-            // ═══ COMPACTAÇÃO FINAL ═══
-            // Garantir que peças estão o mais compactadas possível (visualmente)
-            for (const bin of bestBins) {
-                compactBin(bin, binW, binH, kerf);
-            }
-
-            const maxTeoricoAprov = totalPieceArea / (bestBins.length * sheetArea) * 100;
-            console.log(`  [Nesting] ${groupKey}: ${pecasRestantes.length} peças → ${bestBins.length} chapa(s), ${bestBinScore.avgOccupancy.toFixed(1)}% (${bestStrategyName}, bestBinType=${bestBinType}, kerf=${kerf}mm, splitDir=${splitDir}, mín.teórico=${minTeoricoChapas} chapas, máx.teórico=${maxTeoricoAprov.toFixed(1)}%)`);
-
-            // Record results
-            const updatePeca = db.prepare('UPDATE cnc_pecas SET chapa_idx = ?, pos_x = ?, pos_y = ?, rotacionada = ? WHERE id = ? AND lote_id = ?');
-
-            for (let bi = 0; bi < bestBins.length; bi++) {
-                const bin = bestBins[bi];
-                const chapaIdx = globalChapaIdx++;
-                const chapaInfo = {
-                    idx: chapaIdx,
-                    material: chapa.nome,
-                    material_code: chapa.material_code || group.material_code,
-                    comprimento: chapa.comprimento, largura: chapa.largura,
-                    refilo, kerf,
-                    preco: chapa.preco || 0,
-                    veio: chapaVeio,
-                    aproveitamento: Math.round(bin.occupancy() * 100) / 100,
-                    pecas: [], retalhos: [],
-                    cortes: bestBinType !== 'maxrects' ? gerarSequenciaCortes(bin) : [],
-                };
-
-                for (const rect of bin.usedRects) {
-                    if (!rect.pieceRef) continue;
-                    const { pecaId, instancia } = rect.pieceRef;
-                    if (instancia === 0) updatePeca.run(chapaIdx, rect.x + refilo, rect.y + refilo, rect.rotated ? 1 : 0, pecaId, lote.id);
-                    const cls = classifyPiece(rect.realW, rect.realH);
-                    const pecaInfo = { pecaId, instancia, x: rect.x, y: rect.y, w: rect.realW, h: rect.realH, rotated: rect.rotated };
-                    if (cls !== 'normal') pecaInfo.classificacao = cls;
-                    // Regras especiais de corte por classificação
-                    if (cls === 'super_pequena') {
-                        pecaInfo.corte = { passes: 2, velocidade: 'lenta', tabs: true, tabSize: 3, tabCount: 2 };
-                    } else if (cls === 'pequena') {
-                        pecaInfo.corte = { passes: 1, velocidade: 'media', tabs: binType === 'maxrects', tabSize: 2, tabCount: 1 };
-                    }
-                    chapaInfo.pecas.push(pecaInfo);
-                }
-
-                // Generate scraps (Clip & Keep — sem sobreposição)
-                if (considerarSobra) {
-                    const sobras = clipAndKeep(bin.freeRects, sobraMinW, sobraMinH);
-                    for (const s of sobras) {
-                        const w = Math.round(s.w), h = Math.round(s.h);
-                        chapaInfo.retalhos.push({ x: s.x, y: s.y, w: s.w, h: s.h });
-                        db.prepare(`INSERT INTO cnc_retalhos (user_id, chapa_ref_id, nome, material_code, espessura_real, comprimento, largura, origem_lote)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
-                            req.user.id, chapa.id || null,
-                            `Retalho ${Math.max(w, h)}x${Math.min(w, h)}`,
-                            group.material_code, group.espessura,
-                            Math.max(w, h), Math.min(w, h), String(lote.id)
-                        );
-                    }
-                }
-
-                plano.chapas.push(chapaInfo);
-            }
-
-            plano.materiais[groupKey] = {
-                material_code: group.material_code, espessura: group.espessura,
-                total_pecas: expanded.length, total_chapas: bestBins.length,
-                chapa_usada: chapa.nome, estrategia: bestStrategyName,
-                ocupacao_media: Math.round(bestBinScore.avgOccupancy * 100) / 100,
-                kerf, veio: chapaVeio,
-                retalhos_usados: retalhosUsados.length,
-                min_teorico_chapas: minTeoricoChapas,
-                max_teorico_aproveitamento: Math.round(totalPieceArea / (bestBins.length * sheetArea) * 10000) / 100,
-            };
+            // Python nao produziu resultado
+            return res.status(500).json({ error: 'Motor Python não produziu resultado. Verifique os dados do lote.' });
         }
 
-        // Classification stats
-        const clsStats = { normal: 0, pequena: 0, super_pequena: 0 };
-        for (const ch of plano.chapas) {
-            for (const p of ch.pecas) {
-                const cls = p.classificacao || 'normal';
-                clsStats[cls] = (clsStats[cls] || 0) + 1;
-            }
-        }
-        plano.classificacao.stats = clsStats;
-
-        // Calculate totals
-        const totalChapas = plano.chapas.length;
-        const aprovMedio = totalChapas > 0
-            ? Math.round(plano.chapas.reduce((s, c) => s + c.aproveitamento, 0) / totalChapas * 100) / 100
-            : 0;
-
-        // Update lot
-        db.prepare(`UPDATE cnc_lotes SET status = 'otimizado', total_chapas = ?, aproveitamento = ?, plano_json = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?`)
-            .run(totalChapas, aprovMedio, JSON.stringify(plano), lote.id);
-
-        res.json({
-            ok: true,
-            total_chapas: totalChapas,
-            aproveitamento: aprovMedio,
-            total_combinacoes_testadas: totalCombinacoes,
-            modo: binType,
-            config_usada: { spacing, kerf: kerfPadrao, binType, useRetalhos, maxIter, considerarSobra, sobraMinW, sobraMinH, permitirRotacao, refiloOverride, direcaoCorte: direcaoCorteRaw, splitDir, limiarPequena, limiarSuperPequena, classificarPecas },
-            plano,
-        });
     } catch (err) {
         console.error('Erro no otimizador CNC:', err);
         res.status(500).json({ error: 'Erro ao otimizar corte' });
@@ -2121,6 +485,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
 
         const spacing = bodyConfig.espaco_pecas != null ? Number(bodyConfig.espaco_pecas) : (config.espaco_pecas || 7);
         const kerfPadrao = bodyConfig.kerf != null ? Number(bodyConfig.kerf) : (config.kerf_padrao || 4);
+        const kerfOverride = bodyConfig.kerf != null ? Number(bodyConfig.kerf) : null;
         const modoRaw = bodyConfig.modo != null ? bodyConfig.modo : (config.usar_guilhotina !== 0 ? 'guilhotina' : 'maxrects');
         const binType = modoRaw === 'maxrects' ? 'maxrects' : modoRaw === 'shelf' ? 'shelf' : 'guillotine';
         const useRetalhos = bodyConfig.usar_retalhos != null ? !!bodyConfig.usar_retalhos : (config.usar_retalhos !== 0);
@@ -2165,16 +530,25 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
 
         // Set vacuum-aware module state
         const vacuumAwareMulti = bodyConfig.vacuum_aware !== false;
-        _vacuumAware = vacuumAwareMulti;
+        setVacuumAware(vacuumAwareMulti);
 
-        // Agrupar por material_code + espessura (normalize espessura=0 from material_code)
+        // Agrupar pela CHAPA RESOLVIDA (não pelo material_code da peça)
+        // Garante que peças de materiais diferentes que usam a mesma chapa física
+        // (ex: mdf15 + mdp15 → MDF_15.5_BRANCO_TX) sejam otimizadas juntas
         const groups = {};
         for (const p of allPecas) {
             let esp = p.espessura || 0;
             if (!esp && p.material_code) { const m = p.material_code.match(/_(\d+(?:\.\d+)?)_/); if (m) esp = parseFloat(m[1]); }
-            const key = `${p.material_code}__${esp}`;
-            if (!groups[key]) groups[key] = { material_code: p.material_code, espessura: esp || p.espessura, pieces: [] };
-            groups[key].pieces.push(p);
+
+            // Resolver qual chapa essa peça vai usar
+            let chapa = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(p.material_code);
+            if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE ABS(espessura_real - ?) <= 1.0 AND ativo = 1 ORDER BY ABS(espessura_real - ?) ASC LIMIT 1').get(esp, esp);
+            if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE espessura_nominal = ? AND ativo = 1').get(esp);
+            if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE ativo = 1 ORDER BY comprimento DESC LIMIT 1').get();
+
+            const chapaKey = chapa ? `${chapa.material_code}__${chapa.espessura_real}` : `fallback__${esp}`;
+            if (!groups[chapaKey]) groups[chapaKey] = { material_code: chapa?.material_code || p.material_code, espessura: chapa?.espessura_real || esp, chapa_resolvida: chapa, pieces: [] };
+            groups[chapaKey].pieces.push(p);
         }
 
         const plano = {
@@ -2205,13 +579,13 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
         }));
 
         for (const [groupKey, group] of Object.entries(groups)) {
-            let chapa = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(group.material_code);
-            if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE espessura_real = ? AND ativo = 1').get(group.espessura);
-            if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE ativo = 1 ORDER BY comprimento DESC LIMIT 1').get();
+            // Chapa já foi resolvida no agrupamento acima
+            let chapa = group.chapa_resolvida;
             if (!chapa) chapa = { comprimento: 2750, largura: 1850, refilo: 10, kerf: kerfPadrao, nome: 'Padrão 2750x1850', material_code: group.material_code, preco: 0, veio: 'sem_veio' };
+            console.log(`  [CNC Multi] Grupo ${groupKey}: ${group.pieces.length} peças → chapa ${chapa.material_code || chapa.nome}`);
 
             const refilo = refiloOverride != null ? refiloOverride : (chapa.refilo || 10);
-            const kerf = chapa.kerf || kerfPadrao;
+            const kerf = kerfOverride != null ? kerfOverride : (chapa.kerf || kerfPadrao);
             const binW = chapa.comprimento - 2 * refilo;
             const binH = chapa.largura - 2 * refilo;
             const chapaVeio = chapa.veio || 'sem_veio';
@@ -2603,7 +977,27 @@ function recalcOccupancy(plano) {
         : 0;
 }
 
-router.put('/plano/:loteId/ajustar', requireAuth, (req, res) => {
+// ─── Helpers: trava por chapa, compatibilidade, overlap ──────────────
+function assertSheetUnlocked(plano, chapaIdx, action) {
+    const chapa = plano.chapas?.[chapaIdx];
+    if (chapa?.locked) {
+        return { error: `Chapa ${chapaIdx + 1} travada — destrave para ${action}`, locked: true };
+    }
+    return null;
+}
+
+function isPieceSheetCompatible(pieceMeta, targetSheetMeta) {
+    if (pieceMeta.material_code !== targetSheetMeta.material_code) return false;
+    if (Math.abs((pieceMeta.espessura || 0) - (targetSheetMeta.espessura || 0)) > 0.1) return false;
+    if (pieceMeta.veio && pieceMeta.veio !== 'sem_veio' && targetSheetMeta.veio !== pieceMeta.veio) return false;
+    return true;
+}
+
+function rectsOverlap(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
     try {
         const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
         if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
@@ -2613,6 +1007,34 @@ router.put('/plano/:loteId/ajustar', requireAuth, (req, res) => {
         if (!plano.transferencia) plano.transferencia = []; // Área de transferência
         const { chapaIdx, pecaIdx, action, x, y, targetChapaIdx, force } = req.body;
         const kerf = plano.config?.kerf || 4;
+
+        // ── Snapshot transacional antes de ações críticas ──
+        const SNAPSHOT_ACTIONS = ['move_to_sheet', 'from_transfer', 'reoptimize_unlocked',
+            'lock_sheet', 'unlock_sheet', 'compact', 're_optimize', 'ajustar_sobra',
+            'marcar_refugo', 'merge_sobras'];
+        if (SNAPSHOT_ACTIONS.includes(action)) {
+            db.prepare('INSERT INTO cnc_plano_versions (lote_id, user_id, plano_json, acao_origem) VALUES (?, ?, ?, ?)')
+                .run(lote.id, req.user.id, lote.plano_json, action);
+            db.prepare(`DELETE FROM cnc_plano_versions WHERE lote_id = ? AND id NOT IN
+                (SELECT id FROM cnc_plano_versions WHERE lote_id = ? ORDER BY id DESC LIMIT 50)`)
+                .run(lote.id, lote.id);
+        }
+
+        // ── Gate de trava por chapa ──
+        const SHEET_GATED_ACTIONS = ['move', 'rotate', 'to_transfer', 'compact', 're_optimize', 'ajustar_sobra', 'marcar_refugo', 'merge_sobras'];
+        if (SHEET_GATED_ACTIONS.includes(action) && chapaIdx != null) {
+            const lockErr = assertSheetUnlocked(plano, chapaIdx, action);
+            if (lockErr) return res.status(423).json(lockErr);
+        }
+        // Gate para ações com destino
+        if (['move_to_sheet', 'from_transfer'].includes(action) && targetChapaIdx != null) {
+            const lockErrDest = assertSheetUnlocked(plano, targetChapaIdx, 'receber peça');
+            if (lockErrDest) return res.status(423).json(lockErrDest);
+        }
+        if (action === 'move_to_sheet' && chapaIdx != null) {
+            const lockErrSrc = assertSheetUnlocked(plano, chapaIdx, 'mover peça');
+            if (lockErrSrc) return res.status(423).json(lockErrSrc);
+        }
 
         // ═══ ACTION: move ═══════════════════════════════════════════════
         if (action === 'move') {
@@ -2692,9 +1114,14 @@ router.put('/plano/:loteId/ajustar', requireAuth, (req, res) => {
             const targetChapa = plano.chapas[targetChapaIdx];
             if (!targetChapa) return res.status(400).json({ error: 'Chapa destino inválida' });
 
-            // Verificar material compatível
-            if (chapa.material !== targetChapa.material) {
-                return res.status(400).json({ error: 'Material incompatível entre chapas' });
+            // Verificar compatibilidade de material (material_code + espessura + veio)
+            const srcMeta = { material_code: chapa.material_code || chapa.material, espessura: chapa.espessura, veio: chapa.veio };
+            const tgtMeta = { material_code: targetChapa.material_code || targetChapa.material, espessura: targetChapa.espessura, veio: targetChapa.veio };
+            if (!isPieceSheetCompatible(srcMeta, tgtMeta)) {
+                return res.status(400).json({
+                    error: `Material incompatível: peça de ${chapa.material || 'origem'} não pode ir para ${targetChapa.material || 'destino'}`,
+                    materialMismatch: true,
+                });
             }
 
             const ref = targetChapa.refilo || 0;
@@ -2730,7 +1157,9 @@ router.put('/plano/:loteId/ajustar', requireAuth, (req, res) => {
             if (!peca) return res.status(400).json({ error: 'Peça inválida' });
             chapa.pecas.splice(pecaIdx, 1);
             peca.fromChapaIdx = chapaIdx;
-            peca.fromMaterial = chapa.material;
+            peca.fromMaterial = chapa.material_code || chapa.material;
+            peca.espessura = chapa.espessura;
+            peca.veio = chapa.veio;
             plano.transferencia.push(peca);
 
         // ═══ ACTION: from_transfer ════════════════════════════════════
@@ -2743,10 +1172,12 @@ router.put('/plano/:loteId/ajustar', requireAuth, (req, res) => {
             if (!targetChapa) return res.status(400).json({ error: 'Chapa destino inválida' });
             const peca = plano.transferencia[transferIdx];
 
-            // ══ Material validation — block cross-material transfers ══
-            if (peca.fromMaterial && targetChapa.material && peca.fromMaterial !== targetChapa.material) {
+            // ══ Compatibilidade de material (material_code + espessura + veio) ══
+            const pieceMeta = { material_code: peca.fromMaterial, espessura: peca.espessura, veio: peca.veio || 'sem_veio' };
+            const targetMeta = { material_code: targetChapa.material_code || targetChapa.material, espessura: targetChapa.espessura, veio: targetChapa.veio };
+            if (!isPieceSheetCompatible(pieceMeta, targetMeta)) {
                 return res.status(400).json({
-                    error: `Material incompatível! Peça é ${peca.fromMaterial}, chapa é ${targetChapa.material}`,
+                    error: `Material incompatível: peça de ${peca.fromMaterial} não pode ir para ${targetChapa.material || targetChapa.material_code}`,
                     materialMismatch: true
                 });
             }
@@ -2776,13 +1207,22 @@ router.put('/plano/:loteId/ajustar', requireAuth, (req, res) => {
             peca.y = testPeca.y;
             targetChapa.pecas.push(peca);
 
-        // ═══ ACTION: lock / unlock ════════════════════════════════════
+        // ═══ ACTION: lock / unlock (peça individual) ═══════════════════
         } else if (action === 'lock' || action === 'unlock') {
             const chapa = plano.chapas[chapaIdx];
             if (!chapa) return res.status(400).json({ error: 'Chapa inválida' });
             const peca = chapa.pecas[pecaIdx];
             if (!peca) return res.status(400).json({ error: 'Peça inválida' });
             peca.locked = action === 'lock';
+
+        // ═══ ACTION: lock_sheet / unlock_sheet (chapa inteira) ══════
+        } else if (action === 'lock_sheet' || action === 'unlock_sheet') {
+            const chapa = plano.chapas[chapaIdx];
+            if (!chapa) return res.status(400).json({ error: 'Chapa inválida' });
+            chapa.locked = action === 'lock_sheet';
+            for (const p of chapa.pecas) {
+                p.locked = chapa.locked;
+            }
 
         // ═══ ACTION: add_sheet ════════════════════════════════════════
         } else if (action === 'add_sheet') {
@@ -2896,6 +1336,142 @@ router.put('/plano/:loteId/ajustar', requireAuth, (req, res) => {
                 chapa.pecas = reOptimized;
             }
 
+        // ═══ ACTION: reoptimize_unlocked ═════════════════════════════
+        } else if (action === 'reoptimize_unlocked') {
+            const unlockedSheets = plano.chapas.filter(c => !c.locked);
+            if (unlockedSheets.length === 0) {
+                return res.status(400).json({ error: 'Todas as chapas estão travadas. Destrave ao menos uma para reotimizar.' });
+            }
+
+            // Coletar peças das chapas destravadas + transferência
+            const piecesByMaterial = {};
+            for (const c of plano.chapas) {
+                if (c.locked) continue;
+                const matKey = c.material_code || c.material;
+                if (!piecesByMaterial[matKey]) piecesByMaterial[matKey] = { pieces: [], chapa: c };
+                for (const p of c.pecas) piecesByMaterial[matKey].pieces.push(p);
+            }
+            for (const t of (plano.transferencia || [])) {
+                const matKey = t.fromMaterial;
+                if (matKey && piecesByMaterial[matKey]) piecesByMaterial[matKey].pieces.push(t);
+            }
+
+            // Chamar Python para cada grupo de material
+            const { isPythonAvailable, callPythonOptimizer } = require('../lib/python-bridge');
+            const pyAvail = await isPythonAvailable();
+            if (!pyAvail) {
+                return res.status(503).json({ error: 'Servidor de otimização indisponível. Verifique se o serviço Python está rodando.' });
+            }
+
+            const cfgRow = db.prepare('SELECT * FROM cnc_config WHERE user_id = ?').get(req.user.id) || {};
+            const newSheets = [];
+            for (const [matKey, group] of Object.entries(piecesByMaterial)) {
+                if (group.pieces.length === 0) continue;
+                const templateChapa = group.chapa;
+                const chapaDB = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(matKey)
+                    || db.prepare('SELECT * FROM cnc_chapas WHERE ativo = 1 ORDER BY comprimento DESC LIMIT 1').get();
+
+                const payload = {
+                    pieces: group.pieces.map((p, i) => ({
+                        id: p.pecaId || i + 1,
+                        comprimento: p.w,
+                        largura: p.h,
+                        quantidade: 1,
+                        material_code: matKey,
+                        descricao: p.descricao || p.label || '',
+                        rotacionada: p.rotated || false,
+                    })),
+                    sheets: [{
+                        id: chapaDB?.id || 1,
+                        nome: templateChapa.material || matKey,
+                        material_code: matKey,
+                        comprimento: templateChapa.comprimento,
+                        largura: templateChapa.largura,
+                        espessura_real: templateChapa.espessura || chapaDB?.espessura_real || 18.5,
+                        espessura_nominal: chapaDB?.espessura_nominal || 18,
+                        refilo: templateChapa.refilo || 10,
+                        kerf: templateChapa.kerf || cfgRow.kerf_padrao || 4,
+                        veio: templateChapa.veio || 'sem_veio',
+                        preco: templateChapa.preco || chapaDB?.preco || 0,
+                    }],
+                    scraps: [],
+                    config: {
+                        spacing: cfgRow.espaco_pecas || 7,
+                        kerf: templateChapa.kerf || cfgRow.kerf_padrao || 4,
+                        modo: plano.modo || 'maxrects',
+                        permitir_rotacao: cfgRow.permitir_rotacao !== 0,
+                        usar_retalhos: false,
+                        iteracoes: cfgRow.iteracoes_otimizador || 300,
+                        considerar_sobra: cfgRow.considerar_sobra !== 0,
+                        sobra_min_largura: cfgRow.sobra_min_largura || 300,
+                        sobra_min_comprimento: cfgRow.sobra_min_comprimento || 600,
+                        direcao_corte: plano.direcao_corte || 'misto',
+                    },
+                };
+
+                try {
+                    const pyResult = await callPythonOptimizer('optimize', payload);
+                    if (pyResult.chapas) {
+                        for (const ch of pyResult.chapas) {
+                            ch.material_code = matKey;
+                            newSheets.push(ch);
+                        }
+                    }
+                } catch (pyErr) {
+                    console.error(`[CNC] reoptimize_unlocked falhou para ${matKey}:`, pyErr.message);
+                    return res.status(500).json({ error: `Erro ao reotimizar material ${matKey}: ${pyErr.message}` });
+                }
+            }
+
+            // Recompor plano: chapas travadas intactas + resultado novo
+            const lockedSheets = plano.chapas.filter(c => c.locked);
+            plano.chapas = [...lockedSheets, ...newSheets];
+            plano.transferencia = []; // Peças realocadas
+
+        // ═══ ACTION: merge_sobras ═══════════════════════════════════
+        } else if (action === 'merge_sobras') {
+            const { retalhoIdx, retalho2Idx } = req.body;
+            const chapa = plano.chapas[chapaIdx];
+            if (!chapa) return res.status(400).json({ error: 'Chapa inválida' });
+            const r1 = chapa.retalhos?.[retalhoIdx];
+            const r2 = chapa.retalhos?.[retalho2Idx];
+            if (!r1 || !r2) return res.status(400).json({ error: 'Retalho(s) não encontrado(s)' });
+
+            const TOL = 2;
+            let merged = null;
+
+            // Adjacência horizontal (lado a lado, mesma altura ±TOL)
+            if (Math.abs(r1.y - r2.y) <= TOL && Math.abs(r1.h - r2.h) <= TOL) {
+                if (Math.abs((r1.x + r1.w) - r2.x) <= TOL || Math.abs((r2.x + r2.w) - r1.x) <= TOL) {
+                    merged = { x: Math.min(r1.x, r2.x), y: Math.min(r1.y, r2.y), w: r1.w + r2.w, h: Math.max(r1.h, r2.h) };
+                }
+            }
+            // Adjacência vertical (empilhadas, mesma largura ±TOL)
+            if (!merged && Math.abs(r1.x - r2.x) <= TOL && Math.abs(r1.w - r2.w) <= TOL) {
+                if (Math.abs((r1.y + r1.h) - r2.y) <= TOL || Math.abs((r2.y + r2.h) - r1.y) <= TOL) {
+                    merged = { x: Math.min(r1.x, r2.x), y: Math.min(r1.y, r2.y), w: Math.max(r1.w, r2.w), h: r1.h + r2.h };
+                }
+            }
+
+            if (!merged) return res.status(400).json({ error: 'Sobras não são adjacentes ou dimensões incompatíveis' });
+
+            // Verificar se merged não invade peças
+            for (const p of chapa.pecas) {
+                if (rectsOverlap(merged, p)) return res.status(409).json({ error: 'Sobra unida invadiria peça' });
+            }
+
+            // Verificar limites da chapa
+            const ref = chapa.refilo || 0;
+            if (merged.x + merged.w > chapa.comprimento - 2 * ref || merged.y + merged.h > chapa.largura - 2 * ref) {
+                return res.status(400).json({ error: 'Sobra unida ultrapassa área útil' });
+            }
+
+            // Aplicar merge — remover a de maior índice primeiro
+            const idxMax = Math.max(retalhoIdx, retalho2Idx);
+            const idxMin = Math.min(retalhoIdx, retalho2Idx);
+            chapa.retalhos.splice(idxMax, 1);
+            chapa.retalhos[idxMin] = merged;
+
         // ═══ ACTION: marcar_refugo ═══════════════════════════════════
         } else if (action === 'marcar_refugo') {
             const { retalhoIdx } = req.body;
@@ -2951,6 +1527,29 @@ router.put('/plano/:loteId/ajustar', requireAuth, (req, res) => {
     } catch (err) {
         console.error('Erro ao ajustar plano:', err);
         res.status(500).json({ error: 'Erro ao ajustar plano' });
+    }
+});
+
+// ─── Versionamento de planos ─────────────────────────────────────────
+router.get('/plano/:loteId/versions', requireAuth, (req, res) => {
+    try {
+        const versions = db.prepare(
+            'SELECT id, acao_origem, criado_em FROM cnc_plano_versions WHERE lote_id = ? AND user_id = ? ORDER BY id DESC LIMIT 50'
+        ).all(req.params.loteId, req.user.id);
+        res.json({ ok: true, versions });
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao listar versões' });
+    }
+});
+
+router.get('/plano/:loteId/versions/:versionId', requireAuth, (req, res) => {
+    try {
+        const v = db.prepare('SELECT * FROM cnc_plano_versions WHERE id = ? AND lote_id = ? AND user_id = ?')
+            .get(req.params.versionId, req.params.loteId, req.user.id);
+        if (!v) return res.status(404).json({ error: 'Versão não encontrada' });
+        res.json({ ok: true, plano_json: v.plano_json, acao_origem: v.acao_origem, criado_em: v.criado_em });
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao buscar versão' });
     }
 });
 
@@ -4258,7 +2857,7 @@ function loadGcodeContext(req, loteId) {
 }
 
 // POST /gcode/:loteId/chapa/:chapaIdx — G-code de UMA chapa
-router.post('/gcode/:loteId/chapa/:chapaIdx', requireAuth, (req, res) => {
+router.post('/gcode/:loteId/chapa/:chapaIdx', requireAuth, async (req, res) => {
     try {
         const ctx = loadGcodeContext(req, req.params.loteId);
         if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
@@ -4289,71 +2888,77 @@ router.post('/gcode/:loteId/chapa/:chapaIdx', requireAuth, (req, res) => {
 });
 
 // POST /gcode/:loteId — G-code (todas as chapas OU lote completo)
-router.post('/gcode/:loteId', requireAuth, (req, res) => {
+router.post('/gcode/:loteId', requireAuth, async (req, res) => {
     try {
         const ctx = loadGcodeContext(req, req.params.loteId);
         if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
 
-        const porChapa = req.body.por_chapa !== false; // default: true (gerar por chapa)
-
-        if (porChapa) {
-            // Gerar um G-code separado por chapa
-            const chapas = [];
-            let allMissing = new Set();
-            let allAlertas = [];
-
-            for (let i = 0; i < ctx.plano.chapas.length; i++) {
-                const chapa = ctx.plano.chapas[i];
-                const result = generateGcodeForChapa(chapa, i, ctx.pecasDb, ctx.maquina, ctx.toolMap, ctx.usinagemTipos, ctx.cfg);
-                result.ferramentas_faltando.forEach(f => allMissing.add(f));
-                allAlertas.push(...result.alertas);
-
-                const nomeBase = `${ctx.lote.nome || 'Lote'}_${ctx.lote.cliente || ''}_Chapa${String(i + 1).padStart(2, '0')}`;
-                const filename = nomeBase.replace(/[^a-zA-Z0-9_-]/g, '_') + ctx.extensao;
-
-                chapas.push({
-                    idx: i, gcode: result.gcode, filename, stats: result.stats,
-                    alertas: result.alertas, contorno_tool: result.contorno_tool,
-                    material: chapa.material || '', pecas_count: chapa.pecas.length,
-                });
-            }
-
-            if (allMissing.size > 0) {
-                return res.json({
-                    ok: false, chapas, extensao: ctx.extensao,
-                    ferramentas_faltando: [...allMissing],
-                    alertas: allAlertas,
-                    error: `Ferramentas faltando: ${[...allMissing].join(', ')}`,
-                });
-            }
-
-            const validacao = {
-                maquina: { id: ctx.maquina.id, nome: ctx.maquina.nome, fabricante: ctx.maquina.fabricante, modelo: ctx.maquina.modelo },
-                ferramentas_faltando: [],
-                anti_arrasto: {
-                    onion_skin: ctx.maquina.usar_onion_skin !== 0,
-                    tabs: false,
-                    lead_in: ctx.maquina.usar_lead_in !== 0,
-                    feed_reducao: `${ctx.maquina.feed_rate_pct_pequenas || 50}% para peças < ${ctx.maquina.feed_rate_area_max || 500}cm²`,
-                },
-            };
-
-            return res.json({ ok: true, chapas, extensao: ctx.extensao, validacao, alertas: allAlertas, total_chapas: chapas.length });
-        } else {
-            // Modo legado: gerar tudo num único G-code (concatenado)
-            const allGcode = [];
-            let allStats = { total_operacoes: 0, trocas_ferramenta: 0, contornos_peca: 0, contornos_sobra: 0, onion_skin_ops: 0 };
-            let allAlertas = [];
-
-            for (let i = 0; i < ctx.plano.chapas.length; i++) {
-                const result = generateGcodeForChapa(ctx.plano.chapas[i], i, ctx.pecasDb, ctx.maquina, ctx.toolMap, ctx.usinagemTipos, ctx.cfg);
-                allGcode.push(result.gcode);
-                for (const k in allStats) allStats[k] += (result.stats[k] || 0);
-                allAlertas.push(...result.alertas);
-            }
-
-            res.json({ ok: true, gcode: allGcode.join('\n\n'), extensao: ctx.extensao, stats: allStats, alertas: allAlertas });
+        // ═══ PYTHON G-CODE (único motor) ═══════════════════════════
+        if (!(await isPythonAvailable())) {
+            return res.status(503).json({ error: 'Motor Python (CNC Optimizer) indisponível. Verifique se o serviço está rodando na porta 8000.' });
         }
+        console.log(`  [CNC] Usando G-code Python para lote ${ctx.lote.id}`);
+        {
+
+            const ferramentas = Object.values(ctx.toolMap).map(f => ({
+                codigo: f.codigo || f.tool_code,
+                nome: f.nome || '',
+                tipo: f.tipo || 'contorno',
+                diametro: f.diametro || 6,
+                profundidade_corte: f.profundidade_corte || 6,
+                velocidade_rpm: f.velocidade_rpm || 18000,
+                tool_code: f.tool_code || f.codigo,
+            }));
+
+            const pyResult = await callPython('gcode', {
+                plano: ctx.plano,
+                maquina: {
+                    id: ctx.maquina.id, nome: ctx.maquina.nome,
+                    fabricante: ctx.maquina.fabricante || '', modelo: ctx.maquina.modelo || '',
+                    extensao_arquivo: ctx.extensao,
+                    gcode_header: ctx.maquina.gcode_header || '%\nG90 G54 G17',
+                    gcode_footer: ctx.maquina.gcode_footer || 'G0 Z200.000\nM5\nM30\n%',
+                    z_seguro: ctx.maquina.z_seguro || 30,
+                    vel_vazio: ctx.maquina.vel_vazio || 20000,
+                    vel_corte: ctx.maquina.vel_corte || 4000,
+                    vel_aproximacao: ctx.maquina.vel_aproximacao || 8000,
+                    rpm_padrao: ctx.maquina.rpm_padrao || 18000,
+                    profundidade_extra: ctx.maquina.profundidade_extra || 0.2,
+                    usar_onion_skin: !!ctx.maquina.usar_onion_skin,
+                    onion_skin_espessura: ctx.maquina.onion_skin_espessura || 0.5,
+                    usar_tabs: !!ctx.maquina.usar_tabs,
+                    usar_lead_in: ctx.maquina.usar_lead_in !== 0,
+                    feed_rate_pct_pequenas: ctx.maquina.feed_rate_pct_pequenas || 50,
+                    feed_rate_area_max: ctx.maquina.feed_rate_area_max || 500,
+                    troca_ferramenta_cmd: ctx.maquina.troca_ferramenta_cmd || 'M6',
+                    spindle_on_cmd: ctx.maquina.spindle_on_cmd || 'M3',
+                    spindle_off_cmd: ctx.maquina.spindle_off_cmd || 'M5',
+                    casas_decimais: ctx.maquina.casas_decimais || 3,
+                    comentario_prefixo: ctx.maquina.comentario_prefixo || ';',
+                },
+                ferramentas,
+                usinagem_tipos: ctx.usinagemTipos,
+                pecas_db: ctx.pecasDb.map(p => ({
+                    id: p.id, persistent_id: p.persistent_id || '',
+                    comprimento: p.comprimento, largura: p.largura,
+                    material_code: p.material_code || '',
+                    descricao: p.descricao || '',
+                })),
+            });
+
+            if (pyResult && pyResult.ok) {
+                // Adicionar filenames com nome do lote
+                for (const ch of pyResult.chapas) {
+                    const nomeBase = `${ctx.lote.nome || 'Lote'}_${ctx.lote.cliente || ''}_Chapa${String(ch.idx + 1).padStart(2, '0')}`;
+                    ch.filename = nomeBase.replace(/[^a-zA-Z0-9_-]/g, '_') + ctx.extensao;
+                }
+                pyResult.extensao = ctx.extensao;
+                pyResult.motor = 'python';
+                return res.json(pyResult);
+            }
+            return res.status(500).json({ error: 'Motor Python não gerou G-code. Verifique o plano.' });
+        }
+
     } catch (err) {
         console.error('Erro G-code:', err);
         res.status(500).json({ error: 'Erro ao gerar G-code' });
