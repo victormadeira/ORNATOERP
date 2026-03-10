@@ -35,6 +35,7 @@ const EMPTY_CAIXA = {
         { id: 'fn', nome: 'Fundo',         qtd: 1, calc: 'Li*Ai', mat: 'fundo', fita: []    },
     ],
     tamponamentos: [],
+    sub_itens: [],
 };
 
 const EMPTY_COMP = {
@@ -481,6 +482,10 @@ function CaixaEditor({ initial, onSave, onCancel }) {
     const updTamp = (idx, k, v) => setForm(p => { const n = [...p.tamponamentos]; n[idx] = { ...n[idx], [k]: v }; return { ...p, tamponamentos: n }; });
     const delTamp = (idx) => setForm(p => ({ ...p, tamponamentos: p.tamponamentos.filter((_, i) => i !== idx) }));
 
+    const addSubItem = () => setForm(p => ({ ...p, sub_itens: [...(p.sub_itens || []), { id: uid(), nome: 'Nova Ferragem', ferrId: DB_FERRAGENS[0]?.id || 'pux128', defaultOn: true, qtdFormula: '1' }] }));
+    const updSubItem = (i, k, v) => setForm(p => { const n = [...(p.sub_itens || [])]; n[i] = { ...n[i], [k]: v }; return { ...p, sub_itens: n }; });
+    const delSubItem = (i) => setForm(p => ({ ...p, sub_itens: (p.sub_itens || []).filter((_, x) => x !== i) }));
+
     return (
         <div className="flex flex-col gap-4">
             {/* Identidade */}
@@ -531,6 +536,34 @@ function CaixaEditor({ initial, onSave, onCancel }) {
                             <div><label className={Z.lbl}>Material</label><select value={t.mat} onChange={e => updTamp(i, 'mat', e.target.value)} className={`${Z.inp} text-xs`}>{MAT_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
                             <div><label className={Z.lbl}>Fita</label><FitaToggle value={t.fita} onChange={v => updTamp(i, 'fita', v)} /></div>
                             <div><label className={Z.lbl}>&nbsp;</label><button onClick={() => delTamp(i)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Excluir"><Trash2 size={14} /></button></div>
+                        </div>
+                    ))}
+            </div>
+
+            {/* Ferragens do Módulo */}
+            <div className={Z.card}>
+                <div className="flex items-center justify-between mb-3">
+                    <div>
+                        <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>Ferragens do Módulo</h3>
+                        <p className="text-[9px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Ferragens fixas que acompanham este módulo (ex: suporte de prateleira, mão francesa)</p>
+                    </div>
+                    <button onClick={addSubItem} className={`${Z.btn} text-xs py-1 px-2`}><Plus size={12} /> Ferragem</button>
+                </div>
+                {(form.sub_itens || []).length === 0
+                    ? <p className="text-xs text-center py-2" style={{ color: 'var(--text-muted)' }}>Nenhuma ferragem configurada</p>
+                    : (form.sub_itens || []).map((s, i) => (
+                        <div key={s.id} className="grid gap-2 items-start mb-2 p-2 rounded border" style={{ borderColor: 'var(--border)', gridTemplateColumns: '1fr 1fr 1fr auto auto' }}>
+                            <div><label className={Z.lbl}>Nome</label><input value={s.nome} onChange={e => updSubItem(i, 'nome', e.target.value)} className={`${Z.inp} text-xs`} /></div>
+                            <div><label className={Z.lbl}>Ferragem</label><select value={s.ferrId} onChange={e => updSubItem(i, 'ferrId', e.target.value)} className={`${Z.inp} text-xs`}>{DB_FERRAGENS.map(f => <option key={f.id} value={f.id}>{f.nome} ({R$(f.preco)})</option>)}</select></div>
+                            <div><label className={Z.lbl} title="Quantidade da ferragem. Pode ser número fixo ou fórmula com L, A, P">Qtd / Fórmula</label><FormulaInput value={s.qtdFormula || '1'} onChange={v => updSubItem(i, 'qtdFormula', v)} vars={caixaVars} testVars={caixaTestVars} placeholder="1" suggestions={FORMULAS_FERRAGEM} /></div>
+                            <div>
+                                <label className={Z.lbl}>&nbsp;</label>
+                                <label className="flex items-center gap-1 cursor-pointer text-xs" style={{ color: 'var(--text-muted)' }}>
+                                    <input type="checkbox" checked={s.defaultOn !== false} onChange={e => updSubItem(i, 'defaultOn', e.target.checked)} className="w-3 h-3" />
+                                    Ativo
+                                </label>
+                            </div>
+                            <div><label className={Z.lbl}>&nbsp;</label><button onClick={() => delSubItem(i)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Excluir"><Trash2 size={14} /></button></div>
                         </div>
                     ))}
             </div>
@@ -726,7 +759,7 @@ function ComponenteEditor({ initial, onSave, onCancel }) {
             <div className={Z.card}>
                 <div className="flex items-center justify-between mb-3">
                     <div>
-                        <h3 className="font-semibold text-sm" style={{ color: '#a855f7' }} title="Ferragens que podem ser ativadas/desativadas quando o componente é usado no orçamento">Ferragens Disponíveis (sub-itens)</h3>
+                        <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }} title="Ferragens que podem ser ativadas/desativadas quando o componente é usado no orçamento">Ferragens Disponíveis (sub-itens)</h3>
                         <p className="text-[9px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Ferragens que podem ser ativadas/desativadas no orçamento</p>
                     </div>
                     <button onClick={addSub} className={`${Z.btn} text-xs py-1 px-2`}><Plus size={12} /> Ferragem</button>

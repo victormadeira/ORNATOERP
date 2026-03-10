@@ -350,9 +350,9 @@ ${watermarkSrc ? `<div class="watermark"><img src="${watermarkSrc}" /></div>` : 
         `).join('')}
     </div>
 
-    <!-- BOM Ferragens -->
+    <!-- Lista de Ferragens -->
     <div class="section">
-        <div class="section-title">BOM — Ferragens</div>
+        <div class="section-title">Lista de Ferragens</div>
         ${Object.entries(ferrGroups).map(([name, items]) => renderFerrGroup(name, items)).join('')}
     </div>
 
@@ -499,11 +499,11 @@ export default function RelatorioMateriais({ empresa, orcamento, ambientes, tot,
                 ))}
             </div>
 
-            {/* BOM Ferragens */}
+            {/* Lista de Ferragens */}
             {Object.keys(tot.fa).length > 0 && (
                 <div className="mb-5">
                     <div className="text-xs font-bold mb-3 flex items-center gap-1.5" style={{ color: '#a855f7' }}>
-                        <Package size={13} /> BOM — FERRAGENS
+                        <Package size={13} /> LISTA DE FERRAGENS
                     </div>
                     <TabelaFerragens fa={tot.fa} />
                 </div>

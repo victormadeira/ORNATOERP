@@ -2455,10 +2455,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         })}
                     </div>
 
-                    {/* BOM Ferragens */}
+                    {/* Lista de Ferragens */}
                     {Object.keys(tot.fa).length > 0 && (
                         <div className={Z.card}>
-                            <h3 className="font-semibold text-sm mb-3" style={{ color: '#a855f7' }}>BOM — Ferragens do Orçamento</h3>
+                            <h3 className="font-semibold text-sm mb-3" style={{ color: '#a855f7' }}>Lista de Ferragens</h3>
                             <div style={{ overflowX: 'auto' }}>
                             <table className="w-full border-collapse text-left">
                                 <thead><tr>{['Item', 'Origem', 'Qtd', 'Unit.', 'Total'].map(h => <th key={h} className={Z.th}>{h}</th>)}</tr></thead>

@@ -397,6 +397,17 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
         });
     }
 
+    // ── 2b. Ferragens da caixa (sub_itens fixos, sem override/global) ────────
+    (caixaDef.sub_itens || []).forEach(si => {
+        if (si.defaultOn === false) return;
+        const fe = ferragensDB.find(f => f.id === si.ferrId);
+        if (!fe) return;
+        const qtdUnit = si.qtdFormula
+            ? Math.ceil(Math.max(1, rCalcV2(si.qtdFormula, D)))
+            : 1;
+        ferrList.push({ ...fe, qtd: qtdUnit, orig: `${caixaDef.nome || 'Módulo'} / ${si.nome}` });
+    });
+
     // ── 3. Componentes ─────────────────────────────────────
     compInstances.forEach(ci => {
         const {
