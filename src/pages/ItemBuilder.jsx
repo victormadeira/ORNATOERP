@@ -452,7 +452,7 @@ function PreviewPecas({ item, tipo, testVars, bib }) {
 }
 
 // ── Editor de Caixa ──────────────────────────────────────────────────────────
-function CaixaEditor({ initial, onSave, onCancel }) {
+function CaixaEditor({ initial, onSave, onCancel, ferragens = DB_FERRAGENS }) {
     const [form, setForm] = useState(() => JSON.parse(JSON.stringify(initial)));
     const [testVars, setTestVars] = useState({ L: 600, A: 2200, P: 550, matInt: 'mdf18', matFundo: 'comp3', matExt: '' });
     const [showPreview, setShowPreview] = useState(true);
@@ -482,7 +482,7 @@ function CaixaEditor({ initial, onSave, onCancel }) {
     const updTamp = (idx, k, v) => setForm(p => { const n = [...p.tamponamentos]; n[idx] = { ...n[idx], [k]: v }; return { ...p, tamponamentos: n }; });
     const delTamp = (idx) => setForm(p => ({ ...p, tamponamentos: p.tamponamentos.filter((_, i) => i !== idx) }));
 
-    const addSubItem = () => setForm(p => ({ ...p, sub_itens: [...(p.sub_itens || []), { id: uid(), nome: 'Nova Ferragem', ferrId: DB_FERRAGENS[0]?.id || 'pux128', defaultOn: true, qtdFormula: '1' }] }));
+    const addSubItem = () => setForm(p => ({ ...p, sub_itens: [...(p.sub_itens || []), { id: uid(), nome: 'Nova Ferragem', ferrId: ferragens[0]?.id || 'pux128', defaultOn: true, qtdFormula: '1' }] }));
     const updSubItem = (i, k, v) => setForm(p => { const n = [...(p.sub_itens || [])]; n[i] = { ...n[i], [k]: v }; return { ...p, sub_itens: n }; });
     const delSubItem = (i) => setForm(p => ({ ...p, sub_itens: (p.sub_itens || []).filter((_, x) => x !== i) }));
 
@@ -554,7 +554,7 @@ function CaixaEditor({ initial, onSave, onCancel }) {
                     : (form.sub_itens || []).map((s, i) => (
                         <div key={s.id} className="grid gap-2 items-start mb-2 p-2 rounded border" style={{ borderColor: 'var(--border)', gridTemplateColumns: '1fr 1fr 1fr auto auto' }}>
                             <div><label className={Z.lbl}>Nome</label><input value={s.nome} onChange={e => updSubItem(i, 'nome', e.target.value)} className={`${Z.inp} text-xs`} /></div>
-                            <div><label className={Z.lbl}>Ferragem</label><select value={s.ferrId} onChange={e => updSubItem(i, 'ferrId', e.target.value)} className={`${Z.inp} text-xs`}>{DB_FERRAGENS.map(f => <option key={f.id} value={f.id}>{f.nome} ({R$(f.preco)})</option>)}</select></div>
+                            <div><label className={Z.lbl}>Ferragem</label><select value={s.ferrId} onChange={e => updSubItem(i, 'ferrId', e.target.value)} className={`${Z.inp} text-xs`}>{ferragens.map(f => <option key={f.id} value={f.id}>{f.nome} ({R$(f.preco)})</option>)}</select></div>
                             <div><label className={Z.lbl} title="Quantidade da ferragem. Pode ser número fixo ou fórmula com L, A, P">Qtd / Fórmula</label><FormulaInput value={s.qtdFormula || '1'} onChange={v => updSubItem(i, 'qtdFormula', v)} vars={caixaVars} testVars={caixaTestVars} placeholder="1" suggestions={FORMULAS_FERRAGEM} /></div>
                             <div>
                                 <label className={Z.lbl}>&nbsp;</label>
@@ -598,7 +598,7 @@ function CaixaEditor({ initial, onSave, onCancel }) {
 }
 
 // ── Editor de Componente ─────────────────────────────────────────────────────
-function ComponenteEditor({ initial, onSave, onCancel }) {
+function ComponenteEditor({ initial, onSave, onCancel, ferragens = DB_FERRAGENS }) {
     const [form, setForm] = useState(() => JSON.parse(JSON.stringify(initial)));
     const [testVars, setTestVars] = useState({ L: 600, A: 2200, P: 550, matInt: 'mdf18', matFundo: 'comp3', matExtComp: 'mdf15' });
     const [showPreview, setShowPreview] = useState(true);
@@ -613,7 +613,7 @@ function ComponenteEditor({ initial, onSave, onCancel }) {
     const updPeca = (i, k, v) => setForm(p => { const n = [...p.pecas]; n[i] = { ...n[i], [k]: v }; return { ...p, pecas: n }; });
     const delPeca = (i) => setForm(p => ({ ...p, pecas: p.pecas.filter((_, x) => x !== i) }));
 
-    const addSub = () => setForm(p => ({ ...p, sub_itens: [...(p.sub_itens || []), { id: uid(), nome: 'Nova Ferragem', ferrId: 'pux128', defaultOn: false, qtdFormula: '1' }] }));
+    const addSub = () => setForm(p => ({ ...p, sub_itens: [...(p.sub_itens || []), { id: uid(), nome: 'Nova Ferragem', ferrId: ferragens[0]?.id || 'pux128', defaultOn: false, qtdFormula: '1' }] }));
     const updSub = (i, k, v) => setForm(p => { const n = [...p.sub_itens]; n[i] = { ...n[i], [k]: v }; return { ...p, sub_itens: n }; });
     const delSub = (i) => setForm(p => ({ ...p, sub_itens: p.sub_itens.filter((_, x) => x !== i) }));
 
@@ -769,7 +769,7 @@ function ComponenteEditor({ initial, onSave, onCancel }) {
                     : (form.sub_itens || []).map((s, i) => (
                         <div key={s.id} className="grid gap-2 items-start mb-2 p-2 rounded border" style={{ borderColor: 'var(--border)', gridTemplateColumns: '1fr 1fr 1fr 1fr auto auto' }}>
                             <div><label className={Z.lbl}>Nome</label><input value={s.nome} onChange={e => updSub(i, 'nome', e.target.value)} className={`${Z.inp} text-xs`} /></div>
-                            <div><label className={Z.lbl}>Ferragem</label><select value={s.ferrId} onChange={e => updSub(i, 'ferrId', e.target.value)} className={`${Z.inp} text-xs`}>{DB_FERRAGENS.map(f => <option key={f.id} value={f.id}>{f.nome} ({R$(f.preco)})</option>)}</select></div>
+                            <div><label className={Z.lbl}>Ferragem</label><select value={s.ferrId} onChange={e => updSub(i, 'ferrId', e.target.value)} className={`${Z.inp} text-xs`}>{ferragens.map(f => <option key={f.id} value={f.id}>{f.nome} ({R$(f.preco)})</option>)}</select></div>
                             <div><label className={Z.lbl} title="Quantidade da ferragem. Pode ser número fixo ou fórmula condicional">Qtd / Fórmula</label><FormulaInput value={s.qtdFormula || '1'} onChange={v => updSub(i, 'qtdFormula', v)} vars={compVars} testVars={compTestVars} placeholder="1" suggestions={FORMULAS_FERRAGEM} /></div>
                             <div>
                                 <label className={Z.lbl}>&nbsp;</label>
@@ -824,6 +824,7 @@ export default function ItemBuilder({ notify }) {
     const [loading, setLoading] = useState(false);
     const [busca, setBusca] = useState('');
     const [confirmDel, setConfirmDel] = useState(null);
+    const [bibItems, setBibItems] = useState([]);
 
     const load = async () => {
         try {
@@ -833,7 +834,19 @@ export default function ItemBuilder({ notify }) {
         } catch (_) { }
     };
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => {
+        load();
+        api.get('/biblioteca').then(setBibItems).catch(() => {});
+    }, []);
+
+    // Mescla ferragens do banco com fallback hardcoded
+    const allFerragens = useMemo(() => {
+        const bibFerr = bibItems
+            .filter(i => i.tipo === 'ferragem' || i.tipo === 'acessorio')
+            .map(i => ({ id: i.cod || `bib_${i.id}`, nome: i.nome, preco: i.preco, un: i.unidade, categoria: i.categoria || '' }));
+        if (bibFerr.length === 0) return DB_FERRAGENS;
+        return [...bibFerr, ...DB_FERRAGENS.filter(df => !bibFerr.find(bf => bf.id === df.id))];
+    }, [bibItems]);
 
     const handleSave = async (tipo, form) => {
         setLoading(true);
@@ -914,8 +927,8 @@ export default function ItemBuilder({ notify }) {
                     <h1 className={Z.h1}>{editing.item.db_id ? 'Editar' : 'Novo'} {editing.tipo === 'caixa' ? 'Caixa' : 'Componente'}</h1>
                 </div>
                 {editing.tipo === 'caixa'
-                    ? <CaixaEditor initial={editing.item} onSave={f => handleSave('caixa', f)} onCancel={() => setEditing(null)} />
-                    : <ComponenteEditor initial={editing.item} onSave={f => handleSave('componente', f)} onCancel={() => setEditing(null)} />
+                    ? <CaixaEditor initial={editing.item} onSave={f => handleSave('caixa', f)} onCancel={() => setEditing(null)} ferragens={allFerragens} />
+                    : <ComponenteEditor initial={editing.item} onSave={f => handleSave('componente', f)} onCancel={() => setEditing(null)} ferragens={allFerragens} />
                 }
             </div>
         );
