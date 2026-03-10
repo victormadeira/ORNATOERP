@@ -43,7 +43,7 @@ function calcAmbReports(ambientes, bib, padroes) {
                 );
                 const coef = item.caixaDef?.coef || 0;
                 const qtd = item.qtd || 1;
-                const itemCusto = res.custo * (1 + coef) * qtd;
+                const itemCusto = ((res.custoChapas + res.custoFita + (res.custoAcabamentos || 0)) * (1 + coef) + (res.custoFerragens || 0)) * qtd;
                 custo += itemCusto;
                 fita += res.fita * qtd;
                 // Agregar fita por material

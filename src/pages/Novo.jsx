@@ -569,16 +569,21 @@ function RelatorioItem({ res, chapasDB, fitasDB, coef, qtd }) {
                 <div className="flex flex-col gap-1 text-[11px]">
                     <div className="flex justify-between"><span style={{ color: 'var(--text-muted)' }}>Chapas</span><span className="font-mono">{R$(custoChapas)}</span></div>
                     <div className="flex justify-between"><span style={{ color: 'var(--text-muted)' }}>Fita de borda</span><span className="font-mono">{R$(custoFita)}</span></div>
+                    {(res.custoAcabamentos || 0) > 0 && <div className="flex justify-between"><span style={{ color: 'var(--text-muted)' }}>Acabamentos</span><span className="font-mono">{R$(res.custoAcabamentos)}</span></div>}
                     <div className="flex justify-between"><span style={{ color: 'var(--text-muted)' }}>Ferragens</span><span className="font-mono">{R$(custoFerragens)}</span></div>
                     <div className="flex justify-between pt-1 mt-1" style={{ borderTop: '1px solid var(--border)' }}>
-                        <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>Custo material</span>
+                        <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>Custo material base</span>
                         <span className="font-mono font-semibold">{R$(res.custo)}</span>
                     </div>
-                    <div className="flex justify-between"><span style={{ color: 'var(--text-muted)' }}>Coef. dificuldade (×{N(1 + coef, 2)})</span><span className="font-mono">{R$(res.custo * coef)}</span></div>
+                    {coef > 0 && <div className="flex justify-between"><span style={{ color: 'var(--text-muted)' }}>Coef. dificuldade (×{N(1 + coef, 2)})</span><span className="font-mono">+{R$((res.custoChapas + res.custoFita + (res.custoAcabamentos || 0)) * coef)}</span></div>}
+                    <div className="flex justify-between pt-1 mt-1" style={{ borderTop: '1px solid var(--border)' }}>
+                        <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>Custo Material</span>
+                        <span className="font-mono font-semibold" style={{ color: 'var(--primary)' }}>{R$((res.custoChapas + res.custoFita + (res.custoAcabamentos || 0)) * (1 + coef) + custoFerragens)}</span>
+                    </div>
                     {qtd > 1 && <div className="flex justify-between"><span style={{ color: 'var(--text-muted)' }}>Quantidade</span><span className="font-mono">×{qtd}</span></div>}
                     <div className="flex justify-between pt-1.5 mt-1.5" style={{ borderTop: '2px solid var(--primary)' }}>
                         <span className="font-bold" style={{ color: 'var(--text-primary)' }}>Custo total do item</span>
-                        <span className="font-mono font-bold" style={{ color: 'var(--primary)' }}>{R$(res.custo * (1 + coef) * qtd)}</span>
+                        <span className="font-mono font-bold" style={{ color: 'var(--primary)' }}>{R$(((res.custoChapas + res.custoFita + (res.custoAcabamentos || 0)) * (1 + coef) + custoFerragens) * qtd)}</span>
                     </div>
                 </div>
             </div>
