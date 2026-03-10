@@ -1101,6 +1101,9 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [viewsData, setViewsData] = useState(null);
     const [showViews, setShowViews] = useState(false);
 
+    // ── Dados completos do orçamento (carregados da API) ─────────────────────
+    const [orcFull, setOrcFull] = useState(null);
+
     // ── Trava de edição (orçamento aprovado) ──────────────────────────────────
     const _orc = orcFull || editOrc; // fonte mais completa para campos derivados
     const isLocked = _orc && LOCKED_COLS.includes(_orc.kb_col);
@@ -1142,7 +1145,6 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const PRE_APPROVE_COLS = ['lead', 'orc', 'env', 'neg'];
 
     // Carregar dados completos do orçamento (aditivos, parent_info, versões, etc.)
-    const [orcFull, setOrcFull] = useState(null);
     useEffect(() => {
         if (editOrc?.id) {
             api.get(`/orcamentos/${editOrc.id}`).then(data => {
