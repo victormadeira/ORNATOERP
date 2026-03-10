@@ -2584,38 +2584,27 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                     }
                                                                 </div>
 
-                                                                {/* ── Ripado no módulo ── */}
-                                                                <div className="rounded-lg border p-3" style={{ borderColor: item.ripado ? '#f59e0b40' : 'var(--border)', borderLeft: item.ripado ? '3px solid var(--warning)' : undefined, background: 'var(--bg-card)' }}>
-                                                                    <div className="flex items-center justify-between mb-1">
-                                                                        <span className="text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5" style={{ color: 'var(--warning)' }}>
-                                                                            <Layers size={10} /> Ripado
-                                                                        </span>
-                                                                        {!item.ripado ? (
-                                                                            <button onClick={() => addRipadoToItem(amb.id, item.id)}
-                                                                                className="text-[10px] px-2 py-0.5 rounded font-semibold cursor-pointer flex items-center gap-1"
-                                                                                style={{ background: 'var(--warning)', color: '#fff' }}>
-                                                                                <Plus size={10} /> Adicionar Ripado
-                                                                            </button>
-                                                                        ) : (
+                                                                {/* ── Ripado no módulo (só aparece quando adicionado via modal) ── */}
+                                                                {item.ripado && (
+                                                                    <div className="rounded-lg border p-3" style={{ borderColor: '#f59e0b40', borderLeft: '3px solid var(--warning)', background: 'var(--bg-card)' }}>
+                                                                        <div className="flex items-center justify-between mb-2">
+                                                                            <span className="text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5" style={{ color: 'var(--warning)' }}>
+                                                                                <Layers size={10} /> Ripado
+                                                                            </span>
                                                                             <button onClick={() => removeRipadoFromItem(amb.id, item.id)}
                                                                                 className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"
                                                                                 title="Remover ripado">
                                                                                 <Trash2 size={12} />
                                                                             </button>
-                                                                        )}
-                                                                    </div>
-                                                                    {item.ripado && (
+                                                                        </div>
                                                                         <RipadoModuloCard
                                                                             ripado={item.ripado}
                                                                             dims={item.dims}
                                                                             bibItems={bibItems}
                                                                             onUpdate={patch => upRipadoOnItem(amb.id, item.id, patch)}
                                                                         />
-                                                                    )}
-                                                                    {!item.ripado && (
-                                                                        <p className="text-[11px] text-center py-1" style={{ color: 'var(--text-muted)' }}>Adicione ripas decorativas à porta deste módulo</p>
-                                                                    )}
-                                                                </div>
+                                                                    </div>
+                                                                )}
 
                                                                 {/* Toggle relatório */}
                                                                 <button onClick={() => setReportItemId(reportItemId === item.id ? null : item.id)}
@@ -3744,6 +3733,38 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             <button onClick={() => setAddCompModal(null)} className="p-1 rounded hover:bg-[var(--bg-hover)]"><X size={16} /></button>
                         </div>
                         <div className="p-3 overflow-y-auto flex-1">
+                            {/* ── Seção especial: Ripado ── */}
+                            {(() => {
+                                const targetItem = ambientes.flatMap(a => a.itens || []).find(i => i.id === addCompModal.itemId);
+                                const hasRipado = targetItem?.ripado;
+                                return (
+                                    <button
+                                        onClick={() => {
+                                            if (!hasRipado) {
+                                                addRipadoToItem(addCompModal.ambId, addCompModal.itemId);
+                                            } else {
+                                                removeRipadoFromItem(addCompModal.ambId, addCompModal.itemId);
+                                            }
+                                            setAddCompModal(null);
+                                        }}
+                                        className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-[#f59e0b]/40 hover:bg-[var(--bg-hover)] text-left w-full mb-3"
+                                        style={{ borderColor: hasRipado ? '#f59e0b40' : 'var(--border)', background: hasRipado ? '#f59e0b08' : undefined }}>
+                                        <Layers size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+                                        <div className="flex-1">
+                                            <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Ripado / Muxarabi</div>
+                                            <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                                Ripas decorativas na porta do módulo (sem substrato)
+                                            </div>
+                                        </div>
+                                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded" style={hasRipado
+                                            ? { background: 'rgba(239,68,68,0.12)', color: 'var(--danger)' }
+                                            : { background: '#f59e0b20', color: 'var(--warning)' }}>
+                                            {hasRipado ? 'Remover' : '+ Adicionar'}
+                                        </span>
+                                    </button>
+                                );
+                            })()}
+
                             {componentesCat.length === 0 ? (
                                 <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
                                     <Package size={28} className="mx-auto mb-2 opacity-30" />
