@@ -78,7 +78,10 @@ export default function App() {
     // ── Roteamento com History API ──────────────────────────────────────────
     const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte'];
     const [pg, setPg] = useState(() => {
-        const pathPage = window.location.pathname.replace(/^\/+/, '');
+        const rawPath = window.location.pathname.replace(/^\/+/, '');
+        // Suporta /novo/123 (orçamento com ID)
+        const parts = rawPath.split('/');
+        const pathPage = parts[0] || '';
         if (pathPage && VALID_PAGES.includes(pathPage)) {
             localStorage.setItem('erp_page', pathPage);
             return pathPage;
@@ -92,7 +95,16 @@ export default function App() {
     const [clis, setClis] = useState([]);
     const [orcs, setOrcs] = useState([]);
     const [taxas, setTaxas] = useState({ imp: 8, com: 10, mont: 12, lucro: 20, frete: 2, mdo: 350, inst: 180 });
-    const [editOrc, setEditOrc] = useState(null);
+    const [editOrc, setEditOrc] = useState(() => {
+        // Restaurar editOrc da URL ao dar F5 (ex: /novo/123)
+        const rawPath = window.location.pathname.replace(/^\/+/, '');
+        const parts = rawPath.split('/');
+        if (parts[0] === 'novo' && parts[1]) {
+            const orcId = parseInt(parts[1]);
+            if (orcId > 0) return { id: orcId };
+        }
+        return null;
+    });
     const [notifs, setNotifs] = useState({ notificacoes: [], nao_lidas: 0 });
     const [showNotifs, setShowNotifs] = useState(false);
     const notifsRef = useRef(null);
@@ -232,23 +244,27 @@ export default function App() {
         else if (p !== "novo") setEditOrc(null);
         setPg(p);
         localStorage.setItem('erp_page', p);
-        // Sync URL com History API
-        const url = p === 'dash' ? '/' : `/${p}`;
-        window.history.pushState({ page: p }, '', url);
+        // Sync URL com History API (inclui ID do orçamento quando editando)
+        let url = p === 'dash' ? '/' : `/${p}`;
+        if (p === 'novo' && orc?.id) url = `/novo/${orc.id}`;
+        window.history.pushState({ page: p, orcId: orc?.id || null }, '', url);
         if (isMobile) setMobileOpen(false); // fechar sidebar mobile ao navegar
     };
 
     // Botões voltar/avançar do navegador
     useEffect(() => {
         // Define state inicial na URL atual (sem adicionar ao histórico)
-        const initUrl = pg === 'dash' ? '/' : `/${pg}`;
-        window.history.replaceState({ page: pg }, '', initUrl);
+        let initUrl = pg === 'dash' ? '/' : `/${pg}`;
+        if (pg === 'novo' && editOrc?.id) initUrl = `/novo/${editOrc.id}`;
+        window.history.replaceState({ page: pg, orcId: editOrc?.id || null }, '', initUrl);
 
         const handlePopState = (e) => {
             const page = e.state?.page || 'dash';
+            const orcId = e.state?.orcId;
             setPg(page);
             localStorage.setItem('erp_page', page);
-            if (page !== 'novo') setEditOrc(null);
+            if (page === 'novo' && orcId) setEditOrc({ id: orcId });
+            else if (page !== 'novo') setEditOrc(null);
         };
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
