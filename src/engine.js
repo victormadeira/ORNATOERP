@@ -654,7 +654,10 @@ export function calcPainelRipado(cfg, bib = []) {
     const chapaWV = matV?.altura  || 1830;
     const rpcV = _bestCut(chapaLV, chapaWV, compV, wV);
     const chapasV = nV > 0 ? Math.ceil(nV / rpcV) : 0;
-    const custoRipasV = matV ? chapasV * (matV.preco || 0) : 0;
+    // Custo proporcional por área (preço/m²) em vez de chapas inteiras
+    const areaRipasV = nV * compV * wV / 1e6; // m²
+    const pm2V = matV ? _calcPrecoM2Item(matV) : 0;
+    const custoRipasV = pm2V > 0 ? areaRipasV * pm2V : (matV ? chapasV * (matV.preco || 0) : 0);
     const fitaRipasV = nV * 2 * compV / 1000;
     const fitaPrecoV = matV?.fita_preco > 0 ? matV.fita_preco : fitaPrecoDefault;
 
@@ -667,7 +670,10 @@ export function calcPainelRipado(cfg, bib = []) {
         const matH = mesmasRipas ? matV : materiais.find(m => m.id == matRipaH || m.nome === matRipaH);
         const rpcH = _bestCut(matH?.largura || 2750, matH?.altura || 1830, compH, _wH);
         chapasH = nH > 0 ? Math.ceil(nH / rpcH) : 0;
-        custoRipasH = matH ? chapasH * (matH.preco || 0) : 0;
+        // Custo proporcional por área
+        const areaRipasH = nH * compH * _wH / 1e6;
+        const pm2H = matH ? _calcPrecoM2Item(matH) : 0;
+        custoRipasH = pm2H > 0 ? areaRipasH * pm2H : (matH ? chapasH * (matH.preco || 0) : 0);
         fitaRipasH = nH * 2 * compH / 1000;
         fitaPrecoH = matH?.fita_preco > 0 ? matH.fita_preco : fitaPrecoDefault;
     }
