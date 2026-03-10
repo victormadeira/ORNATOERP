@@ -1102,8 +1102,9 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [showViews, setShowViews] = useState(false);
 
     // ── Trava de edição (orçamento aprovado) ──────────────────────────────────
-    const isLocked = editOrc && LOCKED_COLS.includes(editOrc.kb_col);
-    const isAditivo = editOrc?.tipo === 'aditivo';
+    const _orc = orcFull || editOrc; // fonte mais completa para campos derivados
+    const isLocked = _orc && LOCKED_COLS.includes(_orc.kb_col);
+    const isAditivo = _orc?.tipo === 'aditivo';
     const [unlocked, setUnlocked] = useState(false);
     const [showUnlockModal, setShowUnlockModal] = useState(false);
     const [unlockText, setUnlockText] = useState('');
@@ -1122,8 +1123,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [diffV1Id, setDiffV1Id] = useState(null);
     const [diffV2Id, setDiffV2Id] = useState(null);
     const [loadingDiff, setLoadingDiff] = useState(false);
-    const isSubstituida = editOrc && editOrc.versao_ativa === 0;
-    const isVersao = editOrc?.tipo === 'versao';
+    const isSubstituida = _orc && _orc.versao_ativa === 0;
+    const isVersao = _orc?.tipo === 'versao';
     const temVersoes = versoes.length > 1;
     const readOnly = (isLocked && !unlocked) || isSubstituida;
 
@@ -1151,6 +1152,29 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             api.get(`/portal/views/${editOrc.id}`).then(setViewsData).catch(() => { /* views opcional */ });
         }
     }, [editOrc?.id]);
+
+    // ── Restaurar form após F5 (editOrc só tem {id}, dados vêm da API) ────
+    useEffect(() => {
+        if (!orcFull) return;
+        // Se editOrc já tinha os dados completos (navegação normal), não sobrescrever
+        if (editOrc?.ambientes && editOrc.ambientes.length > 0) return;
+        // Populate form states from API data
+        if (orcFull.cliente_id) sc(orcFull.cliente_id);
+        if (orcFull.projeto != null) setProjeto(orcFull.projeto);
+        if (orcFull.numero != null) setNumero(orcFull.numero);
+        if (orcFull.ambientes) setAmbientes(orcFull.ambientes);
+        if (orcFull.obs != null) so(orcFull.obs);
+        if (orcFull.padroes) setPadroes(orcFull.padroes);
+        if (orcFull.pagamento) {
+            const pg = { ...orcFull.pagamento };
+            if (pg.blocos) pg.blocos = pg.blocos.map(b => b.id ? b : { ...b, id: uid() });
+            setPagamento(pg);
+        }
+        if (orcFull.taxas) setLocalTaxas(prev => ({ ...prev, ...orcFull.taxas }));
+        if (orcFull.prazo_entrega != null) setPrazoEntrega(orcFull.prazo_entrega);
+        if (orcFull.endereco_obra != null) setEnderecoObra(orcFull.endereco_obra);
+        if (orcFull.validade_dias) setValidadeDias(orcFull.validade_dias);
+    }, [orcFull]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const addBloco = () => setPagamento(p => ({
         ...p,
