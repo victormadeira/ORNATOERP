@@ -75,7 +75,17 @@ class ErrorBoundary extends Component {
 
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
-    const [pg, setPg] = useState(() => localStorage.getItem('erp_page') || 'dash');
+    // ── Roteamento com History API ──────────────────────────────────────────
+    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte'];
+    const [pg, setPg] = useState(() => {
+        const pathPage = window.location.pathname.replace(/^\/+/, '');
+        if (pathPage && VALID_PAGES.includes(pathPage)) {
+            localStorage.setItem('erp_page', pathPage);
+            return pathPage;
+        }
+        // Se URL é / (raiz), usa localStorage como fallback
+        return localStorage.getItem('erp_page') || 'dash';
+    });
     const [sb, setSb] = useState(true);
     const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
     const [notif, setNotif] = useState(null);
@@ -222,8 +232,27 @@ export default function App() {
         else if (p !== "novo") setEditOrc(null);
         setPg(p);
         localStorage.setItem('erp_page', p);
+        // Sync URL com History API
+        const url = p === 'dash' ? '/' : `/${p}`;
+        window.history.pushState({ page: p }, '', url);
         if (isMobile) setMobileOpen(false); // fechar sidebar mobile ao navegar
     };
+
+    // Botões voltar/avançar do navegador
+    useEffect(() => {
+        // Define state inicial na URL atual (sem adicionar ao histórico)
+        const initUrl = pg === 'dash' ? '/' : `/${pg}`;
+        window.history.replaceState({ page: pg }, '', initUrl);
+
+        const handlePopState = (e) => {
+            const page = e.state?.page || 'dash';
+            setPg(page);
+            localStorage.setItem('erp_page', page);
+            if (page !== 'novo') setEditOrc(null);
+        };
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (loading) return (
         <div className="flex h-screen items-center justify-center" style={{ background: 'var(--bg-body)' }}>

@@ -1,6 +1,8 @@
 import express from 'express';
 import compression from 'compression';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/auth.js';
 import clientesRoutes from './routes/clientes.js';
@@ -100,6 +102,20 @@ app.use('/api/industrializacao', industrializacaoRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
+
+// ═══ Servir frontend (SPA) ═══════════════════════════════════════════════
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distPath = path.join(__dirname, '..', 'dist');
+
+// Servir arquivos estáticos do build (JS, CSS, imagens, etc.)
+app.use(express.static(distPath));
+
+// SPA fallback: qualquer rota que não é /api → envia index.html
+// Isso permite que o React lide com rotas como /orcs, /cli, /cfg etc.
+app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+});
 
 // Error handler
 app.use((err, req, res, next) => {
