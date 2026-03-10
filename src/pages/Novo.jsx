@@ -741,6 +741,122 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove }) {
     );
 }
 
+// ── Componente: ripado dentro de módulo (versão simplificada do PainelCard) ──
+function RipadoModuloCard({ ripado, dims, bibItems, onUpdate }) {
+    const materiais = (bibItems || []).filter(m => m.tipo === 'material');
+    const cfg = useMemo(() => ({ ...ripado, L: dims?.l || 0, A: dims?.a || 0 }), [ripado, dims]);
+    const calc = useMemo(() => calcPainelRipado(cfg, bibItems || []), [cfg, bibItems]);
+    const coef = ripado.coefDificuldade ?? 1.3;
+    const custo = (calc?.custoMaterial || 0) * coef;
+    const up = (patch) => onUpdate(patch);
+
+    return (
+        <div className="flex flex-col gap-3">
+            {/* Dims read-only do módulo */}
+            <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                <span>Dimensões do módulo: <strong>{dims?.l || 0}</strong> × <strong>{dims?.a || 0}</strong> mm</span>
+                <span>Custo: <strong style={{ color: 'var(--warning)' }}>{R$(custo)}</strong></span>
+            </div>
+
+            {/* Tipo + nome */}
+            <div className="grid grid-cols-2 gap-2">
+                <div>
+                    <label className={Z.lbl}>Tipo</label>
+                    <div className="flex gap-1 mt-1">
+                        {[['ripado', 'Ripado'], ['muxarabi', 'Muxarabi']].map(([id, lb]) => (
+                            <button key={id} onClick={() => up({ tipo: id })}
+                                className="flex-1 py-1.5 rounded text-xs font-semibold transition-all"
+                                style={ripado.tipo === id ? { background: 'var(--warning)', color: '#fff' } : { background: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                                {lb}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <div>
+                    <label className={Z.lbl}>Coef. Dificuldade</label>
+                    <input type="number" className={Z.inp} min={1} step={0.05}
+                        value={ripado.coefDificuldade ?? 1.3}
+                        onChange={e => up({ coefDificuldade: Math.max(1, +e.target.value || 1) })} />
+                </div>
+            </div>
+
+            {/* Ripas V */}
+            <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-card)', borderColor: '#f59e0b30', borderLeft: '3px solid var(--warning)' }}>
+                <span className="text-[10px] uppercase tracking-widest font-bold block mb-2" style={{ color: 'var(--warning)' }}>Ripas Verticais</span>
+                <div className="grid grid-cols-3 gap-2">
+                    <div><label className={Z.lbl}>Largura (mm)</label><input type="number" className={Z.inp} min={5} value={ripado.wV || 40} onChange={e => up({ wV: +e.target.value })} /></div>
+                    <div><label className={Z.lbl}>Espessura (mm)</label><input type="number" className={Z.inp} min={3} value={ripado.eV || 18} onChange={e => up({ eV: +e.target.value })} /></div>
+                    <div><label className={Z.lbl}>Espaçamento (mm)</label><input type="number" className={Z.inp} min={0} value={ripado.sV || 15} onChange={e => up({ sV: +e.target.value })} /></div>
+                </div>
+                <div className="mt-2">
+                    <label className={Z.lbl}>Material das Ripas</label>
+                    <select className={Z.inp} value={ripado.matRipaV || ''} onChange={e => up({ matRipaV: e.target.value })}>
+                        <option value="">Sem custo</option>
+                        {materiais.map(m => <option key={m.id} value={m.id}>{m.nome}{m.largura ? ` ${m.largura}×${m.altura}mm` : ''} — {R$(m.preco)}</option>)}
+                    </select>
+                </div>
+            </div>
+
+            {/* Ripas H (muxarabi) */}
+            {ripado.tipo === 'muxarabi' && (
+                <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', borderLeft: '3px solid #a78bfa' }}>
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] uppercase tracking-widest font-bold" style={{ color: '#a78bfa' }}>Ripas Horizontais</span>
+                        <label className="flex items-center gap-1.5 text-xs cursor-pointer" style={{ color: 'var(--text-muted)' }}>
+                            <input type="checkbox" checked={ripado.mesmasRipas !== false} onChange={e => up({ mesmasRipas: e.target.checked })} />
+                            Mesmas specs
+                        </label>
+                    </div>
+                    {ripado.mesmasRipas === false && (
+                        <div className="grid grid-cols-3 gap-2">
+                            <div><label className={Z.lbl}>Largura (mm)</label><input type="number" className={Z.inp} min={5} value={ripado.wH || 40} onChange={e => up({ wH: +e.target.value })} /></div>
+                            <div><label className={Z.lbl}>Espessura (mm)</label><input type="number" className={Z.inp} min={3} value={ripado.eH || 18} onChange={e => up({ eH: +e.target.value })} /></div>
+                            <div><label className={Z.lbl}>Espaçamento (mm)</label><input type="number" className={Z.inp} min={0} value={ripado.sH || 15} onChange={e => up({ sH: +e.target.value })} /></div>
+                        </div>
+                    )}
+                    {ripado.mesmasRipas !== false && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Usando as mesmas especificações das ripas verticais.</p>}
+                </div>
+            )}
+
+            {/* Substrato */}
+            <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: 'var(--text-muted)' }}>
+                <input type="checkbox" checked={ripado.temSubstrato === true} onChange={e => up({ temSubstrato: e.target.checked })} />
+                Incluir substrato (fundo) — normalmente desabilitado quando a porta já é o substrato
+            </label>
+            {ripado.temSubstrato === true && (
+                <div>
+                    <label className={Z.lbl}>Material do Substrato</label>
+                    <select className={Z.inp} value={ripado.matSubstrato || ''} onChange={e => up({ matSubstrato: e.target.value })}>
+                        <option value="">Sem custo</option>
+                        {materiais.map(m => <option key={m.id} value={m.id}>{m.nome} — {R$(m.preco)}</option>)}
+                    </select>
+                </div>
+            )}
+
+            {/* Resultado ao vivo */}
+            {calc && (
+                <div className="rounded-lg p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                    <span className="text-[10px] uppercase tracking-widest font-bold block mb-2" style={{ color: 'var(--text-muted)' }}>Resultado</span>
+                    <div className="grid grid-cols-3 gap-x-4 gap-y-1.5 text-xs">
+                        <div><span style={{ color: 'var(--text-muted)' }}>Ripas V: </span><strong>{calc.nV} un</strong></div>
+                        {ripado.tipo === 'muxarabi' && <div><span style={{ color: 'var(--text-muted)' }}>Ripas H: </span><strong>{calc.nH} un</strong></div>}
+                        <div><span style={{ color: 'var(--text-muted)' }}>ML total: </span><strong>{N(calc.mlTotal)} m</strong></div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Fita: </span><strong>{N(calc.fitaTotal)} ml</strong></div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Cobertura: </span><strong>{N(calc.cobertura, 1)}%</strong></div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Chapas: </span><strong>{R$(calc.custoChapas)}</strong></div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Fita borda: </span><strong>{R$(calc.custoFita)}</strong></div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Custo mat.: </span><strong>{R$(calc.custoMaterial)}</strong></div>
+                    </div>
+                    <div className="mt-2 pt-2 flex justify-between text-xs" style={{ borderTop: '1px solid var(--border)' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Custo c/ dificuldade (×{N(coef, 2)}):</span>
+                        <strong style={{ color: 'var(--warning)' }}>{R$(calc.custoMaterial * coef)}</strong>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ── Ícone por tipo especial ───────────────────────────────────────────────────
 const ESPECIAL_ICON = { espelho: Square, estofado: Sofa, aluminio: RectangleHorizontal, vidro: GlassWater, outro: Shapes };
 const getEspecialIcon = (tipo) => ESPECIAL_ICON[tipo] || Shapes;
@@ -1360,6 +1476,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         if (!src) return;
         const c = JSON.parse(JSON.stringify(src));
         c.id = uid();
+        if (c.ripado) c.ripado = { ...c.ripado, id: uid() };
         a.itens.push(c);
     });
 
@@ -1414,6 +1531,22 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const upPainel = (ambId, pid, newP) => upAmb(ambId, a => {
         const idx = (a.paineis || []).findIndex(p => p.id === pid);
         if (idx >= 0) a.paineis[idx] = newP;
+    });
+
+    // ── Ripado dentro de módulo CRUD ──────────────────────────────────────────
+    const addRipadoToItem = (ambId, itemId) => upItem(ambId, itemId, item => {
+        item.ripado = {
+            id: uid(), tipo: 'ripado',
+            wV: 40, eV: 18, sV: 15,
+            wH: 40, eH: 18, sH: 15,
+            mesmasRipas: true, temSubstrato: false,
+            matRipaV: '', matRipaH: '', matSubstrato: '',
+            coefDificuldade: 1.3,
+        };
+    });
+    const removeRipadoFromItem = (ambId, itemId) => upItem(ambId, itemId, item => { item.ripado = null; });
+    const upRipadoOnItem = (ambId, itemId, patch) => upItem(ambId, itemId, item => {
+        if (item.ripado) item.ripado = { ...item.ripado, ...patch };
     });
 
     // ── Itens Especiais CRUD ────────────────────────────────────────────────
@@ -1514,6 +1647,36 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         fa[f.id].qtd += f.qtd * qtd;
                     });
                 } catch (_) { }
+                // ── Ripado dentro do módulo ──
+                if (item.ripado) {
+                    try {
+                        const ripCfg = { ...item.ripado, L: item.dims?.l || 0, A: item.dims?.a || 0 };
+                        const ripRes = calcPainelRipado(ripCfg, bibItems);
+                        if (ripRes) {
+                            const rCoef = item.ripado.coefDificuldade ?? 1.3;
+                            const rQtd = item.qtd || 1;
+                            const ripCustoMat = ripRes.custoMaterial * rCoef * rQtd;
+                            const ripChapas = (ripRes.custoChapas || 0) * rCoef * rQtd;
+                            const ripFita = (ripRes.custoFita || 0) * rCoef * rQtd;
+                            totChapas += ripChapas;
+                            totFita += ripFita;
+                            cm += ripCustoMat; ambCm += ripCustoMat;
+                            const mkC = taxas.mk_chapas ?? 1.45;
+                            const mkF = taxas.mk_fita ?? 1.45;
+                            const mkMdo = taxas.mk_mdo ?? 0.80;
+                            const ripCP = ripChapas * mkC + ripFita * mkF + ripCustoMat * mkMdo;
+                            ambCP += ripCP;
+                            // Atualizar entry existente do módulo ou criar nova
+                            const existing = itemCostList.find(e => e.itemId === item.id && e.ambId === amb.id);
+                            if (existing) {
+                                existing.custoItem += ripCustoMat;
+                                existing.itemCP += ripCP;
+                            } else {
+                                itemCostList.push({ itemId: item.id, ambId: amb.id, custoItem: ripCustoMat, itemCP: ripCP, coef: 0, ajuste: item.ajuste || null });
+                            }
+                        }
+                    } catch (_) { }
+                }
             });
             // ── Painéis ripados (custo vai pra chapas + fita, com coef dificuldade) ──
             (amb.paineis || []).forEach(painel => {
@@ -2245,6 +2408,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                 </div>
                                                                 {(item.qtd || 1) > 1 && <span className="text-[9px] px-1 rounded font-bold" style={{ background: 'rgba(19,121,240,0.1)', color: 'var(--primary)' }}>×{item.qtd}</span>}
                                                                 {item.componentes.length > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>{item.componentes.length} comp.</span>}
+                                                                {item.ripado && <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: '#f59e0b15', color: 'var(--warning)' }}>Ripado</span>}
                                                                 {ajusteR !== 0 && (
                                                                     <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: ajusteR > 0 ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)', color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>
                                                                         {ajusteR > 0 ? '+' : ''}{aj.tipo === '%' ? `${aj.valor}%` : R$(ajusteR)}
@@ -2418,6 +2582,39 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                             ))}
                                                                         </div>
                                                                     }
+                                                                </div>
+
+                                                                {/* ── Ripado no módulo ── */}
+                                                                <div className="rounded-lg border p-3" style={{ borderColor: item.ripado ? '#f59e0b40' : 'var(--border)', borderLeft: item.ripado ? '3px solid var(--warning)' : undefined, background: 'var(--bg-card)' }}>
+                                                                    <div className="flex items-center justify-between mb-1">
+                                                                        <span className="text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5" style={{ color: 'var(--warning)' }}>
+                                                                            <Layers size={10} /> Ripado
+                                                                        </span>
+                                                                        {!item.ripado ? (
+                                                                            <button onClick={() => addRipadoToItem(amb.id, item.id)}
+                                                                                className="text-[10px] px-2 py-0.5 rounded font-semibold cursor-pointer flex items-center gap-1"
+                                                                                style={{ background: 'var(--warning)', color: '#fff' }}>
+                                                                                <Plus size={10} /> Adicionar Ripado
+                                                                            </button>
+                                                                        ) : (
+                                                                            <button onClick={() => removeRipadoFromItem(amb.id, item.id)}
+                                                                                className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"
+                                                                                title="Remover ripado">
+                                                                                <Trash2 size={12} />
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                    {item.ripado && (
+                                                                        <RipadoModuloCard
+                                                                            ripado={item.ripado}
+                                                                            dims={item.dims}
+                                                                            bibItems={bibItems}
+                                                                            onUpdate={patch => upRipadoOnItem(amb.id, item.id, patch)}
+                                                                        />
+                                                                    )}
+                                                                    {!item.ripado && (
+                                                                        <p className="text-[11px] text-center py-1" style={{ color: 'var(--text-muted)' }}>Adicione ripas decorativas à porta deste módulo</p>
+                                                                    )}
                                                                 </div>
 
                                                                 {/* Toggle relatório */}

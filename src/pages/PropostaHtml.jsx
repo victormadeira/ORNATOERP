@@ -72,7 +72,18 @@ function calcAmbCustos(ambientes, bib, padroes, taxas) {
                     matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
                 })), bib, padroes);
                 const coef = item.caixaDef?.coef || 0;
-                const cc = res.custo * (1 + coef) * (item.qtd || 1);
+                let cc = res.custo * (1 + coef) * (item.qtd || 1);
+                // ── Adicionar custo do ripado dentro do módulo ──
+                if (item.ripado) {
+                    try {
+                        const ripCfg = { ...item.ripado, L: item.dims?.l || 0, A: item.dims?.a || 0 };
+                        const ripRes = calcPainelRipado(ripCfg, bib);
+                        if (ripRes) {
+                            const rCoef = item.ripado.coefDificuldade ?? 1.3;
+                            cc += ripRes.custoMaterial * rCoef * (item.qtd || 1);
+                        }
+                    } catch (_) { }
+                }
                 ambCm += cc;
                 itemDetails.push({
                     nome: item.desc || item.caixaDef?.nome || 'Item',

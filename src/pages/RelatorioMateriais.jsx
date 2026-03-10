@@ -68,6 +68,58 @@ function calcAmbReports(ambientes, bib, padroes) {
                     fa[f.id].qtd += f.qtd * qtd;
                 });
             } catch (_) { }
+            // ── Ripado dentro do módulo — agregar chapas e fita ──
+            if (item.ripado) {
+                try {
+                    const bibFlat = bib ? Object.values(bib).flat() : [];
+                    const ripCfg = { ...item.ripado, L: item.dims?.l || 0, A: item.dims?.a || 0 };
+                    const res = calcPainelRipado(ripCfg, bibFlat);
+                    if (res) {
+                        const qtd = item.qtd || 1;
+                        const rCoef = item.ripado.coefDificuldade ?? 1.3;
+                        custo += res.custoMaterial * qtd;
+                        custoComplexidade += res.custoMaterial * (rCoef - 1) * qtd;
+                        // Chapas das ripas verticais
+                        if (res.matV && res.chapasV > 0) {
+                            const id = res.matV.id;
+                            const areaV = res.mlV * (item.ripado.wV || 40) / 1000 * qtd;
+                            if (!ca[id]) ca[id] = { mat: res.matV, area: 0, frac: 0, n: 0 };
+                            ca[id].area += areaV;
+                            ca[id].frac += res.chapasV * qtd;
+                            ca[id].n = Math.ceil(ca[id].frac);
+                        }
+                        // Chapas das ripas horizontais (muxarabi)
+                        if (res.matH && res.chapasH > 0) {
+                            const id = res.matH.id;
+                            const _wH = item.ripado.mesmasRipas ? (item.ripado.wV || 40) : (item.ripado.wH || 40);
+                            const areaH = res.mlH * _wH / 1000 * qtd;
+                            if (!ca[id]) ca[id] = { mat: res.matH, area: 0, frac: 0, n: 0 };
+                            ca[id].area += areaH;
+                            ca[id].frac += res.chapasH * qtd;
+                            ca[id].n = Math.ceil(ca[id].frac);
+                        }
+                        // Substrato (raro para ripado em módulo, mas suportado)
+                        if (res.matSub && item.ripado.temSubstrato) {
+                            const id = res.matSub.id;
+                            if (!ca[id]) ca[id] = { mat: res.matSub, area: 0, frac: 0, n: 0 };
+                            ca[id].area += res.areaSubstrato * qtd;
+                            const perda = res.matSub.perda_pct != null ? res.matSub.perda_pct : 15;
+                            const areaUtil = ((res.matSub.largura * res.matSub.altura) / 1e6) * (1 - perda / 100);
+                            ca[id].frac = areaUtil > 0 ? ca[id].area / areaUtil : 1;
+                            ca[id].n = Math.ceil(ca[id].frac);
+                        }
+                        // Fitas do ripado
+                        if (res.fitaTotal > 0) {
+                            const fitaMatId = res.matV?.id || 'ripa';
+                            const fitasDB = bib?.fitas || [];
+                            const fitaPreco = (res.matV?.fita_preco > 0) ? res.matV.fita_preco : (fitasDB[0]?.preco || 0.85);
+                            if (!fitaByMat[fitaMatId]) fitaByMat[fitaMatId] = { metros: 0, preco: fitaPreco, matNome: res.matV?.nome || 'Ripado' };
+                            fitaByMat[fitaMatId].metros += res.fitaTotal * qtd;
+                            fita += res.fitaTotal * qtd;
+                        }
+                    }
+                } catch (_) { }
+            }
         });
         // Painéis ripados — agregar chapas, fitas e substrato
         (amb.paineis || []).forEach(painel => {
