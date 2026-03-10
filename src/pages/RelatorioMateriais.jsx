@@ -28,7 +28,7 @@ function groupFerragens(fa) {
 function calcAmbReports(ambientes, bib, padroes) {
     return ambientes.map(amb => {
         const ca = {}, fa = {}, fitaByMat = {};
-        let fita = 0, custo = 0;
+        let fita = 0, custo = 0, custoComplexidade = 0;
         (amb.itens || []).forEach(item => {
             try {
                 const res = calcItemV2(
@@ -43,8 +43,10 @@ function calcAmbReports(ambientes, bib, padroes) {
                 );
                 const coef = item.caixaDef?.coef || 0;
                 const qtd = item.qtd || 1;
-                const itemCusto = ((res.custoChapas + res.custoFita + (res.custoAcabamentos || 0)) * (1 + coef) + (res.custoFerragens || 0)) * qtd;
+                const itemCusto = res.custo * qtd; // custo material puro
+                const itemComplexidade = (res.custoChapas + res.custoFita + (res.custoAcabamentos || 0)) * coef * qtd;
                 custo += itemCusto;
+                custoComplexidade += itemComplexidade;
                 fita += res.fita * qtd;
                 // Agregar fita por material
                 Object.entries(res.fitaByMat || {}).forEach(([matId, v]) => {
@@ -123,7 +125,7 @@ function calcAmbReports(ambientes, bib, padroes) {
                 custo += res.custo;
             } catch (_) { }
         });
-        return { id: amb.id, nome: amb.nome, ca, fa, fita, fitaByMat, custo };
+        return { id: amb.id, nome: amb.nome, ca, fa, fita, fitaByMat, custo, custoComplexidade };
     });
 }
 
@@ -225,6 +227,7 @@ export function buildRelatorioHtml({ empresa, orcamento, ambientes, tot, taxas, 
     const ferrGroups = groupFerragens(tot.fa);
     const custoFerragens = Object.values(tot.fa).reduce((s, f) => s + f.preco * f.qtd, 0);
     const custoChapas = Object.values(tot.ca).reduce((s, c) => s + c.n * c.mat.preco, 0);
+    const custoComplexidade = ambReports.reduce((s, a) => s + (a.custoComplexidade || 0), 0);
     // Agregar fitaByMat de todos os ambientes
     const fitaByMatTotal = {};
     ambReports.forEach(a => {
@@ -397,7 +400,8 @@ ${watermarkSrc ? `<div class="watermark"><img src="${watermarkSrc}" /></div>` : 
             <div class="summary-box"><div class="summary-label">Instalação</div><div class="summary-value">${R$(tot.custoInst)}</div></div>
         </div>
         <div style="margin-top:12px">
-            <div class="total-row"><span class="label">Custo Material Total</span><span class="value">${R$(tot.cm)}</span></div>
+            <div class="total-row"><span class="label">Custo Material</span><span class="value">${R$(tot.cm)}</span></div>
+            ${custoComplexidade > 0 ? `<div class="total-row"><span class="label">Complexidade</span><span class="value">${R$(custoComplexidade)}</span></div>` : ''}
             <div class="total-row"><span class="label">Custo Base (Material + MO + Inst.)</span><span class="value">${R$(tot.cb)}</span></div>
             <div class="total-row"><span class="label">Preço Venda (markup divisor)</span><span class="value">${R$(tot.pvFinal)}</span></div>
             ${descontoR > 0 ? `<div class="total-row"><span class="label" style="color:#ef4444">Desconto</span><span class="value" style="color:#ef4444">−${R$(descontoR)}</span></div>` : ''}
@@ -440,6 +444,7 @@ export default function RelatorioMateriais({ empresa, orcamento, ambientes, tot,
     const ambReports = useMemo(() => calcAmbReports(ambientes, bib, padroes), [ambientes, bib, padroes]);
     const custoFerragens = useMemo(() => Object.values(tot.fa).reduce((s, f) => s + f.preco * f.qtd, 0), [tot.fa]);
     const custoChapas = useMemo(() => Object.values(tot.ca).reduce((s, c) => s + c.n * c.mat.preco, 0), [tot.ca]);
+    const custoComplexidade = useMemo(() => ambReports.reduce((s, a) => s + (a.custoComplexidade || 0), 0), [ambReports]);
     const fitaByMatTotal = useMemo(() => {
         const acc = {};
         ambReports.forEach(a => {
@@ -568,8 +573,13 @@ export default function RelatorioMateriais({ empresa, orcamento, ambientes, tot,
                 </div>
                 <div className="text-xs flex flex-col gap-1" style={{ color: 'var(--text-secondary)' }}>
                     <div className="flex justify-between py-1" style={{ borderBottom: '1px solid var(--border)' }}>
-                        <span>Custo Material Total</span><span className="font-semibold">{R$(tot.cm)}</span>
+                        <span>Custo Material</span><span className="font-semibold">{R$(tot.cm)}</span>
                     </div>
+                    {custoComplexidade > 0 && (
+                        <div className="flex justify-between py-1" style={{ borderBottom: '1px solid var(--border)' }}>
+                            <span>Complexidade</span><span className="font-semibold">{R$(custoComplexidade)}</span>
+                        </div>
+                    )}
                     <div className="flex justify-between py-1" style={{ borderBottom: '1px solid var(--border)' }}>
                         <span>Custo Base (Material + MO + Inst.)</span><span className="font-semibold">{R$(tot.cb)}</span>
                     </div>

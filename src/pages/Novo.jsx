@@ -572,14 +572,12 @@ function RelatorioItem({ res, chapasDB, fitasDB, coef, qtd }) {
                     {(res.custoAcabamentos || 0) > 0 && <div className="flex justify-between"><span style={{ color: 'var(--text-muted)' }}>Acabamentos</span><span className="font-mono">{R$(res.custoAcabamentos)}</span></div>}
                     <div className="flex justify-between"><span style={{ color: 'var(--text-muted)' }}>Ferragens</span><span className="font-mono">{R$(custoFerragens)}</span></div>
                     <div className="flex justify-between pt-1 mt-1" style={{ borderTop: '1px solid var(--border)' }}>
-                        <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>Custo material base</span>
+                        <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>Custo Material</span>
                         <span className="font-mono font-semibold">{R$(res.custo)}</span>
                     </div>
-                    {coef > 0 && <div className="flex justify-between"><span style={{ color: 'var(--text-muted)' }}>Coef. dificuldade (×{N(1 + coef, 2)})</span><span className="font-mono">+{R$((res.custoChapas + res.custoFita + (res.custoAcabamentos || 0)) * coef)}</span></div>}
-                    <div className="flex justify-between pt-1 mt-1" style={{ borderTop: '1px solid var(--border)' }}>
-                        <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>Custo Material</span>
-                        <span className="font-mono font-semibold" style={{ color: 'var(--primary)' }}>{R$((res.custoChapas + res.custoFita + (res.custoAcabamentos || 0)) * (1 + coef) + custoFerragens)}</span>
-                    </div>
+                    {coef > 0 && (
+                        <div className="flex justify-between"><span style={{ color: 'var(--text-muted)' }}>Complexidade (×{N(1 + coef, 2)})</span><span className="font-mono">+{R$((res.custoChapas + res.custoFita + (res.custoAcabamentos || 0)) * coef)}</span></div>
+                    )}
                     {qtd > 1 && <div className="flex justify-between"><span style={{ color: 'var(--text-muted)' }}>Quantidade</span><span className="font-mono">×{qtd}</span></div>}
                     <div className="flex justify-between pt-1.5 mt-1.5" style={{ borderTop: '2px solid var(--primary)' }}>
                         <span className="font-bold" style={{ color: 'var(--text-primary)' }}>Custo total do item</span>
@@ -2507,11 +2505,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             <div className="flex flex-col gap-1.5 text-xs">
                                 {(() => {
                                     const bd = tot.breakdown || {};
-                                    const matRaw = (bd.chapasAdj || 0) + (bd.fitaAdj || 0) + (bd.acabAdj || 0) + (bd.ferrVal || 0) + (bd.acessVal || 0);
+                                    const matPuro = tot.cm || 0; // custo material puro (sem coef)
+                                    const matComCoef = (bd.chapasAdj || 0) + (bd.fitaAdj || 0) + (bd.acabAdj || 0) + (bd.ferrVal || 0) + (bd.acessVal || 0);
+                                    const complexidade = matComCoef - matPuro; // valor do coef de dificuldade
                                     const matMk = (bd.pvChapas || 0) + (bd.pvFita || 0) + (bd.pvAcab || 0) + (bd.pvFerr || 0) + (bd.pvAcess || 0);
-                                    const custOp = matMk - matRaw;
+                                    const custOp = matMk - matComCoef;
                                     const mdoVal = bd.mdo || tot.custoMdo || 0;
-                                    return [['Custo Material', matRaw || tot.cm], ['Mão de Obra', mdoVal], ['Custos Operacionais', custOp]].filter(([, v]) => v > 0).map(([l, v], i) => (
+                                    const linhas = [['Custo Material', matPuro], ['Complexidade', complexidade], ['Mão de Obra', mdoVal], ['Custos Operacionais', custOp]];
+                                    return linhas.filter(([, v]) => v > 0).map(([l, v], i) => (
                                         <div key={i} className="flex justify-between">
                                             <span style={{ color: 'var(--text-muted)' }}>{l}</span>
                                             <span style={{ color: 'var(--text-secondary)' }}>{R$(v)}</span>
