@@ -1453,20 +1453,21 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     })), bib, padroes);
                     const coef = item.caixaDef?.coef || 0;
                     const qtd = item.qtd || 1;
-                    // Acumular custos brutos por categoria (sem coef — coef é aplicado no precoVendaV2)
+                    // Custos brutos (sem coef)
                     const cChapas = (res.custoChapas || 0) * qtd;
                     const cFita = (res.custoFita || 0) * qtd;
                     const cFerr = (res.custoFerragens || 0) * qtd;
                     const cAcab = (res.custoAcabamentos || 0) * qtd;
-                    totChapas += cChapas;
-                    totFita += cFita;
-                    totFerragens += cFerr;
-                    totAcabamentos += cAcab;
                     const itemCusto = cChapas + cFita + cFerr + cAcab;
                     cm += itemCusto; ambCm += itemCusto;
+                    // Acumular custos COM coef individual por categoria (para precoVendaV2)
+                    totChapas += cChapas * (1 + coef);
+                    totFita += cFita * (1 + coef);
+                    totAcabamentos += cAcab * (1 + coef);
+                    totFerragens += cFerr; // ferragens sem coef
                     at += res.area * qtd;
                     ft += res.fita * qtd;
-                    // Calcular CP (custo de produção) individual deste item com markups
+                    // CP individual com markups (consistente com precoVendaV2)
                     const mk = { chapas: taxas.mk_chapas ?? 1.45, fita: taxas.mk_fita ?? 1.45, acabamentos: taxas.mk_acabamentos ?? 1.30, ferragens: taxas.mk_ferragens ?? 1.15, mdo: taxas.mk_mdo ?? 0.80 };
                     const _ca = cChapas * (1 + coef);
                     const _fa = cFita * (1 + coef);
@@ -1530,17 +1531,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         });
 
         // ── Engine v2: precoVendaV2 com markups por categoria ──
-        // coefMedio: apenas itens fabricados (coef > 0). Itens especiais (coef=0, ferragens)
-        // e painéis (coef já embutido no custo) NÃO devem diluir o coeficiente de dificuldade.
-        const fabricados = itemCostList.filter(i => i.coef > 0);
-        const totalCustoFab = fabricados.reduce((s, i) => s + i.custoItem, 0);
-        const coefMedio = totalCustoFab > 0
-            ? fabricados.reduce((s, i) => s + i.coef * i.custoItem, 0) / totalCustoFab
-            : 0;
-
+        // totChapas/totFita/totAcabamentos já incluem coef individual de cada item.
+        // Passa coef=0 para precoVendaV2 (coef já embutido nos totais).
         const pvResult = precoVendaV2(
             { chapas: totChapas, fita: totFita, acabamentos: totAcabamentos, ferragens: totFerragens, acessorios: totAcessorios },
-            coefMedio,
+            0,
             taxas,
         );
         const pv = pvResult.valor;
