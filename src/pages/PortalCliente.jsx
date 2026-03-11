@@ -26,9 +26,11 @@ const mkStatusProj = (accent) => ({
 
 // ─── Helpers para o Gantt Premium ──────────────────────
 const calcProgresso = (etapa) => {
-    if (etapa.progresso > 0) return Math.min(etapa.progresso, 100);
     if (etapa.status === 'concluida') return 100;
     if (etapa.status === 'nao_iniciado' || etapa.status === 'pendente') return 0;
+    // Usar progresso manual definido no sistema (slider 0-100)
+    if (etapa.progresso != null) return Math.min(etapa.progresso, 100);
+    // Fallback: estimar por datas apenas se nunca definiram progresso
     if (!etapa.data_inicio || !etapa.data_vencimento) return 0;
     const s = new Date(etapa.data_inicio + 'T12:00:00').getTime();
     const e = new Date(etapa.data_vencimento + 'T12:00:00').getTime();
