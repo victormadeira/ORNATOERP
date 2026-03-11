@@ -26,6 +26,7 @@ function calcAmbCustos(ambientes, bib, padroes, taxas) {
     const results = [];
     ambientes.forEach(amb => {
         let ambCm = 0;
+        let ambAvulso = 0;
         const itemDetails = [];
 
         // ── Ambiente manual: blocos descritivos ou linhas legadas ──
@@ -70,6 +71,7 @@ function calcAmbCustos(ambientes, bib, padroes, taxas) {
             if (item.tipo === 'avulso') {
                 const avValor = (Number(item.valor) || 0) * (item.qtd || 1);
                 ambCm += avValor;
+                ambAvulso += avValor;
                 itemDetails.push({
                     nome: item.nome || 'Item avulso', dims: null, qtd: item.qtd || 1, custo: avValor,
                     componentes: [], tipo: 'avulso', mats: {}, desc: item.desc || '',
@@ -140,7 +142,7 @@ function calcAmbCustos(ambientes, bib, padroes, taxas) {
                 });
             } catch (_) { }
         });
-        results.push({ id: amb.id, nome: amb.nome, custo: ambCm, itens: itemDetails, manual: false });
+        results.push({ id: amb.id, nome: amb.nome, custo: ambCm, itens: itemDetails, manual: false, avulso: ambAvulso });
     });
     return results;
 }
@@ -170,17 +172,20 @@ export function buildPropostaHtml({
         : 0;
 
     // Proporcional: valor de venda do ambiente
-    // Manual = valor direto (já é preço de venda); Calculadora = proporcional do restante
+    // Manual = valor direto (já é PV); Avulso = PV direto; Calculadora = proporcional do restante
     const manualTotalProp = ambCustos.filter(a => a.manual).reduce((s, a) => s + a.custo, 0);
-    const calcCustoTotal = ambCustos.filter(a => !a.manual).reduce((s, a) => s + a.custo, 0);
-    const calcPvPool = pvComDesconto - manualTotalProp; // valor a distribuir entre calculadoras
+    const avulsoTotalProp = ambCustos.reduce((s, a) => s + (a.avulso || 0), 0);
+    // Custo de módulos/paineis/especiais (sem avulso)
+    const calcCustoSemAvulso = ambCustos.filter(a => !a.manual).reduce((s, a) => s + a.custo - (a.avulso || 0), 0);
+    // Fração de desconto proporcional
+    const discountRatio = tot.pvFinal > 0 ? pvComDesconto / tot.pvFinal : 1;
+    // Pool para distribuir proporcionalmente entre módulos (exclui manual e avulso)
+    const calcPvPool = pvComDesconto - manualTotalProp * discountRatio - avulsoTotalProp * discountRatio;
 
     const ambValores = ambCustos.map(a => {
         if (a.manual) {
-            // Ambiente manual: valor de venda = valor das linhas (sem markup)
-            // Desconto proporcional: mesma fração do total
-            const fracDesc = tot.pvFinal > 0 ? a.custo / tot.pvFinal : 0;
-            const ambVenda = a.custo - (descontoR * fracDesc);
+            // Ambiente manual: valor de venda = valor das linhas com desconto proporcional
+            const ambVenda = a.custo * discountRatio;
             return {
                 ...a,
                 valorVenda: ambVenda,
@@ -190,14 +195,19 @@ export function buildPropostaHtml({
                 })),
             };
         }
-        // Ambiente calculadora: distribuir pool proporcional ao custo
-        const ambVenda = calcCustoTotal > 0 ? (a.custo / calcCustoTotal) * calcPvPool : 0;
+        // Ambiente calculadora: módulos proporcionais + avulsos diretos
+        const ambAvulso = (a.avulso || 0) * discountRatio;
+        const ambModuleCusto = a.custo - (a.avulso || 0);
+        const moduleShare = calcCustoSemAvulso > 0 ? (ambModuleCusto / calcCustoSemAvulso) * calcPvPool : 0;
+        const ambVenda = moduleShare + ambAvulso;
         return {
             ...a,
             valorVenda: ambVenda,
             itens: a.itens.map(it => ({
                 ...it,
-                valorVenda: calcCustoTotal > 0 ? (it.custo / calcCustoTotal) * calcPvPool : 0,
+                valorVenda: it.tipo === 'avulso'
+                    ? it.custo * discountRatio
+                    : (calcCustoSemAvulso > 0 ? (it.custo / calcCustoSemAvulso) * calcPvPool : 0),
             })),
         };
     });

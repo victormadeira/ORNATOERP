@@ -1638,12 +1638,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 return;
             }
             let ambCP = 0;
+            let ambAvulso = 0;
             amb.itens.forEach(item => {
                 // Item avulso: valor = PV direto, bypass engine
                 if (item.tipo === 'avulso') {
                     const avValor = (Number(item.valor) || 0) * (item.qtd || 1);
                     manualTotal += avValor;
                     ambCm += avValor;
+                    ambAvulso += avValor;
                     return;
                 }
                 try {
@@ -1759,7 +1761,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     }
                 } catch (_) { }
             });
-            ambTotals.push({ id: amb.id, custo: ambCm, cp: ambCP });
+            ambTotals.push({ id: amb.id, custo: ambCm, cp: ambCP, avulso: ambAvulso });
         });
 
         // ── Engine v2: precoVendaV2 com markups por categoria ──
@@ -2254,7 +2256,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         ) : ambientes.map((amb, ambIdx) => {
                             const isExpAmb = expandedAmb === amb.id;
                             const ambData = tot.ambTotals.find(a => a.id === amb.id) || {};
-                            const ambPv = amb.tipo === 'manual' ? (ambData.custo || 0) : (tot.totalItemCP > 0 ? (ambData.cp || 0) / tot.totalItemCP * tot.pv : (ambData.custo || 0));
+                            const ambAvulso = ambData.avulso || 0;
+                            const ambPv = amb.tipo === 'manual' ? (ambData.custo || 0) : (tot.totalItemCP > 0 ? (ambData.cp || 0) / tot.totalItemCP * tot.pv + ambAvulso : (ambData.custo || 0));
                             return (
                                 <div key={amb.id} className="glass-card !p-0 overflow-hidden border-l-[3px] border-l-[var(--primary)] mb-3">
                                     {/* Header do ambiente */}
@@ -2801,7 +2804,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 const d = tot.ambTotals.find(x => x.id === a.id);
                                                 if (!d) return 0;
                                                 if (d.manual) return d.custo || 0;
-                                                return tot.totalItemCP > 0 ? (d.cp || 0) / tot.totalItemCP * tot.pv : (d.custo || 0);
+                                                return (tot.totalItemCP > 0 ? (d.cp || 0) / tot.totalItemCP * tot.pv : (d.custo || 0)) + (d.avulso || 0);
                                             })())}</span>
                                         </div>
                                     ))}
