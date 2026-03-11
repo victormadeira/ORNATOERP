@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import db from '../db.js';
-import { requireAuth } from '../auth.js';
+import { requireAuth, optionalAuth } from '../auth.js';
 import { randomBytes } from 'crypto';
 import { createNotification } from '../services/notificacoes.js';
 
@@ -258,8 +258,9 @@ router.get('/landing/:token', (req, res) => {
     });
 });
 
-router.get('/public/:token', async (req, res) => {
+router.get('/public/:token', optionalAuth, async (req, res) => {
     const { token } = req.params;
+    const isLoggedIn = !!req.user;
 
     const portalToken = db.prepare('SELECT * FROM portal_tokens WHERE token = ? AND ativo = 1 AND (expira_em IS NULL OR expira_em > datetime(\'now\'))').get(token);
     if (!portalToken) return res.status(404).json({ error: 'Link inválido ou expirado' });
@@ -272,51 +273,54 @@ router.get('/public/:token', async (req, res) => {
     `).get(portalToken.orc_id);
     if (!orc) return res.status(404).json({ error: 'Proposta não encontrada' });
 
-    // Extrair dados do request
-    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
-    const ua = req.headers['user-agent'] || '';
-    const { dispositivo, navegador, os_name } = parseUA(ua);
+    // Se usuário logado no ERP, não registrar visita nas estatísticas
+    if (!isLoggedIn) {
+        // Extrair dados do request
+        const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+        const ua = req.headers['user-agent'] || '';
+        const { dispositivo, navegador, os_name } = parseUA(ua);
 
-    // Rate limit: verificar se é nova visita
-    const newVisit = isNewVisit(portalToken.orc_id, ip);
+        // Rate limit: verificar se é nova visita
+        const newVisit = isNewVisit(portalToken.orc_id, ip);
 
-    // Geolocalização assíncrona
-    const geo = await geolocateIP(ip);
+        // Geolocalização assíncrona
+        const geo = await geolocateIP(ip);
 
-    // Registrar acesso (com coords aproximadas do IP, GPS sobrescreve depois)
-    db.prepare(`
-        INSERT INTO proposta_acessos (orc_id, token, ip_cliente, user_agent, dispositivo, navegador, os_name, cidade, estado, pais, is_new_visit, lat, lon)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(portalToken.orc_id, token, ip, ua, dispositivo, navegador, os_name, geo.cidade, geo.estado, geo.pais, newVisit ? 1 : 0, geo.lat, geo.lon);
+        // Registrar acesso (com coords aproximadas do IP, GPS sobrescreve depois)
+        db.prepare(`
+            INSERT INTO proposta_acessos (orc_id, token, ip_cliente, user_agent, dispositivo, navegador, os_name, cidade, estado, pais, is_new_visit, lat, lon)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(portalToken.orc_id, token, ip, ua, dispositivo, navegador, os_name, geo.cidade, geo.estado, geo.pais, newVisit ? 1 : 0, geo.lat, geo.lon);
 
-    db.prepare('UPDATE portal_tokens SET ultimo_acesso = CURRENT_TIMESTAMP WHERE token = ?').run(token);
+        db.prepare('UPDATE portal_tokens SET ultimo_acesso = CURRENT_TIMESTAMP WHERE token = ?').run(token);
 
-    // Notificar equipe quando cliente visualiza a proposta (só visitas novas)
-    if (newVisit) {
-        try {
-            const local = geo.cidade ? ` de ${geo.cidade}${geo.estado ? '/' + geo.estado : ''}` : '';
-            createNotification(
-                'proposta_visualizada',
-                `Proposta visualizada: ${orc.numero || 'Orçamento #' + orc.id}`,
-                `${orc.cliente_nome} abriu a proposta${local} (${dispositivo})`,
-                orc.id, 'orcamento', orc.cliente_nome, null
-            );
-
-            // ── Fase 2: Alerta de Retorno ──
-            const prevVisits = db.prepare(`
-                SELECT COUNT(*) as c FROM proposta_acessos
-                WHERE orc_id = ? AND is_new_visit = 1 AND id != (SELECT MAX(id) FROM proposta_acessos WHERE orc_id = ?)
-            `).get(portalToken.orc_id, portalToken.orc_id);
-            if (prevVisits && prevVisits.c > 0) {
-                const visitNum = prevVisits.c + 1;
+        // Notificar equipe quando cliente visualiza a proposta (só visitas novas)
+        if (newVisit) {
+            try {
+                const local = geo.cidade ? ` de ${geo.cidade}${geo.estado ? '/' + geo.estado : ''}` : '';
                 createNotification(
-                    'proposta_retorno',
-                    `Cliente voltou! ${orc.numero || '#' + orc.id}`,
-                    `${orc.cliente_nome} — ${visitNum}ª visita${local}`,
+                    'proposta_visualizada',
+                    `Proposta visualizada: ${orc.numero || 'Orçamento #' + orc.id}`,
+                    `${orc.cliente_nome} abriu a proposta${local} (${dispositivo})`,
                     orc.id, 'orcamento', orc.cliente_nome, null
                 );
-            }
-        } catch (_) {}
+
+                // ── Fase 2: Alerta de Retorno ──
+                const prevVisits = db.prepare(`
+                    SELECT COUNT(*) as c FROM proposta_acessos
+                    WHERE orc_id = ? AND is_new_visit = 1 AND id != (SELECT MAX(id) FROM proposta_acessos WHERE orc_id = ?)
+                `).get(portalToken.orc_id, portalToken.orc_id);
+                if (prevVisits && prevVisits.c > 0) {
+                    const visitNum = prevVisits.c + 1;
+                    createNotification(
+                        'proposta_retorno',
+                        `Cliente voltou! ${orc.numero || '#' + orc.id}`,
+                        `${orc.cliente_nome} — ${visitNum}ª visita${local}`,
+                        orc.id, 'orcamento', orc.cliente_nome, null
+                    );
+                }
+            } catch (_) {}
+        }
     }
 
     // Retornar dados (single query para empresa_config)
@@ -335,7 +339,10 @@ router.get('/public/:token', async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // POST /api/portal/heartbeat/:token — atualiza tempo + scroll de sessão ativa
 // ═══════════════════════════════════════════════════════════════════════════════
-router.post('/heartbeat/:token', (req, res) => {
+router.post('/heartbeat/:token', optionalAuth, (req, res) => {
+    // Se usuário logado, ignorar heartbeat (não poluir estatísticas)
+    if (req.user) return res.json({ ok: true });
+
     const { token } = req.params;
     const { tempo_pagina, scroll_max, resolucao, fingerprint, sections, eventos } = req.body;
 
@@ -548,6 +555,22 @@ router.get('/views/:orc_id', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// DELETE /api/portal/views/:orc_id — Resetar estatísticas de visita
+// ═══════════════════════════════════════════════════════════════════════════════
+router.delete('/views/:orc_id', requireAuth, (req, res) => {
+    const orc_id = parseInt(req.params.orc_id);
+    const portalToken = db.prepare('SELECT token FROM portal_tokens WHERE orc_id = ? AND ativo = 1').get(orc_id);
+    if (!portalToken) return res.status(404).json({ error: 'Token não encontrado' });
+
+    // Deletar seções de visita (FK de proposta_acessos)
+    db.prepare('DELETE FROM proposta_section_views WHERE orc_id = ?').run(orc_id);
+    // Deletar acessos
+    const result = db.prepare('DELETE FROM proposta_acessos WHERE orc_id = ?').run(orc_id);
+
+    res.json({ ok: true, deleted: result.changes });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // GET /api/portal/score/:orc_id — Lead Score individual
 // ═══════════════════════════════════════════════════════════════════════════════
 router.get('/score/:orc_id', requireAuth, (req, res) => {
@@ -570,7 +593,10 @@ router.get('/scores', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // POST /api/portal/event/:token — evento genérico (print, etc.)
 // ═══════════════════════════════════════════════════════════════════════════════
-router.post('/event/:token', async (req, res) => {
+router.post('/event/:token', optionalAuth, async (req, res) => {
+    // Se usuário logado, ignorar evento (não poluir estatísticas)
+    if (req.user) return res.json({ ok: true });
+
     const { token } = req.params;
     const { tipo } = req.body;
     if (!tipo) return res.status(400).json({ error: 'tipo obrigatório' });

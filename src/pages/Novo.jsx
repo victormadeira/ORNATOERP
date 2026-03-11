@@ -3456,6 +3456,23 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     </div>
                                 </div>
                             )}
+
+                            {/* Resetar estatísticas */}
+                            <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                                <button onClick={async () => {
+                                    if (!confirm('Resetar todas as estatísticas de visualização desta proposta? Esta ação não pode ser desfeita.')) return;
+                                    try {
+                                        await api.del(`/portal/views/${editOrc.id}`);
+                                        setViewsData(v => ({ ...v, total: 0, new_visits: 0, unique_ips: 0, unique_devices: 0, max_tempo: 0, max_scroll: 0, views: [], dispositivos: [], section_resumo: [], lead_score: { score: 0 } }));
+                                        notify('Estatísticas resetadas');
+                                    } catch (ex) { notify(ex.detail || 'Erro ao resetar'); }
+                                }} className="text-[10px] px-3 py-1.5 rounded flex items-center gap-1.5 cursor-pointer"
+                                    style={{ color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                                    onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = '#ef444440'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)'; }}>
+                                    <RefreshCw size={10} /> Resetar estatísticas
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>

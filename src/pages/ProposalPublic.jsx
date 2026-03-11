@@ -16,7 +16,9 @@ export default function ProposalPublic({ token }) {
 
     // ── Carregar proposta ────────────────────────────────────────────────────
     useEffect(() => {
-        fetch(`/api/portal/public/${token}`)
+        const authToken = localStorage.getItem('erp_token');
+        const authHeaders = authToken ? { Authorization: `Bearer ${authToken}` } : {};
+        fetch(`/api/portal/public/${token}`, { headers: authHeaders })
             .then(r => r.json())
             .then(d => {
                 if (d.error) { setError(d.error); return; }
@@ -52,10 +54,14 @@ export default function ProposalPublic({ token }) {
             };
         };
 
+        // Headers com auth opcional (usuários logados não poluem estatísticas)
+        const erpToken = localStorage.getItem('erp_token');
+        const trackHeaders = { 'Content-Type': 'application/json', ...(erpToken ? { Authorization: `Bearer ${erpToken}` } : {}) };
+
         // Enviar fingerprint inicial
         fetch(`/api/portal/heartbeat/${token}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: trackHeaders,
             body: JSON.stringify({ resolucao, fingerprint, tempo_pagina: 0, scroll_max: 0 }),
         }).catch(() => { /* tracking silencioso */ });
 
@@ -76,13 +82,14 @@ export default function ProposalPublic({ token }) {
 
             fetch(`/api/portal/heartbeat/${token}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: trackHeaders,
                 body: JSON.stringify(collectPayload(tempoSeg, scrollPct)),
             }).catch(() => { /* tracking silencioso */ });
         }, 30000);
 
-        // ── Detectar impressão ──
+        // ── Detectar impressão (não rastrear usuários logados) ──
         const onBeforePrint = () => {
+            if (erpToken) return; // usuário logado, não rastrear
             try {
                 const blob = new Blob([JSON.stringify({ tipo: 'print' })], { type: 'application/json' });
                 navigator.sendBeacon(`/api/portal/event/${token}`, blob);
@@ -90,8 +97,9 @@ export default function ProposalPublic({ token }) {
         };
         window.addEventListener('beforeprint', onBeforePrint);
 
-        // Enviar dados finais ao sair (inclui seções + eventos pendentes)
+        // Enviar dados finais ao sair (não rastrear usuários logados)
         const onUnload = () => {
+            if (erpToken) return; // usuário logado, não rastrear
             const tempoSeg = Math.round((Date.now() - startTime.current) / 1000);
             const payload = collectPayload(tempoSeg, 0);
             const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });

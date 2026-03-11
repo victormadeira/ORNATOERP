@@ -49,6 +49,19 @@ export function requireRole(...roles) {
     };
 }
 
+// ═══════════════════════════════════════════════════════
+// MIDDLEWARE — Auth opcional (não bloqueia, só seta req.user se válido)
+// ═══════════════════════════════════════════════════════
+export function optionalAuth(req, res, next) {
+    const header = req.headers.authorization;
+    if (header && header.startsWith('Bearer ')) {
+        try {
+            req.user = jwt.verify(header.split(' ')[1], JWT_SECRET);
+        } catch (_) { /* token inválido, segue sem user */ }
+    }
+    next();
+}
+
 // Helpers
 export function isAdmin(user) { return user.role === 'admin'; }
 export function isGerente(user) { return user.role === 'gerente' || user.role === 'admin'; }
