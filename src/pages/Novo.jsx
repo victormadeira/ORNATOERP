@@ -195,24 +195,12 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso
                     style={{ color: 'var(--text-primary)', minWidth: 0 }} />
                 {q && <button onClick={() => setQ('')} className="p-0.5 rounded hover:bg-red-500/10 cursor-pointer" style={{ color: 'var(--text-muted)' }}><X size={12} /></button>}
             </div>
-            {open && (filtered.length > 0 || q.trim()) && (
-                <div className="absolute left-0 right-0 mt-1 rounded-lg shadow-lg overflow-auto" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', maxHeight: 240, zIndex: 50 }}>
-                    {filtered.map(c => (
-                        <button key={c.db_id} onClick={() => pick(c.db_id)}
-                            className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
-                            style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-primary)' }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.08)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                            <Package size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                            <span>{c.nome}{c.desc ? <span style={{ color: 'var(--text-muted)' }}> — {c.desc}</span> : ''}</span>
-                        </button>
-                    ))}
-                    {filtered.length === 0 && q.trim() && (
-                        <div className="px-3 py-3 text-xs text-center" style={{ color: 'var(--text-muted)' }}>Nenhum módulo encontrado para "{q}"</div>
-                    )}
-                    {onAddPainel && (
+            {open && (
+                <div className="absolute left-0 right-0 mt-1 rounded-lg shadow-lg overflow-auto" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', maxHeight: 280, zIndex: 50 }}>
+                    {/* ── Itens Especiais + Avulso no topo (sempre visíveis) ── */}
+                    {onAddPainel && !q.trim() && (
                         <>
-                            <div className="px-3 pt-2 pb-1"><span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: 'var(--text-muted)' }}>Itens Especiais</span></div>
+                            <div className="px-3 pt-2 pb-1"><span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: 'var(--text-muted)' }}>Adicionar</span></div>
                             <button onClick={() => { onAddPainel(); setQ(''); setOpen(false); }}
                                 className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
                                 style={{ color: 'var(--warning)' }}
@@ -236,19 +224,33 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso
                                 );
                             })}
                             {onAddAvulso && (
-                                <>
-                                    <div className="px-3 pt-1"><div style={{ borderTop: '1px solid var(--border)' }}></div></div>
-                                    <button onClick={() => { onAddAvulso(); setQ(''); setOpen(false); }}
-                                        className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
-                                        style={{ color: '#10b981' }}
-                                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.08)'}
-                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                        <Tag size={14} />
-                                        <span>Item Avulso (nome + valor)</span>
-                                    </button>
-                                </>
+                                <button onClick={() => { onAddAvulso(); setQ(''); setOpen(false); }}
+                                    className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
+                                    style={{ color: '#10b981' }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.08)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                    <Tag size={14} />
+                                    <span>Item Avulso (nome + valor)</span>
+                                </button>
+                            )}
+                            {filtered.length > 0 && (
+                                <div className="px-3 pt-2 pb-1"><span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: 'var(--text-muted)' }}>Módulos</span></div>
                             )}
                         </>
+                    )}
+                    {/* ── Lista de módulos (filtrada pela busca) ── */}
+                    {filtered.map(c => (
+                        <button key={c.db_id} onClick={() => pick(c.db_id)}
+                            className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
+                            style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.08)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                            <Package size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                            <span>{c.nome}{c.desc ? <span style={{ color: 'var(--text-muted)' }}> — {c.desc}</span> : ''}</span>
+                        </button>
+                    ))}
+                    {filtered.length === 0 && q.trim() && (
+                        <div className="px-3 py-3 text-xs text-center" style={{ color: 'var(--text-muted)' }}>Nenhum módulo encontrado para "{q}"</div>
                     )}
                 </div>
             )}
