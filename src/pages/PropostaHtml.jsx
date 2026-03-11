@@ -66,6 +66,16 @@ function calcAmbCustos(ambientes, bib, padroes, taxas) {
 
         // ── Ambiente calculadora (padrão) ──
         (amb.itens || []).forEach(item => {
+            // Item avulso: valor direto, sem calcItemV2
+            if (item.tipo === 'avulso') {
+                const avValor = (Number(item.valor) || 0) * (item.qtd || 1);
+                ambCm += avValor;
+                itemDetails.push({
+                    nome: item.nome || 'Item avulso', dims: null, qtd: item.qtd || 1, custo: avValor,
+                    componentes: [], tipo: 'avulso', mats: {}, desc: item.desc || '',
+                });
+                return;
+            }
             try {
                 const res = calcItemV2(item.caixaDef, item.dims, item.mats, item.componentes.map(ci => ({
                     compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},

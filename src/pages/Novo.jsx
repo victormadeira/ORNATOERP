@@ -12,7 +12,7 @@ import {
     Lock, Unlock, ShieldAlert, FilePlus2, CheckCircle, Upload, Brain, Sparkles,
     PanelTop, UtensilsCrossed, BedDouble, Bath, Shirt, Flame, WashingMachine, Armchair, PenTool, Briefcase,
     Square, Sofa, RectangleHorizontal, GlassWater, Shapes,
-    GitBranch, Star, ArrowRight, ArrowUpDown,
+    GitBranch, Star, ArrowRight, ArrowUpDown, Tag,
 } from 'lucide-react';
 
 // ── Ícone por categoria de caixa ─────────────────────────────────────────────
@@ -170,7 +170,7 @@ function SubItemRow({ si, ativo, onChange, ferragensDB, globalPadroes, ferrOvr, 
 }
 
 // ── Componente: seletor de módulos com busca ─────────────────────────────────
-function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, placeholder }) {
+function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso, placeholder }) {
     const [q, setQ] = useState('');
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
@@ -235,6 +235,19 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, placeholder
                                     </button>
                                 );
                             })}
+                            {onAddAvulso && (
+                                <>
+                                    <div className="px-3 pt-1"><div style={{ borderTop: '1px solid var(--border)' }}></div></div>
+                                    <button onClick={() => { onAddAvulso(); setQ(''); setOpen(false); }}
+                                        className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
+                                        style={{ color: '#10b981' }}
+                                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.08)'}
+                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                        <Tag size={14} />
+                                        <span>Item Avulso (nome + valor)</span>
+                                    </button>
+                                </>
+                            )}
                         </>
                     )}
                 </div>
@@ -1482,6 +1495,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         a.itens.push(c);
     });
 
+    const addItemAvulso = (ambId) => upAmb(ambId, a => {
+        a.itens.push({ id: uid(), tipo: 'avulso', nome: '', valor: 0, qtd: 1, desc: '' });
+    });
+
     const upItem = (ambId, itemId, fn) => upAmb(ambId, a => {
         const i = a.itens.find(x => x.id === itemId);
         if (i) fn(i);
@@ -1605,6 +1622,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             }
             let ambCP = 0;
             amb.itens.forEach(item => {
+                // Item avulso: valor = PV direto, bypass engine
+                if (item.tipo === 'avulso') {
+                    const avValor = (Number(item.valor) || 0) * (item.qtd || 1);
+                    manualTotal += avValor;
+                    ambCm += avValor;
+                    return;
+                }
                 try {
                     const res = calcItemV2(item.caixaDef, item.dims, item.mats, item.componentes.map(ci => ({
                         compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},
@@ -1769,7 +1793,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         let mods = 0, pains = 0;
         ambientes.forEach(amb => {
             if (amb.tipo === 'manual') return;
-            (amb.itens || []).forEach(it => { mods += (it.qtd || 1); });
+            (amb.itens || []).forEach(it => { if (it.tipo === 'avulso') return; mods += (it.qtd || 1); });
             (amb.paineis || []).forEach(() => { pains += 1; });
         });
         return Math.max(1, Math.ceil(mods * 0.5 + pains * 0.3));
@@ -2371,6 +2395,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         onSelect={id => addItemToAmb(amb.id, parseInt(id))}
                                                         onAddPainel={() => addPainel(amb.id)}
                                                         onAddEspecial={(tipo) => addItemEspecial(amb.id, tipo)}
+                                                        onAddAvulso={() => addItemAvulso(amb.id)}
                                                     />
                                                     {caixas.length === 0 && (
                                                         <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Nenhuma caixa cadastrada. Vá em <strong>Engenharia de Módulos</strong> para criar.</p>
@@ -2385,6 +2410,45 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     <span className="text-xs">Selecione uma caixa acima</span>
                                                 </div>
                                             ) : amb.itens.map(item => {
+                                                // ── Item Avulso: card compacto inline ──
+                                                if (item.tipo === 'avulso') {
+                                                    return (
+                                                        <div key={item.id} className="rounded-lg border overflow-hidden mb-2"
+                                                            style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', borderLeft: '3px solid #10b981' }}>
+                                                            <div className="flex items-center gap-2 px-3 py-2">
+                                                                <Tag size={13} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                                <input type="text" placeholder="Nome do item (ex: Bancada granito)"
+                                                                    value={item.nome} onChange={e => upItem(amb.id, item.id, it => it.nome = e.target.value)}
+                                                                    className="bg-transparent font-medium text-sm outline-none flex-1 min-w-0"
+                                                                    style={{ color: 'var(--text-primary)' }} readOnly={readOnly} />
+                                                                <input type="number" min="1" value={item.qtd || 1}
+                                                                    onChange={e => upItem(amb.id, item.id, it => it.qtd = Math.max(1, parseInt(e.target.value) || 1))}
+                                                                    className={Z.inp} style={{ width: 45, textAlign: 'center', fontSize: 11 }} readOnly={readOnly} />
+                                                                <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>×</span>
+                                                                <div className="flex items-center gap-0.5">
+                                                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>R$</span>
+                                                                    <input type="number" min="0" step="0.01"
+                                                                        value={item.valor || ''} placeholder="0,00"
+                                                                        onChange={e => upItem(amb.id, item.id, it => it.valor = parseFloat(e.target.value) || 0)}
+                                                                        className={Z.inp} style={{ width: 90, textAlign: 'right', fontSize: 12 }} readOnly={readOnly} />
+                                                                </div>
+                                                                <span className="font-bold text-xs whitespace-nowrap" style={{ color: '#10b981', minWidth: 70, textAlign: 'right' }}>
+                                                                    {R$((item.valor || 0) * (item.qtd || 1))}
+                                                                </span>
+                                                                {!readOnly && <button onClick={() => copyItem(amb.id, item.id)} className="p-1 rounded hover:bg-[var(--bg-hover)]"><Copy size={12} /></button>}
+                                                                {!readOnly && <button onClick={() => removeItem(amb.id, item.id)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>}
+                                                            </div>
+                                                            {!readOnly && (
+                                                                <div className="px-3 pb-2 pt-0">
+                                                                    <input type="text" placeholder="Descrição (opcional)"
+                                                                        value={item.desc || ''} onChange={e => upItem(amb.id, item.id, it => it.desc = e.target.value)}
+                                                                        className="bg-transparent text-[11px] outline-none w-full" style={{ color: 'var(--text-muted)' }} />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                }
+                                                // ── Item calculado (padrão) ──
                                                 const isItemExp = expandedItem === item.id;
                                                 const coef = item.caixaDef?.coef || 0;
                                                 let res = null;
