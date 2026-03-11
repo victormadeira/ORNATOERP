@@ -306,8 +306,8 @@ export function buildPropostaHtml({
                         ${detailsHtml}
                     </td>
                     <td class="td-qtd">${it.qtd}</td>
-                    ${showItemValor ? `<td class="td-val">${R$(it.valorVenda)}</td>` : ''}
-                    ${showItemValor ? `<td class="td-sub">${R$(it.valorVenda * it.qtd)}</td>` : ''}
+                    ${showItemValor ? `<td class="td-val">${R$(it.valorVenda / (it.qtd || 1))}</td>` : ''}
+                    ${showItemValor ? `<td class="td-sub">${R$(it.valorVenda)}</td>` : ''}
                 </tr>`;
         }).join('');
 
