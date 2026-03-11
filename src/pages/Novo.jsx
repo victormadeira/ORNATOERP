@@ -1205,6 +1205,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [showRelatorio, setShowRelatorio] = useState(false);
     const [empresa, setEmpresa] = useState(null);
     const [prazoEntrega, setPrazoEntrega] = useState(editOrc?.prazo_entrega || '45 dias úteis');
+    const [prazoExecucao, setPrazoExecucao] = useState(editOrc?.prazo_execucao || null);
     const [enderecoObra, setEnderecoObra] = useState(editOrc?.endereco_obra || '');
     // validade_proposta mantida para compatibilidade com orçamentos antigos
     const validadeProposta = `${validadeDias} dias`;
@@ -1290,6 +1291,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         }
         if (orcFull.taxas) setLocalTaxas(prev => ({ ...prev, ...orcFull.taxas }));
         if (orcFull.prazo_entrega != null) setPrazoEntrega(orcFull.prazo_entrega);
+        if (orcFull.prazo_execucao != null) setPrazoExecucao(orcFull.prazo_execucao);
         if (orcFull.endereco_obra != null) setEnderecoObra(orcFull.endereco_obra);
         if (orcFull.validade_dias) setValidadeDias(orcFull.validade_dias);
     }, [orcFull]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1762,6 +1764,18 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         };
     }, [ambientes, taxas, bib]);
 
+    // ── Sugestão automática de prazo de execução ────────────────────────────
+    const sugestaoPrazo = useMemo(() => {
+        let mods = 0, pains = 0;
+        ambientes.forEach(amb => {
+            if (amb.tipo === 'manual') return;
+            (amb.itens || []).forEach(it => { mods += (it.qtd || 1); });
+            (amb.paineis || []).forEach(() => { pains += 1; });
+        });
+        return Math.max(1, Math.ceil(mods * 0.5 + pains * 0.3));
+    }, [ambientes]);
+    const prazoExecEfetivo = prazoExecucao ?? sugestaoPrazo;
+
     // ── Desconto e totais de pagamento ───────────────────────────────────────
     const descontoR = (() => {
         const v = pagamento.desconto.valor || 0;
@@ -1799,7 +1813,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             projeto, numero, data_vencimento: dataVenc || null,
             ambientes, obs, custo_material: tot.cm, valor_venda: pvComDesconto,
             status: 'rascunho', taxas: localTaxas, padroes, pagamento,
-            prazo_entrega: prazoEntrega, endereco_obra: enderecoObra, validade_proposta: validadeProposta, validade_dias: validadeDias,
+            prazo_entrega: prazoEntrega, prazo_execucao: prazoExecucao, endereco_obra: enderecoObra, validade_proposta: validadeProposta, validade_dias: validadeDias,
             ...(unlocked ? { force_unlock: true } : {}),
         };
     };
@@ -1850,7 +1864,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         }, 5000);
 
         return () => { if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current); };
-    }, [cid, projeto, numero, validadeDias, ambientes, obs, padroes, pagamento, localTaxas, prazoEntrega, enderecoObra, tot.cm, pvComDesconto, syncPropostaHtml]);
+    }, [cid, projeto, numero, validadeDias, ambientes, obs, padroes, pagamento, localTaxas, prazoEntrega, prazoExecucao, enderecoObra, tot.cm, pvComDesconto, syncPropostaHtml]);
 
     // ── beforeunload: avisar se houver alterações não salvas ──
     useEffect(() => {
@@ -1977,7 +1991,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 projeto, numero, data_vencimento: dataVenc || null,
                 ambientes, obs, custo_material: tot.cm, valor_venda: pvComDesconto,
                 status: 'rascunho', taxas: localTaxas, padroes, pagamento,
-                prazo_entrega: prazoEntrega, endereco_obra: enderecoObra, validade_proposta: validadeProposta, validade_dias: validadeDias,
+                prazo_entrega: prazoEntrega, prazo_execucao: prazoExecucao, endereco_obra: enderecoObra, validade_proposta: validadeProposta, validade_dias: validadeDias,
             };
             await api.put(`/orcamentos/${editOrc.id}`, data);
             // Agora move para aprovado
@@ -2937,6 +2951,18 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     </div>
                                 )}
 
+                                {/* ── Prazo de Execução (interno) ── */}
+                                <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                        <span className="text-[9px] font-semibold" style={{ color: 'var(--text-muted)' }}>PRAZO EXECUÇÃO</span>
+                                        {prazoExecucao === null && <span className="text-[8px]" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>auto: {sugestaoPrazo}d</span>}
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <input type="number" min="1" value={prazoExecucao ?? ''} onChange={e => setPrazoExecucao(e.target.value ? parseInt(e.target.value) : null)} placeholder={String(sugestaoPrazo)} className="w-16 text-xs px-1.5 py-0.5 rounded border text-center input-glass" disabled={readOnly} />
+                                        <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>dias úteis</span>
+                                    </div>
+                                </div>
+
                                 {/* ── Composição do Preço ── */}
                                 {pvComDesconto > 0 && (() => {
                                     const pv = pvComDesconto;
@@ -3039,6 +3065,87 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     </div>
                                                 </div>
                                             )}
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* ── Painel Comparativo: Centro de Custo ── */}
+                                {(() => {
+                                    let ccLinhas = [];
+                                    try { ccLinhas = JSON.parse(globalTaxas.centro_custo_json || '[]'); } catch { ccLinhas = []; }
+                                    const ccDiasUteis = globalTaxas.centro_custo_dias_uteis || 22;
+                                    const ccTotalMensal = ccLinhas.reduce((s, l) => s + (Number(l.valor) || 0), 0);
+                                    const ccCustoDia = ccDiasUteis > 0 ? ccTotalMensal / ccDiasUteis : 0;
+                                    if (ccTotalMensal === 0) return null;
+
+                                    const prazo = prazoExecEfetivo;
+                                    const custoFixoProjeto = ccCustoDia * prazo;
+                                    const custoMaterialPuro = tot.cm || 0;
+                                    const refCentroCusto = custoFixoProjeto + custoMaterialPuro;
+                                    const pvAtual = pvComDesconto;
+                                    const diff = pvAtual - refCentroCusto;
+                                    const diffPct = refCentroCusto > 0 ? ((diff / refCentroCusto) * 100) : 0;
+                                    const abaixo = diff < 0;
+                                    const maxVal = Math.max(pvAtual, refCentroCusto, 1);
+
+                                    return (
+                                        <div className="mt-3 pt-3" style={{ borderTop: '2px dashed var(--border)' }}>
+                                            <div className="text-[9px] font-semibold mb-2 flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                                                <BarChart3 size={10} /> REFERÊNCIA CENTRO DE CUSTO
+                                            </div>
+
+                                            <div className="flex flex-col gap-1 text-[10px]">
+                                                <div className="flex justify-between">
+                                                    <span style={{ color: 'var(--text-muted)' }}>Custo fixo ({prazo}d × R$ {ccCustoDia.toFixed(0)}/dia)</span>
+                                                    <span style={{ color: 'var(--text-secondary)' }}>{R$(custoFixoProjeto)}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span style={{ color: 'var(--text-muted)' }}>Material</span>
+                                                    <span style={{ color: 'var(--text-secondary)' }}>{R$(custoMaterialPuro)}</span>
+                                                </div>
+                                                <div className="flex justify-between pt-1 mt-1 font-semibold" style={{ borderTop: '1px solid var(--border)' }}>
+                                                    <span style={{ color: 'var(--text-secondary)' }}>Ref. Centro Custo</span>
+                                                    <span style={{ color: '#64748b' }}>{R$(refCentroCusto)}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Comparison bars */}
+                                            <div className="mt-3 flex flex-col gap-1.5">
+                                                <div>
+                                                    <div className="flex justify-between text-[9px] mb-0.5">
+                                                        <span style={{ color: 'var(--primary)' }}>PV Markup</span>
+                                                        <span className="font-bold" style={{ color: 'var(--primary)' }}>{R$(pvAtual)}</span>
+                                                    </div>
+                                                    <div className="w-full h-2 rounded-full" style={{ background: 'var(--bg-muted)' }}>
+                                                        <div className="h-full rounded-full" style={{ width: `${Math.min(100, (pvAtual / maxVal) * 100)}%`, background: 'var(--primary)', transition: 'width 0.3s' }} />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div className="flex justify-between text-[9px] mb-0.5">
+                                                        <span style={{ color: '#64748b' }}>Ref. Centro Custo</span>
+                                                        <span className="font-bold" style={{ color: '#64748b' }}>{R$(refCentroCusto)}</span>
+                                                    </div>
+                                                    <div className="w-full h-2 rounded-full" style={{ background: 'var(--bg-muted)' }}>
+                                                        <div className="h-full rounded-full" style={{ width: `${Math.min(100, (refCentroCusto / maxVal) * 100)}%`, background: '#64748b', transition: 'width 0.3s' }} />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Difference indicator */}
+                                            <div className="mt-2 p-2 rounded-lg text-center text-[10px] font-bold" style={{
+                                                background: abaixo ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.08)',
+                                                color: abaixo ? '#ef4444' : '#22c55e',
+                                                border: `1px solid ${abaixo ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)'}`,
+                                            }}>
+                                                {abaixo
+                                                    ? <><AlertTriangle size={10} className="inline mr-1" />PV está {R$(Math.abs(diff))} ABAIXO da referência ({diffPct.toFixed(0)}%)</>
+                                                    : <>PV está +{R$(diff)} acima da referência (+{diffPct.toFixed(0)}%)</>
+                                                }
+                                            </div>
+
+                                            <p className="text-[8px] mt-1.5" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>
+                                                Referência informativa. Não altera o preço de venda.
+                                            </p>
                                         </div>
                                     );
                                 })()}

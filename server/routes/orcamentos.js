@@ -20,6 +20,7 @@ function parseOrcData(row) {
             row.padroes = data.padroes || null;
             row.pagamento = data.pagamento || null;
             row.prazo_entrega = data.prazo_entrega || '';
+            row.prazo_execucao = data.prazo_execucao || null;
             row.endereco_obra = data.endereco_obra || '';
             row.validade_proposta = data.validade_proposta || '';
             row.validade_dias = data.validade_dias || parseInt(data.validade_proposta) || 15;
@@ -584,7 +585,7 @@ router.post('/:id/duplicar', requireAuth, (req, res) => {
 // POST /api/orcamentos
 // ═══════════════════════════════════════════════════════
 router.post('/', requireAuth, (req, res) => {
-    const { cliente_id, cliente_nome, projeto, ambiente, ambientes, mods, taxas, padroes, pagamento, obs, custo_material, valor_venda, status, kb_col, numero, data_vencimento, prazo_entrega, endereco_obra, validade_proposta, validade_dias } = req.body;
+    const { cliente_id, cliente_nome, projeto, ambiente, ambientes, mods, taxas, padroes, pagamento, obs, custo_material, valor_venda, status, kb_col, numero, data_vencimento, prazo_entrega, prazo_execucao, endereco_obra, validade_proposta, validade_dias } = req.body;
     if (!cliente_id) return res.status(400).json({ error: 'Cliente obrigatório' });
 
     // Validar tipos numéricos
@@ -593,7 +594,7 @@ router.post('/', requireAuth, (req, res) => {
 
     // Store everything in mods_json — new format includes ambientes + taxas + padroes + pagamento + campos proposta
     const modsJson = ambientes
-        ? JSON.stringify({ ambientes, taxas: taxas || null, projeto: projeto || '', padroes: padroes || null, pagamento: pagamento || null, prazo_entrega: prazo_entrega || '', endereco_obra: endereco_obra || '', validade_proposta: validade_proposta || '', validade_dias: validade_dias || 15 })
+        ? JSON.stringify({ ambientes, taxas: taxas || null, projeto: projeto || '', padroes: padroes || null, pagamento: pagamento || null, prazo_entrega: prazo_entrega || '', prazo_execucao: prazo_execucao || null, endereco_obra: endereco_obra || '', validade_proposta: validade_proposta || '', validade_dias: validade_dias || 15 })
         : JSON.stringify(mods || []);
 
     const result = db.prepare(`
@@ -643,11 +644,11 @@ router.put('/:id', requireAuth, (req, res) => {
         return res.status(403).json({ error: 'Versão substituída — somente leitura', substituida: true });
     }
 
-    const { cliente_id, cliente_nome, projeto, ambiente, ambientes, mods, taxas, padroes, pagamento, obs, custo_material, valor_venda, status, kb_col, numero, data_vencimento, prazo_entrega, endereco_obra, validade_proposta, validade_dias } = req.body;
+    const { cliente_id, cliente_nome, projeto, ambiente, ambientes, mods, taxas, padroes, pagamento, obs, custo_material, valor_venda, status, kb_col, numero, data_vencimento, prazo_entrega, prazo_execucao, endereco_obra, validade_proposta, validade_dias } = req.body;
 
     let modsJson;
     if (ambientes) {
-        modsJson = JSON.stringify({ ambientes, taxas: taxas || null, projeto: projeto || '', padroes: padroes || null, pagamento: pagamento || null, prazo_entrega: prazo_entrega || '', endereco_obra: endereco_obra || '', validade_proposta: validade_proposta || '', validade_dias: validade_dias || 15 });
+        modsJson = JSON.stringify({ ambientes, taxas: taxas || null, projeto: projeto || '', padroes: padroes || null, pagamento: pagamento || null, prazo_entrega: prazo_entrega || '', prazo_execucao: prazo_execucao || null, endereco_obra: endereco_obra || '', validade_proposta: validade_proposta || '', validade_dias: validade_dias || 15 });
     } else if (mods) {
         modsJson = JSON.stringify(mods);
     } else {

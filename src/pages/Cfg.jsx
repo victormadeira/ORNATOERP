@@ -184,6 +184,8 @@ export default function Cfg({ taxas, reload, notify }) {
         landing_servicos_json: JSON.stringify(LANDING_SERVICOS_DEFAULT),
         landing_diferenciais_json: JSON.stringify(LANDING_DIFERENCIAIS_DEFAULT),
         landing_etapas_json: JSON.stringify(LANDING_ETAPAS_DEFAULT),
+        centro_custo_json: '[]',
+        centro_custo_dias_uteis: 22,
     });
     const [waStatus, setWaStatus] = useState(null);
     const [waQR, setWaQR] = useState(null);
@@ -264,6 +266,8 @@ export default function Cfg({ taxas, reload, notify }) {
                 landing_servicos_json: d.landing_servicos_json || JSON.stringify(LANDING_SERVICOS_DEFAULT),
                 landing_diferenciais_json: d.landing_diferenciais_json || JSON.stringify(LANDING_DIFERENCIAIS_DEFAULT),
                 landing_etapas_json: d.landing_etapas_json || JSON.stringify(LANDING_ETAPAS_DEFAULT),
+                centro_custo_json: d.centro_custo_json || '[]',
+                centro_custo_dias_uteis: d.centro_custo_dias_uteis ?? 22,
             });
         }).catch(e => notify(e.error || 'Erro ao carregar configurações'));
         api.get('/portfolio').then(setPortfolio).catch(e => notify(e.error || 'Erro ao carregar portfolio'));
@@ -339,6 +343,8 @@ export default function Cfg({ taxas, reload, notify }) {
                 landing_servicos_json: emp.landing_servicos_json,
                 landing_diferenciais_json: emp.landing_diferenciais_json,
                 landing_etapas_json: emp.landing_etapas_json,
+                centro_custo_json: emp.centro_custo_json,
+                centro_custo_dias_uteis: emp.centro_custo_dias_uteis,
             });
             if (!silent) notify("Dados salvos!");
         }
@@ -425,6 +431,7 @@ export default function Cfg({ taxas, reload, notify }) {
                 {sectionBtn('landing', 'Landing Page', <Ic.Star />)}
                 {sectionBtn('portfolio', 'Portfolio', <Images size={16} />)}
                 {sectionBtn('etapas', 'Etapas do Projeto', <CheckCircle2 size={16} />)}
+                {sectionBtn('custos', 'Centro de Custo', <Ic.Dollar />)}
                 {sectionBtn('backup', 'Backup', <Database size={16} />)}
             </div>
 
@@ -2298,6 +2305,114 @@ export default function Cfg({ taxas, reload, notify }) {
 
                             <p className="text-[10px] mt-4" style={{ color: 'var(--text-muted)', lineHeight: 1.5 }}>
                                 Ao criar um novo projeto, basta informar a data de início. As datas de cada etapa serão calculadas automaticamente com base nas durações acima, em sequência.
+                            </p>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* ─── Centro de Custo ─────────────────────────────── */}
+            {activeSection === 'custos' && (() => {
+                let linhas = [];
+                try { linhas = JSON.parse(emp.centro_custo_json || '[]'); } catch { linhas = []; }
+                if (linhas.length === 0) linhas = [
+                    { descricao: 'Aluguel', valor: 0 },
+                    { descricao: 'Energia', valor: 0 },
+                    { descricao: 'Funcionários (salários + encargos)', valor: 0 },
+                    { descricao: 'Internet / Telefone', valor: 0 },
+                    { descricao: 'Água', valor: 0 },
+                    { descricao: 'Contador', valor: 0 },
+                ];
+                const diasUteis = emp.centro_custo_dias_uteis || 22;
+                const totalMensal = linhas.reduce((s, l) => s + (Number(l.valor) || 0), 0);
+                const custoDia = diasUteis > 0 ? totalMensal / diasUteis : 0;
+
+                const updateLinhas = (newLinhas) => {
+                    setEmp(prev => ({ ...prev, centro_custo_json: JSON.stringify(newLinhas) }));
+                };
+
+                return (
+                    <div className="max-w-2xl">
+                        <div className={Z.card}>
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
+                                    <Ic.Dollar />
+                                </div>
+                                <div>
+                                    <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Centro de Custo Mensal</h2>
+                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Custos fixos mensais da marcenaria. Usado como referência no painel comparativo do orçamento.</p>
+                                </div>
+                            </div>
+
+                            {/* Summary bar */}
+                            <div className="mb-4 p-3 rounded-lg flex items-center justify-between" style={{ background: 'var(--bg-muted)' }}>
+                                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                    {linhas.length} itens &middot; Total mensal: <strong style={{ color: 'var(--text-primary)' }}>R$ {totalMensal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                                </span>
+                                <span className="text-xs font-bold" style={{ color: 'var(--primary)' }}>
+                                    R$ {custoDia.toFixed(2)}/dia
+                                </span>
+                            </div>
+
+                            {/* Dias úteis */}
+                            <div className="mb-4">
+                                <label className={Z.lbl}>Dias úteis por mês</label>
+                                <input type="number" min="1" max="31"
+                                    value={diasUteis}
+                                    onChange={e => setEmp(prev => ({ ...prev, centro_custo_dias_uteis: parseInt(e.target.value) || 22 }))}
+                                    className={`${Z.inp} w-24`}
+                                    disabled={!isGerente} />
+                            </div>
+
+                            {/* Editable lines */}
+                            <div className="flex flex-col gap-1.5 mb-4">
+                                {linhas.map((linha, i) => (
+                                    <div key={i} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                        <input value={linha.descricao}
+                                            onChange={e => {
+                                                const arr = [...linhas];
+                                                arr[i] = { ...arr[i], descricao: e.target.value };
+                                                updateLinhas(arr);
+                                            }}
+                                            className={`${Z.inp} flex-1 text-xs`}
+                                            placeholder="Descrição do custo" disabled={!isGerente} />
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>R$</span>
+                                            <input type="number" min="0" step="50"
+                                                value={linha.valor || ''}
+                                                onChange={e => {
+                                                    const arr = [...linhas];
+                                                    arr[i] = { ...arr[i], valor: parseFloat(e.target.value) || 0 };
+                                                    updateLinhas(arr);
+                                                }}
+                                                className={`${Z.inp} w-28 text-xs text-right`}
+                                                placeholder="0,00" disabled={!isGerente} />
+                                        </div>
+                                        <button onClick={() => updateLinhas(linhas.filter((_, j) => j !== i))}
+                                            className="p-1 rounded hover:opacity-70 cursor-pointer"
+                                            style={{ color: 'var(--danger)' }}
+                                            disabled={!isGerente} title="Excluir">
+                                            <Trash2 size={13} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Add + Save */}
+                            <div className="flex items-center justify-between">
+                                <button onClick={() => updateLinhas([...linhas, { descricao: '', valor: 0 }])}
+                                    className={`${Z.btn2} text-xs`} disabled={!isGerente}>
+                                    <Plus size={12} /> Adicionar item
+                                </button>
+                                <button onClick={() => saveEmpresa()}
+                                    className={`${Z.btn} text-xs`} disabled={!isGerente}>
+                                    Salvar Centro de Custo
+                                </button>
+                            </div>
+
+                            <p className="text-[10px] mt-4" style={{ color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                                O custo/dia será usado no painel comparativo dos orçamentos: <strong>custo/dia × prazo de execução + material = referência</strong>.
+                                Configure o prazo de execução em cada orçamento para ver a comparação.
                             </p>
                         </div>
                     </div>

@@ -1088,6 +1088,9 @@ const migrations = [
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
     atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
+  // ── Centro de Custo ──
+  `ALTER TABLE empresa_config ADD COLUMN centro_custo_json TEXT DEFAULT '[]'`,
+  `ALTER TABLE empresa_config ADD COLUMN centro_custo_dias_uteis INTEGER DEFAULT 22`,
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

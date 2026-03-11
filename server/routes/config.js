@@ -9,11 +9,18 @@ const router = Router();
 // ═══════════════════════════════════════════════════════
 router.get('/', requireAuth, (req, res) => {
     const cfg = db.prepare('SELECT * FROM config_taxas WHERE id = 1').get();
-    res.json(cfg || {
+    const result = cfg || {
         imp: 8, com: 10, mont: 0, lucro: 12, frete: 2, inst: 5,
         mk_chapas: 1.45, mk_ferragens: 1.15, mk_fita: 1.45,
         mk_acabamentos: 1.30, mk_acessorios: 1.20, mk_mdo: 0.80,
-    });
+    };
+    // Enriquecer com dados do centro de custo (usado no painel comparativo do orçamento)
+    const emp = db.prepare('SELECT centro_custo_json, centro_custo_dias_uteis FROM empresa_config WHERE id = 1').get();
+    if (emp) {
+        result.centro_custo_json = emp.centro_custo_json || '[]';
+        result.centro_custo_dias_uteis = emp.centro_custo_dias_uteis ?? 22;
+    }
+    res.json(result);
 });
 
 // ═══════════════════════════════════════════════════════
@@ -84,6 +91,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         landing_grafismo_imagem,
         landing_cor_fundo, landing_cor_destaque, landing_cor_neutra, landing_cor_clara,
         landing_servicos_json, landing_diferenciais_json, landing_etapas_json,
+        centro_custo_json, centro_custo_dias_uteis,
     } = req.body;
     db.prepare(`
     UPDATE empresa_config SET
@@ -113,6 +121,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
       landing_grafismo_imagem=?,
       landing_cor_fundo=?, landing_cor_destaque=?, landing_cor_neutra=?, landing_cor_clara=?,
       landing_servicos_json=?, landing_diferenciais_json=?, landing_etapas_json=?,
+      centro_custo_json=?, centro_custo_dias_uteis=?,
       atualizado_em=CURRENT_TIMESTAMP
     WHERE id=1
   `).run(
@@ -162,6 +171,8 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         landing_servicos_json !== undefined ? landing_servicos_json : '[]',
         landing_diferenciais_json !== undefined ? landing_diferenciais_json : '[]',
         landing_etapas_json !== undefined ? landing_etapas_json : '[]',
+        centro_custo_json !== undefined ? centro_custo_json : '[]',
+        centro_custo_dias_uteis ?? 22,
     );
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
     res.json(emp);
