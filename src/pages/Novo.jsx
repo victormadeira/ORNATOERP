@@ -967,7 +967,7 @@ function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly
                                     <div><input type="number" className={Z.inp} value={p.comp || 0} placeholder="Comp. (mm)" onChange={e => { const perfis = [...(item.perfis || [])]; perfis[pi] = { ...p, comp: +e.target.value }; up({ perfis }); }} /></div>
                                     <div><input type="number" step="0.01" className={Z.inp} value={p.precoML || 0} placeholder="R$/ml" onChange={e => { const perfis = [...(item.perfis || [])]; perfis[pi] = { ...p, precoML: +e.target.value }; up({ perfis }); }} /></div>
                                     <div className="flex items-center gap-1">
-                                        <input type="number" min={1} className={Z.inp} value={p.qtd || 1} style={{ width: 50 }} onChange={e => { const perfis = [...(item.perfis || [])]; perfis[pi] = { ...p, qtd: Math.max(1, +e.target.value) }; up({ perfis }); }} />
+                                        <input type="number" min={1} className={Z.inp} value={p.qtd || 1} style={{ width: 56, textAlign: 'center', fontSize: 13, padding: '4px 6px' }} onChange={e => { const perfis = [...(item.perfis || [])]; perfis[pi] = { ...p, qtd: Math.max(1, +e.target.value) }; up({ perfis }); }} />
                                         <button onClick={() => { const perfis = (item.perfis || []).filter((_, i) => i !== pi); up({ perfis }); }}
                                             className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={11} /></button>
                                     </div>
@@ -2303,7 +2303,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                     <input value={ln.descricao} placeholder="Descrição do item"
                                                                         onChange={e => upAmb(amb.id, a => { a.linhas[li].descricao = e.target.value; })}
                                                                         className={Z.inp} style={{ fontSize: 13, flex: 1 }} />
-                                                                    <input type="number" value={ln.qtd} min={1} style={{ width: 50, textAlign: 'center' }}
+                                                                    <input type="number" value={ln.qtd} min={1} style={{ width: 56, textAlign: 'center', fontSize: 13, padding: '4px 6px' }}
                                                                         onChange={e => upAmb(amb.id, a => { a.linhas[li].qtd = Math.max(1, parseInt(e.target.value) || 1); })}
                                                                         className={Z.inp} />
                                                                     <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>×</span>
@@ -2443,7 +2443,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                     style={{ color: 'var(--text-primary)' }} readOnly={readOnly} />
                                                                 <input type="number" min="1" value={item.qtd || 1}
                                                                     onChange={e => upItem(amb.id, item.id, it => it.qtd = Math.max(1, parseInt(e.target.value) || 1))}
-                                                                    className={Z.inp} style={{ width: 45, textAlign: 'center', fontSize: 11 }} readOnly={readOnly} />
+                                                                    className={Z.inp} style={{ width: 56, textAlign: 'center', fontSize: 13, padding: '4px 6px' }} readOnly={readOnly} />
                                                                 <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>×</span>
                                                                 <div className="flex items-center gap-0.5">
                                                                     <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>R$</span>
