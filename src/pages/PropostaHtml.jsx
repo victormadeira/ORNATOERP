@@ -615,10 +615,10 @@ export function buildPropostaHtml({
     .pag-tb td { text-align: center; font-size: 12px; }
 
     /* ══════════ SIGNATURE ══════════ */
-    .sig-section { margin-top: 50px; page-break-inside: avoid; }
+    .sig-section { margin-top: 60px; page-break-inside: avoid; }
     .sig-date {
         font-size: 12px; color: #555;
-        margin-bottom: 50px;
+        margin-bottom: 80px;
     }
     .sig-grid { display: flex; justify-content: space-between; gap: 80px; }
     .sig-block { flex: 1; text-align: center; }
