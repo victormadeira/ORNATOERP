@@ -217,8 +217,8 @@ export function buildContratoHtml({
     const conteudo = replaceVars(tpl, vars);
 
     // ── Cores dinâmicas ──
-    const corPrimaria = empresa?.proposta_cor_primaria || '#333333';
-    const corAccent = empresa?.proposta_cor_accent || '#555555';
+    const corPrimaria = empresa?.proposta_cor_primaria || '#1B2A4A';
+    const corAccent = empresa?.proposta_cor_accent || '#C9A96E';
 
     // ── Logo e watermark ──
     const logoSrc = empresa?.logo_path || empresa?.logo || '';

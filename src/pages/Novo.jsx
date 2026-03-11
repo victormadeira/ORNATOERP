@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Z, Ic, Modal, SearchableSelect, PageHeader } from '../ui';
 import { uid, R$, N, DB_CHAPAS, DB_ACABAMENTOS, DB_FERRAGENS, DB_FITAS, FERR_GROUPS, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, precoVenda, precoVendaV2, LOCKED_COLS, compareVersions } from '../engine';
 import api from '../api';
-import RelatorioMateriais, { buildRelatorioHtml } from './RelatorioMateriais';
+import { buildRelatorioHtml } from './RelatorioMateriais';
 import { buildPropostaHtml } from './PropostaHtml';
 import { buildContratoHtml } from './ContratoHtml';
 import {
@@ -12,7 +12,7 @@ import {
     Lock, Unlock, ShieldAlert, FilePlus2, CheckCircle, Upload, Brain, Sparkles,
     PanelTop, UtensilsCrossed, BedDouble, Bath, Shirt, Flame, WashingMachine, Armchair, PenTool, Briefcase,
     Square, Sofa, RectangleHorizontal, GlassWater, Shapes,
-    GitBranch, Star, ArrowRight, ArrowUpDown, Tag,
+    GitBranch, Star, ArrowRight, ArrowUpDown, Tag, ArrowUp, ArrowDown,
 } from 'lucide-react';
 
 // ── Ícone por categoria de caixa ─────────────────────────────────────────────
@@ -1217,7 +1217,6 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         if (pg.blocos) pg.blocos = pg.blocos.map(b => b.id ? b : { ...b, id: uid() });
         return pg;
     });
-    const [showRelatorio, setShowRelatorio] = useState(false);
     const [empresa, setEmpresa] = useState(null);
     const [prazoEntrega, setPrazoEntrega] = useState(editOrc?.prazo_entrega || '45 dias úteis');
     const [prazoExecucao, setPrazoExecucao] = useState(editOrc?.prazo_execucao || null);
@@ -1417,6 +1416,22 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         setExpandedAmb(clone.id);
         notify('Ambiente duplicado');
     };
+
+    // ── Reordenar ambientes ──
+    const moveAmbUp = (ambId) => setAmbientes(prev => {
+        const idx = prev.findIndex(a => a.id === ambId);
+        if (idx <= 0) return prev;
+        const n = [...prev];
+        [n[idx], n[idx - 1]] = [n[idx - 1], n[idx]];
+        return n;
+    });
+    const moveAmbDown = (ambId) => setAmbientes(prev => {
+        const idx = prev.findIndex(a => a.id === ambId);
+        if (idx < 0 || idx >= prev.length - 1) return prev;
+        const n = [...prev];
+        [n[idx], n[idx + 1]] = [n[idx + 1], n[idx]];
+        return n;
+    });
 
     // ── Fase 6: Salvar ambiente como template ──
     const salvarComoTemplate = async (ambId) => {
@@ -2236,7 +2251,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 <span className="text-sm mt-2">{readOnly ? 'Nenhum ambiente' : 'Adicione um ambiente para começar'}</span>
                                 {!readOnly && <button onClick={addAmbiente} className={`${Z.btn} text-xs mt-3`}><Plus size={13} /> Criar Ambiente</button>}
                             </div>
-                        ) : ambientes.map(amb => {
+                        ) : ambientes.map((amb, ambIdx) => {
                             const isExpAmb = expandedAmb === amb.id;
                             const ambData = tot.ambTotals.find(a => a.id === amb.id) || {};
                             const ambPv = amb.tipo === 'manual' ? (ambData.custo || 0) : (tot.totalItemCP > 0 ? (ambData.cp || 0) / tot.totalItemCP * tot.pv : (ambData.custo || 0));
@@ -2246,6 +2261,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[var(--bg-hover)]" onClick={() => setExpandedAmb(isExpAmb ? null : amb.id)}>
                                         <div className="flex items-center gap-3">
                                             {isExpAmb ? <ChevronDown size={16} style={{ color: 'var(--text-muted)' }} /> : <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />}
+                                            <span className="text-[10px] font-bold rounded px-1.5 py-0.5" style={{ background: 'var(--primary)', color: 'white', minWidth: 22, textAlign: 'center', lineHeight: '1.4' }}>{String(ambIdx + 1).padStart(2, '0')}</span>
                                             <FolderOpen size={16} style={{ color: 'var(--primary)' }} />
                                             <input value={amb.nome} onClick={e => e.stopPropagation()}
                                                 onChange={e => upAmb(amb.id, a => a.nome = e.target.value)}
@@ -2262,9 +2278,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             <span className="font-bold text-sm" style={{ color: 'var(--primary)' }}>{R$(ambPv)}</span>
                                             {!readOnly && (
                                                 <>
-                                                    <button onClick={e => { e.stopPropagation(); setShowSaveTemplateModal(amb.id); setTemplateNome(amb.nome); setTemplateCategoria(''); }} className="p-1 rounded hover:bg-green-500/10 text-green-400/50 hover:text-green-400" title="Salvar como template"><FilePlus2 size={13} /></button>
-                                                    <button onClick={e => { e.stopPropagation(); duplicarAmbiente(amb.id); }} className="p-1 rounded hover:bg-violet-500/10 text-violet-400/50 hover:text-violet-400" title="Duplicar ambiente"><Copy size={13} /></button>
-                                                    <button onClick={e => { e.stopPropagation(); removeAmb(amb.id); }} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={14} /></button>
+                                                    {ambIdx > 0 && <button onClick={e => { e.stopPropagation(); moveAmbUp(amb.id); }} className="p-1 rounded hover:bg-blue-500/10 text-blue-400/40 hover:text-blue-400 cursor-pointer" title="Mover para cima"><ArrowUp size={13} /></button>}
+                                                    {ambIdx < ambientes.length - 1 && <button onClick={e => { e.stopPropagation(); moveAmbDown(amb.id); }} className="p-1 rounded hover:bg-blue-500/10 text-blue-400/40 hover:text-blue-400 cursor-pointer" title="Mover para baixo"><ArrowDown size={13} /></button>}
+                                                    <button onClick={e => { e.stopPropagation(); setShowSaveTemplateModal(amb.id); setTemplateNome(amb.nome); setTemplateCategoria(''); }} className="p-1 rounded hover:bg-green-500/10 text-green-400/50 hover:text-green-400 cursor-pointer" title="Salvar como template"><FilePlus2 size={13} /></button>
+                                                    <button onClick={e => { e.stopPropagation(); duplicarAmbiente(amb.id); }} className="p-1 rounded hover:bg-violet-500/10 text-violet-400/50 hover:text-violet-400 cursor-pointer" title="Duplicar ambiente"><Copy size={13} /></button>
+                                                    <button onClick={e => { e.stopPropagation(); removeAmb(amb.id); }} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400 cursor-pointer"><Trash2 size={14} /></button>
                                                 </>
                                             )}
                                         </div>
@@ -3285,12 +3303,20 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 } catch (ex) { notify(ex.detail || ex.error || 'Erro ao gerar contrato'); }
                             }} className={`${Z.btn2} w-full py-2 text-xs`}><FileSignature size={13} /> Gerar Contrato</button>
                             <button onClick={async () => {
-                                if (!empresa) {
-                                    try { const emp = await api.get('/config/empresa'); setEmpresa(emp); } catch { }
-                                }
-                                setShowRelatorio(r => !r);
-                            }} className={`${Z.btn2} w-full py-2 text-xs ${showRelatorio ? 'ring-1 ring-purple-500' : ''}`}>
-                                <BarChart3 size={13} /> {showRelatorio ? 'Fechar Relatório' : 'Gerar Relatório'}
+                                try {
+                                    let emp = empresa;
+                                    if (!emp) { emp = await api.get('/config/empresa'); setEmpresa(emp); }
+                                    notify('Gerando relatório...');
+                                    const html = buildRelatorioHtml({
+                                        empresa: emp,
+                                        orcamento: { numero, cliente_nome: clis.find(c => c.id === parseInt(cid))?.nome || '', projeto },
+                                        ambientes, tot, taxas, pagamento, pvComDesconto, bib, padroes,
+                                    });
+                                    const blob = await api.postBlob('/pdf/generate', { html });
+                                    window.open(URL.createObjectURL(blob), '_blank');
+                                } catch (ex) { notify(ex.detail || ex.error || 'Erro ao gerar relatório'); }
+                            }} className={`${Z.btn2} w-full py-2 text-xs`}>
+                                <BarChart3 size={13} /> Gerar Relatório
                             </button>
                         </div>
                     </div>
@@ -3608,35 +3634,6 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 </div>
             </div>
 
-            {/* ── Relatório de Materiais ── */}
-            {showRelatorio && (
-                <RelatorioMateriais
-                    empresa={empresa}
-                    orcamento={{ numero, cliente_nome: clis.find(c => c.id === parseInt(cid))?.nome || '', projeto }}
-                    ambientes={ambientes}
-                    tot={tot}
-                    bib={bib}
-                    padroes={padroes}
-                    taxas={taxas}
-                    pagamento={pagamento}
-                    pvComDesconto={pvComDesconto}
-                    onClose={() => setShowRelatorio(false)}
-                    onPdf={async () => {
-                        try {
-                            notify('Gerando PDF...');
-                            const html = buildRelatorioHtml({
-                                empresa, orcamento: { numero, cliente_nome: clis.find(c => c.id === parseInt(cid))?.nome || '', projeto },
-                                ambientes, tot, taxas, pagamento, pvComDesconto, bib, padroes,
-                            });
-                            const blob = await api.postBlob('/pdf/generate', { html });
-                            const url = URL.createObjectURL(blob);
-                            window.open(url, '_blank');
-                        } catch (ex) {
-                            notify(ex.detail || ex.error || 'Erro ao gerar PDF');
-                        }
-                    }}
-                />
-            )}
 
             {/* ── Modal: Nível da Proposta ── */}
             {propostaModal && (

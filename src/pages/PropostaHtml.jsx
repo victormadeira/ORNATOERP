@@ -206,8 +206,8 @@ export function buildPropostaHtml({
     const logoSrc = empresa?.logo_header_path || empresa?.logo || '';
     const watermarkSrc = empresa?.logo_watermark_path || empresa?.logo_watermark || '';
     const watermarkOpacity = empresa?.logo_watermark_opacity ?? 0.04;
-    const corPrimaria = empresa?.proposta_cor_primaria || '#333333';
-    const corAccent = empresa?.proposta_cor_accent || '#555555';
+    const corPrimaria = empresa?.proposta_cor_primaria || '#1B2A4A';
+    const corAccent = empresa?.proposta_cor_accent || '#C9A96E';
 
     const sobreEmpresa = empresa?.proposta_sobre || '';
     const txtGarantia = empresa?.proposta_garantia || DEFAULT_GARANTIA;
@@ -220,7 +220,8 @@ export function buildPropostaHtml({
     const empresaContato = [empresa?.telefone, empresa?.email].filter(Boolean);
 
     // ── Ambientes HTML ────────────────────────────────────────────────────────
-    const ambientesHtml = ambValores.map(amb => {
+    const ambientesHtml = ambValores.map((amb, ambIdx) => {
+        const numLabel = String(ambIdx + 1).padStart(2, '0');
         const showAmbValor = nivel !== 'geral';
         const showItemValor = nivel === 'detalhado';
 
@@ -312,8 +313,8 @@ export function buildPropostaHtml({
         }).join('');
 
         return `
-            <div class="amb-block" data-section="amb_${amb.id}" data-section-nome="${amb.nome || 'Ambiente'}">
-                <div class="amb-title">${amb.nome || 'Ambiente'}</div>
+            <div class="amb-block" data-section="amb_${amb.id}" data-section-nome="${numLabel} — ${amb.nome || 'Ambiente'}">
+                <div class="amb-title">${numLabel} — ${amb.nome || 'Ambiente'}</div>
                 <table class="tb">
                     <thead>
                         <tr>
@@ -327,7 +328,7 @@ export function buildPropostaHtml({
                 </table>
                 ${showAmbValor ? `
                     <div class="amb-total">
-                        <span>Total ${amb.nome || 'Ambiente'}:</span>
+                        <span>Total ${numLabel} — ${amb.nome || 'Ambiente'}:</span>
                         <span>${R$(amb.valorVenda)}</span>
                     </div>
                 ` : ''}
