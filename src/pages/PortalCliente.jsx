@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { MapPin, Phone, Mail, Calendar, MessageSquare, Lock, CheckCircle2, Printer, PauseCircle, Clock, Play, AlertCircle, Send, User, Camera, X, ChevronLeft, ChevronRight, ZoomIn, Ruler, ClipboardCheck, ShoppingCart, Factory, Paintbrush, Truck, Wrench, ListChecks, Scissors, Layers } from 'lucide-react';
+import { MapPin, Phone, Mail, Calendar, MessageSquare, Lock, CheckCircle2, Printer, PauseCircle, Clock, Play, AlertCircle, Send, User, Camera, X, ChevronLeft, ChevronRight, ZoomIn, Ruler, ClipboardCheck, ShoppingCart, Factory, Paintbrush, Truck, Wrench, ListChecks, Scissors, Layers, FileText, Download } from 'lucide-react';
 
 const dtFmt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const timeFmt = (s) => {
@@ -736,6 +736,85 @@ function PortalChat({ token, mensagens: initialMsgs, accent, primary, clienteNom
     );
 }
 
+// ─── Documentos do portal ──────────────────────
+function PortalDocumentos({ token, accent }) {
+    const [arquivos, setArquivos] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetch(`/api/projetos/portal/${token}/arquivos`)
+            .then(r => r.json())
+            .then(d => { if (Array.isArray(d)) setArquivos(d); })
+            .catch(e => console.error('Erro ao carregar documentos:', e))
+            .finally(() => setLoading(false));
+    }, [token]);
+
+    if (loading) return null;
+    if (arquivos.length === 0) return null;
+
+    const fmtSize = (bytes) => bytes > 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`;
+    const isImage = (tipo) => ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(tipo);
+    const getFileIcon = (tipo) => {
+        if (['pdf'].includes(tipo)) return { bg: '#fee2e2', color: '#ef4444', label: 'PDF' };
+        if (['doc', 'docx'].includes(tipo)) return { bg: '#dbeafe', color: '#3b82f6', label: 'DOC' };
+        if (['xls', 'xlsx', 'csv'].includes(tipo)) return { bg: '#dcfce7', color: '#22c55e', label: 'XLS' };
+        if (['dxf', 'dwg'].includes(tipo)) return { bg: '#fef3c7', color: '#f59e0b', label: 'CAD' };
+        if (isImage(tipo)) return { bg: '#ede9fe', color: '#8b5cf6', label: 'IMG' };
+        return { bg: '#f1f5f9', color: '#64748b', label: (tipo || '?').toUpperCase().slice(0, 3) };
+    };
+
+    return (
+        <div style={{ background: '#fff', padding: '24px 32px', borderBottom: '1px solid #e2e8f0' }}>
+            <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <FileText size={16} style={{ color: accent }} /> Documentos
+            </h2>
+            <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>
+                {arquivos.length} documento{arquivos.length !== 1 ? 's' : ''} disponíve{arquivos.length !== 1 ? 'is' : 'l'}
+            </p>
+
+            <div style={{ display: 'grid', gap: 8 }}>
+                {arquivos.map(f => {
+                    const fi = getFileIcon(f.tipo);
+                    return (
+                        <a
+                            key={f.id}
+                            href={f.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 12,
+                                padding: '12px 16px', borderRadius: 10,
+                                background: '#f8fafc', border: '1px solid #e2e8f0',
+                                textDecoration: 'none', color: 'inherit',
+                                transition: 'all 0.15s',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = accent + '50'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+                        >
+                            {isImage(f.tipo) ? (
+                                <img src={f.url} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0 }} />
+                            ) : (
+                                <div style={{
+                                    width: 44, height: 44, borderRadius: 8,
+                                    background: fi.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: 11, fontWeight: 700, color: fi.color, flexShrink: 0,
+                                }}>{fi.label}</div>
+                            )}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 600, fontSize: 13, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.nome}</div>
+                                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                    {fmtSize(f.tamanho)} · {new Date(f.data).toLocaleDateString('pt-BR')}
+                                </div>
+                            </div>
+                            <Download size={16} style={{ color: accent, flexShrink: 0 }} />
+                        </a>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
 // ─── Galeria de fotos do portal ──────────────
 function PortalGaleria({ token, accent, primary }) {
     const [fotos, setFotos] = useState([]);
@@ -992,6 +1071,21 @@ export default function PortalCliente({ token, isPreview = false }) {
             })
             .catch(() => setError('Não foi possível carregar o projeto'))
             .finally(() => setLoading(false));
+
+        // Solicitar geolocalização (apenas acesso público, não preview)
+        if (!isPreview && navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    fetch(`/api/projetos/portal/${token}/localizacao`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+                    }).catch(() => {});
+                },
+                () => {}, // Usuário negou ou erro — silencioso
+                { timeout: 10000, maximumAge: 300000 }
+            );
+        }
     }, [token, isPreview]);
 
     const primary = data?.empresa?.proposta_cor_primaria || '#1B2A4A';
@@ -1277,6 +1371,9 @@ export default function PortalCliente({ token, isPreview = false }) {
 
                 {/* ─── Galeria de Fotos ──────────────────────── */}
                 <PortalGaleria token={token} accent={accent} primary={primary} />
+
+                {/* ─── Documentos ────────────────────────────── */}
+                <PortalDocumentos token={token} accent={accent} />
 
                 {/* ─── Rodapé ─────────────────────────────────── */}
                 <div style={{

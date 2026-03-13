@@ -1094,6 +1094,24 @@ const migrations = [
   // ── Ambientes no Projeto ──
   `ALTER TABLE projetos ADD COLUMN ambientes_json TEXT DEFAULT '[]'`,
   `ALTER TABLE projetos ADD COLUMN mostrar_ambientes_portal INTEGER DEFAULT 0`,
+  // ── Documentos visíveis no portal ──
+  `ALTER TABLE projeto_arquivos ADD COLUMN visivel_portal INTEGER DEFAULT 0`,
+  // ── Histórico de acessos do portal ──
+  `CREATE TABLE IF NOT EXISTS portal_acessos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projeto_id INTEGER NOT NULL REFERENCES projetos(id),
+    token TEXT NOT NULL,
+    acessado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ip TEXT DEFAULT '',
+    user_agent TEXT DEFAULT '',
+    dispositivo TEXT DEFAULT '',
+    navegador TEXT DEFAULT '',
+    cidade TEXT DEFAULT '',
+    regiao TEXT DEFAULT ''
+  )`,
+  // ── Geolocalização nos acessos do portal ──
+  `ALTER TABLE portal_acessos ADD COLUMN latitude REAL`,
+  `ALTER TABLE portal_acessos ADD COLUMN longitude REAL`,
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

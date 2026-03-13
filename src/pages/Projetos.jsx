@@ -13,7 +13,7 @@ import {
     ChevronDown, ChevronRight, Printer, X as XIcon, Pencil, Clipboard,
     Eye, EyeOff, Upload, Trash2 as Trash2Icon, FileCheck, Shield,
     Camera, Image as ImageIcon, CheckCircle2, XCircle,
-    ClipboardCheck, Factory, Paintbrush, Truck, Wrench, ListChecks
+    ClipboardCheck, Factory, Paintbrush, Truck, Wrench, ListChecks, MapPin
 } from 'lucide-react';
 
 // ─── Helpers ──────────────────────────────────────
@@ -1644,6 +1644,23 @@ function TabArquivos({ data, notify }) {
                                         {fmtSize(f.tamanho)} · {new Date(f.data).toLocaleDateString('pt-BR')}
                                     </div>
                                 </div>
+                                {f.id && (
+                                    <button
+                                        onClick={() => {
+                                            api.put(`/drive/projeto-arquivo/${f.id}/portal`, { visivel: f.visivel_portal ? 0 : 1 })
+                                                .then(loadAll)
+                                                .catch(() => notify('Erro ao alterar visibilidade'));
+                                        }}
+                                        title={f.visivel_portal ? 'Visível no portal do cliente' : 'Oculto no portal'}
+                                        style={{
+                                            background: 'none', border: 'none', cursor: 'pointer', padding: 4,
+                                            color: f.visivel_portal ? '#22c55e' : '#94a3b8',
+                                            opacity: f.visivel_portal ? 1 : 0.5,
+                                        }}
+                                    >
+                                        {f.visivel_portal ? <Eye size={14} /> : <EyeOff size={14} />}
+                                    </button>
+                                )}
                                 <a href={`${API_BASE}${f.url}`} target="_blank" rel="noreferrer"
                                     style={{ color: 'var(--primary)', fontSize: 12, fontWeight: 600, textDecoration: 'none', padding: '4px 8px' }}>Abrir</a>
                                 <button onClick={() => setConfirmDel({ id: f.nome, nome: f.nome, tipo: 'arquivo' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4, opacity: 0.5 }} title="Excluir"><Ic.Trash /></button>
@@ -2542,6 +2559,122 @@ function TabPortalMsgs({ data, notify }) {
                     </button>
                 </div>
             </div>
+
+            {/* Histórico de Acessos */}
+            <PortalAcessosHistory projetoId={data.id} />
+        </div>
+    );
+}
+
+// ─── Histórico de acessos do portal ─────────────────────
+function PortalAcessosHistory({ projetoId }) {
+    const [acessos, setAcessos] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [expanded, setExpanded] = useState(false);
+    const [mapId, setMapId] = useState(null);
+
+    useEffect(() => {
+        api.get(`/projetos/${projetoId}/portal-acessos`)
+            .then(d => { if (Array.isArray(d)) setAcessos(d); })
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, [projetoId]);
+
+    if (loading || acessos.length === 0) return null;
+
+    const fmtDate = (s) => {
+        if (!s) return '';
+        const d = new Date(s + 'Z');
+        return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' +
+               d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const hasAnyLocation = acessos.some(a => a.latitude && a.longitude);
+    const shown = expanded ? acessos : acessos.slice(0, 5);
+
+    return (
+        <div className="glass-card mt-5" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Clock size={14} />
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Acessos ao Portal</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({acessos.length})</span>
+                </div>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                        <tr style={{ background: 'var(--bg-muted)', borderBottom: '1px solid var(--border)' }}>
+                            <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>Data / Hora</th>
+                            <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>Dispositivo</th>
+                            <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>Navegador</th>
+                            {hasAnyLocation && (
+                                <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>Local</th>
+                            )}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {shown.map(a => {
+                            const hasLoc = a.latitude && a.longitude;
+                            return (
+                                <tr key={a.id} style={{ borderBottom: '1px solid var(--border)', cursor: hasLoc ? 'pointer' : 'default', background: mapId === a.id ? 'var(--bg-muted)' : undefined }} onClick={() => hasLoc && setMapId(mapId === a.id ? null : a.id)}>
+                                    <td style={{ padding: '8px 14px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{fmtDate(a.acessado_em)}</td>
+                                    <td style={{ padding: '8px 14px', color: 'var(--text-primary)' }}>{a.dispositivo || '—'}</td>
+                                    <td style={{ padding: '8px 14px', color: 'var(--text-primary)' }}>{a.navegador || '—'}</td>
+                                    {hasAnyLocation && (
+                                        <td style={{ padding: '8px 14px' }}>
+                                            {hasLoc ? (
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--primary)', fontWeight: 600, fontSize: 11 }}>
+                                                    <MapPin size={12} /> Ver mapa
+                                                </span>
+                                            ) : (
+                                                <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>—</span>
+                                            )}
+                                        </td>
+                                    )}
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+            {/* Mapa expandido ao clicar */}
+            {mapId && (() => {
+                const a = acessos.find(x => x.id === mapId);
+                if (!a?.latitude || !a?.longitude) return null;
+                const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${a.longitude - 0.01},${a.latitude - 0.008},${a.longitude + 0.01},${a.latitude + 0.008}&layer=mapnik&marker=${a.latitude},${a.longitude}`;
+                const linkUrl = `https://www.google.com/maps?q=${a.latitude},${a.longitude}`;
+                return (
+                    <div style={{ borderTop: '1px solid var(--border)', padding: 12, background: 'var(--bg-muted)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                {fmtDate(a.acessado_em)} · {a.dispositivo} · {a.navegador}
+                            </span>
+                            <a href={linkUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, fontWeight: 600, color: 'var(--primary)', textDecoration: 'none' }}>
+                                Abrir no Google Maps
+                            </a>
+                        </div>
+                        <iframe
+                            src={mapUrl}
+                            style={{ width: '100%', height: 220, border: '1px solid var(--border)', borderRadius: 8 }}
+                            title="Localização do acesso"
+                        />
+                    </div>
+                );
+            })()}
+            {acessos.length > 5 && (
+                <button
+                    onClick={() => setExpanded(!expanded)}
+                    style={{
+                        width: '100%', padding: '8px 14px', background: 'var(--bg-muted)',
+                        border: 'none', borderTop: '1px solid var(--border)',
+                        fontSize: 11, fontWeight: 600, color: 'var(--primary)',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                    }}
+                >
+                    {expanded ? 'Mostrar menos' : `Ver todos (${acessos.length})`}
+                </button>
+            )}
         </div>
     );
 }

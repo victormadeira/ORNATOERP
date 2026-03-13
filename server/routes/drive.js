@@ -150,7 +150,7 @@ router.get('/projeto/:id/arquivos', requireAuth, (req, res) => {
 
     // Arquivos do banco (com ou sem Drive)
     const dbFiles = db.prepare(`
-        SELECT id, nome, filename, tipo, tamanho, gdrive_file_id, criado_em as data
+        SELECT id, nome, filename, tipo, tamanho, gdrive_file_id, visivel_portal, criado_em as data
         FROM projeto_arquivos WHERE projeto_id = ? ORDER BY criado_em DESC
     `).all(projeto_id);
 
@@ -303,6 +303,44 @@ router.get('/arquivo/:projeto_id/entrega/:filename', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// GET /api/drive/arquivo-portal/:projeto_id/:filename — servir arquivo público (portal)
+// Só serve arquivos com visivel_portal = 1
+// ═══════════════════════════════════════════════════
+router.get('/arquivo-portal/:projeto_id/:filename', async (req, res) => {
+    const projeto_id = String(req.params.projeto_id).replace(/[^a-zA-Z0-9_-]/g, '');
+    const filename = path.basename(decodeURIComponent(req.params.filename));
+
+    const arq = db.prepare('SELECT gdrive_file_id FROM projeto_arquivos WHERE projeto_id = ? AND filename = ? AND visivel_portal = 1').get(projeto_id, filename);
+    if (!arq) return res.status(404).json({ error: 'Arquivo não encontrado ou não disponível' });
+
+    if (arq.gdrive_file_id) {
+        try {
+            const meta = await gdrive.getFileMeta(arq.gdrive_file_id);
+            const stream = await gdrive.downloadFile(arq.gdrive_file_id);
+            res.setHeader('Content-Type', meta.mimeType || getMime(filename));
+            res.setHeader('Cache-Control', 'public, max-age=3600');
+            res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+            stream.on('error', (err) => { console.error('Stream portal erro:', err.message); if (!res.headersSent) res.status(500).end(); });
+            stream.pipe(res);
+            return;
+        } catch (err) {
+            console.error('Drive download portal erro:', err.message);
+        }
+    }
+
+    // Local fallback
+    const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, filename);
+    const resolved = path.resolve(filePath);
+    if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) return res.status(403).json({ error: 'Acesso negado' });
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado' });
+
+    res.setHeader('Content-Type', getMime(filename));
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.sendFile(filePath);
+});
+
+// ═══════════════════════════════════════════════════
 // GET /api/drive/arquivo/:projeto_id/:filename — servir arquivo
 // ═══════════════════════════════════════════════════
 router.get('/arquivo/:projeto_id/:filename', async (req, res) => {
@@ -333,6 +371,18 @@ router.get('/arquivo/:projeto_id/:filename', async (req, res) => {
 
     res.setHeader('Content-Type', getMime(filename));
     res.sendFile(filePath);
+});
+
+// ═══════════════════════════════════════════════════
+// PUT /api/drive/projeto-arquivo/:id/portal — toggle visivel_portal
+// ═══════════════════════════════════════════════════
+router.put('/projeto-arquivo/:id/portal', requireAuth, (req, res) => {
+    const { visivel } = req.body;
+    const v = visivel ? 1 : 0;
+    const arq = db.prepare('SELECT id FROM projeto_arquivos WHERE id = ?').get(req.params.id);
+    if (!arq) return res.status(404).json({ error: 'Arquivo não encontrado' });
+    db.prepare('UPDATE projeto_arquivos SET visivel_portal = ? WHERE id = ?').run(v, arq.id);
+    res.json({ ok: true, visivel_portal: v });
 });
 
 // ═══════════════════════════════════════════════════

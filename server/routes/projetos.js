@@ -14,6 +14,26 @@ const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
 
 const router = Router();
 
+// Helper: parsear user-agent simplificado
+function parseUA(ua) {
+    if (!ua) return { dispositivo: '', navegador: '' };
+    let dispositivo = 'Desktop';
+    if (/iPhone|iPad|iPod/i.test(ua)) dispositivo = 'iPhone';
+    else if (/Android/i.test(ua)) dispositivo = /Mobile/i.test(ua) ? 'Android' : 'Tablet Android';
+    else if (/Macintosh/i.test(ua)) dispositivo = 'Mac';
+    else if (/Windows/i.test(ua)) dispositivo = 'Windows';
+    else if (/Linux/i.test(ua)) dispositivo = 'Linux';
+
+    let navegador = '';
+    if (/Edg\//i.test(ua)) navegador = 'Edge';
+    else if (/OPR|Opera/i.test(ua)) navegador = 'Opera';
+    else if (/Chrome/i.test(ua)) navegador = 'Chrome';
+    else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) navegador = 'Safari';
+    else if (/Firefox/i.test(ua)) navegador = 'Firefox';
+    else navegador = 'Outro';
+    return { dispositivo, navegador };
+}
+
 // Helper: extrair nomes de ambientes do orçamento (mods_json pode ser objeto ou array)
 function parseAmbientesFromOrc(orc) {
     const ambMap = new Map();
@@ -88,6 +108,17 @@ router.get('/portal/:token', (req, res) => {
                 proj.id, 'projeto', proj.cliente_nome || '', null
             );
         }
+    } catch (_) {}
+
+    // Registrar acesso no histórico
+    try {
+        const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || '';
+        const ua = req.headers['user-agent'] || '';
+        const { dispositivo, navegador } = parseUA(ua);
+        db.prepare(`
+            INSERT INTO portal_acessos (projeto_id, token, ip, user_agent, dispositivo, navegador)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).run(proj.id, req.params.token, ip, ua, dispositivo, navegador);
     } catch (_) {}
 
     const etapas = db.prepare(`
@@ -244,6 +275,54 @@ router.get('/portal/:token/fotos', (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// GET /api/projetos/portal/:token/arquivos — listar documentos visíveis no portal (público)
+// ═══════════════════════════════════════════════════
+router.get('/portal/:token/arquivos', (req, res) => {
+    const proj = db.prepare('SELECT id FROM projetos WHERE token = ?').get(req.params.token);
+    if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
+
+    const arquivos = db.prepare(`
+        SELECT id, nome, filename, tipo, tamanho, criado_em as data
+        FROM projeto_arquivos
+        WHERE projeto_id = ? AND visivel_portal = 1
+        ORDER BY criado_em DESC
+    `).all(proj.id);
+
+    const result = arquivos.map(f => ({
+        ...f,
+        url: `/api/drive/arquivo-portal/${proj.id}/${encodeURIComponent(f.filename)}`,
+    }));
+
+    res.json(result);
+});
+
+// ═══════════════════════════════════════════════════
+// POST /api/projetos/portal/:token/localizacao — salvar geolocalização do acesso (público)
+// ═══════════════════════════════════════════════════
+router.post('/portal/:token/localizacao', (req, res) => {
+    const { latitude, longitude } = req.body;
+    if (latitude == null || longitude == null) return res.status(400).json({ error: 'Coordenadas obrigatórias' });
+
+    const proj = db.prepare('SELECT id FROM projetos WHERE token = ?').get(req.params.token);
+    if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
+
+    // Atualizar o acesso mais recente (últimos 2 minutos) que ainda não tem coordenadas
+    try {
+        db.prepare(`
+            UPDATE portal_acessos SET latitude = ?, longitude = ?
+            WHERE id = (
+                SELECT id FROM portal_acessos
+                WHERE projeto_id = ? AND latitude IS NULL
+                  AND acessado_em > datetime('now', '-2 minutes')
+                ORDER BY acessado_em DESC LIMIT 1
+            )
+        `).run(latitude, longitude, proj.id);
+    } catch (_) {}
+
+    res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════
 // POST /api/projetos/portal/:token/mensagens — cliente envia mensagem (público)
 // ═══════════════════════════════════════════════════
 router.post('/portal/:token/mensagens', (req, res) => {
@@ -309,6 +388,20 @@ router.post('/:id/mensagens-portal', requireAuth, (req, res) => {
 
     const msg = db.prepare('SELECT * FROM portal_mensagens WHERE id = ?').get(r.lastInsertRowid);
     res.status(201).json(msg);
+});
+
+// ═══════════════════════════════════════════════════
+// GET /api/projetos/:id/portal-acessos — histórico de acessos do portal (auth)
+// ═══════════════════════════════════════════════════
+router.get('/:id/portal-acessos', requireAuth, (req, res) => {
+    const acessos = db.prepare(`
+        SELECT id, acessado_em, ip, dispositivo, navegador, cidade, regiao, latitude, longitude
+        FROM portal_acessos
+        WHERE projeto_id = ?
+        ORDER BY acessado_em DESC
+        LIMIT 100
+    `).all(req.params.id);
+    res.json(acessos);
 });
 
 // ═══════════════════════════════════════════════════
