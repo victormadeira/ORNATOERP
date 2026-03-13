@@ -155,9 +155,9 @@ router.get('/portal/:token', (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
-// GET /api/projetos/portal-preview/:token — preview interno (requer auth, SEM notificações)
+// GET /api/projetos/portal-preview/:token — preview interno (SEM notificações)
 // ═══════════════════════════════════════════════════
-router.get('/portal-preview/:token', requireAuth, (req, res) => {
+router.get('/portal-preview/:token', (req, res) => {
     const proj = db.prepare(`
         SELECT p.*, o.cliente_nome, o.valor_venda
         FROM projetos p

@@ -337,9 +337,9 @@ router.get('/public/:token', optionalAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// GET /api/portal/preview/:token — preview interno (requer auth, SEM tracking)
+// GET /api/portal/preview/:token — preview interno (SEM tracking)
 // ═══════════════════════════════════════════════════════════════════════════════
-router.get('/preview/:token', requireAuth, (req, res) => {
+router.get('/preview/:token', optionalAuth, (req, res) => {
     const { token } = req.params;
 
     const portalToken = db.prepare('SELECT * FROM portal_tokens WHERE token = ? AND ativo = 1 AND (expira_em IS NULL OR expira_em > datetime(\'now\'))').get(token);
