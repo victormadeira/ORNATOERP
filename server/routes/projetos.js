@@ -110,15 +110,15 @@ router.get('/portal/:token', (req, res) => {
         }
     } catch (_) {}
 
-    // Registrar acesso no histórico (rate-limit: 1 por projeto a cada 30 min)
+    // Registrar acesso no histórico (rate-limit: 1 por IP+projeto a cada 30 min)
     try {
+        const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || '';
         const recentAccess = db.prepare(`
             SELECT id FROM portal_acessos
-            WHERE projeto_id = ? AND acessado_em > datetime('now', '-30 minutes')
+            WHERE projeto_id = ? AND ip = ? AND acessado_em > datetime('now', '-30 minutes')
             LIMIT 1
-        `).get(proj.id);
+        `).get(proj.id, ip);
         if (!recentAccess) {
-            const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || '';
             const ua = req.headers['user-agent'] || '';
             const { dispositivo, navegador } = parseUA(ua);
             db.prepare(`
