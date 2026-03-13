@@ -1776,7 +1776,10 @@ function TabArquivos({ data, notify }) {
                         <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
                             <select className={Z.inp} style={{ fontSize: 12, maxWidth: 180, padding: '5px 8px' }} value={fotoFilter} onChange={e => setFotoFilter(e.target.value)}>
                                 <option value="">Todos ambientes</option>
-                                {[...new Set(montadorFotos.map(f => f.ambiente).filter(Boolean))].map(amb => (
+                                {[...new Set([
+                                    ...montadorFotos.map(f => f.ambiente).filter(Boolean),
+                                    ...(data.ambientes_parsed || []).map(a => a.nome),
+                                ])].map(amb => (
                                     <option key={amb} value={amb}>{amb}</option>
                                 ))}
                             </select>
@@ -3113,13 +3116,15 @@ function TabAmbientes({ data, notify, reload }) {
 
     const save = (updated, extraFields = {}) => {
         setSaving(true);
-        api.put(`/projetos/${data.id}`, {
-            nome: data.nome, descricao: data.descricao, status: data.status,
-            data_inicio: data.data_inicio, data_vencimento: data.data_vencimento,
+        const payload = {
+            nome: data.nome, descricao: data.descricao || '', status: data.status,
+            data_inicio: data.data_inicio || null, data_vencimento: data.data_vencimento || null,
             ambientes_json: JSON.stringify(updated),
             ...extraFields,
-        }).then(() => { setAmbientes(updated); reload(); setSaving(false); })
-          .catch(() => { notify('Erro ao salvar ambientes'); setSaving(false); });
+        };
+        api.put(`/projetos/${data.id}`, payload)
+            .then(() => { setAmbientes(updated); reload(); setSaving(false); })
+            .catch(err => { notify(err?.error || 'Erro ao salvar ambientes'); setSaving(false); });
     };
 
     const addAmb = () => {

@@ -274,9 +274,38 @@ router.get('/:id', requireAuth, (req, res) => {
         'SELECT * FROM ocorrencias_projeto WHERE projeto_id = ? ORDER BY criado_em DESC'
     ).all(proj.id);
 
-    // Parse ambientes JSON
+    // Parse ambientes JSON — se vazio e tem orçamento, importar ambientes automaticamente
     let ambientes_parsed = [];
     try { ambientes_parsed = proj.ambientes_json ? JSON.parse(proj.ambientes_json) : []; } catch (_) {}
+
+    if (ambientes_parsed.length === 0 && proj.orc_id) {
+        try {
+            const orc = db.prepare('SELECT mods_json, ambiente FROM orcamentos WHERE id = ?').get(proj.orc_id);
+            if (orc) {
+                const mods = orc.mods_json ? JSON.parse(orc.mods_json) : [];
+                const ambMap = new Map();
+                if (Array.isArray(mods)) {
+                    for (const mod of mods) {
+                        if (Array.isArray(mod.ambientes)) {
+                            for (const amb of mod.ambientes) {
+                                if (amb.nome && !ambMap.has(amb.nome)) {
+                                    ambMap.set(amb.nome, { id: `amb_${Date.now()}_${ambMap.size}`, nome: amb.nome, status: 'aguardando' });
+                                }
+                            }
+                        }
+                    }
+                }
+                if (orc.ambiente && ambMap.size === 0) {
+                    ambMap.set(orc.ambiente, { id: `amb_${Date.now()}_0`, nome: orc.ambiente, status: 'aguardando' });
+                }
+                if (ambMap.size > 0) {
+                    ambientes_parsed = [...ambMap.values()];
+                    // Persistir para não precisar importar de novo
+                    db.prepare('UPDATE projetos SET ambientes_json = ? WHERE id = ?').run(JSON.stringify(ambientes_parsed), proj.id);
+                }
+            }
+        } catch (_) {}
+    }
 
     res.json({ ...proj, etapas, ocorrencias, ambientes_parsed });
 });
