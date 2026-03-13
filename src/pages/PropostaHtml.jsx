@@ -75,6 +75,7 @@ function calcAmbCustos(ambientes, bib, padroes, taxas) {
                 itemDetails.push({
                     nome: item.nome || 'Item avulso', dims: null, qtd: item.qtd || 1, custo: avValor,
                     componentes: [], tipo: 'avulso', mats: {}, desc: item.desc || '',
+                    grupo_id: item.grupo_id || '',
                 });
                 return;
             }
@@ -106,6 +107,7 @@ function calcAmbCustos(ambientes, bib, padroes, taxas) {
                     ajuste: item.ajuste,
                     tipo: 'modulo',
                     mats: item.mats || {},
+                    grupo_id: item.grupo_id || '',
                 });
             } catch (_) { }
         });
@@ -121,6 +123,7 @@ function calcAmbCustos(ambientes, bib, padroes, taxas) {
                     componentes: [],
                     tipo: 'painel',
                     mats: {},
+                    grupo_id: p.grupo_id || '',
                 });
             } catch (_) { }
         });
@@ -139,10 +142,11 @@ function calcAmbCustos(ambientes, bib, padroes, taxas) {
                     tipo: 'especial',
                     tipoEspecial: ie.tipo,
                     mats: {},
+                    grupo_id: ie.grupo_id || '',
                 });
             } catch (_) { }
         });
-        results.push({ id: amb.id, nome: amb.nome, custo: ambCm, itens: itemDetails, manual: false, avulso: ambAvulso });
+        results.push({ id: amb.id, nome: amb.nome, custo: ambCm, itens: itemDetails, manual: false, avulso: ambAvulso, grupos: amb.grupos || [] });
     });
     return results;
 }
@@ -156,6 +160,29 @@ function fmtDataExtenso() {
 
 function fmtData() {
     return new Date().toLocaleDateString('pt-BR');
+}
+
+// ── Agrupar itens por grupos (pai/filhos) ───────────────────────────────────
+function agruparItens(itens, grupos) {
+    const result = [];
+    const grupoMap = {};
+    // Criar placeholders para cada grupo
+    for (const g of (grupos || [])) {
+        grupoMap[g.id] = { nome: g.nome || 'Grupo', qtd: 1, valorVenda: 0, _agrupado: true, _temFilho: false, dims: null, componentes: [], mats: {}, tipo: 'grupo', desc: '' };
+        result.push(grupoMap[g.id]);
+    }
+    // Distribuir itens — grupo sempre qty 1, soma só o valor
+    for (const it of itens) {
+        const gid = (it.grupo_id || '').trim();
+        if (gid && grupoMap[gid]) {
+            grupoMap[gid].valorVenda += (it.valorVenda || 0);
+            grupoMap[gid]._temFilho = true;
+        } else {
+            result.push(it);
+        }
+    }
+    // Remover grupos vazios (sem filhos)
+    return result.filter(it => !it._agrupado || it._temFilho);
 }
 
 // ── buildPropostaHtml ───────────────────────────────────────────────────────
@@ -235,7 +262,8 @@ export function buildPropostaHtml({
         const showAmbValor = nivel !== 'geral';
         const showItemValor = nivel === 'detalhado';
 
-        const itemsHtml = amb.itens.map(it => {
+        const itensRender = agruparItens(amb.itens, amb.grupos);
+        const itemsHtml = itensRender.map(it => {
             // ── Bloco descritivo: só linhas com marcadores (título é interno) ──
             if (it.tipo === 'bloco') {
                 const lines = (it.descricaoBloco || '').split('\n').filter(l => l.trim());

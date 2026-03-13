@@ -12,7 +12,7 @@ import {
     Lock, Unlock, ShieldAlert, FilePlus2, CheckCircle, Upload, Brain, Sparkles,
     PanelTop, UtensilsCrossed, BedDouble, Bath, Shirt, Flame, WashingMachine, Armchair, PenTool, Briefcase,
     Square, Sofa, RectangleHorizontal, GlassWater, Shapes,
-    GitBranch, Star, ArrowRight, ArrowUpDown, Tag, ArrowUp, ArrowDown,
+    GitBranch, Star, ArrowRight, ArrowUpDown, Tag, ArrowUp, ArrowDown, GripVertical,
 } from 'lucide-react';
 
 // ── Ícone por categoria de caixa ─────────────────────────────────────────────
@@ -170,7 +170,7 @@ function SubItemRow({ si, ativo, onChange, ferragensDB, globalPadroes, ferrOvr, 
 }
 
 // ── Componente: seletor de módulos com busca ─────────────────────────────────
-function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso, placeholder }) {
+function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso, onAddGrupo, placeholder }) {
     const [q, setQ] = useState('');
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
@@ -231,6 +231,16 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso
                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                     <Tag size={14} />
                                     <span>Item Avulso (nome + valor)</span>
+                                </button>
+                            )}
+                            {onAddGrupo && (
+                                <button onClick={() => { onAddGrupo(); setQ(''); setOpen(false); }}
+                                    className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
+                                    style={{ color: '#f59e0b' }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.08)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                    <Package size={14} />
+                                    <span>📦 Criar Grupo (agrupar módulos)</span>
                                 </button>
                             )}
                             {filtered.length > 0 && (
@@ -1097,6 +1107,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [obs, so] = useState(editOrc?.obs || '');
     const [expandedAmb, setExpandedAmb] = useState(null);
     const [expandedItem, setExpandedItem] = useState(null);
+    const [dragOverGrupo, setDragOverGrupo] = useState(null); // grupo_id being hovered during drag
     const [reportItemId, setReportItemId] = useState(null);
     const [addCompModal, setAddCompModal] = useState(null); // { ambId, itemId }
     const [compSearch, setCompSearch] = useState('');
@@ -1486,8 +1497,9 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             qtd: 1,
             mats: { matInt: 'mdf18', matExt: '' },
             componentes: [],
+            grupo_id: '',
         };
-        upAmb(ambId, a => a.itens.push(item));
+        upAmb(ambId, a => { if (!a.grupos) a.grupos = []; a.itens.push(item); });
         setExpandedItem(item.id);
     };
 
@@ -1513,8 +1525,68 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     });
 
     const addItemAvulso = (ambId) => upAmb(ambId, a => {
-        a.itens.push({ id: uid(), tipo: 'avulso', nome: '', valor: 0, qtd: 1, desc: '' });
+        if (!a.grupos) a.grupos = [];
+        a.itens.push({ id: uid(), tipo: 'avulso', nome: '', valor: 0, qtd: 1, desc: '', grupo_id: '' });
     });
+
+    // ── Grupos (Pai/Filhos) ──
+    const addGrupo = (ambId) => upAmb(ambId, a => {
+        if (!a.grupos) a.grupos = [];
+        a.grupos.push({ id: uid(), nome: '' });
+    });
+    const removeGrupo = (ambId, grupoId) => upAmb(ambId, a => {
+        a.grupos = (a.grupos || []).filter(g => g.id !== grupoId);
+        a.itens.forEach(it => { if (it.grupo_id === grupoId) it.grupo_id = ''; });
+    });
+    const renameGrupo = (ambId, grupoId, nome) => upAmb(ambId, a => {
+        const g = (a.grupos || []).find(g => g.id === grupoId);
+        if (g) g.nome = nome;
+    });
+    const moveToGrupo = (ambId, itemId, grupoId) => upItem(ambId, itemId, it => { it.grupo_id = grupoId || ''; });
+    const duplicateGrupo = (ambId, grupoId) => upAmb(ambId, a => {
+        const g = (a.grupos || []).find(g => g.id === grupoId);
+        if (!g) return;
+        const newGrupoId = uid();
+        a.grupos.push({ id: newGrupoId, nome: (g.nome || 'Grupo') + ' (cópia)' });
+        // Duplicar todos os filhos do grupo
+        const filhos = a.itens.filter(it => it.grupo_id === grupoId);
+        for (const fi of filhos) {
+            const clone = JSON.parse(JSON.stringify(fi));
+            clone.id = uid();
+            clone.grupo_id = newGrupoId;
+            // IDs únicos para componentes
+            if (clone.componentes) clone.componentes.forEach(c => c.id = uid());
+            a.itens.push(clone);
+        }
+    });
+
+    // ── Drag & Drop handlers para grupos ──
+    const handleDragStart = (e, ambId, itemId) => {
+        e.dataTransfer.setData('text/plain', JSON.stringify({ ambId, itemId }));
+        e.dataTransfer.effectAllowed = 'move';
+        e.currentTarget.style.opacity = '0.5';
+    };
+    const handleDragEnd = (e) => {
+        e.currentTarget.style.opacity = '1';
+        setDragOverGrupo(null);
+    };
+    const handleGrupoDragOver = (e, grupoId) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setDragOverGrupo(grupoId);
+    };
+    const handleGrupoDragLeave = (e) => {
+        // Só limpa se saiu do container (não entre filhos)
+        if (!e.currentTarget.contains(e.relatedTarget)) setDragOverGrupo(null);
+    };
+    const handleGrupoDrop = (e, ambId, grupoId) => {
+        e.preventDefault();
+        setDragOverGrupo(null);
+        try {
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+            if (data.ambId === ambId && data.itemId) moveToGrupo(ambId, data.itemId, grupoId);
+        } catch (_) { }
+    };
 
     const upItem = (ambId, itemId, fn) => upAmb(ambId, a => {
         const i = a.itens.find(x => x.id === itemId);
@@ -2258,6 +2330,342 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             const ambData = tot.ambTotals.find(a => a.id === amb.id) || {};
                             const ambAvulso = ambData.avulso || 0;
                             const ambPv = amb.tipo === 'manual' ? (ambData.custo || 0) : (tot.totalItemCP > 0 ? (ambData.cp || 0) / tot.totalItemCP * tot.pv + ambAvulso : (ambData.custo || 0));
+
+                            // ── Função de renderização reutilizável para item (avulso ou módulo) ──
+                            const renderItemCard = (item, { inGroup = false } = {}) => {
+                                const hasGrupos = (amb.grupos || []).length > 0;
+                                const canDrag = !readOnly && hasGrupos;
+                                // ── Item Avulso ──
+                                if (item.tipo === 'avulso') {
+                                    return (
+                                        <div key={item.id} className="rounded-lg border overflow-hidden mb-2"
+                                            draggable={canDrag}
+                                            onDragStart={e => handleDragStart(e, amb.id, item.id)}
+                                            onDragEnd={handleDragEnd}
+                                            style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', borderLeft: '3px solid #10b981', cursor: canDrag ? 'grab' : 'default' }}>
+                                            <div className="flex items-center gap-2 px-3 py-2">
+                                                {canDrag && <GripVertical size={12} style={{ color: 'var(--text-muted)', opacity: 0.4, flexShrink: 0 }} />}
+                                                <Tag size={13} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                <input type="text" placeholder="Nome do item (ex: Bancada granito)"
+                                                    value={item.nome} onChange={e => upItem(amb.id, item.id, it => it.nome = e.target.value)}
+                                                    className="bg-transparent font-medium text-sm outline-none flex-1 min-w-0"
+                                                    style={{ color: 'var(--text-primary)' }} readOnly={readOnly} />
+                                                <input type="number" min="1" value={item.qtd || 1}
+                                                    onChange={e => upItem(amb.id, item.id, it => it.qtd = Math.max(1, parseInt(e.target.value) || 1))}
+                                                    className={Z.inp} style={{ width: 56, textAlign: 'center', fontSize: 13, padding: '4px 6px' }} readOnly={readOnly} />
+                                                <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>×</span>
+                                                <div className="flex items-center gap-0.5">
+                                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>R$</span>
+                                                    <input type="number" min="0" step="0.01"
+                                                        value={item.valor || ''} placeholder="0,00"
+                                                        onChange={e => upItem(amb.id, item.id, it => it.valor = parseFloat(e.target.value) || 0)}
+                                                        className={Z.inp} style={{ width: 90, textAlign: 'right', fontSize: 12 }} readOnly={readOnly} />
+                                                </div>
+                                                <span className="font-bold text-xs whitespace-nowrap" style={{ color: '#10b981', minWidth: 70, textAlign: 'right' }}>
+                                                    {R$((item.valor || 0) * (item.qtd || 1))}
+                                                </span>
+                                                {!readOnly && !inGroup && hasGrupos && (
+                                                    <select value="" onChange={e => { if (e.target.value) moveToGrupo(amb.id, item.id, e.target.value); }}
+                                                        className="text-[9px] bg-transparent outline-none cursor-pointer" style={{ color: '#f59e0b', width: 20 }} title="Mover para grupo">
+                                                        <option value="">📦</option>
+                                                        {(amb.grupos || []).map(g => <option key={g.id} value={g.id}>{g.nome || 'Grupo sem nome'}</option>)}
+                                                    </select>
+                                                )}
+                                                {!readOnly && inGroup && (
+                                                    <button onClick={() => moveToGrupo(amb.id, item.id, '')}
+                                                        className="p-0.5 rounded hover:bg-[var(--bg-hover)]" title="Remover do grupo"
+                                                        style={{ color: 'var(--text-muted)' }}><X size={10} /></button>
+                                                )}
+                                                {!readOnly && <button onClick={() => copyItem(amb.id, item.id)} className="p-1 rounded hover:bg-[var(--bg-hover)]"><Copy size={12} /></button>}
+                                                {!readOnly && <button onClick={() => removeItem(amb.id, item.id)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>}
+                                            </div>
+                                            {!readOnly && (
+                                                <div className="px-3 pb-2 pt-0">
+                                                    <input type="text" placeholder="Descrição (opcional)"
+                                                        value={item.desc || ''} onChange={e => upItem(amb.id, item.id, it => it.desc = e.target.value)}
+                                                        className="bg-transparent text-[11px] outline-none w-full" style={{ color: 'var(--text-muted)' }} />
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                }
+                                // ── Item calculado (módulo) ──
+                                const isItemExp = expandedItem === item.id;
+                                const coef = item.caixaDef?.coef || 0;
+                                let res = null;
+                                try {
+                                    res = calcItemV2(item.caixaDef, item.dims, item.mats, item.componentes.map(ci => ({
+                                        compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},
+                                        matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
+                                        dimL: ci.dimL || 0, dimA: ci.dimA || 0, dimP: ci.dimP || 0,
+                                        matIntInst: ci.matIntInst || '', matExtInst: ci.matExtInst || '',
+                                    })), bib, padroes);
+                                } catch (_) { }
+
+                                const itemCPData = (tot.itemCostList || []).find(x => x.itemId === item.id);
+                                const itemCP = itemCPData?.itemCP || 0;
+                                const precoItem = tot.totalItemCP > 0 ? (itemCP / tot.totalItemCP) * tot.pv : (res?.custo || 0);
+                                const aj = item.ajuste || { tipo: '%', valor: 0 };
+                                const ajusteR = aj.valor ? (aj.tipo === 'R' ? aj.valor : precoItem * (aj.valor / 100)) : 0;
+                                const precoItemFinal = precoItem + ajusteR;
+
+                                return (
+                                    <div key={item.id} className="rounded-lg border overflow-hidden mb-2"
+                                        draggable={canDrag}
+                                        onDragStart={e => handleDragStart(e, amb.id, item.id)}
+                                        onDragEnd={handleDragEnd}
+                                        style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', borderLeft: '3px solid var(--primary)', cursor: canDrag ? 'grab' : 'default' }}>
+                                        {/* Header do item */}
+                                        <div className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)]" onClick={() => setExpandedItem(isItemExp ? null : item.id)}>
+                                            <div className="flex items-center gap-2">
+                                                {canDrag && <GripVertical size={12} style={{ color: 'var(--text-muted)', opacity: 0.4, flexShrink: 0 }} />}
+                                                {isItemExp ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                                                {(() => { const CatIc = getCatIcon(item.caixaDef?.cat); return <CatIc size={13} style={{ color: 'var(--primary)' }} />; })()}
+                                                <div className="flex flex-col leading-tight">
+                                                    <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
+                                                        {item.desc || item.nome}
+                                                    </span>
+                                                    {item.desc && (
+                                                        <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{item.nome}</span>
+                                                    )}
+                                                </div>
+                                                {(item.qtd || 1) > 1 && <span className="text-[9px] px-1 rounded font-bold" style={{ background: 'rgba(19,121,240,0.1)', color: 'var(--primary)' }}>×{item.qtd}</span>}
+                                                {item.componentes.length > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>{item.componentes.length} comp.</span>}
+                                                {item.ripado && <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: '#f59e0b15', color: 'var(--warning)' }}>Ripado</span>}
+                                                {ajusteR !== 0 && (
+                                                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: ajusteR > 0 ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)', color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>
+                                                        {ajusteR > 0 ? '+' : ''}{aj.tipo === '%' ? `${aj.valor}%` : R$(ajusteR)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-bold text-xs" style={{ color: 'var(--primary)' }}>{R$(precoItemFinal)}</span>
+                                                {!readOnly && !inGroup && hasGrupos && (
+                                                    <select value="" onChange={e => { e.stopPropagation(); if (e.target.value) moveToGrupo(amb.id, item.id, e.target.value); }}
+                                                        onClick={e => e.stopPropagation()}
+                                                        className="text-[9px] bg-transparent outline-none cursor-pointer" style={{ color: '#f59e0b', width: 20 }} title="Mover para grupo">
+                                                        <option value="">📦</option>
+                                                        {(amb.grupos || []).map(g => <option key={g.id} value={g.id}>{g.nome || 'Grupo sem nome'}</option>)}
+                                                    </select>
+                                                )}
+                                                {!readOnly && inGroup && (
+                                                    <button onClick={e => { e.stopPropagation(); moveToGrupo(amb.id, item.id, ''); }}
+                                                        className="p-0.5 rounded hover:bg-[var(--bg-hover)]" title="Remover do grupo"
+                                                        style={{ color: 'var(--text-muted)' }}><X size={11} /></button>
+                                                )}
+                                                {!readOnly && <button onClick={e => { e.stopPropagation(); copyItem(amb.id, item.id); }} className="p-1 rounded hover:bg-[var(--bg-hover)]"><Copy size={12} /></button>}
+                                                {!readOnly && <button onClick={e => { e.stopPropagation(); removeItem(amb.id, item.id); }} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>}
+                                            </div>
+                                        </div>
+
+                                        {isItemExp && (
+                                            <div className="px-4 pb-4 pt-3 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
+                                                {/* Trocar módulo */}
+                                                <div>
+                                                    <label className={Z.lbl}>Módulo base</label>
+                                                    <CaixaSearch
+                                                        caixas={caixas}
+                                                        onSelect={newId => swapItemCaixa(amb.id, item.id, newId)}
+                                                        onAddPainel={null}
+                                                        placeholder={`Atual: ${item.nome} — clique para trocar...`}
+                                                    />
+                                                </div>
+
+                                                {/* Descrição do módulo */}
+                                                <div>
+                                                    <label className={Z.lbl}>Descrição do Módulo</label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder={`Ex: ${item.nome} — Cozinha inferior, Parede direita...`}
+                                                        value={item.desc || ''}
+                                                        onChange={e => upItem(amb.id, item.id, it => it.desc = e.target.value)}
+                                                        className={Z.inp}
+                                                        style={item.desc ? { borderColor: 'rgba(19,121,240,0.4)', background: 'rgba(19,121,240,0.03)' } : {}}
+                                                    />
+                                                </div>
+
+                                                {/* Ajuste de Preço */}
+                                                <div>
+                                                    <label className={Z.lbl}>Ajuste de Preço <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(desconto negativo · acréscimo positivo)</span></label>
+                                                    <div className="flex gap-2 items-center">
+                                                        <div className="flex rounded overflow-hidden border flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => upItem(amb.id, item.id, it => { if (!it.ajuste) it.ajuste = { tipo: '%', valor: 0 }; it.ajuste.tipo = '%'; })}
+                                                                className="px-2 py-1 text-xs font-bold transition-colors"
+                                                                style={{ background: (item.ajuste?.tipo ?? '%') === '%' ? 'var(--primary)' : 'var(--bg-muted)', color: (item.ajuste?.tipo ?? '%') === '%' ? '#fff' : 'var(--text-muted)' }}>
+                                                                %
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => upItem(amb.id, item.id, it => { if (!it.ajuste) it.ajuste = { tipo: 'R', valor: 0 }; it.ajuste.tipo = 'R'; })}
+                                                                className="px-2 py-1 text-xs font-bold transition-colors"
+                                                                style={{ background: item.ajuste?.tipo === 'R' ? 'var(--primary)' : 'var(--bg-muted)', color: item.ajuste?.tipo === 'R' ? '#fff' : 'var(--text-muted)' }}>
+                                                                R$
+                                                            </button>
+                                                        </div>
+                                                        <input
+                                                            type="number"
+                                                            step="0.1"
+                                                            placeholder="0"
+                                                            value={item.ajuste?.valor ?? ''}
+                                                            onChange={e => upItem(amb.id, item.id, it => {
+                                                                if (!it.ajuste) it.ajuste = { tipo: '%', valor: 0 };
+                                                                it.ajuste.valor = parseFloat(e.target.value) || 0;
+                                                            })}
+                                                            className={Z.inp}
+                                                            style={ajusteR !== 0 ? { borderColor: ajusteR > 0 ? 'rgba(22,163,74,0.5)' : 'rgba(239,68,68,0.5)' } : {}}
+                                                        />
+                                                        {ajusteR !== 0 && (
+                                                            <span className="text-xs whitespace-nowrap font-bold" style={{ color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>
+                                                                {ajusteR > 0 ? '+' : ''}{R$(ajusteR)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {ajusteR !== 0 && (
+                                                        <div className="text-[10px] mt-1.5 flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
+                                                            <span>Base: {R$(precoItem)}</span>
+                                                            <span>→</span>
+                                                            <span className="font-semibold" style={{ color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>Final: {R$(precoItemFinal)}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Dimensões e quantidade */}
+                                                {(() => {
+                                                    const allowedDims = item.caixaDef?.dimsAplicaveis || ['L','A','P'];
+                                                    const dimFields = [['Larg. (mm)', 'l', 'L'], ['Alt. (mm)', 'a', 'A'], ['Prof. (mm)', 'p', 'P']]
+                                                        .filter(([, , key]) => allowedDims.includes(key));
+                                                    return (
+                                                <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${dimFields.length + 1}, minmax(0, 1fr))` }}>
+                                                    {dimFields.map(([lbl, k]) => (
+                                                        <div key={k} className="min-w-0">
+                                                            <label className={Z.lbl}>{lbl}</label>
+                                                            <input type="number" value={item.dims[k]}
+                                                                onChange={e => upItem(amb.id, item.id, it => it.dims[k] = +e.target.value || 0)}
+                                                                className={Z.inp} />
+                                                        </div>
+                                                    ))}
+                                                    <div className="min-w-0">
+                                                        <label className={Z.lbl}>Qtd.</label>
+                                                        <input type="number" min="1" value={item.qtd || 1}
+                                                            onChange={e => upItem(amb.id, item.id, it => it.qtd = Math.max(1, +e.target.value || 1))}
+                                                            className={Z.inp} />
+                                                    </div>
+                                                </div>
+                                                    );
+                                                })()}
+
+                                                {/* Materiais */}
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                    <div>
+                                                        <label className={Z.lbl}>Material Interno (chapas)</label>
+                                                        <SearchableSelect
+                                                            value={item.mats.matInt}
+                                                            onChange={val => upItem(amb.id, item.id, it => it.mats.matInt = val)}
+                                                            groups={[
+                                                                ...(bib?.topChapas?.length > 0 ? [{ label: 'Mais usados', options: bib.topChapas.map(c => ({ value: c.id, label: c.nome })) }] : []),
+                                                                { label: 'Todas as chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                                            ]}
+                                                            placeholder="Buscar chapa..."
+                                                            className={Z.inp}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className={Z.lbl}>Material Externo (tamponamento)</label>
+                                                        <SearchableSelect
+                                                            value={item.mats.matExt}
+                                                            onChange={val => upItem(amb.id, item.id, it => it.mats.matExt = val)}
+                                                            groups={[
+                                                                ...(bib?.topChapas?.length > 0 || bib?.topAcab?.length > 0 ? [{ label: 'Mais usados', options: [...(bib?.topChapas || []), ...(bib?.topAcab || [])].map(c => ({ value: c.id, label: c.nome })) }] : []),
+                                                                { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                                                { label: 'Acabamentos premium', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) },
+                                                            ]}
+                                                            emptyOption="Sem tamponamento"
+                                                            placeholder="Buscar material..."
+                                                            className={Z.inp}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Componentes */}
+                                                <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <span className="text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--success)' }}>Componentes ({item.componentes.length})</span>
+                                                        <button onClick={() => setAddCompModal({ ambId: amb.id, itemId: item.id })}
+                                                            className="text-[10px] px-2 py-0.5 rounded font-semibold cursor-pointer flex items-center gap-1"
+                                                            style={{ background: 'var(--success)', color: '#fff' }}>
+                                                            <Plus size={10} /> Adicionar
+                                                        </button>
+                                                    </div>
+                                                    {item.componentes.length === 0
+                                                        ? <div className="text-center py-3 text-[11px]" style={{ color: 'var(--text-muted)' }}>Adicione gavetas, prateleiras, portas...</div>
+                                                        : <div className="flex flex-col gap-1.5">
+                                                            {item.componentes.map(ci => (
+                                                                <ComponenteInstancia
+                                                                    key={ci.id}
+                                                                    ci={ci}
+                                                                    caixaDims={item.dims}
+                                                                    mats={item.mats}
+                                                                    compDef={ci.compDef}
+                                                                    onUpdate={newCi => upComp(amb.id, item.id, ci.id, newCi)}
+                                                                    onRemove={() => removeComp(amb.id, item.id, ci.id)}
+                                                                    chapasDB={chapasDB}
+                                                                    acabDB={acabDB}
+                                                                    ferragensDB={ferragensDB}
+                                                                    globalPadroes={padroes}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    }
+                                                </div>
+
+                                                {/* Ripado no módulo */}
+                                                {item.ripado && (
+                                                    <div className="rounded-lg border p-3" style={{ borderColor: '#f59e0b40', borderLeft: '3px solid var(--warning)', background: 'var(--bg-card)' }}>
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <span className="text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5" style={{ color: 'var(--warning)' }}>
+                                                                <Layers size={10} /> Ripado
+                                                            </span>
+                                                            <button onClick={() => removeRipadoFromItem(amb.id, item.id)}
+                                                                className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"
+                                                                title="Remover ripado">
+                                                                <Trash2 size={12} />
+                                                            </button>
+                                                        </div>
+                                                        <RipadoModuloCard
+                                                            ripado={item.ripado}
+                                                            dims={item.dims}
+                                                            bibItems={bibItems}
+                                                            onUpdate={patch => upRipadoOnItem(amb.id, item.id, patch)}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {/* Toggle relatório */}
+                                                <button onClick={() => setReportItemId(reportItemId === item.id ? null : item.id)}
+                                                    className="w-full flex items-center justify-center gap-1.5 py-2 mt-1 rounded-md text-[10px] font-semibold cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
+                                                    style={{ color: 'var(--text-muted)', borderTop: '1px dashed var(--border)' }}>
+                                                    {reportItemId === item.id ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                                                    <BarChart3 size={11} />
+                                                    {reportItemId === item.id ? 'Ocultar detalhes' : 'Ver detalhes do cálculo'}
+                                                </button>
+
+                                                {reportItemId === item.id && res && (
+                                                    <RelatorioItem
+                                                        res={res}
+                                                        chapasDB={chapasDB}
+                                                        fitasDB={fitasDB}
+                                                        coef={coef}
+                                                        qtd={item.qtd || 1}
+                                                    />
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            };
+
                             return (
                                 <div key={amb.id} className="glass-card !p-0 overflow-hidden border-l-[3px] border-l-[var(--primary)] mb-3">
                                     {/* Header do ambiente */}
@@ -2419,6 +2827,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         onAddPainel={() => addPainel(amb.id)}
                                                         onAddEspecial={(tipo) => addItemEspecial(amb.id, tipo)}
                                                         onAddAvulso={() => addItemAvulso(amb.id)}
+                                                        onAddGrupo={() => addGrupo(amb.id)}
                                                     />
                                                     {caixas.length === 0 && (
                                                         <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Nenhuma caixa cadastrada. Vá em <strong>Engenharia de Módulos</strong> para criar.</p>
@@ -2426,309 +2835,96 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 </div>
                                             )}
 
+                                            {/* ── Grupos (Pai/Filhos) ── */}
+                                            {(amb.grupos || []).map(grupo => {
+                                                const filhos = amb.itens.filter(it => it.grupo_id === grupo.id);
+                                                const totalGrupo = filhos.reduce((s, it) => {
+                                                    if (it.tipo === 'avulso') return s + (it.valor || 0) * (it.qtd || 1);
+                                                    const cpd = (tot.itemCostList || []).find(x => x.itemId === it.id);
+                                                    return s + (cpd?.itemCP || 0);
+                                                }, 0);
+                                                // Proporção para mostrar preço de venda
+                                                const pvGrupo = tot.totalItemCP > 0 ? (totalGrupo / tot.totalItemCP) * tot.pv : totalGrupo;
+                                                return (
+                                                    <div key={grupo.id} className="rounded-lg border overflow-hidden mb-3 transition-all duration-150"
+                                                        onDragOver={e => handleGrupoDragOver(e, grupo.id)}
+                                                        onDragLeave={handleGrupoDragLeave}
+                                                        onDrop={e => handleGrupoDrop(e, amb.id, grupo.id)}
+                                                        style={{
+                                                            borderColor: dragOverGrupo === grupo.id ? '#f59e0b' : 'rgba(245,158,11,0.3)',
+                                                            background: dragOverGrupo === grupo.id ? 'rgba(245,158,11,0.08)' : 'var(--bg-card)',
+                                                            borderLeft: '3px solid #f59e0b',
+                                                            boxShadow: dragOverGrupo === grupo.id ? '0 0 12px rgba(245,158,11,0.2)' : 'none',
+                                                            transform: dragOverGrupo === grupo.id ? 'scale(1.01)' : 'none',
+                                                        }}>
+                                                        {/* Header do grupo */}
+                                                        <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'rgba(245,158,11,0.04)' }}>
+                                                            <Package size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                                                            <input type="text" placeholder="Nome do grupo (ex: Armário Cozinha 1500mm)"
+                                                                value={grupo.nome} onChange={e => renameGrupo(amb.id, grupo.id, e.target.value)}
+                                                                className="bg-transparent font-semibold text-sm outline-none flex-1 min-w-0"
+                                                                style={{ color: '#f59e0b' }} readOnly={readOnly} />
+                                                            <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>
+                                                                {filhos.length} {filhos.length === 1 ? 'item' : 'itens'}
+                                                            </span>
+                                                            <span className="font-bold text-xs" style={{ color: '#f59e0b' }}>{R$(pvGrupo)}</span>
+                                                            {!readOnly && <button onClick={() => duplicateGrupo(amb.id, grupo.id)}
+                                                                className="p-1 rounded hover:bg-[var(--bg-hover)]"
+                                                                style={{ color: 'var(--text-muted)' }}
+                                                                title="Duplicar grupo com todos os itens"><Copy size={12} /></button>}
+                                                            {!readOnly && <button onClick={() => removeGrupo(amb.id, grupo.id)}
+                                                                className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"
+                                                                title="Excluir grupo (itens voltam a ficar soltos)"><Trash2 size={12} /></button>}
+                                                        </div>
+                                                        {/* Filhos do grupo — cards completos expandíveis */}
+                                                        <div className="pl-3 pr-1 pb-2 pt-1" style={{ borderTop: '1px solid rgba(245,158,11,0.12)' }}>
+                                                            {filhos.length === 0 ? (
+                                                                <div className="text-center py-4" style={{ color: dragOverGrupo === grupo.id ? '#f59e0b' : 'var(--text-muted)' }}>
+                                                                    <Package size={20} className="mx-auto mb-1 opacity-40" />
+                                                                    <span className="text-[10px]">{dragOverGrupo === grupo.id ? 'Solte aqui para adicionar ao grupo' : 'Arraste itens para dentro deste grupo'}</span>
+                                                                </div>
+                                                            ) : (<>
+                                                                {filhos.map(fi => renderItemCard(fi, { inGroup: true }))}
+                                                                {dragOverGrupo === grupo.id && (
+                                                                    <div className="text-center py-2 text-[10px] font-medium" style={{ color: '#f59e0b' }}>
+                                                                        ↓ Solte aqui para adicionar ao grupo
+                                                                    </div>
+                                                                )}
+                                                            </>)}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+
+                                            {/* Drop zone para desagrupar (aparece entre grupos e itens soltos) */}
+                                            {!readOnly && (amb.grupos || []).length > 0 && (
+                                                <div className="rounded-lg border-2 border-dashed mb-2 transition-all duration-150"
+                                                    onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverGrupo('__soltos__'); }}
+                                                    onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverGrupo(null); }}
+                                                    onDrop={e => handleGrupoDrop(e, amb.id, '')}
+                                                    style={{
+                                                        borderColor: dragOverGrupo === '__soltos__' ? 'var(--primary)' : 'transparent',
+                                                        background: dragOverGrupo === '__soltos__' ? 'rgba(19,121,240,0.06)' : 'transparent',
+                                                        padding: dragOverGrupo === '__soltos__' ? '12px 0' : '4px 0',
+                                                    }}>
+                                                    {dragOverGrupo === '__soltos__' && (
+                                                        <div className="text-center text-[10px] font-medium" style={{ color: 'var(--primary)' }}>
+                                                            Solte aqui para desagrupar o item
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
                                             {/* Lista de itens (caixas) */}
                                             {amb.itens.length === 0 ? (
-                                                <div className="text-center py-6" style={{ color: 'var(--text-muted)' }}>
+                                                !(amb.grupos || []).length && <div className="text-center py-6" style={{ color: 'var(--text-muted)' }}>
                                                     <Box size={24} className="mx-auto mb-2 opacity-40" />
                                                     <span className="text-xs">Selecione uma caixa acima</span>
                                                 </div>
                                             ) : amb.itens.map(item => {
-                                                // ── Item Avulso: card compacto inline ──
-                                                if (item.tipo === 'avulso') {
-                                                    return (
-                                                        <div key={item.id} className="rounded-lg border overflow-hidden mb-2"
-                                                            style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', borderLeft: '3px solid #10b981' }}>
-                                                            <div className="flex items-center gap-2 px-3 py-2">
-                                                                <Tag size={13} style={{ color: '#10b981', flexShrink: 0 }} />
-                                                                <input type="text" placeholder="Nome do item (ex: Bancada granito)"
-                                                                    value={item.nome} onChange={e => upItem(amb.id, item.id, it => it.nome = e.target.value)}
-                                                                    className="bg-transparent font-medium text-sm outline-none flex-1 min-w-0"
-                                                                    style={{ color: 'var(--text-primary)' }} readOnly={readOnly} />
-                                                                <input type="number" min="1" value={item.qtd || 1}
-                                                                    onChange={e => upItem(amb.id, item.id, it => it.qtd = Math.max(1, parseInt(e.target.value) || 1))}
-                                                                    className={Z.inp} style={{ width: 56, textAlign: 'center', fontSize: 13, padding: '4px 6px' }} readOnly={readOnly} />
-                                                                <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>×</span>
-                                                                <div className="flex items-center gap-0.5">
-                                                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>R$</span>
-                                                                    <input type="number" min="0" step="0.01"
-                                                                        value={item.valor || ''} placeholder="0,00"
-                                                                        onChange={e => upItem(amb.id, item.id, it => it.valor = parseFloat(e.target.value) || 0)}
-                                                                        className={Z.inp} style={{ width: 90, textAlign: 'right', fontSize: 12 }} readOnly={readOnly} />
-                                                                </div>
-                                                                <span className="font-bold text-xs whitespace-nowrap" style={{ color: '#10b981', minWidth: 70, textAlign: 'right' }}>
-                                                                    {R$((item.valor || 0) * (item.qtd || 1))}
-                                                                </span>
-                                                                {!readOnly && <button onClick={() => copyItem(amb.id, item.id)} className="p-1 rounded hover:bg-[var(--bg-hover)]"><Copy size={12} /></button>}
-                                                                {!readOnly && <button onClick={() => removeItem(amb.id, item.id)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>}
-                                                            </div>
-                                                            {!readOnly && (
-                                                                <div className="px-3 pb-2 pt-0">
-                                                                    <input type="text" placeholder="Descrição (opcional)"
-                                                                        value={item.desc || ''} onChange={e => upItem(amb.id, item.id, it => it.desc = e.target.value)}
-                                                                        className="bg-transparent text-[11px] outline-none w-full" style={{ color: 'var(--text-muted)' }} />
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                }
-                                                // ── Item calculado (padrão) ──
-                                                const isItemExp = expandedItem === item.id;
-                                                const coef = item.caixaDef?.coef || 0;
-                                                let res = null;
-                                                try {
-                                                    res = calcItemV2(item.caixaDef, item.dims, item.mats, item.componentes.map(ci => ({
-                                                        compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},
-                                                        matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
-                                                        dimL: ci.dimL || 0, dimA: ci.dimA || 0, dimP: ci.dimP || 0,
-                                                        matIntInst: ci.matIntInst || '', matExtInst: ci.matExtInst || '',
-                                                    })), bib, padroes);
-                                                } catch (_) { }
-
-                                                // Buscar CP pré-calculado do item (consistente com o total)
-                                                const itemCPData = (tot.itemCostList || []).find(x => x.itemId === item.id);
-                                                const itemCP = itemCPData?.itemCP || 0;
-                                                const precoItem = tot.totalItemCP > 0 ? (itemCP / tot.totalItemCP) * tot.pv : (res?.custo || 0);
-                                                const aj = item.ajuste || { tipo: '%', valor: 0 };
-                                                const ajusteR = aj.valor ? (aj.tipo === 'R' ? aj.valor : precoItem * (aj.valor / 100)) : 0;
-                                                const precoItemFinal = precoItem + ajusteR;
-
-                                                return (
-                                                    <div key={item.id} className="rounded-lg border overflow-hidden mb-2" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', borderLeft: '3px solid var(--primary)' }}>
-                                                        {/* Header do item */}
-                                                        <div className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)]" onClick={() => setExpandedItem(isItemExp ? null : item.id)}>
-                                                            <div className="flex items-center gap-2">
-                                                                {isItemExp ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                                                                {(() => { const CatIc = getCatIcon(item.caixaDef?.cat); return <CatIc size={13} style={{ color: 'var(--primary)' }} />; })()}
-                                                                <div className="flex flex-col leading-tight">
-                                                                    <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
-                                                                        {item.desc || item.nome}
-                                                                    </span>
-                                                                    {item.desc && (
-                                                                        <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{item.nome}</span>
-                                                                    )}
-                                                                </div>
-                                                                {(item.qtd || 1) > 1 && <span className="text-[9px] px-1 rounded font-bold" style={{ background: 'rgba(19,121,240,0.1)', color: 'var(--primary)' }}>×{item.qtd}</span>}
-                                                                {item.componentes.length > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>{item.componentes.length} comp.</span>}
-                                                                {item.ripado && <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: '#f59e0b15', color: 'var(--warning)' }}>Ripado</span>}
-                                                                {ajusteR !== 0 && (
-                                                                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: ajusteR > 0 ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)', color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>
-                                                                        {ajusteR > 0 ? '+' : ''}{aj.tipo === '%' ? `${aj.valor}%` : R$(ajusteR)}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-bold text-xs" style={{ color: 'var(--primary)' }}>{R$(precoItemFinal)}</span>
-                                                                {!readOnly && <button onClick={e => { e.stopPropagation(); copyItem(amb.id, item.id); }} className="p-1 rounded hover:bg-[var(--bg-hover)]"><Copy size={12} /></button>}
-                                                                {!readOnly && <button onClick={e => { e.stopPropagation(); removeItem(amb.id, item.id); }} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>}
-                                                            </div>
-                                                        </div>
-
-                                                        {isItemExp && (
-                                                            <div className="px-4 pb-4 pt-3 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
-                                                                {/* Trocar módulo */}
-                                                                <div>
-                                                                    <label className={Z.lbl}>Módulo base</label>
-                                                                    <CaixaSearch
-                                                                        caixas={caixas}
-                                                                        onSelect={newId => swapItemCaixa(amb.id, item.id, newId)}
-                                                                        onAddPainel={null}
-                                                                        placeholder={`Atual: ${item.nome} — clique para trocar...`}
-                                                                    />
-                                                                </div>
-
-                                                                {/* Descrição do módulo */}
-                                                                <div>
-                                                                    <label className={Z.lbl}>Descrição do Módulo</label>
-                                                                    <input
-                                                                        type="text"
-                                                                        placeholder={`Ex: ${item.nome} — Cozinha inferior, Parede direita...`}
-                                                                        value={item.desc || ''}
-                                                                        onChange={e => upItem(amb.id, item.id, it => it.desc = e.target.value)}
-                                                                        className={Z.inp}
-                                                                        style={item.desc ? { borderColor: 'rgba(19,121,240,0.4)', background: 'rgba(19,121,240,0.03)' } : {}}
-                                                                    />
-                                                                </div>
-
-                                                                {/* Ajuste de Preço */}
-                                                                <div>
-                                                                    <label className={Z.lbl}>Ajuste de Preço <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(desconto negativo · acréscimo positivo)</span></label>
-                                                                    <div className="flex gap-2 items-center">
-                                                                        <div className="flex rounded overflow-hidden border flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => upItem(amb.id, item.id, it => { if (!it.ajuste) it.ajuste = { tipo: '%', valor: 0 }; it.ajuste.tipo = '%'; })}
-                                                                                className="px-2 py-1 text-xs font-bold transition-colors"
-                                                                                style={{ background: (item.ajuste?.tipo ?? '%') === '%' ? 'var(--primary)' : 'var(--bg-muted)', color: (item.ajuste?.tipo ?? '%') === '%' ? '#fff' : 'var(--text-muted)' }}>
-                                                                                %
-                                                                            </button>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => upItem(amb.id, item.id, it => { if (!it.ajuste) it.ajuste = { tipo: 'R', valor: 0 }; it.ajuste.tipo = 'R'; })}
-                                                                                className="px-2 py-1 text-xs font-bold transition-colors"
-                                                                                style={{ background: item.ajuste?.tipo === 'R' ? 'var(--primary)' : 'var(--bg-muted)', color: item.ajuste?.tipo === 'R' ? '#fff' : 'var(--text-muted)' }}>
-                                                                                R$
-                                                                            </button>
-                                                                        </div>
-                                                                        <input
-                                                                            type="number"
-                                                                            step="0.1"
-                                                                            placeholder="0"
-                                                                            value={item.ajuste?.valor ?? ''}
-                                                                            onChange={e => upItem(amb.id, item.id, it => {
-                                                                                if (!it.ajuste) it.ajuste = { tipo: '%', valor: 0 };
-                                                                                it.ajuste.valor = parseFloat(e.target.value) || 0;
-                                                                            })}
-                                                                            className={Z.inp}
-                                                                            style={ajusteR !== 0 ? { borderColor: ajusteR > 0 ? 'rgba(22,163,74,0.5)' : 'rgba(239,68,68,0.5)' } : {}}
-                                                                        />
-                                                                        {ajusteR !== 0 && (
-                                                                            <span className="text-xs whitespace-nowrap font-bold" style={{ color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>
-                                                                                {ajusteR > 0 ? '+' : ''}{R$(ajusteR)}
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                    {ajusteR !== 0 && (
-                                                                        <div className="text-[10px] mt-1.5 flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
-                                                                            <span>Base: {R$(precoItem)}</span>
-                                                                            <span>→</span>
-                                                                            <span className="font-semibold" style={{ color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>Final: {R$(precoItemFinal)}</span>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-
-                                                                {/* Dimensões e quantidade */}
-                                                                {(() => {
-                                                                    const allowedDims = item.caixaDef?.dimsAplicaveis || ['L','A','P'];
-                                                                    const dimFields = [['Larg. (mm)', 'l', 'L'], ['Alt. (mm)', 'a', 'A'], ['Prof. (mm)', 'p', 'P']]
-                                                                        .filter(([, , key]) => allowedDims.includes(key));
-                                                                    return (
-                                                                <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${dimFields.length + 1}, minmax(0, 1fr))` }}>
-                                                                    {dimFields.map(([lbl, k]) => (
-                                                                        <div key={k} className="min-w-0">
-                                                                            <label className={Z.lbl}>{lbl}</label>
-                                                                            <input type="number" value={item.dims[k]}
-                                                                                onChange={e => upItem(amb.id, item.id, it => it.dims[k] = +e.target.value || 0)}
-                                                                                className={Z.inp} />
-                                                                        </div>
-                                                                    ))}
-                                                                    <div className="min-w-0">
-                                                                        <label className={Z.lbl}>Qtd.</label>
-                                                                        <input type="number" min="1" value={item.qtd || 1}
-                                                                            onChange={e => upItem(amb.id, item.id, it => it.qtd = Math.max(1, +e.target.value || 1))}
-                                                                            className={Z.inp} />
-                                                                    </div>
-                                                                </div>
-                                                                    );
-                                                                })()}
-
-                                                                {/* Materiais */}
-                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                                                    <div>
-                                                                        <label className={Z.lbl}>Material Interno (chapas)</label>
-                                                                        <SearchableSelect
-                                                                            value={item.mats.matInt}
-                                                                            onChange={val => upItem(amb.id, item.id, it => it.mats.matInt = val)}
-                                                                            groups={[
-                                                                                ...(bib?.topChapas?.length > 0 ? [{ label: 'Mais usados', options: bib.topChapas.map(c => ({ value: c.id, label: c.nome })) }] : []),
-                                                                                { label: 'Todas as chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
-                                                                            ]}
-                                                                            placeholder="Buscar chapa..."
-                                                                            className={Z.inp}
-                                                                        />
-                                                                    </div>
-                                                                    <div>
-                                                                        <label className={Z.lbl}>Material Externo (tamponamento)</label>
-                                                                        <SearchableSelect
-                                                                            value={item.mats.matExt}
-                                                                            onChange={val => upItem(amb.id, item.id, it => it.mats.matExt = val)}
-                                                                            groups={[
-                                                                                ...(bib?.topChapas?.length > 0 || bib?.topAcab?.length > 0 ? [{ label: 'Mais usados', options: [...(bib?.topChapas || []), ...(bib?.topAcab || [])].map(c => ({ value: c.id, label: c.nome })) }] : []),
-                                                                                { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
-                                                                                { label: 'Acabamentos premium', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) },
-                                                                            ]}
-                                                                            emptyOption="Sem tamponamento"
-                                                                            placeholder="Buscar material..."
-                                                                            className={Z.inp}
-                                                                        />
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Componentes */}
-                                                                <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-                                                                    <div className="flex items-center justify-between mb-2">
-                                                                        <span className="text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--success)' }}>Componentes ({item.componentes.length})</span>
-                                                                        <button onClick={() => setAddCompModal({ ambId: amb.id, itemId: item.id })}
-                                                                            className="text-[10px] px-2 py-0.5 rounded font-semibold cursor-pointer flex items-center gap-1"
-                                                                            style={{ background: 'var(--success)', color: '#fff' }}>
-                                                                            <Plus size={10} /> Adicionar
-                                                                        </button>
-                                                                    </div>
-                                                                    {item.componentes.length === 0
-                                                                        ? <div className="text-center py-3 text-[11px]" style={{ color: 'var(--text-muted)' }}>Adicione gavetas, prateleiras, portas...</div>
-                                                                        : <div className="flex flex-col gap-1.5">
-                                                                            {item.componentes.map(ci => (
-                                                                                <ComponenteInstancia
-                                                                                    key={ci.id}
-                                                                                    ci={ci}
-                                                                                    caixaDims={item.dims}
-                                                                                    mats={item.mats}
-                                                                                    compDef={ci.compDef}
-                                                                                    onUpdate={newCi => upComp(amb.id, item.id, ci.id, newCi)}
-                                                                                    onRemove={() => removeComp(amb.id, item.id, ci.id)}
-                                                                                    chapasDB={chapasDB}
-                                                                                    acabDB={acabDB}
-                                                                                    ferragensDB={ferragensDB}
-                                                                                    globalPadroes={padroes}
-                                                                                />
-                                                                            ))}
-                                                                        </div>
-                                                                    }
-                                                                </div>
-
-                                                                {/* ── Ripado no módulo (só aparece quando adicionado via modal) ── */}
-                                                                {item.ripado && (
-                                                                    <div className="rounded-lg border p-3" style={{ borderColor: '#f59e0b40', borderLeft: '3px solid var(--warning)', background: 'var(--bg-card)' }}>
-                                                                        <div className="flex items-center justify-between mb-2">
-                                                                            <span className="text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5" style={{ color: 'var(--warning)' }}>
-                                                                                <Layers size={10} /> Ripado
-                                                                            </span>
-                                                                            <button onClick={() => removeRipadoFromItem(amb.id, item.id)}
-                                                                                className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"
-                                                                                title="Remover ripado">
-                                                                                <Trash2 size={12} />
-                                                                            </button>
-                                                                        </div>
-                                                                        <RipadoModuloCard
-                                                                            ripado={item.ripado}
-                                                                            dims={item.dims}
-                                                                            bibItems={bibItems}
-                                                                            onUpdate={patch => upRipadoOnItem(amb.id, item.id, patch)}
-                                                                        />
-                                                                    </div>
-                                                                )}
-
-                                                                {/* Toggle relatório */}
-                                                                <button onClick={() => setReportItemId(reportItemId === item.id ? null : item.id)}
-                                                                    className="w-full flex items-center justify-center gap-1.5 py-2 mt-1 rounded-md text-[10px] font-semibold cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
-                                                                    style={{ color: 'var(--text-muted)', borderTop: '1px dashed var(--border)' }}>
-                                                                    {reportItemId === item.id ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-                                                                    <BarChart3 size={11} />
-                                                                    {reportItemId === item.id ? 'Ocultar detalhes' : 'Ver detalhes do cálculo'}
-                                                                </button>
-
-                                                                {reportItemId === item.id && res && (
-                                                                    <RelatorioItem
-                                                                        res={res}
-                                                                        chapasDB={chapasDB}
-                                                                        fitasDB={fitasDB}
-                                                                        coef={coef}
-                                                                        qtd={item.qtd || 1}
-                                                                    />
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
+                                                // Skipar itens que pertencem a um grupo (renderizados dentro do grupo)
+                                                if (item.grupo_id && (amb.grupos || []).find(g => g.id === item.grupo_id)) return null;
+                                                return renderItemCard(item);
                                             })}
 
                                             {/* ── Painéis Ripados ── */}

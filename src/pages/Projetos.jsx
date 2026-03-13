@@ -3093,9 +3093,8 @@ function TabEntrega({ data, notify }) {
 const AMB_STATUS = [
     { key: 'aguardando', label: 'Aguardando', color: '#94a3b8', icon: Clock },
     { key: 'corte', label: 'Corte', color: '#f97316', icon: Scissors },
-    { key: 'montagem', label: 'Montagem', color: '#3b82f6', icon: Wrench },
-    { key: 'acabamento', label: 'Acabamento', color: '#eab308', icon: Paintbrush },
-    { key: 'instalacao', label: 'Instalação', color: '#8b5cf6', icon: Truck },
+    { key: 'acabamento', label: 'Acabamento', color: '#3b82f6', icon: Paintbrush },
+    { key: 'instalacao', label: 'Instalação', color: '#8b5cf6', icon: Wrench },
     { key: 'concluido', label: 'Concluído', color: '#22c55e', icon: CheckCircle2 },
 ];
 const AMB_STATUS_MAP = Object.fromEntries(AMB_STATUS.map(s => [s.key, s]));

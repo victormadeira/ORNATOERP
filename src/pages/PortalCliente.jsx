@@ -1145,9 +1145,8 @@ export default function PortalCliente({ token }) {
                     const AMB_ST = [
                         { key: 'aguardando', label: 'Aguardando', color: '#94a3b8', icon: Clock },
                         { key: 'corte', label: 'Corte', color: '#f97316', icon: Scissors },
-                        { key: 'montagem', label: 'Montagem', color: '#3b82f6', icon: Wrench },
-                        { key: 'acabamento', label: 'Acabamento', color: '#eab308', icon: Paintbrush },
-                        { key: 'instalacao', label: 'Instalação', color: '#8b5cf6', icon: Truck },
+                        { key: 'acabamento', label: 'Acabamento', color: '#3b82f6', icon: Paintbrush },
+                        { key: 'instalacao', label: 'Instalação', color: '#8b5cf6', icon: Wrench },
                         { key: 'concluido', label: 'Concluído', color: '#22c55e', icon: CheckCircle2 },
                     ];
                     const stMap = Object.fromEntries(AMB_ST.map(s => [s.key, s]));
