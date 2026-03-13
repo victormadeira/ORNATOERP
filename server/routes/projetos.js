@@ -95,6 +95,12 @@ router.get('/portal/:token', (req, res) => {
         ORDER BY criado_em ASC
     `).all(proj.id, req.params.token);
 
+    // Ambientes (somente se habilitado)
+    let ambientes = [];
+    if (proj.mostrar_ambientes_portal) {
+        try { ambientes = proj.ambientes_json ? JSON.parse(proj.ambientes_json) : []; } catch (_) {}
+    }
+
     res.json({
         projeto: {
             id: proj.id,
@@ -107,6 +113,7 @@ router.get('/portal/:token', (req, res) => {
             etapas,
             ocorrencias,
             mensagens,
+            ambientes,
         },
         empresa,
     });
@@ -267,7 +274,11 @@ router.get('/:id', requireAuth, (req, res) => {
         'SELECT * FROM ocorrencias_projeto WHERE projeto_id = ? ORDER BY criado_em DESC'
     ).all(proj.id);
 
-    res.json({ ...proj, etapas, ocorrencias });
+    // Parse ambientes JSON
+    let ambientes_parsed = [];
+    try { ambientes_parsed = proj.ambientes_json ? JSON.parse(proj.ambientes_json) : []; } catch (_) {}
+
+    res.json({ ...proj, etapas, ocorrencias, ambientes_parsed });
 });
 
 // ═══════════════════════════════════════════════════
@@ -505,6 +516,34 @@ router.post('/', requireAuth, (req, res) => {
         );
     }
 
+    // Inicializar ambientes a partir do orçamento vinculado
+    if (orc_id) {
+        try {
+            const orc = db.prepare('SELECT mods_json, ambiente FROM orcamentos WHERE id = ?').get(parseInt(orc_id));
+            if (orc) {
+                const mods = orc.mods_json ? JSON.parse(orc.mods_json) : [];
+                const ambMap = new Map();
+                if (Array.isArray(mods)) {
+                    for (const mod of mods) {
+                        if (Array.isArray(mod.ambientes)) {
+                            for (const amb of mod.ambientes) {
+                                if (amb.nome && !ambMap.has(amb.nome)) {
+                                    ambMap.set(amb.nome, { id: `amb_${Date.now()}_${ambMap.size}`, nome: amb.nome, status: 'aguardando' });
+                                }
+                            }
+                        }
+                    }
+                }
+                if (orc.ambiente && ambMap.size === 0) {
+                    ambMap.set(orc.ambiente, { id: `amb_${Date.now()}_0`, nome: orc.ambiente, status: 'aguardando' });
+                }
+                if (ambMap.size > 0) {
+                    db.prepare('UPDATE projetos SET ambientes_json = ? WHERE id = ?').run(JSON.stringify([...ambMap.values()]), projId);
+                }
+            }
+        } catch (_) { /* não bloqueia criação */ }
+    }
+
     try {
         logActivity(req.user.id, req.user.nome, 'criar', `Criou projeto "${nome.trim()}"`, projId, 'projeto');
     } catch (_) { /* log não bloqueia */ }
@@ -569,7 +608,7 @@ router.delete('/templates/:id', requireAuth, (req, res) => {
 // PUT /api/projetos/:id — atualizar projeto (auth)
 // ═══════════════════════════════════════════════════
 router.put('/:id', requireAuth, (req, res) => {
-    const { nome, descricao, status, data_inicio, data_vencimento } = req.body;
+    const { nome, descricao, status, data_inicio, data_vencimento, ambientes_json, mostrar_ambientes_portal } = req.body;
     const projId = parseInt(req.params.id);
 
     // Buscar status anterior para detectar mudança
@@ -577,9 +616,14 @@ router.put('/:id', requireAuth, (req, res) => {
 
     db.prepare(`
         UPDATE projetos
-        SET nome=?, descricao=?, status=?, data_inicio=?, data_vencimento=?, atualizado_em=CURRENT_TIMESTAMP
+        SET nome=?, descricao=?, status=?, data_inicio=?, data_vencimento=?,
+            ambientes_json=COALESCE(?,ambientes_json), mostrar_ambientes_portal=COALESCE(?,mostrar_ambientes_portal),
+            atualizado_em=CURRENT_TIMESTAMP
         WHERE id=?
-    `).run(nome, descricao || '', status, data_inicio || null, data_vencimento || null, projId);
+    `).run(nome, descricao || '', status, data_inicio || null, data_vencimento || null,
+        ambientes_json !== undefined ? ambientes_json : null,
+        mostrar_ambientes_portal !== undefined ? (mostrar_ambientes_portal ? 1 : 0) : null,
+        projId);
 
     try {
         const label = nome || anterior?.nome || `#${projId}`;

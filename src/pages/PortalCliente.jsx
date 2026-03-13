@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { MapPin, Phone, Mail, Calendar, MessageSquare, Lock, CheckCircle2, Printer, PauseCircle, Clock, Play, AlertCircle, Send, User, Camera, X, ChevronLeft, ChevronRight, ZoomIn, Ruler, ClipboardCheck, ShoppingCart, Factory, Paintbrush, Truck, Wrench, ListChecks } from 'lucide-react';
+import { MapPin, Phone, Mail, Calendar, MessageSquare, Lock, CheckCircle2, Printer, PauseCircle, Clock, Play, AlertCircle, Send, User, Camera, X, ChevronLeft, ChevronRight, ZoomIn, Ruler, ClipboardCheck, ShoppingCart, Factory, Paintbrush, Truck, Wrench, ListChecks, Scissors, Layers } from 'lucide-react';
 
 const dtFmt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const timeFmt = (s) => {
@@ -1139,6 +1139,87 @@ export default function PortalCliente({ token }) {
                     <GanttPublic etapas={etapas} primary={primary} accent={accent} />
 
                 </div>
+
+                {/* ─── Ambientes do Projeto ──────────────────── */}
+                {projeto.ambientes && projeto.ambientes.length > 0 && (() => {
+                    const AMB_ST = [
+                        { key: 'aguardando', label: 'Aguardando', color: '#94a3b8', icon: Clock },
+                        { key: 'corte', label: 'Corte', color: '#f97316', icon: Scissors },
+                        { key: 'montagem', label: 'Montagem', color: '#3b82f6', icon: Wrench },
+                        { key: 'acabamento', label: 'Acabamento', color: '#eab308', icon: Paintbrush },
+                        { key: 'instalacao', label: 'Instalação', color: '#8b5cf6', icon: Truck },
+                        { key: 'concluido', label: 'Concluído', color: '#22c55e', icon: CheckCircle2 },
+                    ];
+                    const stMap = Object.fromEntries(AMB_ST.map(s => [s.key, s]));
+                    const stIdx = (k) => AMB_ST.findIndex(s => s.key === k);
+                    const total = projeto.ambientes.length;
+                    const done = projeto.ambientes.filter(a => a.status === 'concluido').length;
+
+                    return (
+                        <div style={{ background: '#fff', padding: '24px 32px', borderBottom: '1px solid #e2e8f0' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                                <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+                                    <Layers size={16} style={{ color: accent }} /> Ambientes
+                                </h2>
+                                <span style={{ fontSize: 12, color: '#64748b' }}>{done}/{total} concluídos</span>
+                            </div>
+
+                            {/* Barra de progresso geral */}
+                            <div style={{ background: '#f1f5f9', borderRadius: 6, overflow: 'hidden', height: 6, marginBottom: 18 }}>
+                                <div style={{ height: '100%', width: `${total > 0 ? (done / total) * 100 : 0}%`, background: accent, borderRadius: 6, transition: 'width 0.3s' }} />
+                            </div>
+
+                            <div style={{ display: 'grid', gap: 10 }}>
+                                {projeto.ambientes.map((amb, i) => {
+                                    const st = stMap[amb.status] || stMap.aguardando;
+                                    const StIcon = st.icon;
+                                    const currentIdx = stIdx(amb.status);
+
+                                    return (
+                                        <div key={amb.id || i} style={{
+                                            padding: '14px 18px', borderRadius: 10,
+                                            background: amb.status === 'concluido' ? '#f0fdf4' : '#f8fafc',
+                                            border: `1px solid ${st.color}30`,
+                                        }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    <span style={{
+                                                        background: primary, color: 'white', borderRadius: 6,
+                                                        padding: '2px 8px', fontSize: 11, fontWeight: 700, minWidth: 24, textAlign: 'center',
+                                                    }}>{String(i + 1).padStart(2, '0')}</span>
+                                                    <span style={{ fontWeight: 600, fontSize: 14, color: '#0f172a' }}>{amb.nome}</span>
+                                                </div>
+                                                <span style={{
+                                                    fontSize: 11, padding: '3px 10px', borderRadius: 20,
+                                                    background: st.color + '18', color: st.color, fontWeight: 600,
+                                                    display: 'flex', alignItems: 'center', gap: 4,
+                                                }}>
+                                                    <StIcon size={12} /> {st.label}
+                                                </span>
+                                            </div>
+
+                                            {/* Mini pipeline visual */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                {AMB_ST.map((s, si) => (
+                                                    <div key={s.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                        <div style={{
+                                                            height: 4, width: '100%', borderRadius: 2,
+                                                            background: si <= currentIdx ? st.color : '#e2e8f0',
+                                                            transition: 'background 0.2s',
+                                                        }} />
+                                                        <span style={{ fontSize: 9, color: si <= currentIdx ? st.color : '#cbd5e1', marginTop: 3, whiteSpace: 'nowrap' }}>
+                                                            {s.label}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {/* ─── Ocorrências (apenas públicas) ──────────── */}
                 {ocorrencias.length > 0 && (

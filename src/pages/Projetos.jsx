@@ -1548,6 +1548,10 @@ function TabArquivos({ data, notify }) {
     const [copiedLink, setCopiedLink] = useState(null);
     const [montadorFotos, setMontadorFotos] = useState([]);
     const [fotoFilter, setFotoFilter] = useState('');
+    const [fotoFilterMontador, setFotoFilterMontador] = useState('');
+    const [fotoFilterPortal, setFotoFilterPortal] = useState('');
+    const [fotoFilterDataDe, setFotoFilterDataDe] = useState('');
+    const [fotoFilterDataAte, setFotoFilterDataAte] = useState('');
     const [fotoLightbox, setFotoLightbox] = useState(null);
     const [editingMontador, setEditingMontador] = useState(null);
     const [editMontadorNome, setEditMontadorNome] = useState('');
@@ -1768,19 +1772,45 @@ function TabArquivos({ data, notify }) {
                     <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nenhuma foto enviada ainda. Use o botao acima ou gere um link de montador.</p>
                 ) : (
                     <>
-                        {/* Filter */}
-                        <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-                            <select className={Z.inp} style={{ fontSize: 13, maxWidth: 260 }} value={fotoFilter} onChange={e => setFotoFilter(e.target.value)}>
-                                <option value="">Todos os ambientes</option>
+                        {/* Filtros avançados */}
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <select className={Z.inp} style={{ fontSize: 12, maxWidth: 180, padding: '5px 8px' }} value={fotoFilter} onChange={e => setFotoFilter(e.target.value)}>
+                                <option value="">Todos ambientes</option>
                                 {[...new Set(montadorFotos.map(f => f.ambiente).filter(Boolean))].map(amb => (
                                     <option key={amb} value={amb}>{amb}</option>
                                 ))}
                             </select>
+                            <select className={Z.inp} style={{ fontSize: 12, maxWidth: 180, padding: '5px 8px' }} value={fotoFilterMontador} onChange={e => setFotoFilterMontador(e.target.value)}>
+                                <option value="">Todos montadores</option>
+                                {[...new Set(montadorFotos.map(f => f.nome_montador).filter(Boolean))].map(m => (
+                                    <option key={m} value={m}>{m}</option>
+                                ))}
+                            </select>
+                            <select className={Z.inp} style={{ fontSize: 12, maxWidth: 140, padding: '5px 8px' }} value={fotoFilterPortal} onChange={e => setFotoFilterPortal(e.target.value)}>
+                                <option value="">Portal: Todos</option>
+                                <option value="sim">Visível</option>
+                                <option value="nao">Oculto</option>
+                            </select>
+                            <input type="date" className={Z.inp} style={{ fontSize: 12, padding: '5px 8px', maxWidth: 140 }} value={fotoFilterDataDe} onChange={e => setFotoFilterDataDe(e.target.value)} title="Data de" />
+                            <input type="date" className={Z.inp} style={{ fontSize: 12, padding: '5px 8px', maxWidth: 140 }} value={fotoFilterDataAte} onChange={e => setFotoFilterDataAte(e.target.value)} title="Data até" />
+                            {(fotoFilter || fotoFilterMontador || fotoFilterPortal || fotoFilterDataDe || fotoFilterDataAte) && (
+                                <button className={Z.btn2} style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => { setFotoFilter(''); setFotoFilterMontador(''); setFotoFilterPortal(''); setFotoFilterDataDe(''); setFotoFilterDataAte(''); }}>
+                                    <XIcon size={11} /> Limpar
+                                </button>
+                            )}
                         </div>
 
                         {/* Grid */}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
-                            {montadorFotos.filter(f => !fotoFilter || f.ambiente === fotoFilter).map(foto => (
+                            {montadorFotos.filter(f => {
+                                if (fotoFilter && f.ambiente !== fotoFilter) return false;
+                                if (fotoFilterMontador && f.nome_montador !== fotoFilterMontador) return false;
+                                if (fotoFilterPortal === 'sim' && !f.visivel_portal) return false;
+                                if (fotoFilterPortal === 'nao' && f.visivel_portal) return false;
+                                if (fotoFilterDataDe && f.criado_em && f.criado_em.slice(0, 10) < fotoFilterDataDe) return false;
+                                if (fotoFilterDataAte && f.criado_em && f.criado_em.slice(0, 10) > fotoFilterDataAte) return false;
+                                return true;
+                            }).map(foto => (
                                 <div key={foto.id || foto.url}
                                     onClick={() => setFotoLightbox(foto)}
                                     style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${foto.visivel_portal ? '#22c55e40' : 'var(--border)'}`, background: 'var(--bg-muted)', transition: 'transform 0.15s', position: 'relative', cursor: 'pointer' }}
@@ -3055,6 +3085,248 @@ function TabEntrega({ data, notify }) {
 }
 
 // ═══════════════════════════════════════════════════════
+// TAB: AMBIENTES (gestão de ambientes do projeto)
+// ═══════════════════════════════════════════════════════
+const AMB_STATUS = [
+    { key: 'aguardando', label: 'Aguardando', color: '#94a3b8', icon: Clock },
+    { key: 'corte', label: 'Corte', color: '#f97316', icon: Scissors },
+    { key: 'montagem', label: 'Montagem', color: '#3b82f6', icon: Wrench },
+    { key: 'acabamento', label: 'Acabamento', color: '#eab308', icon: Paintbrush },
+    { key: 'instalacao', label: 'Instalação', color: '#8b5cf6', icon: Truck },
+    { key: 'concluido', label: 'Concluído', color: '#22c55e', icon: CheckCircle2 },
+];
+const AMB_STATUS_MAP = Object.fromEntries(AMB_STATUS.map(s => [s.key, s]));
+
+function TabAmbientes({ data, notify, reload }) {
+    const [ambientes, setAmbientes] = useState([]);
+    const [newAmb, setNewAmb] = useState('');
+    const [editing, setEditing] = useState(null);
+    const [editNome, setEditNome] = useState('');
+    const [confirmDel, setConfirmDel] = useState(null);
+    const [mostrarPortal, setMostrarPortal] = useState(!!data.mostrar_ambientes_portal);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        setAmbientes(data.ambientes_parsed || []);
+        setMostrarPortal(!!data.mostrar_ambientes_portal);
+    }, [data]);
+
+    const save = (updated, extraFields = {}) => {
+        setSaving(true);
+        api.put(`/projetos/${data.id}`, {
+            nome: data.nome, descricao: data.descricao, status: data.status,
+            data_inicio: data.data_inicio, data_vencimento: data.data_vencimento,
+            ambientes_json: JSON.stringify(updated),
+            ...extraFields,
+        }).then(() => { setAmbientes(updated); reload(); setSaving(false); })
+          .catch(() => { notify('Erro ao salvar ambientes'); setSaving(false); });
+    };
+
+    const addAmb = () => {
+        if (!newAmb.trim()) return;
+        const updated = [...ambientes, { id: `amb_${Date.now()}`, nome: newAmb.trim(), status: 'aguardando' }];
+        save(updated);
+        setNewAmb('');
+    };
+
+    const removeAmb = (id) => {
+        save(ambientes.filter(a => a.id !== id));
+        setConfirmDel(null);
+    };
+
+    const renameAmb = (id) => {
+        if (!editNome.trim()) return;
+        save(ambientes.map(a => a.id === id ? { ...a, nome: editNome.trim() } : a));
+        setEditing(null);
+    };
+
+    const changeStatus = (id, status) => {
+        save(ambientes.map(a => a.id === id ? { ...a, status } : a));
+    };
+
+    const moveUp = (idx) => {
+        if (idx <= 0) return;
+        const n = [...ambientes];
+        [n[idx], n[idx - 1]] = [n[idx - 1], n[idx]];
+        save(n);
+    };
+
+    const moveDown = (idx) => {
+        if (idx >= ambientes.length - 1) return;
+        const n = [...ambientes];
+        [n[idx], n[idx + 1]] = [n[idx + 1], n[idx]];
+        save(n);
+    };
+
+    const togglePortal = () => {
+        const next = !mostrarPortal;
+        setMostrarPortal(next);
+        api.put(`/projetos/${data.id}`, {
+            nome: data.nome, descricao: data.descricao, status: data.status,
+            data_inicio: data.data_inicio, data_vencimento: data.data_vencimento,
+            ambientes_json: JSON.stringify(ambientes),
+            mostrar_ambientes_portal: next,
+        }).then(() => reload()).catch(() => notify('Erro ao salvar'));
+    };
+
+    const statusIdx = (s) => AMB_STATUS.findIndex(st => st.key === s);
+
+    // Contadores
+    const total = ambientes.length;
+    const concluidos = ambientes.filter(a => a.status === 'concluido').length;
+
+    return (
+        <div>
+            {/* Header + Toggle */}
+            <div className={Z.card} style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                <div>
+                    <h2 style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 7, margin: 0 }}>
+                        <Layers size={16} /> Ambientes do Projeto
+                        {total > 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>
+                            ({concluidos}/{total} concluídos)
+                        </span>}
+                    </h2>
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={mostrarPortal} onChange={togglePortal} />
+                    Mostrar no Portal do Cliente
+                </label>
+            </div>
+
+            {/* Progresso geral */}
+            {total > 0 && (
+                <div style={{ marginBottom: 16, background: 'var(--bg-muted)', borderRadius: 8, overflow: 'hidden', height: 6 }}>
+                    <div style={{ height: '100%', width: `${(concluidos / total) * 100}%`, background: '#22c55e', borderRadius: 8, transition: 'width 0.3s' }} />
+                </div>
+            )}
+
+            {/* Lista de Ambientes */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {ambientes.map((amb, idx) => {
+                    const st = AMB_STATUS_MAP[amb.status] || AMB_STATUS_MAP.aguardando;
+                    const StIcon = st.icon;
+                    const sIdx = statusIdx(amb.status);
+
+                    return (
+                        <div key={amb.id} className={Z.card} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                            {/* Número */}
+                            <span style={{ background: 'var(--primary)', color: 'white', borderRadius: 6, padding: '2px 8px', fontSize: 12, fontWeight: 700, minWidth: 28, textAlign: 'center' }}>
+                                {String(idx + 1).padStart(2, '0')}
+                            </span>
+
+                            {/* Nome */}
+                            <div style={{ flex: 1, minWidth: 120 }}>
+                                {editing === amb.id ? (
+                                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                        <input className={Z.inp} value={editNome} onChange={e => setEditNome(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && renameAmb(amb.id)}
+                                            style={{ fontSize: 13, padding: '4px 8px', flex: 1 }} autoFocus />
+                                        <button onClick={() => renameAmb(amb.id)} className={Z.btn2} style={{ padding: '4px 8px', fontSize: 11 }}>
+                                            <CheckIcon size={12} />
+                                        </button>
+                                        <button onClick={() => setEditing(null)} className={Z.btn2} style={{ padding: '4px 8px', fontSize: 11 }}>
+                                            <XIcon size={12} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <span style={{ fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
+                                        onClick={() => { setEditing(amb.id); setEditNome(amb.nome); }}>
+                                        {amb.nome}
+                                        <Pencil size={10} style={{ marginLeft: 6, opacity: 0.4, verticalAlign: 'middle' }} />
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Pipeline visual */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                                {AMB_STATUS.map((s, i) => {
+                                    const SIcon = s.icon;
+                                    const active = i <= sIdx;
+                                    const isCurrent = i === sIdx;
+                                    return (
+                                        <button key={s.key} onClick={() => changeStatus(amb.id, s.key)}
+                                            title={s.label}
+                                            style={{
+                                                width: isCurrent ? 28 : 20, height: isCurrent ? 28 : 20,
+                                                borderRadius: '50%', border: `2px solid ${active ? s.color : 'var(--border)'}`,
+                                                background: active ? s.color : 'transparent', color: active ? 'white' : 'var(--text-muted)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: 'pointer', transition: 'all 0.15s', padding: 0,
+                                            }}>
+                                            <SIcon size={isCurrent ? 13 : 10} />
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Badge status */}
+                            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: st.color + '20', color: st.color, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                {st.label}
+                            </span>
+
+                            {/* Ações */}
+                            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                                {idx > 0 && (
+                                    <button onClick={() => moveUp(idx)} className={Z.btn2} style={{ padding: 4, fontSize: 11 }} title="Mover para cima">
+                                        <ArrowUpCircle size={14} />
+                                    </button>
+                                )}
+                                {idx < ambientes.length - 1 && (
+                                    <button onClick={() => moveDown(idx)} className={Z.btn2} style={{ padding: 4, fontSize: 11 }} title="Mover para baixo">
+                                        <ArrowDownCircle size={14} />
+                                    </button>
+                                )}
+                                <button onClick={() => setConfirmDel(amb.id)} className={Z.btn2}
+                                    style={{ padding: 4, fontSize: 11, color: '#ef4444' }} title="Remover">
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+
+                            {/* Confirmação de exclusão */}
+                            {confirmDel === amb.id && (
+                                <div style={{ width: '100%', marginTop: 6, padding: '8px 12px', background: '#fef2f2', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+                                    <span style={{ color: '#ef4444' }}>Remover "{amb.nome}"?</span>
+                                    <button onClick={() => removeAmb(amb.id)} className={Z.btn2} style={{ padding: '3px 10px', fontSize: 11, color: '#ef4444', borderColor: '#ef4444' }}>Sim</button>
+                                    <button onClick={() => setConfirmDel(null)} className={Z.btn2} style={{ padding: '3px 10px', fontSize: 11 }}>Não</button>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Adicionar */}
+            <div className={Z.card} style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center', padding: '10px 16px' }}>
+                <PlusCircle size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                <input className={Z.inp} value={newAmb} onChange={e => setNewAmb(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addAmb()}
+                    placeholder="Nome do novo ambiente..." style={{ flex: 1, fontSize: 13, padding: '6px 10px' }} />
+                <button onClick={addAmb} className={Z.btn} disabled={!newAmb.trim() || saving}
+                    style={{ padding: '6px 16px', fontSize: 12 }}>Adicionar</button>
+            </div>
+
+            {/* Legenda */}
+            <div style={{ marginTop: 16, padding: '10px 14px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <strong>Pipeline:</strong>
+                    {AMB_STATUS.map(s => {
+                        const SIcon = s.icon;
+                        return (
+                            <span key={s.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                <span style={{ width: 10, height: 10, borderRadius: '50%', background: s.color, display: 'inline-block' }} />
+                                {s.label}
+                            </span>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {saving && <div style={{ textAlign: 'center', padding: 10, fontSize: 12, color: 'var(--text-muted)' }}>Salvando...</div>}
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════
 // DETALHE DO PROJETO (com tabs)
 // ═══════════════════════════════════════════════════════
 function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user, nav }) {
@@ -3081,6 +3353,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user, nav }) {
 
     const TABS = [
         { id: 'cronograma', label: 'Cronograma', icon: <CalendarIcon size={14} /> },
+        { id: 'ambientes', label: 'Ambientes', icon: <Layers size={14} /> },
         { id: 'producao', label: 'Produção', icon: <Scissors size={14} /> },
         { id: 'financeiro', label: 'Financeiro', icon: <DollarSign size={14} /> },
         { id: 'estoque', label: 'Recursos', icon: <Package size={14} /> },
@@ -3132,6 +3405,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user, nav }) {
 
             {/* Tab Content */}
             {tab === 'cronograma' && <TabCronograma data={data} load={load} notify={notify} users={users} />}
+            {tab === 'ambientes' && <TabAmbientes data={data} notify={notify} reload={load} />}
             {tab === 'producao' && <TabProducao data={data} notify={notify} nav={nav} />}
             {tab === 'financeiro' && <TabFinanceiro data={data} notify={notify} />}
             {tab === 'estoque' && <TabEstoque data={data} notify={notify} user={user} />}
