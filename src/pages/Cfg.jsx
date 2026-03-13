@@ -958,6 +958,7 @@ export default function Cfg({ taxas, reload, notify }) {
                             <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Template do Contrato</h3>
                             <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
                                 Edite o modelo de contrato. Use as variáveis ao lado para preencher dados automaticamente.
+                                Cláusulas que começam com "CLAUSULA" serão formatadas como títulos. Linhas com "Paragrafo" ficam em destaque. Itens com "a)" ficam recuados.
                             </p>
                             <textarea
                                 value={emp.contrato_template || DEFAULT_CONTRATO_TEMPLATE}
