@@ -110,15 +110,22 @@ router.get('/portal/:token', (req, res) => {
         }
     } catch (_) {}
 
-    // Registrar acesso no histórico
+    // Registrar acesso no histórico (rate-limit: 1 por projeto a cada 30 min)
     try {
-        const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || '';
-        const ua = req.headers['user-agent'] || '';
-        const { dispositivo, navegador } = parseUA(ua);
-        db.prepare(`
-            INSERT INTO portal_acessos (projeto_id, token, ip, user_agent, dispositivo, navegador)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `).run(proj.id, req.params.token, ip, ua, dispositivo, navegador);
+        const recentAccess = db.prepare(`
+            SELECT id FROM portal_acessos
+            WHERE projeto_id = ? AND acessado_em > datetime('now', '-30 minutes')
+            LIMIT 1
+        `).get(proj.id);
+        if (!recentAccess) {
+            const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || '';
+            const ua = req.headers['user-agent'] || '';
+            const { dispositivo, navegador } = parseUA(ua);
+            db.prepare(`
+                INSERT INTO portal_acessos (projeto_id, token, ip, user_agent, dispositivo, navegador)
+                VALUES (?, ?, ?, ?, ?, ?)
+            `).run(proj.id, req.params.token, ip, ua, dispositivo, navegador);
+        }
     } catch (_) {}
 
     const etapas = db.prepare(`

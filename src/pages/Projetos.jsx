@@ -2606,6 +2606,7 @@ function PortalAcessosHistory({ projetoId }) {
                     <thead>
                         <tr style={{ background: 'var(--bg-muted)', borderBottom: '1px solid var(--border)' }}>
                             <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>Data / Hora</th>
+                            <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>IP</th>
                             <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>Dispositivo</th>
                             <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>Navegador</th>
                             {hasAnyLocation && (
@@ -2619,6 +2620,7 @@ function PortalAcessosHistory({ projetoId }) {
                             return (
                                 <tr key={a.id} style={{ borderBottom: '1px solid var(--border)', cursor: hasLoc ? 'pointer' : 'default', background: mapId === a.id ? 'var(--bg-muted)' : undefined }} onClick={() => hasLoc && setMapId(mapId === a.id ? null : a.id)}>
                                     <td style={{ padding: '8px 14px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{fmtDate(a.acessado_em)}</td>
+                                    <td style={{ padding: '8px 14px', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: 11 }}>{a.ip || '—'}</td>
                                     <td style={{ padding: '8px 14px', color: 'var(--text-primary)' }}>{a.dispositivo || '—'}</td>
                                     <td style={{ padding: '8px 14px', color: 'var(--text-primary)' }}>{a.navegador || '—'}</td>
                                     {hasAnyLocation && (
