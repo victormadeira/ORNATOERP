@@ -1055,7 +1055,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                     borderRadius: 10, marginBottom: 16, maxWidth: 800, margin: '0 auto 16px',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 }}>
-                    👁 PREVIEW INTERNO — Notificações não são enviadas
+                    PREVIEW INTERNO — Notificações não são enviadas
                 </div>
             )}
 

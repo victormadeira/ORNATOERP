@@ -194,7 +194,7 @@ export default function ProposalPublic({ token, isPreview = false }) {
                     padding: '8px 16px', textAlign: 'center', fontSize: 13, fontWeight: 700,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 }}>
-                    👁 PREVIEW INTERNO — Estatísticas não são contabilizadas
+                    PREVIEW INTERNO — Estatísticas não são contabilizadas
                 </div>
             )}
 

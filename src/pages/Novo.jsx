@@ -240,7 +240,7 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso
                                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.08)'}
                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                     <Package size={14} />
-                                    <span>📦 Criar Grupo (agrupar módulos)</span>
+                                    <span>Criar Grupo (agrupar módulos)</span>
                                 </button>
                             )}
                             {filtered.length > 0 && (
@@ -2367,7 +2367,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 {!readOnly && !inGroup && hasGrupos && (
                                                     <select value="" onChange={e => { if (e.target.value) moveToGrupo(amb.id, item.id, e.target.value); }}
                                                         className="text-[9px] bg-transparent outline-none cursor-pointer" style={{ color: '#f59e0b', width: 20 }} title="Mover para grupo">
-                                                        <option value="">📦</option>
+                                                        <option value="">+</option>
                                                         {(amb.grupos || []).map(g => <option key={g.id} value={g.id}>{g.nome || 'Grupo sem nome'}</option>)}
                                                     </select>
                                                 )}
@@ -2444,7 +2444,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     <select value="" onChange={e => { e.stopPropagation(); if (e.target.value) moveToGrupo(amb.id, item.id, e.target.value); }}
                                                         onClick={e => e.stopPropagation()}
                                                         className="text-[9px] bg-transparent outline-none cursor-pointer" style={{ color: '#f59e0b', width: 20 }} title="Mover para grupo">
-                                                        <option value="">📦</option>
+                                                        <option value="">+</option>
                                                         {(amb.grupos || []).map(g => <option key={g.id} value={g.id}>{g.nome || 'Grupo sem nome'}</option>)}
                                                     </select>
                                                 )}
