@@ -99,15 +99,15 @@ router.get('/public/:token', (req, res) => {
         'SELECT nome, logo_header_path, proposta_cor_primaria, proposta_cor_accent FROM empresa_config WHERE id = 1'
     ).get() || {};
 
-    // Buscar ambientes do orçamento vinculado ao projeto
+    // Buscar ambientes do orçamento + do projeto
     let ambientes = [];
-    const proj = db.prepare('SELECT orc_id FROM projetos WHERE id = ?').get(tokenRow.projeto_id);
+    const proj = db.prepare('SELECT orc_id, ambientes_json FROM projetos WHERE id = ?').get(tokenRow.projeto_id);
+    const ambSet = new Set();
     if (proj && proj.orc_id) {
         const orc = db.prepare('SELECT mods_json, ambiente FROM orcamentos WHERE id = ?').get(proj.orc_id);
         if (orc) {
             try {
                 const mods = orc.mods_json ? JSON.parse(orc.mods_json) : [];
-                const ambSet = new Set();
                 // mods é array; cada item pode ter .ambientes[]
                 for (const mod of (Array.isArray(mods) ? mods : [mods])) {
                     if (Array.isArray(mod.ambientes)) {
@@ -117,12 +117,17 @@ router.get('/public/:token', (req, res) => {
                     }
                 }
                 if (orc.ambiente) ambSet.add(orc.ambiente);
-                ambientes = [...ambSet];
-            } catch (e) {
-                ambientes = [];
-            }
+            } catch (_) {}
         }
     }
+    // Incluir ambientes configurados diretamente no projeto
+    if (proj?.ambientes_json) {
+        try {
+            const projAmbs = JSON.parse(proj.ambientes_json);
+            for (const a of projAmbs) { if (a.nome) ambSet.add(a.nome); }
+        } catch (_) {}
+    }
+    ambientes = [...ambSet];
 
     res.json({
         projeto_nome: tokenRow.projeto_nome,

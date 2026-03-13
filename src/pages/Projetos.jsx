@@ -1870,6 +1870,7 @@ function TabArquivos({ data, notify }) {
                                     <option value="">Sem ambiente</option>
                                     {[...new Set([
                                         ...montadorFotos.map(f => f.ambiente).filter(Boolean),
+                                        ...(data.ambientes_parsed || []).map(a => a.nome),
                                         fotoLightbox.ambiente || '',
                                         'Produção',
                                     ].filter(Boolean))].sort().map(amb => (
