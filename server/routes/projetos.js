@@ -14,6 +14,41 @@ const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
 
 const router = Router();
 
+// Helper: extrair nomes de ambientes do orçamento (mods_json pode ser objeto ou array)
+function parseAmbientesFromOrc(orc) {
+    const ambMap = new Map();
+    try {
+        const mods = orc.mods_json ? JSON.parse(orc.mods_json) : null;
+        if (!mods) return [];
+
+        // Formato objeto: {"ambientes":[{nome:"Cozinha",...},...]}
+        if (!Array.isArray(mods) && mods.ambientes && Array.isArray(mods.ambientes)) {
+            for (const amb of mods.ambientes) {
+                if (amb.nome && !ambMap.has(amb.nome)) {
+                    ambMap.set(amb.nome, { id: `amb_${Date.now()}_${ambMap.size}`, nome: amb.nome, status: 'aguardando' });
+                }
+            }
+        }
+        // Formato array de módulos: [{ambientes:[{nome:...}]},...]
+        if (Array.isArray(mods)) {
+            for (const mod of mods) {
+                if (Array.isArray(mod.ambientes)) {
+                    for (const amb of mod.ambientes) {
+                        if (amb.nome && !ambMap.has(amb.nome)) {
+                            ambMap.set(amb.nome, { id: `amb_${Date.now()}_${ambMap.size}`, nome: amb.nome, status: 'aguardando' });
+                        }
+                    }
+                }
+            }
+        }
+        // Fallback: campo "ambiente" direto no orçamento
+        if (orc.ambiente && ambMap.size === 0) {
+            ambMap.set(orc.ambiente, { id: `amb_${Date.now()}_0`, nome: orc.ambiente, status: 'aguardando' });
+        }
+    } catch (_) {}
+    return [...ambMap.values()];
+}
+
 // ═══════════════════════════════════════════════════
 // GET /api/projetos/users-list — lista de usuários para dropdown de responsável
 // DEVE vir ANTES de /:id para evitar conflito de rota
@@ -282,25 +317,8 @@ router.get('/:id', requireAuth, (req, res) => {
         try {
             const orc = db.prepare('SELECT mods_json, ambiente FROM orcamentos WHERE id = ?').get(proj.orc_id);
             if (orc) {
-                const mods = orc.mods_json ? JSON.parse(orc.mods_json) : [];
-                const ambMap = new Map();
-                if (Array.isArray(mods)) {
-                    for (const mod of mods) {
-                        if (Array.isArray(mod.ambientes)) {
-                            for (const amb of mod.ambientes) {
-                                if (amb.nome && !ambMap.has(amb.nome)) {
-                                    ambMap.set(amb.nome, { id: `amb_${Date.now()}_${ambMap.size}`, nome: amb.nome, status: 'aguardando' });
-                                }
-                            }
-                        }
-                    }
-                }
-                if (orc.ambiente && ambMap.size === 0) {
-                    ambMap.set(orc.ambiente, { id: `amb_${Date.now()}_0`, nome: orc.ambiente, status: 'aguardando' });
-                }
-                if (ambMap.size > 0) {
-                    ambientes_parsed = [...ambMap.values()];
-                    // Persistir para não precisar importar de novo
+                ambientes_parsed = parseAmbientesFromOrc(orc);
+                if (ambientes_parsed.length > 0) {
                     db.prepare('UPDATE projetos SET ambientes_json = ? WHERE id = ?').run(JSON.stringify(ambientes_parsed), proj.id);
                 }
             }
@@ -550,24 +568,9 @@ router.post('/', requireAuth, (req, res) => {
         try {
             const orc = db.prepare('SELECT mods_json, ambiente FROM orcamentos WHERE id = ?').get(parseInt(orc_id));
             if (orc) {
-                const mods = orc.mods_json ? JSON.parse(orc.mods_json) : [];
-                const ambMap = new Map();
-                if (Array.isArray(mods)) {
-                    for (const mod of mods) {
-                        if (Array.isArray(mod.ambientes)) {
-                            for (const amb of mod.ambientes) {
-                                if (amb.nome && !ambMap.has(amb.nome)) {
-                                    ambMap.set(amb.nome, { id: `amb_${Date.now()}_${ambMap.size}`, nome: amb.nome, status: 'aguardando' });
-                                }
-                            }
-                        }
-                    }
-                }
-                if (orc.ambiente && ambMap.size === 0) {
-                    ambMap.set(orc.ambiente, { id: `amb_${Date.now()}_0`, nome: orc.ambiente, status: 'aguardando' });
-                }
-                if (ambMap.size > 0) {
-                    db.prepare('UPDATE projetos SET ambientes_json = ? WHERE id = ?').run(JSON.stringify([...ambMap.values()]), projId);
+                const ambArr = parseAmbientesFromOrc(orc);
+                if (ambArr.length > 0) {
+                    db.prepare('UPDATE projetos SET ambientes_json = ? WHERE id = ?').run(JSON.stringify(ambArr), projId);
                 }
             }
         } catch (_) { /* não bloqueia criação */ }
