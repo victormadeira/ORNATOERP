@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, Fragment } from 'react';
 import { Z, Ic, Modal, ConfirmModal, tagStyle, tagClass, PageHeader } from '../ui';
 import { R$, KCOLS } from '../engine';
 import api from '../api';
-import { Copy, Download, SortAsc, SortDesc, Filter, AlertTriangle, Calendar, Flame, Eye as EyeIcon, RefreshCw, Share2, Printer, CheckCircle, FileText as FileTextIcon, Link2, Type, ZoomIn, Star, MousePointer, DollarSign, Search, Zap, CheckCheck } from 'lucide-react';
+import { Copy, Download, SortAsc, SortDesc, Filter, AlertTriangle, Calendar, Flame, Eye as EyeIcon, RefreshCw, Share2, Printer, CheckCircle, FileText as FileTextIcon, Link2, Type, ZoomIn, Star, MousePointer, DollarSign, Search, Zap, CheckCheck, Monitor, Smartphone, MapPin, ExternalLink } from 'lucide-react';
 
 const dt = (s) => s ? new Date(s + 'Z').toLocaleDateString('pt-BR') : '—';
 const dtHr = (s) => s ? new Date(s + 'Z').toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -33,6 +33,8 @@ export default function Orcs({ orcs, nav, reload, notify }) {
     const [loadingDup, setLoadingDup] = useState(null); // orc_id duplicando
     const [scores, setScores] = useState({}); // { orc_id: { score, label, cor } }
     const [timeline, setTimeline] = useState(null); // { events: [] }
+    const [viewMapId, setViewMapId] = useState(null);
+    const [showAllViews, setShowAllViews] = useState(false);
 
     // ─── Carregar scores ──────────────────────────────────
     useEffect(() => {
@@ -704,7 +706,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
 
             {/* ─── Modal: Link Público + Score + Timeline ──────── */}
             {linkModal && (
-                <Modal title="Link Público da Proposta" close={() => { setLinkModal(null); setTimeline(null); }} w={680}>
+                <Modal title="Link Público da Proposta" close={() => { setLinkModal(null); setTimeline(null); setViewMapId(null); setShowAllViews(false); }} w={680}>
                     <div className="flex flex-col gap-5">
                         {/* Info proposta + Score */}
                         <div className="p-3 rounded-lg flex items-center justify-between" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
@@ -876,6 +878,93 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                 </div>
                             </div>
                         )}
+
+                        {/* Últimos acessos - tabela detalhada */}
+                        {linkModal.views?.length > 0 && (() => {
+                            const views = linkModal.views;
+                            const hasAnyCidade = views.some(v => v.cidade);
+                            const hasAnyLoc = views.some(v => v.lat && v.lon);
+                            const shown = showAllViews ? views : views.slice(0, 8);
+                            return (
+                                <div>
+                                    <div className="text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>
+                                        ÚLTIMOS ACESSOS
+                                        <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                                            {views.length}
+                                        </span>
+                                    </div>
+                                    <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                                            <thead>
+                                                <tr style={{ background: 'var(--bg-muted)', borderBottom: '1px solid var(--border)' }}>
+                                                    <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 10 }}>Data / Hora</th>
+                                                    <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 10 }}>IP</th>
+                                                    <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 10 }}>Dispositivo</th>
+                                                    <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 10 }}>Navegador</th>
+                                                    {hasAnyCidade && <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 10 }}>Cidade</th>}
+                                                    {hasAnyLoc && <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 10 }}>Local</th>}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {shown.map((v, i) => {
+                                                    const hasLoc = v.lat && v.lon;
+                                                    return (
+                                                        <Fragment key={v.id || i}>
+                                                            <tr style={{
+                                                                borderBottom: '1px solid var(--border)',
+                                                                background: viewMapId === v.id ? 'var(--bg-muted)' : v.is_new_visit ? 'rgba(59,130,246,0.04)' : undefined,
+                                                                cursor: hasLoc ? 'pointer' : 'default',
+                                                            }} onClick={() => hasLoc && setViewMapId(viewMapId === v.id ? null : v.id)}>
+                                                                <td style={{ padding: '6px 10px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{dtHr(v.acessado_em)}</td>
+                                                                <td style={{ padding: '6px 10px', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: 10 }}>{v.ip_cliente || '—'}</td>
+                                                                <td style={{ padding: '6px 10px', color: 'var(--text-primary)' }}>
+                                                                    {v.dispositivo === 'Mobile' ? <Smartphone size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> : <Monitor size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />}
+                                                                    {v.os_name || v.dispositivo || '—'}
+                                                                </td>
+                                                                <td style={{ padding: '6px 10px', color: 'var(--text-primary)' }}>{v.navegador || '—'}</td>
+                                                                {hasAnyCidade && <td style={{ padding: '6px 10px', color: 'var(--text-muted)', fontSize: 10 }}>{v.cidade ? `${v.cidade}${v.estado ? `/${v.estado}` : ''}` : '—'}</td>}
+                                                                {hasAnyLoc && (
+                                                                    <td style={{ padding: '6px 10px' }}>
+                                                                        {hasLoc ? (
+                                                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'var(--primary)', fontWeight: 600, fontSize: 10 }}>
+                                                                                <MapPin size={11} /> Ver mapa
+                                                                            </span>
+                                                                        ) : <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>—</span>}
+                                                                    </td>
+                                                                )}
+                                                            </tr>
+                                                            {viewMapId === v.id && hasLoc && (
+                                                                <tr><td colSpan={4 + (hasAnyCidade ? 1 : 0) + (hasAnyLoc ? 1 : 0)} style={{ padding: 0 }}>
+                                                                    <div style={{ padding: 12, background: 'var(--bg-muted)' }}>
+                                                                        <iframe
+                                                                            title="map"
+                                                                            width="100%" height="200"
+                                                                            style={{ border: 0, borderRadius: 8 }}
+                                                                            src={`https://www.openstreetmap.org/export/embed.html?bbox=${v.lon - 0.01},${v.lat - 0.008},${v.lon + 0.01},${v.lat + 0.008}&layer=mapnik&marker=${v.lat},${v.lon}`}
+                                                                        />
+                                                                        <a href={`https://www.google.com/maps?q=${v.lat},${v.lon}`} target="_blank" rel="noreferrer"
+                                                                            style={{ fontSize: 10, color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 6 }}>
+                                                                            <ExternalLink size={10} /> Abrir no Google Maps
+                                                                        </a>
+                                                                    </div>
+                                                                </td></tr>
+                                                            )}
+                                                        </Fragment>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {views.length > 8 && (
+                                        <button onClick={() => setShowAllViews(!showAllViews)}
+                                            className="text-[10px] mt-2 cursor-pointer"
+                                            style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                                            {showAllViews ? 'Mostrar menos' : `Ver todos (${views.length})`}
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })()}
 
                         {/* Links */}
                         <div className="flex flex-col gap-3">
