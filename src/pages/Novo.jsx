@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from 'react';
 import { Z, Ic, Modal, SearchableSelect, PageHeader } from '../ui';
 import { uid, R$, N, DB_CHAPAS, DB_ACABAMENTOS, DB_FERRAGENS, DB_FITAS, FERR_GROUPS, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, precoVenda, precoVendaV2, LOCKED_COLS, compareVersions } from '../engine';
 import api from '../api';
@@ -12,7 +12,7 @@ import {
     Lock, Unlock, ShieldAlert, FilePlus2, CheckCircle, Upload, Brain, Sparkles,
     PanelTop, UtensilsCrossed, BedDouble, Bath, Shirt, Flame, WashingMachine, Armchair, PenTool, Briefcase,
     Square, Sofa, RectangleHorizontal, GlassWater, Shapes,
-    GitBranch, Star, ArrowRight, ArrowUpDown, Tag, ArrowUp, ArrowDown, GripVertical,
+    GitBranch, Star, ArrowRight, ArrowUpDown, Tag, ArrowUp, ArrowDown, GripVertical, MapPin,
 } from 'lucide-react';
 
 // ── Ícone por categoria de caixa ─────────────────────────────────────────────
@@ -1242,6 +1242,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [propostaModal, setPropostaModal] = useState(false);
     const [viewsData, setViewsData] = useState(null);
     const [showViews, setShowViews] = useState(false);
+    const [viewMapId, setViewMapId] = useState(null);
+    const [showAllViews, setShowAllViews] = useState(false);
 
     // ── Dados completos do orçamento (carregados da API) ─────────────────────
     const [orcFull, setOrcFull] = useState(null);
@@ -3641,28 +3643,88 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 </div>
                             )}
 
-                            {/* Últimos acessos */}
-                            {viewsData.views?.length > 0 && (
-                                <div className="mt-3">
-                                    <div className="text-[10px] uppercase tracking-wider font-bold mb-2" style={{ color: 'var(--text-muted)' }}>Últimos acessos</div>
-                                    <div className="flex flex-col gap-1 max-h-40 overflow-auto">
-                                        {viewsData.views.slice(0, 20).map((v, i) => (
-                                            <div key={i} className="flex items-center justify-between text-[10px] px-2 py-1 rounded"
-                                                style={{ background: v.is_new_visit ? 'rgba(59,130,246,0.05)' : 'transparent' }}>
-                                                <span style={{ color: 'var(--text-muted)' }}>
-                                                    {new Date(v.acessado_em + 'Z').toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                                                </span>
-                                                <span style={{ color: 'var(--text-primary)' }}>
-                                                    {v.dispositivo === 'Mobile' ? <Smartphone size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> : <Monitor size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />}{v.navegador} · {v.os_name}
-                                                </span>
-                                                <span style={{ color: 'var(--text-muted)' }}>
-                                                    {v.cidade || v.ip_cliente}
-                                                </span>
-                                            </div>
-                                        ))}
+                            {/* Últimos acessos - tabela estilo portal */}
+                            {viewsData.views?.length > 0 && (() => {
+                                const hasAnyLoc = viewsData.views.some(v => v.lat && v.lon);
+                                const hasAnyCidade = viewsData.views.some(v => v.cidade);
+                                const shownViews = showAllViews ? viewsData.views : viewsData.views.slice(0, 8);
+                                return (
+                                    <div className="mt-3">
+                                        <div className="text-[10px] uppercase tracking-wider font-bold mb-2" style={{ color: 'var(--text-muted)' }}>Últimos acessos</div>
+                                        <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                                                <thead>
+                                                    <tr style={{ background: 'var(--bg-muted)', borderBottom: '1px solid var(--border)' }}>
+                                                        <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 10 }}>Data / Hora</th>
+                                                        <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 10 }}>IP</th>
+                                                        <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 10 }}>Dispositivo</th>
+                                                        <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 10 }}>Navegador</th>
+                                                        {hasAnyCidade && <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 10 }}>Cidade</th>}
+                                                        {hasAnyLoc && <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 10 }}>Local</th>}
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {shownViews.map((v, i) => {
+                                                        const hasLoc = v.lat && v.lon;
+                                                        return (
+                                                            <Fragment key={v.id || i}>
+                                                                <tr style={{
+                                                                    borderBottom: '1px solid var(--border)',
+                                                                    background: viewMapId === v.id ? 'var(--bg-muted)' : v.is_new_visit ? 'rgba(59,130,246,0.04)' : undefined,
+                                                                    cursor: hasLoc ? 'pointer' : 'default',
+                                                                }} onClick={() => hasLoc && setViewMapId(viewMapId === v.id ? null : v.id)}>
+                                                                    <td style={{ padding: '6px 10px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                                                                        {new Date(v.acessado_em + 'Z').toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                                                    </td>
+                                                                    <td style={{ padding: '6px 10px', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: 10 }}>{v.ip_cliente || '—'}</td>
+                                                                    <td style={{ padding: '6px 10px', color: 'var(--text-primary)' }}>
+                                                                        {v.dispositivo === 'Mobile' ? <Smartphone size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> : <Monitor size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />}
+                                                                        {v.os_name || v.dispositivo || '—'}
+                                                                    </td>
+                                                                    <td style={{ padding: '6px 10px', color: 'var(--text-primary)' }}>{v.navegador || '—'}</td>
+                                                                    {hasAnyCidade && <td style={{ padding: '6px 10px', color: 'var(--text-muted)', fontSize: 10 }}>{v.cidade ? `${v.cidade}${v.estado ? `/${v.estado}` : ''}` : '—'}</td>}
+                                                                    {hasAnyLoc && (
+                                                                        <td style={{ padding: '6px 10px' }}>
+                                                                            {hasLoc ? (
+                                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'var(--primary)', fontWeight: 600, fontSize: 10 }}>
+                                                                                    <MapPin size={11} /> Ver mapa
+                                                                                </span>
+                                                                            ) : <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>—</span>}
+                                                                        </td>
+                                                                    )}
+                                                                </tr>
+                                                                {viewMapId === v.id && hasLoc && (
+                                                                    <tr><td colSpan={4 + (hasAnyCidade ? 1 : 0) + (hasAnyLoc ? 1 : 0)} style={{ padding: 0 }}>
+                                                                        <div style={{ padding: 12, background: 'var(--bg-muted)' }}>
+                                                                            <iframe
+                                                                                title="map"
+                                                                                width="100%" height="200"
+                                                                                style={{ border: 0, borderRadius: 8 }}
+                                                                                src={`https://www.openstreetmap.org/export/embed.html?bbox=${v.lon - 0.01},${v.lat - 0.008},${v.lon + 0.01},${v.lat + 0.008}&layer=mapnik&marker=${v.lat},${v.lon}`}
+                                                                            />
+                                                                            <a href={`https://www.google.com/maps?q=${v.lat},${v.lon}`} target="_blank" rel="noreferrer"
+                                                                                style={{ fontSize: 10, color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 6 }}>
+                                                                                <ExternalLink size={10} /> Abrir no Google Maps
+                                                                            </a>
+                                                                        </div>
+                                                                    </td></tr>
+                                                                )}
+                                                            </Fragment>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        {viewsData.views.length > 8 && (
+                                            <button onClick={() => setShowAllViews(!showAllViews)}
+                                                className="text-[10px] mt-2 cursor-pointer"
+                                                style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                                                {showAllViews ? 'Mostrar menos' : `Ver todos (${viewsData.views.length})`}
+                                            </button>
+                                        )}
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
 
                             {/* Resetar estatísticas */}
                             <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
