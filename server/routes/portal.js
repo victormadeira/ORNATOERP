@@ -280,46 +280,55 @@ router.get('/public/:token', optionalAuth, async (req, res) => {
         const ua = req.headers['user-agent'] || '';
         const { dispositivo, navegador, os_name } = parseUA(ua);
 
-        // Rate limit: verificar se é nova visita
-        const newVisit = isNewVisit(portalToken.orc_id, ip);
+        // Rate limit por IP+proposta: ignorar acesso recente do mesmo IP nos últimos 30 min
+        const recentAccess = db.prepare(`
+            SELECT id FROM proposta_acessos
+            WHERE orc_id = ? AND ip_cliente = ? AND acessado_em > datetime('now', '-${RATE_LIMIT_MIN} minutes')
+            LIMIT 1
+        `).get(portalToken.orc_id, ip);
 
-        // Geolocalização assíncrona
-        const geo = await geolocateIP(ip);
+        if (!recentAccess) {
+            // Rate limit: verificar se é nova visita (primeira vez desse IP)
+            const newVisit = isNewVisit(portalToken.orc_id, ip);
 
-        // Registrar acesso (com coords aproximadas do IP, GPS sobrescreve depois)
-        db.prepare(`
-            INSERT INTO proposta_acessos (orc_id, token, ip_cliente, user_agent, dispositivo, navegador, os_name, cidade, estado, pais, is_new_visit, lat, lon)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(portalToken.orc_id, token, ip, ua, dispositivo, navegador, os_name, geo.cidade, geo.estado, geo.pais, newVisit ? 1 : 0, geo.lat, geo.lon);
+            // Geolocalização assíncrona
+            const geo = await geolocateIP(ip);
 
-        db.prepare('UPDATE portal_tokens SET ultimo_acesso = CURRENT_TIMESTAMP WHERE token = ?').run(token);
+            // Registrar acesso (com coords aproximadas do IP, GPS sobrescreve depois)
+            db.prepare(`
+                INSERT INTO proposta_acessos (orc_id, token, ip_cliente, user_agent, dispositivo, navegador, os_name, cidade, estado, pais, is_new_visit, lat, lon)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(portalToken.orc_id, token, ip, ua, dispositivo, navegador, os_name, geo.cidade, geo.estado, geo.pais, newVisit ? 1 : 0, geo.lat, geo.lon);
 
-        // Notificar equipe quando cliente visualiza a proposta (só visitas novas)
-        if (newVisit) {
-            try {
-                const local = geo.cidade ? ` de ${geo.cidade}${geo.estado ? '/' + geo.estado : ''}` : '';
-                createNotification(
-                    'proposta_visualizada',
-                    `Proposta visualizada: ${orc.numero || 'Orçamento #' + orc.id}`,
-                    `${orc.cliente_nome} abriu a proposta${local} (${dispositivo})`,
-                    orc.id, 'orcamento', orc.cliente_nome, null
-                );
+            db.prepare('UPDATE portal_tokens SET ultimo_acesso = CURRENT_TIMESTAMP WHERE token = ?').run(token);
 
-                // ── Fase 2: Alerta de Retorno ──
-                const prevVisits = db.prepare(`
-                    SELECT COUNT(*) as c FROM proposta_acessos
-                    WHERE orc_id = ? AND is_new_visit = 1 AND id != (SELECT MAX(id) FROM proposta_acessos WHERE orc_id = ?)
-                `).get(portalToken.orc_id, portalToken.orc_id);
-                if (prevVisits && prevVisits.c > 0) {
-                    const visitNum = prevVisits.c + 1;
+            // Notificar equipe quando cliente visualiza a proposta (só visitas novas)
+            if (newVisit) {
+                try {
+                    const local = geo.cidade ? ` de ${geo.cidade}${geo.estado ? '/' + geo.estado : ''}` : '';
                     createNotification(
-                        'proposta_retorno',
-                        `Cliente voltou! ${orc.numero || '#' + orc.id}`,
-                        `${orc.cliente_nome} — ${visitNum}ª visita${local}`,
+                        'proposta_visualizada',
+                        `Proposta visualizada: ${orc.numero || 'Orçamento #' + orc.id}`,
+                        `${orc.cliente_nome} abriu a proposta${local} (${dispositivo})`,
                         orc.id, 'orcamento', orc.cliente_nome, null
                     );
-                }
-            } catch (_) {}
+
+                    // ── Fase 2: Alerta de Retorno ──
+                    const prevVisits = db.prepare(`
+                        SELECT COUNT(*) as c FROM proposta_acessos
+                        WHERE orc_id = ? AND is_new_visit = 1 AND id != (SELECT MAX(id) FROM proposta_acessos WHERE orc_id = ?)
+                    `).get(portalToken.orc_id, portalToken.orc_id);
+                    if (prevVisits && prevVisits.c > 0) {
+                        const visitNum = prevVisits.c + 1;
+                        createNotification(
+                            'proposta_retorno',
+                            `Cliente voltou! ${orc.numero || '#' + orc.id}`,
+                            `${orc.cliente_nome} — ${visitNum}ª visita${local}`,
+                            orc.id, 'orcamento', orc.cliente_nome, null
+                        );
+                    }
+                } catch (_) {}
+            }
         }
     }
 
