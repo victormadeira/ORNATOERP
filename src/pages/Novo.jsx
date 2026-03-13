@@ -3568,6 +3568,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     </a>
                                 </div>
                             </div>
+                            {/* Botão Preview (sem estatísticas) */}
+                            <div className="mt-1">
+                                <a href={`/preview/proposta/${viewsData.token}`} target="_blank" rel="noreferrer"
+                                    className="flex items-center justify-center gap-2 w-full py-2 rounded-lg text-xs font-semibold cursor-pointer"
+                                    style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                                    <Eye size={13} /> Visualizar Preview (sem estatísticas)
+                                </a>
+                            </div>
                         </div>
                     ) : (
                         <button onClick={async () => {

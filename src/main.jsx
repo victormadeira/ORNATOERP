@@ -16,6 +16,12 @@ const path = window.location.pathname;
 // Suporta: /apresentacao/TOKEN
 const apresentacaoToken = (path.match(/^\/apresentacao\/([a-f0-9]+)$/i) || [])[1] || null;
 
+// Preview interno (sem tracking): /preview/proposta/TOKEN
+const previewPropostaToken = (path.match(/^\/preview\/proposta\/([a-f0-9]+)$/i) || [])[1] || null;
+
+// Preview interno (sem notificações): /preview/portal/TOKEN
+const previewPortalToken = (path.match(/^\/preview\/portal\/([a-f0-9]+)$/i) || [])[1] || null;
+
 // Suporta: ?proposta=TOKEN ou /proposta/TOKEN
 const proposalToken = params.get('proposta')
     || (path.match(/^\/proposta\/([a-f0-9]+)$/i) || [])[1]
@@ -40,6 +46,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <LandingPage />
         ) : apresentacaoToken ? (
             <PropostaApresentacao token={apresentacaoToken} />
+        ) : previewPropostaToken ? (
+            <ProposalPublic token={previewPropostaToken} isPreview />
+        ) : previewPortalToken ? (
+            <PortalCliente token={previewPortalToken} isPreview />
         ) : proposalToken ? (
             <ProposalPublic token={proposalToken} />
         ) : portalToken ? (

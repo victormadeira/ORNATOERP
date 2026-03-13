@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Lock, Link as LinkIcon, Printer, CheckCircle2, FileText } from 'lucide-react';
 
 // ── ProposalPublic — exibe a proposta como clone do PDF + tracking ───────────
-export default function ProposalPublic({ token }) {
+export default function ProposalPublic({ token, isPreview = false }) {
     const [html, setHtml] = useState('');
     const [meta, setMeta] = useState(null);
     const [error, setError] = useState(null);
@@ -18,7 +18,8 @@ export default function ProposalPublic({ token }) {
     useEffect(() => {
         const authToken = localStorage.getItem('erp_token');
         const authHeaders = authToken ? { Authorization: `Bearer ${authToken}` } : {};
-        fetch(`/api/portal/public/${token}`, { headers: authHeaders })
+        const endpoint = isPreview ? `/api/portal/preview/${token}` : `/api/portal/public/${token}`;
+        fetch(endpoint, { headers: authHeaders })
             .then(r => r.json())
             .then(d => {
                 if (d.error) { setError(d.error); return; }
@@ -27,11 +28,11 @@ export default function ProposalPublic({ token }) {
             })
             .catch(() => setError('Não foi possível carregar a proposta'))
             .finally(() => setLoading(false));
-    }, [token]);
+    }, [token, isPreview]);
 
     // ── Tracking: fingerprint + heartbeat + section observer + interações ──
     useEffect(() => {
-        if (!html || error) return;
+        if (!html || error || isPreview) return; // Preview: sem tracking
 
         // Gerar fingerprint do dispositivo
         const fp = [
@@ -113,7 +114,7 @@ export default function ProposalPublic({ token }) {
             window.removeEventListener('beforeprint', onBeforePrint);
             if (iframeRef.current?._sectionCleanup) iframeRef.current._sectionCleanup();
         };
-    }, [html, error, token]);
+    }, [html, error, token, isPreview]);
 
     // ── Loading state ────────────────────────────────────────────────────────
     if (loading) return (
@@ -166,8 +167,8 @@ export default function ProposalPublic({ token }) {
     const copyLink = () => { navigator.clipboard.writeText(pageUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); };
 
     const printProposta = () => {
-        // Enviar evento de print pelo botão também
-        try { fetch(`/api/portal/event/${token}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tipo: 'print' }) }); } catch {}
+        // Enviar evento de print pelo botão (não em preview)
+        if (!isPreview) { try { fetch(`/api/portal/event/${token}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tipo: 'print' }) }); } catch {} }
         try {
             const iframe = iframeRef.current;
             if (iframe?.contentWindow) iframe.contentWindow.print();
@@ -185,6 +186,17 @@ export default function ProposalPublic({ token }) {
                     .prop-frame { box-shadow: none !important; }
                 }
             `}</style>
+
+            {/* Banner de preview */}
+            {isPreview && (
+                <div className="no-print" style={{
+                    background: 'linear-gradient(90deg, #f59e0b, #d97706)', color: '#fff',
+                    padding: '8px 16px', textAlign: 'center', fontSize: 13, fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}>
+                    👁 PREVIEW INTERNO — Estatísticas não são contabilizadas
+                </div>
+            )}
 
             {/* Barra de ações (fixa no topo) */}
             <div className="no-print" style={{

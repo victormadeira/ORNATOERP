@@ -2449,12 +2449,16 @@ function TabPortalMsgs({ data, notify }) {
                 <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Link do Portal do Cliente</div>
                     {portalUrl ? (
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                             <span style={{ fontFamily: 'monospace', background: 'var(--bg-muted)', padding: '4px 8px', borderRadius: 6, maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }}>{portalUrl}</span>
                             <button onClick={() => { navigator.clipboard.writeText(portalUrl); notify('Link copiado!'); }}
                                 className={Z.btn2} style={{ fontSize: 11, padding: '4px 10px' }}>
                                 <CopyIcon size={11} /> Copiar
                             </button>
+                            <a href={`/preview/portal/${data.token}`} target="_blank" rel="noreferrer"
+                                style={{ fontSize: 11, padding: '4px 10px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 6, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', cursor: 'pointer' }}>
+                                <Ic.Eye size={11} /> Preview
+                            </a>
                         </div>
                     ) : (
                         <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Este projeto não possui token de portal. Gere um link do portal nas configurações.</p>

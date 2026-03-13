@@ -155,6 +155,70 @@ router.get('/portal/:token', (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// GET /api/projetos/portal-preview/:token — preview interno (requer auth, SEM notificações)
+// ═══════════════════════════════════════════════════
+router.get('/portal-preview/:token', requireAuth, (req, res) => {
+    const proj = db.prepare(`
+        SELECT p.*, o.cliente_nome, o.valor_venda
+        FROM projetos p
+        LEFT JOIN orcamentos o ON o.id = p.orc_id
+        WHERE p.token = ?
+    `).get(req.params.token);
+
+    if (!proj) return res.status(404).json({ error: 'Projeto não encontrado ou link inválido' });
+
+    // SEM notificações — preview interno não gera alerta
+
+    const etapas = db.prepare(`
+        SELECT e.*, u.nome as responsavel_nome
+        FROM etapas_projeto e
+        LEFT JOIN users u ON u.id = e.responsavel_id
+        WHERE e.projeto_id = ? ORDER BY e.ordem, e.id
+    `).all(proj.id);
+
+    let displayStatus = proj.status;
+    if (etapas.length > 0) {
+        const allDone = etapas.every(e => e.status === 'concluida');
+        const anyStarted = etapas.some(e => e.status === 'em_andamento' || e.status === 'concluida' || e.status === 'atrasada');
+        if (allDone) displayStatus = 'concluido';
+        else if (anyStarted && (proj.status === 'nao_iniciado' || !proj.status)) displayStatus = 'em_andamento';
+    }
+    if (displayStatus !== proj.status) {
+        try { db.prepare('UPDATE projetos SET status = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?').run(displayStatus, proj.id); } catch (_) {}
+    }
+
+    const ocorrencias = db.prepare(
+        "SELECT * FROM ocorrencias_projeto WHERE projeto_id = ? AND status != 'interno' ORDER BY criado_em DESC"
+    ).all(proj.id);
+
+    const empresa = db.prepare(
+        'SELECT nome, telefone, email, cidade, estado, cnpj, logo_header_path, proposta_cor_primaria, proposta_cor_accent FROM empresa_config WHERE id = 1'
+    ).get() || {};
+
+    const mensagens = db.prepare(`
+        SELECT id, autor_tipo, autor_nome, conteudo, criado_em
+        FROM portal_mensagens
+        WHERE projeto_id = ? AND token = ?
+        ORDER BY criado_em ASC
+    `).all(proj.id, req.params.token);
+
+    let ambientes = [];
+    if (proj.mostrar_ambientes_portal) {
+        try { ambientes = proj.ambientes_json ? JSON.parse(proj.ambientes_json) : []; } catch (_) {}
+    }
+
+    res.json({
+        projeto: {
+            id: proj.id, nome: proj.nome, descricao: proj.descricao, status: displayStatus,
+            data_inicio: proj.data_inicio, data_vencimento: proj.data_vencimento,
+            cliente_nome: proj.cliente_nome, etapas, ocorrencias, mensagens, ambientes,
+        },
+        empresa,
+        preview: true,
+    });
+});
+
+// ═══════════════════════════════════════════════════
 // GET /api/projetos/portal/:token/fotos — listar fotos do montador (público)
 // ═══════════════════════════════════════════════════
 router.get('/portal/:token/fotos', (req, res) => {

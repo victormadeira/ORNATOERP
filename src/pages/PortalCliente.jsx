@@ -975,13 +975,16 @@ function PortalGaleria({ token, accent, primary }) {
 }
 
 // ─── Página pública do Portal do Cliente ──────────────
-export default function PortalCliente({ token }) {
+export default function PortalCliente({ token, isPreview = false }) {
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch(`/api/projetos/portal/${token}`)
+        const authToken = localStorage.getItem('erp_token');
+        const headers = authToken ? { Authorization: `Bearer ${authToken}` } : {};
+        const endpoint = isPreview ? `/api/projetos/portal-preview/${token}` : `/api/projetos/portal/${token}`;
+        fetch(endpoint, { headers })
             .then(r => r.json())
             .then(d => {
                 if (d.error) setError(d.error);
@@ -989,7 +992,7 @@ export default function PortalCliente({ token }) {
             })
             .catch(() => setError('Não foi possível carregar o projeto'))
             .finally(() => setLoading(false));
-    }, [token]);
+    }, [token, isPreview]);
 
     const primary = data?.empresa?.proposta_cor_primaria || '#1B2A4A';
     const accent = data?.empresa?.proposta_cor_accent || '#C9A96E';
@@ -1043,6 +1046,18 @@ export default function PortalCliente({ token }) {
                 .portal-card { animation: fadeUp 0.4s ease; max-width: 800px; margin: 0 auto; }
                 @media print { body { background: white !important; } .no-print { display: none !important; } }
             `}</style>
+
+            {/* Banner de preview */}
+            {isPreview && (
+                <div className="no-print" style={{
+                    background: 'linear-gradient(90deg, #f59e0b, #d97706)', color: '#fff',
+                    padding: '10px 16px', textAlign: 'center', fontSize: 13, fontWeight: 700,
+                    borderRadius: 10, marginBottom: 16, maxWidth: 800, margin: '0 auto 16px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}>
+                    👁 PREVIEW INTERNO — Notificações não são enviadas
+                </div>
+            )}
 
             <div className="portal-card">
 

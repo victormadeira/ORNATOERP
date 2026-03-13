@@ -337,6 +337,38 @@ router.get('/public/:token', optionalAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// GET /api/portal/preview/:token — preview interno (requer auth, SEM tracking)
+// ═══════════════════════════════════════════════════════════════════════════════
+router.get('/preview/:token', requireAuth, (req, res) => {
+    const { token } = req.params;
+
+    const portalToken = db.prepare('SELECT * FROM portal_tokens WHERE token = ? AND ativo = 1 AND (expira_em IS NULL OR expira_em > datetime(\'now\'))').get(token);
+    if (!portalToken) return res.status(404).json({ error: 'Link inválido ou expirado' });
+
+    const orc = db.prepare(`
+        SELECT o.*, u.nome as vendedor_nome
+        FROM orcamentos o
+        LEFT JOIN users u ON o.user_id = u.id
+        WHERE o.id = ?
+    `).get(portalToken.orc_id);
+    if (!orc) return res.status(404).json({ error: 'Proposta não encontrada' });
+
+    // SEM tracking — nenhum registro em proposta_acessos, sem notificações
+
+    const emp = db.prepare('SELECT nome, proposta_cor_primaria, proposta_cor_accent FROM empresa_config WHERE id = 1').get();
+    res.json({
+        html_proposta: portalToken.html_proposta || '',
+        nivel: portalToken.nivel || 'geral',
+        empresa_nome: emp?.nome || 'Marcenaria',
+        cor_primaria: emp?.proposta_cor_primaria || '#1B2A4A',
+        cor_accent: emp?.proposta_cor_accent || '#C9A96E',
+        numero: orc.numero || '',
+        cliente_nome: orc.cliente_nome || '',
+        preview: true,
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // POST /api/portal/heartbeat/:token — atualiza tempo + scroll de sessão ativa
 // ═══════════════════════════════════════════════════════════════════════════════
 router.post('/heartbeat/:token', optionalAuth, (req, res) => {
