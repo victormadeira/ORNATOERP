@@ -1543,6 +1543,8 @@ function TabArquivos({ data, notify }) {
     const [arquivos, setArquivos] = useState([]);
     const [montadorLinks, setMontadorLinks] = useState([]);
     const [uploading, setUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [uploadFileName, setUploadFileName] = useState('');
     const [newMontador, setNewMontador] = useState('');
     const [showMontadorForm, setShowMontadorForm] = useState(false);
     const [copiedLink, setCopiedLink] = useState(null);
@@ -1568,17 +1570,21 @@ function TabArquivos({ data, notify }) {
     const handleUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
+        e.target.value = '';
         setUploading(true);
-        const reader = new FileReader();
-        reader.onload = async (ev) => {
-            try {
-                await api.post(`/drive/projeto/${data.id}/upload`, { filename: file.name, data: ev.target.result });
-                loadAll();
-                notify('Arquivo enviado');
-            } catch { notify('Erro ao enviar'); }
-            finally { setUploading(false); }
-        };
-        reader.readAsDataURL(file);
+        setUploadProgress(0);
+        setUploadFileName(file.name);
+        try {
+            await api.upload(`/drive/projeto/${data.id}/upload`, file, (pct) => setUploadProgress(pct));
+            loadAll();
+            notify('Arquivo enviado');
+        } catch (err) {
+            notify(err?.error || 'Erro ao enviar arquivo');
+        } finally {
+            setUploading(false);
+            setUploadProgress(0);
+            setUploadFileName('');
+        }
     };
 
     const deleteFile = (nome) => {
@@ -1618,13 +1624,34 @@ function TabArquivos({ data, notify }) {
             <div className={Z.card} style={{ marginBottom: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                     <h2 style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 7 }}><Ic.Folder /> Arquivos do Projeto</h2>
-                    <label className={Z.btn2} style={{ fontSize: 12, padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <label className={Z.btn2} style={{ fontSize: 12, padding: '6px 12px', cursor: uploading ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 5, opacity: uploading ? 0.6 : 1 }}>
                         <PlusCircle size={12} /> {uploading ? 'Enviando...' : 'Upload'}
                         <input type="file" style={{ display: 'none' }} onChange={handleUpload} disabled={uploading} />
                     </label>
                 </div>
 
-                {arquivos.length === 0 ? (
+                {/* Barra de progresso */}
+                {uploading && (
+                    <div style={{ marginBottom: 14 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: '70%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {uploadFileName}
+                            </span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary)' }}>{uploadProgress}%</span>
+                        </div>
+                        <div style={{ width: '100%', height: 6, borderRadius: 3, background: 'var(--bg-muted)', overflow: 'hidden' }}>
+                            <div style={{
+                                width: `${uploadProgress}%`,
+                                height: '100%',
+                                borderRadius: 3,
+                                background: 'var(--primary)',
+                                transition: 'width 0.2s ease',
+                            }} />
+                        </div>
+                    </div>
+                )}
+
+                {arquivos.length === 0 && !uploading ? (
                     <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>
                         <div style={{ marginBottom: 8, opacity: 0.3 }}><Ic.FolderOpen /></div>
                         <p style={{ fontSize: 13 }}>Nenhum arquivo enviado. Clique em "Upload" para adicionar.</p>

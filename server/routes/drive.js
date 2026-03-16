@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as gdrive from '../services/gdrive.js';
+import multer from 'multer';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
@@ -12,6 +13,9 @@ const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const router = Router();
+
+// ── Multer config para upload multipart ──────────────────────────────────────
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 // ── Upload: extensões permitidas e limite de tamanho ─────────────────────────
 const ALLOWED_EXTENSIONS = new Set([
@@ -184,18 +188,28 @@ router.get('/projeto/:id/arquivos', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════
 // POST /api/drive/projeto/:id/upload — upload de arquivo
 // ═══════════════════════════════════════════════════
-router.post('/projeto/:id/upload', requireAuth, async (req, res) => {
+router.post('/projeto/:id/upload', requireAuth, upload.single('file'), async (req, res) => {
     const projeto_id = parseInt(req.params.id);
-    const { filename, data } = req.body;
-    if (!filename || !data) return res.status(400).json({ error: 'Filename e data (base64) obrigatorios' });
+    let buffer, safeName;
 
-    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+    if (req.file) {
+        // Upload via FormData (multipart) — novo
+        buffer = req.file.buffer;
+        safeName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    } else if (req.body.filename && req.body.data) {
+        // Upload via base64 JSON — legado
+        const { filename, data } = req.body;
+        safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const base64Data = data.includes(',') ? data.split(',')[1] : data;
+        buffer = Buffer.from(base64Data, 'base64');
+    } else {
+        return res.status(400).json({ error: 'Nenhum arquivo recebido' });
+    }
+
     const ext = path.extname(safeName).toLowerCase();
     if (!ALLOWED_EXTENSIONS.has(ext)) {
         return res.status(400).json({ error: `Tipo de arquivo não permitido: ${ext}. Extensões aceitas: ${[...ALLOWED_EXTENSIONS].join(', ')}` });
     }
-    const base64Data = data.includes(',') ? data.split(',')[1] : data;
-    const buffer = Buffer.from(base64Data, 'base64');
     if (buffer.length > MAX_FILE_SIZE) {
         return res.status(400).json({ error: `Arquivo excede o limite de ${MAX_FILE_SIZE / 1024 / 1024}MB` });
     }

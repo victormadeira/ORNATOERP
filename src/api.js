@@ -61,12 +61,42 @@ async function requestBlob(method, path, body = null) {
     return res.blob();
 }
 
+function uploadFile(path, file, onProgress) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const formData = new FormData();
+        formData.append('file', file);
+
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable && onProgress) {
+                onProgress(Math.round((e.loaded / e.total) * 100));
+            }
+        };
+        xhr.onload = () => {
+            try {
+                const data = JSON.parse(xhr.responseText);
+                if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+                else reject({ status: xhr.status, ...data });
+            } catch { reject({ status: xhr.status, error: `Erro ${xhr.status}` }); }
+        };
+        xhr.onerror = () => reject({ error: 'Erro de rede ao enviar arquivo' });
+        xhr.ontimeout = () => reject({ error: 'Timeout no envio do arquivo' });
+        xhr.timeout = 300000; // 5 min
+
+        xhr.open('POST', `${BASE}${path}`);
+        const token = getToken();
+        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.send(formData);
+    });
+}
+
 const api = {
     get: (path) => request('GET', path),
     post: (path, body) => request('POST', path, body),
     put: (path, body) => request('PUT', path, body),
     del: (path) => request('DELETE', path),
     postBlob: (path, body) => requestBlob('POST', path, body),
+    upload: uploadFile,
 };
 
 export default api;
