@@ -23,12 +23,16 @@ export function signToken(user) {
 // ═══════════════════════════════════════════════════════
 export function requireAuth(req, res, next) {
     const header = req.headers.authorization;
-    if (!header || !header.startsWith('Bearer ')) {
+    // Fallback: token no body (multipart uploads onde proxy pode remover header)
+    const tokenStr = (header && header.startsWith('Bearer '))
+        ? header.split(' ')[1]
+        : req.body?._token || null;
+
+    if (!tokenStr) {
         return res.status(401).json({ error: 'Token não fornecido' });
     }
     try {
-        const token = header.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET);
+        const decoded = jwt.verify(tokenStr, JWT_SECRET);
         req.user = decoded;
         next();
     } catch (_) {

@@ -188,7 +188,7 @@ router.get('/projeto/:id/arquivos', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════
 // POST /api/drive/projeto/:id/upload — upload de arquivo
 // ═══════════════════════════════════════════════════
-router.post('/projeto/:id/upload', requireAuth, upload.single('file'), async (req, res) => {
+router.post('/projeto/:id/upload', upload.single('file'), requireAuth, async (req, res) => {
     const projeto_id = parseInt(req.params.id);
     let buffer, safeName;
 

@@ -63,9 +63,12 @@ async function requestBlob(method, path, body = null) {
 
 function uploadFile(path, file, onProgress) {
     return new Promise((resolve, reject) => {
+        const token = getToken();
         const xhr = new XMLHttpRequest();
         const formData = new FormData();
         formData.append('file', file);
+        // Token como campo do form (fallback caso header seja removido pelo proxy)
+        if (token) formData.append('_token', token);
 
         xhr.upload.onprogress = (e) => {
             if (e.lengthComputable && onProgress) {
@@ -84,7 +87,6 @@ function uploadFile(path, file, onProgress) {
         xhr.timeout = 300000; // 5 min
 
         xhr.open('POST', `${BASE}${path}`);
-        const token = getToken();
         if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.send(formData);
     });
