@@ -1573,6 +1573,7 @@ function TabArquivos({ data, notify }) {
         e.target.value = '';
         setUploading(true);
         setUploadProgress(0);
+        let successCount = 0;
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
@@ -1580,16 +1581,23 @@ function TabArquivos({ data, notify }) {
             setUploadProgress(0);
             try {
                 await api.upload(`/drive/projeto/${data.id}/upload`, file, (pct) => setUploadProgress(pct));
+                successCount++;
             } catch (err) {
+                console.error('Upload error:', err);
                 notify(err?.error || `Erro ao enviar ${file.name}`);
             }
         }
 
-        setUploadProgress(100);
-        setUploadFileName('Concluído!');
-        loadAll();
-        notify(files.length > 1 ? `${files.length} arquivos enviados` : 'Arquivo enviado');
-        await new Promise(r => setTimeout(r, 1200));
+        if (successCount > 0) {
+            setUploadProgress(100);
+            setUploadFileName('Concluído!');
+            loadAll();
+            notify(successCount > 1 ? `${successCount} arquivos enviados` : 'Arquivo enviado');
+            await new Promise(r => setTimeout(r, 1200));
+        } else {
+            setUploadFileName('Falha no envio');
+            await new Promise(r => setTimeout(r, 1500));
+        }
         setUploading(false);
         setUploadProgress(0);
         setUploadFileName('');
