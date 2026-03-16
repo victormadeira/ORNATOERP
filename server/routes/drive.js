@@ -15,7 +15,8 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 const router = Router();
 
 // ── Multer config para upload multipart ──────────────────────────────────────
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const MAX_UPLOAD_SIZE = 100 * 1024 * 1024; // 100 MB
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD_SIZE } });
 
 // ── Upload: extensões permitidas e limite de tamanho ─────────────────────────
 const ALLOWED_EXTENSIONS = new Set([
@@ -24,7 +25,7 @@ const ALLOWED_EXTENSIONS = new Set([
     '.dxf', '.dwg', '.step', '.stp', '.stl', '.3dm',
     '.zip', '.rar', '.7z',
 ]);
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
 
 // MIME types map
 const MIME_TYPES = {
@@ -188,7 +189,15 @@ router.get('/projeto/:id/arquivos', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════
 // POST /api/drive/projeto/:id/upload — upload de arquivo
 // ═══════════════════════════════════════════════════
-router.post('/projeto/:id/upload', upload.single('file'), requireAuth, async (req, res) => {
+router.post('/projeto/:id/upload', (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+        if (err) {
+            if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: `Arquivo excede o limite de ${MAX_UPLOAD_SIZE / 1024 / 1024}MB` });
+            return res.status(400).json({ error: err.message || 'Erro no upload' });
+        }
+        next();
+    });
+}, requireAuth, async (req, res) => {
     const projeto_id = parseInt(req.params.id);
     let buffer, safeName;
 
