@@ -1568,23 +1568,31 @@ function TabArquivos({ data, notify }) {
     useEffect(() => { loadAll(); }, [loadAll]);
 
     const handleUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
         e.target.value = '';
         setUploading(true);
         setUploadProgress(0);
-        setUploadFileName(file.name);
-        try {
-            await api.upload(`/drive/projeto/${data.id}/upload`, file, (pct) => setUploadProgress(pct));
-            loadAll();
-            notify('Arquivo enviado');
-        } catch (err) {
-            notify(err?.error || 'Erro ao enviar arquivo');
-        } finally {
-            setUploading(false);
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            setUploadFileName(files.length > 1 ? `${file.name} (${i + 1}/${files.length})` : file.name);
             setUploadProgress(0);
-            setUploadFileName('');
+            try {
+                await api.upload(`/drive/projeto/${data.id}/upload`, file, (pct) => setUploadProgress(pct));
+            } catch (err) {
+                notify(err?.error || `Erro ao enviar ${file.name}`);
+            }
         }
+
+        setUploadProgress(100);
+        setUploadFileName('Concluído!');
+        loadAll();
+        notify(files.length > 1 ? `${files.length} arquivos enviados` : 'Arquivo enviado');
+        await new Promise(r => setTimeout(r, 1200));
+        setUploading(false);
+        setUploadProgress(0);
+        setUploadFileName('');
     };
 
     const deleteFile = (nome) => {
@@ -1626,26 +1634,26 @@ function TabArquivos({ data, notify }) {
                     <h2 style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 7 }}><Ic.Folder /> Arquivos do Projeto</h2>
                     <label className={Z.btn2} style={{ fontSize: 12, padding: '6px 12px', cursor: uploading ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 5, opacity: uploading ? 0.6 : 1 }}>
                         <PlusCircle size={12} /> {uploading ? 'Enviando...' : 'Upload'}
-                        <input type="file" style={{ display: 'none' }} onChange={handleUpload} disabled={uploading} />
+                        <input type="file" multiple style={{ display: 'none' }} onChange={handleUpload} disabled={uploading} />
                     </label>
                 </div>
 
                 {/* Barra de progresso */}
                 {uploading && (
-                    <div style={{ marginBottom: 14 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                            <span style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: '70%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 10, background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <span style={{ fontSize: 12, color: uploadProgress === 100 ? '#22c55e' : 'var(--text-primary)', fontWeight: 600, maxWidth: '70%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {uploadFileName}
                             </span>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary)' }}>{uploadProgress}%</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: uploadProgress === 100 ? '#22c55e' : 'var(--primary)' }}>{uploadProgress}%</span>
                         </div>
-                        <div style={{ width: '100%', height: 6, borderRadius: 3, background: 'var(--bg-muted)', overflow: 'hidden' }}>
+                        <div style={{ width: '100%', height: 8, borderRadius: 4, background: 'var(--bg-card)', overflow: 'hidden' }}>
                             <div style={{
                                 width: `${uploadProgress}%`,
                                 height: '100%',
-                                borderRadius: 3,
-                                background: 'var(--primary)',
-                                transition: 'width 0.2s ease',
+                                borderRadius: 4,
+                                background: uploadProgress === 100 ? '#22c55e' : 'var(--primary)',
+                                transition: 'width 0.3s ease, background 0.3s ease',
                             }} />
                         </div>
                     </div>
