@@ -3275,11 +3275,13 @@ function TabEntrega({ data, notify }) {
 // ═══════════════════════════════════════════════════════
 const AMB_STATUS = [
     { key: 'aguardando', label: 'Aguardando', color: '#94a3b8', icon: Clock },
-    { key: 'corte', label: 'Corte', color: '#f97316', icon: Scissors },
-    { key: 'acabamento', label: 'Acabamento', color: '#3b82f6', icon: Paintbrush },
+    { key: 'producao', label: 'Produção', color: '#f97316', icon: Factory },
+    { key: 'expedicao', label: 'Expedição', color: '#3b82f6', icon: Truck },
     { key: 'instalacao', label: 'Instalação', color: '#8b5cf6', icon: Wrench },
     { key: 'concluido', label: 'Concluído', color: '#22c55e', icon: CheckCircle2 },
 ];
+// Compatibilidade: mapear status antigos para novos
+const AMB_STATUS_COMPAT = { corte: 'producao', acabamento: 'expedicao' };
 const AMB_STATUS_MAP = Object.fromEntries(AMB_STATUS.map(s => [s.key, s]));
 
 function TabAmbientes({ data, notify, reload }) {
@@ -3292,7 +3294,12 @@ function TabAmbientes({ data, notify, reload }) {
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        setAmbientes(data.ambientes_parsed || []);
+        // Migrar status antigos (corte→producao, acabamento→expedicao)
+        const parsed = (data.ambientes_parsed || []).map(a => ({
+            ...a,
+            status: AMB_STATUS_COMPAT[a.status] || a.status,
+        }));
+        setAmbientes(parsed);
         setMostrarPortal(!!data.mostrar_ambientes_portal);
     }, [data]);
 

@@ -1251,17 +1251,20 @@ export default function PortalCliente({ token, isPreview = false }) {
 
                 {/* ─── Ambientes do Projeto ──────────────────── */}
                 {projeto.ambientes && projeto.ambientes.length > 0 && (() => {
+                    const AMB_COMPAT = { corte: 'producao', acabamento: 'expedicao' };
                     const AMB_ST = [
                         { key: 'aguardando', label: 'Aguardando', color: '#94a3b8', icon: Clock },
-                        { key: 'corte', label: 'Corte', color: '#f97316', icon: Scissors },
-                        { key: 'acabamento', label: 'Acabamento', color: '#3b82f6', icon: Paintbrush },
+                        { key: 'producao', label: 'Produção', color: '#f97316', icon: Factory },
+                        { key: 'expedicao', label: 'Expedição', color: '#3b82f6', icon: Truck },
                         { key: 'instalacao', label: 'Instalação', color: '#8b5cf6', icon: Wrench },
                         { key: 'concluido', label: 'Concluído', color: '#22c55e', icon: CheckCircle2 },
                     ];
                     const stMap = Object.fromEntries(AMB_ST.map(s => [s.key, s]));
-                    const stIdx = (k) => AMB_ST.findIndex(s => s.key === k);
+                    const stIdx = (k) => AMB_ST.findIndex(s => s.key === (AMB_COMPAT[k] || k));
                     const total = projeto.ambientes.length;
                     const done = projeto.ambientes.filter(a => a.status === 'concluido').length;
+                    // Migrar status antigos
+                    const ambs = projeto.ambientes.map(a => ({ ...a, status: AMB_COMPAT[a.status] || a.status }));
 
                     return (
                         <div style={{ background: '#fff', padding: '24px 32px', borderBottom: '1px solid #e2e8f0' }}>
@@ -1278,7 +1281,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                             </div>
 
                             <div style={{ display: 'grid', gap: 10 }}>
-                                {projeto.ambientes.map((amb, i) => {
+                                {ambs.map((amb, i) => {
                                     const st = stMap[amb.status] || stMap.aguardando;
                                     const StIcon = st.icon;
                                     const currentIdx = stIdx(amb.status);
