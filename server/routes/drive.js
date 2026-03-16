@@ -192,17 +192,22 @@ router.post('/projeto/:id/upload', upload.single('file'), requireAuth, async (re
     const projeto_id = parseInt(req.params.id);
     let buffer, safeName;
 
+    console.log('[UPLOAD] projeto_id:', projeto_id, '| req.file:', !!req.file, '| req.body keys:', Object.keys(req.body || {}));
+
     if (req.file) {
         // Upload via FormData (multipart) — novo
         buffer = req.file.buffer;
         safeName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+        console.log('[UPLOAD] FormData — arquivo:', safeName, '| tamanho:', buffer.length);
     } else if (req.body.filename && req.body.data) {
         // Upload via base64 JSON — legado
         const { filename, data } = req.body;
         safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
         const base64Data = data.includes(',') ? data.split(',')[1] : data;
         buffer = Buffer.from(base64Data, 'base64');
+        console.log('[UPLOAD] Base64 — arquivo:', safeName, '| tamanho:', buffer.length);
     } else {
+        console.log('[UPLOAD] FALHA — nenhum arquivo no request');
         return res.status(400).json({ error: 'Nenhum arquivo recebido' });
     }
 
