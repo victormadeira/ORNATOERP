@@ -99,8 +99,10 @@ export default function Cat() {
     const save = async () => {
         if (!form.nome) return;
         try {
-            if (editId) await api.put(`/biblioteca/${editId}`, form);
-            else await api.post('/biblioteca', form);
+            // Fase 5: auto-set data de atualização do preço
+            const payload = { ...form, preco_atualizado_em: new Date().toISOString().slice(0, 10) };
+            if (editId) await api.put(`/biblioteca/${editId}`, payload);
+            else await api.post('/biblioteca', payload);
             setShowForm(false); load();
         } catch (ex) { console.error(ex); }
     };
@@ -323,7 +325,7 @@ export default function Cat() {
                                 <tr>
                                     <th className={Z.th}>Código</th>
                                     <th className={Z.th}>Nome</th>
-                                    {tab === 'material' && <><th className={Z.th}>Esp.</th><th className={Z.th}>Dimensões</th><th className={Z.th}>Perda</th><th className={Z.th + " text-right"}>R$/Chapa</th><th className={Z.th + " text-right"}>R$/m²</th><th className={Z.th + " text-right"}>Fita R$/m</th></>}
+                                    {tab === 'material' && <><th className={Z.th}>Esp.</th><th className={Z.th}>Dimensões</th><th className={Z.th}>Perda</th><th className={Z.th + " text-right"}>R$/Chapa</th><th className={Z.th + " text-right"}>R$/m²</th><th className={Z.th + " text-right"}>Fita R$/m</th><th className={Z.th + " text-center"}>Idade</th></>}
                                     {tab === 'acabamento' && <><th className={Z.th + " text-right"}>R$/m²</th></>}
                                     {tab === 'ferragem' && <><th className={Z.th}>Categoria</th><th className={Z.th}>Un</th><th className={Z.th + " text-right"}>Preço</th></>}
                                     {tab === 'acessorio' && <><th className={Z.th}>Un</th><th className={Z.th + " text-right"}>Preço</th></>}
@@ -347,6 +349,18 @@ export default function Cat() {
                                             <td className="td-glass text-right text-xs" style={{ color: 'var(--text-secondary)' }}>{R$(item.preco)}</td>
                                             <td className="td-glass text-right font-bold text-xs" style={{ color: 'var(--primary)' }}>{R$(calcPrecoM2(item))}</td>
                                             <td className="td-glass text-right text-xs" style={{ color: item.fita_preco > 0 ? 'var(--warning)' : 'var(--text-muted)' }}>{item.fita_preco > 0 ? R$(item.fita_preco) + '/m' : '—'}</td>
+                                            <td className="td-glass text-center text-[9px]">
+                                                {(() => {
+                                                    if (!item.preco_atualizado_em) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+                                                    const dias = Math.floor((Date.now() - new Date(item.preco_atualizado_em).getTime()) / 86400000);
+                                                    const validade = item.preco_validade_dias || 90;
+                                                    const vencido = dias > validade;
+                                                    return <span style={{ color: vencido ? 'var(--danger)' : dias > validade * 0.8 ? 'var(--warning)' : 'var(--text-muted)' }}
+                                                        title={`Atualizado em ${item.preco_atualizado_em} — ${dias}d atrás`}>
+                                                        {dias}d {vencido && '⚠'}
+                                                    </span>;
+                                                })()}
+                                            </td>
                                         </>}
 
                                         {tab === 'acabamento' && <td className="td-glass text-right font-bold text-xs" style={{ color: 'var(--primary)' }}>{item.preco > 0 ? R$(item.preco) + '/m²' : 'Incluso'}</td>}

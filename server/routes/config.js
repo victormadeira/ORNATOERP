@@ -30,16 +30,37 @@ router.put('/', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
     const {
         imp, com, mont, lucro, frete, inst,
         mk_chapas, mk_ferragens, mk_fita, mk_acabamentos, mk_acessorios, mk_mdo,
+        // Fase 1: custo-hora
+        custo_hora_ativo, func_producao, horas_dia, dias_uteis, eficiencia,
+        tempo_corte, tempo_fita, tempo_furacao, tempo_montagem, tempo_acabamento, tempo_embalagem, tempo_instalacao,
+        tempo_montagem_porta, tempo_montagem_gaveta, tempo_montagem_prat,
+        // v3: velocidades e overheads baseados em dimensões reais
+        cnc_velocidade, cnc_overhead_peca, cnc_overhead_chapa,
+        fita_velocidade, fita_overhead_borda,
+        // Fase 2: consumíveis
+        consumiveis_ativo, cons_cola_m2, cons_minifix_un, cons_parafuso_un, cons_lixa_m2, cons_embalagem_mod,
     } = req.body;
     db.prepare(`
     UPDATE config_taxas SET
       imp=?, com=?, mont=?, lucro=?, frete=?, inst=?,
-      mk_chapas=?, mk_ferragens=?, mk_fita=?, mk_acabamentos=?, mk_acessorios=?, mk_mdo=?
+      mk_chapas=?, mk_ferragens=?, mk_fita=?, mk_acabamentos=?, mk_acessorios=?, mk_mdo=?,
+      custo_hora_ativo=?, func_producao=?, horas_dia=?, dias_uteis=?, eficiencia=?,
+      tempo_corte=?, tempo_fita=?, tempo_furacao=?, tempo_montagem=?, tempo_acabamento=?, tempo_embalagem=?, tempo_instalacao=?,
+      tempo_montagem_porta=?, tempo_montagem_gaveta=?, tempo_montagem_prat=?,
+      cnc_velocidade=?, cnc_overhead_peca=?, cnc_overhead_chapa=?,
+      fita_velocidade=?, fita_overhead_borda=?,
+      consumiveis_ativo=?, cons_cola_m2=?, cons_minifix_un=?, cons_parafuso_un=?, cons_lixa_m2=?, cons_embalagem_mod=?
     WHERE id=1
   `).run(
         imp ?? 8, com ?? 10, mont ?? 0, lucro ?? 12, frete ?? 2, inst ?? 5,
         mk_chapas ?? 1.45, mk_ferragens ?? 1.15, mk_fita ?? 1.45,
         mk_acabamentos ?? 1.30, mk_acessorios ?? 1.20, mk_mdo ?? 0.80,
+        custo_hora_ativo ?? 0, func_producao ?? 10, horas_dia ?? 8.5, dias_uteis ?? 22, eficiencia ?? 75,
+        tempo_corte ?? 0.033, tempo_fita ?? 0.0025, tempo_furacao ?? 0.017, tempo_montagem ?? 0.25, tempo_acabamento ?? 0.17, tempo_embalagem ?? 0.25, tempo_instalacao ?? 0.75,
+        tempo_montagem_porta ?? 0.15, tempo_montagem_gaveta ?? 0.25, tempo_montagem_prat ?? 0.05,
+        cnc_velocidade ?? 5000, cnc_overhead_peca ?? 20, cnc_overhead_chapa ?? 300,
+        fita_velocidade ?? 500, fita_overhead_borda ?? 90,
+        consumiveis_ativo ?? 0, cons_cola_m2 ?? 2.50, cons_minifix_un ?? 1.80, cons_parafuso_un ?? 0.35, cons_lixa_m2 ?? 1.20, cons_embalagem_mod ?? 15.00,
     );
     const cfg = db.prepare('SELECT * FROM config_taxas WHERE id = 1').get();
     res.json(cfg);
@@ -179,6 +200,84 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
 });
 
 // ═══════════════════════════════════════════════════════
+// FASE 4 — Feedback Loop: Custo Real vs Orçado
+// ═══════════════════════════════════════════════════════
+
+// GET /api/config/custo-real/:projetoId
+router.get('/custo-real/:projetoId', requireAuth, (req, res) => {
+    const row = db.prepare('SELECT * FROM custo_real_projeto WHERE projeto_id = ?').get(req.params.projetoId);
+    res.json(row || null);
+});
+
+// PUT /api/config/custo-real/:projetoId
+router.put('/custo-real/:projetoId', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
+    const { projetoId } = req.params;
+    const {
+        orc_id, custo_material_orcado, custo_mdo_orcado, pv_orcado,
+        custo_material_real, custo_mdo_real, horas_reais, obs, finalizado,
+    } = req.body;
+
+    const custoRealTotal = (custo_material_real || 0) + (custo_mdo_real || 0);
+    const custoOrcadoTotal = (custo_material_orcado || 0) + (custo_mdo_orcado || 0);
+    const desvio_pct = custoOrcadoTotal > 0 ? ((custoRealTotal - custoOrcadoTotal) / custoOrcadoTotal) * 100 : 0;
+
+    const existing = db.prepare('SELECT id FROM custo_real_projeto WHERE projeto_id = ?').get(projetoId);
+    if (existing) {
+        db.prepare(`UPDATE custo_real_projeto SET
+            orc_id=?, custo_material_orcado=?, custo_mdo_orcado=?, pv_orcado=?,
+            custo_material_real=?, custo_mdo_real=?, horas_reais=?, desvio_pct=?,
+            obs=?, finalizado=?, atualizado_em=CURRENT_TIMESTAMP
+            WHERE projeto_id=?`).run(
+            orc_id || null, custo_material_orcado || 0, custo_mdo_orcado || 0, pv_orcado || 0,
+            custo_material_real || 0, custo_mdo_real || 0, horas_reais || 0, desvio_pct,
+            obs || '', finalizado ?? 0, projetoId,
+        );
+    } else {
+        db.prepare(`INSERT INTO custo_real_projeto
+            (projeto_id, orc_id, custo_material_orcado, custo_mdo_orcado, pv_orcado,
+             custo_material_real, custo_mdo_real, horas_reais, desvio_pct, obs, finalizado)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(
+            projetoId, orc_id || null, custo_material_orcado || 0, custo_mdo_orcado || 0, pv_orcado || 0,
+            custo_material_real || 0, custo_mdo_real || 0, horas_reais || 0, desvio_pct,
+            obs || '', finalizado ?? 0,
+        );
+    }
+    const row = db.prepare('SELECT * FROM custo_real_projeto WHERE projeto_id = ?').get(projetoId);
+    res.json(row);
+});
+
+// GET /api/config/custo-real — Dashboard: desvio médio últimos projetos
+router.get('/custo-real', requireAuth, (req, res) => {
+    const rows = db.prepare(`
+        SELECT cr.*, p.nome as projeto_nome
+        FROM custo_real_projeto cr
+        JOIN projetos p ON p.id = cr.projeto_id
+        WHERE cr.finalizado = 1
+        ORDER BY cr.atualizado_em DESC
+        LIMIT 20
+    `).all();
+    const desvioMedio = rows.length > 0
+        ? rows.reduce((s, r) => s + (r.desvio_pct || 0), 0) / rows.length
+        : 0;
+    res.json({ rows, desvioMedio, total: rows.length });
+});
+
+// ═══════════════════════════════════════════════════════
+// FASE 5 — Materiais com preço vencido
+// ═══════════════════════════════════════════════════════
+router.get('/materiais-vencidos', requireAuth, (req, res) => {
+    const rows = db.prepare(`
+        SELECT id, nome, tipo, preco, preco_atualizado_em, preco_validade_dias
+        FROM biblioteca
+        WHERE tipo = 'material'
+          AND preco_atualizado_em IS NOT NULL
+          AND julianday('now') - julianday(preco_atualizado_em) > COALESCE(preco_validade_dias, 90)
+        ORDER BY preco_atualizado_em ASC
+    `).all();
+    res.json(rows);
+});
+
+// ═══════════════════════════════════════════════════════
 // BACKUP — Exportar / Importar sistema completo
 // ═══════════════════════════════════════════════════════
 
@@ -195,6 +294,7 @@ const BACKUP_TABLES = [
     'portal_mensagens', 'notificacoes', 'atividades',
     'modelos_documento', 'automacoes_log', 'conteudo_marketing',
     'ia_contexto', 'ia_followups',
+    'custo_real_projeto',
 ];
 
 // Campos sensiveis removidos na exportacao

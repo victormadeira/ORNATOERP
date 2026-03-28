@@ -13,7 +13,8 @@ import {
     // Novos ícones para menu agrupado e páginas
     Library, Cpu, FolderKanban, Wallet, ShieldCheck, Handshake,
     Factory, LineChart, Cog, Star, PieChart, FileSpreadsheet, Kanban,
-    InboxIcon, PackageSearch, LayoutGrid, PenTool, Truck, ClipboardList as ClipList
+    InboxIcon, PackageSearch, LayoutGrid, PenTool, Truck, ClipboardList as ClipList,
+    Monitor, ShoppingCart
 } from 'lucide-react';
 
 export const Ic = {
@@ -91,6 +92,8 @@ export const Ic = {
     LayoutGrid: () => <LayoutGrid size={18} />,
     PenTool: () => <PenTool size={18} />,
     Truck: () => <Truck size={18} />,
+    Monitor: () => <Monitor size={18} />,
+    ShoppingCart: () => <ShoppingCart size={18} />,
     ClipList: () => <ClipList size={18} />,
 };
 

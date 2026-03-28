@@ -8,6 +8,8 @@ import PortalCliente from './pages/PortalCliente';
 import MontadorUpload from './pages/MontadorUpload';
 import LandingPage from './pages/LandingPage';
 import PropostaApresentacao from './pages/PropostaApresentacao';
+import AssinaturaPublic from './pages/AssinaturaPublic';
+import VerificacaoAssinatura from './pages/VerificacaoAssinatura';
 
 // Detectar acesso público via query params OU path
 const params = new URLSearchParams(window.location.search);
@@ -37,6 +39,12 @@ const montadorToken = params.get('montador')
     || (path.match(/^\/montador\/([a-f0-9]+)$/i) || [])[1]
     || null;
 
+// Assinatura eletrônica: /assinar/TOKEN
+const assinaturaToken = (path.match(/^\/assinar\/([a-f0-9]+)$/i) || [])[1] || null;
+
+// Verificação de assinatura: /verificar/CODIGO
+const verificacaoCodigo = (path.match(/^\/verificar\/([A-Z0-9]+)$/i) || [])[1] || null;
+
 // Landing page pública: /contato, /landing ou /landingpage
 const isLanding = ['/contato', '/landing', '/landingpage', '/landingpage/'].includes(path);
 
@@ -56,6 +64,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <PortalCliente token={portalToken} />
         ) : montadorToken ? (
             <MontadorUpload token={montadorToken} />
+        ) : assinaturaToken ? (
+            <AssinaturaPublic token={assinaturaToken} />
+        ) : verificacaoCodigo ? (
+            <VerificacaoAssinatura codigo={verificacaoCodigo} />
         ) : (
             <AuthProvider>
                 <App />

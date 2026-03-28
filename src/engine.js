@@ -366,7 +366,9 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
         if (am <= 0) return;
         const { w, h } = parseDimsFromExpr(calcExpr, D_ctx);
         const f = cFita(fitaCfg, w, h) * qtd;
-        pecas.push({ nome, tipo, matId: resolvedMat, area: am, fita: f });
+        const nBordas = fitaCfg?.length || 0;
+        const perimetro = 2 * (w + h); // mm
+        pecas.push({ nome, tipo, matId: resolvedMat, area: am, fita: f, w, h, perimetro, nBordas, qtd: qtd || 1 });
         area += am;
         fita += f;
         if (f > 0 && !isAcab) {
@@ -525,7 +527,211 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
     // Calcular valor isolado para breakdown
     const custoAcabamentos = custo - custoChapas - custoFita - custoFerragens;
 
-    return { pecas, chapas, fita, fitaByMat, ferrList, custo, area, custoChapas, custoFita, custoFerragens, custoAcabamentos };
+    // ── Fase 1+2: Métricas para custo-hora e consumíveis ──
+    const nPecas = pecas.length;
+    const nFerragens = ferrList.reduce((s, f) => s + (f.qtd || 0), 0);
+    const nCaixas = 1; // cada item é 1 caixa
+    const nJuncoes = Math.max(2, pecas.filter(p => ['caixa', 'componente', 'tamponamento'].includes(p.tipo)).length); // minifix por junção
+
+    return { pecas, chapas, fita, fitaByMat, ferrList, custo, area, custoChapas, custoFita, custoFerragens, custoAcabamentos, nPecas, nFerragens, nCaixas, nJuncoes };
+}
+
+// ═══════════════════════════════════════════════════════
+// FASE 1 — CUSTO-HORA: calcula tempo e mão de obra por operação
+// ═══════════════════════════════════════════════════════
+/**
+ * Calcula custo-hora da fábrica e tempo de produção de um orçamento.
+ * Modelo v3: tempo baseado nas DIMENSÕES REAIS de cada peça.
+ * - CNC: tempo = perímetro / velocidade_avanço + overhead por peça + overhead por chapa
+ * - Fita: tempo = nBordas × overhead_por_borda + metros_fita / velocidade_fitagem
+ * - Montagem: escala com componentes (portas, gavetas, prateleiras)
+ *
+ * @param {object} metricas — { pecasDetalhe[], nChapas, nFerragens, nCaixas, areaAcab, nModulos, nPortas, nGavetas, nPrateleiras }
+ *   pecasDetalhe[]: { perimetro (mm), nBordas, fita (m), qtd }
+ * @param {object} cfg — config_taxas com velocidades e overheads
+ * @param {number} coef — coeficiente de dificuldade médio
+ */
+export function calcCustoHora(metricas, cfg, coef = 0) {
+    // ── CNC ──
+    // velocidade em mm/min (default 5000 = 5m/min)
+    // overhead_peca em segundos (etiquetar + retirar, default 20s)
+    // overhead_chapa em segundos (carregar + fixar + aspirar, default 300s = 5min)
+    const cncVel = cfg.cnc_velocidade ?? 5000;           // mm/min
+    const cncOverheadPeca = (cfg.cnc_overhead_peca ?? 20) / 3600;   // seg → horas
+    const cncOverheadChapa = (cfg.cnc_overhead_chapa ?? 300) / 3600; // seg → horas
+
+    let hCorte = 0;
+    (metricas.pecasDetalhe || []).forEach(p => {
+        const perim = p.perimetro || 0; // mm
+        const tempoCortePeca = cncVel > 0 ? (perim / cncVel) / 60 : 0; // min → horas
+        hCorte += (tempoCortePeca + cncOverheadPeca) * (p.qtd || 1);
+    });
+    hCorte += (metricas.nChapas || 0) * cncOverheadChapa;
+
+    // ── Fita de borda ──
+    // velocidade_fitagem em mm/min (default 500 = 0.5m/min manual, ~8m/min com coladeira)
+    // overhead_por_borda em segundos (pegar + girar + destopar + limar, default 90s)
+    const fitaVel = cfg.fita_velocidade ?? 500;            // mm/min
+    const fitaOverheadBorda = (cfg.fita_overhead_borda ?? 90) / 3600; // seg → horas
+
+    let hFita = 0;
+    let totalBordas = 0;
+    (metricas.pecasDetalhe || []).forEach(p => {
+        const bordas = (p.nBordas || 0) * (p.qtd || 1);
+        const metros = (p.fita || 0); // já em metros, já × qtd
+        const tempoColar = fitaVel > 0 ? (metros * 1000 / fitaVel) / 60 : 0; // mm→min→horas
+        hFita += bordas * fitaOverheadBorda + tempoColar;
+        totalBordas += bordas;
+    });
+
+    // ── Furação ──
+    const hFuracao = (metricas.nFerragens || 0) * (cfg.tempo_furacao ?? 0.017);
+
+    // ── Montagem (proporcional a componentes) ──
+    const montBase = cfg.tempo_montagem ?? 0.25;
+    const montPorta = cfg.tempo_montagem_porta ?? 0.15;
+    const montGaveta = cfg.tempo_montagem_gaveta ?? 0.25;
+    const montPrat = cfg.tempo_montagem_prat ?? 0.05;
+    const hMontagemBruto = (metricas.nCaixas || 0) * montBase
+        + (metricas.nPortas || 0) * montPorta
+        + (metricas.nGavetas || 0) * montGaveta
+        + (metricas.nPrateleiras || 0) * montPrat;
+    const hMontagem = hMontagemBruto * (1 + coef);
+
+    // ── Acabamento, embalagem, instalação ──
+    const hAcabamento = (metricas.areaAcab || 0) * (cfg.tempo_acabamento ?? 0.17);
+    const hEmbalagem = (metricas.nModulos || 0) * (cfg.tempo_embalagem ?? 0.25);
+    const hInstalacao = (metricas.nModulos || 0) * (cfg.tempo_instalacao ?? 0.75);
+
+    const horasProducao = hCorte + hFita + hFuracao + hMontagem + hAcabamento + hEmbalagem;
+    const horasTotal = horasProducao + hInstalacao;
+
+    // ── Custo-hora da fábrica ──
+    const func = cfg.func_producao || 10;
+    const hDia = cfg.horas_dia || 8.5;
+    const dias = cfg.dias_uteis || 22;
+    const efic = (cfg.eficiencia || 75) / 100;
+    const custoFixoMensal = (() => {
+        try {
+            const linhas = JSON.parse(cfg.centro_custo_json || '[]');
+            return linhas.reduce((s, l) => s + (Number(l.valor) || 0), 0);
+        } catch { return 0; }
+    })();
+    const horasProdMes = func * hDia * dias * efic;
+    const custoHora = horasProdMes > 0 ? custoFixoMensal / horasProdMes : 0;
+    const custoMdo = horasTotal * custoHora;
+
+    return {
+        horasTotal, horasProducao, hInstalacao, custoMdo, custoHora,
+        breakdown: {
+            hCorte, hFita, hFuracao, hMontagem, hAcabamento, hEmbalagem, hInstalacao,
+            totalBordas,
+            func, hDia, dias, efic, custoFixoMensal, horasProdMes,
+        },
+    };
+}
+
+// ═══════════════════════════════════════════════════════
+// FASE 2 — CONSUMÍVEIS: cola, minifix, parafusos, lixa, embalagem
+// ═══════════════════════════════════════════════════════
+/**
+ * @param {object} metricas — { areaColagem, nJuncoes, nPontosParafuso, areaAcab, nModulos }
+ * @param {object} cfg — config de preços de consumíveis
+ * @returns {{ custoConsumiveis, breakdown }}
+ */
+export function calcConsumiveis(metricas, cfg) {
+    const cola = (metricas.areaColagem || 0) * (cfg.cons_cola_m2 ?? 2.50);
+    const minifix = (metricas.nJuncoes || 0) * (cfg.cons_minifix_un ?? 1.80);
+    const parafusos = (metricas.nPontosParafuso || 0) * (cfg.cons_parafuso_un ?? 0.35);
+    const lixa = (metricas.areaAcab || 0) * (cfg.cons_lixa_m2 ?? 1.20);
+    const embalagem = (metricas.nModulos || 0) * (cfg.cons_embalagem_mod ?? 15.00);
+    const custoConsumiveis = cola + minifix + parafusos + lixa + embalagem;
+    return { custoConsumiveis, breakdown: { cola, minifix, parafusos, lixa, embalagem } };
+}
+
+// ═══════════════════════════════════════════════════════
+// FASE 3 — ESTIMATIVA DE CORTE REAL (First-Fit Decreasing Bin Packing)
+// ═══════════════════════════════════════════════════════
+/**
+ * Estima quantas chapas inteiras são necessárias usando FFD 2D simplificado.
+ * Muito mais preciso que fração simples (área/área_chapa).
+ * @param {object} chapasMap — mesmo formato de calcItemV2().chapas: { matId: { mat, area } }
+ * @param {Array} pecasList — lista de peças com { matId, area } (cada peça individual)
+ * @param {number} spacing — espaçamento entre peças em mm (kerf + folga)
+ * @returns {{ porMaterial: { [matId]: { estimadoFrac, estimadoReal, chapasNecessarias, ocupacao } }, totalFrac, totalReal }}
+ */
+export function estimarCorteReal(chapasMap, pecasList, spacing = 7) {
+    const resultado = {};
+    let totalFrac = 0, totalReal = 0;
+
+    // Agrupar peças por material
+    const pecasPorMat = {};
+    pecasList.forEach(p => {
+        if (!p.matId || p.area <= 0) return;
+        if (!pecasPorMat[p.matId]) pecasPorMat[p.matId] = [];
+        pecasPorMat[p.matId].push(p);
+    });
+
+    Object.entries(chapasMap).forEach(([matId, c]) => {
+        const chapa = c.mat;
+        const perda = chapa.perda_pct != null ? chapa.perda_pct : 15;
+        const chapaW = (chapa.larg || 2750) - spacing * 2; // margem da borda
+        const chapaH = (chapa.alt || 1850) - spacing * 2;
+        const areaUtilChapa = (chapaW * chapaH) / 1e6;
+
+        // Fração simples (método atual)
+        const areaTotal = c.area; // m²
+        const fracSimples = areaUtilChapa > 0 ? areaTotal / (areaUtilChapa * (1 - perda / 100)) : 1;
+        totalFrac += Math.ceil(fracSimples);
+
+        // FFD: simular encaixe real
+        // Pegar dimensões reais das peças deste material
+        const pecas = pecasPorMat[matId] || [];
+        if (pecas.length === 0) {
+            // Sem peças individuais, usar fração
+            resultado[matId] = {
+                estimadoFrac: Math.ceil(fracSimples),
+                estimadoReal: Math.ceil(fracSimples),
+                chapasNecessarias: Math.ceil(fracSimples),
+                ocupacao: fracSimples > 0 ? (fracSimples / Math.ceil(fracSimples)) * 100 : 0,
+            };
+            totalReal += Math.ceil(fracSimples);
+            return;
+        }
+
+        // Ordenar peças por área decrescente (FFD)
+        const sorted = [...pecas].sort((a, b) => b.area - a.area);
+        const bins = []; // cada bin = { restante: m² }
+        const binCapacity = areaUtilChapa * (1 - perda / 100);
+
+        sorted.forEach(p => {
+            // Tentar encaixar na primeira chapa com espaço
+            let placed = false;
+            for (const bin of bins) {
+                if (bin.restante >= p.area) {
+                    bin.restante -= p.area;
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) {
+                bins.push({ restante: binCapacity - p.area });
+            }
+        });
+
+        const chapasNecessarias = bins.length;
+        const ocupacao = chapasNecessarias > 0 ? (areaTotal / (chapasNecessarias * binCapacity)) * 100 : 0;
+
+        resultado[matId] = {
+            estimadoFrac: Math.ceil(fracSimples),
+            estimadoReal: chapasNecessarias,
+            chapasNecessarias,
+            ocupacao,
+        };
+        totalReal += chapasNecessarias;
+    });
+
+    return { porMaterial: resultado, totalFrac, totalReal };
 }
 
 // ═══════════════════════════════════════════════════════
@@ -543,12 +749,13 @@ export function precoVenda(custoBase, taxas) {
 // ENGINE V2 — Markups diferenciados por categoria
 // ═══════════════════════════════════════════════════════
 /**
- * @param {object} custos — { chapas, fita, acabamentos, ferragens, acessorios }
+ * @param {object} custos — { chapas, fita, acabamentos, ferragens, acessorios, consumiveis }
  * @param {number} coef — coeficiente de dificuldade do módulo (0.20-0.40)
  * @param {object} taxas — config_taxas com mk_chapas, mk_ferragens, etc.
+ * @param {object} [custoHoraResult] — resultado de calcCustoHora (se modo custo-hora ativo)
  * @returns {{ valor, erro, cp, mdo, breakdown }}
  */
-export function precoVendaV2(custos, coef, taxas) {
+export function precoVendaV2(custos, coef, taxas, custoHoraResult = null) {
     const mk = {
         chapas: taxas.mk_chapas ?? 1.45,
         ferragens: taxas.mk_ferragens ?? 1.15,
@@ -565,6 +772,7 @@ export function precoVendaV2(custos, coef, taxas) {
     // Ferragens e acessórios: sem coef (itens comprados prontos)
     const ferrVal = custos.ferragens || 0;
     const acessVal = custos.acessorios || 0;
+    const consumiveisVal = custos.consumiveis || 0;
 
     // Etapa 2: markups por categoria
     const pvChapas = chapasAdj * mk.chapas;
@@ -573,11 +781,17 @@ export function precoVendaV2(custos, coef, taxas) {
     const pvFerr = ferrVal * mk.ferragens;
     const pvAcess = acessVal * mk.acessorios;
 
-    // Etapa 3: MDO (mão de obra proporcional ao MDF)
-    const mdo = chapasAdj * mk.mdo;
+    // Etapa 3: MDO — custo-hora real OU proporcional ao MDF (fallback)
+    let mdo;
+    if (custoHoraResult && custoHoraResult.custoMdo > 0) {
+        mdo = custoHoraResult.custoMdo;
+    } else {
+        mdo = chapasAdj * mk.mdo;
+    }
 
-    // Etapa 4: custo de produção
-    const cp = pvChapas + pvFita + pvAcab + pvFerr + pvAcess + mdo;
+    // Etapa 4: custo de produção (consumíveis recebem markup de chapas — são itens de produção)
+    const pvConsumiveis = consumiveisVal * mk.chapas;
+    const cp = pvChapas + pvFita + pvAcab + pvFerr + pvAcess + pvConsumiveis + mdo;
 
     // Etapa 5: divisor (taxas sobre PV)
     const inst = taxas.inst ?? 5;
@@ -592,7 +806,8 @@ export function precoVendaV2(custos, coef, taxas) {
         erro: false,
         cp,
         mdo,
-        breakdown: { chapasAdj, fitaAdj, acabAdj, ferrVal, acessVal, pvChapas, pvFita, pvAcab, pvFerr, pvAcess, mdo },
+        breakdown: { chapasAdj, fitaAdj, acabAdj, ferrVal, acessVal, consumiveisVal, pvConsumiveis, pvChapas, pvFita, pvAcab, pvFerr, pvAcess, mdo },
+        custoHora: custoHoraResult,
     };
 }
 

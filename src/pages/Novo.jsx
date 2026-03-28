@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from 'react';
 import { Z, Ic, Modal, SearchableSelect, PageHeader } from '../ui';
-import { uid, R$, N, DB_CHAPAS, DB_ACABAMENTOS, DB_FERRAGENS, DB_FITAS, FERR_GROUPS, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, precoVenda, precoVendaV2, LOCKED_COLS, compareVersions } from '../engine';
+import { uid, R$, N, DB_CHAPAS, DB_ACABAMENTOS, DB_FERRAGENS, DB_FITAS, FERR_GROUPS, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, precoVenda, precoVendaV2, calcCustoHora, calcConsumiveis, estimarCorteReal, LOCKED_COLS, compareVersions } from '../engine';
 import api from '../api';
 import { buildRelatorioHtml } from './RelatorioMateriais';
 import { buildPropostaHtml } from './PropostaHtml';
@@ -1220,6 +1220,15 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const ferragensDB = bib?.ferragens || DB_FERRAGENS;
     const fitasDB = bib?.fitas || DB_FITAS;
 
+    // Fase 5: materiais com preço vencido
+    const materiaisVencidos = useMemo(() => {
+        return bibItems.filter(i => {
+            if (i.tipo !== 'material' || !i.preco_atualizado_em) return false;
+            const dias = Math.floor((Date.now() - new Date(i.preco_atualizado_em).getTime()) / 86400000);
+            return dias > (i.preco_validade_dias || 90);
+        });
+    }, [bibItems]);
+
     const [padroes, setPadroes] = useState(editOrc?.padroes || { corredica: '', dobradica: '', articulador: '' });
 
     const [pagamento, setPagamento] = useState(() => {
@@ -1344,6 +1353,33 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             mk_acabamentos: globalTaxas.mk_acabamentos ?? 1.30,
             mk_acessorios: globalTaxas.mk_acessorios ?? 1.20,
             mk_mdo: globalTaxas.mk_mdo ?? 0.80,
+            // Custo-hora + consumíveis (sempre herda do config global)
+            custo_hora_ativo: globalTaxas.custo_hora_ativo ?? 0,
+            func_producao: globalTaxas.func_producao ?? 10,
+            horas_dia: globalTaxas.horas_dia ?? 8.5,
+            dias_uteis: globalTaxas.dias_uteis ?? 22,
+            eficiencia: globalTaxas.eficiencia ?? 75,
+            tempo_furacao: globalTaxas.tempo_furacao ?? 0.017,
+            tempo_montagem: globalTaxas.tempo_montagem ?? 0.25,
+            tempo_montagem_porta: globalTaxas.tempo_montagem_porta ?? 0.15,
+            tempo_montagem_gaveta: globalTaxas.tempo_montagem_gaveta ?? 0.25,
+            tempo_montagem_prat: globalTaxas.tempo_montagem_prat ?? 0.05,
+            tempo_acabamento: globalTaxas.tempo_acabamento ?? 0.17,
+            tempo_embalagem: globalTaxas.tempo_embalagem ?? 0.25,
+            tempo_instalacao: globalTaxas.tempo_instalacao ?? 0.75,
+            // v3: velocidades e overheads baseados em dimensões reais
+            cnc_velocidade: globalTaxas.cnc_velocidade ?? 5000,
+            cnc_overhead_peca: globalTaxas.cnc_overhead_peca ?? 20,
+            cnc_overhead_chapa: globalTaxas.cnc_overhead_chapa ?? 300,
+            fita_velocidade: globalTaxas.fita_velocidade ?? 500,
+            fita_overhead_borda: globalTaxas.fita_overhead_borda ?? 90,
+            centro_custo_json: globalTaxas.centro_custo_json || '[]',
+            consumiveis_ativo: globalTaxas.consumiveis_ativo ?? 0,
+            cons_cola_m2: globalTaxas.cons_cola_m2 ?? 2.50,
+            cons_minifix_un: globalTaxas.cons_minifix_un ?? 1.80,
+            cons_parafuso_un: globalTaxas.cons_parafuso_un ?? 0.35,
+            cons_lixa_m2: globalTaxas.cons_lixa_m2 ?? 1.20,
+            cons_embalagem_mod: globalTaxas.cons_embalagem_mod ?? 15.00,
         };
         return editOrc?.taxas ? { ...defaults, ...editOrc.taxas } : defaults;
     });
@@ -1838,13 +1874,113 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             ambTotals.push({ id: amb.id, custo: ambCm, cp: ambCP, avulso: ambAvulso });
         });
 
+        // ── Métricas acumuladas para custo-hora e consumíveis ──
+        let totNPecas = 0, totNFerragens = 0, totNCaixas = 0, totNJuncoes = 0, totNModulos = 0;
+        let totNPortas = 0, totNGavetas = 0, totNPrateleiras = 0;
+        const pecasDetalhe = []; // { perimetro (mm), nBordas, fita (m), qtd }
+        ambientes.forEach(amb => {
+            if (amb.tipo === 'manual') return;
+            (amb.itens || []).forEach(item => {
+                if (item.tipo === 'avulso') return;
+                const qtd = item.qtd || 1;
+                try {
+                    const res = calcItemV2(item.caixaDef, item.dims, item.mats, item.componentes.map(ci => ({
+                        compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},
+                        matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
+                        dimL: ci.dimL || 0, dimA: ci.dimA || 0, dimP: ci.dimP || 0,
+                        matIntInst: ci.matIntInst || '', matExtInst: ci.matExtInst || '',
+                    })), bib, padroes);
+                    totNPecas += (res.nPecas || 0) * qtd;
+                    totNFerragens += (res.nFerragens || 0) * qtd;
+                    totNCaixas += (res.nCaixas || 0) * qtd;
+                    totNJuncoes += (res.nJuncoes || 0) * qtd;
+                    totNModulos += qtd;
+                    // Coletar dimensões de cada peça para cálculo preciso CNC + fita
+                    res.pecas.forEach(p => {
+                        pecasDetalhe.push({ perimetro: p.perimetro || 0, nBordas: p.nBordas || 0, fita: p.fita || 0, qtd });
+                    });
+                    // Contar portas, gavetas, prateleiras por categoria de ferragem
+                    res.ferrList.forEach(f => {
+                        const cat = (f.categoria || '').toLowerCase();
+                        if (cat.includes('dobradiça') || cat.includes('dobradica')) totNPortas += (f.qtd || 0) * qtd;
+                        else if (cat.includes('corrediça') || cat.includes('corredica')) totNGavetas += (f.qtd || 0) * qtd;
+                    });
+                    (item.componentes || []).forEach(ci => {
+                        const nome = (ci.compDef?.nome || '').toLowerCase();
+                        if (nome.includes('prateleira') || nome.includes('shelf')) {
+                            totNPrateleiras += (ci.qtd || 1) * qtd;
+                        }
+                    });
+                    if (item.ripado) {
+                        try {
+                            const ripCfg = { ...item.ripado, L: item.dims?.l || 0, A: item.dims?.a || 0 };
+                            const ripRes = calcPainelRipado(ripCfg, bibItems);
+                            if (ripRes) {
+                                totNPecas += (ripRes.nV || 0) + (ripRes.nH || 0) + (ripRes.temSubstrato ? 1 : 0);
+                                totNModulos += 1;
+                            }
+                        } catch (_) {}
+                    }
+                } catch (_) { }
+            });
+            (amb.paineis || []).forEach(painel => {
+                try {
+                    const res = calcPainelRipado(painel, bibItems);
+                    if (res) {
+                        totNPecas += (res.nV || 0) + (res.nH || 0) + (res.temSubstrato ? 1 : 0);
+                        totNModulos += (painel.qtd || 1);
+                    }
+                } catch (_) {}
+            });
+        });
+
+        // ── Fase 1: Custo-hora real (se ativo) ──
+        let custoHoraResult = null;
+        if (taxas.custo_hora_ativo) {
+            const coefMedio = totNModulos > 0
+                ? ambientes.reduce((s, amb) => {
+                    if (amb.tipo === 'manual') return s;
+                    return s + (amb.itens || []).reduce((s2, it) => s2 + (it.caixaDef?.coef || 0) * (it.qtd || 1), 0);
+                }, 0) / totNModulos
+                : 0;
+            custoHoraResult = calcCustoHora(
+                {
+                    pecasDetalhe,
+                    nChapas: Object.values(ca).reduce((s, c) => s + (c.n || 0), 0),
+                    nFerragens: totNFerragens, nCaixas: totNCaixas,
+                    areaAcab: at * 0.6, nModulos: totNModulos,
+                    nPortas: totNPortas, nGavetas: totNGavetas, nPrateleiras: totNPrateleiras,
+                },
+                taxas,
+                coefMedio,
+            );
+        }
+
+        // ── Fase 2: Consumíveis (se ativo) ──
+        let consumiveisResult = null;
+        let totConsumiveis = 0;
+        if (taxas.consumiveis_ativo) {
+            // areaColagem = ~10% da área total (juntas de colagem, não toda a superfície)
+            // nPontosParafuso = ~2 por caixa (fundo, trilho) + 1 por ferragem pesada
+            const areaColagem = at * 0.12;
+            const nPontosParafuso = totNCaixas * 2 + Math.ceil(totNFerragens * 0.3);
+            // areaAcab = faces externas (~60% da área total para acabamento/lixa)
+            const areaAcab = at * 0.6;
+            consumiveisResult = calcConsumiveis(
+                { areaColagem, nJuncoes: totNJuncoes, nPontosParafuso, areaAcab, nModulos: totNModulos },
+                taxas,
+            );
+            totConsumiveis = consumiveisResult.custoConsumiveis || 0;
+        }
+
         // ── Engine v2: precoVendaV2 com markups por categoria ──
         // totChapas/totFita/totAcabamentos já incluem coef individual de cada item.
         // Passa coef=0 para precoVendaV2 (coef já embutido nos totais).
         const pvResult = precoVendaV2(
-            { chapas: totChapas, fita: totFita, acabamentos: totAcabamentos, ferragens: totFerragens, acessorios: totAcessorios },
+            { chapas: totChapas, fita: totFita, acabamentos: totAcabamentos, ferragens: totFerragens, acessorios: totAcessorios, consumiveis: totConsumiveis },
             0,
             taxas,
+            custoHoraResult,
         );
         const pv = pvResult.valor;
         const cp = pvResult.cp || 0;
@@ -1878,6 +2014,33 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             breakdown: pvResult.breakdown,
             cb: cp, // compatibilidade
             chapasInteiras, chapasFrac, chapasEconomia,
+            // Fase 3: estimativa de corte real
+            corteReal: (() => {
+                // Coletar peças individuais para FFD
+                const allPecas = [];
+                ambientes.forEach(amb => {
+                    if (amb.tipo === 'manual') return;
+                    (amb.itens || []).forEach(item => {
+                        if (item.tipo === 'avulso') return;
+                        try {
+                            const res = calcItemV2(item.caixaDef, item.dims, item.mats, item.componentes.map(ci => ({
+                                compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},
+                                matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
+                                dimL: ci.dimL || 0, dimA: ci.dimA || 0, dimP: ci.dimP || 0,
+                                matIntInst: ci.matIntInst || '', matExtInst: ci.matExtInst || '',
+                            })), bib, padroes);
+                            const qtd = item.qtd || 1;
+                            for (let q = 0; q < qtd; q++) {
+                                res.pecas.forEach(p => allPecas.push({ matId: p.matId, area: p.area }));
+                            }
+                        } catch (_) {}
+                    });
+                });
+                return estimarCorteReal(ca, allPecas);
+            })(),
+            // Fase 1+2: métricas para exibição
+            custoHoraResult, consumiveisResult, totConsumiveis,
+            totNPecas, totNFerragens, totNCaixas, totNModulos, totNPortas, totNGavetas, totNPrateleiras,
         };
     }, [ambientes, taxas, bib]);
 
@@ -2274,6 +2437,20 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     )}
                     <button onClick={() => nav('orcs')} className={Z.btn2}>← Voltar</button>
             </PageHeader>
+
+            {/* Fase 5: Alerta de materiais com preço vencido */}
+            {materiaisVencidos.length > 0 && (
+                <div className="mb-4 p-3 rounded-lg flex items-center gap-3 text-xs"
+                    style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', color: 'var(--warning)' }}>
+                    <AlertTriangle size={16} className="shrink-0" />
+                    <div>
+                        <strong>{materiaisVencidos.length} material(is) com preço vencido:</strong>{' '}
+                        {materiaisVencidos.slice(0, 3).map(m => m.nome).join(', ')}
+                        {materiaisVencidos.length > 3 && ` e mais ${materiaisVencidos.length - 3}`}.
+                        <span style={{ color: 'var(--text-muted)' }}> Atualize os preços na Biblioteca para orçamentos precisos.</span>
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                 {/* ── Coluna principal ── */}
@@ -3017,7 +3194,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     const matMk = (bd.pvChapas || 0) + (bd.pvFita || 0) + (bd.pvAcab || 0) + (bd.pvFerr || 0) + (bd.pvAcess || 0);
                                     const custOp = matMk - matComCoef;
                                     const mdoVal = bd.mdo || tot.custoMdo || 0;
-                                    const linhas = [['Custo Material', matPuro], ['Complexidade', complexidade], ['Mão de Obra', mdoVal], ['Custos Operacionais', custOp]];
+                                    const consumVal = tot.totConsumiveis || 0;
+                                    const linhas = [
+                                        ['Custo Material', matPuro],
+                                        ['Complexidade', complexidade],
+                                        ...(consumVal > 0 ? [['Consumíveis', consumVal]] : []),
+                                        ['Mão de Obra', mdoVal],
+                                        ['Custos Operacionais', custOp],
+                                    ];
                                     return linhas.filter(([, v]) => v > 0).map(([l, v], i) => (
                                         <div key={i} className="flex justify-between">
                                             <span style={{ color: 'var(--text-muted)' }}>{l}</span>
@@ -3205,6 +3389,60 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 })}
                             </div>
 
+                            {/* ── Custo-Hora (Fase 1) ── */}
+                            {tot.custoHoraResult && tot.custoHoraResult.custoMdo > 0 && (
+                                <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                                    <div className="text-[9px] font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>
+                                        MÃO DE OBRA (custo-hora)
+                                    </div>
+                                    <div className="flex flex-col gap-0.5 text-[10px]">
+                                        {[
+                                            ['Corte CNC', tot.custoHoraResult.breakdown.hCorte, `${tot.totNPecas} pçs · ${Object.values(tot.ca).reduce((s, c) => s + (c.n || 0), 0)} chapas`],
+                                            ['Fita de borda', tot.custoHoraResult.breakdown.hFita, `${tot.custoHoraResult.breakdown.totalBordas || 0} bordas · ${N(tot.ft, 0)}m`],
+                                            ['Furação', tot.custoHoraResult.breakdown.hFuracao, `${tot.totNFerragens} pts`],
+                                            ['Montagem', tot.custoHoraResult.breakdown.hMontagem, `${tot.totNCaixas}cx ${tot.totNPortas || 0}pt ${tot.totNGavetas || 0}gv ${tot.totNPrateleiras || 0}pr`],
+                                            ['Acabamento', tot.custoHoraResult.breakdown.hAcabamento, `${N(tot.at * 0.6, 1)}m²`],
+                                            ['Embalagem', tot.custoHoraResult.breakdown.hEmbalagem, `${tot.totNModulos} mod`],
+                                            ['Instalação', tot.custoHoraResult.breakdown.hInstalacao, `${tot.totNModulos} mod`],
+                                        ].filter(([, h]) => h > 0).map(([l, h, info]) => (
+                                            <div key={l} className="flex justify-between">
+                                                <span style={{ color: 'var(--text-muted)' }}>{l} <span className="opacity-50">({info})</span></span>
+                                                <span style={{ color: 'var(--text-secondary)' }}>{N(h, 1)}h</span>
+                                            </div>
+                                        ))}
+                                        <div className="flex justify-between font-semibold pt-1 mt-1" style={{ borderTop: '1px dashed var(--border)' }}>
+                                            <span style={{ color: 'var(--text-secondary)' }}>Total: {N(tot.custoHoraResult.horasTotal, 1)}h × {R$(tot.custoHoraResult.custoHora)}/h</span>
+                                            <span style={{ color: 'var(--primary)' }}>{R$(tot.custoHoraResult.custoMdo)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── Consumíveis (Fase 2) ── */}
+                            {tot.consumiveisResult && tot.totConsumiveis > 0 && (
+                                <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                                    <div className="text-[9px] font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>CONSUMÍVEIS</div>
+                                    <div className="flex flex-col gap-0.5 text-[10px]">
+                                        {[
+                                            ['Cola', tot.consumiveisResult.breakdown.cola],
+                                            ['Minifix/Cavilha', tot.consumiveisResult.breakdown.minifix],
+                                            ['Parafusos', tot.consumiveisResult.breakdown.parafusos],
+                                            ['Lixa/Abrasivo', tot.consumiveisResult.breakdown.lixa],
+                                            ['Embalagem', tot.consumiveisResult.breakdown.embalagem],
+                                        ].filter(([, v]) => v > 0).map(([l, v]) => (
+                                            <div key={l} className="flex justify-between">
+                                                <span style={{ color: 'var(--text-muted)' }}>{l}</span>
+                                                <span style={{ color: 'var(--text-secondary)' }}>{R$(v)}</span>
+                                            </div>
+                                        ))}
+                                        <div className="flex justify-between font-semibold pt-1 mt-1" style={{ borderTop: '1px dashed var(--border)' }}>
+                                            <span style={{ color: 'var(--text-secondary)' }}>Total consumíveis</span>
+                                            <span style={{ color: 'var(--primary)' }}>{R$(tot.totConsumiveis)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Preço final */}
                             <div className="mt-4 pt-3" style={{ borderTop: '2px solid var(--primary)' }}>
                                 <div className="flex justify-between items-baseline">
@@ -3252,8 +3490,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 {pvComDesconto > 0 && (() => {
                                     const pv = pvComDesconto;
                                     const bd = tot.breakdown || {};
-                                    const matRaw = (bd.chapasAdj || 0) + (bd.fitaAdj || 0) + (bd.acabAdj || 0) + (bd.ferrVal || 0) + (bd.acessVal || 0);
-                                    const matMk = (bd.pvChapas || 0) + (bd.pvFita || 0) + (bd.pvAcab || 0) + (bd.pvFerr || 0) + (bd.pvAcess || 0);
+                                    const matRaw = (bd.chapasAdj || 0) + (bd.fitaAdj || 0) + (bd.acabAdj || 0) + (bd.ferrVal || 0) + (bd.acessVal || 0) + (bd.consumiveisVal || 0);
+                                    const matMk = (bd.pvChapas || 0) + (bd.pvFita || 0) + (bd.pvAcab || 0) + (bd.pvFerr || 0) + (bd.pvAcess || 0) + (bd.consumiveisVal || 0);
                                     const custOp = matMk - matRaw;
                                     const mdo = bd.mdo || tot.custoMdo || 0;
                                     const cpVal = tot.cb || 0;
@@ -3301,6 +3539,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                 <div className="flex justify-between text-[9px] mt-0.5 pt-0.5" style={{ borderTop: '1px dashed var(--border)', color: 'var(--success)' }}>
                                                                     <span>Otimização de chapas ({N(tot.chapasFrac, 1)} de {tot.chapasInteiras})</span>
                                                                     <span>-{R$(tot.chapasEconomia)}</span>
+                                                                </div>
+                                                            )}
+                                                            {/* Fase 3: Estimativa de corte real */}
+                                                            {tot.corteReal && tot.corteReal.totalReal > 0 && tot.corteReal.totalReal !== tot.corteReal.totalFrac && (
+                                                                <div className="flex justify-between text-[9px] mt-0.5 pt-0.5" style={{ borderTop: '1px dashed var(--border)', color: tot.corteReal.totalReal > tot.corteReal.totalFrac ? 'var(--danger)' : 'var(--success)' }}>
+                                                                    <span>Corte real (FFD): {tot.corteReal.totalReal} chapas</span>
+                                                                    <span>{tot.corteReal.totalReal > tot.corteReal.totalFrac ? '+' : ''}{tot.corteReal.totalReal - tot.corteReal.totalFrac} vs fração</span>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -3564,8 +3809,9 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     <input readOnly value={`${window.location.origin}/proposta/${viewsData.token}`}
                                         className={`${Z.inp} flex-1 text-xs`} style={{ fontFamily: 'monospace' }}
                                         onClick={e => { e.target.select(); navigator.clipboard.writeText(e.target.value); notify('Link copiado!'); }} />
-                                    <a href={`/proposta/${viewsData.token}`} target="_blank" rel="noreferrer"
-                                        className="p-2 rounded cursor-pointer" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                                    <a href={`/preview/proposta/${viewsData.token}`} target="_blank" rel="noreferrer"
+                                        className="p-2 rounded cursor-pointer" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}
+                                        title="Visualizar (sem afetar estatísticas)">
                                         <ExternalLink size={14} />
                                     </a>
                                 </div>

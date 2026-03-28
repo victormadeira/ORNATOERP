@@ -2405,9 +2405,9 @@ export default function Cfg({ taxas, reload, notify }) {
                                     className={`${Z.btn2} text-xs`} disabled={!isGerente}>
                                     <Plus size={12} /> Adicionar item
                                 </button>
-                                <button onClick={() => saveEmpresa()}
+                                <button onClick={async () => { await saveEmpresa(); await saveTaxas(); }}
                                     className={`${Z.btn} text-xs`} disabled={!isGerente}>
-                                    Salvar Centro de Custo
+                                    Salvar Custos
                                 </button>
                             </div>
 
@@ -2415,6 +2415,185 @@ export default function Cfg({ taxas, reload, notify }) {
                                 O custo/dia será usado no painel comparativo dos orçamentos: <strong>custo/dia × prazo de execução + material = referência</strong>.
                                 Configure o prazo de execução em cada orçamento para ver a comparação.
                             </p>
+                        </div>
+
+                        {/* ── Fase 1: Custo-Hora da Fábrica ── */}
+                        <div className={Z.card} style={{ marginTop: 20 }}>
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
+                                    <Ic.Clock />
+                                </div>
+                                <div className="flex-1">
+                                    <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Custo-Hora da Fábrica</h2>
+                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Calcula mão de obra pelo tempo real de produção, não pelo custo do material.</p>
+                                </div>
+                                <button
+                                    onClick={() => { st(prev => ({ ...prev, custo_hora_ativo: prev.custo_hora_ativo ? 0 : 1 })); }}
+                                    disabled={!isGerente}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold cursor-pointer transition-all"
+                                    style={{
+                                        background: tx.custo_hora_ativo ? 'var(--primary)' : 'var(--bg-muted)',
+                                        color: tx.custo_hora_ativo ? '#fff' : 'var(--text-muted)',
+                                        border: '1px solid var(--border)',
+                                    }}>
+                                    {tx.custo_hora_ativo ? 'Ativo' : 'Inativo'}
+                                </button>
+                            </div>
+
+                            {tx.custo_hora_ativo ? (
+                                <div className="flex flex-col gap-4">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                        {[
+                                            ['func_producao', 'Funcionários produção', 10, ''],
+                                            ['horas_dia', 'Horas/dia', 8.5, 'h'],
+                                            ['dias_uteis', 'Dias úteis/mês', 22, ''],
+                                            ['eficiencia', 'Eficiência (%)', 75, '%'],
+                                        ].map(([k, l, def, suf]) => (
+                                            <div key={k}>
+                                                <label className={Z.lbl}>{l}</label>
+                                                <div className="flex items-center gap-1">
+                                                    <input type="number" value={tx[k] ?? def} step={k === 'horas_dia' ? 0.5 : 1}
+                                                        onChange={e => st({ ...tx, [k]: parseFloat(e.target.value) || def })}
+                                                        className={`${Z.inp} flex-1`} disabled={!isGerente} />
+                                                    {suf && <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{suf}</span>}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Custo-hora calculado */}
+                                    {(() => {
+                                        const func = tx.func_producao || 10;
+                                        const hDia = tx.horas_dia || 8.5;
+                                        const dias_ = tx.dias_uteis || 22;
+                                        const efic = (tx.eficiencia || 75) / 100;
+                                        const horasMes = func * hDia * dias_ * efic;
+                                        const custoHoraCalc = horasMes > 0 ? totalMensal / horasMes : 0;
+                                        return (
+                                            <div className="p-3 rounded-lg flex items-center justify-between" style={{ background: 'var(--bg-muted)' }}>
+                                                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                                    {N(horasMes, 0)}h produtivas/mês
+                                                </span>
+                                                <span className="text-sm font-bold" style={{ color: 'var(--primary)' }}>
+                                                    R$ {custoHoraCalc.toFixed(2)}/hora
+                                                </span>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    <div>
+                                        <div className="text-[10px] font-semibold mb-2" style={{ color: 'var(--text-secondary)' }}>CNC (baseado em dimensões reais)</div>
+                                        <div className="grid grid-cols-3 gap-2 mb-4">
+                                            {[
+                                                ['cnc_velocidade', 'Vel. avanço (mm/min)', 5000],
+                                                ['cnc_overhead_peca', 'Overhead/peça (seg)', 20],
+                                                ['cnc_overhead_chapa', 'Overhead/chapa (seg)', 300],
+                                            ].map(([k, l, def]) => (
+                                                <div key={k}>
+                                                    <label className={Z.lbl}>{l}</label>
+                                                    <input type="number" value={tx[k] ?? def} step={k === 'cnc_velocidade' ? 100 : 5} min={0}
+                                                        onChange={e => st({ ...tx, [k]: parseFloat(e.target.value) || def })}
+                                                        className={`${Z.inp} w-full`} disabled={!isGerente} />
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="text-[10px] font-semibold mb-2" style={{ color: 'var(--text-secondary)' }}>Fita de borda (baseado em dimensões reais)</div>
+                                        <div className="grid grid-cols-2 gap-2 mb-4">
+                                            {[
+                                                ['fita_velocidade', 'Vel. fitagem (mm/min)', 500],
+                                                ['fita_overhead_borda', 'Overhead/borda (seg)', 90],
+                                            ].map(([k, l, def]) => (
+                                                <div key={k}>
+                                                    <label className={Z.lbl}>{l}</label>
+                                                    <input type="number" value={tx[k] ?? def} step={k === 'fita_velocidade' ? 50 : 5} min={0}
+                                                        onChange={e => st({ ...tx, [k]: parseFloat(e.target.value) || def })}
+                                                        className={`${Z.inp} w-full`} disabled={!isGerente} />
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="text-[10px] font-semibold mb-2" style={{ color: 'var(--text-secondary)' }}>Demais operações</div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {[
+                                                ['tempo_furacao', 'Furação (h/un) — ~1min', 0.017],
+                                                ['tempo_montagem', 'Montagem base (h/caixa)', 0.25],
+                                                ['tempo_montagem_porta', 'Montagem porta (h/porta)', 0.15],
+                                                ['tempo_montagem_gaveta', 'Montagem gaveta (h/gaveta)', 0.25],
+                                                ['tempo_montagem_prat', 'Montagem prateleira (h/un)', 0.05],
+                                                ['tempo_acabamento', 'Acabamento (h/m²) — ~6m²/h', 0.17],
+                                                ['tempo_embalagem', 'Embalagem (h/módulo)', 0.25],
+                                                ['tempo_instalacao', 'Instalação (h/módulo) — ~45min', 0.75],
+                                            ].map(([k, l, def]) => (
+                                                <div key={k}>
+                                                    <label className={Z.lbl}>{l}</label>
+                                                    <input type="number" value={tx[k] ?? def} step={0.01} min={0}
+                                                        onChange={e => st({ ...tx, [k]: parseFloat(e.target.value) || def })}
+                                                        className={`${Z.inp} w-full`} disabled={!isGerente} />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <p className="text-[10px]" style={{ color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                                        O tempo de <strong>CNC</strong> é calculado pelo perímetro real de cada peça ÷ velocidade de avanço + overhead (carregar chapa, etiquetar, etc.).
+                                        O tempo de <strong>fita</strong> é calculado por nº de bordas × overhead (pegar, girar, destopar, limar) + metros ÷ velocidade de colagem.
+                                        Demais operações usam tempo fixo por unidade. Tudo × custo/hora da fábrica.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="text-xs p-3 rounded-lg" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                                    Quando inativo, a mão de obra é calculada pelo fator multiplicador em Taxas & Markup ({(tx.mk_mdo ?? 0.80)}× sobre chapas).
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ── Fase 2: Consumíveis ── */}
+                        <div className={Z.card} style={{ marginTop: 20 }}>
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
+                                    <Ic.Package />
+                                </div>
+                                <div className="flex-1">
+                                    <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Consumíveis</h2>
+                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Cola, minifix, parafusos, lixa e embalagem — custos invisíveis que somam 3-5% do projeto.</p>
+                                </div>
+                                <button
+                                    onClick={() => { st(prev => ({ ...prev, consumiveis_ativo: prev.consumiveis_ativo ? 0 : 1 })); }}
+                                    disabled={!isGerente}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold cursor-pointer transition-all"
+                                    style={{
+                                        background: tx.consumiveis_ativo ? 'var(--primary)' : 'var(--bg-muted)',
+                                        color: tx.consumiveis_ativo ? '#fff' : 'var(--text-muted)',
+                                        border: '1px solid var(--border)',
+                                    }}>
+                                    {tx.consumiveis_ativo ? 'Ativo' : 'Inativo'}
+                                </button>
+                            </div>
+
+                            {tx.consumiveis_ativo ? (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    {[
+                                        ['cons_cola_m2', 'Cola PVA/PUR (R$/m²)', 2.50],
+                                        ['cons_minifix_un', 'Minifix/Cavilha (R$/junção)', 1.80],
+                                        ['cons_parafuso_un', 'Parafusos (R$/ponto)', 0.35],
+                                        ['cons_lixa_m2', 'Lixa/Abrasivo (R$/m²)', 1.20],
+                                        ['cons_embalagem_mod', 'Embalagem (R$/módulo)', 15.00],
+                                    ].map(([k, l, def]) => (
+                                        <div key={k}>
+                                            <label className={Z.lbl}>{l}</label>
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>R$</span>
+                                                <input type="number" value={tx[k] ?? def} step={0.05} min={0}
+                                                    onChange={e => st({ ...tx, [k]: parseFloat(e.target.value) || def })}
+                                                    className={`${Z.inp} flex-1`} disabled={!isGerente} />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-xs p-3 rounded-lg" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                                    Quando inativo, consumíveis não são incluídos no cálculo do orçamento.
+                                </div>
+                            )}
                         </div>
                     </div>
                 );

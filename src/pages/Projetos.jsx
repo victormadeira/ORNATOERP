@@ -3441,13 +3441,15 @@ function TabAmbientes({ data, notify, reload }) {
                                         <button key={s.key} onClick={() => changeStatus(amb.id, s.key)}
                                             title={s.label}
                                             style={{
-                                                width: isCurrent ? 28 : 20, height: isCurrent ? 28 : 20,
+                                                width: 24, height: 24,
                                                 borderRadius: '50%', border: `2px solid ${active ? s.color : 'var(--border)'}`,
                                                 background: active ? s.color : 'transparent', color: active ? 'white' : 'var(--text-muted)',
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                 cursor: 'pointer', transition: 'all 0.15s', padding: 0,
+                                                transform: isCurrent ? 'scale(1.25)' : 'scale(1)',
+                                                zIndex: isCurrent ? 1 : 0,
                                             }}>
-                                            <SIcon size={isCurrent ? 13 : 10} />
+                                            <SIcon size={11} />
                                         </button>
                                     );
                                 })}

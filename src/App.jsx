@@ -27,6 +27,9 @@ const PlanoCorte = lazy(() => import('./pages/PlanoCorte'));
 const Industrializacao = lazy(() => import('./pages/Industrializacao'));
 const ProducaoFabrica = lazy(() => import('./pages/ProducaoFabrica'));
 const Expedicao = lazy(() => import('./pages/Expedicao'));
+const Compras = lazy(() => import('./pages/Compras'));
+const GestaoAvancada = lazy(() => import('./pages/GestaoAvancada'));
+const ProducaoTV = lazy(() => import('./pages/ProducaoTV'));
 
 const LazyFallback = () => (
     <div className="flex items-center justify-center h-64">
@@ -76,7 +79,7 @@ class ErrorBoundary extends Component {
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
     // ── Roteamento com History API ──────────────────────────────────────────
-    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte'];
+    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv'];
     const [pg, setPg] = useState(() => {
         const rawPath = window.location.pathname.replace(/^\/+/, '');
         // Suporta /novo/123 (orçamento com ID)
@@ -325,15 +328,18 @@ export default function App() {
             { id: "industrializacao", lb: "Ordens de Produção", ic: Ic.ClipList },
             { id: "cnc", lb: "Corte & CNC", ic: Ic.Scissors },
             { id: "producao_fabrica", lb: "Acompanhamento", ic: Ic.HardHat },
+            { id: "producao_tv", lb: "TV Fábrica", ic: Ic.Monitor },
             { id: "expedicao", lb: "Expedição", ic: Ic.Truck },
         ]},
         { id: 'cadastros', label: 'Cadastros', icon: Ic.Box, items: [
             { id: "cat", lb: "Materiais", ic: Ic.Box },
             { id: "catalogo_itens", lb: "Engenharia", ic: Ic.Package },
             { id: "estoque", lb: "Recursos", ic: Ic.Warehouse },
+            { id: "compras", lb: "Compras & NF", ic: Ic.ShoppingCart },
         ]},
         { id: 'gestao', label: 'Gestão', icon: Ic.LineChart, items: [
             { id: "financeiro", lb: "Financeiro", ic: Ic.Dollar },
+            { id: "gestao", lb: "Gestão Avançada", ic: Ic.BarChart },
             { id: "relatorios", lb: "Relatórios", ic: Ic.PieChart },
         ]},
         { id: 'sistema', label: 'Sistema', icon: Ic.Cog, items: [
@@ -377,6 +383,9 @@ export default function App() {
             case "industrializacao": return <Industrializacao notify={notify} nav={nav} />;
             case "producao_fabrica": return <ProducaoFabrica notify={notify} user={user} />;
             case "expedicao": return <Expedicao notify={notify} user={user} />;
+            case "compras": return <Compras notify={notify} />;
+            case "gestao": return <GestaoAvancada notify={notify} />;
+            case "producao_tv": return <ProducaoTV />;
             default: return <Dash nav={nav} notify={notify} />;
         }
     };

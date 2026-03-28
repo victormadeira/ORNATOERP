@@ -1,9 +1,22 @@
 import jwt from 'jsonwebtoken';
 import { randomBytes } from 'crypto';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-const JWT_SECRET = process.env.JWT_SECRET || (() => {
-    console.warn('⚠️  JWT_SECRET não definido! Usando fallback temporário. Defina JWT_SECRET em produção.');
-    return 'dev-only-secret-' + randomBytes(16).toString('hex');
+// JWT_SECRET: env var > arquivo persistente > gerar e salvar
+const JWT_SECRET = (() => {
+    if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+    // Fallback: persistir em arquivo para não invalidar tokens a cada restart
+    const __dir = dirname(fileURLToPath(import.meta.url));
+    const secretPath = join(__dir, '.jwt_secret');
+    try {
+        if (existsSync(secretPath)) return readFileSync(secretPath, 'utf-8').trim();
+    } catch (_) {}
+    const secret = randomBytes(48).toString('base64');
+    try { writeFileSync(secretPath, secret, { mode: 0o600 }); } catch (_) {}
+    console.warn('⚠️  JWT_SECRET gerado e salvo em .jwt_secret. Defina JWT_SECRET em produção.');
+    return secret;
 })();
 const JWT_EXPIRY = '24h';
 

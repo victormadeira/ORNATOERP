@@ -66,6 +66,15 @@ async function geolocateIP(ip) {
     }
 }
 
+// Detectar acessos internos (mesmo IP/rede do ERP)
+function isInternalAccess(ip) {
+    if (!ip) return false;
+    // Localhost e redes privadas
+    if (['127.0.0.1', '::1', '::ffff:127.0.0.1', 'localhost'].includes(ip)) return true;
+    if (ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) return true;
+    return false;
+}
+
 // Rate limit: mesma IP nos últimos 30min não gera nova notificação
 const RATE_LIMIT_MIN = 30;
 function isNewVisit(orc_id, ip) {
@@ -82,7 +91,8 @@ function isNewVisit(orc_id, ip) {
 function calculateLeadScore(orc_id) {
     const views = db.prepare(`
         SELECT acessado_em, tempo_pagina, scroll_max, is_new_visit, fingerprint, evento_tipo, eventos_json
-        FROM proposta_acessos WHERE orc_id = ? ORDER BY acessado_em DESC LIMIT 500
+        FROM proposta_acessos WHERE orc_id = ? AND COALESCE(is_internal, 0) = 0
+        ORDER BY acessado_em DESC LIMIT 500
     `).all(orc_id);
 
     if (!views.length) return { score: 0, label: 'Sem acesso', cor: '#94a3b8' };
@@ -295,15 +305,16 @@ router.get('/public/:token', optionalAuth, async (req, res) => {
             const geo = await geolocateIP(ip);
 
             // Registrar acesso (com coords aproximadas do IP, GPS sobrescreve depois)
+            const isInternal = isInternalAccess(ip) ? 1 : 0;
             db.prepare(`
-                INSERT INTO proposta_acessos (orc_id, token, ip_cliente, user_agent, dispositivo, navegador, os_name, cidade, estado, pais, is_new_visit, lat, lon)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(portalToken.orc_id, token, ip, ua, dispositivo, navegador, os_name, geo.cidade, geo.estado, geo.pais, newVisit ? 1 : 0, geo.lat, geo.lon);
+                INSERT INTO proposta_acessos (orc_id, token, ip_cliente, user_agent, dispositivo, navegador, os_name, cidade, estado, pais, is_new_visit, lat, lon, is_internal)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(portalToken.orc_id, token, ip, ua, dispositivo, navegador, os_name, geo.cidade, geo.estado, geo.pais, newVisit ? 1 : 0, geo.lat, geo.lon, isInternal);
 
             db.prepare('UPDATE portal_tokens SET ultimo_acesso = CURRENT_TIMESTAMP WHERE token = ?').run(token);
 
-            // Notificar equipe quando cliente visualiza a proposta (só visitas novas)
-            if (newVisit) {
+            // Notificar equipe quando cliente visualiza a proposta (só visitas novas, não internas)
+            if (newVisit && !isInternal) {
                 try {
                     const local = geo.cidade ? ` de ${geo.cidade}${geo.estado ? '/' + geo.estado : ''}` : '';
                     createNotification(
@@ -496,9 +507,9 @@ router.get('/views/:orc_id', requireAuth, (req, res) => {
     const views = db.prepare(`
         SELECT id, acessado_em, ip_cliente, dispositivo, navegador, os_name,
                cidade, estado, pais, resolucao, fingerprint,
-               tempo_pagina, scroll_max, is_new_visit
+               tempo_pagina, scroll_max, is_new_visit, COALESCE(is_internal, 0) as is_internal
         FROM proposta_acessos
-        WHERE orc_id = ?
+        WHERE orc_id = ? AND COALESCE(is_internal, 0) = 0
         ORDER BY acessado_em DESC
         LIMIT 200
     `).all(orc_id);
@@ -659,13 +670,14 @@ router.post('/event/:token', optionalAuth, async (req, res) => {
     const ua = req.headers['user-agent'] || '';
     const { dispositivo, navegador, os_name } = parseUA(ua);
 
+    const isInternal = isInternalAccess(ip) ? 1 : 0;
     db.prepare(`
-        INSERT INTO proposta_acessos (orc_id, token, ip_cliente, user_agent, dispositivo, navegador, os_name, is_new_visit, evento_tipo)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
-    `).run(portalToken.orc_id, token, ip, ua, dispositivo, navegador, os_name, tipo);
+        INSERT INTO proposta_acessos (orc_id, token, ip_cliente, user_agent, dispositivo, navegador, os_name, is_new_visit, evento_tipo, is_internal)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+    `).run(portalToken.orc_id, token, ip, ua, dispositivo, navegador, os_name, tipo, isInternal);
 
-    // Notificação por tipo de evento
-    if (tipo === 'print') {
+    // Notificação por tipo de evento (só se não interno)
+    if (tipo === 'print' && !isInternal) {
         try {
             const orc = db.prepare('SELECT numero, cliente_nome, id FROM orcamentos WHERE id = ?').get(portalToken.orc_id);
             if (orc) {
@@ -701,10 +713,10 @@ router.get('/timeline/:orc_id', requireAuth, (req, res) => {
         events.push({ tipo: 'link', titulo: 'Link público gerado', detalhe: 'Portal do cliente ativado', data: token.criado_em, icone: 'link' });
     }
 
-    // 3. Acessos (primeira visita, retornos, prints)
+    // 3. Acessos (primeira visita, retornos, prints — excluir internos)
     const acessos = db.prepare(`
         SELECT acessado_em, dispositivo, navegador, cidade, estado, tempo_pagina, scroll_max, is_new_visit, evento_tipo, fingerprint
-        FROM proposta_acessos WHERE orc_id = ? ORDER BY acessado_em ASC LIMIT 100
+        FROM proposta_acessos WHERE orc_id = ? AND COALESCE(is_internal, 0) = 0 ORDER BY acessado_em ASC LIMIT 100
     `).all(orc_id);
 
     let visitCount = 0;

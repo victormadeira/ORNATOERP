@@ -30,6 +30,10 @@ import cncRoutes from './routes/cnc.js';
 import planoCorteRoutes from './routes/plano-corte.js';
 import portfolioRoutes from './routes/portfolio.js';
 import industrializacaoRoutes from './routes/industrializacao.js';
+import assinaturasRoutes from './routes/assinaturas.js';
+import comprasRoutes from './routes/compras.js';
+import producaoAvRoutes from './routes/producao-avancada.js';
+import gestaoAvRoutes from './routes/gestao-avancada.js';
 
 // Inicializa DB (efeito colateral — cria tabelas e seed)
 import './db.js';
@@ -58,7 +62,7 @@ const corsOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
     : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5175', 'http://127.0.0.1:5175', 'https://gestaoornato.com', 'http://gestaoornato.com'];
 app.use(cors({ origin: corsOrigins }));
-app.use(express.json({ limit: '150mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 // ═══ Anti-cache para API (evita dados stale entre dispositivos) ═══
 app.use('/api', (req, res, next) => {
@@ -99,6 +103,10 @@ app.use('/api/cnc', cncRoutes);
 app.use('/api/plano-corte', planoCorteRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/industrializacao', industrializacaoRoutes);
+app.use('/api/assinaturas', assinaturasRoutes);
+app.use('/api/compras', comprasRoutes);
+app.use('/api/producao-av', producaoAvRoutes);
+app.use('/api/gestao', gestaoAvRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
@@ -117,10 +125,26 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
-// Error handler
+// ═══ Request logging (produção) ═══
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const ms = Date.now() - start;
+        if (ms > 2000 || res.statusCode >= 500) {
+            console.log(`[${res.statusCode}] ${req.method} ${req.path} ${ms}ms ${req.user?.id || '-'}`);
+        }
+    });
+    next();
+});
+
+// ═══ Error handler (com ID rastreável) ═══
 app.use((err, req, res, next) => {
-    console.error('Erro:', err);
-    res.status(500).json({ error: 'Erro interno do servidor' });
+    const errorId = `E${Date.now().toString(36)}`;
+    console.error(`[${errorId}] ${req.method} ${req.path}:`, err.stack || err);
+    res.status(err.statusCode || 500).json({
+        error: process.env.NODE_ENV === 'production' ? 'Erro interno do servidor' : err.message,
+        errorId,
+    });
 });
 
 app.listen(PORT, () => {

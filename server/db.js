@@ -1112,6 +1112,343 @@ const migrations = [
   // ── Geolocalização nos acessos do portal ──
   `ALTER TABLE portal_acessos ADD COLUMN latitude REAL`,
   `ALTER TABLE portal_acessos ADD COLUMN longitude REAL`,
+
+  // ═══════════════════════════════════════════════════════
+  // PRECISÃO DE ORÇAMENTO — Fases 1-5
+  // ═══════════════════════════════════════════════════════
+
+  // ── Fase 1: Custo-hora fábrica + tempos por operação ──
+  `ALTER TABLE config_taxas ADD COLUMN custo_hora_ativo INTEGER DEFAULT 0`,
+  `ALTER TABLE config_taxas ADD COLUMN func_producao INTEGER DEFAULT 10`,
+  `ALTER TABLE config_taxas ADD COLUMN horas_dia REAL DEFAULT 8.5`,
+  `ALTER TABLE config_taxas ADD COLUMN dias_uteis INTEGER DEFAULT 22`,
+  `ALTER TABLE config_taxas ADD COLUMN eficiencia REAL DEFAULT 75`,
+  `ALTER TABLE config_taxas ADD COLUMN tempo_corte REAL DEFAULT 0.02`,
+  `ALTER TABLE config_taxas ADD COLUMN tempo_fita REAL DEFAULT 0.01`,
+  `ALTER TABLE config_taxas ADD COLUMN tempo_furacao REAL DEFAULT 0.03`,
+  `ALTER TABLE config_taxas ADD COLUMN tempo_montagem REAL DEFAULT 0.50`,
+  `ALTER TABLE config_taxas ADD COLUMN tempo_acabamento REAL DEFAULT 0.15`,
+  `ALTER TABLE config_taxas ADD COLUMN tempo_embalagem REAL DEFAULT 0.20`,
+  `ALTER TABLE config_taxas ADD COLUMN tempo_instalacao REAL DEFAULT 0.80`,
+  // ── Calibração v2: tempos por componente na montagem ──
+  `ALTER TABLE config_taxas ADD COLUMN tempo_montagem_porta REAL DEFAULT 0.08`,
+  `ALTER TABLE config_taxas ADD COLUMN tempo_montagem_gaveta REAL DEFAULT 0.12`,
+  `ALTER TABLE config_taxas ADD COLUMN tempo_montagem_prat REAL DEFAULT 0.03`,
+  // ── Calibração v3: modelo baseado em dimensões reais (CNC vel + fita overhead) ──
+  `ALTER TABLE config_taxas ADD COLUMN cnc_velocidade REAL DEFAULT 5000`,
+  `ALTER TABLE config_taxas ADD COLUMN cnc_overhead_peca REAL DEFAULT 20`,
+  `ALTER TABLE config_taxas ADD COLUMN cnc_overhead_chapa REAL DEFAULT 300`,
+  `ALTER TABLE config_taxas ADD COLUMN fita_velocidade REAL DEFAULT 500`,
+  `ALTER TABLE config_taxas ADD COLUMN fita_overhead_borda REAL DEFAULT 90`,
+  // Atualizar montagem defaults (ref: WoodWeb, ShopSabre)
+  `UPDATE config_taxas SET tempo_montagem=0.25, tempo_montagem_porta=0.15, tempo_montagem_gaveta=0.25, tempo_montagem_prat=0.05, tempo_acabamento=0.17, tempo_embalagem=0.25, tempo_instalacao=0.75 WHERE tempo_montagem_porta=0.08`,
+
+  // ── Fase 2: Consumíveis automáticos ──
+  `ALTER TABLE config_taxas ADD COLUMN consumiveis_ativo INTEGER DEFAULT 0`,
+  `ALTER TABLE config_taxas ADD COLUMN cons_cola_m2 REAL DEFAULT 2.50`,
+  `ALTER TABLE config_taxas ADD COLUMN cons_minifix_un REAL DEFAULT 1.80`,
+  `ALTER TABLE config_taxas ADD COLUMN cons_parafuso_un REAL DEFAULT 0.35`,
+  `ALTER TABLE config_taxas ADD COLUMN cons_lixa_m2 REAL DEFAULT 1.20`,
+  `ALTER TABLE config_taxas ADD COLUMN cons_embalagem_mod REAL DEFAULT 15.00`,
+
+  // ── Fase 4: Feedback loop — custo real vs orçado ──
+  `CREATE TABLE IF NOT EXISTS custo_real_projeto (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projeto_id INTEGER NOT NULL REFERENCES projetos(id) ON DELETE CASCADE,
+    orc_id INTEGER REFERENCES orcamentos(id),
+    custo_material_orcado REAL DEFAULT 0,
+    custo_mdo_orcado REAL DEFAULT 0,
+    pv_orcado REAL DEFAULT 0,
+    custo_material_real REAL DEFAULT 0,
+    custo_mdo_real REAL DEFAULT 0,
+    horas_reais REAL DEFAULT 0,
+    desvio_pct REAL DEFAULT 0,
+    obs TEXT DEFAULT '',
+    finalizado INTEGER DEFAULT 0,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ── Fase 5: Validade de preço de materiais ──
+  `ALTER TABLE biblioteca ADD COLUMN preco_atualizado_em DATE DEFAULT NULL`,
+  `ALTER TABLE biblioteca ADD COLUMN preco_validade_dias INTEGER DEFAULT 90`,
+
+  // ── Fix: Flag de acesso interno (não poluir lead score) ──
+  `ALTER TABLE proposta_acessos ADD COLUMN is_internal INTEGER DEFAULT 0`,
+
+  // ═══════════════════════════════════════════════════════
+  // ASSINATURA ELETRÔNICA — Lei 14.063/2020
+  // ═══════════════════════════════════════════════════════
+  `CREATE TABLE IF NOT EXISTS documento_assinaturas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    orc_id INTEGER NOT NULL REFERENCES orcamentos(id),
+    tipo_documento TEXT NOT NULL DEFAULT 'contrato',
+    token TEXT UNIQUE NOT NULL,
+    codigo_verificacao TEXT UNIQUE NOT NULL,
+    html_documento TEXT NOT NULL DEFAULT '',
+    hash_documento TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pendente',
+    criado_por INTEGER REFERENCES users(id),
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    concluido_em DATETIME,
+    expira_em DATETIME,
+    cancelado_em DATETIME,
+    cancelado_por INTEGER REFERENCES users(id),
+    motivo_cancelamento TEXT DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS assinatura_signatarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    documento_id INTEGER NOT NULL REFERENCES documento_assinaturas(id) ON DELETE CASCADE,
+    papel TEXT NOT NULL DEFAULT 'contratante',
+    nome TEXT NOT NULL DEFAULT '',
+    cpf TEXT NOT NULL DEFAULT '',
+    email TEXT DEFAULT '',
+    telefone TEXT DEFAULT '',
+    token TEXT UNIQUE NOT NULL,
+    ordem INTEGER DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pendente',
+    assinado_em DATETIME,
+    ip_assinatura TEXT DEFAULT '',
+    user_agent TEXT DEFAULT '',
+    dispositivo TEXT DEFAULT '',
+    navegador TEXT DEFAULT '',
+    os_name TEXT DEFAULT '',
+    cidade TEXT DEFAULT '',
+    estado TEXT DEFAULT '',
+    pais TEXT DEFAULT '',
+    lat REAL,
+    lon REAL,
+    assinatura_img TEXT DEFAULT '',
+    hash_assinatura TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ═══════════════════════════════════════════════════════
+  // MÓDULO DE COMPRAS — Fornecedores, NF XML, Ordens de Compra
+  // ═══════════════════════════════════════════════════════
+  `CREATE TABLE IF NOT EXISTS fornecedores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    cnpj TEXT DEFAULT '',
+    telefone TEXT DEFAULT '',
+    email TEXT DEFAULT '',
+    endereco TEXT DEFAULT '',
+    cidade TEXT DEFAULT '',
+    estado TEXT DEFAULT '',
+    contato TEXT DEFAULT '',
+    obs TEXT DEFAULT '',
+    ativo INTEGER DEFAULT 1,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS nf_entrada (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fornecedor_id INTEGER REFERENCES fornecedores(id),
+    numero_nf TEXT NOT NULL DEFAULT '',
+    serie TEXT DEFAULT '',
+    chave_acesso TEXT DEFAULT '',
+    data_emissao DATE,
+    data_entrada DATE DEFAULT CURRENT_DATE,
+    valor_total REAL DEFAULT 0,
+    valor_frete REAL DEFAULT 0,
+    valor_desconto REAL DEFAULT 0,
+    cfop TEXT DEFAULT '',
+    xml_raw TEXT DEFAULT '',
+    projeto_id INTEGER REFERENCES projetos(id),
+    orc_id INTEGER REFERENCES orcamentos(id),
+    status TEXT DEFAULT 'pendente',
+    processado INTEGER DEFAULT 0,
+    criado_por INTEGER REFERENCES users(id),
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS nf_entrada_itens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nf_id INTEGER NOT NULL REFERENCES nf_entrada(id) ON DELETE CASCADE,
+    codigo_produto TEXT DEFAULT '',
+    descricao TEXT NOT NULL DEFAULT '',
+    ncm TEXT DEFAULT '',
+    cfop TEXT DEFAULT '',
+    unidade TEXT DEFAULT 'UN',
+    quantidade REAL DEFAULT 0,
+    valor_unitario REAL DEFAULT 0,
+    valor_total REAL DEFAULT 0,
+    biblioteca_id INTEGER REFERENCES biblioteca(id),
+    vinculado INTEGER DEFAULT 0,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS ordens_compra (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fornecedor_id INTEGER REFERENCES fornecedores(id),
+    projeto_id INTEGER REFERENCES projetos(id),
+    orc_id INTEGER REFERENCES orcamentos(id),
+    numero TEXT DEFAULT '',
+    status TEXT DEFAULT 'rascunho',
+    valor_total REAL DEFAULT 0,
+    data_necessidade DATE,
+    obs TEXT DEFAULT '',
+    criado_por INTEGER REFERENCES users(id),
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS ordens_compra_itens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ordem_id INTEGER NOT NULL REFERENCES ordens_compra(id) ON DELETE CASCADE,
+    biblioteca_id INTEGER REFERENCES biblioteca(id),
+    descricao TEXT NOT NULL DEFAULT '',
+    quantidade REAL DEFAULT 0,
+    unidade TEXT DEFAULT 'UN',
+    valor_unitario REAL DEFAULT 0,
+    valor_total REAL DEFAULT 0,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // ═══════════════════════════════════════════════════════
+  // PRODUÇÃO AVANÇADA — Apontamento QR, Capacidade, Qualidade
+  // ═══════════════════════════════════════════════════════
+  `CREATE TABLE IF NOT EXISTS producao_apontamentos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projeto_id INTEGER NOT NULL REFERENCES projetos(id),
+    orc_id INTEGER REFERENCES orcamentos(id),
+    modulo_id TEXT DEFAULT '',
+    modulo_nome TEXT DEFAULT '',
+    etapa TEXT NOT NULL DEFAULT 'corte',
+    colaborador_id INTEGER REFERENCES colaboradores(id),
+    inicio DATETIME,
+    fim DATETIME,
+    duracao_min REAL DEFAULT 0,
+    obs TEXT DEFAULT '',
+    qr_token TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS producao_qualidade (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projeto_id INTEGER NOT NULL REFERENCES projetos(id),
+    modulo_id TEXT DEFAULT '',
+    modulo_nome TEXT DEFAULT '',
+    checklist_json TEXT DEFAULT '[]',
+    aprovado INTEGER DEFAULT 0,
+    obs TEXT DEFAULT '',
+    fotos_json TEXT DEFAULT '[]',
+    conferido_por INTEGER REFERENCES users(id),
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // ═══════════════════════════════════════════════════════
+  // LOGÍSTICA — Entregas, Agendamento, Instalação
+  // ═══════════════════════════════════════════════════════
+  `CREATE TABLE IF NOT EXISTS entregas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projeto_id INTEGER NOT NULL REFERENCES projetos(id),
+    data_agendada DATE,
+    turno TEXT DEFAULT 'manha',
+    endereco TEXT DEFAULT '',
+    motorista TEXT DEFAULT '',
+    veiculo TEXT DEFAULT '',
+    status TEXT DEFAULT 'agendada',
+    checkin_hora DATETIME,
+    checkout_hora DATETIME,
+    checkin_lat REAL, checkin_lon REAL,
+    obs TEXT DEFAULT '',
+    criado_por INTEGER REFERENCES users(id),
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS instalacoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projeto_id INTEGER NOT NULL REFERENCES projetos(id),
+    entrega_id INTEGER REFERENCES entregas(id),
+    montador_id INTEGER REFERENCES colaboradores(id),
+    data_agendada DATE,
+    data_inicio DATETIME,
+    data_fim DATETIME,
+    status TEXT DEFAULT 'agendada',
+    horas_reais REAL DEFAULT 0,
+    ocorrencias_json TEXT DEFAULT '[]',
+    fotos_json TEXT DEFAULT '[]',
+    avaliacao_cliente INTEGER DEFAULT 0,
+    obs TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // ═══════════════════════════════════════════════════════
+  // COMPLIANCE — Audit Trail, LGPD
+  // ═══════════════════════════════════════════════════════
+  `CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    user_nome TEXT DEFAULT '',
+    acao TEXT NOT NULL,
+    entidade TEXT NOT NULL,
+    entidade_id INTEGER,
+    dados_antes TEXT DEFAULT '',
+    dados_depois TEXT DEFAULT '',
+    ip TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // ═══════════════════════════════════════════════════════
+  // MARKETING — NPS, Indicações
+  // ═══════════════════════════════════════════════════════
+  `CREATE TABLE IF NOT EXISTS pesquisa_nps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projeto_id INTEGER REFERENCES projetos(id),
+    cliente_id INTEGER REFERENCES clientes(id),
+    nota INTEGER DEFAULT 0,
+    comentario TEXT DEFAULT '',
+    token TEXT UNIQUE,
+    respondido INTEGER DEFAULT 0,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    respondido_em DATETIME
+  )`,
+  `CREATE TABLE IF NOT EXISTS indicacoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cliente_origem_id INTEGER REFERENCES clientes(id),
+    nome_indicado TEXT DEFAULT '',
+    telefone_indicado TEXT DEFAULT '',
+    email_indicado TEXT DEFAULT '',
+    status TEXT DEFAULT 'pendente',
+    convertido_cliente_id INTEGER REFERENCES clientes(id),
+    recompensa TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // ═══════════════════════════════════════════════════════
+  // GESTÃO DE PESSOAS — Ponto, Férias
+  // ═══════════════════════════════════════════════════════
+  `CREATE TABLE IF NOT EXISTS controle_ponto (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    colaborador_id INTEGER NOT NULL REFERENCES colaboradores(id),
+    data DATE NOT NULL,
+    entrada DATETIME,
+    saida_almoco DATETIME,
+    retorno_almoco DATETIME,
+    saida DATETIME,
+    horas_trabalhadas REAL DEFAULT 0,
+    horas_extras REAL DEFAULT 0,
+    lat REAL, lon REAL,
+    obs TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS ferias_afastamentos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    colaborador_id INTEGER NOT NULL REFERENCES colaboradores(id),
+    tipo TEXT DEFAULT 'ferias',
+    data_inicio DATE NOT NULL,
+    data_fim DATE NOT NULL,
+    dias INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'aprovado',
+    obs TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // ═══════════════════════════════════════════════════════
+  // MANUTENÇÃO PREVENTIVA — Máquinas
+  // ═══════════════════════════════════════════════════════
+  `CREATE TABLE IF NOT EXISTS manutencao_maquinas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    maquina_nome TEXT NOT NULL DEFAULT '',
+    tipo TEXT DEFAULT 'preventiva',
+    descricao TEXT DEFAULT '',
+    data_realizada DATE,
+    data_proxima DATE,
+    custo REAL DEFAULT 0,
+    responsavel TEXT DEFAULT '',
+    horas_uso REAL DEFAULT 0,
+    obs TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
@@ -1202,6 +1539,40 @@ const indexes = [
   "CREATE INDEX IF NOT EXISTS idx_contas_pagar_deletado ON contas_pagar(deletado)",
   "CREATE INDEX IF NOT EXISTS idx_contas_receber_deletado ON contas_receber(deletado)",
   "CREATE INDEX IF NOT EXISTS idx_despesas_deletado ON despesas_projeto(deletado)",
+  // Custo Real
+  "CREATE INDEX IF NOT EXISTS idx_custo_real_projeto ON custo_real_projeto(projeto_id)",
+  "CREATE INDEX IF NOT EXISTS idx_custo_real_orc ON custo_real_projeto(orc_id)",
+  // Assinatura Eletrônica
+  "CREATE INDEX IF NOT EXISTS idx_doc_assinaturas_orc ON documento_assinaturas(orc_id)",
+  "CREATE INDEX IF NOT EXISTS idx_doc_assinaturas_token ON documento_assinaturas(token)",
+  "CREATE INDEX IF NOT EXISTS idx_doc_assinaturas_codigo ON documento_assinaturas(codigo_verificacao)",
+  "CREATE INDEX IF NOT EXISTS idx_assinatura_sig_doc ON assinatura_signatarios(documento_id)",
+  "CREATE INDEX IF NOT EXISTS idx_assinatura_sig_token ON assinatura_signatarios(token)",
+  // Compras
+  "CREATE INDEX IF NOT EXISTS idx_fornecedores_cnpj ON fornecedores(cnpj)",
+  "CREATE INDEX IF NOT EXISTS idx_nf_entrada_fornecedor ON nf_entrada(fornecedor_id)",
+  "CREATE INDEX IF NOT EXISTS idx_nf_entrada_projeto ON nf_entrada(projeto_id)",
+  "CREATE INDEX IF NOT EXISTS idx_nf_entrada_chave ON nf_entrada(chave_acesso)",
+  "CREATE INDEX IF NOT EXISTS idx_nf_itens_nf ON nf_entrada_itens(nf_id)",
+  "CREATE INDEX IF NOT EXISTS idx_ordens_compra_fornecedor ON ordens_compra(fornecedor_id)",
+  "CREATE INDEX IF NOT EXISTS idx_ordens_compra_projeto ON ordens_compra(projeto_id)",
+  // Produção
+  "CREATE INDEX IF NOT EXISTS idx_producao_apontamentos_projeto ON producao_apontamentos(projeto_id)",
+  "CREATE INDEX IF NOT EXISTS idx_producao_apontamentos_etapa ON producao_apontamentos(etapa)",
+  "CREATE INDEX IF NOT EXISTS idx_producao_qualidade_projeto ON producao_qualidade(projeto_id)",
+  // Logística
+  "CREATE INDEX IF NOT EXISTS idx_entregas_projeto ON entregas(projeto_id)",
+  "CREATE INDEX IF NOT EXISTS idx_entregas_data ON entregas(data_agendada)",
+  "CREATE INDEX IF NOT EXISTS idx_instalacoes_projeto ON instalacoes(projeto_id)",
+  // Compliance
+  "CREATE INDEX IF NOT EXISTS idx_audit_log_entidade ON audit_log(entidade, entidade_id)",
+  "CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id, criado_em)",
+  // Pessoas
+  "CREATE INDEX IF NOT EXISTS idx_controle_ponto_colab ON controle_ponto(colaborador_id, data)",
+  "CREATE INDEX IF NOT EXISTS idx_ferias_colab ON ferias_afastamentos(colaborador_id)",
+  // NPS
+  "CREATE INDEX IF NOT EXISTS idx_nps_projeto ON pesquisa_nps(projeto_id)",
+  "CREATE INDEX IF NOT EXISTS idx_nps_token ON pesquisa_nps(token)",
 ];
 for (const sql of indexes) {
   try { db.exec(sql); } catch (_) { }
