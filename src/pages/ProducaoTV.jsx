@@ -325,13 +325,19 @@ function CapacityCard({ capacidade }) {
     );
 }
 
+const CAROUSEL_INTERVAL = 15000; // 15s per view
+const CAROUSEL_VIEWS = ['painel', 'projetos', 'capacidade'];
+
 export default function ProducaoTV() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [refreshIn, setRefreshIn] = useState(REFRESH_INTERVAL / 1000);
     const [logo, setLogo] = useState(null);
+    const [carouselActive, setCarouselActive] = useState(false);
+    const [carouselView, setCarouselView] = useState(0);
     const timerRef = useRef(null);
+    const carouselRef = useRef(null);
 
     const fetchData = async () => {
         try {
@@ -385,6 +391,18 @@ export default function ProducaoTV() {
         }, 1000);
         return () => clearInterval(countdown);
     }, []);
+
+    // Carousel auto-rotation
+    useEffect(() => {
+        if (!carouselActive) {
+            if (carouselRef.current) clearInterval(carouselRef.current);
+            return;
+        }
+        carouselRef.current = setInterval(() => {
+            setCarouselView(v => (v + 1) % CAROUSEL_VIEWS.length);
+        }, CAROUSEL_INTERVAL);
+        return () => clearInterval(carouselRef.current);
+    }, [carouselActive]);
 
     const projetos = data?.projetos || [];
     const capacidade = data?.capacidade || null;
@@ -453,6 +471,32 @@ export default function ProducaoTV() {
                             {error}
                         </div>
                     )}
+                    {/* Carousel toggle */}
+                    <button
+                        onClick={() => { setCarouselActive(c => !c); setCarouselView(0); }}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            padding: '6px 16px', borderRadius: 8, border: 'none',
+                            background: carouselActive ? `${COLORS.green}30` : `${COLORS.textDim}30`,
+                            color: carouselActive ? COLORS.green : COLORS.textMuted,
+                            cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                            transition: 'all 0.3s',
+                        }}
+                    >
+                        <ArrowRight size={14} style={{ transform: carouselActive ? 'rotate(0deg)' : 'rotate(90deg)', transition: 'transform 0.3s' }} />
+                        Carrossel {carouselActive ? 'ON' : 'OFF'}
+                    </button>
+                    {carouselActive && (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                            {CAROUSEL_VIEWS.map((v, i) => (
+                                <div key={v} style={{
+                                    width: 8, height: 8, borderRadius: '50%',
+                                    background: i === carouselView ? COLORS.blue : COLORS.textDim,
+                                    transition: 'background 0.3s',
+                                }} />
+                            ))}
+                        </div>
+                    )}
                     <div style={{
                         display: 'flex', alignItems: 'center', gap: 6,
                         fontSize: 13, color: COLORS.textDim,
@@ -465,79 +509,79 @@ export default function ProducaoTV() {
             </div>
 
             {/* Content */}
-            <div style={{
-                flex: 1, padding: '20px 32px', overflow: 'hidden',
-                display: 'grid',
-                gridTemplateColumns: '1fr 360px',
-                gridTemplateRows: 'auto 1fr',
-                gap: 20,
-            }}>
-                {/* Stats row spanning full width */}
-                <div style={{
-                    gridColumn: '1 / -1',
-                    display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16,
-                }}>
-                    <StatCard
-                        icon={Package}
-                        label="Projetos Ativos"
-                        value={resumo.projetos_ativos ?? totalProjetos}
-                        sub={`${projetosNoPrazo} no prazo`}
-                        color={COLORS.blue}
-                    />
-                    <StatCard
-                        icon={AlertTriangle}
-                        label="Atrasados"
-                        value={resumo.projetos_atrasados ?? projetosAtrasados}
-                        sub="requerem atenção"
-                        color={COLORS.red}
-                    />
-                    <StatCard
-                        icon={CheckCircle2}
-                        label="Modulos Prontos"
-                        value={`${resumo.modulos_concluidos ?? modulosConcluidosGeral}/${resumo.modulos_total ?? modulosTotalGeral}`}
-                        sub={modulosTotalGeral > 0 ? `${Math.round((modulosConcluidosGeral / modulosTotalGeral) * 100)}% concluido` : ''}
-                        color={COLORS.green}
-                    />
-                    <StatCard
-                        icon={TrendingUp}
-                        label="Produtividade"
-                        value={resumo.produtividade ? `${resumo.produtividade}%` : '--'}
-                        sub={resumo.produtividade_label || 'esta semana'}
-                        color={COLORS.purple}
-                    />
-                </div>
-
-                {/* Projects list */}
-                <div style={{
-                    overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 12,
-                    paddingRight: 8,
-                    scrollbarWidth: 'thin',
-                    scrollbarColor: `${COLORS.cardBorder} transparent`,
-                }}>
-                    {projetos.length === 0 ? (
-                        <div style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            height: '100%', flexDirection: 'column', gap: 12,
-                        }}>
-                            <Package size={48} color={COLORS.textDim} />
-                            <span style={{ fontSize: 18, color: COLORS.textDim }}>
-                                Nenhum projeto em producao
-                            </span>
+            <div style={{ flex: 1, padding: '20px 32px', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* View: Painel (default / carousel[0]) */}
+                {(!carouselActive || CAROUSEL_VIEWS[carouselView] === 'painel') && !carouselActive && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gridTemplateRows: 'auto 1fr', gap: 20, flex: 1, overflow: 'hidden' }}>
+                        <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+                            <StatCard icon={Package} label="Projetos Ativos" value={resumo.projetos_ativos ?? totalProjetos} sub={`${projetosNoPrazo} no prazo`} color={COLORS.blue} />
+                            <StatCard icon={AlertTriangle} label="Atrasados" value={resumo.projetos_atrasados ?? projetosAtrasados} sub="requerem atenção" color={COLORS.red} />
+                            <StatCard icon={CheckCircle2} label="Modulos Prontos" value={`${resumo.modulos_concluidos ?? modulosConcluidosGeral}/${resumo.modulos_total ?? modulosTotalGeral}`} sub={modulosTotalGeral > 0 ? `${Math.round((modulosConcluidosGeral / modulosTotalGeral) * 100)}% concluido` : ''} color={COLORS.green} />
+                            <StatCard icon={TrendingUp} label="Produtividade" value={resumo.produtividade ? `${resumo.produtividade}%` : '--'} sub={resumo.produtividade_label || 'esta semana'} color={COLORS.purple} />
                         </div>
-                    ) : (
-                        projetos.map((p, i) => <ProjectCard key={p.id || i} projeto={p} />)
-                    )}
-                </div>
+                        <div style={{ overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 12, paddingRight: 8, scrollbarWidth: 'thin', scrollbarColor: `${COLORS.cardBorder} transparent` }}>
+                            {projetos.length === 0 ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 12 }}>
+                                    <Package size={48} color={COLORS.textDim} />
+                                    <span style={{ fontSize: 18, color: COLORS.textDim }}>Nenhum projeto em producao</span>
+                                </div>
+                            ) : projetos.map((p, i) => <ProjectCard key={p.id || i} projeto={p} />)}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, overflow: 'auto', scrollbarWidth: 'thin', scrollbarColor: `${COLORS.cardBorder} transparent` }}>
+                            <CapacityCard capacidade={capacidade} />
+                            <BottleneckCard gargalos={gargalos} />
+                        </div>
+                    </div>
+                )}
 
-                {/* Right sidebar: Capacity + Bottlenecks */}
-                <div style={{
-                    display: 'flex', flexDirection: 'column', gap: 16, overflow: 'auto',
-                    scrollbarWidth: 'thin',
-                    scrollbarColor: `${COLORS.cardBorder} transparent`,
-                }}>
-                    <CapacityCard capacidade={capacidade} />
-                    <BottleneckCard gargalos={gargalos} />
-                </div>
+                {/* Carousel: Stats overview */}
+                {carouselActive && CAROUSEL_VIEWS[carouselView] === 'painel' && (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 24, justifyContent: 'center' }}>
+                        <div style={{ textAlign: 'center', marginBottom: 8 }}>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 2 }}>Resumo Geral</div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24 }}>
+                            <StatCard icon={Package} label="Projetos Ativos" value={resumo.projetos_ativos ?? totalProjetos} sub={`${projetosNoPrazo} no prazo`} color={COLORS.blue} />
+                            <StatCard icon={AlertTriangle} label="Atrasados" value={resumo.projetos_atrasados ?? projetosAtrasados} sub="requerem atenção" color={COLORS.red} />
+                            <StatCard icon={CheckCircle2} label="Modulos Prontos" value={`${resumo.modulos_concluidos ?? modulosConcluidosGeral}/${resumo.modulos_total ?? modulosTotalGeral}`} sub={modulosTotalGeral > 0 ? `${Math.round((modulosConcluidosGeral / modulosTotalGeral) * 100)}% concluido` : ''} color={COLORS.green} />
+                            <StatCard icon={TrendingUp} label="Produtividade" value={resumo.produtividade ? `${resumo.produtividade}%` : '--'} sub={resumo.produtividade_label || 'esta semana'} color={COLORS.purple} />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                            <CapacityCard capacidade={capacidade} />
+                            <BottleneckCard gargalos={gargalos} />
+                        </div>
+                    </div>
+                )}
+
+                {/* Carousel: Projects detail */}
+                {carouselActive && CAROUSEL_VIEWS[carouselView] === 'projetos' && (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
+                        <div style={{ textAlign: 'center', marginBottom: 8 }}>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 2 }}>Projetos em Produção</div>
+                        </div>
+                        <div style={{ flex: 1, overflow: 'auto', display: 'grid', gridTemplateColumns: projetos.length > 4 ? 'repeat(2, 1fr)' : '1fr', gap: 16 }}>
+                            {projetos.length === 0 ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 12, gridColumn: '1 / -1' }}>
+                                    <Package size={64} color={COLORS.textDim} />
+                                    <span style={{ fontSize: 22, color: COLORS.textDim }}>Nenhum projeto em producao</span>
+                                </div>
+                            ) : projetos.map((p, i) => <ProjectCard key={p.id || i} projeto={p} />)}
+                        </div>
+                    </div>
+                )}
+
+                {/* Carousel: Capacity & Bottlenecks */}
+                {carouselActive && CAROUSEL_VIEWS[carouselView] === 'capacidade' && (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
+                        <div style={{ textAlign: 'center', marginBottom: 8 }}>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 2 }}>Capacidade & Gargalos</div>
+                        </div>
+                        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, overflow: 'auto' }}>
+                            <CapacityCard capacidade={capacidade} />
+                            <BottleneckCard gargalos={gargalos} />
+                        </div>
+                    </div>
+                )}
             </div>
 
             <CountdownBar refreshIn={refreshIn} total={REFRESH_INTERVAL / 1000} />

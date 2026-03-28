@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { useAuth } from './auth';
 import api from './api';
-import { Ic, Z } from './ui';
+import { Ic, Z, Skeleton } from './ui';
 import { applyPrimaryColor } from './theme';
-import { AlertTriangle, Clock, CheckCircle2, Folder, BarChart2, AlertCircle, DollarSign, Calendar, Bell, MessageCircle, Camera, Gift, FileText, ClipboardList, Eye, Search, RefreshCw, Share2, Printer, ChevronDown } from 'lucide-react';
+import { AlertTriangle, Clock, CheckCircle2, Folder, BarChart2, AlertCircle, DollarSign, Calendar, Bell, MessageCircle, Camera, Gift, FileText, ClipboardList, Eye, Search, RefreshCw, Share2, Printer, ChevronDown, LayoutDashboard, Users as UsersIcon, FileSpreadsheet, Wallet, FolderKanban, Settings } from 'lucide-react';
 import LoginPage from './pages/Login';
 import Dash from './pages/Dash';
 
-// ── Code splitting: lazy load de páginas pesadas ──────────────────────────
+// ── Code splitting: lazy load de paginas pesadas ──────────────────────────
 const Cli = lazy(() => import('./pages/Cli'));
 const Cat = lazy(() => import('./pages/Cat'));
 const Orcs = lazy(() => import('./pages/Orcs'));
@@ -30,14 +30,43 @@ const Expedicao = lazy(() => import('./pages/Expedicao'));
 const Compras = lazy(() => import('./pages/Compras'));
 const GestaoAvancada = lazy(() => import('./pages/GestaoAvancada'));
 const ProducaoTV = lazy(() => import('./pages/ProducaoTV'));
+const Produtividade = lazy(() => import('./pages/Produtividade'));
 
+// ── Skeleton Fallback ──────────────────────────────────────────
 const LazyFallback = () => (
-    <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--primary)' }} />
+    <div className="p-6 max-w-7xl mx-auto">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+            <Skeleton width={42} height={42} rounded />
+            <div>
+                <Skeleton width={180} height={20} />
+                <div style={{ height: 6 }} />
+                <Skeleton width={120} height={14} />
+            </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
+            {[1,2,3,4].map(i => (
+                <div key={i} className="glass-card p-5">
+                    <Skeleton width={80} height={12} />
+                    <div style={{ height: 12 }} />
+                    <Skeleton width={120} height={28} />
+                    <div style={{ height: 8 }} />
+                    <Skeleton width={60} height={12} />
+                </div>
+            ))}
+        </div>
+        <div className="glass-card p-5">
+            <Skeleton width={200} height={16} />
+            <div style={{ height: 16 }} />
+            {[1,2,3].map(i => (
+                <div key={i} style={{ marginBottom: 12 }}>
+                    <Skeleton width="100%" height={14} />
+                </div>
+            ))}
+        </div>
     </div>
 );
 
-// ── Error Boundary — captura erros React sem travar a tela inteira ──────────
+// ── Error Boundary ──────────────────────────────────────────
 import { Component } from 'react';
 class ErrorBoundary extends Component {
     constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -47,12 +76,12 @@ class ErrorBoundary extends Component {
         if (this.state.hasError) {
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, gap: 16, padding: 40 }}>
-                    <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(220,38,38,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="empty-state-icon">
                         <AlertTriangle size={28} style={{ color: 'var(--danger)' }} />
                     </div>
                     <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>Algo deu errado</h3>
                     <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', maxWidth: 400 }}>
-                        Ocorreu um erro inesperado nesta seção. Tente recarregar a página.
+                        Ocorreu um erro inesperado nesta secao. Tente recarregar a pagina.
                     </p>
                     <button
                         onClick={() => { this.setState({ hasError: false, error: null }); }}
@@ -63,7 +92,7 @@ class ErrorBoundary extends Component {
                     </button>
                     {this.state.error && (
                         <details style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 500, wordBreak: 'break-all' }}>
-                            <summary style={{ cursor: 'pointer' }}>Detalhes técnicos</summary>
+                            <summary style={{ cursor: 'pointer' }}>Detalhes tecnicos</summary>
                             <pre style={{ marginTop: 8, padding: 12, background: 'var(--bg-muted)', borderRadius: 8, overflow: 'auto', maxHeight: 120 }}>
                                 {this.state.error.message}
                             </pre>
@@ -79,27 +108,25 @@ class ErrorBoundary extends Component {
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
     // ── Roteamento com History API ──────────────────────────────────────────
-    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv'];
+    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade'];
     const [pg, setPg] = useState(() => {
         const rawPath = window.location.pathname.replace(/^\/+/, '');
-        // Suporta /novo/123 (orçamento com ID)
         const parts = rawPath.split('/');
         const pathPage = parts[0] || '';
         if (pathPage && VALID_PAGES.includes(pathPage)) {
             localStorage.setItem('erp_page', pathPage);
             return pathPage;
         }
-        // Se URL é / (raiz), usa localStorage como fallback
         return localStorage.getItem('erp_page') || 'dash';
     });
     const [sb, setSb] = useState(true);
+    const [sidebarHover, setSidebarHover] = useState(false);
     const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
     const [notif, setNotif] = useState(null);
     const [clis, setClis] = useState([]);
     const [orcs, setOrcs] = useState([]);
     const [taxas, setTaxas] = useState({ imp: 8, com: 10, mont: 12, lucro: 20, frete: 2, mdo: 350, inst: 180 });
     const [editOrc, setEditOrc] = useState(() => {
-        // Restaurar editOrc da URL ao dar F5 (ex: /novo/123)
         const rawPath = window.location.pathname.replace(/^\/+/, '');
         const parts = rawPath.split('/');
         if (parts[0] === 'novo' && parts[1]) {
@@ -123,8 +150,9 @@ export default function App() {
     const [openProjectId, setOpenProjectId] = useState(null);
     const buscaRef = useRef(null);
     const buscaTimer = useRef(null);
+    const [pageKey, setPageKey] = useState(0); // for page transitions
 
-    // Estado de colapso dos grupos do menu (salvo em localStorage)
+    // Estado de colapso dos grupos do menu
     const [collapsed, setCollapsed] = useState(() => {
         try { return JSON.parse(localStorage.getItem('menu_collapsed') || '{}'); } catch { return {}; }
     });
@@ -134,11 +162,48 @@ export default function App() {
         const onResize = () => {
             const mobile = window.innerWidth < 768;
             setIsMobile(mobile);
-            if (!mobile) setMobileOpen(false); // fechar overlay ao sair de mobile
+            if (!mobile) setMobileOpen(false);
         };
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
     }, []);
+
+    // Swipe gesture: arrastar da borda esquerda abre menu, arrastar pra esquerda fecha
+    useEffect(() => {
+        if (!isMobile) return;
+        let startX = 0, startY = 0, tracking = false;
+        const EDGE = 28;       // zona de borda (px) para iniciar swipe
+        const THRESHOLD = 60;  // distância mínima para disparar
+
+        const onStart = (e) => {
+            const t = e.touches[0];
+            startX = t.clientX;
+            startY = t.clientY;
+            // Iniciar tracking se: swipe da borda esquerda (para abrir) ou menu já aberto (para fechar)
+            tracking = startX < EDGE || mobileOpen;
+        };
+        const onEnd = (e) => {
+            if (!tracking) return;
+            tracking = false;
+            const t = e.changedTouches[0];
+            const dx = t.clientX - startX;
+            const dy = Math.abs(t.clientY - startY);
+            // Ignorar se scroll vertical é maior que horizontal
+            if (dy > Math.abs(dx)) return;
+            if (!mobileOpen && startX < EDGE && dx > THRESHOLD) {
+                setMobileOpen(true);   // swipe pra direita na borda → abrir
+            } else if (mobileOpen && dx < -THRESHOLD) {
+                setMobileOpen(false);  // swipe pra esquerda → fechar
+            }
+        };
+
+        document.addEventListener('touchstart', onStart, { passive: true });
+        document.addEventListener('touchend', onEnd, { passive: true });
+        return () => {
+            document.removeEventListener('touchstart', onStart);
+            document.removeEventListener('touchend', onEnd);
+        };
+    }, [isMobile, mobileOpen]);
 
     useEffect(() => {
         document.documentElement.classList.toggle('dark', dark);
@@ -147,11 +212,11 @@ export default function App() {
 
     const notify = (m) => { setNotif(m); setTimeout(() => setNotif(null), 3500); };
 
-    const loadClis = useCallback(() => { if (user) api.get('/clientes').then(setClis).catch(() => { /* polling silencioso */ }); }, [user]);
-    const loadOrcs = useCallback(() => { if (user) api.get('/orcamentos').then(setOrcs).catch(() => { /* polling silencioso */ }); }, [user]);
-    const loadTaxas = useCallback(() => { if (user) api.get('/config').then(setTaxas).catch(() => { /* polling silencioso */ }); }, [user]);
-    const loadNotifs = useCallback(() => { if (user) api.get('/notificacoes').then(setNotifs).catch(() => { /* polling silencioso */ }); }, [user]);
-    const loadWaUnread = useCallback(() => { if (user) api.get('/whatsapp/nao-lidas').then(d => setWaUnread(d.total)).catch(() => { /* polling silencioso */ }); }, [user]);
+    const loadClis = useCallback(() => { if (user) api.get('/clientes').then(setClis).catch(() => {}); }, [user]);
+    const loadOrcs = useCallback(() => { if (user) api.get('/orcamentos').then(setOrcs).catch(() => {}); }, [user]);
+    const loadTaxas = useCallback(() => { if (user) api.get('/config').then(setTaxas).catch(() => {}); }, [user]);
+    const loadNotifs = useCallback(() => { if (user) api.get('/notificacoes').then(setNotifs).catch(() => {}); }, [user]);
+    const loadWaUnread = useCallback(() => { if (user) api.get('/whatsapp/nao-lidas').then(d => setWaUnread(d.total)).catch(() => {}); }, [user]);
     const loadEmpresa = useCallback(() => {
         if (user) api.get('/config/empresa').then(d => {
             const ls = d.logo_sistema || '';
@@ -160,14 +225,12 @@ export default function App() {
             setEmpNome(nm);
             localStorage.setItem('logo_sistema', ls);
             localStorage.setItem('emp_nome', nm);
-            // White-label: aplicar cor primária do sistema
             if (d.sistema_cor_primaria) applyPrimaryColor(d.sistema_cor_primaria);
-        }).catch(() => { /* polling silencioso */ });
+        }).catch(() => {});
     }, [user]);
 
     useEffect(() => { loadClis(); loadOrcs(); loadTaxas(); loadNotifs(); loadWaUnread(); loadEmpresa(); }, [loadClis, loadOrcs, loadTaxas, loadNotifs, loadWaUnread, loadEmpresa]);
 
-    // Atualizar notificações a cada 15s e WhatsApp a cada 15s
     useEffect(() => {
         if (!user) return;
         const i1 = setInterval(loadNotifs, 15000);
@@ -175,7 +238,6 @@ export default function App() {
         return () => { clearInterval(i1); clearInterval(i2); };
     }, [user, loadNotifs, loadWaUnread]);
 
-    // Fechar popup de notificações ao clicar fora
     useEffect(() => {
         const handleClick = (e) => {
             if (notifsRef.current && !notifsRef.current.contains(e.target)) setShowNotifs(false);
@@ -193,14 +255,14 @@ export default function App() {
             api.get(`/dashboard/busca?q=${encodeURIComponent(buscaQuery)}`).then(r => {
                 setBuscaResults(r);
                 setBuscaOpen(true);
-            }).catch(() => { /* busca silenciosa */ });
+            }).catch(() => {});
         }, 300);
         return () => clearTimeout(buscaTimer.current);
     }, [buscaQuery]);
 
-    // Marcar UMA notificação como lida
+    // Marcar UMA notificacao como lida
     const markNotifRead = (id) => {
-        api.put(`/notificacoes/${id}/lida`).catch(() => { /* polling silencioso */ });
+        api.put(`/notificacoes/${id}/lida`).catch(() => {});
         setNotifs(prev => ({
             ...prev,
             notificacoes: prev.notificacoes.map(n => n.id === id ? { ...n, lida: 1 } : n),
@@ -208,9 +270,8 @@ export default function App() {
         }));
     };
 
-    // Marcar TODAS como lidas
     const markAllRead = () => {
-        api.put('/notificacoes/lidas').catch(() => { /* polling silencioso */ });
+        api.put('/notificacoes/lidas').catch(() => {});
         setNotifs(prev => ({
             ...prev,
             notificacoes: prev.notificacoes.map(n => ({ ...n, lida: 1 })),
@@ -218,7 +279,6 @@ export default function App() {
         }));
     };
 
-    // Navegar a partir de notificação
     const goToNotif = (n) => {
         if (!n.lida) markNotifRead(n.id);
         setShowNotifs(false);
@@ -230,7 +290,6 @@ export default function App() {
             setOpenProjectId(n.referencia_id);
             nav('proj');
         } else if (n.referencia_tipo === 'orcamento') {
-            // Abrir orçamento direto em edição
             const orc = orcs.find(o => o.id === n.referencia_id);
             if (orc) nav('novo', orc); else nav('orcs');
         } else if (n.referencia_tipo === 'estoque') {
@@ -246,17 +305,15 @@ export default function App() {
         if (p === "novo" && orc !== undefined) setEditOrc(orc);
         else if (p !== "novo") setEditOrc(null);
         setPg(p);
+        setPageKey(k => k + 1); // trigger page transition
         localStorage.setItem('erp_page', p);
-        // Sync URL com History API (inclui ID do orçamento quando editando)
         let url = p === 'dash' ? '/' : `/${p}`;
         if (p === 'novo' && orc?.id) url = `/novo/${orc.id}`;
         window.history.pushState({ page: p, orcId: orc?.id || null }, '', url);
-        if (isMobile) setMobileOpen(false); // fechar sidebar mobile ao navegar
+        if (isMobile) setMobileOpen(false);
     };
 
-    // Botões voltar/avançar do navegador
     useEffect(() => {
-        // Define state inicial na URL atual (sem adicionar ao histórico)
         let initUrl = pg === 'dash' ? '/' : `/${pg}`;
         if (pg === 'novo' && editOrc?.id) initUrl = `/novo/${editOrc.id}`;
         window.history.replaceState({ page: pg, orcId: editOrc?.id || null }, '', initUrl);
@@ -265,6 +322,7 @@ export default function App() {
             const page = e.state?.page || 'dash';
             const orcId = e.state?.orcId;
             setPg(page);
+            setPageKey(k => k + 1);
             localStorage.setItem('erp_page', page);
             if (page === 'novo' && orcId) setEditOrc({ id: orcId });
             else if (page !== 'novo') setEditOrc(null);
@@ -275,37 +333,45 @@ export default function App() {
 
     if (loading) return (
         <div className="flex h-screen items-center justify-center" style={{ background: 'var(--bg-body)' }}>
-            <div className="flex flex-col items-center gap-3">
-                <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }} />
+            <div className="flex flex-col items-center gap-4">
+                <div style={{
+                    width: 48, height: 48, borderRadius: 16,
+                    background: 'var(--primary-gradient)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    animation: 'pulse-glow 2s ease-in-out infinite',
+                }}>
+                    <LayoutDashboard size={24} style={{ color: '#fff' }} />
+                </div>
+                <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }} />
                 <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando...</span>
             </div>
         </div>
     );
     if (!user) return <LoginPage dark={dark} setDark={setDark} logoSistema={logoSistema} empNome={empNome} />;
 
-    // Todos os itens de menu (flat para breadcrumb e busca)
+    // Todos os itens de menu (flat)
     const ALL_MENUS = [
         { id: "dash", lb: "Home", ic: Ic.Dash },
         { id: "cli", lb: "Clientes", ic: Ic.Usr },
         { id: "cat", lb: "Biblioteca", ic: Ic.Box },
-        { id: "catalogo_itens", lb: "Engenharia de Módulos", ic: Ic.Package },
-        { id: "orcs", lb: "Orçamentos", ic: Ic.File },
+        { id: "catalogo_itens", lb: "Engenharia de Modulos", ic: Ic.Package },
+        { id: "orcs", lb: "Orcamentos", ic: Ic.File },
         { id: "kb", lb: "Pipeline CRM", ic: Ic.Kb },
         { id: "proj", lb: "Projetos", ic: Ic.Briefcase },
-        { id: "estoque", lb: "Gestão de Recursos", ic: Ic.Warehouse },
+        { id: "estoque", lb: "Gestao de Recursos", ic: Ic.Warehouse },
         { id: "financeiro", lb: "Financeiro", ic: Ic.Dollar },
         { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
-        { id: "relatorios", lb: "Relatórios", ic: Ic.PieChart },
-        { id: "industrializacao", lb: "Ordens de Produção", ic: Ic.ClipList },
+        { id: "relatorios", lb: "Relatorios", ic: Ic.PieChart },
+        { id: "industrializacao", lb: "Ordens de Producao", ic: Ic.ClipList },
         { id: "cnc", lb: "Corte & CNC", ic: Ic.Scissors },
         { id: "producao_fabrica", lb: "Acompanhamento", ic: Ic.Factory },
-        { id: "expedicao", lb: "Expedição", ic: Ic.Truck },
+        { id: "expedicao", lb: "Expedicao", ic: Ic.Truck },
         { id: "cfg", lb: "Config & Taxas", ic: Ic.Gear },
-        ...(isAdmin ? [{ id: "users", lb: "Usuários", ic: Ic.Users }] : []),
+        ...(isAdmin ? [{ id: "users", lb: "Usuarios", ic: Ic.Users }] : []),
     ];
 
-    // Filtro por permissões
+    // Filtro por permissoes
     const userPerms = (() => { try { return user?.permissions ? JSON.parse(user.permissions) : null; } catch { return null; } })();
     const isVendedor = user?.role === 'vendedor';
     const canSee = (id) => {
@@ -314,22 +380,23 @@ export default function App() {
         return !userPerms || userPerms.length === 0 || userPerms.includes(id);
     };
 
-    // Menu agrupado com categorias colapsáveis
+    // Menu agrupado
     const MENU_GROUPS = [
         { id: 'top', items: [{ id: "dash", lb: "Dashboard", ic: Ic.Dash }] },
         { id: 'projetos_hub', items: [{ id: "proj", lb: "Projetos", ic: Ic.Briefcase }] },
         { id: 'comercial', label: 'Comercial', icon: Ic.Handshake, items: [
             { id: "cli", lb: "Clientes", ic: Ic.Usr },
-            { id: "orcs", lb: "Orçamentos", ic: Ic.File },
+            { id: "orcs", lb: "Orcamentos", ic: Ic.File },
             { id: "kb", lb: "Pipeline CRM", ic: Ic.Kb },
             { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         ]},
-        { id: 'chao_fabrica', label: 'Chão de Fábrica', icon: Ic.Factory, items: [
-            { id: "industrializacao", lb: "Ordens de Produção", ic: Ic.ClipList },
+        { id: 'chao_fabrica', label: 'Chao de Fabrica', icon: Ic.Factory, items: [
+            { id: "industrializacao", lb: "Ordens", ic: Ic.ClipList },
             { id: "cnc", lb: "Corte & CNC", ic: Ic.Scissors },
             { id: "producao_fabrica", lb: "Acompanhamento", ic: Ic.HardHat },
-            { id: "producao_tv", lb: "TV Fábrica", ic: Ic.Monitor },
-            { id: "expedicao", lb: "Expedição", ic: Ic.Truck },
+            { id: "producao_tv", lb: "TV Fabrica", ic: Ic.Monitor },
+            { id: "expedicao", lb: "Expedicao", ic: Ic.Truck },
+            { id: "produtividade", lb: "Produtividade", ic: Ic.BarChart },
         ]},
         { id: 'cadastros', label: 'Cadastros', icon: Ic.Box, items: [
             { id: "cat", lb: "Materiais", ic: Ic.Box },
@@ -337,16 +404,25 @@ export default function App() {
             { id: "estoque", lb: "Recursos", ic: Ic.Warehouse },
             { id: "compras", lb: "Compras & NF", ic: Ic.ShoppingCart },
         ]},
-        { id: 'gestao', label: 'Gestão', icon: Ic.LineChart, items: [
+        { id: 'gestao', label: 'Gestao', icon: Ic.LineChart, items: [
             { id: "financeiro", lb: "Financeiro", ic: Ic.Dollar },
-            { id: "gestao", lb: "Gestão Avançada", ic: Ic.BarChart },
-            { id: "relatorios", lb: "Relatórios", ic: Ic.PieChart },
+            { id: "gestao", lb: "Gestao Avancada", ic: Ic.BarChart },
+            { id: "relatorios", lb: "Relatorios", ic: Ic.PieChart },
         ]},
         { id: 'sistema', label: 'Sistema', icon: Ic.Cog, items: [
             { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
-            { id: "cfg", lb: "Configurações", ic: Ic.Gear },
-            ...(isAdmin ? [{ id: "users", lb: "Usuários", ic: Ic.Users }] : []),
+            { id: "cfg", lb: "Configuracoes", ic: Ic.Gear },
+            ...(isAdmin ? [{ id: "users", lb: "Usuarios", ic: Ic.Users }] : []),
         ]},
+    ];
+
+    // Mobile bottom nav items (5 main)
+    const MOBILE_NAV = [
+        { id: 'dash', lb: 'Home', ic: LayoutDashboard },
+        { id: 'proj', lb: 'Projetos', ic: FolderKanban },
+        { id: 'orcs', lb: 'Orcamentos', ic: FileSpreadsheet },
+        { id: 'financeiro', lb: 'Financeiro', ic: Wallet },
+        { id: 'more', lb: 'Menu', ic: Settings },
     ];
 
     const toggleGroup = (gid) => {
@@ -354,11 +430,14 @@ export default function App() {
         setCollapsed(next);
         localStorage.setItem('menu_collapsed', JSON.stringify(next));
     };
-    // Auto-expandir grupo do item ativo
+
     const activeGroup = MENU_GROUPS.find(g => g.items.some(m => m.id === pg));
     if (activeGroup && collapsed[activeGroup.id]) {
         collapsed[activeGroup.id] = false;
     }
+
+    // Sidebar expanded state (full or hover)
+    const sidebarExpanded = sb || sidebarHover;
 
     const renderPage = () => {
         switch (pg) {
@@ -379,18 +458,18 @@ export default function App() {
             case "cnc": return <ProducaoCNC notify={notify} />;
             case "cfg": return <Cfg taxas={taxas} reload={loadTaxas} notify={notify} />;
             case "users": return isAdmin ? <Users notify={notify} meUser={user} /> : <Dash nav={nav} notify={notify} />;
-            // ── Novas páginas (Etapa 1) ──
             case "industrializacao": return <Industrializacao notify={notify} nav={nav} />;
             case "producao_fabrica": return <ProducaoFabrica notify={notify} user={user} />;
             case "expedicao": return <Expedicao notify={notify} user={user} />;
             case "compras": return <Compras notify={notify} />;
             case "gestao": return <GestaoAvancada notify={notify} />;
             case "producao_tv": return <ProducaoTV />;
+            case "produtividade": return <Produtividade notify={notify} />;
             default: return <Dash nav={nav} notify={notify} />;
         }
     };
 
-    // Notificação tipo → ícone + cor
+    // Notificacao tipo -> icone + cor
     const NOTIF_STYLE = {
         financeiro_vencido:  { icon: <AlertTriangle size={14} />, color: '#ef4444', bg: '#fef2f2' },
         financeiro_proximo:  { icon: <Clock size={14} />, color: '#f59e0b', bg: '#fffbeb' },
@@ -411,6 +490,8 @@ export default function App() {
         proposta_retorno:    { icon: <RefreshCw size={14} />, color: '#f97316', bg: '#fff7ed' },
         proposta_compartilhada: { icon: <Share2 size={14} />, color: '#8b5cf6', bg: '#f5f3ff' },
         proposta_impressa:   { icon: <Printer size={14} />, color: '#16a34a', bg: '#f0fdf4' },
+        entrega_hoje:        { icon: <Calendar size={14} />, color: '#3b82f6', bg: '#eff6ff' },
+        entrega_atrasada:    { icon: <AlertTriangle size={14} />, color: '#ef4444', bg: '#fef2f2' },
     };
     const getNotifStyle = (tipo) => NOTIF_STYLE[tipo] || { icon: <Bell size={14} />, color: 'var(--primary)', bg: 'var(--bg-hover)' };
     const notifBadgeColor = notifs.nao_lidas > 0
@@ -421,152 +502,254 @@ export default function App() {
         <div className="flex h-screen w-full overflow-hidden" style={{ background: 'var(--bg-body)', color: 'var(--text-primary)' }}>
             {/* Backdrop mobile */}
             {isMobile && mobileOpen && (
-                <div className="fixed inset-0 z-30 bg-black/40 transition-opacity" onClick={() => setMobileOpen(false)} />
+                <div className="fixed inset-0 z-30 transition-opacity modal-overlay" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setMobileOpen(false)} />
             )}
 
-            {/* Sidebar */}
-            <aside className={`
-                ${isMobile
-                    ? `fixed inset-y-0 left-0 z-40 w-56 transform transition-transform duration-200 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`
-                    : `relative z-20 shrink-0 overflow-hidden transition-all duration-200 ${sb ? 'w-56' : 'w-[52px]'}`
-                }
-                flex flex-col
-            `}
-                style={{ background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)' }}>
+            {/* ═══ Sidebar ═══ */}
+            {!isMobile && (
+                <aside
+                    onMouseEnter={() => { if (!sb) setSidebarHover(true); }}
+                    onMouseLeave={() => setSidebarHover(false)}
+                    className="relative z-20 shrink-0 flex flex-col"
+                    style={{
+                        background: 'var(--bg-sidebar)',
+                        borderRight: '1px solid var(--border)',
+                        width: sidebarExpanded ? 'var(--sidebar-width)' : 'var(--sidebar-compact)',
+                        transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                        overflow: 'hidden',
+                    }}>
 
-                {/* Logo */}
-                <div className="flex items-center gap-2.5 px-3 min-h-[52px]" style={{ borderBottom: '1px solid var(--border)' }}>
-                    <button onClick={() => isMobile ? setMobileOpen(false) : setSb(!sb)} className="p-1.5 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
-                        {isMobile && mobileOpen ? <Ic.X /> : <Ic.Menu />}
-                    </button>
-                    {(sb || isMobile) && (
+                    {/* Logo */}
+                    <div className="flex items-center gap-2.5 px-3 min-h-[56px]" style={{ borderBottom: '1px solid var(--border)' }}>
+                        <button onClick={() => setSb(!sb)} className="p-1.5 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
+                            <Ic.Menu />
+                        </button>
+                        {sidebarExpanded && (
+                            <div className="flex items-center overflow-hidden min-w-0 animate-fade-in" style={{ whiteSpace: 'nowrap' }}>
+                                {logoSistema
+                                    ? <img src={logoSistema} alt="Logo" style={{ height: 28, maxWidth: 140, objectFit: 'contain' }} />
+                                    : <span className="font-bold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{empNome}</span>
+                                }
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Nav Items */}
+                    <nav className="flex-1 overflow-y-auto py-2 px-2" style={{ scrollbarWidth: 'thin' }}>
+                        {MENU_GROUPS.map(g => {
+                            const visibleItems = g.items.filter(m => canSee(m.id));
+                            if (visibleItems.length === 0) return null;
+                            const isTop = g.id === 'top';
+                            const isOpen = !collapsed[g.id];
+
+                            const vencidasReceberCount = notifs.notificacoes.filter(n => !n.lida && n.tipo === 'financeiro_vencido').length;
+                            const vencidasPagarCount = notifs.notificacoes.filter(n => !n.lida && n.tipo === 'pagar_vencido').length;
+                            const getBadge = (id) => {
+                                if (id === 'whatsapp' && waUnread > 0) return { num: waUnread, bg: '#22c55e' };
+                                if (id === 'financeiro' && vencidasPagarCount > 0) return { num: vencidasPagarCount, bg: '#ef4444' };
+                                if (id === 'proj' && vencidasReceberCount > 0) return { num: vencidasReceberCount, bg: '#ef4444' };
+                                return null;
+                            };
+
+                            return (
+                                <div key={g.id} style={{ marginBottom: isTop ? 4 : 0 }}>
+                                    {/* Group label */}
+                                    {!isTop && sidebarExpanded && (
+                                        <button onClick={() => toggleGroup(g.id)} style={{
+                                            display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                                            padding: '8px 10px 4px', background: 'none', border: 'none', cursor: 'pointer',
+                                        }}>
+                                            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>
+                                                {g.label}
+                                            </span>
+                                            <ChevronDown size={12} style={{
+                                                color: 'var(--text-muted)', transition: 'transform .2s',
+                                                transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                                            }} />
+                                        </button>
+                                    )}
+                                    {!isTop && !sidebarExpanded && (
+                                        <div style={{ height: 1, background: 'var(--border)', margin: '6px 8px' }} />
+                                    )}
+
+                                    {/* Items */}
+                                    <div style={{
+                                        overflow: 'hidden', transition: 'max-height .25s ease',
+                                        maxHeight: (isTop || isOpen || !sidebarExpanded) ? 500 : 0,
+                                    }}>
+                                        <div className="space-y-0.5" style={{ paddingTop: isTop ? 0 : 2 }}>
+                                            {visibleItems.map(m => {
+                                                const active = pg === m.id;
+                                                const I = m.ic;
+                                                const badge = !active ? getBadge(m.id) : null;
+                                                return (
+                                                    <button key={m.id} onClick={() => nav(m.id)}
+                                                        className={`sidebar-item w-full flex items-center gap-2.5 px-2.5 py-2 cursor-pointer group
+                                                            ${active ? 'sidebar-item-active font-semibold' : ''}`}
+                                                        style={!active ? { color: 'var(--text-secondary)' } : undefined}>
+                                                        <span className="shrink-0 relative" style={{ width: 18, display: 'flex', justifyContent: 'center' }}>
+                                                            <I />
+                                                            {badge && !sidebarExpanded && (
+                                                                <span style={{
+                                                                    position: 'absolute', top: -3, right: -4,
+                                                                    width: 8, height: 8, borderRadius: '50%',
+                                                                    background: badge.bg, border: '2px solid var(--bg-sidebar)',
+                                                                }} />
+                                                            )}
+                                                        </span>
+                                                        {sidebarExpanded && (
+                                                            <span className="text-[13px] flex-1 text-left whitespace-nowrap">{m.lb}</span>
+                                                        )}
+                                                        {sidebarExpanded && badge && (
+                                                            <span className="badge-pulse" style={{
+                                                                fontSize: 10, fontWeight: 700, background: badge.bg, color: '#fff',
+                                                                padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center',
+                                                            }}>{badge.num}</span>
+                                                        )}
+                                                        {/* Tooltip when compact */}
+                                                        {!sidebarExpanded && (
+                                                            <span className="sidebar-tooltip">{m.lb}</span>
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </nav>
+
+                    {/* Footer */}
+                    <div className="px-2 py-2 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
+                        <button onClick={() => setDark(!dark)} className="sidebar-item w-full flex items-center gap-2.5 px-2.5 py-2 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
+                            {dark ? <Ic.Sun /> : <Ic.Moon />}
+                            {sidebarExpanded && <span className="text-xs whitespace-nowrap">{dark ? 'Modo Claro' : 'Modo Escuro'}</span>}
+                            {!sidebarExpanded && <span className="sidebar-tooltip">{dark ? 'Modo Claro' : 'Modo Escuro'}</span>}
+                        </button>
+
+                        {sidebarExpanded ? (
+                            <div className="flex items-center gap-2.5 px-2.5 py-2">
+                                <div onClick={() => setShowPerfil(true)} className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer rounded-lg px-1 py-0.5 transition-colors hover:bg-[var(--bg-hover)]">
+                                    <div className="relative shrink-0">
+                                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--primary-gradient)' }}>
+                                            {user.nome?.[0]?.toUpperCase()}
+                                        </div>
+                                        <span className="status-online" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{user.nome}</div>
+                                        <div className="text-[10px] capitalize" style={{ color: 'var(--text-muted)' }}>{user.role}</div>
+                                    </div>
+                                </div>
+                                <button onClick={logout} className="p-1 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }} title="Sair">
+                                    <Ic.Logout />
+                                </button>
+                            </div>
+                        ) : (
+                            <button onClick={logout} className="sidebar-item w-full flex justify-center p-2 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
+                                <Ic.Logout />
+                                <span className="sidebar-tooltip">Sair</span>
+                            </button>
+                        )}
+                    </div>
+                </aside>
+            )}
+
+            {/* ═══ Mobile Sidebar (overlay) ═══ */}
+            {isMobile && mobileOpen && (
+                <aside className="fixed inset-y-0 left-0 z-40 w-64 flex flex-col animate-slide-left" style={{ background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)' }}>
+                    <div className="flex items-center gap-2.5 px-3 min-h-[56px]" style={{ borderBottom: '1px solid var(--border)' }}>
+                        <button onClick={() => setMobileOpen(false)} className="p-1.5 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
+                            <Ic.X />
+                        </button>
                         <div className="flex items-center overflow-hidden min-w-0">
                             {logoSistema
                                 ? <img src={logoSistema} alt="Logo" style={{ height: 28, maxWidth: 140, objectFit: 'contain' }} />
-                                : <span className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{empNome}</span>
+                                : <span className="font-bold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{empNome}</span>
                             }
                         </div>
-                    )}
-                </div>
-
-                {/* Nav Items — agrupado */}
-                <nav className="flex-1 overflow-y-auto py-2 px-2">
-                    {MENU_GROUPS.map(g => {
-                        const visibleItems = g.items.filter(m => canSee(m.id));
-                        if (visibleItems.length === 0) return null;
-                        const isTop = g.id === 'top';
-                        const isOpen = !collapsed[g.id];
-
-                        // Badge counts para itens
-                        const vencidasReceberCount = notifs.notificacoes.filter(n => !n.lida && n.tipo === 'financeiro_vencido').length;
-                        const vencidasPagarCount = notifs.notificacoes.filter(n => !n.lida && n.tipo === 'pagar_vencido').length;
-                        const getBadge = (id) => {
-                            if (id === 'whatsapp' && waUnread > 0) return { num: waUnread, bg: '#22c55e' };
-                            if (id === 'financeiro' && vencidasPagarCount > 0) return { num: vencidasPagarCount, bg: '#ef4444' };
-                            if (id === 'proj' && vencidasReceberCount > 0) return { num: vencidasReceberCount, bg: '#ef4444' };
-                            return null;
-                        };
-
-                        return (
-                            <div key={g.id} style={{ marginBottom: isTop ? 4 : 0 }}>
-                                {/* Label do grupo */}
-                                {!isTop && (sb || isMobile) && (
-                                    <button onClick={() => toggleGroup(g.id)} style={{
-                                        display: 'flex', alignItems: 'center', gap: 6, width: '100%',
-                                        padding: '8px 10px 4px', background: 'none', border: 'none', cursor: 'pointer',
-                                    }}>
-                                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>
-                                            {g.label}
-                                        </span>
-                                        <ChevronDown size={12} style={{
-                                            color: 'var(--text-muted)', transition: 'transform .2s',
-                                            transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-                                        }} />
-                                    </button>
-                                )}
-                                {!isTop && !(sb || isMobile) && (
-                                    <div style={{ height: 1, background: 'var(--border)', margin: '6px 8px' }} />
-                                )}
-
-                                {/* Itens do grupo */}
-                                <div style={{
-                                    overflow: 'hidden', transition: 'max-height .2s ease',
-                                    maxHeight: (isTop || isOpen || !(sb || isMobile)) ? 500 : 0,
-                                }}>
-                                    <div className="space-y-0.5" style={{ paddingTop: isTop ? 0 : 2 }}>
-                                        {visibleItems.map(m => {
-                                            const active = pg === m.id;
-                                            const I = m.ic;
-                                            const badge = !active ? getBadge(m.id) : null;
-                                            return (
-                                                <button key={m.id} onClick={() => nav(m.id)}
-                                                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-150 cursor-pointer group
-                                                        ${active ? 'font-semibold' : 'hover:bg-[var(--bg-hover)]'}`}
-                                                    style={active ? { background: 'var(--primary)', color: '#fff' } : { color: 'var(--text-secondary)' }}>
-                                                    <span className="shrink-0 relative">
-                                                        <I />
-                                                        {badge && !(sb || isMobile) && (
-                                                            <span style={{
-                                                                position: 'absolute', top: -3, right: -4,
-                                                                width: 8, height: 8, borderRadius: '50%',
-                                                                background: badge.bg, border: '2px solid var(--bg-sidebar)',
-                                                            }} />
-                                                        )}
-                                                    </span>
-                                                    {(sb || isMobile) && (
+                    </div>
+                    <nav className="flex-1 overflow-y-auto py-2 px-2">
+                        {MENU_GROUPS.map(g => {
+                            const visibleItems = g.items.filter(m => canSee(m.id));
+                            if (visibleItems.length === 0) return null;
+                            const isTop = g.id === 'top';
+                            const isOpen = !collapsed[g.id];
+                            const vencidasPagarCount = notifs.notificacoes.filter(n => !n.lida && n.tipo === 'pagar_vencido').length;
+                            const getBadge = (id) => {
+                                if (id === 'whatsapp' && waUnread > 0) return { num: waUnread, bg: '#22c55e' };
+                                if (id === 'financeiro' && vencidasPagarCount > 0) return { num: vencidasPagarCount, bg: '#ef4444' };
+                                return null;
+                            };
+                            return (
+                                <div key={g.id} style={{ marginBottom: isTop ? 4 : 0 }}>
+                                    {!isTop && (
+                                        <button onClick={() => toggleGroup(g.id)} style={{
+                                            display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                                            padding: '8px 10px 4px', background: 'none', border: 'none', cursor: 'pointer',
+                                        }}>
+                                            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>{g.label}</span>
+                                            <ChevronDown size={12} style={{ color: 'var(--text-muted)', transition: 'transform .2s', transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
+                                        </button>
+                                    )}
+                                    <div style={{ overflow: 'hidden', transition: 'max-height .25s ease', maxHeight: (isTop || isOpen) ? 500 : 0 }}>
+                                        <div className="space-y-0.5" style={{ paddingTop: isTop ? 0 : 2 }}>
+                                            {visibleItems.map(m => {
+                                                const active = pg === m.id;
+                                                const I = m.ic;
+                                                const badge = !active ? getBadge(m.id) : null;
+                                                return (
+                                                    <button key={m.id} onClick={() => nav(m.id)}
+                                                        className={`sidebar-item w-full flex items-center gap-2.5 px-2.5 py-2.5 cursor-pointer ${active ? 'sidebar-item-active font-semibold' : ''}`}
+                                                        style={!active ? { color: 'var(--text-secondary)' } : undefined}>
+                                                        <span className="shrink-0"><I /></span>
                                                         <span className="text-[13px] flex-1 text-left whitespace-nowrap">{m.lb}</span>
-                                                    )}
-                                                    {(sb || isMobile) && badge && (
-                                                        <span style={{
-                                                            fontSize: 10, fontWeight: 700, background: badge.bg, color: '#fff',
-                                                            padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center',
-                                                        }}>{badge.num}</span>
-                                                    )}
-                                                </button>
-                                            );
-                                        })}
+                                                        {badge && (
+                                                            <span className="badge-pulse" style={{ fontSize: 10, fontWeight: 700, background: badge.bg, color: '#fff', padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center' }}>{badge.num}</span>
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        );
-                    })}
-                </nav>
-
-                {/* Footer */}
-                <div className="px-2 py-2 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
-                    {/* Theme Toggle */}
-                    <button onClick={() => setDark(!dark)} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
-                        {dark ? <Ic.Sun /> : <Ic.Moon />}
-                        {(sb || isMobile) && <span className="text-xs">{dark ? 'Modo Claro' : 'Modo Escuro'}</span>}
-                    </button>
-
-                    {(sb || isMobile) ? (
-                        <div className="flex items-center gap-2.5 px-2.5 py-2">
-                            <div onClick={() => setShowPerfil(true)} className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer rounded-lg px-1 py-0.5 transition-colors hover:bg-[var(--bg-hover)]">
-                                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: 'var(--primary)' }}>
+                            );
+                        })}
+                    </nav>
+                    <div className="px-2 py-2" style={{ borderTop: '1px solid var(--border)' }}>
+                        <button onClick={() => setDark(!dark)} className="sidebar-item w-full flex items-center gap-2.5 px-2.5 py-2 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
+                            {dark ? <Ic.Sun /> : <Ic.Moon />}
+                            <span className="text-xs">{dark ? 'Modo Claro' : 'Modo Escuro'}</span>
+                        </button>
+                        <div className="flex items-center gap-2.5 px-2.5 py-2 mt-1">
+                            <div className="relative shrink-0">
+                                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--primary-gradient)' }}>
                                     {user.nome?.[0]?.toUpperCase()}
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{user.nome}</div>
-                                    <div className="text-[10px] capitalize" style={{ color: 'var(--text-muted)' }}>{user.role}</div>
-                                </div>
+                                <span className="status-online" />
                             </div>
-                            <button onClick={logout} className="p-1 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }} title="Sair">
+                            <div className="flex-1 min-w-0">
+                                <div className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{user.nome}</div>
+                            </div>
+                            <button onClick={logout} className="p-1 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
                                 <Ic.Logout />
                             </button>
                         </div>
-                    ) : (
-                        <button onClick={logout} className="w-full flex justify-center p-2 rounded-lg cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
-                            <Ic.Logout />
-                        </button>
-                    )}
-                </div>
-            </aside>
+                    </div>
+                </aside>
+            )}
 
-            {/* Main */}
+            {/* ═══ Main ═══ */}
             <main className="flex-1 relative overflow-y-auto overflow-x-hidden">
                 {/* Top bar */}
-                <div className="sticky top-0 z-10 flex items-center justify-between px-3 md:px-6 h-[52px] no-print" style={{ background: 'var(--bg-body)', borderBottom: '1px solid var(--border)' }}>
+                <div className="sticky top-0 z-10 flex items-center justify-between px-3 md:px-6 h-[56px] no-print"
+                    style={{
+                        background: 'var(--glass-bg)',
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        borderBottom: '1px solid var(--border)',
+                    }}>
                     <div className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text-muted)' }}>
                         {isMobile && (
                             <button onClick={() => setMobileOpen(true)} className="p-1.5 mr-1 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
@@ -574,8 +757,8 @@ export default function App() {
                             </button>
                         )}
                         <span className="hidden md:inline"><Ic.Home /></span>
-                        <span className="hidden md:inline">›</span>
-                        <span style={{ color: 'var(--text-primary)' }} className="font-medium truncate">{[...ALL_MENUS, { id: "novo", lb: "Novo Orçamento" }, { id: "users", lb: "Usuários" }].find(m => m.id === pg)?.lb || 'Home'}</span>
+                        <span className="hidden md:inline" style={{ opacity: 0.4 }}>/</span>
+                        <span style={{ color: 'var(--text-primary)' }} className="font-medium truncate">{[...ALL_MENUS, { id: "novo", lb: "Novo Orcamento" }, { id: "users", lb: "Usuarios" }].find(m => m.id === pg)?.lb || 'Home'}</span>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -588,20 +771,23 @@ export default function App() {
                                 value={buscaQuery}
                                 onChange={e => setBuscaQuery(e.target.value)}
                                 onFocus={() => buscaResults && setBuscaOpen(true)}
-                                placeholder="Buscar clientes, orçamentos, projetos..."
+                                placeholder="Buscar clientes, orcamentos, projetos..."
                                 style={{
-                                    width: 260, padding: '6px 12px 6px 32px', borderRadius: 8,
+                                    width: 260, padding: '7px 12px 7px 32px', borderRadius: 10,
                                     border: '1px solid var(--border)', background: 'var(--bg-muted)',
                                     fontSize: 12, color: 'var(--text-primary)', outline: 'none',
+                                    transition: 'all 0.2s',
                                 }}
+                                onFocusCapture={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-ring)'; }}
+                                onBlurCapture={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }}
                             />
                         </div>
                         {buscaOpen && buscaResults && (
-                            <div style={{
+                            <div className="animate-scale-in" style={{
                                 position: 'absolute', top: '100%', right: 0, marginTop: 4,
                                 width: 380, maxHeight: 420, overflowY: 'auto',
                                 background: 'var(--bg-card)', border: '1px solid var(--border)',
-                                borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.15)', zIndex: 50, padding: 8,
+                                borderRadius: 14, boxShadow: 'var(--shadow-xl)', zIndex: 50, padding: 8,
                             }}>
                                 {buscaResults.clientes.length === 0 && buscaResults.orcamentos.length === 0 && buscaResults.projetos.length === 0 && (
                                     <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhum resultado</div>
@@ -611,7 +797,7 @@ export default function App() {
                                         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em' }}>Clientes</div>
                                         {buscaResults.clientes.map(c => (
                                             <button key={`c${c.id}`} onClick={() => { nav('cli'); setBuscaOpen(false); setBuscaQuery(''); }}
-                                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)' }}
+                                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s' }}
                                                 className="hover:bg-[var(--bg-hover)]">
                                                 <Ic.Usr style={{ flexShrink: 0, color: 'var(--text-muted)' }} size={14} />
                                                 <div style={{ minWidth: 0 }}>
@@ -624,10 +810,10 @@ export default function App() {
                                 )}
                                 {buscaResults.orcamentos.length > 0 && (
                                     <>
-                                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em', marginTop: 4 }}>Orçamentos</div>
+                                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em', marginTop: 4 }}>Orcamentos</div>
                                         {buscaResults.orcamentos.map(o => (
                                             <button key={`o${o.id}`} onClick={() => { nav('orcs'); setBuscaOpen(false); setBuscaQuery(''); }}
-                                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)' }}
+                                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s' }}
                                                 className="hover:bg-[var(--bg-hover)]">
                                                 <Ic.File style={{ flexShrink: 0, color: 'var(--text-muted)' }} size={14} />
                                                 <div style={{ minWidth: 0 }}>
@@ -643,7 +829,7 @@ export default function App() {
                                         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em', marginTop: 4 }}>Projetos</div>
                                         {buscaResults.projetos.map(p => (
                                             <button key={`p${p.id}`} onClick={() => { nav('proj'); setBuscaOpen(false); setBuscaQuery(''); }}
-                                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)' }}
+                                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s' }}
                                                 className="hover:bg-[var(--bg-hover)]">
                                                 <Ic.Briefcase style={{ flexShrink: 0, color: 'var(--text-muted)' }} size={14} />
                                                 <div style={{ minWidth: 0 }}>
@@ -657,7 +843,7 @@ export default function App() {
                             </div>
                         )}
                     </div>
-                    {/* WhatsApp Badge na Top Bar */}
+                    {/* WhatsApp Badge */}
                     {waUnread > 0 && (
                         <button
                             onClick={() => nav('whatsapp')}
@@ -666,10 +852,10 @@ export default function App() {
                                 padding: 8, borderRadius: 10, transition: 'background 0.15s', color: '#22c55e',
                             }}
                             className="hover:bg-[var(--bg-hover)]"
-                            title={`${waUnread} mensagem(ns) não lida(s)`}
+                            title={`${waUnread} mensagem(ns) nao lida(s)`}
                         >
                             <Ic.WhatsApp />
-                            <span style={{
+                            <span className="badge-pulse" style={{
                                 position: 'absolute', top: 4, right: 4,
                                 width: 16, height: 16, borderRadius: '50%',
                                 background: '#22c55e', color: '#fff',
@@ -679,7 +865,7 @@ export default function App() {
                             }}>{waUnread}</span>
                         </button>
                     )}
-                    {/* Sininho de Notificações */}
+                    {/* Notificacoes */}
                     <div ref={notifsRef} style={{ position: 'relative' }}>
                         <button
                             onClick={() => setShowNotifs(!showNotifs)}
@@ -689,11 +875,11 @@ export default function App() {
                                 color: notifBadgeColor || 'var(--text-muted)',
                             }}
                             className="hover:bg-[var(--bg-hover)]"
-                            title={notifs.nao_lidas > 0 ? `${notifs.nao_lidas} notificação(ões) não lida(s)` : 'Notificações'}
+                            title={notifs.nao_lidas > 0 ? `${notifs.nao_lidas} notificacao(oes) nao lida(s)` : 'Notificacoes'}
                         >
                             <Ic.Bell />
                             {notifs.nao_lidas > 0 && (
-                                <span style={{
+                                <span className="badge-pulse" style={{
                                     position: 'absolute', top: 4, right: 4,
                                     width: 16, height: 16, borderRadius: '50%',
                                     background: notifBadgeColor, color: '#fff',
@@ -704,20 +890,19 @@ export default function App() {
                             )}
                         </button>
 
-                        {/* Dropdown de Notificações */}
+                        {/* Dropdown de Notificacoes */}
                         {showNotifs && (
-                            <div style={{
+                            <div className="animate-scale-in" style={{
                                 position: 'absolute', right: 0, top: '110%', zIndex: 50,
                                 background: 'var(--bg-card)', border: '1px solid var(--border)',
-                                borderRadius: 14, boxShadow: '0 12px 40px rgba(0,0,0,.18)',
+                                borderRadius: 14, boxShadow: 'var(--shadow-xl)',
                                 minWidth: Math.min(370, window.innerWidth - 24), maxWidth: 'calc(100vw - 16px)', maxHeight: 440, overflow: 'hidden',
                             }}>
-                                {/* Header */}
                                 <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>Notificações</span>
+                                        <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>Notificacoes</span>
                                         {notifs.nao_lidas > 0 && (
-                                            <span style={{ fontSize: 11, fontWeight: 700, background: notifBadgeColor, color: '#fff', padding: '2px 8px', borderRadius: 10 }}>
+                                            <span className="badge-pulse" style={{ fontSize: 11, fontWeight: 700, background: notifBadgeColor, color: '#fff', padding: '2px 8px', borderRadius: 10 }}>
                                                 {notifs.nao_lidas} nova{notifs.nao_lidas > 1 ? 's' : ''}
                                             </span>
                                         )}
@@ -730,11 +915,10 @@ export default function App() {
                                     )}
                                 </div>
 
-                                {/* Lista */}
                                 <div style={{ maxHeight: 340, overflowY: 'auto', padding: 6 }}>
                                     {notifs.notificacoes.length === 0 ? (
                                         <div style={{ padding: '24px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                                            Nenhuma notificação
+                                            Nenhuma notificacao
                                         </div>
                                     ) : notifs.notificacoes.map(n => {
                                         const st = getNotifStyle(n.tipo);
@@ -772,17 +956,17 @@ export default function App() {
                                                             const diff = Date.now() - new Date(n.criado_em + 'Z').getTime();
                                                             const min = Math.floor(diff / 60000);
                                                             if (min < 1) return 'Agora';
-                                                            if (min < 60) return `Há ${min}min`;
+                                                            if (min < 60) return `Ha ${min}min`;
                                                             const hrs = Math.floor(min / 60);
-                                                            if (hrs < 24) return `Há ${hrs}h`;
+                                                            if (hrs < 24) return `Ha ${hrs}h`;
                                                             const dias = Math.floor(hrs / 24);
                                                             if (dias === 1) return 'Ontem';
-                                                            return `Há ${dias}d`;
+                                                            return `Ha ${dias}d`;
                                                         })() : ''}
                                                     </div>
                                                 </div>
                                                 {!isRead && (
-                                                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: st.color, flexShrink: 0, marginTop: 6 }} />
+                                                    <div className="status-dot-active" style={{ width: 8, height: 8, borderRadius: '50%', background: st.color, flexShrink: 0, marginTop: 6 }} />
                                                 )}
                                             </div>
                                         );
@@ -796,15 +980,19 @@ export default function App() {
 
                 {/* Toast */}
                 {notif && (
-                    <div className="fixed top-4 right-4 z-50 animate-fade-up">
-                        <div className="glass-card px-4 py-2.5 flex items-center gap-2 text-sm font-medium shadow-lg" style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }}>
-                            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--primary)' }} />
+                    <div className="fixed top-4 right-4 z-50 toast-enter">
+                        <div className="glass-card px-4 py-2.5 flex items-center gap-2 text-sm font-medium" style={{
+                            borderColor: 'var(--primary)', color: 'var(--primary)',
+                            boxShadow: 'var(--shadow-lg), 0 0 20px rgba(19, 121, 240, 0.1)',
+                        }}>
+                            <div className="w-1.5 h-1.5 rounded-full status-dot-active" style={{ background: 'var(--primary)' }} />
                             {notif}
                         </div>
                     </div>
                 )}
 
-                <div className="min-h-full">
+                {/* Page content with transition */}
+                <div key={pageKey} className="min-h-full page-enter">
                     <ErrorBoundary>
                         <Suspense fallback={<LazyFallback />}>
                             {renderPage()}
@@ -813,6 +1001,26 @@ export default function App() {
                 </div>
             </main>
 
+            {/* ═══ Mobile Bottom Nav ═══ */}
+            {isMobile && (
+                <div className="mobile-bottom-nav no-print">
+                    {MOBILE_NAV.map(item => {
+                        const active = item.id === 'more' ? false : pg === item.id;
+                        const I = item.ic;
+                        return (
+                            <button
+                                key={item.id}
+                                onClick={() => item.id === 'more' ? setMobileOpen(true) : nav(item.id)}
+                                className={`mobile-bottom-nav-item ${active ? 'mobile-bottom-nav-item-active' : ''}`}
+                            >
+                                <I size={20} />
+                                <span>{item.lb}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
             {/* Modal de Perfil */}
             {showPerfil && <PerfilModal user={user} onClose={() => setShowPerfil(false)} notify={notify} updateUser={updateUser} />}
         </div>
@@ -820,7 +1028,7 @@ export default function App() {
 }
 
 // ═══════════════════════════════════════════════════════
-// PerfilModal — Editar perfil e alterar senha
+// PerfilModal
 // ═══════════════════════════════════════════════════════
 function PerfilModal({ user, onClose, notify, updateUser }) {
     const [nome, setNome] = useState(user.nome || '');
@@ -835,7 +1043,7 @@ function PerfilModal({ user, onClose, notify, updateUser }) {
 
     const handleSavePerfil = async () => {
         setErr('');
-        if (!nome.trim() || !email.trim()) { setErr('Nome e email obrigatórios'); return; }
+        if (!nome.trim() || !email.trim()) { setErr('Nome e email obrigatorios'); return; }
         setSaving(true);
         try {
             const updated = await api.put('/auth/perfil', { nome: nome.trim(), email: email.trim() });
@@ -849,8 +1057,8 @@ function PerfilModal({ user, onClose, notify, updateUser }) {
     const handleSaveSenha = async () => {
         setErrSenha('');
         if (!senhaAtual || !novaSenha) { setErrSenha('Preencha todos os campos'); return; }
-        if (novaSenha.length < 6) { setErrSenha('Nova senha deve ter no mínimo 6 caracteres'); return; }
-        if (novaSenha !== confirmar) { setErrSenha('As senhas não coincidem'); return; }
+        if (novaSenha.length < 6) { setErrSenha('Nova senha deve ter no minimo 6 caracteres'); return; }
+        if (novaSenha !== confirmar) { setErrSenha('As senhas nao coincidem'); return; }
         setSavingSenha(true);
         try {
             await api.put('/auth/password', { senhaAtual, novaSenha });
@@ -865,25 +1073,30 @@ function PerfilModal({ user, onClose, notify, updateUser }) {
         width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 14,
         border: '1.5px solid var(--border)', background: 'var(--bg-body)',
         color: 'var(--text-primary)', outline: 'none',
+        transition: 'border-color 0.15s, box-shadow 0.15s',
     };
     const labelStyle = { fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block' };
 
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)' }} onClick={onClose} />
-            <div style={{
+            <div className="modal-content" style={{
                 position: 'relative', width: '100%', maxWidth: 440, maxHeight: '90vh', overflowY: 'auto',
-                background: 'var(--bg-card)', borderRadius: 18, boxShadow: '0 20px 60px rgba(0,0,0,.25)',
+                background: 'var(--bg-card)', borderRadius: 18, boxShadow: 'var(--shadow-xl)',
                 border: '1px solid var(--border)', margin: 16,
             }}>
                 {/* Header */}
-                <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(135deg, var(--bg-muted) 0%, transparent 100%)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{
-                            width: 42, height: 42, borderRadius: '50%', background: 'var(--primary)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: '#fff', fontSize: 16, fontWeight: 800,
-                        }}>{user.nome?.[0]?.toUpperCase()}</div>
+                        <div className="relative">
+                            <div style={{
+                                width: 42, height: 42, borderRadius: '50%', background: 'var(--primary-gradient)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: '#fff', fontSize: 16, fontWeight: 800,
+                                boxShadow: '0 2px 8px rgba(19,121,240,0.25)',
+                            }}>{user.nome?.[0]?.toUpperCase()}</div>
+                            <span className="status-online" />
+                        </div>
                         <div>
                             <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>Meu Perfil</div>
                             <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{user.role}</div>
@@ -908,11 +1121,15 @@ function PerfilModal({ user, onClose, notify, updateUser }) {
 
                     <div style={{ marginBottom: 12 }}>
                         <label style={labelStyle}>Nome</label>
-                        <input value={nome} onChange={e => setNome(e.target.value)} style={inputStyle} />
+                        <input value={nome} onChange={e => setNome(e.target.value)} style={inputStyle}
+                            onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-ring)'; }}
+                            onBlur={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }} />
                     </div>
                     <div style={{ marginBottom: 16 }}>
                         <label style={labelStyle}>Email</label>
-                        <input value={email} onChange={e => setEmail(e.target.value)} type="email" style={inputStyle} />
+                        <input value={email} onChange={e => setEmail(e.target.value)} type="email" style={inputStyle}
+                            onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-ring)'; }}
+                            onBlur={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }} />
                     </div>
                     <button onClick={handleSavePerfil} disabled={saving}
                         className={`${Z.btn} w-full py-2.5 text-sm`}>
@@ -920,7 +1137,6 @@ function PerfilModal({ user, onClose, notify, updateUser }) {
                     </button>
                 </div>
 
-                {/* Divider */}
                 <div style={{ height: 1, background: 'var(--border)', margin: '0 24px' }} />
 
                 {/* Alterar senha */}
@@ -937,22 +1153,24 @@ function PerfilModal({ user, onClose, notify, updateUser }) {
 
                     <div style={{ marginBottom: 12 }}>
                         <label style={labelStyle}>Senha Atual</label>
-                        <input value={senhaAtual} onChange={e => setSenhaAtual(e.target.value)} type="password" style={inputStyle} placeholder="Digite sua senha atual" />
+                        <input value={senhaAtual} onChange={e => setSenhaAtual(e.target.value)} type="password" style={inputStyle} placeholder="Digite sua senha atual"
+                            onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-ring)'; }}
+                            onBlur={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }} />
                     </div>
                     <div style={{ marginBottom: 12 }}>
                         <label style={labelStyle}>Nova Senha</label>
-                        <input value={novaSenha} onChange={e => setNovaSenha(e.target.value)} type="password" style={inputStyle} placeholder="Mínimo 6 caracteres" />
+                        <input value={novaSenha} onChange={e => setNovaSenha(e.target.value)} type="password" style={inputStyle} placeholder="Minimo 6 caracteres"
+                            onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-ring)'; }}
+                            onBlur={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }} />
                     </div>
                     <div style={{ marginBottom: 16 }}>
                         <label style={labelStyle}>Confirmar Nova Senha</label>
-                        <input value={confirmar} onChange={e => setConfirmar(e.target.value)} type="password" style={inputStyle} placeholder="Repita a nova senha" />
+                        <input value={confirmar} onChange={e => setConfirmar(e.target.value)} type="password" style={inputStyle} placeholder="Repita a nova senha"
+                            onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-ring)'; }}
+                            onBlur={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }} />
                     </div>
                     <button onClick={handleSaveSenha} disabled={savingSenha}
-                        style={{
-                            width: '100%', padding: '10px 0', borderRadius: 10, border: '2px solid var(--border)',
-                            background: 'var(--bg-body)', color: 'var(--text-primary)', fontWeight: 600, fontSize: 14,
-                            cursor: 'pointer', transition: 'all 0.15s',
-                        }}>
+                        className="btn-secondary w-full" style={{ padding: '10px 0', fontSize: 14, fontWeight: 600 }}>
                         {savingSenha ? 'Alterando...' : 'Alterar Senha'}
                     </button>
                 </div>

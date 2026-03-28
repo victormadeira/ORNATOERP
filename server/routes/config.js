@@ -70,7 +70,7 @@ router.put('/', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
 // GET /api/config/empresa/public — sem autenticação (login page)
 // ═══════════════════════════════════════════════════════
 router.get('/empresa/public', (req, res) => {
-    const emp = db.prepare('SELECT nome, logo_sistema FROM empresa_config WHERE id = 1').get();
+    const emp = db.prepare('SELECT nome, logo_sistema, sistema_cor_primaria FROM empresa_config WHERE id = 1').get();
     res.json(emp || {});
 });
 

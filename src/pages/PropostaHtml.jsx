@@ -352,7 +352,10 @@ export function buildPropostaHtml({
 
         return `
             <div class="amb-block" data-section="amb_${amb.id}" data-section-nome="${numLabel} — ${amb.nome || 'Ambiente'}">
-                <div class="amb-title">${numLabel} — ${amb.nome || 'Ambiente'}</div>
+                <div class="amb-header">
+                    <div class="amb-num">${numLabel}</div>
+                    <div class="amb-name">${amb.nome || 'Ambiente'}</div>
+                </div>
                 <table class="tb">
                     <thead>
                         <tr>
@@ -374,33 +377,33 @@ export function buildPropostaHtml({
     }).join('');
 
     // ── Resumo ──────────────────────────────────────────────────────────────
+    const numAmbientes = ambValores.length;
     const resumoHtml = `
-        <div class="resumo" data-section="resumo" data-section-nome="Resumo Financeiro">
-            <table class="resumo-tb">
-                ${descontoR > 0 ? `
-                <tr>
-                    <td class="r-label">VALOR DOS AMBIENTES</td>
-                    <td class="r-value">${R$(tot.pvFinal)}</td>
+        <div class="invest-section" data-section="resumo" data-section-nome="Resumo Financeiro">
+            <div class="invest-header">Investimento</div>
+            <table class="invest-table">
+                <tr class="invest-divider">
+                    <td class="invest-row-label">${numAmbientes} ambiente${numAmbientes > 1 ? 's' : ''} sob medida</td>
+                    <td class="invest-row-value">${R$(tot.pvFinal)}</td>
                 </tr>
-                <tr class="r-desc">
-                    <td class="r-label">DESCONTO (${pagamento.desconto.tipo === '%' ? N(pagamento.desconto.valor, 1) + '%' : R$(pagamento.desconto.valor)})</td>
-                    <td class="r-value" style="color:#c0392b">- ${R$(descontoR)}</td>
-                </tr>` : `
-                <tr>
-                    <td class="r-label">VALOR DOS AMBIENTES</td>
-                    <td class="r-value">${R$(pvComDesconto)}</td>
-                </tr>`}
-                <tr class="r-total">
-                    <td class="r-label">VALOR TOTAL</td>
-                    <td class="r-value">${R$(pvComDesconto)}</td>
+                ${descontoR > 0 ? `
+                <tr class="invest-divider invest-row-discount">
+                    <td class="invest-row-label">Condição especial (${pagamento.desconto.tipo === '%' ? N(pagamento.desconto.valor, 1) + '%' : R$(pagamento.desconto.valor)})</td>
+                    <td class="invest-row-value">- ${R$(descontoR)}</td>
+                </tr>` : ''}
+                <tr class="invest-total">
+                    <td class="invest-row-label">Investimento total</td>
+                    <td class="invest-row-value">${R$(pvComDesconto)}</td>
                 </tr>
             </table>
+            ${descontoR > 0 ? `<div class="invest-savings">Você economiza ${R$(descontoR)} nesta proposta</div>` : ''}
         </div>`;
 
-    // ── Pagamento ───────────────────────────────────────────────────────────
+    // ── Pagamento (reframing: facilidade, não condição) ─────────────────────
     const pagamentoHtml = (pagamento?.blocos || []).length > 0 ? `
-        <div class="section" data-section="pagamento" data-section-nome="Condições de Pagamento">
-            <div class="sec-title">CONDIÇÕES DE PAGAMENTO</div>
+        <div class="section" data-section="pagamento" data-section-nome="Formas de Pagamento">
+            <div class="sec-title">FORMAS DE PAGAMENTO</div>
+            <p class="txt" style="margin-bottom:10px">Facilitamos o pagamento para que você inicie seu projeto com tranquilidade:</p>
             <table class="tb pag-tb">
                 <thead>
                     <tr>
@@ -426,21 +429,64 @@ export function buildPropostaHtml({
         </div>
     ` : '';
 
-    // ── Considerações ───────────────────────────────────────────────────────
-    const condicoesHtml = `
-        <div class="section" data-section="consideracoes" data-section-nome="Considerações Finais">
-            <div class="sec-title">CONSIDERAÇÕES FINAIS</div>
-            ${txtGarantia ? `<p class="txt">${txtGarantia}</p>` : ''}
-            <p class="txt">Prazo de entrega: <strong>${prazoEntrega || 'A combinar'}</strong> após aprovação do projeto.</p>
-            <p class="txt">Validade desta proposta: <strong>${validadeProposta || '15 dias'}</strong>${orcamento.data_vencimento ? ` (até ${new Date(orcamento.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')})` : ''}.</p>
-            ${enderecoObra ? `<p class="txt">Local da obra: <strong>${enderecoObra}</strong>.</p>` : ''}
-            ${txtConsideracoes ? `<p class="txt">${txtConsideracoes}</p>` : ''}
+    // ── Garantia (como benefício, não restrição) ─────────────────────────
+    const garantiaHtml = txtGarantia ? `
+        <div class="section garantia-section">
+            <div class="sec-title">SUA GARANTIA</div>
+            <div class="garantia-box">
+                <p class="txt" style="margin:0">${txtGarantia}</p>
+            </div>
+        </div>` : '';
+
+    // ── Informações do projeto ───────────────────────────────────────────
+    const infoProjetoHtml = `
+        <div class="section" data-section="consideracoes" data-section-nome="Informações do Projeto">
+            <div class="sec-title">INFORMAÇÕES DO PROJETO</div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">Prazo de entrega</div>
+                    <div class="info-value">${prazoEntrega || 'A combinar'}</div>
+                    <div class="info-sub">após aprovação do projeto</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Validade da proposta</div>
+                    <div class="info-value">${validadeProposta || '15 dias'}</div>
+                    ${orcamento.data_vencimento ? `<div class="info-sub">até ${new Date(orcamento.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}</div>` : ''}
+                </div>
+                ${enderecoObra ? `<div class="info-item">
+                    <div class="info-label">Local da obra</div>
+                    <div class="info-value" style="font-size:12px">${enderecoObra}</div>
+                </div>` : ''}
+            </div>
+            ${txtConsideracoes ? `<p class="txt" style="margin-top:14px">${txtConsideracoes}</p>` : ''}
             ${orcamento.obs ? `<p class="txt"><strong>Observações:</strong> ${orcamento.obs}</p>` : ''}
+        </div>`;
+
+    // ── Fechamento (última impressão emocional antes da assinatura) ──────
+    const fechamentoHtml = `
+        <div class="fechamento">
+            Estamos prontos para transformar seu projeto em realidade.<br>
+            Será um prazer atendê-lo.
         </div>`;
 
     // ── Sobre (opcional) ─────────────────────────────────────────────────────
     const sobreHtml = sobreEmpresa ? `
         <div class="sobre">${sobreEmpresa.replace(/\n/g, '<br>')}</div>` : '';
+
+    // ── Derivar tons a partir das cores base (white-label safe) ─────────────
+    const hexToRgb = (hex) => {
+        const h = hex.replace('#', '');
+        return [parseInt(h.substring(0,2),16), parseInt(h.substring(2,4),16), parseInt(h.substring(4,6),16)];
+    };
+    const [pR, pG, pB] = hexToRgb(corPrimaria);
+    const [aR, aG, aB] = hexToRgb(corAccent);
+    // Derivados da primária
+    const cpLight = `rgba(${pR},${pG},${pB},0.06)`;   // fundo sutil
+    const cpMedium = `rgba(${pR},${pG},${pB},0.12)`;   // bordas suaves
+    const cpStrong = `rgba(${pR},${pG},${pB},0.85)`;    // texto sobre fundo claro
+    // Derivados do accent
+    const caLight = `rgba(${aR},${aG},${aB},0.10)`;
+    const caMedium = `rgba(${aR},${aG},${aB},0.25)`;
 
     // ── HTML ────────────────────────────────────────────────────────────────
     return `<!DOCTYPE html>
@@ -460,23 +506,112 @@ export function buildPropostaHtml({
     }
     @media screen {
         body {
-            padding: 40px 50px 60px;
+            padding: 0;
             max-width: 860px;
             margin: 0 auto;
         }
     }
     @media screen and (max-width: 640px) {
-        body {
-            padding: 20px 14px 32px !important;
-            font-size: 11px !important;
-        }
+        body { font-size: 11px !important; }
+        .prop-header { padding: 0 14px !important; }
+        .prop-header-top { flex-direction: column !important; text-align: center !important; gap: 10px !important; }
+        .prop-header-right { text-align: center !important; }
+        .prop-header-logo img { max-width: 120px !important; }
+        .client-hero-name { font-size: 20px !important; }
+        .content-body { padding: 20px 14px 32px !important; }
         table { font-size: 10px !important; }
         td, th { padding: 4px 6px !important; }
-        .header { flex-direction: column !important; text-align: center !important; gap: 10px !important; }
-        .header img { max-width: 180px !important; }
         .wm img { max-width: 200px !important; }
         h2 { font-size: 13px !important; }
-        .c-field { font-size: 11px !important; }
+        .c-field { font-size: 10px !important; }
+        .info-grid { flex-direction: column !important; }
+    }
+
+    /* ══════════ HEADER UNIFICADO ══════════ */
+    .prop-header {
+        padding: 0 40px;
+        margin-bottom: 0;
+    }
+    .prop-header-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 24px 0 16px;
+        border-bottom: 1px solid #eee;
+    }
+    .prop-header-logo img {
+        max-height: 48px; max-width: 140px;
+        object-fit: contain;
+    }
+    .prop-header-right {
+        text-align: right;
+    }
+    .prop-header-num {
+        font-size: 11px;
+        font-weight: 700;
+        color: ${corPrimaria};
+        letter-spacing: 0.5px;
+    }
+    .prop-header-date {
+        font-size: 10px;
+        color: #999;
+        margin-top: 2px;
+    }
+    .prop-header-empresa {
+        font-size: 9.5px;
+        color: #aaa;
+        margin-top: 3px;
+        line-height: 1.5;
+    }
+
+    /* ── Bloco do cliente (o coração da proposta) ── */
+    .client-hero {
+        padding: 22px 0 20px;
+        text-align: center;
+    }
+    .client-hero-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 2.5px;
+        color: #aaa;
+        margin-bottom: 6px;
+    }
+    .client-hero-name {
+        font-size: 24px;
+        font-weight: 700;
+        color: ${corPrimaria};
+        line-height: 1.2;
+        margin-bottom: 4px;
+    }
+    .client-hero-project {
+        font-size: 13px;
+        color: ${corAccent};
+        font-weight: 500;
+    }
+    .client-hero-accent {
+        width: 40px; height: 2.5px;
+        background: ${corAccent};
+        border-radius: 2px;
+        margin: 16px auto 0;
+    }
+
+    /* ── Dados do cliente + empresa (discretos) ── */
+    .client-data {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 12px 0;
+        border-top: 1px solid #eee;
+        border-bottom: 1px solid #eee;
+        margin-bottom: 0;
+    }
+    .client-data .c-field { font-size: 10.5px; margin-bottom: 2px; color: #777; }
+    .client-data .c-field strong { color: #555; font-weight: 600; }
+
+    /* ══════════ CONTENT BODY ══════════ */
+    .content-body {
+        padding: 24px 40px 50px;
     }
 
     /* ── Watermark ── */
@@ -487,94 +622,60 @@ export function buildPropostaHtml({
     }
     .wm img { width: 480px; height: auto; }
 
-    /* ══════════ HEADER ══════════ */
-    .header {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        padding-bottom: 12px;
-        border-bottom: 2.5px solid ${corPrimaria};
-        margin-bottom: 16px;
-    }
-    .header-logo img {
-        max-height: 60px;
-        max-width: 110px;
-        object-fit: contain;
-    }
-    .header-info { flex: 1; }
-    .h-detail {
-        font-size: 10.5px; color: #666;
-        line-height: 1.5; margin-top: 2px;
-    }
-
-    /* ══════════ PROPOSAL NUM + CLIENT ══════════ */
-    .prop-num {
-        font-size: 14px; font-weight: 700;
-        color: ${corPrimaria};
-        text-align: center;
-        margin-bottom: 14px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid #ddd;
-        letter-spacing: 1px;
-    }
-    .prop-revisao {
-        font-size: 11px; font-weight: 500;
-        color: #888;
-        text-align: center;
-        margin-top: -10px;
-        margin-bottom: 14px;
-        letter-spacing: 0.5px;
-    }
-
-    .client-row {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 18px;
-    }
-    .client-col {}
-    .client-col-r { text-align: right; }
-    .c-field { font-size: 12px; margin-bottom: 2px; color: #444; }
-    .c-field strong { color: #222; }
-
     /* ── Sobre ── */
     .sobre {
         font-size: 11px; color: #666;
         font-style: italic; line-height: 1.7;
-        padding: 10px 14px; margin-bottom: 16px;
+        padding: 12px 16px; margin-bottom: 20px;
         border-left: 3px solid ${corAccent};
-        background: #fafafa;
+        background: ${caLight};
+        border-radius: 0 6px 6px 0;
     }
 
     /* ══════════ AMBIENTE BLOCK ══════════ */
     .amb-block {
-        margin-bottom: 20px;
+        margin-bottom: 24px;
         page-break-inside: avoid;
     }
-    .amb-title {
+    .amb-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+        padding-bottom: 6px;
+        border-bottom: 2px solid ${cpMedium};
+    }
+    .amb-num {
+        font-size: 20px;
+        font-weight: 800;
+        color: ${corAccent};
+        line-height: 1;
+        min-width: 32px;
+    }
+    .amb-name {
         font-size: 13px; font-weight: 700;
         color: ${corPrimaria};
-        text-align: center;
         text-transform: uppercase;
         letter-spacing: 1.5px;
-        margin-bottom: 6px;
-        padding: 5px 0;
     }
 
     /* ── Tables ── */
     .tb {
         width: 100%;
         border-collapse: collapse;
-        border: 1px solid #aaa;
+        border: none;
+        border-radius: 4px;
+        overflow: hidden;
     }
     .tb th {
-        font-size: 10px; font-weight: 700;
-        color: #333;
-        padding: 6px 10px;
-        border: 1px solid #aaa;
+        font-size: 9.5px; font-weight: 700;
+        color: #fff;
+        padding: 7px 10px;
         text-align: center;
-        background: #f5f5f5;
+        background: ${corPrimaria};
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.8px;
+        border: none;
     }
     .th-desc { text-align: left !important; }
     .th-qtd { width: 45px; }
@@ -582,12 +683,11 @@ export function buildPropostaHtml({
     .th-sub { width: 95px; }
 
     .tb td {
-        padding: 5px 10px;
-        border-left: 1px solid #ccc;
-        border-right: 1px solid #ccc;
-        border-bottom: 1px solid #e0e0e0;
+        padding: 6px 10px;
+        border-bottom: 1px solid #eee;
         vertical-align: top;
     }
+    .tb tbody tr:nth-child(even) td { background: ${cpLight}; }
     .td-desc { text-align: left; }
     .td-qtd { text-align: center; vertical-align: middle; color: #555; }
     .td-val { text-align: right; vertical-align: middle; white-space: nowrap; color: #444; }
@@ -614,34 +714,65 @@ export function buildPropostaHtml({
 
     .amb-total {
         display: flex; justify-content: space-between;
-        padding: 6px 10px;
-        border: 1px solid #aaa; border-top: none;
+        padding: 7px 12px;
+        background: ${cpLight};
+        border-top: 2px solid ${cpMedium};
         font-weight: 700; font-size: 12px;
-        color: #222; background: #f5f5f5;
-    }
-
-    /* ══════════ RESUMO ══════════ */
-    .resumo { margin: 22px 0 10px; }
-    .resumo-tb { width: 100%; border-collapse: collapse; }
-    .resumo-tb td { padding: 5px 10px; font-size: 12px; }
-    .r-label { text-align: left; font-weight: 600; color: #333; border-bottom: 1px dotted #ccc; }
-    .r-value { text-align: right; font-weight: 700; color: #222; border-bottom: 1px dotted #ccc; width: 130px; }
-    .r-total td {
-        font-size: 14px; font-weight: 800;
-        border-bottom: 2.5px solid ${corPrimaria};
-        padding-top: 8px; padding-bottom: 8px;
         color: ${corPrimaria};
     }
-    .r-desc td { font-size: 11px; }
+
+    /* ══════════ INVESTIMENTO (RESUMO) ══════════ */
+    .invest-section {
+        margin: 28px 0 20px;
+        page-break-inside: avoid;
+    }
+    .invest-header {
+        font-size: 12px; font-weight: 700;
+        color: ${corPrimaria};
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        padding-bottom: 6px;
+        border-bottom: 2px solid ${cpMedium};
+        margin-bottom: 12px;
+    }
+    .invest-table { width: 100%; border-collapse: collapse; }
+    .invest-table td { padding: 6px 0; font-size: 12px; color: #555; }
+    .invest-row-label { text-align: left; }
+    .invest-row-value { text-align: right; font-weight: 600; color: #333; }
+    .invest-row-discount .invest-row-value { color: ${corAccent}; }
+    .invest-divider td { border-bottom: 1px solid #eee; }
+    .invest-total {
+        border-top: 2px solid ${corPrimaria};
+    }
+    .invest-total td {
+        padding-top: 10px;
+    }
+    .invest-total .invest-row-label {
+        font-size: 14px; font-weight: 700;
+        color: ${corPrimaria};
+    }
+    .invest-total .invest-row-value {
+        font-size: 20px; font-weight: 800;
+        color: ${corPrimaria};
+    }
+    .invest-savings {
+        margin-top: 8px;
+        font-size: 11px;
+        color: ${corAccent};
+        font-weight: 600;
+        text-align: right;
+    }
 
     /* ══════════ SECTIONS ══════════ */
-    .section { margin: 20px 0; page-break-inside: avoid; }
+    .section { margin: 24px 0; page-break-inside: avoid; }
     .sec-title {
-        font-size: 13px; font-weight: 700;
+        font-size: 12px; font-weight: 700;
         color: ${corPrimaria};
-        margin-bottom: 8px;
+        margin-bottom: 10px;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 1.5px;
+        padding-bottom: 6px;
+        border-bottom: 2px solid ${cpMedium};
     }
     .txt {
         font-size: 11.5px; color: #555;
@@ -649,8 +780,63 @@ export function buildPropostaHtml({
     }
 
     /* ── Payment table ── */
-    .pag-tb th { background: #f5f5f5; }
-    .pag-tb td { text-align: center; font-size: 12px; }
+    .pag-tb th { background: ${corPrimaria}; color: #fff; border: none; }
+    .pag-tb td { text-align: center; font-size: 12px; border-bottom: 1px solid #eee; }
+    .pag-tb tbody tr:nth-child(even) td { background: ${cpLight}; }
+
+    /* ══════════ GARANTIA (benefício visual) ══════════ */
+    .garantia-box {
+        background: ${caLight};
+        border-left: 3px solid ${corAccent};
+        border-radius: 0 6px 6px 0;
+        padding: 12px 16px;
+    }
+
+    /* ══════════ INFO GRID ══════════ */
+    .info-grid {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+    .info-item {
+        flex: 1;
+        min-width: 140px;
+        background: ${cpLight};
+        border-radius: 6px;
+        padding: 12px 14px;
+        text-align: center;
+    }
+    .info-label {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: #888;
+        margin-bottom: 4px;
+        font-weight: 600;
+    }
+    .info-value {
+        font-size: 15px;
+        font-weight: 700;
+        color: ${corPrimaria};
+    }
+    .info-sub {
+        font-size: 10px;
+        color: #999;
+        margin-top: 2px;
+    }
+
+    /* ══════════ FECHAMENTO ══════════ */
+    .fechamento {
+        text-align: center;
+        font-size: 13px;
+        color: #666;
+        font-style: italic;
+        line-height: 1.8;
+        margin: 32px 0 8px;
+        padding: 16px 0;
+        border-top: 1px solid #eee;
+        border-bottom: 1px solid #eee;
+    }
 
     /* ══════════ SIGNATURE ══════════ */
     .sig-section { margin-top: 60px; page-break-inside: avoid; }
@@ -660,18 +846,27 @@ export function buildPropostaHtml({
     }
     .sig-grid { display: flex; justify-content: space-between; gap: 80px; }
     .sig-block { flex: 1; text-align: center; }
-    .sig-line { border-top: 1px solid #555; padding-top: 6px; }
+    .sig-line { border-top: 1.5px solid ${corPrimaria}; padding-top: 8px; }
     .sig-name { font-size: 12px; font-weight: 700; color: #222; }
-    .sig-role { font-size: 10px; color: #888; margin-top: 1px; }
+    .sig-role { font-size: 10px; color: #888; margin-top: 2px; }
     .sig-doc { font-size: 8px; color: #bbb; margin-top: 2px; }
 
     /* ══════════ FOOTER ══════════ */
     .footer {
-        margin-top: 24px; padding-top: 10px;
-        border-top: 1px solid #ddd;
+        margin-top: 28px; padding-top: 12px;
+        border-top: 2px solid ${cpMedium};
         text-align: center;
-        font-size: 9px; color: #bbb;
-        line-height: 1.6;
+        font-size: 9px; color: #aaa;
+        line-height: 1.7;
+    }
+    .footer-brand {
+        font-weight: 700;
+        color: ${corPrimaria};
+        font-size: 10px;
+    }
+
+    @media print {
+        .prop-header { padding: 0; }
     }
 
 </style></head><body>
@@ -679,49 +874,63 @@ export function buildPropostaHtml({
     <!-- Watermark (só aparece se configurado) -->
     ${watermarkSrc ? `<div class="wm"><img src="${watermarkSrc}" /></div>` : ''}
 
-    <!-- ═══ HEADER ═══ -->
-    <div class="header">
-        ${logoSrc ? `<div class="header-logo"><img src="${logoSrc}" /></div>` : ''}
-        <div class="header-info">
-            ${empresaCnpj ? `<div class="h-detail">CNPJ: ${empresaCnpj}</div>` : ''}
-            ${empresaEnd ? `<div class="h-detail">${empresaEnd}</div>` : ''}
-            ${empresaContato.length > 0 ? `<div class="h-detail">${empresaContato.join(' · ')}</div>` : ''}
+    <!-- ═══ HEADER UNIFICADO ═══ -->
+    <div class="prop-header">
+        <div class="prop-header-top">
+            ${logoSrc ? `<div class="prop-header-logo"><img src="${logoSrc}" /></div>` : `<div style="font-size:16px;font-weight:700;color:${corPrimaria};letter-spacing:0.5px">${empresaNome}</div>`}
+            <div class="prop-header-right">
+                <div class="prop-header-num">Proposta N° ${orcamento.numero || '—'}${(orcamento.versao || 1) > 1 ? ` · Rev. ${orcamento.versao}` : ''}</div>
+                <div class="prop-header-date">${fmtDataExtenso()}</div>
+                <div class="prop-header-empresa">${[empresaCnpj ? `CNPJ ${empresaCnpj}` : '', empresaContato.join(' · ')].filter(Boolean).join(' · ')}</div>
+            </div>
+        </div>
+
+        <!-- ═══ NOME DO CLIENTE (destaque central) ═══ -->
+        <div class="client-hero">
+            <div class="client-hero-label">Proposta comercial elaborada para</div>
+            <div class="client-hero-name">${cliente?.nome || '—'}</div>
+            ${orcamento.projeto ? `<div class="client-hero-project">${orcamento.projeto}</div>` : ''}
+            <div class="client-hero-accent"></div>
+        </div>
+
+        <!-- ═══ DADOS DO CLIENTE (discretos) ═══ -->
+        <div class="client-data">
+            <div>
+                ${(cliente?.cpf || cliente?.cnpj) ? `<div class="c-field"><strong>${cliente?.tipo_pessoa === 'juridica' ? 'CNPJ' : 'CPF'}:</strong> ${cliente?.tipo_pessoa === 'juridica' ? (cliente?.cnpj || '—') : (cliente?.cpf || '—')}</div>` : ''}
+                ${cliente?.telefone ? `<div class="c-field"><strong>Telefone:</strong> ${cliente.telefone}</div>` : ''}
+                ${cliente?.email ? `<div class="c-field"><strong>Email:</strong> ${cliente.email}</div>` : ''}
+            </div>
+            <div style="text-align:right">
+                ${enderecoObra ? `<div class="c-field"><strong>Local da obra:</strong> ${enderecoObra}</div>` : ''}
+                ${empresaEnd ? `<div class="c-field">${empresaEnd}</div>` : ''}
+            </div>
         </div>
     </div>
 
-    <!-- ═══ PROPOSAL NUMBER ═══ -->
-    <div class="prop-num">PROPOSTA N° ${orcamento.numero || '—'}</div>
-    ${(orcamento.versao || 1) > 1 ? `<div class="prop-revisao">Revisão ${orcamento.versao}</div>` : ''}
+    <div class="content-body">
 
-    <!-- ═══ CLIENT INFO ═══ -->
-    <div class="client-row">
-        <div class="client-col">
-            <div class="c-field"><strong>Cliente:</strong> ${cliente?.nome || '—'}</div>
-            ${(cliente?.cpf || cliente?.cnpj) ? `<div class="c-field"><strong>${cliente?.tipo_pessoa === 'juridica' ? 'CNPJ' : 'CPF'}:</strong> ${cliente?.tipo_pessoa === 'juridica' ? (cliente?.cnpj || '—') : (cliente?.cpf || '—')}</div>` : ''}
-            ${cliente?.telefone ? `<div class="c-field"><strong>Telefone:</strong> ${cliente.telefone}</div>` : ''}
-            ${cliente?.email ? `<div class="c-field"><strong>Email:</strong> ${cliente.email}</div>` : ''}
-        </div>
-        <div class="client-col-r">
-            ${orcamento.projeto ? `<div class="c-field"><strong>Projeto:</strong> ${orcamento.projeto}</div>` : ''}
-            ${enderecoObra ? `<div class="c-field"><strong>Local da Obra:</strong> ${enderecoObra}</div>` : ''}
-            <div class="c-field"><strong>Data:</strong> ${fmtData()}</div>
-        </div>
-    </div>
-
-    <!-- ═══ SOBRE ═══ -->
+    <!-- ═══ SOBRE (autoridade — quem somos) ═══ -->
     ${sobreHtml}
 
-    <!-- ═══ AMBIENTES ═══ -->
+    <!-- ═══ AMBIENTES (valor — o que você recebe) ═══ -->
+    <div class="sec-title">SEU PROJETO</div>
+    <p class="txt" style="margin-bottom:16px">Detalhamento dos ambientes e itens que compõem o projeto desenvolvido para você:</p>
     ${ambientesHtml}
 
-    <!-- ═══ RESUMO ═══ -->
+    <!-- ═══ INVESTIMENTO (preço — quanto custa) ═══ -->
     ${resumoHtml}
 
-    <!-- ═══ PAGAMENTO ═══ -->
+    <!-- ═══ PAGAMENTO (facilidade — como pagar) ═══ -->
     ${pagamentoHtml}
 
-    <!-- ═══ CONSIDERAÇÕES ═══ -->
-    ${condicoesHtml}
+    <!-- ═══ GARANTIA (segurança — proteção) ═══ -->
+    ${garantiaHtml}
+
+    <!-- ═══ INFO PROJETO (prazo, validade, local) ═══ -->
+    ${infoProjetoHtml}
+
+    <!-- ═══ FECHAMENTO (emoção final positiva) ═══ -->
+    ${fechamentoHtml}
 
     <!-- ═══ ASSINATURA ═══ -->
     <div class="sig-section">
@@ -747,9 +956,11 @@ export function buildPropostaHtml({
     <!-- ═══ FOOTER ═══ -->
     <div class="footer">
         ${txtRodape ? `<div style="margin-bottom:3px">${txtRodape}</div>` : ''}
-        <div>${empresaNome}${empresaContato.length > 0 ? ` · ${empresaContato.join(' · ')}` : ''}</div>
-        <div>Documento gerado em ${fmtData()}</div>
+        <div class="footer-brand">${empresaNome}</div>
+        <div>${empresaContato.length > 0 ? `${empresaContato.join(' · ')}` : ''}</div>
     </div>
+
+    </div><!-- /content-body -->
 
 </body></html>`;
 }

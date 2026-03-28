@@ -253,4 +253,95 @@ export function syncFinancialNotifications() {
             WHERE e.quantidade < e.quantidade_minima AND e.quantidade_minima > 0
         )
     `).run();
+
+    // ─── PRODUÇÃO: Projetos atrasados ──────────────────────────
+    try {
+        const projetosAtrasados = db.prepare(`
+            SELECT p.id, p.nome, p.data_vencimento,
+                   CAST(julianday('now') - julianday(p.data_vencimento) AS INTEGER) as dias_atraso
+            FROM projetos p
+            WHERE p.status IN ('em_andamento','em_producao','nao_iniciado')
+            AND p.data_vencimento < date('now')
+            AND p.id NOT IN (
+                SELECT referencia_id FROM notificacoes
+                WHERE tipo = 'etapa_atrasada' AND referencia_tipo = 'projeto'
+                AND criado_em > datetime('now', '-24 hours')
+            )
+        `).all();
+
+        for (const p of projetosAtrasados) {
+            db.prepare(`
+                INSERT INTO notificacoes (tipo, titulo, mensagem, referencia_id, referencia_tipo, referencia_extra)
+                VALUES ('etapa_atrasada', ?, ?, ?, 'projeto', ?)
+            `).run(
+                `Projeto atrasado: ${p.nome}`,
+                `${p.dias_atraso} dia${p.dias_atraso > 1 ? 's' : ''} de atraso · Entrega era ${p.data_vencimento}`,
+                p.id,
+                p.nome
+            );
+        }
+
+        // Desativar alertas de projetos que não estão mais atrasados
+        db.prepare(`
+            UPDATE notificacoes SET ativo = 0
+            WHERE tipo = 'etapa_atrasada' AND ativo = 1 AND referencia_tipo = 'projeto'
+            AND referencia_id NOT IN (
+                SELECT id FROM projetos WHERE status IN ('em_andamento','em_producao','nao_iniciado') AND data_vencimento < date('now')
+            )
+        `).run();
+    } catch(e) { /* tabela pode não existir */ }
+
+    // ─── ENTREGAS: Entregas atrasadas ou hoje ──────────────────
+    try {
+        // Entregas agendadas para hoje
+        const entregasHoje = db.prepare(`
+            SELECT e.id, e.projeto_id, COALESCE(p.nome, 'Projeto #' || e.projeto_id) as projeto_nome, e.data_agendada
+            FROM entregas e
+            LEFT JOIN projetos p ON p.id = e.projeto_id
+            WHERE e.status = 'agendada' AND e.data_agendada = date('now')
+            AND e.id NOT IN (
+                SELECT referencia_id FROM notificacoes
+                WHERE tipo = 'entrega_hoje' AND referencia_tipo = 'entrega'
+                AND criado_em > datetime('now', '-24 hours')
+            )
+        `).all();
+
+        for (const ent of entregasHoje) {
+            db.prepare(`
+                INSERT INTO notificacoes (tipo, titulo, mensagem, referencia_id, referencia_tipo, referencia_extra, expira_em)
+                VALUES ('entrega_hoje', ?, ?, ?, 'entrega', ?, datetime('now', '+24 hours'))
+            `).run(
+                `Entrega hoje: ${ent.projeto_nome}`,
+                `Entrega agendada para hoje`,
+                ent.id,
+                ent.projeto_nome
+            );
+        }
+
+        // Entregas atrasadas
+        const entregasAtrasadas = db.prepare(`
+            SELECT e.id, COALESCE(p.nome, 'Projeto #' || e.projeto_id) as projeto_nome, e.data_agendada,
+                   CAST(julianday('now') - julianday(e.data_agendada) AS INTEGER) as dias_atraso
+            FROM entregas e
+            LEFT JOIN projetos p ON p.id = e.projeto_id
+            WHERE e.status = 'agendada' AND e.data_agendada < date('now')
+            AND e.id NOT IN (
+                SELECT referencia_id FROM notificacoes
+                WHERE tipo = 'entrega_atrasada' AND referencia_tipo = 'entrega'
+                AND criado_em > datetime('now', '-24 hours')
+            )
+        `).all();
+
+        for (const ent of entregasAtrasadas) {
+            db.prepare(`
+                INSERT INTO notificacoes (tipo, titulo, mensagem, referencia_id, referencia_tipo, referencia_extra)
+                VALUES ('entrega_atrasada', ?, ?, ?, 'entrega', ?)
+            `).run(
+                `Entrega atrasada: ${ent.projeto_nome}`,
+                `${ent.dias_atraso} dia${ent.dias_atraso > 1 ? 's' : ''} de atraso`,
+                ent.id,
+                ent.projeto_nome
+            );
+        }
+    } catch(e) { /* tabela pode não existir */ }
 }

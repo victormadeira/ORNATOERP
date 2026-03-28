@@ -36,14 +36,17 @@ router.post('/apontar', requireAuth, (req, res) => {
 // GET /api/producao-av/painel — Dashboard TV Fábrica
 router.get('/painel', requireAuth, (req, res) => {
     // Projetos em produção com etapa atual
-    const projetos = db.prepare(`
-        SELECT p.id, p.nome, p.status, p.data_vencimento, o.cliente_nome, o.valor_venda, o.numero
+    const rawProjetos = db.prepare(`
+        SELECT p.id, p.nome, p.status, p.data_vencimento, o.cliente_nome, o.valor_venda, o.numero, o.mods_json
         FROM projetos p LEFT JOIN orcamentos o ON o.id = p.orc_id
         WHERE p.status IN ('em_producao', 'nao_iniciado', 'em_andamento')
         ORDER BY p.data_vencimento ASC LIMIT 50
     `).all();
 
-    projetos.forEach(proj => {
+    let totalModulosGeral = 0;
+    let totalConcluidosGeral = 0;
+
+    const projetos = rawProjetos.map(proj => {
         // Etapa atual: último apontamento aberto ou mais recente
         const ultimaEtapa = db.prepare(`
             SELECT etapa, modulo_nome, inicio, fim, colaborador_id,
@@ -51,20 +54,47 @@ router.get('/painel', requireAuth, (req, res) => {
             FROM producao_apontamentos WHERE projeto_id = ?
             ORDER BY id DESC LIMIT 5
         `).all(proj.id);
-        proj.etapas_recentes = ultimaEtapa;
+
+        // Etapa atual (último apontamento em aberto, ou último concluído)
+        const etapaAberta = ultimaEtapa.find(e => e.status_etapa === 'em_andamento');
+        const etapa_atual = etapaAberta ? etapaAberta.etapa : (ultimaEtapa.length > 0 ? ultimaEtapa[0].etapa : 'Aguardando');
+
+        // Contar módulos do orçamento
+        let modulos_total = 0;
+        try {
+            const mods = JSON.parse(proj.mods_json || '{}');
+            const ambientes = mods.ambientes || [];
+            ambientes.forEach(amb => {
+                if (amb.itens) modulos_total += amb.itens.reduce((s, it) => s + (it.qtd || 1), 0);
+                if (amb.linhas) modulos_total += amb.linhas.length;
+            });
+        } catch(e) {}
+        if (modulos_total === 0) modulos_total = 1; // fallback
 
         // Progresso: % módulos com todas etapas concluídas
-        const modulos = db.prepare(`SELECT DISTINCT modulo_id FROM producao_apontamentos WHERE projeto_id = ?`).all(proj.id);
-        const modulosConcluidos = modulos.filter(m => {
+        const modulosApontados = db.prepare(`SELECT DISTINCT modulo_id FROM producao_apontamentos WHERE projeto_id = ?`).all(proj.id);
+        const modulosConcluidos = modulosApontados.filter(m => {
             const pendente = db.prepare(`SELECT id FROM producao_apontamentos WHERE projeto_id = ? AND modulo_id = ? AND fim IS NULL`).get(proj.id, m.modulo_id);
             return !pendente;
-        });
-        proj.progresso = modulos.length > 0 ? Math.round((modulosConcluidos.length / modulos.length) * 100) : 0;
+        }).length;
+        const progresso_modulos = modulos_total > 0 ? Math.round((modulosConcluidos / modulos_total) * 100) : 0;
 
-        // Dias até vencimento
-        if (proj.data_vencimento) {
-            proj.dias_restantes = Math.ceil((new Date(proj.data_vencimento) - new Date()) / 86400000);
-        }
+        totalModulosGeral += modulos_total;
+        totalConcluidosGeral += modulosConcluidos;
+
+        return {
+            id: proj.id,
+            nome: proj.nome,
+            status: proj.status,
+            data_entrega: proj.data_vencimento,
+            cliente: proj.cliente_nome || 'Sem cliente',
+            numero: proj.numero,
+            etapa_atual,
+            etapas_recentes: ultimaEtapa,
+            progresso_modulos,
+            modulos_total,
+            modulos_concluidos: modulosConcluidos,
+        };
     });
 
     // Capacidade: horas usadas vs disponíveis esta semana
@@ -75,20 +105,59 @@ router.get('/painel', requireAuth, (req, res) => {
     `).get()?.horas || 0;
 
     const cfg = db.prepare('SELECT func_producao, horas_dia, eficiencia FROM config_taxas WHERE id = 1').get();
-    const capacidadeSemanal = (cfg?.func_producao || 10) * (cfg?.horas_dia || 8.5) * 5 * ((cfg?.eficiencia || 75) / 100);
+    const funcProducao = cfg?.func_producao || 10;
+    const horasDia = cfg?.horas_dia || 8.5;
+    const eficiencia = cfg?.eficiencia || 75;
+    const capacidadeSemanal = funcProducao * horasDia * 5 * (eficiencia / 100);
 
     // Gargalos: etapas com mais tempo de espera
-    const gargalos = db.prepare(`
+    const rawGargalos = db.prepare(`
         SELECT etapa, COUNT(*) as qtd_abertos
         FROM producao_apontamentos WHERE fim IS NULL
         GROUP BY etapa ORDER BY qtd_abertos DESC
     `).all();
 
+    const gargalos = rawGargalos.map(g => ({
+        nome: g.etapa,
+        estacao: g.etapa,
+        motivo: `${g.qtd_abertos} tarefa${g.qtd_abertos > 1 ? 's' : ''} pendente${g.qtd_abertos > 1 ? 's' : ''}`,
+        projetos_aguardando: g.qtd_abertos,
+    }));
+
+    // Resumo
+    const projetosAtrasados = projetos.filter(p => {
+        if (!p.data_entrega) return false;
+        return Math.ceil((new Date(p.data_entrega + 'T12:00:00') - new Date()) / 86400000) < 0;
+    }).length;
+
     res.json({
         projetos,
-        capacidade: { horasUsadas: Math.round(horasSemana * 10) / 10, capacidadeSemanal: Math.round(capacidadeSemanal), utilizacao: capacidadeSemanal > 0 ? Math.round((horasSemana / capacidadeSemanal) * 100) : 0 },
+        capacidade: {
+            horas_usadas: Math.round(horasSemana * 10) / 10,
+            horas_disponiveis: Math.round(capacidadeSemanal),
+            utilizacao: capacidadeSemanal > 0 ? Math.round((horasSemana / capacidadeSemanal) * 100) : 0,
+            por_estacao: [],
+        },
         gargalos,
+        resumo: {
+            projetos_ativos: projetos.length,
+            projetos_atrasados: projetosAtrasados,
+            modulos_total: totalModulosGeral,
+            modulos_concluidos: totalConcluidosGeral,
+        },
     });
+});
+
+// GET /api/producao-av/apontamentos — Listar apontamentos de um projeto
+router.get('/apontamentos', requireAuth, (req, res) => {
+    const { projeto_id } = req.query;
+    if (!projeto_id) return res.json([]);
+    const rows = db.prepare(`
+        SELECT id, projeto_id, modulo_id, modulo_nome, etapa, colaborador_id, inicio, fim, duracao_min
+        FROM producao_apontamentos WHERE projeto_id = ?
+        ORDER BY id DESC LIMIT 100
+    `).all(projeto_id);
+    res.json(rows);
 });
 
 // GET /api/producao-av/capacidade — Capacidade da fábrica

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
-import { Z, Ic, Spinner, Badge, SectionHeader, PageHeader, TabBar } from '../ui';
+import { Z, Ic, Spinner, Badge, SectionHeader, PageHeader, TabBar, KpiCard, Sparkline, Skeleton, SkeletonCard } from '../ui';
 import { STATUS_PROJ, CAT_COLOR, CAT_LABEL } from '../theme';
 import { R$, N } from '../engine';
 import {
@@ -8,7 +8,8 @@ import {
     Briefcase, FileText, CreditCard, User as UserIcon, ArrowRight,
     Calendar, Eye, ChevronRight, Activity, BarChart3, Wallet,
     CheckCircle2, XCircle, PauseCircle, Zap, PieChart, ArrowUpRight,
-    ArrowDownRight, Receipt, Plus, Trash2, Edit3, Check, X
+    ArrowDownRight, Receipt, Plus, Trash2, Edit3, Check, X,
+    Factory, Truck, Package, Wrench
 } from 'lucide-react';
 
 const greet = () => {
@@ -19,9 +20,9 @@ const greet = () => {
 // ── EmptyState ───────────────────────────────────────────
 function EmptyState({ icon: Icon, msg, cta, onClick }) {
     return (
-        <div style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-            <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center' }}>
-                <Icon size={32} style={{ opacity: 0.35 }} />
+        <div className="animate-fade-up" style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <div className="empty-state-icon" style={{ marginBottom: 12 }}>
+                <Icon size={28} style={{ opacity: 0.5 }} />
             </div>
             <p style={{ fontSize: 13, marginBottom: cta ? 12 : 0 }}>{msg}</p>
             {cta && (
@@ -33,22 +34,86 @@ function EmptyState({ icon: Icon, msg, cta, onClick }) {
     );
 }
 
+// ── ProducaoResume ────────────────────────────────────────
+function ProducaoResume({ data, nav }) {
+    if (!data) return null;
+    const items = [
+        { icon: Factory, label: 'Em Produção', value: data.projetos_ativos, color: 'var(--primary)', sub: data.projetos_atrasados > 0 ? `${data.projetos_atrasados} atrasado${data.projetos_atrasados > 1 ? 's' : ''}` : 'todos no prazo' },
+        { icon: Clock, label: 'Horas/Semana', value: `${data.horas_semana}h`, color: '#8b5cf6', sub: 'apontadas' },
+        { icon: Truck, label: 'Entregas', value: data.entregas_semana, color: '#f59e0b', sub: 'esta semana' },
+        { icon: Wrench, label: 'Instalações', value: data.instalacoes_semana, color: '#22c55e', sub: 'esta semana' },
+    ];
+
+    return (
+        <div className="glass-card animate-fade-up" style={{ padding: '18px 22px', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Factory size={18} style={{ color: 'var(--primary)' }} />
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Produção & Expedição</span>
+                </div>
+                <button onClick={() => nav('producao_fabrica')} className="text-xs" style={{
+                    display: 'flex', alignItems: 'center', gap: 4, color: 'var(--primary)',
+                    background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 12,
+                }}>
+                    Ver detalhes <ChevronRight size={14} />
+                </button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                {items.map((it, i) => {
+                    const I = it.icon;
+                    return (
+                        <div key={i} style={{
+                            display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                            borderRadius: 10, background: 'var(--bg-muted)',
+                        }}>
+                            <div style={{
+                                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                                background: `${it.color}12`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                                <I size={18} style={{ color: it.color }} />
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{it.value}</div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{it.sub}</div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            {data.gargalos?.length > 0 && (
+                <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {data.gargalos.map((g, i) => (
+                        <span key={i} style={{
+                            fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 6,
+                            background: 'rgba(239,68,68,0.08)', color: '#ef4444',
+                        }}>
+                            {g.etapa}: {g.qtd} pendente{g.qtd > 1 ? 's' : ''}
+                        </span>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ── HeadlineMes ──────────────────────────────────────────
 function HeadlineMes({ data }) {
     if (!data) return null;
     const up = data.pct_variacao >= 0;
     return (
-        <div className="glass-card" style={{
+        <div className="glass-card animate-fade-up" style={{
             padding: '22px 28px', marginBottom: 16,
-            background: 'var(--bg-card)',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap',
+            background: 'linear-gradient(135deg, var(--glass-bg), var(--bg-card))',
         }}>
             <div>
                 <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
                     Faturamento em {data.mes_atual}
                 </div>
-                <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--primary)', lineHeight: 1 }}>
-                    {R$(data.faturamento_mes)}
+                <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1 }}>
+                    <span style={{ background: 'var(--primary-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                        {R$(data.faturamento_mes)}
+                    </span>
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
                     {data.qtd_fechados} negocio{data.qtd_fechados !== 1 ? 's' : ''} fechado{data.qtd_fechados !== 1 ? 's' : ''}
@@ -57,10 +122,11 @@ function HeadlineMes({ data }) {
             <div style={{ textAlign: 'right' }}>
                 <div style={{
                     display: 'inline-flex', alignItems: 'center', gap: 4,
-                    padding: '4px 10px', borderRadius: 16,
-                    background: up ? '#16A34A08' : '#DC262608',
+                    padding: '4px 12px', borderRadius: 20,
+                    background: up ? 'rgba(22,163,74,0.08)' : 'rgba(220,38,38,0.08)',
                     color: up ? 'var(--success)' : 'var(--danger)',
                     fontWeight: 600, fontSize: 12,
+                    border: `1px solid ${up ? 'rgba(22,163,74,0.15)' : 'rgba(220,38,38,0.15)'}`,
                 }}>
                     {up ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
                     {up && '+'}{data.pct_variacao}%
@@ -78,10 +144,11 @@ function FilaAtencao({ data, nav }) {
     if (!data || (data.total_parados === 0 && data.total_vencidas === 0)) return null;
 
     return (
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
+        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
             <div style={{
                 padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 8,
-                borderBottom: '1px solid var(--border)', background: '#f59e0b08',
+                borderBottom: '1px solid var(--border)',
+                background: 'linear-gradient(135deg, rgba(245,158,11,0.06), transparent)',
             }}>
                 <AlertTriangle size={16} style={{ color: '#f59e0b' }} />
                 <span style={{ fontWeight: 700, fontSize: 13, color: '#f59e0b' }}>Fila de Atencao</span>
@@ -93,15 +160,18 @@ function FilaAtencao({ data, nav }) {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: data.total_parados > 0 && data.total_vencidas > 0 ? '1fr 1fr' : '1fr', minHeight: 0 }}>
-                {/* Orcamentos parados */}
                 {data.total_parados > 0 && (
                     <div style={{ borderRight: data.total_vencidas > 0 ? '1px solid var(--border)' : 'none' }}>
                         <div style={{ padding: '10px 16px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)' }}>
                             <Clock size={10} style={{ display: 'inline', marginRight: 4 }} /> Orcamentos Parados ({'>'}7 dias)
                         </div>
-                        {data.orcamentos_parados.map(o => (
+                        {data.orcamentos_parados.map((o, i) => (
                             <div key={o.id} onClick={() => nav('novo', o)}
-                                style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
+                                style={{
+                                    padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                                    animation: `stagger-in 0.25s ease ${i * 40}ms both`,
+                                }}
                                 className="hover:bg-[var(--bg-hover)] transition-colors">
                                 <div style={{ minWidth: 0 }}>
                                     <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.cliente_nome}</div>
@@ -118,15 +188,18 @@ function FilaAtencao({ data, nav }) {
                     </div>
                 )}
 
-                {/* Contas vencidas */}
                 {data.total_vencidas > 0 && (
                     <div>
                         <div style={{ padding: '10px 16px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)' }}>
                             <XCircle size={10} style={{ display: 'inline', marginRight: 4, color: '#ef4444' }} /> Contas Vencidas
                         </div>
-                        {data.contas_vencidas.map(c => (
+                        {data.contas_vencidas.map((c, i) => (
                             <div key={c.id} onClick={() => nav('financeiro')}
-                                style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
+                                style={{
+                                    padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                                    animation: `stagger-in 0.25s ease ${i * 40}ms both`,
+                                }}
                                 className="hover:bg-[var(--bg-hover)] transition-colors">
                                 <div style={{ minWidth: 0 }}>
                                     <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.descricao}</div>
@@ -152,7 +225,7 @@ function PipelineVisual({ data, total, nav }) {
     const firstQtd = data[0]?.qtd || 1;
 
     return (
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
             <SectionHeader icon={PieChart} title="Funil de Vendas">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{totalQtd} propostas</span>
@@ -163,13 +236,13 @@ function PipelineVisual({ data, total, nav }) {
                 {data.map((s, i) => {
                     const funnelPct = firstQtd > 0 ? Math.max((s.qtd / firstQtd) * 100, s.qtd > 0 ? 15 : 5) : 5;
                     return (
-                        <div key={s.id} style={{ animation: 'chartFadeIn 0.4s ease both' }}>
+                        <div key={s.id} style={{ animation: `stagger-in 0.35s ease ${i * 60}ms both` }}>
                             <div onClick={() => nav('kb')}
                                 style={{
                                     display: 'flex', alignItems: 'center', cursor: 'pointer',
                                     padding: '10px 14px', borderRadius: 10, marginBottom: 2, position: 'relative', overflow: 'hidden',
                                     background: `linear-gradient(90deg, ${s.cor}08, transparent ${funnelPct}%)`,
-                                    transition: 'background 0.2s',
+                                    transition: 'all 0.2s',
                                 }}
                                 className="hover:opacity-80 transition-opacity">
                                 <div style={{
@@ -200,7 +273,6 @@ function PipelineVisual({ data, total, nav }) {
                     );
                 })}
             </div>
-            {/* Resumo do funil */}
             {data.length >= 2 && (
                 <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                     {(() => {
@@ -211,11 +283,11 @@ function PipelineVisual({ data, total, nav }) {
                         return (<>
                             <div style={{ flex: 1, minWidth: 100, textAlign: 'center' }}>
                                 <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>{txConv}%</div>
-                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Taxa de Conversão</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Taxa de Conversao</div>
                             </div>
                             <div style={{ flex: 1, minWidth: 100, textAlign: 'center' }}>
                                 <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--primary)' }}>{R$(ticketMedio)}</div>
-                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Ticket Médio</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Ticket Medio</div>
                             </div>
                             <div style={{ flex: 1, minWidth: 100, textAlign: 'center' }}>
                                 <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>{totalQtd}</div>
@@ -241,14 +313,14 @@ function FluxoCaixa({ data }) {
     const maxVal = Math.max(...items.map(i => i.value), 1);
 
     return (
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
             <SectionHeader icon={Wallet} title="Fluxo de Caixa" />
             <div style={{ padding: '14px 20px' }}>
                 {items.map((it, i) => {
                     const Icon = it.icon;
                     const pct = Math.max((it.value / maxVal) * 100, it.value > 0 ? 4 : 0);
                     return (
-                        <div key={i} style={{ marginBottom: i < items.length - 1 ? 14 : 0, animation: `chartFadeIn 0.35s ease ${i * 70}ms both` }}>
+                        <div key={i} style={{ marginBottom: i < items.length - 1 ? 14 : 0, animation: `stagger-in 0.35s ease ${i * 70}ms both` }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
                                 <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
                                     <Icon size={12} style={{ color: it.color }} /> {it.label}
@@ -267,18 +339,17 @@ function FluxoCaixa({ data }) {
                     );
                 })}
 
-                {/* Saídas */}
                 {(data.saidas_30d > 0 || data.saidas_vencidas > 0 || data.pago_mes > 0) && (
                     <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.05em' }}>Saídas (Contas a Pagar)</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.05em' }}>Saidas (Contas a Pagar)</div>
                         {[
-                            { label: 'Pago este mês', value: data.pago_mes, color: 'var(--text-muted)', icon: CheckCircle2 },
+                            { label: 'Pago este mes', value: data.pago_mes, color: 'var(--text-muted)', icon: CheckCircle2 },
                             { label: 'A pagar (30d)', value: data.saidas_30d, color: 'var(--text-secondary)', icon: Calendar },
                             { label: 'Vencido (a pagar)', value: data.saidas_vencidas, color: 'var(--danger)', icon: AlertTriangle },
                         ].filter(it => it.value > 0).map((it, i) => {
                             const Icon = it.icon;
                             return (
-                                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, animation: `chartFadeIn 0.3s ease ${i * 60 + 300}ms both` }}>
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, animation: `stagger-in 0.3s ease ${i * 60 + 300}ms both` }}>
                                     <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
                                         <Icon size={12} style={{ color: it.color }} /> {it.label}
                                     </span>
@@ -305,12 +376,12 @@ function ProjetosAtivos({ data, total, nav }) {
     }
 
     return (
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
+        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
             <SectionHeader icon={Briefcase} title={<>Projetos Ativos <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>({total})</span></>}>
                 <button onClick={() => nav('proj')} className={`${Z.btn2} text-xs py-1.5 px-3`}>Ver todos</button>
             </SectionHeader>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 0 }}>
-                {data.map(p => {
+                {data.map((p, idx) => {
                     const color = (STATUS_PROJ[p.status]?.color || '#94a3b8');
                     const pct = p.progresso_pct || 0;
                     const diasLabel = p.dias_restantes > 0
@@ -321,10 +392,13 @@ function ProjetosAtivos({ data, total, nav }) {
 
                     return (
                         <div key={p.id} onClick={() => nav('proj')}
-                            style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', borderRight: '1px solid var(--border)', cursor: 'pointer' }}
-                            className="hover:bg-[var(--bg-hover)] transition-colors">
+                            style={{
+                                padding: '14px 20px', borderBottom: '1px solid var(--border)', borderRight: '1px solid var(--border)', cursor: 'pointer',
+                                animation: `stagger-in 0.3s ease ${idx * 50}ms both`,
+                                transition: 'background 0.15s',
+                            }}
+                            className="hover:bg-[var(--bg-hover)]">
 
-                            {/* Header: nome + status badge */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
                                 <div style={{ minWidth: 0, flex: 1 }}>
                                     <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome}</div>
@@ -337,7 +411,6 @@ function ProjetosAtivos({ data, total, nav }) {
                                 <Badge label={STATUS_PROJ[p.status]?.label || p.status} color={color} />
                             </div>
 
-                            {/* Progress bar */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                                 <div style={{ flex: 1, background: 'var(--bg-muted)', borderRadius: 99, height: 6, overflow: 'hidden' }}>
                                     <div style={{
@@ -350,7 +423,6 @@ function ProjetosAtivos({ data, total, nav }) {
                                 <span style={{ fontSize: 11, fontWeight: 600, color, minWidth: 32, textAlign: 'right' }}>{pct}%</span>
                             </div>
 
-                            {/* Mini financial + deadline */}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                                 <div style={{ display: 'flex', gap: 12 }}>
                                     <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>
@@ -368,7 +440,6 @@ function ProjetosAtivos({ data, total, nav }) {
                                 </span>
                             </div>
 
-                            {/* Alerts */}
                             {(p.ocorrencias_abertas > 0 || p.contas_vencidas > 0) && (
                                 <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
                                     {p.ocorrencias_abertas > 0 && (
@@ -391,7 +462,7 @@ function ProjetosAtivos({ data, total, nav }) {
     );
 }
 
-// ── TimelineRecente (Log Real de Atividades) ────────────
+// ── TimelineRecente ────────────────────────────────────
 const ACAO_CONFIG = {
     criar:               { icon: Plus,      color: 'var(--primary)', label: 'Criou' },
     aprovar:             { icon: Check,     color: 'var(--success)', label: 'Aprovou' },
@@ -412,12 +483,12 @@ function tempoRelativo(dateStr) {
     const diff = Date.now() - new Date(dateStr).getTime();
     const min = Math.floor(diff / 60000);
     if (min < 1) return 'Agora';
-    if (min < 60) return `Há ${min}min`;
+    if (min < 60) return `Ha ${min}min`;
     const hrs = Math.floor(min / 60);
-    if (hrs < 24) return `Há ${hrs}h`;
+    if (hrs < 24) return `Ha ${hrs}h`;
     const dias = Math.floor(hrs / 24);
     if (dias === 1) return 'Ontem';
-    if (dias < 30) return `Há ${dias}d`;
+    if (dias < 30) return `Ha ${dias}d`;
     return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 
@@ -430,7 +501,7 @@ function TimelineRecente({ data, nav }) {
     );
 
     return (
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
             <SectionHeader icon={Activity} title="Atividade Recente" />
             <div style={{ padding: '4px 0' }}>
                 {data.map((ev, i) => {
@@ -451,12 +522,13 @@ function TimelineRecente({ data, nav }) {
                                 display: 'flex', alignItems: 'center', gap: 12,
                                 padding: '10px 20px', cursor: 'pointer',
                                 borderBottom: i < data.length - 1 ? '1px solid var(--border)' : 'none',
+                                animation: `stagger-in 0.25s ease ${i * 30}ms both`,
+                                transition: 'background 0.15s',
                             }}
-                            className="hover:bg-[var(--bg-hover)] transition-colors">
-                            {/* Avatar com inicial do usuário */}
+                            className="hover:bg-[var(--bg-hover)]">
                             <div style={{
                                 width: 32, height: 32, borderRadius: '50%',
-                                background: 'var(--bg-muted)', color: 'var(--text-secondary)',
+                                background: 'var(--primary-alpha)', color: 'var(--primary)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                                 fontSize: 13, fontWeight: 800,
                             }}>
@@ -472,7 +544,7 @@ function TimelineRecente({ data, nav }) {
                                         background: 'var(--bg-muted)', color: 'var(--text-muted)',
                                     }}>{cfg.label}</span>
                                     <span>{ev.user_nome}</span>
-                                    <span>·</span>
+                                    <span style={{ opacity: 0.4 }}>·</span>
                                     <span>{tempoRelativo(ev.criado_em)}</span>
                                 </div>
                             </div>
@@ -486,34 +558,23 @@ function TimelineRecente({ data, nav }) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// DASHBOARD FINANCEIRO — Componentes
+// DASHBOARD FINANCEIRO
 // ═══════════════════════════════════════════════════════════
 
 function FinanceiroKPI({ data }) {
     if (!data) return null;
     const cards = [
-        { label: 'Receita do Mês', value: data.receita_mes, icon: ArrowUpRight, prefix: '' },
-        { label: 'Despesas do Mês', value: data.despesa_mes, icon: ArrowDownRight, prefix: '-' },
-        { label: 'Lucro do Mês', value: data.lucro_mes, icon: DollarSign, prefix: '' },
-        { label: 'Margem', value: null, display: `${data.margem_pct}%`, icon: PieChart, prefix: '' },
+        { label: 'Receita do Mes', value: R$(data.receita_mes), icon: ArrowUpRight },
+        { label: 'Despesas do Mes', value: R$(data.despesa_mes), icon: ArrowDownRight },
+        { label: 'Lucro do Mes', value: R$(data.lucro_mes), icon: DollarSign },
+        { label: 'Margem', value: `${data.margem_pct}%`, icon: PieChart },
     ];
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
-            {cards.map((c, i) => {
-                const Icon = c.icon;
-                return (
-                    <div key={i} className="glass-card" style={{ padding: '18px 20px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{c.label}</span>
-                            <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--primary-alpha, rgba(19,121,240,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <Icon size={14} style={{ color: 'var(--primary)' }} />
-                            </div>
-                        </div>
-                        <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>{c.display || `${c.prefix}${R$(Math.abs(c.value))}`}</div>
-                    </div>
-                );
-            })}
+        <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+            {cards.map((c, i) => (
+                <KpiCard key={i} label={c.label} value={c.value} icon={c.icon} />
+            ))}
         </div>
     );
 }
@@ -523,7 +584,7 @@ function GraficoBarras6Meses({ data }) {
     const maxVal = Math.max(...data.map(d => Math.max(d.receita, d.despesa)), 1);
 
     return (
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
             <SectionHeader icon={BarChart3} title="Receita vs Despesas (6 meses)">
                 <div style={{ display: 'flex', gap: 12, fontSize: 10, fontWeight: 600 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 3, background: 'var(--primary)', display: 'inline-block' }} /> Receita</span>
@@ -531,7 +592,6 @@ function GraficoBarras6Meses({ data }) {
                 </div>
             </SectionHeader>
             <div style={{ padding: '20px', display: 'flex', alignItems: 'flex-end', gap: 12, height: 220, position: 'relative' }}>
-                {/* Grid lines */}
                 {[0, 25, 50, 75].map(pct => (
                     <div key={pct} style={{ position: 'absolute', left: 0, right: 0, bottom: `${pct + 14}%`, borderTop: '1px dashed var(--border)', opacity: 0.5, pointerEvents: 'none' }} />
                 ))}
@@ -544,7 +604,7 @@ function GraficoBarras6Meses({ data }) {
                                 <div style={{
                                     flex: 1, borderRadius: '6px 6px 0 0', minHeight: m.receita > 0 ? 4 : 0,
                                     height: `${rPct}%`,
-                                    background: 'var(--primary)',
+                                    background: 'var(--primary-gradient)',
                                     transformOrigin: 'bottom',
                                     animation: `chartGrowUp 0.5s ease ${i * 80}ms both`,
                                 }} title={`Receita: ${R$(m.receita)}`} />
@@ -569,14 +629,14 @@ function GraficoPizzaDespesas({ data }) {
     if (!data || data.length === 0) return (
         <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
             <SectionHeader icon={PieChart} title="Despesas por Categoria" />
-            <EmptyState icon={PieChart} msg="Sem despesas no período" />
+            <EmptyState icon={PieChart} msg="Sem despesas no periodo" />
         </div>
     );
 
     const total = data.reduce((s, d) => s + d.total, 0);
 
     return (
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
             <SectionHeader icon={PieChart} title="Despesas por Categoria">
                 <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{R$(total)}</span>
             </SectionHeader>
@@ -585,11 +645,10 @@ function GraficoPizzaDespesas({ data }) {
                     const pct = total > 0 ? Math.round((d.total / total) * 100) : 0;
                     const color = CAT_COLOR[d.categoria] || '#94a3b8';
                     return (
-                        <div key={i} style={{ marginBottom: 10, animation: `chartFadeIn 0.35s ease ${i * 50}ms both` }}>
+                        <div key={i} style={{ marginBottom: 10, animation: `stagger-in 0.35s ease ${i * 50}ms both` }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                                 <span style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <span style={{ width: 8, height: 8, borderRadius: 3, display: 'inline-block',
-                                        background: color }} />
+                                    <span style={{ width: 8, height: 8, borderRadius: 3, display: 'inline-block', background: color }} />
                                     {CAT_LABEL[d.categoria] || d.categoria}
                                 </span>
                                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>{R$(d.total)} ({pct}%)</span>
@@ -614,25 +673,35 @@ function TabelaTopProjetos({ data }) {
     if (!data || data.length === 0) return null;
 
     return (
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="glass-card animate-fade-up table-stagger" style={{ padding: 0, overflow: 'hidden' }}>
             <SectionHeader icon={Briefcase} title="Top Projetos por Lucro" />
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 60px', padding: '8px 20px', borderBottom: '1px solid var(--border)', letterSpacing: '0.04em' }}>
-                <span>Projeto</span><span style={{ textAlign: 'right' }}>Valor</span><span style={{ textAlign: 'right' }}>Despesas</span><span style={{ textAlign: 'right' }}>Lucro</span><span style={{ textAlign: 'center' }}>Margem</span>
-            </div>
-            {data.map((p, i) => (
-                <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 60px', padding: '10px 20px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
-                    <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{p.cliente_nome}</div>
-                    </div>
-                    <div style={{ textAlign: 'right', fontSize: 12, fontWeight: 600 }}>{R$(p.valor_venda)}</div>
-                    <div style={{ textAlign: 'right', fontSize: 12, color: '#B86565' }}>{R$(p.despesas)}</div>
-                    <div style={{ textAlign: 'right', fontSize: 12, fontWeight: 700, color: p.lucro >= 0 ? '#5B8C6B' : '#B86565' }}>{R$(p.lucro)}</div>
-                    <div style={{ textAlign: 'center' }}>
-                        <Badge label={`${p.margem}%`} color={p.margem >= 20 ? '#5B8C6B' : p.margem >= 0 ? '#C4924C' : '#B86565'} />
-                    </div>
-                </div>
-            ))}
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                    <tr>
+                        <th className="th-glass" style={{ textAlign: 'left' }}>Projeto</th>
+                        <th className="th-glass" style={{ textAlign: 'right' }}>Valor</th>
+                        <th className="th-glass" style={{ textAlign: 'right' }}>Despesas</th>
+                        <th className="th-glass" style={{ textAlign: 'right' }}>Lucro</th>
+                        <th className="th-glass" style={{ textAlign: 'center', width: 60 }}>Margem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {data.map((p, i) => (
+                        <tr key={p.id}>
+                            <td className="td-glass">
+                                <div style={{ fontSize: 13, fontWeight: 600 }}>{p.nome}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{p.cliente_nome}</div>
+                            </td>
+                            <td className="td-glass" style={{ textAlign: 'right', fontSize: 12, fontWeight: 600 }}>{R$(p.valor_venda)}</td>
+                            <td className="td-glass" style={{ textAlign: 'right', fontSize: 12, color: '#B86565' }}>{R$(p.despesas)}</td>
+                            <td className="td-glass" style={{ textAlign: 'right', fontSize: 12, fontWeight: 700, color: p.lucro >= 0 ? '#5B8C6B' : '#B86565' }}>{R$(p.lucro)}</td>
+                            <td className="td-glass" style={{ textAlign: 'center' }}>
+                                <Badge label={`${p.margem}%`} color={p.margem >= 20 ? '#5B8C6B' : p.margem >= 0 ? '#C4924C' : '#B86565'} />
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
         </div>
     );
 }
@@ -641,7 +710,7 @@ function FluxoProjetado({ data }) {
     if (!data || data.length === 0) return null;
 
     return (
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
             <SectionHeader icon={Wallet} title="Fluxo de Caixa Projetado (90 dias)" />
             <div style={{ padding: '14px 20px' }}>
                 {data.map((m, i) => {
@@ -651,27 +720,23 @@ function FluxoProjetado({ data }) {
                         <div key={i} style={{
                             marginBottom: i < data.length - 1 ? 16 : 0, padding: 12, borderRadius: 10,
                             background: 'var(--bg-muted)', borderLeft: `3px solid ${accentColor}`,
-                            animation: `chartFadeIn 0.35s ease ${i * 80}ms both`,
+                            animation: `stagger-in 0.35s ease ${i * 80}ms both`,
                         }}>
                             <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, textTransform: 'capitalize', color: 'var(--text-primary)' }}>{m.label}</div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
                                 <span style={{ color: 'var(--primary)', fontWeight: 600 }}>Entradas: {R$(m.entradas)}</span>
-                                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Saídas: {R$(m.saidas)}</span>
+                                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Saidas: {R$(m.saidas)}</span>
                             </div>
                             <div style={{ display: 'flex', gap: 3, marginBottom: 4, height: 8, borderRadius: 99, overflow: 'hidden', background: 'var(--bg-card)' }}>
                                 <div style={{
                                     width: `${((m.entradas || 1) / totalFlux) * 100}%`, height: '100%',
-                                    background: 'var(--primary)',
-                                    borderRadius: 99,
-                                    transformOrigin: 'left',
-                                    animation: `chartSlideRight 0.5s ease ${i * 80 + 100}ms both`,
+                                    background: 'var(--primary-gradient)', borderRadius: 99,
+                                    transformOrigin: 'left', animation: `chartSlideRight 0.5s ease ${i * 80 + 100}ms both`,
                                 }} />
                                 <div style={{
                                     width: `${((m.saidas || 1) / totalFlux) * 100}%`, height: '100%',
-                                    background: '#94a3b8',
-                                    borderRadius: 99,
-                                    transformOrigin: 'left',
-                                    animation: `chartSlideRight 0.5s ease ${i * 80 + 150}ms both`,
+                                    background: '#94a3b8', borderRadius: 99,
+                                    transformOrigin: 'left', animation: `chartSlideRight 0.5s ease ${i * 80 + 150}ms both`,
                                 }} />
                             </div>
                             <div style={{ textAlign: 'right', fontSize: 12, fontWeight: 700, color: m.saldo >= 0 ? 'var(--primary)' : '#B86565' }}>
@@ -694,10 +759,10 @@ function ContasPagarProximas({ data, vencidas }) {
     );
 
     return (
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
             <SectionHeader icon={Receipt} title="Contas a Pagar">
                 {vencidas && vencidas.qtd > 0 && (
-                    <Badge label={`${vencidas.qtd} vencida${vencidas.qtd > 1 ? 's' : ''} (${R$(vencidas.total)})`} color="#B86565" />
+                    <Badge label={`${vencidas.qtd} vencida${vencidas.qtd > 1 ? 's' : ''} (${R$(vencidas.total)})`} color="#B86565" pulse />
                 )}
             </SectionHeader>
             {data.map((c, i) => {
@@ -705,7 +770,12 @@ function ContasPagarProximas({ data, vencidas }) {
                 const isProxima = c.dias_ate >= 0 && c.dias_ate <= 7;
                 const color = isVencida ? '#B86565' : isProxima ? '#C4924C' : 'var(--text-muted)';
                 return (
-                    <div key={c.id} style={{ padding: '10px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <div key={c.id} style={{
+                        padding: '10px 20px', borderBottom: '1px solid var(--border)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                        animation: `stagger-in 0.25s ease ${i * 40}ms both`,
+                        transition: 'background 0.15s',
+                    }} className="hover:bg-[var(--bg-hover)]">
                         <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.descricao}</div>
                             <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
@@ -729,14 +799,22 @@ function TopClientes({ data }) {
     if (!data || data.length === 0) return null;
 
     return (
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
             <SectionHeader icon={UserIcon} title="Top Clientes por Faturamento" />
             {data.map((c, i) => (
-                <div key={i} style={{ padding: '10px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div key={i} style={{
+                    padding: '10px 20px', borderBottom: '1px solid var(--border)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                    animation: `stagger-in 0.25s ease ${i * 40}ms both`,
+                    transition: 'background 0.15s',
+                }} className="hover:bg-[var(--bg-hover)]">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <span style={{
-                            width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 11, fontWeight: 700, background: i === 0 ? '#f59e0b22' : 'var(--bg-muted)', color: i === 0 ? '#f59e0b' : 'var(--text-muted)',
+                            width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 11, fontWeight: 700,
+                            background: i === 0 ? 'linear-gradient(135deg, #f59e0b22, #f59e0b08)' : 'var(--bg-muted)',
+                            color: i === 0 ? '#f59e0b' : 'var(--text-muted)',
+                            border: i === 0 ? '1px solid #f59e0b30' : 'none',
                         }}>{i + 1}</span>
                         <div>
                             <div style={{ fontSize: 13, fontWeight: 600 }}>{c.cliente_nome}</div>
@@ -762,7 +840,7 @@ export default function Dash({ nav, notify, user }) {
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState(false);
     const isVendedor = user?.role === 'vendedor';
-    const [tab, setTab] = useState('geral'); // 'geral' | 'financeiro'
+    const [tab, setTab] = useState('geral');
     const [finLoading, setFinLoading] = useState(false);
     const [atividades, setAtividades] = useState([]);
 
@@ -773,8 +851,7 @@ export default function Dash({ nav, notify, user }) {
         }).catch(() => {
             setErr(true);
         }).finally(() => setLoading(false));
-        // Carregar log real de atividades
-        api.get('/atividades?limit=10').then(setAtividades).catch(e => notify(e.error || 'Erro ao carregar atividades'));
+        api.get('/atividades?limit=10').then(setAtividades).catch(() => {});
     }, []);
 
     const loadFin = useCallback(() => {
@@ -799,7 +876,6 @@ export default function Dash({ nav, notify, user }) {
     });
     const today = todayRaw.charAt(0).toUpperCase() + todayRaw.slice(1);
 
-    // Shortcuts grid
     const shortcuts = [
         { lb: 'Clientes', ic: Ic.Usr, pg: 'cli' },
         { lb: 'Orcamentos', ic: Ic.File, pg: 'orcs' },
@@ -813,10 +889,17 @@ export default function Dash({ nav, notify, user }) {
         return (
             <div className={Z.pg}>
                 <div className="mb-6">
-                    <h1 className={Z.h1}>{greet()}, bem-vindo!</h1>
-                    <p className={Z.sub}>{today}</p>
+                    <Skeleton width={220} height={24} />
+                    <div style={{ height: 8 }} />
+                    <Skeleton width={300} height={14} />
                 </div>
-                <Spinner text="Carregando dashboard..." />
+                <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
+                    <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <div className="skeleton skeleton-card" style={{ height: 300 }} />
+                    <div className="skeleton skeleton-card" style={{ height: 300 }} />
+                </div>
             </div>
         );
     }
@@ -828,8 +911,10 @@ export default function Dash({ nav, notify, user }) {
                     <h1 className={Z.h1}>{greet()}, bem-vindo!</h1>
                     <p className={Z.sub}>{today}</p>
                 </div>
-                <div className="glass-card" style={{ textAlign: 'center', padding: 40 }}>
-                    <AlertTriangle size={32} style={{ color: 'var(--warning)', margin: '0 auto 12px' }} />
+                <div className="glass-card animate-fade-up" style={{ textAlign: 'center', padding: 40 }}>
+                    <div className="empty-state-icon">
+                        <AlertTriangle size={28} style={{ color: 'var(--warning)' }} />
+                    </div>
                     <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 12 }}>Erro ao carregar dashboard</p>
                     <button onClick={load} className={`${Z.btn} text-xs`}>Tentar novamente</button>
                 </div>
@@ -839,45 +924,30 @@ export default function Dash({ nav, notify, user }) {
 
     return (
         <div className={Z.pg}>
-            {/* ── Header + Tabs ── */}
             <PageHeader icon={Activity} title={`${greet()}, bem-vindo!`} subtitle={today} />
             <TabBar
                 tabs={[
-                    { id: 'geral', label: 'Visão Geral', icon: Activity },
+                    { id: 'geral', label: 'Visao Geral', icon: Activity },
                     ...(!isVendedor ? [{ id: 'financeiro', label: 'Financeiro', icon: DollarSign }] : []),
                 ]}
                 active={tab}
                 onChange={setTab}
             />
 
-            {/* ═══ TAB GERAL ═══ */}
             {tab === 'geral' && (
                 <>
                     {!isVendedor && <HeadlineMes data={data.headline} />}
 
-                    {/* Métricas do vendedor */}
                     {isVendedor && data.vendedor && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+                        <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
                             {[
-                                { label: 'Orçamentos no mês', value: data.vendedor.orcs_mes, sub: R$(data.vendedor.orcs_valor_mes), icon: FileText, color: '#3b82f6' },
-                                { label: 'Aprovados no mês', value: data.vendedor.aprovados_mes, sub: R$(data.vendedor.aprovados_valor_mes), icon: CheckCircle2, color: '#22c55e' },
-                                { label: 'Taxa de conversão', value: `${data.vendedor.taxa_conversao}%`, sub: 'orçamentos → aprovados', icon: TrendingUp, color: '#8b5cf6' },
-                                { label: 'Novos clientes', value: data.vendedor.novos_clientes_mes, sub: 'neste mês', icon: UserIcon, color: '#f59e0b' },
-                            ].map((m, i) => {
-                                const MIcon = m.icon;
-                                return (
-                                    <div key={i} className="glass-card" style={{ padding: '16px 18px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                                            <div style={{ width: 32, height: 32, borderRadius: 8, background: `${m.color}15`, color: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                <MIcon size={16} />
-                                            </div>
-                                            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{m.label}</span>
-                                        </div>
-                                        <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{m.value}</div>
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{m.sub}</div>
-                                    </div>
-                                );
-                            })}
+                                { label: 'Orcamentos no mes', value: String(data.vendedor.orcs_mes), sub: R$(data.vendedor.orcs_valor_mes), icon: FileText },
+                                { label: 'Aprovados no mes', value: String(data.vendedor.aprovados_mes), sub: R$(data.vendedor.aprovados_valor_mes), icon: CheckCircle2 },
+                                { label: 'Taxa de conversao', value: `${data.vendedor.taxa_conversao}%`, sub: 'orcamentos → aprovados', icon: TrendingUp },
+                                { label: 'Novos clientes', value: String(data.vendedor.novos_clientes_mes), sub: 'neste mes', icon: UserIcon },
+                            ].map((m, i) => (
+                                <KpiCard key={i} label={m.label} value={m.value} icon={m.icon} sub={m.sub} />
+                            ))}
                         </div>
                     )}
 
@@ -891,13 +961,24 @@ export default function Dash({ nav, notify, user }) {
                         {!isVendedor && <FluxoCaixa data={data.fluxo_caixa} />}
                     </div>
                     <ProjetosAtivos data={data.projetos_ativos} total={data.total_projetos_ativos} nav={nav} />
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, marginBottom: 16 }}>
+                    {!isVendedor && data.producao_resumo && (
+                        <ProducaoResume data={data.producao_resumo} nav={nav} />
+                    )}
+                    <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, marginBottom: 16 }}>
                         {shortcuts.filter(s => !(isVendedor && s.pg === 'cfg')).map((s, i) => {
                             const I = s.ic;
                             return (
                                 <button key={i} onClick={() => nav(s.pg)}
-                                    className="glass-card flex flex-col items-center gap-2 py-4 cursor-pointer hover:shadow-lg transition-all">
-                                    <div style={{ width: 38, height: 38, borderRadius: 12, background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    className="glass-card flex flex-col items-center gap-2 py-4 cursor-pointer"
+                                    style={{ transition: 'all 0.2s' }}
+                                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = 'var(--shadow-lg)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow-card)'; }}>
+                                    <div style={{
+                                        width: 40, height: 40, borderRadius: 12,
+                                        background: 'var(--primary-alpha)', color: 'var(--primary)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        transition: 'all 0.2s',
+                                    }}>
                                         <I />
                                     </div>
                                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.3 }}>{s.lb}</span>
@@ -909,7 +990,6 @@ export default function Dash({ nav, notify, user }) {
                 </>
             )}
 
-            {/* ═══ TAB FINANCEIRO ═══ */}
             {tab === 'financeiro' && (
                 finLoading && !finData ? (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
@@ -936,8 +1016,10 @@ export default function Dash({ nav, notify, user }) {
                         <TopClientes data={finData.top_clientes} />
                     </>
                 ) : (
-                    <div className="glass-card" style={{ textAlign: 'center', padding: 40 }}>
-                        <AlertTriangle size={32} style={{ color: 'var(--warning)', margin: '0 auto 12px' }} />
+                    <div className="glass-card animate-fade-up" style={{ textAlign: 'center', padding: 40 }}>
+                        <div className="empty-state-icon">
+                            <AlertTriangle size={28} style={{ color: 'var(--warning)' }} />
+                        </div>
                         <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 12 }}>Erro ao carregar dados financeiros</p>
                         <button onClick={loadFin} className={`${Z.btn} text-xs`}>Tentar novamente</button>
                     </div>

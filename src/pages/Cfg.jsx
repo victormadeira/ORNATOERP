@@ -2472,7 +2472,7 @@ export default function Cfg({ taxas, reload, notify }) {
                                         return (
                                             <div className="p-3 rounded-lg flex items-center justify-between" style={{ background: 'var(--bg-muted)' }}>
                                                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                                                    {N(horasMes, 0)}h produtivas/mês
+                                                    {Math.round(horasMes)}h produtivas/mês
                                                 </span>
                                                 <span className="text-sm font-bold" style={{ color: 'var(--primary)' }}>
                                                     R$ {custoHoraCalc.toFixed(2)}/hora

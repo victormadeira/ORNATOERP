@@ -270,6 +270,52 @@ router.get('/', requireAuth, (req, res) => {
             vendedorMetrics.novos_clientes_mes = meusClientes.total;
         }
 
+        // ── Resumo Produção + Entregas ─────────────────────────────
+        let producao_resumo = null;
+        try {
+            const prodsAtivos = db.prepare(`
+                SELECT COUNT(*) as total FROM projetos WHERE status IN ('em_andamento','em_producao','nao_iniciado')
+            `).get()?.total || 0;
+
+            const prodsAtrasados = db.prepare(`
+                SELECT COUNT(*) as total FROM projetos
+                WHERE status IN ('em_andamento','em_producao','nao_iniciado')
+                AND data_vencimento < date('now')
+            `).get()?.total || 0;
+
+            const horasSemana = db.prepare(`
+                SELECT COALESCE(SUM(duracao_min), 0) / 60.0 as h
+                FROM producao_apontamentos
+                WHERE inicio >= date('now', '-7 days') AND fim IS NOT NULL
+            `).get()?.h || 0;
+
+            const etapasAbertas = db.prepare(`
+                SELECT etapa, COUNT(*) as qtd FROM producao_apontamentos
+                WHERE fim IS NULL GROUP BY etapa ORDER BY qtd DESC LIMIT 3
+            `).all();
+
+            const entregasSemana = db.prepare(`
+                SELECT COUNT(*) as total FROM entregas
+                WHERE data_agendada >= date('now') AND data_agendada <= date('now', '+7 days')
+                AND status IN ('agendada','em_transito')
+            `).get()?.total || 0;
+
+            const instSemana = db.prepare(`
+                SELECT COUNT(*) as total FROM instalacoes
+                WHERE data_agendada >= date('now') AND data_agendada <= date('now', '+7 days')
+                AND status IN ('agendada','em_andamento')
+            `).get()?.total || 0;
+
+            producao_resumo = {
+                projetos_ativos: prodsAtivos,
+                projetos_atrasados: prodsAtrasados,
+                horas_semana: Math.round(horasSemana * 10) / 10,
+                gargalos: etapasAbertas,
+                entregas_semana: entregasSemana,
+                instalacoes_semana: instSemana,
+            };
+        } catch(e) { /* tabelas podem não existir */ }
+
         // ── Resposta ─────────────────────────────────────────────────
         res.json({
             headline,
@@ -281,6 +327,7 @@ router.get('/', requireAuth, (req, res) => {
             total_projetos_ativos: projetos_ativos.length,
             atividades,
             vendedor: Object.keys(vendedorMetrics).length > 0 ? vendedorMetrics : undefined,
+            producao_resumo,
         });
 
     } catch (err) {

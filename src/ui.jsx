@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
     LayoutDashboard, User, Box, FileText, Calculator, Trello,
     Settings, Users, Menu, X, Plus, Trash2, Edit, Copy,
@@ -10,7 +11,7 @@ import {
     Image, DollarSign, MessageSquare, HardHat, AlertTriangle, Wrench,
     BarChart3, ClipboardCheck, PauseCircle, PlayCircle, UserCheck, Warehouse,
     MessageCircle, Sparkles, Bot, Scissors,
-    // Novos ícones para menu agrupado e páginas
+    // Novos icones para menu agrupado e paginas
     Library, Cpu, FolderKanban, Wallet, ShieldCheck, Handshake,
     Factory, LineChart, Cog, Star, PieChart, FileSpreadsheet, Kanban,
     InboxIcon, PackageSearch, LayoutGrid, PenTool, Truck, ClipboardList as ClipList,
@@ -83,7 +84,7 @@ export const Ic = {
     Bot: () => <Bot size={14} />,
     Scissors: () => <Scissors size={18} />,
     Star: () => <Star size={12} />,
-    // Ícones para grupos do menu
+    // Icones para grupos do menu
     Handshake: () => <Handshake size={14} />,
     Factory: () => <Factory size={14} />,
     LineChart: () => <LineChart size={14} />,
@@ -110,25 +111,26 @@ export const Z = {
     sub: "text-sm text-[var(--text-muted)] mb-5",
     lbl: "label-text",
     th: "th-glass text-left",
-    pg: "p-2 sm:p-3 md:p-6 lg:p-8 max-w-7xl mx-auto w-full",
+    pg: "p-2 sm:p-3 md:p-6 lg:p-8 max-w-7xl mx-auto w-full page-enter",
 };
 
-// ─── PageHeader — cabeçalho padronizado de página ─────────
+// ─── PageHeader — cabecalho padronizado de pagina ─────────
 export function PageHeader({ icon: Icon, title, subtitle, children }) {
     return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+        <div className="animate-fade-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
                 {Icon && (
                     <div style={{
-                        width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-                        background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        width: 44, height: 44, borderRadius: 13, flexShrink: 0,
+                        background: 'var(--primary-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 4px 12px rgba(19, 121, 240, 0.25)',
                     }}>
-                        <Icon size={20} style={{ color: '#fff' }} />
+                        <Icon size={21} style={{ color: '#fff' }} />
                     </div>
                 )}
                 <div style={{ minWidth: 0 }}>
-                    <h1 className={Z.h1} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</h1>
-                    {subtitle && <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>{subtitle}</p>}
+                    <h1 style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.02em', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>{title}</h1>
+                    {subtitle && <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '2px 0 0' }}>{subtitle}</p>}
                 </div>
             </div>
             {children && <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>{children}</div>}
@@ -153,13 +155,13 @@ export function TabBar({ tabs, active, onChange }) {
                         color: isActive ? 'var(--primary)' : 'var(--text-muted)',
                         borderBottom: isActive ? '2px solid var(--primary)' : '2px solid transparent',
                         background: 'none', border: 'none', borderBottomWidth: 2,
-                        marginBottom: -2, whiteSpace: 'nowrap', transition: 'all .15s',
+                        marginBottom: -2, whiteSpace: 'nowrap', transition: 'all .2s',
                         fontFamily: 'var(--font-sans)',
                     }}>
                         {t.icon && <t.icon size={15} />}
                         {t.label}
                         {t.badge != null && t.badge > 0 && (
-                            <span style={{
+                            <span className="badge-pulse" style={{
                                 fontSize: 10, fontWeight: 700, background: 'var(--danger)', color: '#fff',
                                 padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center',
                             }}>{t.badge}</span>
@@ -174,12 +176,9 @@ export function TabBar({ tabs, active, onChange }) {
 // ─── EmptyState — estado vazio padronizado ────────────────
 export function EmptyState({ icon: Icon, title, description, action }) {
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: 12 }}>
+        <div className="animate-fade-up" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: 12 }}>
             {Icon && (
-                <div style={{
-                    width: 56, height: 56, borderRadius: 16,
-                    background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
+                <div className="empty-state-icon">
                     <Icon size={28} style={{ color: 'var(--text-muted)' }} />
                 </div>
             )}
@@ -218,16 +217,6 @@ export function Spinner({ size = 28, color = 'var(--primary)', text }) {
 
 /**
  * SearchableSelect — dropdown com busca por texto
- * Props:
- *   value        - valor selecionado atual
- *   onChange(val) - callback ao selecionar
- *   options      - [{ value, label }]  (flat list, sem grupos)
- *   groups       - [{ label, options: [{ value, label }] }]  (com grupos)
- *   emptyOption  - texto da opção vazia (ex: "Sem tamponamento")
- *   inheritOption - texto da opção herdar (ex: "↩ Herdar: MDF Branco")
- *   placeholder  - placeholder do input de busca
- *   className    - classe CSS do container
- *   style        - style adicional do container
  */
 export function SearchableSelect({ value, onChange, options, groups, emptyOption, inheritOption, placeholder = 'Buscar...', className, style }) {
     const [open, setOpen] = useState(false);
@@ -235,7 +224,6 @@ export function SearchableSelect({ value, onChange, options, groups, emptyOption
     const ref = useRef(null);
     const inputRef = useRef(null);
 
-    // close on outside click
     useEffect(() => {
         if (!open) return;
         const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -243,10 +231,8 @@ export function SearchableSelect({ value, onChange, options, groups, emptyOption
         return () => document.removeEventListener('mousedown', handler);
     }, [open]);
 
-    // focus input on open
     useEffect(() => { if (open && inputRef.current) inputRef.current.focus(); }, [open]);
 
-    // build flat list for finding selected label
     const allOpts = groups
         ? groups.flatMap(g => g.options)
         : (options || []);
@@ -256,7 +242,6 @@ export function SearchableSelect({ value, onChange, options, groups, emptyOption
         : allOpts.find(o => String(o.value) === String(value))?.label || '';
 
     const q = search.toLowerCase();
-
     const filterOpts = (arr) => q ? arr.filter(o => o.label.toLowerCase().includes(q)) : arr;
 
     const select = (val) => {
@@ -271,54 +256,37 @@ export function SearchableSelect({ value, onChange, options, groups, emptyOption
         cursor: 'pointer',
         background: isActive ? 'var(--primary)' : 'transparent',
         color: isActive ? '#fff' : 'var(--text-primary)',
-        borderRadius: 4,
+        borderRadius: 6,
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
+        transition: 'background 0.15s',
     });
 
     return (
         <div ref={ref} style={{ position: 'relative', ...style }}>
-            {/* Trigger button */}
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
                 className={className}
                 style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 4,
-                    cursor: 'pointer',
-                    overflow: 'hidden',
+                    width: '100%', textAlign: 'left', display: 'flex',
+                    alignItems: 'center', justifyContent: 'space-between',
+                    gap: 4, cursor: 'pointer', overflow: 'hidden',
                 }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontSize: 12 }}>
                     {selectedLabel || <span style={{ color: 'var(--text-muted)' }}>Selecione...</span>}
                 </span>
-                <ChevronDown size={12} style={{ flexShrink: 0, color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+                <ChevronDown size={12} style={{ flexShrink: 0, color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
             </button>
 
-            {/* Dropdown */}
             {open && (
-                <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    marginTop: 4,
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 8,
-                    boxShadow: '0 8px 24px rgba(0,0,0,.18)',
-                    zIndex: 999,
-                    maxHeight: 260,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    minWidth: 200,
+                <div className="animate-scale-in" style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    borderRadius: 10, boxShadow: 'var(--shadow-xl)',
+                    zIndex: 999, maxHeight: 260, display: 'flex', flexDirection: 'column', minWidth: 200,
                 }}>
-                    {/* Search input */}
                     <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <Search size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                         <input
@@ -327,13 +295,8 @@ export function SearchableSelect({ value, onChange, options, groups, emptyOption
                             onChange={e => setSearch(e.target.value)}
                             placeholder={placeholder}
                             style={{
-                                flex: 1,
-                                border: 'none',
-                                outline: 'none',
-                                background: 'transparent',
-                                fontSize: 12,
-                                color: 'var(--text-primary)',
-                                padding: '2px 0',
+                                flex: 1, border: 'none', outline: 'none', background: 'transparent',
+                                fontSize: 12, color: 'var(--text-primary)', padding: '2px 0',
                             }}
                         />
                         {search && (
@@ -343,9 +306,7 @@ export function SearchableSelect({ value, onChange, options, groups, emptyOption
                         )}
                     </div>
 
-                    {/* Options list */}
                     <div style={{ overflowY: 'auto', padding: 4, flex: 1 }}>
-                        {/* Empty / inherit option */}
                         {emptyOption && (!q || emptyOption.toLowerCase().includes(q)) && (
                             <div onClick={() => select('')} style={itemStyle(value === '')}
                                 onMouseEnter={e => { if (value !== '') e.currentTarget.style.background = 'var(--bg-hover)'; }}
@@ -390,7 +351,6 @@ export function SearchableSelect({ value, onChange, options, groups, emptyOption
                             ))
                         )}
 
-                        {/* No results */}
                         {q && filterOpts(allOpts).length === 0 && !(emptyOption && emptyOption.toLowerCase().includes(q)) && (
                             <div style={{ padding: '12px 10px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
                                 Nenhum resultado para "{search}"
@@ -404,9 +364,9 @@ export function SearchableSelect({ value, onChange, options, groups, emptyOption
 }
 
 // ─── Badge — badge/tag unificado ────────────────────────
-export function Badge({ label, color, icon: Icon }) {
+export function Badge({ label, color, icon: Icon, pulse }) {
     return (
-        <span style={{
+        <span className={pulse ? 'badge-pulse' : ''} style={{
             display: 'inline-flex', alignItems: 'center', gap: 3,
             fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap',
             color, background: `${color}15`,
@@ -418,20 +378,109 @@ export function Badge({ label, color, icon: Icon }) {
     );
 }
 
-// ─── KpiCard — card de métrica padronizado ──────────────
-export function KpiCard({ label, value, color, icon: Icon, sub }) {
+// ─── CountUp — animated number ──────────────────────────
+function useCountUp(target, duration = 800) {
+    const [value, setValue] = useState(0);
+    const frameRef = useRef(null);
+
+    useEffect(() => {
+        if (typeof target !== 'number' || isNaN(target)) { setValue(target); return; }
+        const start = performance.now();
+        const from = 0;
+        const tick = (now) => {
+            const elapsed = now - start;
+            const progress = Math.min(elapsed / duration, 1);
+            // easeOutExpo
+            const eased = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+            setValue(from + (target - from) * eased);
+            if (progress < 1) frameRef.current = requestAnimationFrame(tick);
+        };
+        frameRef.current = requestAnimationFrame(tick);
+        return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current); };
+    }, [target, duration]);
+
+    return value;
+}
+
+// ─── Sparkline — mini grafico SVG ───────────────────────
+export function Sparkline({ data = [], color = 'var(--primary)', width = 80, height = 32 }) {
+    if (!data || data.length < 2) return null;
+    const max = Math.max(...data);
+    const min = Math.min(...data);
+    const range = max - min || 1;
+    const points = data.map((v, i) => {
+        const x = (i / (data.length - 1)) * width;
+        const y = height - ((v - min) / range) * (height - 4) - 2;
+        return `${x},${y}`;
+    }).join(' ');
+
     return (
-        <div className="glass-card" style={{ padding: '18px 20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: 'block' }}>
+            <defs>
+                <linearGradient id={`spark-${color.replace(/[^a-z0-9]/gi, '')}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+                    <stop offset="100%" stopColor={color} stopOpacity="0" />
+                </linearGradient>
+            </defs>
+            <polyline
+                points={`0,${height} ${points} ${width},${height}`}
+                fill={`url(#spark-${color.replace(/[^a-z0-9]/gi, '')})`}
+                stroke="none"
+            />
+            <polyline
+                points={points}
+                fill="none"
+                stroke={color}
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+        </svg>
+    );
+}
+
+// ─── KpiCard — card de metrica com count-up + sparkline ──
+export function KpiCard({ label, value, color, icon: Icon, sub, sparkData, accent }) {
+    // Parse numeric value for count-up
+    const isMonetary = typeof value === 'string' && value.includes('R$');
+    const numericVal = typeof value === 'number' ? value
+        : typeof value === 'string' ? parseFloat(value.replace(/[^\d,.-]/g, '').replace(',', '.')) : NaN;
+    const animated = useCountUp(isNaN(numericVal) ? 0 : numericVal, 900);
+
+    const formatAnimated = () => {
+        if (isNaN(numericVal)) return value;
+        if (isMonetary) {
+            return 'R$ ' + animated.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        if (Number.isInteger(numericVal)) return Math.round(animated).toLocaleString('pt-BR');
+        return animated.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    const accentColor = accent || color || 'var(--primary)';
+
+    return (
+        <div className="glass-card animate-fade-up hover-lift" style={{ padding: '18px 20px', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
                 {Icon && (
-                    <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--primary-alpha, rgba(19,121,240,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Icon size={14} style={{ color: 'var(--primary)' }} />
+                    <div style={{
+                        width: 34, height: 34, borderRadius: 10,
+                        background: `${accentColor}12`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                        <Icon size={16} style={{ color: accentColor }} />
                     </div>
                 )}
             </div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>{value}</div>
-            {sub && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{sub}</div>}
+            <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1, letterSpacing: '-0.02em' }}>
+                {formatAnimated()}
+            </div>
+            {sub && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>{sub}</div>}
+            {sparkData && sparkData.length > 1 && (
+                <div className="kpi-sparkline">
+                    <Sparkline data={sparkData} color={accentColor} width={200} height={40} />
+                </div>
+            )}
         </div>
     );
 }
@@ -439,8 +488,12 @@ export function KpiCard({ label, value, color, icon: Icon, sub }) {
 // ─── SectionHeader — header padronizado para cards ──────
 export function SectionHeader({ icon: Icon, title, children }) {
     return (
-        <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
-            <span style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{
+            padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            borderBottom: '1px solid var(--border)',
+            background: 'linear-gradient(180deg, var(--bg-muted) 0%, transparent 100%)',
+        }}>
+            <span style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-primary)' }}>
                 {Icon && <Icon size={15} style={{ color: 'var(--primary)' }} />} {title}
             </span>
             {children}
@@ -448,11 +501,11 @@ export function SectionHeader({ icon: Icon, title, children }) {
     );
 }
 
-// ─── ConfirmModal — confirmação antes de ações destrutivas ──
+// ─── ConfirmModal — confirmacao antes de acoes destrutivas ──
 export function ConfirmModal({ title = 'Confirmar', message, confirmLabel = 'Confirmar', cancelLabel = 'Cancelar', danger = false, onConfirm, onCancel }) {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onCancel}>
-            <div className="glass-card shadow-xl animate-fade-up" style={{ maxWidth: 400, width: '100%' }} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onCancel}>
+            <div className="glass-card shadow-xl modal-content" style={{ maxWidth: 400, width: '100%' }} onClick={e => e.stopPropagation()}>
                 <div className="p-5">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                         <div style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: danger ? 'rgba(220,38,38,0.1)' : 'rgba(19,121,240,0.1)', flexShrink: 0 }}>
@@ -478,17 +531,48 @@ export function ConfirmModal({ title = 'Confirmar', message, confirmLabel = 'Con
 }
 
 export function Modal({ title, close, children, w = 500 }) {
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={close}>
-            <div className="glass-card shadow-xl w-[95vw] max-h-[90vh] overflow-y-auto animate-fade-up" style={{ maxWidth: w }} onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center px-4 md:px-5 py-3 md:py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-                    <span className="font-semibold text-sm md:text-base truncate mr-2">{title}</span>
+    // Bloquear scroll do body enquanto modal está aberto
+    useEffect(() => {
+        document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = ''; };
+    }, []);
+
+    return createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 md:p-4 modal-overlay" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={close}>
+            <div className="glass-card w-[95vw] max-h-[90vh] overflow-y-auto modal-content" style={{ maxWidth: w, boxShadow: 'var(--shadow-xl)' }} onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center px-4 md:px-5 py-3 md:py-4" style={{ borderBottom: '1px solid var(--border)', background: 'linear-gradient(180deg, var(--bg-muted) 0%, transparent 100%)' }}>
+                    <span className="font-semibold text-sm md:text-base truncate mr-2" style={{ color: 'var(--text-primary)' }}>{title}</span>
                     <button onClick={close} className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors cursor-pointer shrink-0" style={{ color: 'var(--text-muted)' }}>
                         <Ic.X />
                     </button>
                 </div>
                 <div className="p-4 md:p-5">{children}</div>
             </div>
+        </div>,
+        document.body
+    );
+}
+
+// ─── Skeleton — loading placeholder ──────────────────────
+export function Skeleton({ width, height = 14, rounded, className = '' }) {
+    return (
+        <div className={`skeleton ${className}`} style={{
+            width: width || '100%',
+            height,
+            borderRadius: rounded ? '50%' : undefined,
+        }} />
+    );
+}
+
+export function SkeletonCard() {
+    return (
+        <div className="glass-card p-5" style={{ overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <Skeleton width={100} height={12} />
+                <Skeleton width={32} height={32} rounded />
+            </div>
+            <Skeleton width={140} height={28} className="mb-2" />
+            <Skeleton width={80} height={12} />
         </div>
     );
 }

@@ -256,26 +256,11 @@ export default function ProposalPublic({ token, isPreview = false }) {
                         if (!iframe?.contentDocument) return;
                         const doc = iframe.contentDocument;
 
-                        // Injetar CSS de tela (o HTML original usa @page margins que só funcionam em print)
+                        // Injetar CSS de tela (complementa os estilos já embutidos no HTML)
                         const style = doc.createElement('style');
                         style.textContent = `
-                            @media screen {
-                                body {
-                                    padding: 40px 50px 60px !important;
-                                    max-width: 860px;
-                                    margin: 0 auto !important;
-                                }
-                            }
                             @media screen and (max-width: 640px) {
-                                body {
-                                    padding: 20px 14px 32px !important;
-                                    font-size: 11px !important;
-                                }
-                                table { font-size: 10px !important; }
-                                td, th { padding: 4px 6px !important; }
-                                .header { flex-direction: column !important; text-align: center !important; }
                                 .header img, .wm img { max-width: 200px !important; }
-                                h2 { font-size: 13px !important; }
                             }
                         `;
                         doc.head.appendChild(style);
