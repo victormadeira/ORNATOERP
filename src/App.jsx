@@ -152,10 +152,38 @@ export default function App() {
     const buscaTimer = useRef(null);
     const [pageKey, setPageKey] = useState(0); // for page transitions
 
-    // Estado de colapso dos grupos do menu
+    // Estado de colapso dos grupos do menu (default: tudo colapsado)
     const [collapsed, setCollapsed] = useState(() => {
-        try { return JSON.parse(localStorage.getItem('menu_collapsed') || '{}'); } catch { return {}; }
+        const stored = localStorage.getItem('menu_collapsed');
+        if (stored) try { return JSON.parse(stored); } catch {}
+        // Primeira vez: colapsa todos os grupos (exceto top/projetos_hub que não têm label)
+        return { comercial: true, producao: true, cadastros: true, gestao: true, sistema: true };
     });
+    // Command palette (Ctrl+K)
+    const [cmdOpen, setCmdOpen] = useState(false);
+    const [cmdQuery, setCmdQuery] = useState('');
+    const cmdInputRef = useRef(null);
+
+    // Ctrl+K command palette
+    useEffect(() => {
+        const onKey = (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                setCmdOpen(v => !v);
+                setCmdQuery('');
+            }
+            if (e.key === 'Escape' && cmdOpen) {
+                setCmdOpen(false);
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [cmdOpen]);
+
+    // Focus command palette input when opened
+    useEffect(() => {
+        if (cmdOpen && cmdInputRef.current) cmdInputRef.current.focus();
+    }, [cmdOpen]);
 
     // Detectar mobile via resize
     useEffect(() => {
@@ -212,11 +240,11 @@ export default function App() {
 
     const notify = (m) => { setNotif(m); setTimeout(() => setNotif(null), 3500); };
 
-    const loadClis = useCallback(() => { if (user) api.get('/clientes').then(setClis).catch(() => {}); }, [user]);
-    const loadOrcs = useCallback(() => { if (user) api.get('/orcamentos').then(setOrcs).catch(() => {}); }, [user]);
-    const loadTaxas = useCallback(() => { if (user) api.get('/config').then(setTaxas).catch(() => {}); }, [user]);
-    const loadNotifs = useCallback(() => { if (user) api.get('/notificacoes').then(setNotifs).catch(() => {}); }, [user]);
-    const loadWaUnread = useCallback(() => { if (user) api.get('/whatsapp/nao-lidas').then(d => setWaUnread(d.total)).catch(() => {}); }, [user]);
+    const loadClis = useCallback(() => { if (user) api.get('/clientes').then(setClis).catch(err => console.warn('loadClis:', err)); }, [user]);
+    const loadOrcs = useCallback(() => { if (user) api.get('/orcamentos').then(setOrcs).catch(err => console.warn('loadOrcs:', err)); }, [user]);
+    const loadTaxas = useCallback(() => { if (user) api.get('/config').then(setTaxas).catch(err => console.warn('loadTaxas:', err)); }, [user]);
+    const loadNotifs = useCallback(() => { if (user) api.get('/notificacoes').then(setNotifs).catch(err => console.warn('loadNotifs:', err)); }, [user]);
+    const loadWaUnread = useCallback(() => { if (user) api.get('/whatsapp/nao-lidas').then(d => setWaUnread(d.total)).catch(err => console.warn('loadWaUnread:', err)); }, [user]);
     const loadEmpresa = useCallback(() => {
         if (user) api.get('/config/empresa').then(d => {
             const ls = d.logo_sistema || '';
@@ -226,7 +254,7 @@ export default function App() {
             localStorage.setItem('logo_sistema', ls);
             localStorage.setItem('emp_nome', nm);
             if (d.sistema_cor_primaria) applyPrimaryColor(d.sistema_cor_primaria);
-        }).catch(() => {});
+        }).catch(err => console.warn('loadEmpresa:', err));
     }, [user]);
 
     useEffect(() => { loadClis(); loadOrcs(); loadTaxas(); loadNotifs(); loadWaUnread(); loadEmpresa(); }, [loadClis, loadOrcs, loadTaxas, loadNotifs, loadWaUnread, loadEmpresa]);
@@ -255,14 +283,14 @@ export default function App() {
             api.get(`/dashboard/busca?q=${encodeURIComponent(buscaQuery)}`).then(r => {
                 setBuscaResults(r);
                 setBuscaOpen(true);
-            }).catch(() => {});
+            }).catch(err => console.warn('busca global:', err));
         }, 300);
         return () => clearTimeout(buscaTimer.current);
     }, [buscaQuery]);
 
     // Marcar UMA notificacao como lida
     const markNotifRead = (id) => {
-        api.put(`/notificacoes/${id}/lida`).catch(() => {});
+        api.put(`/notificacoes/${id}/lida`).catch(err => console.warn('markNotifRead:', err));
         setNotifs(prev => ({
             ...prev,
             notificacoes: prev.notificacoes.map(n => n.id === id ? { ...n, lida: 1 } : n),
@@ -271,7 +299,7 @@ export default function App() {
     };
 
     const markAllRead = () => {
-        api.put('/notificacoes/lidas').catch(() => {});
+        api.put('/notificacoes/lidas').catch(err => console.warn('markAllRead:', err));
         setNotifs(prev => ({
             ...prev,
             notificacoes: prev.notificacoes.map(n => ({ ...n, lida: 1 })),
@@ -302,6 +330,7 @@ export default function App() {
     const reload = () => { loadClis(); loadOrcs(); loadTaxas(); loadNotifs(); };
 
     const nav = (p, orc) => {
+        window.scrollTo(0, 0);
         if (p === "novo" && orc !== undefined) setEditOrc(orc);
         else if (p !== "novo") setEditOrc(null);
         setPg(p);
@@ -380,41 +409,63 @@ export default function App() {
         return !userPerms || userPerms.length === 0 || userPerms.includes(id);
     };
 
-    // Menu agrupado
+    // Menu agrupado (enxuto — páginas extras acessíveis via Ctrl+K)
     const MENU_GROUPS = [
         { id: 'top', items: [{ id: "dash", lb: "Dashboard", ic: Ic.Dash }] },
         { id: 'projetos_hub', items: [{ id: "proj", lb: "Projetos", ic: Ic.Briefcase }] },
         { id: 'comercial', label: 'Comercial', icon: Ic.Handshake, items: [
             { id: "cli", lb: "Clientes", ic: Ic.Usr },
-            { id: "orcs", lb: "Orcamentos", ic: Ic.File },
-            { id: "kb", lb: "Pipeline CRM", ic: Ic.Kb },
+            { id: "orcs", lb: "Orçamentos", ic: Ic.File },
             { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         ]},
-        { id: 'chao_fabrica', label: 'Chao de Fabrica', icon: Ic.Factory, items: [
+        { id: 'producao', label: 'Produção', icon: Ic.Factory, items: [
             { id: "industrializacao", lb: "Ordens", ic: Ic.ClipList },
             { id: "cnc", lb: "Corte & CNC", ic: Ic.Scissors },
-            { id: "producao_fabrica", lb: "Acompanhamento", ic: Ic.HardHat },
-            { id: "producao_tv", lb: "TV Fabrica", ic: Ic.Monitor },
-            { id: "expedicao", lb: "Expedicao", ic: Ic.Truck },
-            { id: "produtividade", lb: "Produtividade", ic: Ic.BarChart },
+            { id: "expedicao", lb: "Expedição", ic: Ic.Truck },
         ]},
         { id: 'cadastros', label: 'Cadastros', icon: Ic.Box, items: [
             { id: "cat", lb: "Materiais", ic: Ic.Box },
             { id: "catalogo_itens", lb: "Engenharia", ic: Ic.Package },
-            { id: "estoque", lb: "Recursos", ic: Ic.Warehouse },
-            { id: "compras", lb: "Compras & NF", ic: Ic.ShoppingCart },
+            { id: "estoque", lb: "Estoque", ic: Ic.Warehouse },
         ]},
-        { id: 'gestao', label: 'Gestao', icon: Ic.LineChart, items: [
+        { id: 'gestao', label: 'Gestão', icon: Ic.LineChart, items: [
             { id: "financeiro", lb: "Financeiro", ic: Ic.Dollar },
-            { id: "gestao", lb: "Gestao Avancada", ic: Ic.BarChart },
-            { id: "relatorios", lb: "Relatorios", ic: Ic.PieChart },
+            { id: "compras", lb: "Compras & NF", ic: Ic.ShoppingCart },
+            { id: "gestao", lb: "Gestão Avançada", ic: Ic.BarChart },
+            { id: "relatorios", lb: "Relatórios", ic: Ic.PieChart },
         ]},
         { id: 'sistema', label: 'Sistema', icon: Ic.Cog, items: [
             { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
-            { id: "cfg", lb: "Configuracoes", ic: Ic.Gear },
-            ...(isAdmin ? [{ id: "users", lb: "Usuarios", ic: Ic.Users }] : []),
+            { id: "cfg", lb: "Configurações", ic: Ic.Gear },
+            ...(isAdmin ? [{ id: "users", lb: "Usuários", ic: Ic.Users }] : []),
         ]},
     ];
+
+    // Todas as páginas (para command palette Ctrl+K) — inclui as que saíram do sidebar
+    const ALL_PAGES = [
+        { id: "dash", lb: "Dashboard", ic: Ic.Dash },
+        { id: "proj", lb: "Projetos", ic: Ic.Briefcase },
+        { id: "cli", lb: "Clientes", ic: Ic.Usr },
+        { id: "orcs", lb: "Orçamentos", ic: Ic.File },
+        { id: "kb", lb: "Pipeline CRM", ic: Ic.Kb },
+        { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
+        { id: "industrializacao", lb: "Ordens de Produção", ic: Ic.ClipList },
+        { id: "cnc", lb: "Corte & CNC", ic: Ic.Scissors },
+        { id: "producao_fabrica", lb: "Acompanhamento Fábrica", ic: Ic.HardHat },
+        { id: "producao_tv", lb: "TV Fábrica", ic: Ic.Monitor },
+        { id: "expedicao", lb: "Expedição", ic: Ic.Truck },
+        { id: "produtividade", lb: "Produtividade", ic: Ic.BarChart },
+        { id: "cat", lb: "Materiais", ic: Ic.Box },
+        { id: "catalogo_itens", lb: "Engenharia / Catálogo", ic: Ic.Package },
+        { id: "estoque", lb: "Estoque / Recursos", ic: Ic.Warehouse },
+        { id: "compras", lb: "Compras & NF", ic: Ic.ShoppingCart },
+        { id: "financeiro", lb: "Financeiro", ic: Ic.Dollar },
+        { id: "gestao", lb: "Gestão Avançada", ic: Ic.BarChart },
+        { id: "relatorios", lb: "Relatórios", ic: Ic.PieChart },
+        { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
+        { id: "cfg", lb: "Configurações", ic: Ic.Gear },
+        ...(isAdmin ? [{ id: "users", lb: "Usuários", ic: Ic.Users }] : []),
+    ].filter(p => canSee(p.id));
 
     // Mobile bottom nav items (5 main)
     const MOBILE_NAV = [
@@ -771,7 +822,7 @@ export default function App() {
                                 value={buscaQuery}
                                 onChange={e => setBuscaQuery(e.target.value)}
                                 onFocus={() => buscaResults && setBuscaOpen(true)}
-                                placeholder="Buscar clientes, orcamentos, projetos..."
+                                placeholder="Buscar... (Ctrl+K navegar)"
                                 style={{
                                     width: 260, padding: '7px 12px 7px 32px', borderRadius: 10,
                                     border: '1px solid var(--border)', background: 'var(--bg-muted)',
@@ -1018,6 +1069,74 @@ export default function App() {
                             </button>
                         );
                     })}
+                </div>
+            )}
+
+            {/* Command Palette (Ctrl+K) */}
+            {cmdOpen && (
+                <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" onClick={() => setCmdOpen(false)}>
+                    <div className="fixed inset-0 modal-overlay" style={{ background: 'rgba(0,0,0,0.4)' }} />
+                    <div className="relative animate-scale-in" style={{
+                        width: '100%', maxWidth: 480, background: 'var(--bg-card)',
+                        border: '1px solid var(--border)', borderRadius: 16,
+                        boxShadow: 'var(--shadow-xl)', overflow: 'hidden',
+                    }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+                            <Search size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                            <input
+                                ref={cmdInputRef}
+                                type="text"
+                                value={cmdQuery}
+                                onChange={e => setCmdQuery(e.target.value)}
+                                placeholder="Ir para..."
+                                style={{
+                                    flex: 1, background: 'none', border: 'none', outline: 'none',
+                                    fontSize: 15, color: 'var(--text-primary)',
+                                }}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                        const filtered = ALL_PAGES.filter(p =>
+                                            p.lb.toLowerCase().includes(cmdQuery.toLowerCase()) ||
+                                            p.id.toLowerCase().includes(cmdQuery.toLowerCase())
+                                        );
+                                        if (filtered.length > 0) {
+                                            nav(filtered[0].id);
+                                            setCmdOpen(false);
+                                        }
+                                    }
+                                }}
+                            />
+                            <kbd style={{
+                                fontSize: 10, padding: '2px 6px', borderRadius: 4,
+                                background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                                color: 'var(--text-muted)', fontFamily: 'inherit',
+                            }}>ESC</kbd>
+                        </div>
+                        <div style={{ maxHeight: 320, overflowY: 'auto', padding: 6 }}>
+                            {ALL_PAGES.filter(p =>
+                                !cmdQuery || p.lb.toLowerCase().includes(cmdQuery.toLowerCase()) || p.id.toLowerCase().includes(cmdQuery.toLowerCase())
+                            ).map(p => {
+                                const I = p.ic;
+                                const active = pg === p.id;
+                                return (
+                                    <button key={p.id} onClick={() => { nav(p.id); setCmdOpen(false); }}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                            padding: '10px 12px', borderRadius: 10, border: 'none',
+                                            background: active ? 'var(--bg-hover)' : 'none',
+                                            cursor: 'pointer', textAlign: 'left', fontSize: 13,
+                                            color: active ? 'var(--primary)' : 'var(--text-primary)',
+                                            fontWeight: active ? 600 : 400, transition: 'background 0.15s',
+                                        }}
+                                        className="hover:bg-[var(--bg-hover)]">
+                                        <span style={{ color: active ? 'var(--primary)' : 'var(--text-muted)', flexShrink: 0 }}><I /></span>
+                                        <span>{p.lb}</span>
+                                        {active && <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>atual</span>}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
                 </div>
             )}
 
