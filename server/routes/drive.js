@@ -189,7 +189,7 @@ router.get('/projeto/:id/arquivos', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════
 // POST /api/drive/projeto/:id/upload — upload de arquivo
 // ═══════════════════════════════════════════════════
-router.post('/projeto/:id/upload', (req, res, next) => {
+router.post('/projeto/:id/upload', requireAuth, (req, res, next) => {
     upload.single('file')(req, res, (err) => {
         if (err) {
             if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: `Arquivo excede o limite de ${MAX_UPLOAD_SIZE / 1024 / 1024}MB` });
@@ -197,7 +197,7 @@ router.post('/projeto/:id/upload', (req, res, next) => {
         }
         next();
     });
-}, requireAuth, async (req, res) => {
+}, async (req, res) => {
     const projeto_id = parseInt(req.params.id);
     let buffer, safeName;
 

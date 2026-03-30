@@ -151,7 +151,9 @@ export default function Cfg({ taxas, reload, notify }) {
         sistema_cor_primaria: '#1379F0',
         contrato_template: '',
         proposta_cor_primaria: '#1B2A4A', proposta_cor_accent: '#C9A96E',
-        proposta_sobre: '', proposta_garantia: '', proposta_consideracoes: '', proposta_rodape: '',
+        proposta_sobre: '', proposta_garantia: '', proposta_consideracoes: '', proposta_rodape: '', proposta_incluso: '',
+        instagram: '', facebook: '', anos_experiencia: 0,
+        portal_mostrar_pagamento: 0,
         gdrive_credentials: '', gdrive_folder_id: '',
         gdrive_client_id: '', gdrive_client_secret: '',
         wa_instance_url: '', wa_instance_name: '', wa_api_key: '', wa_webhook_token: '',
@@ -225,6 +227,11 @@ export default function Cfg({ taxas, reload, notify }) {
                 proposta_garantia: d.proposta_garantia || '',
                 proposta_consideracoes: d.proposta_consideracoes || '',
                 proposta_rodape: d.proposta_rodape || '',
+                proposta_incluso: d.proposta_incluso || '',
+                instagram: d.instagram || '',
+                facebook: d.facebook || '',
+                anos_experiencia: d.anos_experiencia || 0,
+                portal_mostrar_pagamento: d.portal_mostrar_pagamento ?? 0,
                 gdrive_credentials: d.gdrive_credentials || '',
                 gdrive_folder_id: d.gdrive_folder_id || '',
                 gdrive_client_id: d.gdrive_client_id || '',
@@ -302,6 +309,11 @@ export default function Cfg({ taxas, reload, notify }) {
                 proposta_garantia: emp.proposta_garantia,
                 proposta_consideracoes: emp.proposta_consideracoes,
                 proposta_rodape: emp.proposta_rodape,
+                proposta_incluso: emp.proposta_incluso,
+                instagram: emp.instagram,
+                facebook: emp.facebook,
+                anos_experiencia: emp.anos_experiencia,
+                portal_mostrar_pagamento: emp.portal_mostrar_pagamento,
                 gdrive_credentials: emp.gdrive_credentials,
                 gdrive_folder_id: emp.gdrive_folder_id,
                 gdrive_client_id: emp.gdrive_client_id,
@@ -887,6 +899,76 @@ export default function Cfg({ taxas, reload, notify }) {
                                         placeholder="Ex: Obrigado pela confiança! · Visite nosso showroom..."
                                         className={Z.inp}
                                     />
+                                </div>
+                                <div>
+                                    <label className={Z.lbl}>O que está incluso (separado por ;)</label>
+                                    <textarea
+                                        value={emp.proposta_incluso}
+                                        onChange={e => setEmp({ ...emp, proposta_incluso: e.target.value })}
+                                        disabled={!isGerente}
+                                        rows={2}
+                                        placeholder="Projeto 3D personalizado;Produção própria;Entrega e instalação;Acabamento premium;Garantia de fábrica"
+                                        style={{
+                                            width: '100%', fontSize: 12, lineHeight: 1.6, padding: 12, borderRadius: 8,
+                                            resize: 'vertical', background: 'var(--bg-muted)', color: 'var(--text-primary)',
+                                            border: '1px solid var(--border)',
+                                        }}
+                                    />
+                                    <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                        Aparece como checklist visual antes do investimento na proposta.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className={Z.card}>
+                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Redes Sociais e Experiência</h3>
+                            <div className="grid gap-3">
+                                <div>
+                                    <label className={Z.lbl}>Instagram (@usuario)</label>
+                                    <input
+                                        value={emp.instagram}
+                                        onChange={e => setEmp({ ...emp, instagram: e.target.value })}
+                                        disabled={!isGerente}
+                                        placeholder="@ornatomarcenaria"
+                                        className={Z.inp}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={Z.lbl}>Facebook (URL ou nome)</label>
+                                    <input
+                                        value={emp.facebook}
+                                        onChange={e => setEmp({ ...emp, facebook: e.target.value })}
+                                        disabled={!isGerente}
+                                        placeholder="https://facebook.com/ornatomarcenaria"
+                                        className={Z.inp}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={Z.lbl}>Anos de Experiência</label>
+                                    <input
+                                        type="number"
+                                        value={emp.anos_experiencia}
+                                        onChange={e => setEmp({ ...emp, anos_experiencia: parseInt(e.target.value) || 0 })}
+                                        disabled={!isGerente}
+                                        placeholder="0"
+                                        className={Z.inp}
+                                    />
+                                    <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                        Aparece nos stats da landing page e na apresentação.
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+                                    <label style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: isGerente ? 'pointer' : 'default' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={!!emp.portal_mostrar_pagamento}
+                                            onChange={e => setEmp({ ...emp, portal_mostrar_pagamento: e.target.checked ? 1 : 0 })}
+                                            disabled={!isGerente}
+                                            style={{ width: 16, height: 16, accentColor: 'var(--primary)' }}
+                                        />
+                                        <span style={{ marginLeft: 8, fontSize: 13, color: 'var(--text-primary)' }}>Mostrar status de pagamento no Portal do Cliente</span>
+                                    </label>
                                 </div>
                             </div>
                         </div>

@@ -666,7 +666,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                                 <div key={n.id} className="glass-card p-4 relative group"
                                     style={{ borderTop: `3px solid ${n.cor || '#3b82f6'}` }}>
                                     {/* Pin + Actions */}
-                                    <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="absolute top-2 right-2 flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                         <button onClick={() => toggleFixarNota(n)}
                                             className="p-1 rounded hover:bg-[var(--bg-hover)] cursor-pointer transition-colors"
                                             style={{ color: n.fixado ? '#f59e0b' : 'var(--text-muted)' }} title={n.fixado ? 'Desafixar' : 'Fixar'}>

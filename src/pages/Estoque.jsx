@@ -556,12 +556,12 @@ export default function Estoque({ notify }) {
                     ) : filtered.length === 0 ? (
                         <EmptyState icon={Package} title={materiais.length === 0 ? 'Nenhum material cadastrado na biblioteca' : 'Nenhum resultado para os filtros selecionados'} />
                     ) : (
-                        <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto' }}>
+                        <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto', WebkitOverflowScrolling: 'touch', position: 'relative' }}>
                             <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr>
-                                        {['Material', 'Tipo', 'Estoque', 'Mínimo', 'Status', 'Localização', 'Valor Unit.', ''].map(h => (
-                                            <th key={h} className={Z.th} style={{ fontSize: 11 }}>{h}</th>
+                                        {['Material', 'Tipo', 'Estoque', 'Mínimo', 'Status', 'Localização', 'Valor Unit.', ''].map((h, idx) => (
+                                            <th key={h} className={Z.th} style={{ fontSize: 11, ...(idx === 0 ? { position: 'sticky', left: 0, background: 'var(--bg-card)', zIndex: 2 } : {}) }}>{h}</th>
                                         ))}
                                     </tr>
                                 </thead>
@@ -572,7 +572,7 @@ export default function Estoque({ notify }) {
                                             <tr key={m.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}
                                                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
                                                 onMouseLeave={e => e.currentTarget.style.background = ''}>
-                                                <td style={{ padding: '10px 14px' }}>
+                                                <td style={{ padding: '10px 14px', position: 'sticky', left: 0, background: 'var(--bg-card)', zIndex: 2 }}>
                                                     <div style={{ fontWeight: 600, fontSize: 14 }}>{m.nome}</div>
                                                     {m.cod && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>#{m.cod}</div>}
                                                 </td>
@@ -629,7 +629,7 @@ export default function Estoque({ notify }) {
                     {movs.length === 0 ? (
                         <EmptyState icon={History} title="Nenhuma movimentação registrada" />
                     ) : (
-                        <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto' }}>
+                        <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto', WebkitOverflowScrolling: 'touch', position: 'relative' }}>
                             <table style={{ width: '100%', minWidth: 650, borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr>
@@ -775,7 +775,7 @@ export default function Estoque({ notify }) {
                     {apontamentos.length === 0 ? (
                         <EmptyState icon={Clock} title="Nenhum apontamento registrado" />
                     ) : (
-                        <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto' }}>
+                        <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto', WebkitOverflowScrolling: 'touch', position: 'relative' }}>
                             <table style={{ width: '100%', minWidth: 650, borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr>
@@ -884,7 +884,7 @@ export default function Estoque({ notify }) {
                     {colaboradores.length === 0 ? (
                         <EmptyState icon={Users} title="Nenhum colaborador cadastrado" />
                     ) : (
-                        <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto' }}>
+                        <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto', WebkitOverflowScrolling: 'touch', position: 'relative' }}>
                             <table style={{ width: '100%', minWidth: 550, borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr>

@@ -367,7 +367,12 @@ function TabNFEntrada({ notify }) {
                     </button>
                 </div>
 
-                {uploading && <Spinner text="Processando XML..." />}
+                {uploading && (
+                    <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, background: 'var(--bg-muted)', borderRadius: 12, border: '1px solid var(--border)' }}>
+                        <div style={{ width: 32, height: 32, border: '3px solid var(--border)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 8px' }} />
+                        Processando XML...
+                    </div>
+                )}
 
                 {/* NF History */}
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20 }}>

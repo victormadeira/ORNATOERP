@@ -74,17 +74,20 @@ class MaxRectsBin:
     Gerencia lista de retangulos livres e posiciona pecas.
     """
 
-    def __init__(self, width: float, height: float, spacing: float = 7.0):
+    def __init__(self, width: float, height: float, spacing: float = 7.0,
+                 split_dir: str = "auto"):
         """Inicializar bin com dimensoes e spacing.
 
         Args:
             width: Largura util da chapa (apos refilo)
             height: Altura util da chapa (apos refilo)
             spacing: Espacamento minimo entre pecas (mm)
+            split_dir: Direcao de corte - "horizontal", "vertical", "auto"/"misto"
         """
         self.width = width
         self.height = height
         self.spacing = spacing
+        self.split_dir = split_dir
         self.free_rects: list[FreeRect] = [FreeRect(0, 0, width, height)]
         self.used_rects: list[dict] = []
 
@@ -122,6 +125,13 @@ class MaxRectsBin:
                 score = self._score_placement(
                     fr, pw_s, ph_s, pw, ph, heuristic, piece_class
                 )
+                # Rotation penalty: penalizar orientacao que nao favorece a direcao
+                # horizontal: pecas largas (pw > ph) sao preferidas → penalizar se pw < ph
+                # vertical: pecas altas (ph > pw) sao preferidas → penalizar se ph < pw
+                if self.split_dir == "horizontal" and pw < ph - 0.1:
+                    score += 5000
+                elif self.split_dir == "vertical" and ph < pw - 0.1:
+                    score += 5000
                 if score < best_score:
                     best_score = score
                     best = CandidatePoint(
@@ -136,6 +146,12 @@ class MaxRectsBin:
                     score = self._score_placement(
                         fr, ph_s, pw_s, ph, pw, heuristic, piece_class
                     )
+                    # Mesma penalidade direcional para orientacao rotacionada
+                    # Na rotacao, ph vira a largura e pw vira a altura
+                    if self.split_dir == "horizontal" and ph < pw - 0.1:
+                        score += 5000
+                    elif self.split_dir == "vertical" and pw < ph - 0.1:
+                        score += 5000
                     if score < best_score:
                         best_score = score
                         best = CandidatePoint(
@@ -293,6 +309,14 @@ class MaxRectsBin:
             score = -contact  # Mais contato = melhor (score negativo)
         else:
             score = fr.y * 100000 + fr.x  # Fallback BL
+
+        # Directional override: force placement direction
+        # horizontal = rows (fill left-to-right, then next row) → prioritize Y then X
+        # vertical = columns (fill top-to-bottom, then next column) → prioritize X then Y
+        if self.split_dir == "horizontal":
+            score = fr.y * 100000 + fr.x
+        elif self.split_dir == "vertical":
+            score = fr.x * 100000 + fr.y
 
         # Edge-affinity: pecas grandes preferencialmente nas bordas da chapa
         # Isso concentra o espaco vazio em retangulos maiores (sobras mais uteis)
@@ -779,4 +803,5 @@ def create_bin(
     elif bin_type == "shelf":
         return ShelfBin(width, height, spacing)
     else:
-        return MaxRectsBin(width, height, spacing)
+        split_dir = kwargs.get("split_dir", "auto")
+        return MaxRectsBin(width, height, spacing, split_dir=split_dir)

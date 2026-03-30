@@ -1,734 +1,1165 @@
-import { useState, useEffect, useMemo } from 'react';
+/**
+ * Expedicao.jsx — Página de expedição com scanner para tablet.
+ * Interface full-screen otimizada para iPad/Android landscape.
+ * Acesso autenticado via app interno.
+ */
+
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import api from '../api';
+import PecaViewer3D from '../components/PecaViewer3D';
 import {
-    Truck, ClipboardCheck, Package, MapPin, Plus, Calendar, Clock,
-    CheckCircle2, AlertTriangle, Search, RefreshCw, X, ChevronDown,
-    User, Phone, FileText, Wrench, ChevronLeft, ChevronRight
+    Package, CheckCircle, AlertCircle, Scan, ChevronDown, User,
+    Truck, BarChart2, Clock, X, RefreshCw, Award, Circle,
 } from 'lucide-react';
-import { Modal } from '../ui';
 
-const STATUS_ENTREGA = {
-    agendada:    { label: 'Agendada', color: '#3b82f6', icon: Calendar },
-    em_transito: { label: 'Em Trânsito', color: '#f59e0b', icon: Truck },
-    entregue:    { label: 'Entregue', color: '#22c55e', icon: CheckCircle2 },
-    cancelada:   { label: 'Cancelada', color: '#ef4444', icon: X },
-};
+// ─── Constantes ─────────────────────────────────────────────────────────────
 
-const STATUS_INSTALACAO = {
-    agendada:     { label: 'Agendada', color: '#3b82f6' },
-    em_andamento: { label: 'Em Andamento', color: '#f59e0b' },
-    concluida:    { label: 'Concluída', color: '#22c55e' },
-    cancelada:    { label: 'Cancelada', color: '#ef4444' },
-};
+const CHECKPOINT_DEFAULT = 'Expedição';
+const LS_OPERADOR = 'expedicao_operador';
+const LS_CHECKPOINT = 'expedicao_checkpoint';
 
-const TURNOS = { manha: 'Manhã', tarde: 'Tarde', integral: 'Dia Inteiro' };
+// ─── Mini Cutting Plan SVG ───────────────────────────────────────────────────
 
-function api(url, opts = {}) {
-    const token = localStorage.getItem('erp_token');
-    const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
-    if (token) headers.Authorization = `Bearer ${token}`;
-    return fetch(url, { ...opts, headers }).then(r => {
-        if (!r.ok) throw new Error(`Erro ${r.status}`);
-        return r.json();
-    });
-}
+function MiniChapaMap({ plano, pecaId }) {
+    if (!plano || !plano.chapas || plano.chapas.length === 0) return null;
 
-function Badge({ label, color }) {
-    return (
-        <span style={{
-            display: 'inline-flex', alignItems: 'center', padding: '2px 10px',
-            borderRadius: 6, fontSize: 12, fontWeight: 600,
-            background: `${color}18`, color,
-        }}>
-            {label}
-        </span>
-    );
-}
-
-function StatCard({ icon: Icon, label, value, color }) {
-    return (
-        <div style={{
-            background: 'var(--bg-card)', borderRadius: 12, padding: '16px 20px',
-            border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 14,
-        }}>
-            <div style={{
-                width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                background: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-                <Icon size={20} style={{ color }} />
-            </div>
-            <div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>{label}</div>
-                <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>{value}</div>
-            </div>
-        </div>
-    );
-}
-
-function EntregaCard({ entrega, onUpdate, onDelete }) {
-    const st = STATUS_ENTREGA[entrega.status] || STATUS_ENTREGA.agendada;
-    const dataFormatada = entrega.data_agendada
-        ? new Date(entrega.data_agendada + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })
-        : 'Sem data';
-
-    const isPassado = entrega.data_agendada && new Date(entrega.data_agendada + 'T23:59:59') < new Date() && entrega.status === 'agendada';
-
-    return (
-        <div style={{
-            background: 'var(--bg-card)', borderRadius: 12, padding: '16px 20px',
-            border: `1px solid ${isPassado ? '#ef444440' : 'var(--border)'}`,
-            borderLeft: `4px solid ${st.color}`,
-        }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {entrega.projeto_nome || `Projeto #${entrega.projeto_id}`}
-                    </div>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-                        {entrega.cliente_nome || ''}
-                    </div>
-                </div>
-                <Badge label={st.label} color={st.color} />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8, fontSize: 13 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
-                    <Calendar size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                    {dataFormatada}
-                    {isPassado && <span style={{ color: '#ef4444', fontWeight: 700, fontSize: 11 }}>ATRASADA</span>}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
-                    <Clock size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                    {TURNOS[entrega.turno] || entrega.turno}
-                </div>
-                {entrega.motorista && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
-                        <User size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                        {entrega.motorista}
-                    </div>
-                )}
-                {entrega.endereco && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)', gridColumn: 'span 2' }}>
-                        <MapPin size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entrega.endereco}</span>
-                    </div>
-                )}
-            </div>
-
-            {entrega.obs && (
-                <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                    {entrega.obs}
-                </div>
-            )}
-
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
-                {entrega.status === 'agendada' && (
-                    <button onClick={() => onUpdate(entrega.id, { status: 'em_transito' })} style={btnStyle('#f59e0b')}>
-                        <Truck size={13} /> Saiu p/ entrega
-                    </button>
-                )}
-                {entrega.status === 'em_transito' && (
-                    <button onClick={() => onUpdate(entrega.id, { status: 'entregue', checkout_hora: new Date().toISOString() })} style={btnStyle('#22c55e')}>
-                        <CheckCircle2 size={13} /> Confirmar entrega
-                    </button>
-                )}
-                {entrega.status !== 'entregue' && entrega.status !== 'cancelada' && (
-                    <button onClick={() => onUpdate(entrega.id, { status: 'cancelada' })} style={btnStyle('#ef4444')}>
-                        <X size={13} /> Cancelar
-                    </button>
-                )}
-            </div>
-        </div>
-    );
-}
-
-const btnStyle = (color) => ({
-    display: 'inline-flex', alignItems: 'center', gap: 4,
-    padding: '5px 10px', borderRadius: 6, border: 'none',
-    background: `${color}15`, color, cursor: 'pointer',
-    fontSize: 12, fontWeight: 600, transition: 'all 0.15s',
-});
-
-function InstalacaoCard({ inst, onUpdate }) {
-    const st = STATUS_INSTALACAO[inst.status] || STATUS_INSTALACAO.agendada;
-    const dataFormatada = inst.data_agendada
-        ? new Date(inst.data_agendada + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })
-        : 'Sem data';
-
-    return (
-        <div style={{
-            background: 'var(--bg-card)', borderRadius: 12, padding: '16px 20px',
-            border: '1px solid var(--border)', borderLeft: `4px solid ${st.color}`,
-        }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 8 }}>
-                <div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-                        {inst.projeto_nome || `Projeto #${inst.projeto_id}`}
-                    </div>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{inst.cliente_nome || ''}</div>
-                </div>
-                <Badge label={st.label} color={st.color} />
-            </div>
-
-            <div style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Calendar size={14} style={{ color: 'var(--text-muted)' }} /> {dataFormatada}
-                </span>
-                {inst.montador_nome && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Wrench size={14} style={{ color: 'var(--text-muted)' }} /> {inst.montador_nome}
-                    </span>
-                )}
-                {inst.horas_reais > 0 && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Clock size={14} style={{ color: 'var(--text-muted)' }} /> {inst.horas_reais}h
-                    </span>
-                )}
-            </div>
-
-            <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
-                {inst.status === 'agendada' && (
-                    <button onClick={() => onUpdate(inst.id, { status: 'em_andamento', data_inicio: new Date().toISOString() })} style={btnStyle('#f59e0b')}>
-                        <Wrench size={13} /> Iniciar
-                    </button>
-                )}
-                {inst.status === 'em_andamento' && (
-                    <button onClick={() => onUpdate(inst.id, { status: 'concluida', data_fim: new Date().toISOString() })} style={btnStyle('#22c55e')}>
-                        <CheckCircle2 size={13} /> Concluir
-                    </button>
-                )}
-            </div>
-        </div>
-    );
-}
-
-const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-
-function getWeekDays(baseDate) {
-    const d = new Date(baseDate);
-    const day = d.getDay();
-    const start = new Date(d);
-    start.setDate(d.getDate() - day + 1); // Monday
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-        const dt = new Date(start);
-        dt.setDate(start.getDate() + i);
-        days.push(dt);
+    // Encontrar a chapa que contém a peça
+    let targetChapa = null;
+    let targetPeca = null;
+    for (const chapa of plano.chapas) {
+        const found = (chapa.pecas || []).find(p => p.id === pecaId || p.peca_id === pecaId);
+        if (found) { targetChapa = chapa; targetPeca = found; break; }
     }
-    return days;
-}
+    if (!targetChapa) targetChapa = plano.chapas[0];
 
-function CalendarioSemanal({ entregas, instalacoes, onUpdateEntrega, onUpdateInstalacao }) {
-    const [weekOffset, setWeekOffset] = useState(0);
+    const W_SVG = 280;
+    const H_SVG = 178;
+    const PAD = 8;
 
-    const baseDate = new Date();
-    baseDate.setDate(baseDate.getDate() + weekOffset * 7);
-    const weekDays = getWeekDays(baseDate);
+    const chapaW = targetChapa.largura || targetChapa.width || 2750;
+    const chapaH = targetChapa.comprimento || targetChapa.height || 1850;
 
-    const fmt = (d) => d.toISOString().split('T')[0];
-    const hoje = fmt(new Date());
+    const scaleX = (W_SVG - PAD * 2) / chapaW;
+    const scaleY = (H_SVG - PAD * 2) / chapaH;
+    const scale = Math.min(scaleX, scaleY);
 
-    const getEventsForDay = (dateStr) => {
-        const ent = (entregas || []).filter(e => e.data_agendada === dateStr).map(e => ({ ...e, _tipo: 'entrega' }));
-        const inst = (instalacoes || []).filter(i => i.data_agendada === dateStr).map(i => ({ ...i, _tipo: 'instalacao' }));
-        return [...ent, ...inst];
-    };
+    const drawW = chapaW * scale;
+    const drawH = chapaH * scale;
+    const offX = PAD + (W_SVG - PAD * 2 - drawW) / 2;
+    const offY = PAD + (H_SVG - PAD * 2 - drawH) / 2;
 
-    const weekLabel = (() => {
-        const s = weekDays[0];
-        const e = weekDays[6];
-        return `${s.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} — ${e.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}`;
-    })();
+    const pecas = targetChapa.pecas || [];
+    const chapaIdx = targetChapa.idx ?? targetChapa.index ?? 0;
 
     return (
         <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <button onClick={() => setWeekOffset(w => w - 1)} style={{
-                    display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8,
-                    border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)',
-                    cursor: 'pointer', fontSize: 13, fontWeight: 600,
-                }}>
-                    <ChevronLeft size={16} /> Anterior
-                </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Calendar size={16} style={{ color: 'var(--primary)' }} />
-                    <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{weekLabel}</span>
-                    {weekOffset !== 0 && (
-                        <button onClick={() => setWeekOffset(0)} style={{
-                            padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border)',
-                            background: 'var(--bg-muted)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                        }}>Hoje</button>
-                    )}
-                </div>
-                <button onClick={() => setWeekOffset(w => w + 1)} style={{
-                    display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8,
-                    border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)',
-                    cursor: 'pointer', fontSize: 13, fontWeight: 600,
-                }}>
-                    Próxima <ChevronRight size={16} />
-                </button>
+            <div style={{
+                fontSize: 10, color: 'var(--text-muted)', marginBottom: 4,
+                fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase',
+            }}>
+                Chapa #{chapaIdx + 1} — {chapaW}×{chapaH}mm
             </div>
+            <svg
+                width={W_SVG} height={H_SVG}
+                style={{
+                    borderRadius: 8,
+                    background: 'var(--bg-body)',
+                    border: '1px solid var(--border-hover)',
+                    display: 'block',
+                }}
+            >
+                {/* Chapa background */}
+                <rect
+                    x={offX} y={offY} width={drawW} height={drawH}
+                    fill="var(--bg-muted)" stroke="var(--border-hover)" strokeWidth={1} rx={2}
+                />
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8, minHeight: 300 }}>
-                {weekDays.map((day, idx) => {
-                    const dateStr = fmt(day);
-                    const isToday = dateStr === hoje;
-                    const isWeekend = idx >= 5;
-                    const events = getEventsForDay(dateStr);
+                {/* Todas as peças */}
+                {pecas.map((p, i) => {
+                    const isTarget = p.id === pecaId || p.peca_id === pecaId;
+                    const pw = Math.max(2, ((p.rotacionada
+                        ? (p.largura || p.w)
+                        : (p.comprimento || p.l || p.w)) || 60) * scale);
+                    const ph = Math.max(2, ((p.rotacionada
+                        ? (p.comprimento || p.l || p.w)
+                        : (p.largura || p.w)) || 40) * scale);
+                    const px = offX + (p.pos_x || p.x || 0) * scale;
+                    const py = offY + (p.pos_y || p.y || 0) * scale;
 
                     return (
-                        <div key={dateStr} style={{
-                            background: isToday ? 'var(--primary-alpha)' : isWeekend ? 'var(--bg-muted)' : 'var(--bg-card)',
-                            borderRadius: 12, border: isToday ? '2px solid var(--primary)' : '1px solid var(--border)',
-                            padding: 10, display: 'flex', flexDirection: 'column', minHeight: 200,
-                        }}>
-                            <div style={{
-                                fontSize: 12, fontWeight: 700, marginBottom: 8, textAlign: 'center',
-                                color: isToday ? 'var(--primary)' : 'var(--text-muted)',
-                            }}>
-                                <div>{DIAS_SEMANA[day.getDay()]}</div>
-                                <div style={{ fontSize: 20, fontWeight: 800, color: isToday ? 'var(--primary)' : 'var(--text-primary)', lineHeight: 1.2 }}>
-                                    {day.getDate()}
-                                </div>
-                            </div>
-
-                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'auto' }}>
-                                {events.length === 0 && (
-                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <span style={{ fontSize: 11, color: 'var(--text-muted)', opacity: 0.5 }}>—</span>
-                                    </div>
-                                )}
-                                {events.map((ev, i) => {
-                                    const isEnt = ev._tipo === 'entrega';
-                                    const st = isEnt ? (STATUS_ENTREGA[ev.status] || STATUS_ENTREGA.agendada) : (STATUS_INSTALACAO[ev.status] || STATUS_INSTALACAO.agendada);
-                                    const isPast = ev.data_agendada && ev.data_agendada < hoje && (ev.status === 'agendada');
-                                    return (
-                                        <div key={`${ev._tipo}-${ev.id}-${i}`} style={{
-                                            padding: '6px 8px', borderRadius: 8, fontSize: 11,
-                                            background: `${st.color}12`, borderLeft: `3px solid ${st.color}`,
-                                            cursor: 'default',
-                                        }}>
-                                            <div style={{ fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                {isEnt ? <Truck size={11} style={{ display: 'inline', marginRight: 3 }} /> : <Wrench size={11} style={{ display: 'inline', marginRight: 3 }} />}
-                                                {ev.projeto_nome || `#${ev.projeto_id}`}
-                                            </div>
-                                            <div style={{ color: st.color, fontWeight: 600, marginTop: 2 }}>
-                                                {st.label}
-                                                {isPast && <span style={{ color: '#ef4444', marginLeft: 4 }}>!</span>}
-                                            </div>
-                                            {ev.motorista && <div style={{ color: 'var(--text-muted)', marginTop: 1 }}>{ev.motorista}</div>}
-                                            {ev.montador_nome && <div style={{ color: 'var(--text-muted)', marginTop: 1 }}>{ev.montador_nome}</div>}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
+                        <g key={i}>
+                            <rect
+                                x={px} y={py} width={pw} height={ph}
+                                fill={isTarget ? 'rgba(34,197,94,0.35)' : 'rgba(19,121,240,0.12)'}
+                                stroke={isTarget ? '#22c55e' : 'rgba(19,121,240,0.3)'}
+                                strokeWidth={isTarget ? 1.5 : 0.5} rx={1}
+                            />
+                            {isTarget && pw > 12 && ph > 8 && (
+                                <text
+                                    x={px + pw / 2} y={py + ph / 2 + 3}
+                                    textAnchor="middle" fill="#22c55e"
+                                    fontSize={Math.min(8, pw / 3)} fontWeight="bold"
+                                >✓</text>
+                            )}
+                        </g>
                     );
                 })}
-            </div>
+
+                {/* Borda pulsante da peça alvo */}
+                {targetPeca && (() => {
+                    const pw = Math.max(2, ((targetPeca.rotacionada
+                        ? (targetPeca.largura || targetPeca.w)
+                        : (targetPeca.comprimento || targetPeca.l || targetPeca.w)) || 60) * scale);
+                    const ph = Math.max(2, ((targetPeca.rotacionada
+                        ? (targetPeca.comprimento || targetPeca.l || targetPeca.w)
+                        : (targetPeca.largura || targetPeca.w)) || 40) * scale);
+                    const px = offX + (targetPeca.pos_x || targetPeca.x || 0) * scale;
+                    const py = offY + (targetPeca.pos_y || targetPeca.y || 0) * scale;
+                    return (
+                        <rect
+                            x={px - 1} y={py - 1} width={pw + 2} height={ph + 2}
+                            fill="none" stroke="#4ade80" strokeWidth={2}
+                            strokeDasharray="3 2" rx={2}
+                            style={{ filter: 'drop-shadow(0 0 4px #22c55e)' }}
+                        />
+                    );
+                })()}
+
+                {/* Legenda */}
+                <text x={offX + drawW - 2} y={H_SVG - 3} textAnchor="end"
+                    fill="var(--text-muted)" fontSize={8}>
+                    {chapaW}×{chapaH} mm
+                </text>
+            </svg>
         </div>
     );
 }
 
-export default function Expedicao({ notify, user }) {
-    const [tab, setTab] = useState('entregas'); // entregas | instalacoes | calendario
-    const [entregas, setEntregas] = useState([]);
-    const [instalacoes, setInstalacoes] = useState([]);
-    const [projetos, setProjetos] = useState([]);
-    const [colaboradores, setColaboradores] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [busca, setBusca] = useState('');
-    const [filtroStatus, setFiltroStatus] = useState('');
-    const [showModal, setShowModal] = useState(null); // 'entrega' | 'instalacao' | null
-    const [form, setForm] = useState({});
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-    const load = async () => {
-        try {
-            const [ent, inst, projs] = await Promise.all([
-                api('/api/gestao/entregas'),
-                api('/api/gestao/instalacoes'),
-                api('/api/producao-av/painel').then(d => d.projetos || []).catch(() => []),
+function BordaBadge({ label, value }) {
+    const active = value && value !== '-' && value !== '';
+    return (
+        <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            padding: '6px 8px', borderRadius: 8, flex: 1,
+            background: active ? 'var(--primary-alpha)' : 'var(--bg-muted)',
+            border: `1px solid ${active ? 'var(--border-glow)' : 'var(--border)'}`,
+        }}>
+            <span style={{
+                fontSize: 9, color: 'var(--text-muted)',
+                textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2,
+            }}>
+                {label}
+            </span>
+            <span style={{
+                fontSize: 11, fontWeight: 700,
+                color: active ? 'var(--primary)' : 'var(--border-hover)',
+                fontFamily: 'monospace',
+            }}>
+                {active ? value : '—'}
+            </span>
+        </div>
+    );
+}
+
+function DimBox({ label, value, color }) {
+    return (
+        <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            padding: '8px 10px', borderRadius: 8, flex: 1,
+            background: `${color}10`, border: `1px solid ${color}30`,
+        }}>
+            <span style={{ fontSize: 20, fontWeight: 800, fontFamily: 'monospace', color, lineHeight: 1 }}>
+                {value ?? '—'}
+            </span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>{label} mm</span>
+        </div>
+    );
+}
+
+function Pill({ color, label, value }) {
+    return (
+        <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            padding: '4px 10px', borderRadius: 20,
+            background: `${color}15`, border: `1px solid ${color}30`,
+            fontSize: 11,
+        }}>
+            <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+            <span style={{ fontWeight: 700, color }}>{value}</span>
+        </div>
+    );
+}
+
+function SpinIcon({ size = 18 }) {
+    return (
+        <div style={{
+            width: size, height: size,
+            border: `2px solid var(--primary-alpha)`,
+            borderTopColor: 'var(--primary)',
+            borderRadius: '50%',
+            animation: 'spin 0.7s linear infinite',
+            flexShrink: 0,
+            display: 'inline-block',
+        }} />
+    );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export default function Expedicao() {
+    // Lotes & checkpoints
+    const [lotes, setLotes] = useState([]);
+    const [selectedLoteId, setSelectedLoteId] = useState('');
+    const [checkpoints, setCheckpoints] = useState([]);
+    const [activeCheckpoint, setActiveCheckpoint] = useState(
+        () => localStorage.getItem(LS_CHECKPOINT) || CHECKPOINT_DEFAULT
+    );
+
+    // Operador
+    const [operador, setOperador] = useState(() => localStorage.getItem(LS_OPERADOR) || '');
+    const [editingOperador, setEditingOperador] = useState(false);
+
+    // Scan state
+    const [scanInput, setScanInput] = useState('');
+    const [scanning, setScanning] = useState(false);
+    const [scanResult, setScanResult] = useState(null); // 'success' | 'error' | 'duplicate' | null
+    const [scanMessage, setScanMessage] = useState('');
+    const scanInputRef = useRef(null);
+    const resultTimerRef = useRef(null);
+
+    // Data
+    const [lastScan, setLastScan] = useState(null); // { peca, plano, timestamp }
+    const [lotePecas, setLotePecas] = useState([]);
+    const [loteInfo, setLoteInfo] = useState(null);
+    const [loteProgress, setLoteProgress] = useState({}); // { checkpoint_id: { total, scanned } }
+    const [scanLog, setScanLog] = useState([]);
+    const [loadingLote, setLoadingLote] = useState(false);
+
+    // Celebration
+    const [celebrating, setCelebrating] = useState(false);
+
+    // ── Load lotes on mount ──────────────────────────────────────────────────
+
+    useEffect(() => {
+        api.get('/cnc/lotes').then(data => {
+            const list = Array.isArray(data) ? data : (data.lotes || []);
+            setLotes(list);
+            const active = list.find(l => l.status === 'produzindo' || l.status === 'otimizado') || list[0];
+            if (active) setSelectedLoteId(String(active.id));
+        }).catch(() => {});
+    }, []);
+
+    // ── Load checkpoints ─────────────────────────────────────────────────────
+
+    useEffect(() => {
+        api.get('/cnc/checkpoints').then(data => {
+            const list = Array.isArray(data) ? data : (data.checkpoints || []);
+            setCheckpoints(list);
+        }).catch(() => {
+            // Fallback com checkpoints padrão do processo
+            setCheckpoints([
+                { id: 1, nome: 'Corte' },
+                { id: 2, nome: 'Fitagem' },
+                { id: 3, nome: 'Usinagem' },
+                { id: 4, nome: 'Expedição' },
             ]);
-            setEntregas(ent);
-            setInstalacoes(inst);
+        });
+    }, []);
 
-            // Also get all projects for the dropdown
-            try {
-                const allProjs = await api('/api/producao');
-                setProjetos(Array.isArray(allProjs) ? allProjs : []);
-            } catch { setProjetos([]); }
+    // ── Load lote data when selected ────────────────────────────────────────
 
-            try {
-                const cols = await api('/api/gestao/colaboradores');
-                setColaboradores(Array.isArray(cols) ? cols : []);
-            } catch {
-                setColaboradores([]);
+    useEffect(() => {
+        if (!selectedLoteId) return;
+        setLoadingLote(true);
+        setLotePecas([]);
+        setLoteInfo(null);
+        setLoteProgress({});
+        setScanLog([]);
+        setLastScan(null);
+
+        Promise.all([
+            api.get(`/cnc/lotes/${selectedLoteId}`),
+            api.get(`/cnc/expedicao/status/${selectedLoteId}`).catch(() => null),
+        ]).then(([loteData, statusData]) => {
+            setLoteInfo(loteData.lote || loteData);
+            const pecas = loteData.pecas || loteData.lote?.pecas || [];
+            setLotePecas(pecas);
+            if (statusData) {
+                setLoteProgress(statusData.progress || {});
+                setScanLog(statusData.scans || []);
             }
+        }).catch(() => {}).finally(() => setLoadingLote(false));
+    }, [selectedLoteId]);
+
+    // ── Persist preferences ──────────────────────────────────────────────────
+
+    useEffect(() => { localStorage.setItem(LS_OPERADOR, operador); }, [operador]);
+    useEffect(() => { localStorage.setItem(LS_CHECKPOINT, activeCheckpoint); }, [activeCheckpoint]);
+
+    // ── Auto-focus scan input ────────────────────────────────────────────────
+
+    useEffect(() => {
+        if (!editingOperador) {
+            const t = setTimeout(() => scanInputRef.current?.focus(), 120);
+            return () => clearTimeout(t);
+        }
+    }, [editingOperador, selectedLoteId]);
+
+    // ── Scan handler ─────────────────────────────────────────────────────────
+
+    const handleScan = useCallback(async (rawCode) => {
+        const codigo = rawCode.trim();
+        if (!codigo || codigo.length < 2) return;
+
+        if (!selectedLoteId) {
+            setScanResult('error');
+            setScanMessage('Selecione um lote antes de escanear.');
+            clearTimeout(resultTimerRef.current);
+            resultTimerRef.current = setTimeout(() => setScanResult(null), 3000);
+            return;
+        }
+
+        setScanning(true);
+        setScanResult(null);
+        clearTimeout(resultTimerRef.current);
+
+        const cp = checkpoints.find(c => c.nome === activeCheckpoint);
+        const checkpoint_id = cp?.id ?? null;
+
+        try {
+            const data = await api.post('/cnc/expedicao/scan', {
+                codigo,
+                checkpoint_id,
+                lote_id: parseInt(selectedLoteId),
+                ...(operador ? { operador } : {}),
+            });
+
+            const peca = data.peca;
+            const plano = data.plano || null;
+
+            setLastScan({ peca, plano, timestamp: Date.now() });
+            setScanResult('success');
+            setScanMessage(peca?.descricao || 'Peça registrada com sucesso!');
+
+            setScanLog(prev => [{
+                peca_id: peca?.id,
+                codigo,
+                descricao: peca?.descricao,
+                timestamp: new Date().toISOString(),
+                checkpoint: activeCheckpoint,
+            }, ...prev]);
+
+            // Atualiza progress otimisticamente
+            if (checkpoint_id !== null) {
+                setLoteProgress(prev => {
+                    const cur = prev[checkpoint_id] || { scanned: 0, total: lotePecas.length };
+                    const newScanned = cur.scanned + 1;
+                    const newProg = { ...prev, [checkpoint_id]: { ...cur, scanned: newScanned } };
+                    // Verifica celebração após state update
+                    if (cur.total > 0 && newScanned >= cur.total) {
+                        setTimeout(() => { setCelebrating(true); setTimeout(() => setCelebrating(false), 5000); }, 700);
+                    }
+                    return newProg;
+                });
+            }
+
+            resultTimerRef.current = setTimeout(() => setScanResult(null), 3000);
+
         } catch (err) {
-            console.error('Erro ao carregar expedição:', err);
+            const msg = err.error || err.message || 'Erro ao registrar scan.';
+            const isDuplicate = /já.*scan|duplicado|already/i.test(msg);
+            setScanResult(isDuplicate ? 'duplicate' : 'error');
+            setScanMessage(msg);
+            if (err.peca) setLastScan({ peca: err.peca, plano: null, timestamp: Date.now() });
+            resultTimerRef.current = setTimeout(() => setScanResult(null), isDuplicate ? 4500 : 3500);
         } finally {
-            setLoading(false);
+            setScanning(false);
+            setScanInput('');
+            setTimeout(() => scanInputRef.current?.focus(), 100);
         }
-    };
+    }, [selectedLoteId, activeCheckpoint, checkpoints, operador, lotePecas.length]);
 
-    useEffect(() => { load(); }, []);
-
-    const handleUpdateEntrega = async (id, data) => {
-        try {
-            await api(`/api/gestao/entregas/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-            notify?.('Entrega atualizada', 'success');
-            load();
-        } catch { notify?.('Erro ao atualizar entrega', 'error'); }
-    };
-
-    const handleUpdateInstalacao = async (id, data) => {
-        try {
-            await api(`/api/gestao/instalacoes/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-            notify?.('Instalação atualizada', 'success');
-            load();
-        } catch { notify?.('Erro ao atualizar instalação', 'error'); }
-    };
-
-    const handleCreateEntrega = async () => {
-        if (!form.projeto_id || !form.data_agendada) {
-            notify?.('Selecione o projeto e a data', 'error');
-            return;
+    const handleKeyDown = useCallback((e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleScan(scanInput);
         }
-        try {
-            await api('/api/gestao/entregas', { method: 'POST', body: JSON.stringify(form) });
-            notify?.('Entrega agendada', 'success');
-            setShowModal(null);
-            setForm({});
-            load();
-        } catch { notify?.('Erro ao criar entrega', 'error'); }
-    };
+    }, [scanInput, handleScan]);
 
-    const handleCreateInstalacao = async () => {
-        if (!form.projeto_id || !form.data_agendada) {
-            notify?.('Selecione o projeto e a data', 'error');
-            return;
+    // ── Reload lote ──────────────────────────────────────────────────────────
+
+    const reloadLote = useCallback(() => {
+        const id = selectedLoteId;
+        setSelectedLoteId('');
+        setTimeout(() => setSelectedLoteId(id), 30);
+    }, [selectedLoteId]);
+
+    // ── Derived data ─────────────────────────────────────────────────────────
+
+    const pecasPorModulo = useMemo(() => {
+        const map = {};
+        for (const p of lotePecas) {
+            const mod = p.modulo_desc || p.ambiente || 'Geral';
+            if (!map[mod]) map[mod] = [];
+            map[mod].push(p);
         }
-        try {
-            await api('/api/gestao/instalacoes', { method: 'POST', body: JSON.stringify(form) });
-            notify?.('Instalação agendada', 'success');
-            setShowModal(null);
-            setForm({});
-            load();
-        } catch { notify?.('Erro ao criar instalação', 'error'); }
-    };
+        return map;
+    }, [lotePecas]);
 
-    // Stats
-    const entregasAgendadas = entregas.filter(e => e.status === 'agendada').length;
-    const entregasTransito = entregas.filter(e => e.status === 'em_transito').length;
-    const entregasConcluidas = entregas.filter(e => e.status === 'entregue').length;
-    const instPendentes = instalacoes.filter(i => i.status === 'agendada' || i.status === 'em_andamento').length;
+    const scannedIds = useMemo(() => new Set(scanLog.map(s => s.peca_id)), [scanLog]);
 
-    // Filtered lists
-    const filteredEntregas = useMemo(() => {
-        let list = entregas;
-        if (busca) {
-            const q = busca.toLowerCase();
-            list = list.filter(e => (e.projeto_nome || '').toLowerCase().includes(q) || (e.cliente_nome || '').toLowerCase().includes(q) || (e.motorista || '').toLowerCase().includes(q));
-        }
-        if (filtroStatus) list = list.filter(e => e.status === filtroStatus);
-        return list;
-    }, [entregas, busca, filtroStatus]);
+    const cp = checkpoints.find(c => c.nome === activeCheckpoint);
+    const cpProgress = cp
+        ? (loteProgress[cp.id] || { scanned: 0, total: lotePecas.length })
+        : { scanned: 0, total: lotePecas.length };
+    const progressPct = cpProgress.total > 0
+        ? Math.min(100, Math.round((cpProgress.scanned / cpProgress.total) * 100))
+        : 0;
 
-    const filteredInstalacoes = useMemo(() => {
-        let list = instalacoes;
-        if (busca) {
-            const q = busca.toLowerCase();
-            list = list.filter(i => (i.projeto_nome || '').toLowerCase().includes(q) || (i.cliente_nome || '').toLowerCase().includes(q));
-        }
-        if (filtroStatus) list = list.filter(i => i.status === filtroStatus);
-        return list;
-    }, [instalacoes, busca, filtroStatus]);
+    const peca = lastScan?.peca;
+    const plano = lastScan?.plano;
 
-    if (loading) {
-        return (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 12, color: 'var(--text-muted)' }}>
-                <RefreshCw size={20} className="spin" /> Carregando...
-            </div>
-        );
-    }
+    const scanBorderColor = scanResult === 'success' ? '#22c55e'
+        : (scanResult === 'error' || scanResult === 'duplicate') ? '#ef4444'
+        : 'var(--border)';
+    const scanBg = scanResult === 'success' ? 'rgba(34,197,94,0.08)'
+        : (scanResult === 'error' || scanResult === 'duplicate') ? 'rgba(239,68,68,0.08)'
+        : 'var(--bg-muted)';
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // RENDER
+    // ─────────────────────────────────────────────────────────────────────────
 
     return (
-        <div style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{
+            height: '100vh',
+            background: 'var(--bg-body)',
+            color: 'var(--text-primary)',
+            fontFamily: "'Inter', -apple-system, sans-serif",
+            display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            userSelect: 'none',
+        }}>
+
+            {/* ╔══════════════════════════════════════════════════════╗
+                ║                      HEADER                         ║
+                ╚══════════════════════════════════════════════════════╝ */}
+            <header style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '10px 20px',
+                background: 'var(--bg-card)',
+                borderBottom: '1px solid var(--border)',
+                flexShrink: 0, zIndex: 10,
+                boxShadow: 'var(--shadow-sm)',
+            }}>
+
+                {/* Brand */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 6, flexShrink: 0 }}>
                     <div style={{
-                        width: 44, height: 44, borderRadius: 12,
-                        background: 'linear-gradient(135deg, #22c55e, #15803d)',
+                        width: 36, height: 36, borderRadius: 10,
+                        background: 'linear-gradient(135deg, #1d4ed8, #7c3aed)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                        <Truck size={22} color="#fff" />
+                        <Truck size={18} color="#fff" />
                     </div>
                     <div>
-                        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Expedição</h1>
-                        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>Entregas, instalações e rastreamento</p>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>Expedição</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Scanner de peças</div>
                     </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                        onClick={() => { setShowModal(tab === 'instalacoes' ? 'instalacao' : 'entrega'); setForm({}); }}
+
+                {/* Lote selector */}
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <select
+                        value={selectedLoteId}
+                        onChange={e => setSelectedLoteId(e.target.value)}
                         style={{
-                            display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
-                            borderRadius: 8, border: 'none', background: 'var(--primary)',
-                            color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                            padding: '7px 32px 7px 12px', fontSize: 13, fontWeight: 600,
+                            background: 'var(--bg-muted)', border: '1px solid var(--border-hover)',
+                            borderRadius: 8, color: 'var(--text-primary)', cursor: 'pointer',
+                            appearance: 'none', minWidth: 180, outline: 'none',
                         }}
                     >
-                        <Plus size={16} /> {tab === 'instalacoes' ? 'Nova Instalação' : 'Nova Entrega'}
-                    </button>
-                    <button
-                        onClick={load}
+                        <option value="">— Selecionar lote —</option>
+                        {lotes.map(l => (
+                            <option key={l.id} value={l.id}>
+                                {l.nome || `Lote #${l.id}`}
+                            </option>
+                        ))}
+                    </select>
+                    <ChevronDown size={14} color="var(--text-muted)" style={{
+                        position: 'absolute', right: 10, top: '50%',
+                        transform: 'translateY(-50%)', pointerEvents: 'none',
+                    }} />
+                </div>
+
+                {/* Checkpoint selector */}
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <select
+                        value={activeCheckpoint}
+                        onChange={e => setActiveCheckpoint(e.target.value)}
                         style={{
-                            display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
-                            borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)',
-                            color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                            padding: '7px 32px 7px 12px', fontSize: 13, fontWeight: 600,
+                            background: 'var(--primary-alpha)', border: '1px solid var(--border-glow)',
+                            borderRadius: 8, color: 'var(--primary)', cursor: 'pointer',
+                            appearance: 'none', minWidth: 130, outline: 'none',
+                        }}
+                    >
+                        {checkpoints.length > 0 ? checkpoints.map(c => (
+                            <option key={c.id} value={c.nome}>{c.nome}</option>
+                        )) : (
+                            <option value={activeCheckpoint}>{activeCheckpoint}</option>
+                        )}
+                    </select>
+                    <ChevronDown size={14} color="var(--primary)" style={{
+                        position: 'absolute', right: 10, top: '50%',
+                        transform: 'translateY(-50%)', pointerEvents: 'none',
+                    }} />
+                </div>
+
+                {/* Progress pill */}
+                {selectedLoteId && (
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '6px 14px', borderRadius: 20,
+                        background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                        flexShrink: 0,
+                    }}>
+                        <BarChart2 size={13} color={progressPct === 100 ? '#22c55e' : 'var(--primary)'} />
+                        <div style={{ width: 72, height: 5, borderRadius: 3, background: 'var(--border-hover)' }}>
+                            <div style={{
+                                height: '100%', borderRadius: 3,
+                                width: `${progressPct}%`,
+                                transition: 'width .5s ease',
+                                background: progressPct === 100
+                                    ? 'linear-gradient(90deg, #22c55e, #4ade80)'
+                                    : 'linear-gradient(90deg, var(--primary), #60a5fa)',
+                            }} />
+                        </div>
+                        <span style={{
+                            fontSize: 12, fontWeight: 700,
+                            color: progressPct === 100 ? '#22c55e' : 'var(--primary)',
+                            fontFamily: 'monospace', minWidth: 50,
+                        }}>
+                            {cpProgress.scanned}/{cpProgress.total}
+                        </span>
+                    </div>
+                )}
+
+                <div style={{ flex: 1 }} />
+
+                {/* Operador */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <User size={13} color="var(--text-muted)" />
+                    {editingOperador ? (
+                        <input
+                            value={operador}
+                            onChange={e => setOperador(e.target.value)}
+                            onBlur={() => setEditingOperador(false)}
+                            onKeyDown={e => e.key === 'Enter' && setEditingOperador(false)}
+                            placeholder="Nome..."
+                            autoFocus
+                            style={{
+                                padding: '5px 10px', fontSize: 12, background: 'var(--bg-muted)',
+                                border: '1px solid var(--primary)', borderRadius: 6,
+                                color: 'var(--text-primary)', outline: 'none', width: 140,
+                            }}
+                        />
+                    ) : (
+                        <button
+                            onClick={() => setEditingOperador(true)}
+                            style={{
+                                padding: '5px 10px', fontSize: 12, fontWeight: 600,
+                                background: 'transparent', border: '1px solid var(--border)',
+                                borderRadius: 6,
+                                color: operador ? 'var(--text-primary)' : 'var(--text-muted)',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            {operador || 'Operador'}
+                        </button>
+                    )}
+                </div>
+
+                {/* Reload button */}
+                {selectedLoteId && (
+                    <button
+                        onClick={reloadLote}
+                        title="Recarregar dados do lote"
+                        style={{
+                            width: 32, height: 32, borderRadius: 8, background: 'transparent',
+                            border: '1px solid var(--border)', color: 'var(--text-muted)',
+                            cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0,
                         }}
                     >
                         <RefreshCw size={14} />
                     </button>
-                </div>
-            </div>
+                )}
+            </header>
 
-            {/* Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
-                <StatCard icon={Calendar} label="Agendadas" value={entregasAgendadas} color="#3b82f6" />
-                <StatCard icon={Truck} label="Em Trânsito" value={entregasTransito} color="#f59e0b" />
-                <StatCard icon={CheckCircle2} label="Entregues" value={entregasConcluidas} color="#22c55e" />
-                <StatCard icon={Wrench} label="Instalações Pendentes" value={instPendentes} color="#8b5cf6" />
-            </div>
+            {/* ╔══════════════════════════════════════════════════════╗
+                ║                   MAIN CONTENT                      ║
+                ╚══════════════════════════════════════════════════════╝ */}
+            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-            {/* Tabs */}
-            <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 1 }}>
-                {[
-                    { id: 'entregas', label: 'Entregas', icon: Truck, count: entregas.length },
-                    { id: 'instalacoes', label: 'Instalações', icon: Wrench, count: instalacoes.length },
-                    { id: 'calendario', label: 'Calendário', icon: Calendar, count: entregas.length + instalacoes.length },
-                ].map(t => (
-                    <button
-                        key={t.id}
-                        onClick={() => { setTab(t.id); setFiltroStatus(''); }}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px',
-                            border: 'none', borderBottom: tab === t.id ? '2px solid var(--primary)' : '2px solid transparent',
-                            background: 'transparent', color: tab === t.id ? 'var(--primary)' : 'var(--text-muted)',
-                            cursor: 'pointer', fontSize: 14, fontWeight: 600, transition: 'all 0.2s',
-                        }}
-                    >
-                        <t.icon size={16} />
-                        {t.label}
-                        <span style={{
-                            fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 10,
-                            background: tab === t.id ? 'var(--primary-light)' : 'var(--bg-muted)',
-                            color: tab === t.id ? 'var(--primary)' : 'var(--text-muted)',
-                        }}>
-                            {t.count}
-                        </span>
-                    </button>
-                ))}
-            </div>
+                {/* ┌──────────────────────────────────────────────────┐
+                    │          LEFT — SCAN AREA (60%)                  │
+                    └──────────────────────────────────────────────────┘ */}
+                <div style={{
+                    flex: '0 0 60%', display: 'flex', flexDirection: 'column',
+                    padding: '16px 16px 16px 20px', gap: 14, overflow: 'hidden',
+                    borderRight: '1px solid var(--border)',
+                }}>
 
-            {/* Filters */}
-            <div style={{ display: tab === 'calendario' ? 'none' : 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-                <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-                    <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                    <input
-                        value={busca}
-                        onChange={e => setBusca(e.target.value)}
-                        placeholder="Buscar projeto, cliente ou motorista..."
-                        style={{
-                            width: '100%', padding: '9px 12px 9px 36px', borderRadius: 8,
-                            border: '1px solid var(--border)', background: 'var(--bg-input)',
-                            color: 'var(--text-primary)', fontSize: 13, outline: 'none',
-                        }}
-                    />
-                </div>
-                <select
-                    value={filtroStatus}
-                    onChange={e => setFiltroStatus(e.target.value)}
-                    style={{
-                        padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)',
-                        background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13, outline: 'none',
-                    }}
-                >
-                    <option value="">Todos os status</option>
-                    {Object.entries(tab === 'entregas' ? STATUS_ENTREGA : STATUS_INSTALACAO).map(([k, v]) => (
-                        <option key={k} value={k}>{v.label}</option>
-                    ))}
-                </select>
-            </div>
-
-            {/* Content */}
-            {tab === 'calendario' ? (
-                <CalendarioSemanal
-                    entregas={entregas}
-                    instalacoes={instalacoes}
-                    onUpdateEntrega={handleUpdateEntrega}
-                    onUpdateInstalacao={handleUpdateInstalacao}
-                />
-            ) : tab === 'entregas' ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12 }}>
-                    {filteredEntregas.length === 0 ? (
+                    {/* Scan input */}
+                    <div style={{ flexShrink: 0 }}>
                         <div style={{
-                            textAlign: 'center', padding: 48, color: 'var(--text-muted)', gridColumn: '1 / -1',
-                            background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)',
+                            position: 'relative', borderRadius: 14,
+                            background: scanBg,
+                            border: `2px solid ${scanBorderColor}`,
+                            transition: 'all .25s ease',
+                            boxShadow: scanResult === 'success'
+                                ? '0 0 36px rgba(34,197,94,0.18)'
+                                : (scanResult === 'error' || scanResult === 'duplicate')
+                                    ? '0 0 28px rgba(239,68,68,0.15)'
+                                    : 'none',
+                            animation: (scanResult === 'error' || scanResult === 'duplicate') ? 'shake .35s ease' : 'none',
                         }}>
-                            <Truck size={40} style={{ marginBottom: 12, opacity: 0.5 }} />
-                            <div style={{ fontSize: 15, fontWeight: 600 }}>Nenhuma entrega encontrada</div>
-                            <div style={{ fontSize: 13, marginTop: 4 }}>Clique em "Nova Entrega" para agendar</div>
-                        </div>
-                    ) : (
-                        filteredEntregas.map(e => (
-                            <EntregaCard key={e.id} entrega={e} onUpdate={handleUpdateEntrega} />
-                        ))
-                    )}
-                </div>
-            ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12 }}>
-                    {filteredInstalacoes.length === 0 ? (
-                        <div style={{
-                            textAlign: 'center', padding: 48, color: 'var(--text-muted)', gridColumn: '1 / -1',
-                            background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)',
-                        }}>
-                            <Wrench size={40} style={{ marginBottom: 12, opacity: 0.5 }} />
-                            <div style={{ fontSize: 15, fontWeight: 600 }}>Nenhuma instalação encontrada</div>
-                            <div style={{ fontSize: 13, marginTop: 4 }}>Clique em "Nova Instalação" para agendar</div>
-                        </div>
-                    ) : (
-                        filteredInstalacoes.map(i => (
-                            <InstalacaoCard key={i.id} inst={i} onUpdate={handleUpdateInstalacao} />
-                        ))
-                    )}
-                </div>
-            )}
-
-            {/* Modal Nova Entrega */}
-            {showModal === 'entrega' && (
-                <Modal title="Nova Entrega" close={() => setShowModal(null)}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        <div>
-                            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Projeto *</label>
-                            <select
-                                value={form.projeto_id || ''}
-                                onChange={e => setForm(f => ({ ...f, projeto_id: Number(e.target.value) }))}
-                                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13 }}
-                            >
-                                <option value="">Selecione...</option>
-                                {projetos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                            </select>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Data *</label>
-                                <input
-                                    type="date"
-                                    value={form.data_agendada || ''}
-                                    onChange={e => setForm(f => ({ ...f, data_agendada: e.target.value }))}
-                                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13 }}
-                                />
+                            {/* Icon left */}
+                            <div style={{
+                                position: 'absolute', left: 18, top: '50%',
+                                transform: 'translateY(-50%)',
+                                color: scanning ? 'var(--primary)'
+                                    : scanResult === 'success' ? '#22c55e'
+                                    : (scanResult === 'error' || scanResult === 'duplicate') ? '#ef4444'
+                                    : 'var(--text-muted)',
+                                transition: 'color .2s',
+                                display: 'flex', alignItems: 'center',
+                            }}>
+                                {scanning
+                                    ? <SpinIcon size={24} />
+                                    : scanResult === 'success'
+                                        ? <CheckCircle size={26} />
+                                        : (scanResult === 'error' || scanResult === 'duplicate')
+                                            ? <AlertCircle size={26} />
+                                            : <Scan size={26} />
+                                }
                             </div>
-                            <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Turno</label>
-                                <select
-                                    value={form.turno || 'manha'}
-                                    onChange={e => setForm(f => ({ ...f, turno: e.target.value }))}
-                                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13 }}
+
+                            <input
+                                ref={scanInputRef}
+                                value={scanInput}
+                                onChange={e => setScanInput(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                placeholder="Escanear peça..."
+                                disabled={scanning}
+                                style={{
+                                    width: '100%', padding: '18px 56px 18px 60px',
+                                    fontSize: 22, fontFamily: 'monospace', fontWeight: 700,
+                                    letterSpacing: 2, background: 'transparent',
+                                    border: 'none', color: 'var(--text-primary)', outline: 'none',
+                                    boxSizing: 'border-box',
+                                }}
+                            />
+
+                            {scanInput && !scanning && (
+                                <button
+                                    onClick={() => { setScanInput(''); scanInputRef.current?.focus(); }}
+                                    style={{
+                                        position: 'absolute', right: 14, top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        background: 'transparent', border: 'none',
+                                        color: 'var(--text-muted)', cursor: 'pointer', padding: 6, borderRadius: 6,
+                                    }}
                                 >
-                                    {Object.entries(TURNOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                                </select>
+                                    <X size={18} />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Feedback message */}
+                        {scanResult && (
+                            <div style={{
+                                marginTop: 8, padding: '8px 14px', borderRadius: 8,
+                                fontSize: 13, fontWeight: 600,
+                                background: scanResult === 'success'
+                                    ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                                color: scanResult === 'success' ? '#4ade80' : '#f87171',
+                                border: `1px solid ${scanResult === 'success'
+                                    ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                animation: 'fadeSlideIn .2s ease',
+                            }}>
+                                {scanResult === 'success'
+                                    ? <CheckCircle size={15} />
+                                    : <AlertCircle size={15} />
+                                }
+                                <span style={{ flex: 1 }}>{scanMessage}</span>
+                                {scanResult === 'duplicate' && (
+                                    <span style={{ fontSize: 11, opacity: 0.65 }}>já escaneado</span>
+                                )}
                             </div>
-                        </div>
-                        <div>
-                            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Endereço</label>
-                            <input
-                                value={form.endereco || ''}
-                                onChange={e => setForm(f => ({ ...f, endereco: e.target.value }))}
-                                placeholder="Endereço de entrega"
-                                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13 }}
-                            />
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Motorista</label>
-                                <input
-                                    value={form.motorista || ''}
-                                    onChange={e => setForm(f => ({ ...f, motorista: e.target.value }))}
-                                    placeholder="Nome do motorista"
-                                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13 }}
-                                />
-                            </div>
-                            <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Veículo</label>
-                                <input
-                                    value={form.veiculo || ''}
-                                    onChange={e => setForm(f => ({ ...f, veiculo: e.target.value }))}
-                                    placeholder="Placa / descrição"
-                                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13 }}
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Observações</label>
-                            <textarea
-                                value={form.obs || ''}
-                                onChange={e => setForm(f => ({ ...f, obs: e.target.value }))}
-                                rows={2}
-                                placeholder="Observações sobre a entrega..."
-                                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13, resize: 'vertical' }}
-                            />
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                            <button className="btn-ghost" onClick={() => setShowModal(null)}>Cancelar</button>
-                            <button className="btn-primary" onClick={handleCreateEntrega}>Agendar Entrega</button>
-                        </div>
+                        )}
                     </div>
-                </Modal>
+
+                    {/* Last scanned piece */}
+                    {peca ? (
+                        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', gap: 14 }}>
+
+                            {/* Column A: 3D viewer + chapa map */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }}>
+                                <div style={{
+                                    borderRadius: 12, overflow: 'hidden',
+                                    border: '1px solid var(--border-hover)',
+                                    background: 'var(--bg-card)', position: 'relative',
+                                }}>
+                                    <PecaViewer3D peca={peca} width={220} height={160} />
+                                    {scanResult === 'success' && (
+                                        <div style={{
+                                            position: 'absolute', inset: 0,
+                                            background: 'rgba(34,197,94,0.2)',
+                                            pointerEvents: 'none',
+                                            animation: 'flashGreen .7s ease forwards',
+                                            borderRadius: 12,
+                                        }} />
+                                    )}
+                                </div>
+
+                                {/* Mini chapa map */}
+                                {plano && <MiniChapaMap plano={plano} pecaId={peca.id} />}
+                                {!plano && peca.chapa_idx != null && peca.chapa_idx >= 0 && (
+                                    <div style={{
+                                        padding: '7px 12px', borderRadius: 8,
+                                        background: 'rgba(34,197,94,0.07)',
+                                        border: '1px solid rgba(34,197,94,0.2)',
+                                        fontSize: 11, color: '#6ee7b7', fontFamily: 'monospace',
+                                    }}>
+                                        Chapa #{peca.chapa_idx + 1} · X:{peca.pos_x} Y:{peca.pos_y}
+                                        {peca.rotacionada ? ' · ↺90°' : ''}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Column B: piece details */}
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden', minWidth: 0 }}>
+
+                                {/* Name */}
+                                <div>
+                                    <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.15, marginBottom: 3 }}>
+                                        {peca.descricao || peca.upmcode || 'Peça'}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                        {[peca.modulo_desc, peca.produto_final, peca.ambiente]
+                                            .filter(Boolean).join(' · ')}
+                                    </div>
+                                </div>
+
+                                {/* Dimensions */}
+                                <div style={{ display: 'flex', gap: 7 }}>
+                                    <DimBox label="Comp" value={peca.comprimento} color="#60a5fa" />
+                                    <DimBox label="Larg" value={peca.largura} color="#34d399" />
+                                    <DimBox label="Esp" value={peca.espessura} color="#fbbf24" />
+                                </div>
+
+                                {/* Tags */}
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                    {peca.material_code && (
+                                        <Pill color="var(--primary)" label="Material" value={peca.material_code} />
+                                    )}
+                                    {(peca.quantidade || 1) > 1 && (
+                                        <Pill color="#f59e0b" label="Qtd" value={`×${peca.quantidade}`} />
+                                    )}
+                                    {peca.grain && peca.grain !== 'sem_veio' && (
+                                        <Pill color="#f97316" label="Veio" value={peca.grain} />
+                                    )}
+                                </div>
+
+                                {/* Bordas */}
+                                <div>
+                                    <div style={{
+                                        fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
+                                        textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6,
+                                    }}>
+                                        Bordas / Fitagem
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 5 }}>
+                                        <BordaBadge label="Frontal" value={peca.borda_frontal} />
+                                        <BordaBadge label="Traseira" value={peca.borda_traseira} />
+                                        <BordaBadge label="Dir" value={peca.borda_dir} />
+                                        <BordaBadge label="Esq" value={peca.borda_esq} />
+                                    </div>
+
+                                    {/* Borda cores */}
+                                    {[peca.borda_cor_frontal, peca.borda_cor_traseira, peca.borda_cor_dir, peca.borda_cor_esq].some(Boolean) && (
+                                        <div style={{ marginTop: 7, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                            {[
+                                                ['F', peca.borda_cor_frontal],
+                                                ['T', peca.borda_cor_traseira],
+                                                ['D', peca.borda_cor_dir],
+                                                ['E', peca.borda_cor_esq],
+                                            ].filter(([, v]) => v && v !== '-').map(([side, cor]) => (
+                                                <div key={side} style={{
+                                                    display: 'flex', alignItems: 'center', gap: 4,
+                                                    padding: '3px 8px', borderRadius: 6,
+                                                    background: 'rgba(139,92,246,0.1)',
+                                                    border: '1px solid rgba(139,92,246,0.25)',
+                                                    fontSize: 11,
+                                                }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>{side}:</span>
+                                                    <span style={{ color: '#c4b5fd', fontWeight: 600 }}>{cor}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Scan timestamp */}
+                                {lastScan?.timestamp && (
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', gap: 5,
+                                        fontSize: 11, color: 'var(--text-muted)', marginTop: 'auto',
+                                    }}>
+                                        <Clock size={12} />
+                                        {new Date(lastScan.timestamp).toLocaleTimeString('pt-BR', {
+                                            hour: '2-digit', minute: '2-digit', second: '2-digit',
+                                        })}
+                                        {operador && (
+                                            <> · <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{operador}</span></>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        /* Empty state */
+                        <div style={{
+                            flex: 1, display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center', gap: 14,
+                        }}>
+                            <div style={{
+                                width: 88, height: 88, borderRadius: 22,
+                                background: 'var(--primary-alpha)',
+                                border: '2px dashed var(--border-glow)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                                <Scan size={38} color="var(--primary)" style={{ opacity: 0.4 }} />
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                                    Pronto para escanear
+                                </div>
+                                <div style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 270 }}>
+                                    {selectedLoteId
+                                        ? 'Aponte o leitor para a etiqueta ou digite o código acima.'
+                                        : 'Selecione um lote no cabeçalho para começar.'}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* ┌──────────────────────────────────────────────────┐
+                    │         RIGHT — PROGRESS PANEL (40%)             │
+                    └──────────────────────────────────────────────────┘ */}
+                <div style={{ flex: '0 0 40%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+                    {!selectedLoteId ? (
+                        <div style={{
+                            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexDirection: 'column', gap: 10, color: 'var(--text-muted)',
+                        }}>
+                            <Package size={42} color="var(--text-muted)" style={{ opacity: 0.2 }} />
+                            <span style={{ fontSize: 14 }}>Nenhum lote selecionado</span>
+                        </div>
+                    ) : loadingLote ? (
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
+                            <SpinIcon size={32} />
+                            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Carregando lote...</span>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Lote summary + checkpoints */}
+                            <div style={{
+                                padding: '14px 18px',
+                                background: 'var(--bg-card)',
+                                borderBottom: '1px solid var(--border)',
+                                flexShrink: 0,
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                                    <div style={{ minWidth: 0 }}>
+                                        <div style={{
+                                            fontSize: 16, fontWeight: 800, color: 'var(--text-primary)',
+                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                        }}>
+                                            {loteInfo?.nome || `Lote #${selectedLoteId}`}
+                                        </div>
+                                        {loteInfo?.cliente && (
+                                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>
+                                                {loteInfo.cliente}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
+                                        <div style={{
+                                            fontSize: 26, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1,
+                                            color: progressPct === 100 ? '#22c55e' : 'var(--primary)',
+                                        }}>
+                                            {progressPct}%
+                                        </div>
+                                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                                            {cpProgress.scanned}/{cpProgress.total} peças
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Checkpoint progress bars */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                                    {checkpoints.map(c => {
+                                        const prog = loteProgress[c.id] || { scanned: 0, total: lotePecas.length };
+                                        const pct = prog.total > 0
+                                            ? Math.min(100, Math.round((prog.scanned / prog.total) * 100))
+                                            : 0;
+                                        const isActive = c.nome === activeCheckpoint;
+                                        const isDone = pct === 100;
+                                        return (
+                                            <div key={c.id} style={{ opacity: isActive ? 1 : 0.5 }}>
+                                                <div style={{
+                                                    display: 'flex', justifyContent: 'space-between',
+                                                    marginBottom: 3,
+                                                }}>
+                                                    <span style={{
+                                                        fontSize: 11,
+                                                        fontWeight: isActive ? 700 : 400,
+                                                        color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
+                                                        display: 'flex', alignItems: 'center', gap: 4,
+                                                    }}>
+                                                        {isActive && (
+                                                            <span style={{ color: 'var(--primary)', fontSize: 9 }}>▶</span>
+                                                        )}
+                                                        {isDone && !isActive && (
+                                                            <CheckCircle size={10} color="#22c55e" />
+                                                        )}
+                                                        {c.nome}
+                                                    </span>
+                                                    <span style={{
+                                                        fontSize: 11, fontFamily: 'monospace',
+                                                        color: isDone ? '#22c55e' : isActive ? 'var(--primary)' : 'var(--text-muted)',
+                                                        fontWeight: isActive ? 700 : 400,
+                                                    }}>
+                                                        {prog.scanned}/{prog.total}
+                                                    </span>
+                                                </div>
+                                                <div style={{ height: isActive ? 5 : 3, borderRadius: 3, background: 'var(--border-hover)' }}>
+                                                    <div style={{
+                                                        height: '100%', borderRadius: 3,
+                                                        width: `${pct}%`, transition: 'width .5s ease',
+                                                        background: isDone ? '#22c55e'
+                                                            : isActive ? 'var(--primary)'
+                                                            : 'var(--border-hover)',
+                                                    }} />
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Piece list grouped by module */}
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '10px 14px 16px' }}>
+                                {Object.entries(pecasPorModulo).map(([modulo, pecas]) => {
+                                    const modScanned = pecas.filter(p => scannedIds.has(p.id)).length;
+                                    const allDone = modScanned === pecas.length && pecas.length > 0;
+                                    return (
+                                        <div key={modulo} style={{ marginBottom: 14 }}>
+                                            {/* Module header */}
+                                            <div style={{
+                                                display: 'flex', alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                padding: '6px 10px', borderRadius: 8, marginBottom: 4,
+                                                background: allDone
+                                                    ? 'rgba(34,197,94,0.07)'
+                                                    : 'var(--bg-muted)',
+                                                border: `1px solid ${allDone ? 'rgba(34,197,94,0.2)' : 'var(--border)'}`,
+                                            }}>
+                                                <span style={{
+                                                    fontSize: 12, fontWeight: 700,
+                                                    color: allDone ? '#86efac' : '#c4b5fd',
+                                                }}>
+                                                    {modulo}
+                                                </span>
+                                                <span style={{
+                                                    fontSize: 11, fontFamily: 'monospace', fontWeight: 700,
+                                                    color: allDone ? '#22c55e' : 'var(--text-muted)',
+                                                }}>
+                                                    {modScanned}/{pecas.length}
+                                                    {allDone && ' ✓'}
+                                                </span>
+                                            </div>
+
+                                            {/* Piece rows */}
+                                            {pecas.map(p => {
+                                                const isScanned = scannedIds.has(p.id);
+                                                const isLastScanned = lastScan?.peca?.id === p.id;
+                                                const logEntry = scanLog.find(s => s.peca_id === p.id);
+
+                                                return (
+                                                    <div key={p.id} style={{
+                                                        display: 'flex', alignItems: 'center', gap: 9,
+                                                        padding: '7px 10px', borderRadius: 7, marginBottom: 2,
+                                                        background: isLastScanned
+                                                            ? 'rgba(34,197,94,0.09)'
+                                                            : isScanned
+                                                                ? 'rgba(34,197,94,0.04)'
+                                                                : 'var(--bg-muted)',
+                                                        border: `1px solid ${
+                                                            isLastScanned ? 'rgba(34,197,94,0.3)'
+                                                            : isScanned ? 'rgba(34,197,94,0.12)'
+                                                            : 'var(--border)'
+                                                        }`,
+                                                        transition: 'all .35s ease',
+                                                    }}>
+                                                        {/* Status icon */}
+                                                        <div style={{ flexShrink: 0 }}>
+                                                            {isScanned
+                                                                ? <CheckCircle size={15} color="#22c55e" />
+                                                                : <Circle size={15} color="var(--border-hover)" />
+                                                            }
+                                                        </div>
+
+                                                        {/* Info */}
+                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                            <div style={{
+                                                                fontSize: 12,
+                                                                fontWeight: isScanned ? 600 : 400,
+                                                                color: isScanned ? '#d1fae5' : 'var(--text-primary)',
+                                                                overflow: 'hidden',
+                                                                textOverflow: 'ellipsis',
+                                                                whiteSpace: 'nowrap',
+                                                            }}>
+                                                                {p.descricao || p.upmcode || `Peça ${p.id}`}
+                                                            </div>
+                                                            <div style={{
+                                                                fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace',
+                                                            }}>
+                                                                {p.comprimento}×{p.largura}×{p.espessura}
+                                                                {p.material_code ? ` · ${p.material_code}` : ''}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Timestamp */}
+                                                        {logEntry?.timestamp && (
+                                                            <div style={{
+                                                                fontSize: 10, color: '#6ee7b7',
+                                                                fontFamily: 'monospace', flexShrink: 0,
+                                                            }}>
+                                                                {new Date(logEntry.timestamp).toLocaleTimeString('pt-BR', {
+                                                                    hour: '2-digit', minute: '2-digit',
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                })}
+
+                                {lotePecas.length === 0 && (
+                                    <div style={{
+                                        textAlign: 'center', padding: '40px 20px',
+                                        color: 'var(--text-muted)', fontSize: 13,
+                                    }}>
+                                        Nenhuma peça encontrada neste lote.
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* ╔══════════════════════════════════════════════════════╗
+                ║               CELEBRATION OVERLAY                   ║
+                ╚══════════════════════════════════════════════════════╝ */}
+            {celebrating && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 200,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'rgba(0,0,0,0.7)',
+                    backdropFilter: 'blur(4px)',
+                    animation: 'fadeIn .3s ease',
+                }}>
+                    <div style={{
+                        textAlign: 'center', padding: '52px 72px', borderRadius: 24,
+                        background: 'var(--bg-card)',
+                        border: '2px solid rgba(34,197,94,0.5)',
+                        boxShadow: '0 0 100px rgba(34,197,94,0.15), var(--shadow-xl)',
+                        animation: 'scaleIn .4s cubic-bezier(.34,1.56,.64,1)',
+                    }}>
+                        <Award
+                            size={60} color="#22c55e"
+                            style={{ marginBottom: 18, filter: 'drop-shadow(0 0 24px #22c55e)' }}
+                        />
+                        <div style={{ fontSize: 34, fontWeight: 900, color: '#4ade80', marginBottom: 8 }}>
+                            Lote Completo!
+                        </div>
+                        <div style={{ fontSize: 16, color: 'var(--text-secondary)', marginBottom: 28 }}>
+                            Todas as {lotePecas.length} peças de "{loteInfo?.nome || 'lote'}" foram expedidas.
+                        </div>
+                        <button
+                            onClick={() => setCelebrating(false)}
+                            style={{
+                                padding: '13px 36px', borderRadius: 10,
+                                fontSize: 14, fontWeight: 700,
+                                background: '#22c55e', border: 'none',
+                                color: '#052e16', cursor: 'pointer',
+                                boxShadow: '0 4px 20px rgba(34,197,94,0.4)',
+                            }}
+                        >
+                            Continuar
+                        </button>
+                    </div>
+                </div>
             )}
 
-            {/* Modal Nova Instalação */}
-            {showModal === 'instalacao' && (
-                <Modal title="Nova Instalação" close={() => setShowModal(null)}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        <div>
-                            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Projeto *</label>
-                            <select
-                                value={form.projeto_id || ''}
-                                onChange={e => setForm(f => ({ ...f, projeto_id: Number(e.target.value) }))}
-                                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13 }}
-                            >
-                                <option value="">Selecione...</option>
-                                {projetos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Data *</label>
-                            <input
-                                type="date"
-                                value={form.data_agendada || ''}
-                                onChange={e => setForm(f => ({ ...f, data_agendada: e.target.value }))}
-                                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13 }}
-                            />
-                        </div>
-                        <div>
-                            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Observações</label>
-                            <textarea
-                                value={form.obs || ''}
-                                onChange={e => setForm(f => ({ ...f, obs: e.target.value }))}
-                                rows={2}
-                                placeholder="Observações..."
-                                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13, resize: 'vertical' }}
-                            />
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                            <button className="btn-ghost" onClick={() => setShowModal(null)}>Cancelar</button>
-                            <button className="btn-primary" onClick={handleCreateInstalacao}>Agendar Instalação</button>
-                        </div>
-                    </div>
-                </Modal>
-            )}
+            {/* ── Global Styles ────────────────────────────────────────── */}
+            <style>{`
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
+                }
+                @keyframes fadeSlideIn {
+                    from { opacity: 0; transform: translateY(-5px); }
+                    to   { opacity: 1; transform: translateY(0); }
+                }
+                @keyframes flashGreen {
+                    0%   { opacity: 1; }
+                    70%  { opacity: 0.5; }
+                    100% { opacity: 0; }
+                }
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to   { opacity: 1; }
+                }
+                @keyframes scaleIn {
+                    from { opacity: 0; transform: scale(0.82); }
+                    to   { opacity: 1; transform: scale(1); }
+                }
+                @keyframes shake {
+                    0%, 100% { transform: translateX(0); }
+                    20%      { transform: translateX(-7px); }
+                    40%      { transform: translateX(7px); }
+                    60%      { transform: translateX(-4px); }
+                    80%      { transform: translateX(4px); }
+                }
+                ::-webkit-scrollbar { width: 4px; }
+                ::-webkit-scrollbar-track { background: transparent; }
+                ::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 2px; }
+                ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+                select option { background: var(--bg-muted); color: var(--text-primary); }
+            `}</style>
         </div>
     );
 }

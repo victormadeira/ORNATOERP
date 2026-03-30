@@ -36,6 +36,7 @@ from app.core.nesting.part_ordering import (
 from app.core.nesting.placement import (
     run_nesting_pass, run_fill_first,
     score_nesting_result, verify_no_overlaps,
+    compact_bin,
     BinResult, NestingPassResult,
 )
 
@@ -211,6 +212,7 @@ def decode_and_evaluate(
             spacing=config.spacing,
             allow_rotation=False,  # Ja aplicamos rotacao no decode
             vacuum_aware=config.vacuum_aware,
+            split_direction=config.split_direction,
         )
     else:
         result = run_nesting_pass(
@@ -220,7 +222,24 @@ def decode_and_evaluate(
             spacing=config.spacing,
             allow_rotation=False,
             vacuum_aware=config.vacuum_aware,
+            split_direction=config.split_direction,
         )
+
+    # Post-nesting compaction (gravity settle)
+    if result.bins:
+        compacted_bins = [compact_bin(b, sheet, passes=5, split_direction=config.split_direction, spacing=config.spacing) for b in result.bins]
+        compacted_result = NestingPassResult(
+            bins=compacted_bins,
+            total_pieces_placed=result.total_pieces_placed,
+            unplaced_pieces=result.unplaced_pieces,
+        )
+        # Re-score with compacted layout
+        compacted_result.score = score_nesting_result(
+            compacted_bins,
+            sheet_w=sheet.usable_length,
+            sheet_h=sheet.usable_width,
+        )
+        result = compacted_result
 
     # Penalidade por pecas nao colocadas
     penalty = len(result.unplaced_pieces) * 100000
@@ -268,6 +287,57 @@ def mutate(
             keys[i] = rng.random()
 
     return Chromosome(keys=keys, n_pieces=chromosome.n_pieces)
+
+
+# ---------------------------------------------------------------------------
+# Ruin & Recreate perturbation
+# ---------------------------------------------------------------------------
+
+def ruin_and_recreate(
+    chromosome: Chromosome,
+    rng: random.Random,
+    ruin_fraction: float = 0.25,
+) -> Chromosome:
+    """Remove uma fracao das pecas (ruin) e reinsere aleatoriamente (recreate).
+
+    Opera diretamente nos random keys do cromossomo:
+    - Ruin: seleciona ~ruin_fraction das pecas e randomiza suas order keys
+    - Recreate: as pecas removidas ganham novas posicoes aleatorias na ordem
+
+    Preserva genes de rotacao, heuristica, bin type e fill-first.
+    """
+    n = chromosome.n_pieces
+    keys = list(chromosome.keys)
+
+    # Selecionar pecas para destruir
+    n_ruin = max(2, int(n * ruin_fraction))
+    ruin_indices = rng.sample(range(n), min(n_ruin, n))
+
+    # Randomizar order keys das pecas destruidas
+    for idx in ruin_indices:
+        keys[idx] = rng.random()
+
+    # Opcionalmente perturbar rotacoes das pecas destruidas
+    for idx in ruin_indices:
+        if rng.random() < 0.3:  # 30% chance de mudar rotacao
+            keys[n + idx] = rng.random()
+
+    return Chromosome(keys=keys, n_pieces=n)
+
+
+def adaptive_mutation_rate(
+    no_improve_count: int,
+    max_stagnation: int,
+    base_rate: float = 0.15,
+    max_rate: float = 0.40,
+) -> float:
+    """Taxa de mutacao adaptativa: aumenta com estagnacao.
+
+    Comeca em base_rate e cresce linearmente ate max_rate quando
+    a estagnacao atinge max_stagnation.
+    """
+    progress = min(1.0, no_improve_count / max(1, max_stagnation))
+    return base_rate + (max_rate - base_rate) * progress
 
 
 # ---------------------------------------------------------------------------
@@ -346,16 +416,36 @@ def run_brkga(
         # Manter elite
         new_population.extend(elite)
 
+        # Adaptive mutation rate — increases with stagnation
+        mut_rate = adaptive_mutation_rate(
+            no_improve_count, config.early_stop_gens,
+            base_rate=config.mutant_frac,
+            max_rate=min(0.40, config.mutant_frac * 2.5),
+        )
+        n_mutant_adaptive = max(1, int(pop_size * mut_rate))
+        n_crossover_adaptive = pop_size - n_elite - n_mutant_adaptive
+
         # Crossover
-        for _ in range(min(n_crossover, pop_size - n_elite - n_mutant)):
+        for _ in range(min(n_crossover_adaptive, pop_size - n_elite - n_mutant_adaptive)):
             p1 = rng.choice(elite)
             p2 = rng.choice(non_elite) if non_elite else rng.choice(elite)
             child = crossover_brkga(p1, p2, config.inherit_prob, rng)
             decode_and_evaluate(child, pieces, sheet, config)
             new_population.append(child)
 
-        # Mutantes
-        for _ in range(min(n_mutant, pop_size - len(new_population))):
+        # Ruin & Recreate — apply to some elite chromosomes for perturbation
+        n_rr = max(1, int(n_mutant_adaptive * 0.3))
+        for _ in range(n_rr):
+            # Pick from top half of population
+            donor = rng.choice(population[:max(2, pop_size // 2)])
+            ruin_frac = 0.15 + rng.random() * 0.25  # 15-40% ruin
+            perturbed = ruin_and_recreate(donor, rng, ruin_fraction=ruin_frac)
+            decode_and_evaluate(perturbed, pieces, sheet, config)
+            new_population.append(perturbed)
+
+        # Mutantes (remaining slots)
+        remaining_mutants = max(0, n_mutant_adaptive - n_rr)
+        for _ in range(min(remaining_mutants, pop_size - len(new_population))):
             mutant = Chromosome.random(n, rng)
             decode_and_evaluate(mutant, pieces, sheet, config)
             new_population.append(mutant)
@@ -390,11 +480,19 @@ def run_brkga(
             info["early_stopped"] = True
             break
 
-    # Decodificar melhor resultado
+    # Decodificar melhor resultado com compaction final (mais passes)
     best_result = _decode_to_result(best_chromosome, pieces, sheet, config)
+    if best_result.bins:
+        best_result.bins = [compact_bin(b, sheet, passes=15, split_direction=config.split_direction, spacing=config.spacing) for b in best_result.bins]
+        best_result.score = score_nesting_result(
+            best_result.bins,
+            sheet_w=sheet.usable_length,
+            sheet_h=sheet.usable_width,
+        )
 
     info["best_fitness"] = best_fitness
     info["total_evaluations"] = pop_size * (info["generations"] + 1)
+    info["final_mutation_rate"] = mut_rate if 'mut_rate' in dir() else config.mutant_frac
 
     return best_result, info
 

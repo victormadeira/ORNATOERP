@@ -157,7 +157,7 @@ router.get('/portal/:token', (req, res) => {
     ).all(proj.id);
 
     const empresa = db.prepare(
-        'SELECT nome, telefone, email, cidade, estado, cnpj, logo_header_path, proposta_cor_primaria, proposta_cor_accent FROM empresa_config WHERE id = 1'
+        'SELECT nome, telefone, email, cidade, estado, cnpj, logo_header_path, proposta_cor_primaria, proposta_cor_accent, portal_mostrar_pagamento FROM empresa_config WHERE id = 1'
     ).get() || {};
 
     // Portal v2: mensagens do chat
@@ -174,6 +174,50 @@ router.get('/portal/:token', (req, res) => {
         try { ambientes = proj.ambientes_json ? JSON.parse(proj.ambientes_json) : []; } catch (_) {}
     }
 
+    // Pagamento (somente se habilitado no projeto)
+    let pagamento = null;
+    if (proj.portal_mostrar_pagamento && proj.orc_id) {
+        try {
+            const contas = db.prepare(`
+                SELECT id, descricao, valor, data_vencimento, status, data_pagamento
+                FROM contas_receber
+                WHERE projeto_id = ?
+                ORDER BY data_vencimento ASC
+            `).all(proj.id);
+            if (contas.length > 0) {
+                const totalPago = contas.filter(c => c.status === 'pago').reduce((s, c) => s + (c.valor || 0), 0);
+                const totalGeral = contas.reduce((s, c) => s + (c.valor || 0), 0);
+                pagamento = { contas, totalPago, totalGeral };
+            }
+        } catch (_) {}
+    }
+
+    // Feed de atividades do projeto (últimas 20)
+    let atividades = [];
+    try {
+        atividades = db.prepare(`
+            SELECT acao, descricao, criado_em
+            FROM atividades
+            WHERE referencia_id = ? AND referencia_tipo = 'projeto'
+            ORDER BY criado_em DESC
+            LIMIT 20
+        `).all(proj.id);
+    } catch (_) {}
+
+    // Contagem de mensagens não lidas (da equipe, após último acesso do cliente)
+    let msgNaoLidas = 0;
+    try {
+        const ultimaCliente = db.prepare(`
+            SELECT MAX(criado_em) as ult FROM portal_mensagens
+            WHERE projeto_id = ? AND token = ? AND autor_tipo = 'cliente'
+        `).get(proj.id, req.params.token);
+        const desde = ultimaCliente?.ult || '2000-01-01';
+        msgNaoLidas = db.prepare(`
+            SELECT COUNT(*) as n FROM portal_mensagens
+            WHERE projeto_id = ? AND token = ? AND autor_tipo = 'equipe' AND criado_em > ?
+        `).get(proj.id, req.params.token, desde)?.n || 0;
+    } catch (_) {}
+
     res.json({
         projeto: {
             id: proj.id,
@@ -187,6 +231,9 @@ router.get('/portal/:token', (req, res) => {
             ocorrencias,
             mensagens,
             ambientes,
+            pagamento,
+            atividades,
+            msgNaoLidas,
         },
         empresa,
     });
@@ -230,7 +277,7 @@ router.get('/portal-preview/:token', (req, res) => {
     ).all(proj.id);
 
     const empresa = db.prepare(
-        'SELECT nome, telefone, email, cidade, estado, cnpj, logo_header_path, proposta_cor_primaria, proposta_cor_accent FROM empresa_config WHERE id = 1'
+        'SELECT nome, telefone, email, cidade, estado, cnpj, logo_header_path, proposta_cor_primaria, proposta_cor_accent, portal_mostrar_pagamento FROM empresa_config WHERE id = 1'
     ).get() || {};
 
     const mensagens = db.prepare(`
@@ -245,11 +292,33 @@ router.get('/portal-preview/:token', (req, res) => {
         try { ambientes = proj.ambientes_json ? JSON.parse(proj.ambientes_json) : []; } catch (_) {}
     }
 
+    // Pagamento (preview usa mesma lógica — per-project)
+    let pagamento = null;
+    if (proj.portal_mostrar_pagamento && proj.orc_id) {
+        try {
+            const contas = db.prepare(`
+                SELECT id, descricao, valor, data_vencimento, status, data_pagamento
+                FROM contas_receber WHERE projeto_id = ? ORDER BY data_vencimento ASC
+            `).all(proj.id);
+            if (contas.length > 0) {
+                const totalPago = contas.filter(c => c.status === 'pago').reduce((s, c) => s + (c.valor || 0), 0);
+                const totalGeral = contas.reduce((s, c) => s + (c.valor || 0), 0);
+                pagamento = { contas, totalPago, totalGeral };
+            }
+        } catch (_) {}
+    }
+
+    let atividades = [];
+    try {
+        atividades = db.prepare(`SELECT acao, descricao, criado_em FROM atividades WHERE referencia_id = ? AND referencia_tipo = 'projeto' ORDER BY criado_em DESC LIMIT 20`).all(proj.id);
+    } catch (_) {}
+
     res.json({
         projeto: {
             id: proj.id, nome: proj.nome, descricao: proj.descricao, status: displayStatus,
             data_inicio: proj.data_inicio, data_vencimento: proj.data_vencimento,
             cliente_nome: proj.cliente_nome, etapas, ocorrencias, mensagens, ambientes,
+            pagamento, atividades, msgNaoLidas: 0,
         },
         empresa,
         preview: true,
@@ -796,6 +865,11 @@ router.post('/templates', requireAuth, (req, res) => {
 
 // DELETE /api/projetos/templates/:id
 router.delete('/templates/:id', requireAuth, (req, res) => {
+    // Apenas admin/gerente podem deletar templates
+    const canSeeAll = ['admin','gerente'].includes(req.user.role);
+    if (!canSeeAll) {
+        return res.status(403).json({ error: 'Sem permissão' });
+    }
     db.prepare('DELETE FROM etapas_templates WHERE id = ?').run(parseInt(req.params.id));
     res.json({ ok: true });
 });
@@ -804,8 +878,16 @@ router.delete('/templates/:id', requireAuth, (req, res) => {
 // PUT /api/projetos/:id — atualizar projeto (auth)
 // ═══════════════════════════════════════════════════
 router.put('/:id', requireAuth, (req, res) => {
-    const { nome, descricao, status, data_inicio, data_vencimento, ambientes_json, mostrar_ambientes_portal } = req.body;
+    const { nome, descricao, status, data_inicio, data_vencimento, ambientes_json, mostrar_ambientes_portal, portal_mostrar_pagamento } = req.body;
     const projId = parseInt(req.params.id);
+
+    // Verificar ownership
+    const proj = db.prepare('SELECT user_id FROM projetos WHERE id = ?').get(projId);
+    if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
+    const canSeeAll = ['admin','gerente'].includes(req.user.role);
+    if (!canSeeAll && proj.user_id !== req.user.id) {
+        return res.status(403).json({ error: 'Sem permissão' });
+    }
 
     // Buscar status anterior para detectar mudança
     const anterior = db.prepare('SELECT status, nome FROM projetos WHERE id = ?').get(projId);
@@ -814,11 +896,13 @@ router.put('/:id', requireAuth, (req, res) => {
         UPDATE projetos
         SET nome=?, descricao=?, status=?, data_inicio=?, data_vencimento=?,
             ambientes_json=COALESCE(?,ambientes_json), mostrar_ambientes_portal=COALESCE(?,mostrar_ambientes_portal),
+            portal_mostrar_pagamento=COALESCE(?,portal_mostrar_pagamento),
             atualizado_em=CURRENT_TIMESTAMP
         WHERE id=?
     `).run(nome, descricao || '', status, data_inicio || null, data_vencimento || null,
         ambientes_json !== undefined ? ambientes_json : null,
         mostrar_ambientes_portal !== undefined ? (mostrar_ambientes_portal ? 1 : 0) : null,
+        portal_mostrar_pagamento !== undefined ? (portal_mostrar_pagamento ? 1 : 0) : null,
         projId);
 
     try {
@@ -847,6 +931,14 @@ router.put('/:id', requireAuth, (req, res) => {
 router.delete('/:id', requireAuth, (req, res) => {
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+    // Verificar ownership
+    const proj = db.prepare('SELECT user_id FROM projetos WHERE id = ?').get(id);
+    if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
+    const canSeeAll = ['admin','gerente'].includes(req.user.role);
+    if (!canSeeAll && proj.user_id !== req.user.id) {
+        return res.status(403).json({ error: 'Sem permissão' });
+    }
 
     try {
         const deleteProjeto = db.transaction(() => {

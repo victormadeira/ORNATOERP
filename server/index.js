@@ -51,6 +51,7 @@ app.use(compression({ threshold: 1024 }));
 // ═══ Rate Limiters ═══════════════════════════════════════════════════
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Muitas tentativas. Tente novamente em 15 minutos.' }, standardHeaders: true, legacyHeaders: false });
 const publicLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, message: { error: 'Limite de requisições excedido.' }, standardHeaders: true, legacyHeaders: false });
+const sensitiveLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: 'Muitas requisições. Tente novamente em 1 minuto.' }, standardHeaders: true, legacyHeaders: false });
 
 // ═══ Webhook ANTES do CORS (Evolution API envia de origem externa) ═══
 app.use('/api/webhook', express.json(), webhookRoutes);
@@ -74,11 +75,30 @@ app.use('/api', (req, res, next) => {
     next();
 });
 
+// ═══ Security headers ═══
+app.use((req, res, next) => {
+    res.set({
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'SAMEORIGIN',
+        'X-XSS-Protection': '1; mode=block',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+    });
+    next();
+});
+
 // ═══════════════════════════════════════════════════════
 // ROTAS
 // ═══════════════════════════════════════════════════════
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth/register', loginLimiter);
+
+// Rate limit para operações sensíveis (DELETE)
+app.delete('/api/projetos/*', sensitiveLimiter);
+app.delete('/api/clientes/*', sensitiveLimiter);
+app.delete('/api/orcamentos/*', sensitiveLimiter);
+app.delete('/api/financeiro/*', sensitiveLimiter);
+app.delete('/api/estoque/*', sensitiveLimiter);
+
 app.use('/api/auth', authRoutes);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/orcamentos', orcamentosRoutes);

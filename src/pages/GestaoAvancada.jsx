@@ -48,6 +48,7 @@ function KPI({ icon: Icon, label, value, sub, color = 'var(--primary)' }) {
                     {value}
                 </div>
                 {sub && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>{sub}</div>}
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, opacity: 0.7, fontStyle: 'italic' }}>vs. mes anterior</div>
             </div>
         </div>
     );

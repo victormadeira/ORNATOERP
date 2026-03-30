@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     ArrowRight,
     CheckCircle2,
     Compass,
+    Instagram,
     Loader2,
     Mail,
     MapPin,
+    MessageCircle,
     Phone,
     PlayCircle,
     Send,
@@ -100,7 +102,8 @@ function getHeroVideoSource(rawUrl) {
 export default function LandingPage() {
     const [config, setConfig] = useState(null);
     const [portfolio, setPortfolio] = useState([]);
-    const [form, setForm] = useState({ nome: '', telefone: '', email: '', tipo_projeto: '', mensagem: '' });
+    const [form, setForm] = useState({ nome: '', telefone: '', email: '', tipo_projeto: '', faixa_investimento: '', possui_projeto: '', mensagem: '' });
+    const [stats, setStats] = useState(null);
     const [enviando, setEnviando] = useState(false);
     const [enviado, setEnviado] = useState(false);
     const [erro, setErro] = useState('');
@@ -108,13 +111,35 @@ export default function LandingPage() {
     useEffect(() => {
         fetch('/api/leads/config')
             .then(r => r.json())
-            .then(setConfig)
+            .then(cfg => {
+                setConfig(cfg);
+                // L1: SEO meta tags + Open Graph
+                const title = cfg?.landing_titulo ? `${cfg.nome || 'Ornato'} — ${cfg.landing_titulo.slice(0, 60)}` : `${cfg?.nome || 'Ornato'} — Marcenaria sob medida`;
+                document.title = title;
+                const setMeta = (name, content) => {
+                    if (!content) return;
+                    let tag = document.querySelector(`meta[name="${name}"], meta[property="${name}"]`);
+                    if (!tag) { tag = document.createElement('meta'); tag.setAttribute(name.startsWith('og:') ? 'property' : 'name', name); document.head.appendChild(tag); }
+                    tag.setAttribute('content', content);
+                };
+                setMeta('description', cfg?.landing_descricao || 'Marcenaria sob medida de alto padrão');
+                setMeta('og:title', title);
+                setMeta('og:description', cfg?.landing_descricao || 'Marcenaria sob medida de alto padrão');
+                setMeta('og:type', 'website');
+                if (cfg?.landing_hero_imagem) setMeta('og:image', cfg.landing_hero_imagem);
+            })
             .catch(() => setConfig({ nome: 'Marcenaria Ornato' }));
 
         fetch('/api/portfolio')
             .then(r => r.json())
             .then(d => setPortfolio(Array.isArray(d) ? d : []))
             .catch(() => setPortfolio([]));
+
+        // L4: Stats reais
+        fetch('/api/leads/stats')
+            .then(r => r.json())
+            .then(setStats)
+            .catch(() => setStats(null));
     }, []);
 
     const utm = useMemo(() => {
@@ -138,8 +163,8 @@ export default function LandingPage() {
     const heroSubtitulo = config?.landing_subtitulo || 'Marcenaria sob medida';
     const heroDescricao = config?.landing_descricao || 'Projetamos, produzimos e instalamos ambientes sob medida com acabamento premium e atendimento consultivo.';
 
-    const ctaPrimaria = config?.landing_cta_primaria || 'Solicitar orçamento';
-    const ctaSecundaria = config?.landing_cta_secundaria || 'Falar no WhatsApp';
+    const ctaPrimaria = config?.landing_cta_primaria || 'Agendar Minha Consultoria';
+    const ctaSecundaria = config?.landing_cta_secundaria || 'Falar com Especialista';
 
     const formTitulo = config?.landing_form_titulo || 'Solicite seu atendimento';
     const formDescricao = config?.landing_form_descricao || 'Preencha em 30 segundos e receba contato da nossa equipe para orçamento e orientação.';
@@ -156,6 +181,9 @@ export default function LandingPage() {
         ? `https://wa.me/${waNum}?text=${encodeURIComponent('Olá! Vim pela landing page e gostaria de um orçamento.')}`
         : '';
 
+    const igHandle = config?.instagram?.replace(/^@/, '') || '';
+    const fbUrl = config?.facebook || '';
+
     const heroVideo = getHeroVideoSource(config?.landing_hero_video_url);
     const heroPoster = config?.landing_hero_video_poster || config?.landing_hero_imagem || '';
     const heroImage = config?.landing_hero_imagem || '';
@@ -170,8 +198,8 @@ export default function LandingPage() {
 
     const enviar = async (e) => {
         e.preventDefault();
-        if (!form.nome.trim() || !form.telefone.trim()) {
-            setErro('Nome e telefone são obrigatórios.');
+        if (!form.nome.trim() || !form.telefone.trim() || !form.tipo_projeto || !form.faixa_investimento) {
+            setErro('Preencha todos os campos obrigatórios: nome, telefone, tipo de projeto e expectativa de investimento.');
             return;
         }
 
@@ -193,6 +221,28 @@ export default function LandingPage() {
             setEnviando(false);
         }
     };
+
+    // L6: Animated counter
+    const statsRef = useRef(null);
+    const [statsVisible, setStatsVisible] = useState(false);
+    useEffect(() => {
+        if (!statsRef.current) return;
+        const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setStatsVisible(true); obs.disconnect(); } }, { threshold: 0.3 });
+        obs.observe(statsRef.current);
+        return () => obs.disconnect();
+    }, [config]);
+
+    function AnimNum({ end, suffix = '' }) {
+        const [val, setVal] = useState(0);
+        useEffect(() => {
+            if (!statsVisible) return;
+            let start = 0;
+            const dur = 1500;
+            const step = (ts) => { if (!start) start = ts; const p = Math.min((ts - start) / dur, 1); setVal(Math.round(p * end)); if (p < 1) requestAnimationFrame(step); };
+            requestAnimationFrame(step);
+        }, [statsVisible, end]);
+        return <>{val}{suffix}</>;
+    }
 
     if (!config) {
         return (
@@ -352,7 +402,7 @@ export default function LandingPage() {
                                             style={{ marginTop: 14 }}
                                             onClick={() => {
                                                 setEnviado(false);
-                                                setForm({ nome: '', telefone: '', email: '', tipo_projeto: '', mensagem: '' });
+                                                setForm({ nome: '', telefone: '', email: '', tipo_projeto: '', faixa_investimento: '', possui_projeto: '', mensagem: '' });
                                             }}
                                         >
                                             Enviar outro contato
@@ -366,23 +416,52 @@ export default function LandingPage() {
                                         <form onSubmit={enviar} style={{ display: 'grid', gap: 10 }}>
                                             <input
                                                 className="lp-input"
-                                                placeholder="Nome completo *"
+                                                placeholder="Seu nome *"
+                                                required
                                                 value={form.nome}
                                                 onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
                                             />
                                             <input
                                                 className="lp-input"
-                                                placeholder="Telefone / WhatsApp *"
+                                                placeholder="WhatsApp para contato *"
+                                                required
                                                 value={form.telefone}
                                                 onChange={e => setForm(f => ({ ...f, telefone: formatTel(e.target.value) }))}
                                             />
                                             <select
                                                 className="lp-input"
+                                                required
                                                 value={form.tipo_projeto}
                                                 onChange={e => setForm(f => ({ ...f, tipo_projeto: e.target.value }))}
                                             >
-                                                <option value="">Tipo de projeto</option>
+                                                <option value="">Qual ambiente deseja projetar? *</option>
                                                 {TIPOS_PROJETO.map((t) => <option key={t} value={t}>{t}</option>)}
+                                            </select>
+
+                                            <select
+                                                className="lp-input"
+                                                required
+                                                value={form.faixa_investimento}
+                                                onChange={e => setForm(f => ({ ...f, faixa_investimento: e.target.value }))}
+                                            >
+                                                <option value="">Expectativa de investimento *</option>
+                                                <option value="ate_10k">Até R$ 10.000</option>
+                                                <option value="10k_25k">R$ 10.000 – R$ 25.000</option>
+                                                <option value="25k_50k">R$ 25.000 – R$ 50.000</option>
+                                                <option value="50k_100k">R$ 50.000 – R$ 100.000</option>
+                                                <option value="acima_100k">Acima de R$ 100.000</option>
+                                            </select>
+
+                                            <select
+                                                className="lp-input"
+                                                value={form.possui_projeto}
+                                                onChange={e => setForm(f => ({ ...f, possui_projeto: e.target.value }))}
+                                            >
+                                                <option value="">Você já possui projeto ou planta?</option>
+                                                <option value="sim_projeto">Sim, tenho projeto</option>
+                                                <option value="sim_planta">Sim, tenho planta</option>
+                                                <option value="nao_preciso">Não, preciso de projeto</option>
+                                                <option value="nao_sei">Ainda não sei</option>
                                             </select>
 
                                             <details className="lp-more">
@@ -411,7 +490,20 @@ export default function LandingPage() {
                                                 </div>
                                             )}
 
-                                            <button type="submit" className="lp-btn-main" disabled={enviando} style={{ width: '100%', justifyContent: 'center', opacity: enviando ? 0.75 : 1 }}>
+                                            <button
+                                                type="submit"
+                                                className="lp-btn-main"
+                                                disabled={enviando}
+                                                style={{
+                                                    width: '100%',
+                                                    justifyContent: 'center',
+                                                    opacity: enviando ? 0.75 : 1,
+                                                    transition: 'all 0.2s ease',
+                                                    transform: 'scale(1)',
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                                                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                                            >
                                                 {enviando ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={15} />}
                                                 {enviando ? 'Enviando...' : ctaPrimaria}
                                             </button>
@@ -486,6 +578,48 @@ export default function LandingPage() {
                     </div>
                 </div>
             </section>
+
+            {/* L4+L6: Stats animados com números reais */}
+            {stats && (
+                <section className="lp-sec" style={{ background: paleta.fundo, color: paleta.clara, paddingTop: 40, paddingBottom: 40 }} ref={statsRef}>
+                    <div className="lp-wrap">
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 20, textAlign: 'center' }}>
+                            {stats.projetos > 0 && (
+                                <div>
+                                    <div style={{ fontSize: 'clamp(32px, 5vw, 48px)', fontWeight: 800, fontFamily: "'Cormorant Garamond', Georgia, serif", color: paleta.destaque }}>
+                                        <AnimNum end={stats.projetos} suffix="+" />
+                                    </div>
+                                    <div style={{ fontSize: 13, opacity: 0.8, marginTop: 4 }}>Projetos Entregues</div>
+                                </div>
+                            )}
+                            {stats.anos > 0 && (
+                                <div>
+                                    <div style={{ fontSize: 'clamp(32px, 5vw, 48px)', fontWeight: 800, fontFamily: "'Cormorant Garamond', Georgia, serif", color: paleta.destaque }}>
+                                        <AnimNum end={stats.anos} />
+                                    </div>
+                                    <div style={{ fontSize: 13, opacity: 0.8, marginTop: 4 }}>Anos de Experiência</div>
+                                </div>
+                            )}
+                            {stats.ambientes > 0 && (
+                                <div>
+                                    <div style={{ fontSize: 'clamp(32px, 5vw, 48px)', fontWeight: 800, fontFamily: "'Cormorant Garamond', Georgia, serif", color: paleta.destaque }}>
+                                        <AnimNum end={stats.ambientes} suffix="+" />
+                                    </div>
+                                    <div style={{ fontSize: 13, opacity: 0.8, marginTop: 4 }}>Ambientes Projetados</div>
+                                </div>
+                            )}
+                            {stats.clientes > 0 && (
+                                <div>
+                                    <div style={{ fontSize: 'clamp(32px, 5vw, 48px)', fontWeight: 800, fontFamily: "'Cormorant Garamond', Georgia, serif", color: paleta.destaque }}>
+                                        <AnimNum end={stats.clientes} suffix="+" />
+                                    </div>
+                                    <div style={{ fontSize: 13, opacity: 0.8, marginTop: 4 }}>Clientes Atendidos</div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </section>
+            )}
 
             <section className="lp-sec">
                 <div className="lp-wrap">
@@ -600,6 +734,11 @@ export default function LandingPage() {
                                             <MapPin size={15} /> {config.cidade}
                                         </span>
                                     )}
+                                    {igHandle && (
+                                        <a href={`https://instagram.com/${igHandle}`} target="_blank" rel="noreferrer" style={{ color: '#D9CCC5', textDecoration: 'none', display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                                            <Instagram size={15} /> @{igHandle}
+                                        </a>
+                                    )}
                                 </div>
                             </div>
 
@@ -619,11 +758,45 @@ export default function LandingPage() {
             </section>
 
             <footer style={{ background: '#181311', color: '#C6B8B1', padding: '20px 0', marginTop: 20 }}>
-                <div className="lp-wrap" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', fontSize: 12 }}>
+                <div className="lp-wrap" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', fontSize: 12, alignItems: 'center' }}>
                     <span>{config?.landing_texto_rodape || `${empNome} © ${new Date().getFullYear()}`}</span>
-                    <span style={{ opacity: 0.8 }}>Landing pública isolada do ERP</span>
+                    <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                        {igHandle && (
+                            <a href={`https://instagram.com/${igHandle}`} target="_blank" rel="noreferrer" style={{ color: '#C6B8B1', display: 'inline-flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}>
+                                <Instagram size={14} /> @{igHandle}
+                            </a>
+                        )}
+                        {fbUrl && (
+                            <a href={fbUrl.startsWith('http') ? fbUrl : `https://facebook.com/${fbUrl}`} target="_blank" rel="noreferrer" style={{ color: '#C6B8B1', textDecoration: 'none', fontSize: 12 }}>
+                                Facebook
+                            </a>
+                        )}
+                    </div>
                 </div>
             </footer>
+
+            {/* L2: WhatsApp floating button */}
+            {waHref && (
+                <a
+                    href={waHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Falar no WhatsApp"
+                    style={{
+                        position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
+                        width: 56, height: 56, borderRadius: '50%',
+                        background: '#25D366', color: '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                        transition: 'transform 0.2s',
+                        cursor: 'pointer',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                    <MessageCircle size={28} fill="#fff" />
+                </a>
+            )}
         </div>
     );
 }

@@ -323,42 +323,174 @@ def _build_express_response(layout_result, config: BridgeConfig,
 
 
 def _detect_remnants(sheet_layout, sheet, min_w: float, min_h: float) -> list[dict]:
-    """Detectar retalhos no espaco livre da chapa."""
-    from app.core.remnants.remnant_value import filter_usable_remnants
+    """Detectar retalhos no espaco livre da chapa usando decomposicao em celulas.
 
-    # Estrategia simples: espaco a direita e abaixo das pecas
+    Algoritmo: cria grade com bordas das pecas, identifica celulas livres,
+    e agrupa em retangulos maximais.
+
+    min_w = sobra_min_largura (menor dimensao minima, ex: 300mm)
+    min_h = sobra_min_comprimento (maior dimensao minima, ex: 600mm)
+
+    Coordenadas de saida: espaco util (0-based, mesma referencia das pecas).
+    """
     if not sheet_layout.placements:
         return []
 
+    def _valid(w: float, h: float) -> bool:
+        short, long = min(w, h), max(w, h)
+        return short >= min_w and long >= min_h
+
     placements = sheet_layout.placements
     trim = sheet.trim if sheet else 0
-    usable_w = sheet.length - 2 * trim
-    usable_h = sheet.width - 2 * trim
 
-    max_x = max(p.x + p.effective_length for p in placements)
-    max_y = max(p.y + p.effective_width for p in placements)
+    # Detectar se pecas estao em coords absolutas (incluem trim) ou usaveis (0-based)
+    min_piece_x = min(p.x for p in placements)
+    min_piece_y = min(p.y for p in placements)
+    # Se a menor coord de peca >= trim, pecas estao em coords absolutas
+    coords_absolute = (min_piece_x >= trim - 0.5 and trim > 0)
 
+    if coords_absolute:
+        area_left = trim
+        area_right = sheet.length - trim
+        area_top = trim
+        area_bottom = sheet.width - trim
+        offset = trim  # subtrair no output para converter a usavel
+    else:
+        area_left = 0
+        area_right = sheet.length - 2 * trim
+        area_top = 0
+        area_bottom = sheet.width - 2 * trim
+        offset = 0
+
+    usable_w = area_right - area_left
+    usable_h = area_bottom - area_top
+
+    # 1. Coletar coordenadas unicas (bordas das pecas + limites da area util)
+    xs_set = {area_left, area_right}
+    ys_set = {area_top, area_bottom}
+    for p in placements:
+        px1, py1 = p.x, p.y
+        px2 = p.x + p.effective_length
+        py2 = p.y + p.effective_width
+        # Clampar dentro da area util
+        xs_set.add(max(area_left, min(area_right, px1)))
+        xs_set.add(max(area_left, min(area_right, px2)))
+        ys_set.add(max(area_top, min(area_bottom, py1)))
+        ys_set.add(max(area_top, min(area_bottom, py2)))
+
+    xs = sorted(xs_set)
+    ys = sorted(ys_set)
+
+    # 2. Criar grade de celulas e marcar ocupadas
+    nx, ny = len(xs) - 1, len(ys) - 1
+    if nx <= 0 or ny <= 0:
+        return []
+
+    occupied = [[False] * ny for _ in range(nx)]
+    for p in placements:
+        px1, py1 = p.x, p.y
+        px2, py2 = p.x + p.effective_length, p.y + p.effective_width
+        for ci in range(nx):
+            cell_x1, cell_x2 = xs[ci], xs[ci + 1]
+            if cell_x2 <= px1 + 0.5 or cell_x1 >= px2 - 0.5:
+                continue
+            for cj in range(ny):
+                cell_y1, cell_y2 = ys[cj], ys[cj + 1]
+                if cell_y2 <= py1 + 0.5 or cell_y1 >= py2 - 0.5:
+                    continue
+                occupied[ci][cj] = True
+
+    # 3. Encontrar retangulos maximais livres usando histograma
+    # Para cada coluna, calcular altura livre acima (incluindo a celula atual)
+    # Depois usar algoritmo de "maior retangulo no histograma" por linha
+    height = [[0] * ny for _ in range(nx)]
+    for ci in range(nx):
+        for cj in range(ny):
+            if not occupied[ci][cj]:
+                height[ci][cj] = (height[ci][cj - 1] + 1) if cj > 0 else 1
+            else:
+                height[ci][cj] = 0
+
+    # Para cada linha (cj), encontrar retangulos maximais usando as alturas
+    all_rects = []
+    for cj in range(ny):
+        # Stack-based largest rectangle in histogram (por coluna)
+        stack = []  # stack of (start_ci, height)
+        for ci in range(nx + 1):
+            h = height[ci][cj] if ci < nx else 0
+            start = ci
+            while stack and stack[-1][1] > h:
+                sci, sh = stack.pop()
+                # Retangulo: de xs[sci] a xs[ci], altura sh celulas acima de cj
+                rx = xs[sci]
+                rw = xs[ci] - rx if ci < len(xs) else xs[-1] - rx
+                ry = ys[cj - sh + 1]
+                rh = ys[cj + 1] - ry
+                if rw > 5 and rh > 5:  # ignorar gaps de kerf
+                    all_rects.append((rx, ry, rw, rh, rw * rh))
+                start = sci
+            stack.append((start, h))
+
+    # Deduplicar: remover retangulos contidos em outros maiores
+    all_rects.sort(key=lambda r: -r[4])  # maior area primeiro
+    raw_rects = []
+    for rx, ry, rw, rh, area in all_rects:
+        # Verificar se este retangulo esta contido em algum ja aceito
+        contained = False
+        for ex, ey, ew, eh in raw_rects:
+            if rx >= ex - 0.5 and ry >= ey - 0.5 and rx + rw <= ex + ew + 0.5 and ry + rh <= ey + eh + 0.5:
+                contained = True
+                break
+        if not contained:
+            raw_rects.append((rx, ry, rw, rh))
+
+    # 4. Tentar merge de retangulos adjacentes
+    merged = True
+    rects = list(raw_rects)
+    while merged:
+        merged = False
+        new_rects = []
+        skip = set()
+        for i in range(len(rects)):
+            if i in skip:
+                continue
+            rx, ry, rw, rh = rects[i]
+            for j in range(i + 1, len(rects)):
+                if j in skip:
+                    continue
+                ox, oy, ow, oh = rects[j]
+                tol = 1.0
+                # Horizontal merge: same row, adjacent
+                if abs(ry - oy) < tol and abs(rh - oh) < tol and abs(rx + rw - ox) < tol:
+                    rw = rw + ow
+                    skip.add(j)
+                    merged = True
+                elif abs(ry - oy) < tol and abs(rh - oh) < tol and abs(ox + ow - rx) < tol:
+                    rx, rw = ox, ow + rw
+                    skip.add(j)
+                    merged = True
+                # Vertical merge: same column, adjacent
+                elif abs(rx - ox) < tol and abs(rw - ow) < tol and abs(ry + rh - oy) < tol:
+                    rh = rh + oh
+                    skip.add(j)
+                    merged = True
+                elif abs(rx - ox) < tol and abs(rw - ow) < tol and abs(oy + oh - ry) < tol:
+                    ry, rh = oy, oh + rh
+                    skip.add(j)
+                    merged = True
+            new_rects.append((rx, ry, rw, rh))
+        rects = new_rects
+
+    # 5. Filtrar por dimensoes minimas e converter a coords usaveis (0-based)
     remnants = []
-
-    # Retalho a direita (coluna livre)
-    right_w = usable_w + trim - max_x
-    if right_w >= min_h and usable_h >= min_w:  # min dimensoes
-        remnants.append({
-            "x": round(max_x, 1),
-            "y": round(trim, 1),
-            "w": round(right_w, 1),
-            "h": round(usable_h, 1),
-        })
-
-    # Retalho abaixo (faixa inferior)
-    bottom_h = usable_h + trim - max_y
-    if bottom_h >= min_w and max_x - trim >= min_h:
-        remnants.append({
-            "x": round(trim, 1),
-            "y": round(max_y, 1),
-            "w": round(max_x - trim, 1),
-            "h": round(bottom_h, 1),
-        })
+    for rx, ry, rw, rh in rects:
+        if _valid(rw, rh):
+            remnants.append({
+                "x": round(rx - offset, 1),
+                "y": round(ry - offset, 1),
+                "w": round(rw, 1),
+                "h": round(rh, 1),
+            })
 
     return remnants
 

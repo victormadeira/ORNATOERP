@@ -253,13 +253,13 @@ def _compute_fragmentation_penalty(
         if free_area <= 0:
             continue
 
-        # Estimar sobras usando bounding box
+        # Estimar sobras usando bounding box (posicoes 0-based)
         max_x = max(
-            (p.x - b.sheet.trim + p.effective_length if b.sheet else p.x + p.effective_length)
+            (p.x + p.effective_length)
             for p in b.placements
         ) if b.placements else 0
         max_y = max(
-            (p.y - b.sheet.trim + p.effective_width if b.sheet else p.y + p.effective_width)
+            (p.y + p.effective_width)
             for p in b.placements
         ) if b.placements else 0
 
@@ -468,8 +468,8 @@ def run_nesting_pass(
             piece_persistent_id=piece.persistent_id,
             instance=0,  # Sera ajustado pelo layout_builder
             sheet_index=current_bin_result.index,
-            x=candidate.x + sheet.trim,  # Offset do refilo
-            y=candidate.y + sheet.trim,
+            x=candidate.x,  # 0-based (relativo a area util, sem trim)
+            y=candidate.y,
             rotation=candidate.rotation,
             rotated=candidate.rotation != 0,
             effective_length=eff_l,
@@ -598,7 +598,8 @@ def verify_no_overlaps(bins: list[BinResult], tolerance: float = 0.5) -> bool:
 # Compactacao (gravity settle)
 # ---------------------------------------------------------------------------
 
-def compact_bin(bin_result: BinResult, sheet: Sheet, passes: int = 10) -> BinResult:
+def compact_bin(bin_result: BinResult, sheet: Sheet, passes: int = 10,
+                split_direction: str = "auto", spacing: float = 7.0) -> BinResult:
     """Compactar pecas no bin (gravity settle + rotation swap).
 
     Tenta mover cada peca para baixo e para esquerda.
@@ -609,6 +610,7 @@ def compact_bin(bin_result: BinResult, sheet: Sheet, passes: int = 10) -> BinRes
         bin_result: Bin a compactar
         sheet: Chapa
         passes: Numero de passadas
+        split_direction: Direcao de corte - "horizontal", "vertical", "auto"/"misto"
 
     Returns:
         Bin com placements compactados
@@ -617,40 +619,71 @@ def compact_bin(bin_result: BinResult, sheet: Sheet, passes: int = 10) -> BinRes
         return bin_result
 
     placements = [p.model_copy() for p in bin_result.placements]
-    trim = sheet.trim
+    # Posicoes sao 0-based (relativas a area util, sem trim)
+    min_pos = 0
     usable_w = sheet.usable_length
     usable_h = sheet.usable_width
+
+    # Direction-aware compaction order:
+    # horizontal = rows → compact Y first (gravity down), then X
+    # vertical = columns → compact X first (gravity left), then Y
+    # auto/misto = Y first then X (default)
+    compact_y_first = split_direction != "vertical"
+    sp = spacing  # spacing between pieces
 
     for pass_num in range(passes):
         moved = False
 
-        # Fase 1: Gravity settle (Y depois X)
+        # Fase 1: Gravity settle (direction-aware)
         for i, p in enumerate(placements):
             others = [placements[j] for j in range(len(placements)) if j != i]
 
-            # Tentar mover para baixo (Y = 0)
-            new_y = trim
-            for o in others:
-                if _rects_overlap_x(p, o):
-                    candidate_y = o.y + o.effective_width
-                    if candidate_y <= p.y + 0.01:
-                        new_y = max(new_y, candidate_y)
+            if compact_y_first:
+                # Primary: Y (down), Secondary: X (left)
+                # Tentar mover para baixo (Y = 0)
+                new_y = min_pos
+                for o in others:
+                    if _rects_overlap_x_sp(p, o, sp):
+                        candidate_y = o.y + o.effective_width + sp
+                        if candidate_y <= p.y + 0.01:
+                            new_y = max(new_y, candidate_y)
+                if new_y < p.y - 0.5:
+                    p.y = new_y
+                    moved = True
 
-            if new_y < p.y - 0.5:
-                p.y = new_y
-                moved = True
+                # Tentar mover para esquerda (X = 0)
+                new_x = min_pos
+                for o in others:
+                    if _rects_overlap_y_sp(p, o, sp):
+                        candidate_x = o.x + o.effective_length + sp
+                        if candidate_x <= p.x + 0.01:
+                            new_x = max(new_x, candidate_x)
+                if new_x < p.x - 0.5:
+                    p.x = new_x
+                    moved = True
+            else:
+                # Primary: X (left), Secondary: Y (down)
+                # Tentar mover para esquerda (X = 0)
+                new_x = min_pos
+                for o in others:
+                    if _rects_overlap_y_sp(p, o, sp):
+                        candidate_x = o.x + o.effective_length + sp
+                        if candidate_x <= p.x + 0.01:
+                            new_x = max(new_x, candidate_x)
+                if new_x < p.x - 0.5:
+                    p.x = new_x
+                    moved = True
 
-            # Tentar mover para esquerda (X = 0)
-            new_x = trim
-            for o in others:
-                if _rects_overlap_y(p, o):
-                    candidate_x = o.x + o.effective_length
-                    if candidate_x <= p.x + 0.01:
-                        new_x = max(new_x, candidate_x)
-
-            if new_x < p.x - 0.5:
-                p.x = new_x
-                moved = True
+                # Tentar mover para baixo (Y = 0)
+                new_y = min_pos
+                for o in others:
+                    if _rects_overlap_x_sp(p, o, sp):
+                        candidate_y = o.y + o.effective_width + sp
+                        if candidate_y <= p.y + 0.01:
+                            new_y = max(new_y, candidate_y)
+                if new_y < p.y - 0.5:
+                    p.y = new_y
+                    moved = True
 
         # Fase 2: Rotation swap (a cada 3 passes)
         if pass_num % 3 == 1:
@@ -661,8 +694,8 @@ def compact_bin(bin_result: BinResult, sheet: Sheet, passes: int = 10) -> BinRes
                 # Verificar se rotacao cabe
                 new_l = p.effective_width
                 new_w = p.effective_length
-                if (p.x + new_l <= trim + usable_w + 0.5 and
-                        p.y + new_w <= trim + usable_h + 0.5):
+                if (p.x + new_l <= usable_w + 0.5 and
+                        p.y + new_w <= usable_h + 0.5):
                     # Verificar se rotacao nao causa overlap
                     old_l, old_w = p.effective_length, p.effective_width
                     p.effective_length = new_l
@@ -670,8 +703,8 @@ def compact_bin(bin_result: BinResult, sheet: Sheet, passes: int = 10) -> BinRes
                     others = [placements[j] for j in range(len(placements)) if j != i]
                     has_overlap = False
                     for o in others:
-                        ox = min(p.x + p.effective_length, o.x + o.effective_length) - max(p.x, o.x)
-                        oy = min(p.y + p.effective_width, o.y + o.effective_width) - max(p.y, o.y)
+                        ox = min(p.x + p.effective_length + sp, o.x + o.effective_length + sp) - max(p.x, o.x)
+                        oy = min(p.y + p.effective_width + sp, o.y + o.effective_width + sp) - max(p.y, o.y)
                         if ox > 0.5 and oy > 0.5:
                             has_overlap = True
                             break
@@ -709,6 +742,16 @@ def _rects_overlap_x(a: Placement, b: Placement) -> bool:
 def _rects_overlap_y(a: Placement, b: Placement) -> bool:
     """Verificar se dois placements se sobrepoem no eixo Y."""
     return not (a.y + a.effective_width <= b.y or b.y + b.effective_width <= a.y)
+
+
+def _rects_overlap_x_sp(a: Placement, b: Placement, sp: float) -> bool:
+    """Verificar overlap no eixo X considerando spacing."""
+    return not (a.x + a.effective_length + sp <= b.x or b.x + b.effective_length + sp <= a.x)
+
+
+def _rects_overlap_y_sp(a: Placement, b: Placement, sp: float) -> bool:
+    """Verificar overlap no eixo Y considerando spacing."""
+    return not (a.y + a.effective_width + sp <= b.y or b.y + b.effective_width + sp <= a.y)
 
 
 # ---------------------------------------------------------------------------

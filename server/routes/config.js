@@ -113,6 +113,8 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         landing_cor_fundo, landing_cor_destaque, landing_cor_neutra, landing_cor_clara,
         landing_servicos_json, landing_diferenciais_json, landing_etapas_json,
         centro_custo_json, centro_custo_dias_uteis,
+        instagram, facebook, proposta_incluso, anos_experiencia,
+        portal_mostrar_pagamento,
     } = req.body;
     db.prepare(`
     UPDATE empresa_config SET
@@ -143,6 +145,8 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
       landing_cor_fundo=?, landing_cor_destaque=?, landing_cor_neutra=?, landing_cor_clara=?,
       landing_servicos_json=?, landing_diferenciais_json=?, landing_etapas_json=?,
       centro_custo_json=?, centro_custo_dias_uteis=?,
+      instagram=?, facebook=?, proposta_incluso=?, anos_experiencia=?,
+      portal_mostrar_pagamento=?,
       atualizado_em=CURRENT_TIMESTAMP
     WHERE id=1
   `).run(
@@ -194,6 +198,11 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         landing_etapas_json !== undefined ? landing_etapas_json : '[]',
         centro_custo_json !== undefined ? centro_custo_json : '[]',
         centro_custo_dias_uteis ?? 22,
+        instagram !== undefined ? instagram : '',
+        facebook !== undefined ? facebook : '',
+        proposta_incluso !== undefined ? proposta_incluso : '',
+        anos_experiencia ?? 0,
+        portal_mostrar_pagamento ?? 0,
     );
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
     res.json(emp);

@@ -585,7 +585,7 @@ export default function PropostaApresentacao({ token }) {
     if (error) return <ErrorScreen error={error} />;
     if (!data) return null;
 
-    const { cliente_nome, empresa, portfolio, proposta_token } = data;
+    const { cliente_nome, empresa, portfolio, proposta_token, validade } = data;
 
     return (
         <>
@@ -600,7 +600,7 @@ export default function PropostaApresentacao({ token }) {
                         )}
                         <div className="ap-hero-divider" style={{ background: c2 }} />
                         <p className="ap-hero-label" style={{ color: `${c2}` }}>PROPOSTA EXCLUSIVA</p>
-                        <h1 className="ap-hero-name" style={{ color: cream }}>{cliente_nome}</h1>
+                        <h1 className="ap-hero-name" style={{ color: cream, fontFamily: "'Georgia', 'Times New Roman', serif" }}>{cliente_nome}</h1>
                         <p className="ap-hero-date" style={{ color: `${cream}80` }}>
                             {new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </p>
@@ -732,6 +732,18 @@ export default function PropostaApresentacao({ token }) {
                     </div>
                 </section>
 
+                {/* ═══ A2: TESTIMONIAL ANTES DO CTA ═══ */}
+                <section style={{ background: darkBg, padding: '48px 0 0' }}>
+                    <div className="ap-container" style={{ textAlign: 'center' }}>
+                        <div ref={reveal} className="ap-reveal" style={{ maxWidth: 600, margin: '0 auto', padding: '28px 32px', borderRadius: 12, border: `1px solid ${c2}25`, background: `${c2}08` }}>
+                            <p style={{ fontSize: 17, lineHeight: 1.8, color: `${cream}D0`, fontStyle: 'italic', margin: '0 0 12px' }}>
+                                "Atendimento impecável do início ao fim. O resultado superou todas as nossas expectativas."
+                            </p>
+                            <p style={{ fontSize: 13, color: c2, fontWeight: 600, margin: 0 }}>— Cliente {empresa.nome || 'Ornato'}</p>
+                        </div>
+                    </div>
+                </section>
+
                 {/* ═══ SEÇÃO 5: CTA ═══ */}
                 <section className="ap-cta" style={{ background: darkBg }}>
                     <div className="ap-cta-bg" style={{ background: `radial-gradient(ellipse at center, ${c2}12 0%, transparent 70%)` }} />
@@ -745,12 +757,26 @@ export default function PropostaApresentacao({ token }) {
                                 Preparamos uma proposta personalizada com todos os detalhes do seu projeto.
                                 Clique abaixo para visualizar.
                             </p>
+                            {validade && (
+                                <div style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                                    padding: '8px 16px', borderRadius: 6,
+                                    background: 'rgba(255,255,255,0.08)',
+                                    border: '1px solid rgba(255,255,255,0.12)',
+                                    fontSize: 13, color: 'rgba(255,255,255,0.7)',
+                                    marginBottom: 24,
+                                }}>
+                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: c2, animation: 'pulse 2s infinite' }} />
+                                    Condições válidas até {new Date(validade + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                </div>
+                            )}
+                            <br />
                             <a
                                 href={`/proposta/${proposta_token}`}
                                 className="ap-cta-btn"
                                 style={{ background: c2, color: c1 }}
                             >
-                                Visualizar Proposta
+                                Abrir Minha Proposta Personalizada
                             </a>
                             <div className="ap-cta-contacts" style={{ marginTop: 40 }}>
                                 {empresa.telefone && (
@@ -766,6 +792,15 @@ export default function PropostaApresentacao({ token }) {
                                         className="ap-contact-link" style={{ color: `${cream}80` }}>
                                         {icons.mail(`${cream}80`)}
                                         <span>{empresa.email}</span>
+                                    </a>
+                                )}
+                                {/* A1: Instagram link */}
+                                {empresa.instagram && (
+                                    <a href={`https://instagram.com/${empresa.instagram.replace(/^@/, '')}`}
+                                        target="_blank" rel="noopener noreferrer"
+                                        className="ap-contact-link" style={{ color: `${cream}80` }}>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg>
+                                        <span>@{empresa.instagram.replace(/^@/, '')}</span>
                                     </a>
                                 )}
                             </div>
@@ -907,8 +942,10 @@ function buildCSS(c1, c2, cream) {
 /* ── CTA ── */
 .ap-cta { position:relative; padding:100px 0; overflow:hidden; }
 .ap-cta-bg { position:absolute; inset:0; }
-.ap-cta-btn { display:inline-flex; align-items:center; gap:8px; padding:16px 48px; font-size:15px; font-weight:700; letter-spacing:0.02em; border-radius:50px; text-decoration:none; transition:all 0.3s; box-shadow:0 4px 20px ${c2}40; }
+.ap-cta-btn { display:inline-flex; align-items:center; gap:8px; padding:16px 48px; font-size:15px; font-weight:700; letter-spacing:0.02em; border-radius:50px; text-decoration:none; transition:all 0.3s; box-shadow:0 4px 20px ${c2}40; animation:ctaGlow 3s ease-in-out infinite; }
 .ap-cta-btn:hover { transform:translateY(-2px); box-shadow:0 6px 28px ${c2}60; }
+@keyframes ctaGlow { 0%,100%{box-shadow:0 4px 20px ${c2}40;} 50%{box-shadow:0 6px 32px ${c2}70;} }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.3)} }
 .ap-cta-contacts { display:flex; gap:24px; justify-content:center; flex-wrap:wrap; }
 .ap-contact-link { display:inline-flex; align-items:center; gap:8px; font-size:13px; text-decoration:none; color:inherit; transition:opacity 0.2s; }
 .ap-contact-link:hover { opacity:1 !important; }
@@ -970,7 +1007,7 @@ function buildCSS(c1, c2, cream) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .ap-bounce, .ap-saw-svg, .ap-loader { animation:none !important; }
+    .ap-bounce, .ap-saw-svg, .ap-loader, .ap-cta-btn { animation:none !important; }
     .ap-reveal { opacity:1 !important; transform:none !important; transition:none !important; }
     .ap-timeline-progress, .ap-saw-container, .ap-portfolio-img, .ap-cta-btn { transition:none !important; }
     .ap-saw-glow { display:none !important; }

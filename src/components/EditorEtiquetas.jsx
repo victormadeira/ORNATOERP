@@ -6,11 +6,14 @@
 import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react';
 import { Z } from '../ui';
 import {
-  Tag, Type, Square, BarChart2, Layers, MousePointer,
+  Tag, Type, Square, BarChart2, Layers, MousePointer, QrCode,
   ArrowLeft, PenTool, Save, Copy, Star, Trash2, Undo2, Redo2,
   ZoomIn, ZoomOut, Grid3X3, ChevronDown, ChevronRight, Plus, X,
-  Move, Maximize2, RotateCw, Palette, AlignLeft, AlignCenter, AlignRight
+  Move, Maximize2, RotateCw, Palette, AlignLeft, AlignCenter, AlignRight,
+  Image, Map
 } from 'lucide-react';
+import { qrcodeSVG } from '../utils/qrcode';
+import { code128Bars } from '../utils/code128';
 
 // ─── Variáveis disponíveis ──────────────────────────────
 const VARIAVEIS = [
@@ -35,9 +38,15 @@ const VARIAVEIS = [
   { key: 'borda_dir',      label: 'Borda Direita',     grupo: 'Bordas',        exemplo: 'CMBOR19X045BRANCO_TX' },
   { key: 'borda_esq',      label: 'Borda Esquerda',    grupo: 'Bordas',        exemplo: '' },
   { key: 'borda_frontal',  label: 'Borda Frontal',     grupo: 'Bordas',        exemplo: 'CMBOR22x045BRANCO_TX' },
-  { key: 'borda_traseira', label: 'Borda Traseira',    grupo: 'Bordas',        exemplo: '' },
-  { key: 'observacao',     label: 'Observação',        grupo: 'Outros',        exemplo: '' },
+  { key: 'borda_traseira',    label: 'Borda Traseira',    grupo: 'Bordas',        exemplo: '' },
+  { key: 'borda_cor_frontal', label: 'Cor Fita Frontal',  grupo: 'Bordas',        exemplo: 'Branco TX' },
+  { key: 'borda_cor_traseira',label: 'Cor Fita Traseira', grupo: 'Bordas',        exemplo: 'Branco TX' },
+  { key: 'borda_cor_dir',     label: 'Cor Fita Direita',  grupo: 'Bordas',        exemplo: 'Carvalho' },
+  { key: 'borda_cor_esq',     label: 'Cor Fita Esquerda', grupo: 'Bordas',        exemplo: 'Carvalho' },
+  { key: 'observacao',        label: 'Observação',        grupo: 'Outros',        exemplo: '' },
   { key: 'empresa_nome',   label: 'Nome Empresa',      grupo: 'Config',        exemplo: 'Móveis Ornato' },
+  { key: 'url_peca',       label: 'URL Peça (QR)',     grupo: 'Identificação', exemplo: '/p/42' },
+  { key: 'peca_id',        label: 'ID Peça',           grupo: 'Identificação', exemplo: '42' },
 ];
 
 const GRUPOS_VAR = [...new Set(VARIAVEIS.map(v => v.grupo))];
@@ -51,6 +60,11 @@ function resolverVariavel(key, et, cfg) {
   if (!et) return VARIAVEIS.find(v => v.key === key)?.exemplo || '';
   if (key === 'empresa_nome') return cfg?.empresa_nome || '';
   if (key === 'dimensoes') return `${et.comprimento} × ${et.largura}`;
+  if (key === 'url_peca') {
+    const base = typeof window !== 'undefined' ? window.location.origin : '';
+    return `${base}/p/${et.pecaId || et.peca_id || '0'}`;
+  }
+  if (key === 'peca_id') return String(et.pecaId || et.peca_id || '');
   if (key === 'borda_dir') return et.bordas?.dir || '';
   if (key === 'borda_esq') return et.bordas?.esq || '';
   if (key === 'borda_frontal') return et.bordas?.frontal || '';
@@ -63,25 +77,114 @@ function resolverTexto(texto, et, cfg) {
   return texto.replace(/\{\{(\w+)\}\}/g, (_, k) => resolverVariavel(k, et, cfg));
 }
 
-// ─── Barcode SVG inline ─────────────────────────────────
+// ─── Barcode SVG inline (Code128B padrão industrial) ────
 function BarcodeGroup({ value, x, y, w, h }) {
   const str = String(value || '000');
-  const bars = [];
-  let pos = 0;
-  const total = str.length * 11 + 20;
-  const barW = w / total;
-  [2, 1, 1, 1, 4, 1, 2].forEach(n => { if (bars.length % 2 === 0) bars.push({ x: pos, w: n }); pos += n; });
-  for (const ch of str) {
-    const code = ch.charCodeAt(0);
-    const widths = [(code >> 6) & 3 | 1, (code >> 4) & 3 | 1, (code >> 2) & 3 | 1, code & 3 | 1];
-    widths.forEach((n, i) => { if (i % 2 === 0) bars.push({ x: pos, w: n }); pos += n; });
-  }
+  const { bars } = code128Bars(str, x, y, w, h);
   return (
     <g>
       {bars.map((b, i) => (
-        <rect key={i} x={x + b.x * barW} y={y} width={Math.max(b.w * barW, 0.15)} height={h * 0.75} fill="#000" />
+        <rect key={i} x={b.x} y={y} width={Math.max(b.w, 0.1)} height={h * 0.75} fill="#000" />
       ))}
       <text x={x + w / 2} y={y + h * 0.95} fontSize={h * 0.2} textAnchor="middle" fill="#000" fontFamily="monospace">{str}</text>
+    </g>
+  );
+}
+
+// ─── Miniatura 2D da peça (usinagens, sem bordas) ───────
+function MiniaturaPecaGroup({ x, y, w, h, et }) {
+  const comp = Number(et?.comprimento) || 600;
+  const larg = Number(et?.largura) || 400;
+  const esp = Number(et?.espessura) || 18;
+  const pad = 1;
+  const scale = Math.min((w - pad * 2) / comp, (h - pad * 2) / larg);
+  const pw = comp * scale;
+  const ph = larg * scale;
+  const ox = x + (w - pw) / 2;
+  const oy = y + (h - ph) / 2;
+
+  // Parse machining
+  let workers = [];
+  try {
+    const mj = et?.machining_json;
+    if (mj) {
+      const d = typeof mj === 'string' ? JSON.parse(mj) : mj;
+      workers = Array.isArray(d) ? d : d.workers ? (Array.isArray(d.workers) ? d.workers : Object.values(d.workers)) : [];
+    }
+  } catch { /* ignore */ }
+
+  return (
+    <g>
+      {/* Peça */}
+      <rect x={ox} y={oy} width={pw} height={ph} fill="#fff" stroke="#000" strokeWidth={0.3} />
+      {/* Usinagens */}
+      {workers.map((wk, i) => {
+        const cx = ox + (wk.x || 0) / comp * pw;
+        const cy = oy + (wk.y || 0) / larg * ph;
+        const cat = (wk.category || '').toLowerCase();
+        const isHole = /hole|furo/.test(cat);
+        if (isHole) {
+          const r = Math.max((wk.diameter || 8) / 2 * scale, 0.4);
+          const isThrough = /transfer_hole$/.test(cat) || (wk.depth || 0) >= esp;
+          return <circle key={i} cx={cx} cy={cy} r={r} fill={isThrough ? '#000' : 'none'} stroke="#000" strokeWidth={0.2} />;
+        }
+        const rw = Math.max((wk.length || 50) * scale, 1);
+        const rh = Math.max((wk.width || 6) * scale, 0.4);
+        return <rect key={i} x={cx - rw / 2} y={cy - rh / 2} width={rw} height={rh} fill="#666" stroke="#000" strokeWidth={0.15} />;
+      })}
+      {/* Dimensões mini */}
+      <text x={ox + pw / 2} y={oy + ph + 1.2} fontSize={1.4} textAnchor="middle" fill="#000" fontFamily="monospace">{comp}×{larg}</text>
+    </g>
+  );
+}
+
+// ─── Minimapa real (posição da peça na chapa) ──────────
+function MinimapaPecaGroup({ x, y, w, h, el, et }) {
+  const corPeca = el.corPeca || '#e74c3c';
+  const corOutras = el.corOutras || '#ddd';
+  const corFundo = el.corFundo || '#fff';
+  const corBorda = el.corBorda || '#333';
+
+  // Se não tem dados de chapa, mostra placeholder
+  const chapa = et?.chapa;
+  if (!chapa || !et?.chapa_idx && et?.chapa_idx !== 0) {
+    return (
+      <g>
+        <rect x={x} y={y} width={w} height={h} fill={corFundo} stroke={corBorda} strokeWidth={0.3} rx={0.3} />
+        <text x={x + w / 2} y={y + h / 2 + 0.5} textAnchor="middle" fontSize={1.5} fill="#999">Sem plano</text>
+      </g>
+    );
+  }
+
+  const chapaW = chapa.w || 2750;
+  const chapaH = chapa.h || 1850;
+  const pad = 0.5;
+  const scale = Math.min((w - pad * 2) / chapaW, (h - pad * 2) / chapaH);
+  const sw = chapaW * scale;
+  const sh = chapaH * scale;
+  const ox = x + (w - sw) / 2;
+  const oy = y + (h - sh) / 2;
+  const pecaId = et.peca_id || et.pecaId;
+  const instancia = et.instancia ?? 0;
+
+  return (
+    <g>
+      {/* Chapa */}
+      <rect x={ox} y={oy} width={sw} height={sh} fill={corFundo} stroke={corBorda} strokeWidth={0.2} />
+      {/* Peças na chapa */}
+      {(chapa.pecas || []).map((p, i) => {
+        const isCurrent = p.id === pecaId && (p.instancia ?? 0) === instancia;
+        const px = ox + p.x * scale;
+        const py = oy + p.y * scale;
+        const pw = p.w * scale;
+        const ph = p.h * scale;
+        return (
+          <rect key={i} x={px} y={py} width={Math.max(pw, 0.3)} height={Math.max(ph, 0.3)}
+            fill={isCurrent ? corPeca : corOutras}
+            stroke={isCurrent ? '#000' : '#999'} strokeWidth={isCurrent ? 0.25 : 0.1}
+            rx={0.1} />
+        );
+      })}
     </g>
   );
 }
@@ -112,6 +215,9 @@ function ElementoSVG({ el, et, cfg, isEditor, selected, onMouseDown }) {
   const transform = el.rotacao ? `rotate(${el.rotacao} ${el.x + el.w / 2} ${el.y + el.h / 2})` : undefined;
   const cursor = isEditor ? 'move' : 'default';
   const handleDown = (e) => { e.stopPropagation(); onMouseDown?.(e, el.id); };
+  const renderSelection = (e) => (
+    <rect x={e.x - 0.3} y={e.y - 0.3} width={e.w + 0.6} height={e.h + 0.6} fill="none" stroke="#3b82f6" strokeWidth={0.3} strokeDasharray="1,0.5" rx={0.3} />
+  );
 
   switch (el.tipo) {
     case 'texto': {
@@ -154,11 +260,54 @@ function ElementoSVG({ el, et, cfg, isEditor, selected, onMouseDown }) {
           <BarcodeGroup value={resolverVariavel(el.barcodeVariavel || 'controle', et, cfg)} x={el.x} y={el.y} w={el.w} h={el.h} />
         </g>
       );
+    case 'qrcode': {
+      const qrVal = resolverVariavel(el.barcodeVariavel || 'controle', et, cfg);
+      const svgStr = qrcodeSVG(qrVal || 'QR', 1, el.cor || '#000');
+      return (
+        <g transform={transform} onMouseDown={handleDown} style={{ cursor }}>
+          {isEditor && selected && <rect x={el.x - 0.3} y={el.y - 0.3} width={el.w + 0.6} height={el.h + 0.6} fill="none" stroke="#3b82f6" strokeWidth={0.3} strokeDasharray="1,0.5" />}
+          <foreignObject x={el.x} y={el.y} width={el.w} height={el.h}>
+            <div xmlns="http://www.w3.org/1999/xhtml" dangerouslySetInnerHTML={{ __html: svgStr }} style={{ width: '100%', height: '100%' }} />
+          </foreignObject>
+        </g>
+      );
+    }
     case 'diagrama_bordas':
       return (
         <g transform={transform} onMouseDown={handleDown} style={{ cursor }}>
           {isEditor && selected && <rect x={el.x - 0.3} y={el.y - 0.3} width={el.w + 0.6} height={el.h + 0.6} fill="none" stroke="#3b82f6" strokeWidth={0.3} strokeDasharray="1,0.5" />}
           <DiagramaBordasGroup x={el.x} y={el.y} w={el.w} h={el.h} cor={el.diagramaCor || '#22c55e'} et={et} />
+        </g>
+      );
+    case 'imagem': {
+      const imgUrl = el.imagemUrl === '{{logo_empresa}}' ? (cfg?.logo_sistema || '') : (el.imagemUrl || '');
+      return (
+        <g transform={transform} onMouseDown={handleDown} style={{ cursor }}>
+          {imgUrl ? (
+            <image x={el.x} y={el.y} width={el.w} height={el.h}
+              href={imgUrl} preserveAspectRatio={el.imagemFit === 'cover' ? 'xMidYMid slice' : 'xMidYMid meet'} />
+          ) : (
+            <g>
+              <rect x={el.x} y={el.y} width={el.w} height={el.h} fill="#f0f0f0" stroke="#ccc" strokeWidth={0.3} strokeDasharray="1 0.5" rx={0.5} />
+              <text x={el.x + el.w / 2} y={el.y + el.h / 2} textAnchor="middle" dominantBaseline="central" fontSize={Math.min(el.w, el.h) * 0.25} fill="#999">Logo</text>
+            </g>
+          )}
+          {isEditor && selected && renderSelection(el)}
+        </g>
+      );
+    }
+    case 'minimapa':
+      return (
+        <g transform={transform} onMouseDown={handleDown} style={{ cursor }}>
+          <MinimapaPecaGroup x={el.x} y={el.y} w={el.w} h={el.h} el={el} et={et} />
+          {isEditor && selected && renderSelection(el)}
+        </g>
+      );
+    case 'miniatura_peca':
+      return (
+        <g transform={transform} onMouseDown={handleDown} style={{ cursor }}>
+          {isEditor && selected && <rect x={el.x - 0.3} y={el.y - 0.3} width={el.w + 0.6} height={el.h + 0.6} fill="none" stroke="#3b82f6" strokeWidth={0.3} strokeDasharray="1,0.5" />}
+          <MiniaturaPecaGroup x={el.x} y={el.y} w={el.w} h={el.h} et={et} />
         </g>
       );
     default:
@@ -390,7 +539,11 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
       texto: { tipo: 'texto', x: 10, y: 10, w: 30, h: 5, texto: 'Texto', fontSize: 3, fontWeight: 400, cor: '#000000', alinhamento: 'start', fontFamily: 'Inter, sans-serif' },
       retangulo: { tipo: 'retangulo', x: 10, y: 10, w: 20, h: 10, preenchimento: 'none', bordaCor: '#000000', bordaLargura: 0.3, raio: 0 },
       barcode: { tipo: 'barcode', x: 10, y: 10, w: 30, h: 10, barcodeVariavel: 'controle' },
+      qrcode: { tipo: 'qrcode', x: 10, y: 10, w: 15, h: 15, barcodeVariavel: 'controle', cor: '#000000' },
       diagrama_bordas: { tipo: 'diagrama_bordas', x: 10, y: 10, w: 18, h: 14, diagramaCor: '#22c55e' },
+      imagem: { tipo: 'imagem', x: 5, y: 5, w: 20, h: 15, imagemUrl: '', imagemFit: 'contain' },
+      minimapa: { tipo: 'minimapa', x: 5, y: 5, w: 25, h: 18, corPeca: '#e74c3c', corOutras: '#ddd', corFundo: '#fff', corBorda: '#333' },
+      miniatura_peca: { tipo: 'miniatura_peca', x: 5, y: 5, w: 20, h: 16 },
     };
     const el = { id: uid(), ...defaults[tipo], ...extra, zIndex: elementos.length + 1, rotacao: 0 };
     setElementos(prev => {
@@ -414,6 +567,64 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
       fontWeight: 600,
     });
   }, [addElement]);
+
+  const applyTemplate = useCallback((tipo) => {
+    let w, h, els;
+    if (tipo === 'padrao') {
+      w = 100; h = 50;
+      els = [
+        { tipo: 'texto', x: 3, y: 3, w: 60, h: 5, texto: '{{descricao}}', fontSize: 3.5, fontWeight: 700, cor: '#000', alinhamento: 'start' },
+        { tipo: 'texto', x: 3, y: 9, w: 40, h: 4, texto: '{{material}}', fontSize: 2.5, fontWeight: 400, cor: '#555', alinhamento: 'start' },
+        { tipo: 'texto', x: 3, y: 14, w: 50, h: 4, texto: '{{comprimento}} x {{largura}} x {{espessura}}', fontSize: 2.8, fontWeight: 600, cor: '#000', alinhamento: 'start' },
+        { tipo: 'texto', x: 3, y: 20, w: 40, h: 4, texto: '{{modulo_desc}}', fontSize: 2.2, fontWeight: 400, cor: '#666', alinhamento: 'start' },
+        { tipo: 'texto', x: 3, y: 25, w: 40, h: 4, texto: 'Qtd: {{quantidade}}', fontSize: 2.5, fontWeight: 600, cor: '#000', alinhamento: 'start' },
+        { tipo: 'diagrama_bordas', x: 3, y: 32, w: 14, h: 14, diagramaCor: '#22c55e' },
+        { tipo: 'barcode', x: 55, y: 3, w: 42, h: 12, barcodeVariavel: 'controle' },
+        { tipo: 'qrcode', x: 75, y: 28, w: 18, h: 18, barcodeVariavel: 'controle', cor: '#000' },
+        { tipo: 'texto', x: 55, y: 18, w: 42, h: 4, texto: '{{cliente}}', fontSize: 2.2, fontWeight: 400, cor: '#666', alinhamento: 'start' },
+        { tipo: 'texto', x: 55, y: 23, w: 42, h: 4, texto: '{{projeto}}', fontSize: 2.2, fontWeight: 500, cor: '#333', alinhamento: 'start' },
+      ];
+    } else if (tipo === 'compacta') {
+      w = 70; h = 40;
+      els = [
+        { tipo: 'texto', x: 2, y: 2, w: 40, h: 4, texto: '{{descricao}}', fontSize: 3, fontWeight: 700, cor: '#000', alinhamento: 'start' },
+        { tipo: 'texto', x: 2, y: 7, w: 40, h: 3, texto: '{{comprimento}}x{{largura}}x{{espessura}}', fontSize: 2.5, fontWeight: 600, cor: '#000', alinhamento: 'start' },
+        { tipo: 'texto', x: 2, y: 11, w: 40, h: 3, texto: '{{material}} · Qtd:{{quantidade}}', fontSize: 2, fontWeight: 400, cor: '#555', alinhamento: 'start' },
+        { tipo: 'diagrama_bordas', x: 2, y: 16, w: 12, h: 12, diagramaCor: '#22c55e' },
+        { tipo: 'qrcode', x: 50, y: 2, w: 16, h: 16, barcodeVariavel: 'controle', cor: '#000' },
+        { tipo: 'barcode', x: 16, y: 30, w: 52, h: 8, barcodeVariavel: 'controle' },
+      ];
+    } else if (tipo === 'completa') {
+      w = 100; h = 70;
+      els = [
+        { tipo: 'imagem', x: 3, y: 2, w: 20, h: 10, imagemUrl: '{{logo_empresa}}', imagemFit: 'contain' },
+        { tipo: 'texto', x: 25, y: 3, w: 50, h: 5, texto: '{{descricao}}', fontSize: 3.8, fontWeight: 700, cor: '#000', alinhamento: 'start' },
+        { tipo: 'texto', x: 25, y: 9, w: 50, h: 4, texto: '{{material}}', fontSize: 2.5, fontWeight: 400, cor: '#555', alinhamento: 'start' },
+        { tipo: 'retangulo', x: 2, y: 14, w: 96, h: 0.3, preenchimento: '#ddd', bordaCor: 'none', bordaLargura: 0 },
+        { tipo: 'texto', x: 3, y: 17, w: 50, h: 5, texto: '{{comprimento}} x {{largura}} x {{espessura}} mm', fontSize: 3.2, fontWeight: 700, cor: '#000', alinhamento: 'start' },
+        { tipo: 'texto', x: 3, y: 23, w: 30, h: 4, texto: 'Módulo: {{modulo_desc}}', fontSize: 2.3, fontWeight: 400, cor: '#555', alinhamento: 'start' },
+        { tipo: 'texto', x: 3, y: 28, w: 30, h: 4, texto: 'Qtd: {{quantidade}}', fontSize: 2.8, fontWeight: 700, cor: '#000', alinhamento: 'start' },
+        { tipo: 'texto', x: 40, y: 23, w: 30, h: 4, texto: '{{cliente}}', fontSize: 2.2, fontWeight: 400, cor: '#666', alinhamento: 'start' },
+        { tipo: 'texto', x: 40, y: 28, w: 30, h: 4, texto: '{{projeto}}', fontSize: 2.2, fontWeight: 500, cor: '#333', alinhamento: 'start' },
+        { tipo: 'texto', x: 3, y: 34, w: 25, h: 3, texto: 'Fita Frontal: {{borda_cor_frontal}}', fontSize: 2, fontWeight: 400, cor: '#333', alinhamento: 'start' },
+        { tipo: 'texto', x: 3, y: 38, w: 25, h: 3, texto: 'Fita Traseira: {{borda_cor_traseira}}', fontSize: 2, fontWeight: 400, cor: '#333', alinhamento: 'start' },
+        { tipo: 'texto', x: 3, y: 42, w: 25, h: 3, texto: 'Fita Esquerda: {{borda_cor_esq}}', fontSize: 2, fontWeight: 400, cor: '#333', alinhamento: 'start' },
+        { tipo: 'texto', x: 3, y: 46, w: 25, h: 3, texto: 'Fita Direita: {{borda_cor_dir}}', fontSize: 2, fontWeight: 400, cor: '#333', alinhamento: 'start' },
+        { tipo: 'diagrama_bordas', x: 30, y: 34, w: 16, h: 16, diagramaCor: '#22c55e' },
+        { tipo: 'minimapa', x: 52, y: 34, w: 25, h: 18, corPeca: '#e74c3c', corOutras: '#ddd', corFundo: '#fff', corBorda: '#333' },
+        { tipo: 'qrcode', x: 80, y: 17, w: 18, h: 18, barcodeVariavel: 'controle', cor: '#000' },
+        { tipo: 'barcode', x: 3, y: 56, w: 75, h: 10, barcodeVariavel: 'controle' },
+        { tipo: 'texto', x: 80, y: 56, w: 18, h: 10, texto: '{{controle}}', fontSize: 2.5, fontWeight: 600, cor: '#000', alinhamento: 'center' },
+      ];
+    } else return;
+    const stamped = els.map((el, i) => ({ ...el, id: `tpl_${Date.now()}_${i}`, zIndex: i, rotacao: 0 }));
+    setTemplate(prev => ({ ...prev, largura: w, altura: h }));
+    setElementos(stamped);
+    pushHistory(stamped);
+    setSelecionado(null);
+    setDirty(true);
+    requestAnimationFrame(autoZoom);
+  }, [pushHistory, autoZoom]);
 
   // ─── SVG coordinate conversion ────────────────────
   const svgPt = useCallback((e) => {
@@ -707,7 +918,11 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
             <IconBtn icon={Type} label="Texto" onClick={() => addElement('texto')} />
             <IconBtn icon={Square} label="Retângulo" onClick={() => addElement('retangulo')} />
             <IconBtn icon={BarChart2} label="Barcode" onClick={() => addElement('barcode')} />
+            <IconBtn icon={QrCode} label="QR Code" onClick={() => addElement('qrcode')} />
             <IconBtn icon={Layers} label="Diagrama" onClick={() => addElement('diagrama_bordas')} />
+            <IconBtn icon={Image} label="Imagem" onClick={() => addElement('imagem')} />
+            <IconBtn icon={Map} label="Mini-mapa" onClick={() => addElement('minimapa')} />
+            <IconBtn icon={Maximize2} label="Miniatura" onClick={() => addElement('miniatura_peca')} />
           </div>
 
           <Divider />
@@ -793,7 +1008,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
               <>
                 <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
                 <span style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 700 }}>
-                  {selEl.tipo === 'texto' ? 'Texto' : selEl.tipo === 'retangulo' ? 'Retângulo' : selEl.tipo === 'barcode' ? 'Barcode' : 'Diagrama'}
+                  {selEl.tipo === 'texto' ? 'Texto' : selEl.tipo === 'retangulo' ? 'Retângulo' : selEl.tipo === 'barcode' ? 'Barcode' : selEl.tipo === 'qrcode' ? 'QR Code' : selEl.tipo === 'imagem' ? 'Imagem' : selEl.tipo === 'minimapa' ? 'Mini-mapa' : 'Diagrama'}
                   {selEl.variavel ? ` (${selEl.variavel})` : ''}
                 </span>
                 <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
@@ -894,6 +1109,9 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                   {selEl.tipo === 'texto' ? <><Type size={12} /> Texto</> :
                    selEl.tipo === 'retangulo' ? <><Square size={12} /> Retângulo</> :
                    selEl.tipo === 'barcode' ? <><BarChart2 size={12} /> Barcode</> :
+                   selEl.tipo === 'qrcode' ? <><QrCode size={12} /> QR Code</> :
+                   selEl.tipo === 'imagem' ? <><Image size={12} /> Imagem</> :
+                   selEl.tipo === 'minimapa' ? <><Map size={12} /> Mini-mapa</> :
                    <><Layers size={12} /> Diagrama</>}
                 </span>
                 <button onClick={() => deleteEl(selEl.id)}
@@ -1066,6 +1284,28 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                 </>
               )}
 
+              {/* QR CODE props */}
+              {selEl.tipo === 'qrcode' && (
+                <>
+                  <Divider />
+                  <SH icon={<QrCode size={10} />}>QR Code</SH>
+                  <div>
+                    <LBL>Variável</LBL>
+                    <select value={selEl.barcodeVariavel || 'controle'}
+                      onChange={e => updateEl(selEl.id, { barcodeVariavel: e.target.value })}
+                      className={Z.inp} style={{ fontSize: 11, padding: '4px 6px', width: '100%', marginTop: 2 }}>
+                      {VARIAVEIS.map(v => <option key={v.key} value={v.key}>{v.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <LBL>Cor</LBL>
+                    <input type="color" value={selEl.cor || '#000000'}
+                      onChange={e => updateEl(selEl.id, { cor: e.target.value })}
+                      style={{ width: '100%', height: 28, border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', marginTop: 2 }} />
+                  </div>
+                </>
+              )}
+
               {/* DIAGRAMA props */}
               {selEl.tipo === 'diagrama_bordas' && (
                 <>
@@ -1076,6 +1316,77 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                     <input type="color" value={selEl.diagramaCor || '#22c55e'}
                       onChange={e => updateEl(selEl.id, { diagramaCor: e.target.value })}
                       style={{ width: '100%', height: 28, border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', marginTop: 2 }} />
+                  </div>
+                </>
+              )}
+
+              {/* IMAGEM props */}
+              {selEl.tipo === 'imagem' && (
+                <>
+                  <Divider />
+                  <SH icon={<Image size={10} />}>Imagem / Logo</SH>
+                  <div>
+                    <LBL>URL da Imagem</LBL>
+                    <input type="text" value={selEl.imagemUrl || ''}
+                      onChange={e => updateEl(selEl.id, { imagemUrl: e.target.value })}
+                      className={Z.inp}
+                      style={{ fontSize: 11, padding: '4px 6px', width: '100%', marginTop: 2 }}
+                      placeholder="https://... ou {{logo_empresa}}" />
+                  </div>
+                  <button className={Z.btn2}
+                    style={{ fontSize: 10, padding: '5px 8px', marginTop: 2, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                    onClick={() => updateEl(selEl.id, { imagemUrl: '{{logo_empresa}}' })}>
+                    <Image size={11} /> Usar Logo da Empresa
+                  </button>
+                  <div style={{ marginTop: 4 }}>
+                    <LBL>Modo de ajuste</LBL>
+                    <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                      {[{ val: 'contain', label: 'Contain' }, { val: 'cover', label: 'Cover' }].map(({ val, label }) => (
+                        <button key={val} className={Z.btn2}
+                          style={{
+                            flex: 1, padding: '4px 0', fontSize: 10, borderRadius: 5,
+                            background: (selEl.imagemFit || 'contain') === val ? 'var(--primary)' : undefined,
+                            color: (selEl.imagemFit || 'contain') === val ? '#fff' : undefined,
+                          }}
+                          onClick={() => updateEl(selEl.id, { imagemFit: val })}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* MINIMAPA props */}
+              {selEl.tipo === 'minimapa' && (
+                <>
+                  <Divider />
+                  <SH icon={<Map size={10} />}>Mini-mapa da Chapa</SH>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                    <div>
+                      <LBL>Peca destacada</LBL>
+                      <input type="color" value={selEl.corPeca || '#e74c3c'}
+                        onChange={e => updateEl(selEl.id, { corPeca: e.target.value })}
+                        style={{ width: '100%', height: 28, border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', marginTop: 2 }} />
+                    </div>
+                    <div>
+                      <LBL>Outras pecas</LBL>
+                      <input type="color" value={selEl.corOutras || '#dddddd'}
+                        onChange={e => updateEl(selEl.id, { corOutras: e.target.value })}
+                        style={{ width: '100%', height: 28, border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', marginTop: 2 }} />
+                    </div>
+                    <div>
+                      <LBL>Fundo</LBL>
+                      <input type="color" value={selEl.corFundo || '#ffffff'}
+                        onChange={e => updateEl(selEl.id, { corFundo: e.target.value })}
+                        style={{ width: '100%', height: 28, border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', marginTop: 2 }} />
+                    </div>
+                    <div>
+                      <LBL>Borda</LBL>
+                      <input type="color" value={selEl.corBorda || '#333333'}
+                        onChange={e => updateEl(selEl.id, { corBorda: e.target.value })}
+                        style={{ width: '100%', height: 28, border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', marginTop: 2 }} />
+                    </div>
                   </div>
                 </>
               )}
@@ -1110,6 +1421,27 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                   </Pill>
                 ))}
               </div>
+              <Divider />
+
+              {/* Template presets */}
+              <div style={{ marginTop: 4 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Templates Prontos</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  <button className={Z.btn2} style={{ fontSize: 10, padding: '4px 8px' }}
+                    onClick={() => applyTemplate('padrao')}>
+                    Padrao
+                  </button>
+                  <button className={Z.btn2} style={{ fontSize: 10, padding: '4px 8px' }}
+                    onClick={() => applyTemplate('compacta')}>
+                    Compacta
+                  </button>
+                  <button className={Z.btn2} style={{ fontSize: 10, padding: '4px 8px' }}
+                    onClick={() => applyTemplate('completa')}>
+                    Completa + Mapa
+                  </button>
+                </div>
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
                 <div>
                   <LBL>Largura (mm)</LBL>
@@ -1205,6 +1537,9 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                     {el.tipo === 'texto' ? <Type size={11} /> :
                      el.tipo === 'retangulo' ? <Square size={11} /> :
                      el.tipo === 'barcode' ? <BarChart2 size={11} /> :
+                     el.tipo === 'qrcode' ? <QrCode size={11} /> :
+                     el.tipo === 'imagem' ? <Image size={11} /> :
+                     el.tipo === 'minimapa' ? <Map size={11} /> :
                      <Layers size={11} />}
                     <span style={{ fontSize: 10, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {el.variavel || el.texto?.replace(/\{\{|\}\}/g, '') || el.tipo}

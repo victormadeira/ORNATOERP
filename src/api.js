@@ -18,10 +18,15 @@ async function request(method, path, body = null, retries = 1) {
     };
     if (body) opts.body = JSON.stringify(body);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    opts.signal = controller.signal;
+
     let lastError;
     for (let attempt = 0; attempt <= retries; attempt++) {
         try {
             const res = await fetch(`${BASE}${path}`, opts);
+            clearTimeout(timeoutId);
             let data;
             try {
                 data = await res.json();
@@ -32,6 +37,8 @@ async function request(method, path, body = null, retries = 1) {
             if (!res.ok) throw { status: res.status, ...data };
             return data;
         } catch (err) {
+            clearTimeout(timeoutId);
+            if (err.name === 'AbortError') throw { error: 'Requisição expirou (timeout 30s). Verifique sua conexão.' };
             lastError = err;
             // Só faz retry em erros de rede (não em 4xx/5xx)
             const isNetworkError = !err.status;

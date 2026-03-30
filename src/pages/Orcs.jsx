@@ -365,6 +365,17 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                         )}
                     </div>
                 )}
+
+                {/* Result count + clear */}
+                {(statusFilter || clienteFilter || periodoFilter || search.trim()) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                        <span>Mostrando <strong style={{ color: 'var(--text-primary)' }}>{filtered.length}</strong> de {orcs.filter(o => o.versao_ativa !== 0).length} orçamentos</span>
+                        <button onClick={() => { setStatusFilter(''); setClienteFilter(''); setPeriodoFilter(''); setSearch(''); }}
+                            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)' }}>
+                            Limpar filtros
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* ─── Sumário pipeline ─────────────────────────── */}

@@ -17,6 +17,48 @@ let _vacuumAware = false;
 export function setVacuumAware(v) { _vacuumAware = !!v; }
 export function getVacuumAware() { return _vacuumAware; }
 
+// ─── Contour / Polygon Utilities ────────────────────────────────
+// Shoelace formula for polygon area
+export function calculatePolygonArea(points) {
+    if (!points || points.length < 3) return 0;
+    let area = 0;
+    const n = points.length;
+    for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        area += points[i].x * points[j].y;
+        area -= points[j].x * points[i].y;
+    }
+    return Math.abs(area) / 2;
+}
+
+// Ray-casting point-in-polygon test
+export function isPointInPolygon(px, py, polygon) {
+    if (!polygon || polygon.length < 3) return false;
+    let inside = false;
+    const n = polygon.length;
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+        const xi = polygon[i].x, yi = polygon[i].y;
+        const xj = polygon[j].x, yj = polygon[j].y;
+        if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
+            inside = !inside;
+        }
+    }
+    return inside;
+}
+
+// Compute bounding box of contour
+export function contourBoundingBox(points) {
+    if (!points || points.length === 0) return { x: 0, y: 0, w: 0, h: 0 };
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of points) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+    }
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
 // ─── Helpers MaxRects ────────────────────────────────────────────
 export function intersects(a, b) {
     return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -77,8 +119,9 @@ export function clipAndKeep(freeRects, sobraMinW, sobraMinH) {
 
 // ─── MaxRectsBin (CNC livre — sem restrição guilhotina) ──────────
 export class MaxRectsBin {
-    constructor(width, height, spacing) {
+    constructor(width, height, spacing, splitDir = 'auto') {
         this.binW = width; this.binH = height; this.spacing = spacing;
+        this.splitDir = splitDir; // 'horizontal', 'vertical', 'auto'/'misto'
         this.vacuumAware = _vacuumAware;
         this.freeRects = [{ x: 0, y: 0, w: width, h: height }];
         this.usedRects = [];
@@ -104,12 +147,21 @@ export class MaxRectsBin {
         const w = pw + this.spacing, h = ph + this.spacing;
         if (w > free.w || h > free.h) return null;
         let sc;
-        switch (heuristic) {
-            case 'BLSF': sc = Math.max(free.w - w, free.h - h); break;
-            case 'BAF':  sc = (free.w * free.h) - (w * h); break;
-            case 'BL':   sc = free.y * 100000 + free.x; break;
-            case 'CP':   sc = -this._contactLength(free.x, free.y, pw, ph); break;
-            default:     sc = Math.min(free.w - w, free.h - h); break; // BSSF
+        // When direction is explicitly set, OVERRIDE heuristic with directional placement
+        if (this.splitDir === 'horizontal') {
+            // Horizontal: fill in rows (low y first, then low x) → leaves wide remnants at bottom
+            sc = free.y * 100000 + free.x;
+        } else if (this.splitDir === 'vertical') {
+            // Vertical: fill in columns (low x first, then low y) → leaves tall remnants on right
+            sc = free.x * 100000 + free.y;
+        } else {
+            switch (heuristic) {
+                case 'BLSF': sc = Math.max(free.w - w, free.h - h); break;
+                case 'BAF':  sc = (free.w * free.h) - (w * h); break;
+                case 'BL':   sc = free.y * 100000 + free.x; break;
+                case 'CP':   sc = -this._contactLength(free.x, free.y, pw, ph); break;
+                default:     sc = Math.min(free.w - w, free.h - h); break; // BSSF
+            }
         }
         return { x: free.x, y: free.y, w, h, realW: pw, realH: ph, score: sc };
     }
@@ -128,8 +180,16 @@ export class MaxRectsBin {
             };
             const norm = applyVacuum(this._tryFit(free, pw, ph, heuristic));
             if (norm && norm.score < bestScore) { bestScore = norm.score; bestRect = { ...norm, rotated: false }; }
-            if (allowRotate) {
+            if (allowRotate && (pw !== ph)) {
                 const rot = applyVacuum(this._tryFit(free, ph, pw, heuristic));
+                // Directional rotation preference: STRONGLY prefer orientation aligned with direction
+                if (rot && this.splitDir === 'horizontal') {
+                    // horizontal → prefer wider placement (realW > realH) — penalize heavily if rotation makes it narrower
+                    if (ph < pw) rot.score += 5000;
+                } else if (rot && this.splitDir === 'vertical') {
+                    // vertical → prefer taller placement (realH > realW) — penalize heavily if rotation makes it shorter
+                    if (pw < ph) rot.score += 5000;
+                }
                 if (rot && rot.score < bestScore) { bestScore = rot.score; bestRect = { ...rot, realW: ph, realH: pw, rotated: true }; }
             }
         }
@@ -139,6 +199,7 @@ export class MaxRectsBin {
         const newFree = [];
         for (const free of this.freeRects) {
             if (!intersects(rect, free)) { newFree.push(free); continue; }
+            // Standard MaxRects split — all 4 maximal sub-rectangles
             if (rect.x > free.x) newFree.push({ x: free.x, y: free.y, w: rect.x - free.x, h: free.h });
             if (rect.x + rect.w < free.x + free.w) newFree.push({ x: rect.x + rect.w, y: free.y, w: (free.x + free.w) - (rect.x + rect.w), h: free.h });
             if (rect.y > free.y) newFree.push({ x: free.x, y: free.y, w: free.w, h: rect.y - free.y });
@@ -149,15 +210,23 @@ export class MaxRectsBin {
     }
     occupancy() {
         let area = 0;
-        for (const r of this.usedRects) area += r.realW * r.realH;
+        for (const r of this.usedRects) {
+            // Use actual contour area if available (irregular pieces)
+            if (r.contourArea && r.contourArea > 0) {
+                area += r.contourArea;
+            } else {
+                area += r.realW * r.realH;
+            }
+        }
         return area / (this.binW * this.binH) * 100;
     }
 }
 
 // ─── SkylineBin (Bottom-Left com Waste Map) ──────────────────────
 export class SkylineBin {
-    constructor(width, height, spacing) {
+    constructor(width, height, spacing, splitDir = 'auto') {
         this.binW = width; this.binH = height; this.spacing = spacing;
+        this.splitDir = splitDir;
         this.skyline = [{ x: 0, y: 0, w: width }];
         this.usedRects = [];
         this.wasteRects = [];
@@ -205,8 +274,19 @@ export class SkylineBin {
                 }
             }
         };
-        tryOrientation(pw, ph, false);
-        if (allowRotate) tryOrientation(ph, pw, true);
+        // Directional preference: try preferred orientation first so it wins on ties
+        if (this.splitDir === 'vertical' && allowRotate && pw > ph) {
+            // vertical → prefer taller pieces, try rotated (h>w) first
+            tryOrientation(ph, pw, true);
+            tryOrientation(pw, ph, false);
+        } else if (this.splitDir === 'horizontal' && allowRotate && ph > pw) {
+            // horizontal → prefer wider pieces, try rotated (w>h) first
+            tryOrientation(ph, pw, true);
+            tryOrientation(pw, ph, false);
+        } else {
+            tryOrientation(pw, ph, false);
+            if (allowRotate) tryOrientation(ph, pw, true);
+        }
         if (bestIdx < 0) return null;
         const rw = bestRot ? ph : pw, rh = bestRot ? pw : ph;
         return { x: bestX, y: bestY - rh - sp, w: rw + sp, h: rh + sp, realW: rw, realH: rh, rotated: bestRot, skyIdx: bestIdx, score: bestY };
@@ -564,8 +644,8 @@ export function repairOverlaps(bins, binW, binH, spacing, binType, kerf, splitDi
             switch (binType) {
                 case 'shelf': return new ShelfBin(binW, binH, effSp);
                 case 'guillotine': return new GuillotineBin(binW, binH, effSp, splitDir);
-                case 'skyline': return new SkylineBin(binW, binH, effSp);
-                default: return new MaxRectsBin(binW, binH, effSp);
+                case 'skyline': return new SkylineBin(binW, binH, effSp, splitDir);
+                default: return new MaxRectsBin(binW, binH, effSp, splitDir);
             }
         };
         const newBin = createBin();
@@ -610,10 +690,11 @@ export function repairOverlaps(bins, binW, binH, spacing, binType, kerf, splitDi
 }
 
 // ─── Compactação por gravidade (Enhanced: 10 passes + X→Y + rotation swap) ─
-export function compactBin(bin, binW, binH, kerf) {
+export function compactBin(bin, binW, binH, kerf, spacing, splitDir) {
     if (!bin.usedRects || bin.usedRects.length <= 1) return;
     const pieces = bin.usedRects;
-    const k = kerf || 0;
+    // Usar o MAIOR entre kerf e spacing para manter espaçamento configurado
+    const k = Math.max(kerf || 0, spacing || 0);
 
     function collides(p, idx) {
         const pw = p.realW || p.w, ph = p.realH || p.h;
@@ -680,13 +761,17 @@ export function compactBin(bin, binW, binH, kerf) {
         return moved;
     }
 
-    // Phase 1: Y→X compaction (6 passes)
+    // Direction-aware compaction: compact along the direction axis FIRST to preserve directional structure
+    const primaryAxis = splitDir === 'vertical' ? 'x' : 'y';   // vertical→fill columns (compact X first), horizontal/auto→fill rows (compact Y first)
+    const secondaryAxis = primaryAxis === 'y' ? 'x' : 'y';
+
+    // Phase 1: Primary axis compaction (6 passes)
     for (let pass = 0; pass < 6; pass++) {
-        if (!tryCompactAxis('y', 'x')) break;
+        if (!tryCompactAxis(primaryAxis, secondaryAxis)) break;
     }
-    // Phase 2: X→Y compaction (4 passes) — catches gaps missed by Y→X
+    // Phase 2: Secondary axis compaction (4 passes) — catches gaps
     for (let pass = 0; pass < 4; pass++) {
-        if (!tryCompactAxis('x', 'y')) break;
+        if (!tryCompactAxis(secondaryAxis, primaryAxis)) break;
     }
 
     // Phase 3: Rotation swap — try rotating each piece to see if it packs tighter
@@ -718,8 +803,8 @@ export function runNestingPass(pieces, binW, binH, spacing, heuristic = 'BSSF', 
         switch (binType) {
             case 'shelf': return new ShelfBin(binW, binH, effectiveSpacing);
             case 'guillotine': return new GuillotineBin(binW, binH, effectiveSpacing, splitDir);
-            case 'skyline': return new SkylineBin(binW, binH, effectiveSpacing);
-            default: return new MaxRectsBin(binW, binH, effectiveSpacing);
+            case 'skyline': return new SkylineBin(binW, binH, effectiveSpacing, splitDir);
+            default: return new MaxRectsBin(binW, binH, effectiveSpacing, splitDir);
         }
     };
 
@@ -755,7 +840,7 @@ export function runNestingPass(pieces, binW, binH, spacing, heuristic = 'BSSF', 
         }
     }
     for (const bin of bins) {
-        compactBin(bin, binW, binH, kerf);
+        compactBin(bin, binW, binH, kerf, spacing, splitDir);
     }
     return bins;
 }
@@ -769,8 +854,8 @@ export function runFillFirst(pieces, binW, binH, spacing, heuristic = 'BSSF', bi
         switch (binType) {
             case 'shelf': return new ShelfBin(binW, binH, effectiveSpacing);
             case 'guillotine': return new GuillotineBin(binW, binH, effectiveSpacing, splitDir);
-            case 'skyline': return new SkylineBin(binW, binH, effectiveSpacing);
-            default: return new MaxRectsBin(binW, binH, effectiveSpacing);
+            case 'skyline': return new SkylineBin(binW, binH, effectiveSpacing, splitDir);
+            default: return new MaxRectsBin(binW, binH, effectiveSpacing, splitDir);
         }
     };
 
@@ -837,13 +922,13 @@ export function runFillFirst(pieces, binW, binH, spacing, heuristic = 'BSSF', bi
     }
 
     for (const bin of bins) {
-        compactBin(bin, binW, binH, kerf);
+        compactBin(bin, binW, binH, kerf, spacing, splitDir);
     }
     return bins;
 }
 
 // ─── Strip Packing ──────────────────────────────────────────────
-export function runStripPacking(pieces, binW, binH, kerf) {
+export function runStripPacking(pieces, binW, binH, kerf, spacing, splitDir) {
     if (pieces.length === 0) return [];
     const sorted = [...pieces].sort((a, b) => b.h - a.h);
     const k = kerf || 4;
@@ -955,7 +1040,7 @@ export function runStripPacking(pieces, binW, binH, kerf) {
             if (newBin.tryAdd(p)) bins.push(newBin);
         }
     }
-    for (const bin of bins) compactBin(bin, binW, binH, kerf);
+    for (const bin of bins) compactBin(bin, binW, binH, kerf, spacing, splitDir);
     return bins;
 }
 
@@ -1093,7 +1178,7 @@ export function ruinAndRecreate(pieces, binW, binH, spacing, binType, kerf, maxI
         }
     }
 
-    const stripBins = runStripPacking(pieces, binW, binH, kerf);
+    const stripBins = runStripPacking(pieces, binW, binH, kerf, spacing, splitDir);
     const stripSc = scoreResult(stripBins);
     if (stripSc.score < bestScore.score) { bestScore = stripSc; bestBins = stripBins; }
 
@@ -1251,8 +1336,8 @@ function rebuildBin(pieces, binW, binH, binType, kerf, splitDir, spacing) {
         switch (binType) {
             case 'shelf': return new ShelfBin(binW, binH, effSp);
             case 'guillotine': return new GuillotineBin(binW, binH, effSp, splitDir);
-            case 'skyline': return new SkylineBin(binW, binH, effSp);
-            default: return new MaxRectsBin(binW, binH, effSp);
+            case 'skyline': return new SkylineBin(binW, binH, effSp, splitDir);
+            default: return new MaxRectsBin(binW, binH, effSp, splitDir);
         }
     };
     const bin = createBin();
@@ -1344,7 +1429,7 @@ export function optimizeLastBin(bins, binW, binH, spacing, binType = 'guillotine
 
         if (stillFailed.length === 0) {
             // ALL weak pieces redistributed → eliminate the bin!
-            for (const bin of rebuiltBins) compactBin(bin, binW, binH, kerf);
+            for (const bin of rebuiltBins) compactBin(bin, binW, binH, kerf, spacing, splitDir);
             const sc = scoreResult(rebuiltBins);
             if (sc.score < bestResultScore) {
                 bestResult = rebuiltBins;
@@ -1354,7 +1439,7 @@ export function optimizeLastBin(bins, binW, binH, spacing, binType = 'guillotine
             // Some redistributed — rebuild weak bin with remaining
             const { bin: newWeak } = rebuildBin(stillFailed.sort((a, b) => b.area - a.area), binW, binH, binType, kerf, splitDir, spacing);
             const combined = [...rebuiltBins, newWeak];
-            for (const bin of combined) compactBin(bin, binW, binH, kerf);
+            for (const bin of combined) compactBin(bin, binW, binH, kerf, spacing, splitDir);
             const sc = scoreResult(combined);
             if (sc.score < bestResultScore) {
                 bestResult = combined;
@@ -1386,7 +1471,7 @@ export function optimizeLastBin(bins, binW, binH, spacing, binType = 'guillotine
                 // Try fill-first multi-heuristic
                 const ffBins = runFillFirst(sorted, binW, binH, 0, 'BSSF', binType, kerf, splitDir, true);
                 if (ffBins.length <= targetBinCount && verifyNoOverlaps(ffBins)) {
-                    for (const bin of ffBins) compactBin(bin, binW, binH, kerf);
+                    for (const bin of ffBins) compactBin(bin, binW, binH, kerf, spacing, splitDir);
                     const sc = scoreResult(ffBins);
                     if (sc.score < bestResultScore) {
                         bestResult = ffBins;
@@ -1397,7 +1482,7 @@ export function optimizeLastBin(bins, binW, binH, spacing, binType = 'guillotine
                 for (const h of ALL_HEURISTICS) {
                     const npBins = runNestingPass(sorted, binW, binH, 0, h, binType, kerf, splitDir);
                     if (npBins.length <= targetBinCount && verifyNoOverlaps(npBins)) {
-                        for (const bin of npBins) compactBin(bin, binW, binH, kerf);
+                        for (const bin of npBins) compactBin(bin, binW, binH, kerf, spacing, splitDir);
                         const sc = scoreResult(npBins);
                         if (sc.score < bestResultScore) {
                             bestResult = npBins;

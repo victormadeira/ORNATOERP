@@ -36,6 +36,21 @@ export function AuthProvider({ children }) {
         setUser(null);
     };
 
+    useEffect(() => {
+        const checkExpiry = () => {
+            const token = localStorage.getItem('erp_token');
+            if (!token) return;
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                if (payload.exp && (payload.exp * 1000) - Date.now() < 300000) {
+                    logout();
+                }
+            } catch {}
+        };
+        const interval = setInterval(checkExpiry, 60000);
+        return () => clearInterval(interval);
+    }, []);
+
     const isAdmin = user?.role === 'admin';
     const isGerente = user?.role === 'gerente' || isAdmin;
     const canEdit = isGerente;

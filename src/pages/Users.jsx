@@ -264,7 +264,7 @@ function UserRow({ u, isMe, onRoleChange, onToggleAtivo, onDelete, onOpenPerms }
                         </div>
                     ) : (
                         <button onClick={() => setConfirmDel(true)}
-                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md cursor-pointer transition-all"
+                            className="md:opacity-0 md:group-hover:opacity-100 p-1.5 rounded-md cursor-pointer transition-all"
                             style={{ color: 'rgba(239,68,68,0.5)' }}
                             title="Remover usuário">
                             <Trash2 size={13} />

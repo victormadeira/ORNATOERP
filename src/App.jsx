@@ -3,9 +3,11 @@ import { useAuth } from './auth';
 import api from './api';
 import { Ic, Z, Skeleton } from './ui';
 import { applyPrimaryColor } from './theme';
-import { AlertTriangle, Clock, CheckCircle2, Folder, BarChart2, AlertCircle, DollarSign, Calendar, Bell, MessageCircle, Camera, Gift, FileText, ClipboardList, Eye, Search, RefreshCw, Share2, Printer, ChevronDown, LayoutDashboard, Users as UsersIcon, FileSpreadsheet, Wallet, FolderKanban, Settings } from 'lucide-react';
+import { AlertTriangle, Clock, CheckCircle2, Folder, BarChart2, AlertCircle, DollarSign, Calendar, Bell, MessageCircle, Camera, Gift, FileText, ClipboardList, Eye, Search, RefreshCw, Share2, Printer, LayoutDashboard, FileSpreadsheet, Wallet, FolderKanban, Settings } from 'lucide-react';
 import LoginPage from './pages/Login';
 import Dash from './pages/Dash';
+import Sidebar from './components/layout/Sidebar';
+import Topbar from './components/layout/Topbar';
 
 // ── Code splitting: lazy load de paginas pesadas ──────────────────────────
 const Cli = lazy(() => import('./pages/Cli'));
@@ -123,6 +125,8 @@ export default function App() {
     const [sidebarHover, setSidebarHover] = useState(false);
     const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
     const [notif, setNotif] = useState(null);
+    const [notifExiting, setNotifExiting] = useState(false);
+    const notifTimer = useRef(null);
     const [clis, setClis] = useState([]);
     const [orcs, setOrcs] = useState([]);
     const [taxas, setTaxas] = useState({ imp: 8, com: 10, mont: 12, lucro: 20, frete: 2, mdo: 350, inst: 180 });
@@ -238,7 +242,15 @@ export default function App() {
         localStorage.setItem('theme', dark ? 'dark' : 'light');
     }, [dark]);
 
-    const notify = (m) => { setNotif(m); setTimeout(() => setNotif(null), 3500); };
+    const notify = useCallback((m) => {
+        if (notifTimer.current) clearTimeout(notifTimer.current);
+        setNotifExiting(false);
+        setNotif(m);
+        notifTimer.current = setTimeout(() => {
+            setNotifExiting(true);
+            setTimeout(() => { setNotif(null); setNotifExiting(false); }, 300);
+        }, 2700);
+    }, []);
 
     const loadClis = useCallback(() => { if (user) api.get('/clientes').then(setClis).catch(err => console.warn('loadClis:', err)); }, [user]);
     const loadOrcs = useCallback(() => { if (user) api.get('/orcamentos').then(setOrcs).catch(err => console.warn('loadOrcs:', err)); }, [user]);
@@ -551,487 +563,30 @@ export default function App() {
 
     return (
         <div className="flex h-screen w-full overflow-hidden" style={{ background: 'var(--bg-body)', color: 'var(--text-primary)' }}>
-            {/* Backdrop mobile */}
-            {isMobile && mobileOpen && (
-                <div className="fixed inset-0 z-30 transition-opacity modal-overlay" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setMobileOpen(false)} />
-            )}
-
-            {/* ═══ Sidebar ═══ */}
-            {!isMobile && (
-                <aside
-                    onMouseEnter={() => { if (!sb) setSidebarHover(true); }}
-                    onMouseLeave={() => setSidebarHover(false)}
-                    className="relative z-20 shrink-0 flex flex-col"
-                    style={{
-                        background: 'var(--bg-sidebar)',
-                        borderRight: '1px solid var(--border)',
-                        width: sidebarExpanded ? 'var(--sidebar-width)' : 'var(--sidebar-compact)',
-                        transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                        overflow: 'hidden',
-                    }}>
-
-                    {/* Logo */}
-                    <div className="flex items-center gap-2.5 px-3 min-h-[56px]" style={{ borderBottom: '1px solid var(--border)' }}>
-                        <button onClick={() => setSb(!sb)} className="p-1.5 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
-                            <Ic.Menu />
-                        </button>
-                        {sidebarExpanded && (
-                            <div className="flex items-center overflow-hidden min-w-0 animate-fade-in" style={{ whiteSpace: 'nowrap' }}>
-                                {logoSistema
-                                    ? <img src={logoSistema} alt="Logo" style={{ height: 28, maxWidth: 140, objectFit: 'contain' }} />
-                                    : <span className="font-bold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{empNome}</span>
-                                }
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Nav Items */}
-                    <nav className="flex-1 overflow-y-auto py-2 px-2" style={{ scrollbarWidth: 'thin' }}>
-                        {MENU_GROUPS.map(g => {
-                            const visibleItems = g.items.filter(m => canSee(m.id));
-                            if (visibleItems.length === 0) return null;
-                            const isTop = g.id === 'top';
-                            const isOpen = !collapsed[g.id];
-
-                            const vencidasReceberCount = notifs.notificacoes.filter(n => !n.lida && n.tipo === 'financeiro_vencido').length;
-                            const vencidasPagarCount = notifs.notificacoes.filter(n => !n.lida && n.tipo === 'pagar_vencido').length;
-                            const getBadge = (id) => {
-                                if (id === 'whatsapp' && waUnread > 0) return { num: waUnread, bg: '#22c55e' };
-                                if (id === 'financeiro' && vencidasPagarCount > 0) return { num: vencidasPagarCount, bg: '#ef4444' };
-                                if (id === 'proj' && vencidasReceberCount > 0) return { num: vencidasReceberCount, bg: '#ef4444' };
-                                return null;
-                            };
-
-                            return (
-                                <div key={g.id} style={{ marginBottom: isTop ? 4 : 0 }}>
-                                    {/* Group label */}
-                                    {!isTop && sidebarExpanded && (
-                                        <button onClick={() => toggleGroup(g.id)} style={{
-                                            display: 'flex', alignItems: 'center', gap: 6, width: '100%',
-                                            padding: '8px 10px 4px', background: 'none', border: 'none', cursor: 'pointer',
-                                        }}>
-                                            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>
-                                                {g.label}
-                                            </span>
-                                            <ChevronDown size={12} style={{
-                                                color: 'var(--text-muted)', transition: 'transform .2s',
-                                                transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-                                            }} />
-                                        </button>
-                                    )}
-                                    {!isTop && !sidebarExpanded && (
-                                        <div style={{ height: 1, background: 'var(--border)', margin: '6px 8px' }} />
-                                    )}
-
-                                    {/* Items */}
-                                    <div style={{
-                                        overflow: 'hidden', transition: 'max-height .25s ease',
-                                        maxHeight: (isTop || isOpen || !sidebarExpanded) ? 500 : 0,
-                                    }}>
-                                        <div className="space-y-0.5" style={{ paddingTop: isTop ? 0 : 2 }}>
-                                            {visibleItems.map(m => {
-                                                const active = pg === m.id;
-                                                const I = m.ic;
-                                                const badge = !active ? getBadge(m.id) : null;
-                                                return (
-                                                    <button key={m.id} onClick={() => nav(m.id)}
-                                                        className={`sidebar-item w-full flex items-center gap-2.5 px-2.5 py-2 cursor-pointer group
-                                                            ${active ? 'sidebar-item-active font-semibold' : ''}`}
-                                                        style={!active ? { color: 'var(--text-secondary)' } : undefined}>
-                                                        <span className="shrink-0 relative" style={{ width: 18, display: 'flex', justifyContent: 'center' }}>
-                                                            <I />
-                                                            {badge && !sidebarExpanded && (
-                                                                <span style={{
-                                                                    position: 'absolute', top: -3, right: -4,
-                                                                    width: 8, height: 8, borderRadius: '50%',
-                                                                    background: badge.bg, border: '2px solid var(--bg-sidebar)',
-                                                                }} />
-                                                            )}
-                                                        </span>
-                                                        {sidebarExpanded && (
-                                                            <span className="text-[13px] flex-1 text-left whitespace-nowrap">{m.lb}</span>
-                                                        )}
-                                                        {sidebarExpanded && badge && (
-                                                            <span className="badge-pulse" style={{
-                                                                fontSize: 10, fontWeight: 700, background: badge.bg, color: '#fff',
-                                                                padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center',
-                                                            }}>{badge.num}</span>
-                                                        )}
-                                                        {/* Tooltip when compact */}
-                                                        {!sidebarExpanded && (
-                                                            <span className="sidebar-tooltip">{m.lb}</span>
-                                                        )}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </nav>
-
-                    {/* Footer */}
-                    <div className="px-2 py-2 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
-                        <button onClick={() => setDark(!dark)} className="sidebar-item w-full flex items-center gap-2.5 px-2.5 py-2 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
-                            {dark ? <Ic.Sun /> : <Ic.Moon />}
-                            {sidebarExpanded && <span className="text-xs whitespace-nowrap">{dark ? 'Modo Claro' : 'Modo Escuro'}</span>}
-                            {!sidebarExpanded && <span className="sidebar-tooltip">{dark ? 'Modo Claro' : 'Modo Escuro'}</span>}
-                        </button>
-
-                        {sidebarExpanded ? (
-                            <div className="flex items-center gap-2.5 px-2.5 py-2">
-                                <div onClick={() => setShowPerfil(true)} className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer rounded-lg px-1 py-0.5 transition-colors hover:bg-[var(--bg-hover)]">
-                                    <div className="relative shrink-0">
-                                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--primary-gradient)' }}>
-                                            {user.nome?.[0]?.toUpperCase()}
-                                        </div>
-                                        <span className="status-online" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{user.nome}</div>
-                                        <div className="text-[10px] capitalize" style={{ color: 'var(--text-muted)' }}>{user.role}</div>
-                                    </div>
-                                </div>
-                                <button onClick={logout} className="p-1 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }} title="Sair">
-                                    <Ic.Logout />
-                                </button>
-                            </div>
-                        ) : (
-                            <button onClick={logout} className="sidebar-item w-full flex justify-center p-2 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
-                                <Ic.Logout />
-                                <span className="sidebar-tooltip">Sair</span>
-                            </button>
-                        )}
-                    </div>
-                </aside>
-            )}
-
-            {/* ═══ Mobile Sidebar (overlay) ═══ */}
-            {isMobile && mobileOpen && (
-                <aside className="fixed inset-y-0 left-0 z-40 w-64 flex flex-col animate-slide-left" style={{ background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)' }}>
-                    <div className="flex items-center gap-2.5 px-3 min-h-[56px]" style={{ borderBottom: '1px solid var(--border)' }}>
-                        <button onClick={() => setMobileOpen(false)} className="p-1.5 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
-                            <Ic.X />
-                        </button>
-                        <div className="flex items-center overflow-hidden min-w-0">
-                            {logoSistema
-                                ? <img src={logoSistema} alt="Logo" style={{ height: 28, maxWidth: 140, objectFit: 'contain' }} />
-                                : <span className="font-bold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{empNome}</span>
-                            }
-                        </div>
-                    </div>
-                    <nav className="flex-1 overflow-y-auto py-2 px-2">
-                        {MENU_GROUPS.map(g => {
-                            const visibleItems = g.items.filter(m => canSee(m.id));
-                            if (visibleItems.length === 0) return null;
-                            const isTop = g.id === 'top';
-                            const isOpen = !collapsed[g.id];
-                            const vencidasPagarCount = notifs.notificacoes.filter(n => !n.lida && n.tipo === 'pagar_vencido').length;
-                            const getBadge = (id) => {
-                                if (id === 'whatsapp' && waUnread > 0) return { num: waUnread, bg: '#22c55e' };
-                                if (id === 'financeiro' && vencidasPagarCount > 0) return { num: vencidasPagarCount, bg: '#ef4444' };
-                                return null;
-                            };
-                            return (
-                                <div key={g.id} style={{ marginBottom: isTop ? 4 : 0 }}>
-                                    {!isTop && (
-                                        <button onClick={() => toggleGroup(g.id)} style={{
-                                            display: 'flex', alignItems: 'center', gap: 6, width: '100%',
-                                            padding: '8px 10px 4px', background: 'none', border: 'none', cursor: 'pointer',
-                                        }}>
-                                            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>{g.label}</span>
-                                            <ChevronDown size={12} style={{ color: 'var(--text-muted)', transition: 'transform .2s', transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
-                                        </button>
-                                    )}
-                                    <div style={{ overflow: 'hidden', transition: 'max-height .25s ease', maxHeight: (isTop || isOpen) ? 500 : 0 }}>
-                                        <div className="space-y-0.5" style={{ paddingTop: isTop ? 0 : 2 }}>
-                                            {visibleItems.map(m => {
-                                                const active = pg === m.id;
-                                                const I = m.ic;
-                                                const badge = !active ? getBadge(m.id) : null;
-                                                return (
-                                                    <button key={m.id} onClick={() => nav(m.id)}
-                                                        className={`sidebar-item w-full flex items-center gap-2.5 px-2.5 py-2.5 cursor-pointer ${active ? 'sidebar-item-active font-semibold' : ''}`}
-                                                        style={!active ? { color: 'var(--text-secondary)' } : undefined}>
-                                                        <span className="shrink-0"><I /></span>
-                                                        <span className="text-[13px] flex-1 text-left whitespace-nowrap">{m.lb}</span>
-                                                        {badge && (
-                                                            <span className="badge-pulse" style={{ fontSize: 10, fontWeight: 700, background: badge.bg, color: '#fff', padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center' }}>{badge.num}</span>
-                                                        )}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </nav>
-                    <div className="px-2 py-2" style={{ borderTop: '1px solid var(--border)' }}>
-                        <button onClick={() => setDark(!dark)} className="sidebar-item w-full flex items-center gap-2.5 px-2.5 py-2 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
-                            {dark ? <Ic.Sun /> : <Ic.Moon />}
-                            <span className="text-xs">{dark ? 'Modo Claro' : 'Modo Escuro'}</span>
-                        </button>
-                        <div className="flex items-center gap-2.5 px-2.5 py-2 mt-1">
-                            <div className="relative shrink-0">
-                                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--primary-gradient)' }}>
-                                    {user.nome?.[0]?.toUpperCase()}
-                                </div>
-                                <span className="status-online" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{user.nome}</div>
-                            </div>
-                            <button onClick={logout} className="p-1 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
-                                <Ic.Logout />
-                            </button>
-                        </div>
-                    </div>
-                </aside>
-            )}
+            <Sidebar
+                sb={sb} setSb={setSb} sidebarHover={sidebarHover} setSidebarHover={setSidebarHover}
+                sidebarExpanded={sidebarExpanded} dark={dark} setDark={setDark}
+                pg={pg} nav={nav} MENU_GROUPS={MENU_GROUPS} canSee={canSee}
+                collapsed={collapsed} toggleGroup={toggleGroup}
+                user={user} logout={logout} logoSistema={logoSistema} empNome={empNome}
+                setShowPerfil={setShowPerfil} notifs={notifs} waUnread={waUnread}
+                isMobile={isMobile} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen}
+            />
 
             {/* ═══ Main ═══ */}
             <main className="flex-1 relative overflow-y-auto overflow-x-hidden">
-                {/* Top bar */}
-                <div className="sticky top-0 z-10 flex items-center justify-between px-3 md:px-6 h-[56px] no-print"
-                    style={{
-                        background: 'var(--glass-bg)',
-                        backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
-                        borderBottom: '1px solid var(--border)',
-                    }}>
-                    <div className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text-muted)' }}>
-                        {isMobile && (
-                            <button onClick={() => setMobileOpen(true)} className="p-1.5 mr-1 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
-                                <Ic.Menu />
-                            </button>
-                        )}
-                        <span className="hidden md:inline"><Ic.Home /></span>
-                        <span className="hidden md:inline" style={{ opacity: 0.4 }}>/</span>
-                        <span style={{ color: 'var(--text-primary)' }} className="font-medium truncate">{[...ALL_MENUS, { id: "novo", lb: "Novo Orcamento" }, { id: "users", lb: "Usuarios" }].find(m => m.id === pg)?.lb || 'Home'}</span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    {/* Busca Global */}
-                    <div ref={buscaRef} style={{ position: 'relative' }} className="hidden md:block">
-                        <div style={{ position: 'relative' }}>
-                            <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-                            <input
-                                type="text"
-                                value={buscaQuery}
-                                onChange={e => setBuscaQuery(e.target.value)}
-                                onFocus={() => buscaResults && setBuscaOpen(true)}
-                                placeholder="Buscar... (Ctrl+K navegar)"
-                                style={{
-                                    width: 260, padding: '7px 12px 7px 32px', borderRadius: 10,
-                                    border: '1px solid var(--border)', background: 'var(--bg-muted)',
-                                    fontSize: 12, color: 'var(--text-primary)', outline: 'none',
-                                    transition: 'all 0.2s',
-                                }}
-                                onFocusCapture={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-ring)'; }}
-                                onBlurCapture={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }}
-                            />
-                        </div>
-                        {buscaOpen && buscaResults && (
-                            <div className="animate-scale-in" style={{
-                                position: 'absolute', top: '100%', right: 0, marginTop: 4,
-                                width: 380, maxHeight: 420, overflowY: 'auto',
-                                background: 'var(--bg-card)', border: '1px solid var(--border)',
-                                borderRadius: 14, boxShadow: 'var(--shadow-xl)', zIndex: 50, padding: 8,
-                            }}>
-                                {buscaResults.clientes.length === 0 && buscaResults.orcamentos.length === 0 && buscaResults.projetos.length === 0 && (
-                                    <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhum resultado</div>
-                                )}
-                                {buscaResults.clientes.length > 0 && (
-                                    <>
-                                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em' }}>Clientes</div>
-                                        {buscaResults.clientes.map(c => (
-                                            <button key={`c${c.id}`} onClick={() => { nav('cli'); setBuscaOpen(false); setBuscaQuery(''); }}
-                                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s' }}
-                                                className="hover:bg-[var(--bg-hover)]">
-                                                <Ic.Usr style={{ flexShrink: 0, color: 'var(--text-muted)' }} size={14} />
-                                                <div style={{ minWidth: 0 }}>
-                                                    <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</div>
-                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.tel || c.email || c.cidade || ''}</div>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </>
-                                )}
-                                {buscaResults.orcamentos.length > 0 && (
-                                    <>
-                                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em', marginTop: 4 }}>Orcamentos</div>
-                                        {buscaResults.orcamentos.map(o => (
-                                            <button key={`o${o.id}`} onClick={() => { nav('orcs'); setBuscaOpen(false); setBuscaQuery(''); }}
-                                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s' }}
-                                                className="hover:bg-[var(--bg-hover)]">
-                                                <Ic.File style={{ flexShrink: 0, color: 'var(--text-muted)' }} size={14} />
-                                                <div style={{ minWidth: 0 }}>
-                                                    <div style={{ fontWeight: 600 }}>#{o.numero} — {o.cliente_nome}</div>
-                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{o.ambiente || ''}</div>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </>
-                                )}
-                                {buscaResults.projetos.length > 0 && (
-                                    <>
-                                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em', marginTop: 4 }}>Projetos</div>
-                                        {buscaResults.projetos.map(p => (
-                                            <button key={`p${p.id}`} onClick={() => { nav('proj'); setBuscaOpen(false); setBuscaQuery(''); }}
-                                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s' }}
-                                                className="hover:bg-[var(--bg-hover)]">
-                                                <Ic.Briefcase style={{ flexShrink: 0, color: 'var(--text-muted)' }} size={14} />
-                                                <div style={{ minWidth: 0 }}>
-                                                    <div style={{ fontWeight: 600 }}>{p.nome}</div>
-                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.cliente_nome || ''}</div>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                    {/* WhatsApp Badge */}
-                    {waUnread > 0 && (
-                        <button
-                            onClick={() => nav('whatsapp')}
-                            style={{
-                                position: 'relative', background: 'none', border: 'none', cursor: 'pointer',
-                                padding: 8, borderRadius: 10, transition: 'background 0.15s', color: '#22c55e',
-                            }}
-                            className="hover:bg-[var(--bg-hover)]"
-                            title={`${waUnread} mensagem(ns) nao lida(s)`}
-                        >
-                            <Ic.WhatsApp />
-                            <span className="badge-pulse" style={{
-                                position: 'absolute', top: 4, right: 4,
-                                width: 16, height: 16, borderRadius: '50%',
-                                background: '#22c55e', color: '#fff',
-                                fontSize: 9, fontWeight: 800,
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                border: '2px solid var(--bg-body)',
-                            }}>{waUnread}</span>
-                        </button>
-                    )}
-                    {/* Notificacoes */}
-                    <div ref={notifsRef} style={{ position: 'relative' }}>
-                        <button
-                            onClick={() => setShowNotifs(!showNotifs)}
-                            style={{
-                                position: 'relative', background: 'none', border: 'none', cursor: 'pointer',
-                                padding: 8, borderRadius: 10, transition: 'background 0.15s',
-                                color: notifBadgeColor || 'var(--text-muted)',
-                            }}
-                            className="hover:bg-[var(--bg-hover)]"
-                            title={notifs.nao_lidas > 0 ? `${notifs.nao_lidas} notificacao(oes) nao lida(s)` : 'Notificacoes'}
-                        >
-                            <Ic.Bell />
-                            {notifs.nao_lidas > 0 && (
-                                <span className="badge-pulse" style={{
-                                    position: 'absolute', top: 4, right: 4,
-                                    width: 16, height: 16, borderRadius: '50%',
-                                    background: notifBadgeColor, color: '#fff',
-                                    fontSize: 9, fontWeight: 800,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    border: '2px solid var(--bg-body)',
-                                }}>{notifs.nao_lidas > 9 ? '9+' : notifs.nao_lidas}</span>
-                            )}
-                        </button>
-
-                        {/* Dropdown de Notificacoes */}
-                        {showNotifs && (
-                            <div className="animate-scale-in" style={{
-                                position: 'absolute', right: 0, top: '110%', zIndex: 50,
-                                background: 'var(--bg-card)', border: '1px solid var(--border)',
-                                borderRadius: 14, boxShadow: 'var(--shadow-xl)',
-                                minWidth: Math.min(370, window.innerWidth - 24), maxWidth: 'calc(100vw - 16px)', maxHeight: 440, overflow: 'hidden',
-                            }}>
-                                <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>Notificacoes</span>
-                                        {notifs.nao_lidas > 0 && (
-                                            <span className="badge-pulse" style={{ fontSize: 11, fontWeight: 700, background: notifBadgeColor, color: '#fff', padding: '2px 8px', borderRadius: 10 }}>
-                                                {notifs.nao_lidas} nova{notifs.nao_lidas > 1 ? 's' : ''}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {notifs.nao_lidas > 0 && (
-                                        <button onClick={markAllRead}
-                                            style={{ fontSize: 11, fontWeight: 600, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                                            Marcar todas como lidas
-                                        </button>
-                                    )}
-                                </div>
-
-                                <div style={{ maxHeight: 340, overflowY: 'auto', padding: 6 }}>
-                                    {notifs.notificacoes.length === 0 ? (
-                                        <div style={{ padding: '24px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                                            Nenhuma notificacao
-                                        </div>
-                                    ) : notifs.notificacoes.map(n => {
-                                        const st = getNotifStyle(n.tipo);
-                                        const isRead = !!n.lida;
-                                        return (
-                                            <div key={n.id}
-                                                onClick={() => goToNotif(n)}
-                                                style={{
-                                                    padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
-                                                    marginBottom: 3, transition: 'background 0.15s',
-                                                    display: 'flex', gap: 10, alignItems: 'flex-start',
-                                                    opacity: isRead ? 0.55 : 1,
-                                                    borderLeft: `3px solid ${st.color}`,
-                                                    background: isRead ? 'transparent' : `${st.bg}40`,
-                                                }}
-                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                                                onMouseLeave={e => e.currentTarget.style.background = isRead ? 'transparent' : `${st.bg}40`}
-                                            >
-                                                <div style={{
-                                                    width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    background: st.bg, color: st.color,
-                                                }}>{st.icon}</div>
-                                                <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <div style={{ fontWeight: isRead ? 500 : 700, fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.3 }}>
-                                                        {n.titulo}
-                                                    </div>
-                                                    {n.mensagem && (
-                                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.3 }}>
-                                                            {n.mensagem}
-                                                        </div>
-                                                    )}
-                                                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
-                                                        {n.criado_em ? (() => {
-                                                            const diff = Date.now() - new Date(n.criado_em + 'Z').getTime();
-                                                            const min = Math.floor(diff / 60000);
-                                                            if (min < 1) return 'Agora';
-                                                            if (min < 60) return `Ha ${min}min`;
-                                                            const hrs = Math.floor(min / 60);
-                                                            if (hrs < 24) return `Ha ${hrs}h`;
-                                                            const dias = Math.floor(hrs / 24);
-                                                            if (dias === 1) return 'Ontem';
-                                                            return `Ha ${dias}d`;
-                                                        })() : ''}
-                                                    </div>
-                                                </div>
-                                                {!isRead && (
-                                                    <div className="status-dot-active" style={{ width: 8, height: 8, borderRadius: '50%', background: st.color, flexShrink: 0, marginTop: 6 }} />
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    </div>
-                </div>
+                <Topbar
+                    isMobile={isMobile} setMobileOpen={setMobileOpen} pg={pg} ALL_MENUS={ALL_MENUS} nav={nav}
+                    buscaRef={buscaRef} buscaQuery={buscaQuery} setBuscaQuery={setBuscaQuery}
+                    buscaResults={buscaResults} buscaOpen={buscaOpen} setBuscaOpen={setBuscaOpen}
+                    waUnread={waUnread} notifsRef={notifsRef} showNotifs={showNotifs} setShowNotifs={setShowNotifs}
+                    notifs={notifs} notifBadgeColor={notifBadgeColor} markAllRead={markAllRead}
+                    goToNotif={goToNotif} getNotifStyle={getNotifStyle}
+                />
 
                 {/* Toast */}
                 {notif && (
-                    <div className="fixed top-4 right-4 z-50 toast-enter">
+                    <div className={`fixed top-4 right-4 z-50 ${notifExiting ? 'toast-exit' : 'toast-enter'}`}>
                         <div className="glass-card px-4 py-2.5 flex items-center gap-2 text-sm font-medium" style={{
                             borderColor: 'var(--primary)', color: 'var(--primary)',
                             boxShadow: 'var(--shadow-lg), 0 0 20px rgba(19, 121, 240, 0.1)',

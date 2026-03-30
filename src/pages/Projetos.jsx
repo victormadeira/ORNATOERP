@@ -67,6 +67,7 @@ const GANTT_ERP_STYLES = `
 // ─── Gantt Chart Premium (ERP) ────────────────────────────
 function GanttChart({ etapas, onEdit, zoom = 1 }) {
     const [hoveredIdx, setHoveredIdx] = useState(null);
+    const isMobile = window.innerWidth < 768;
 
     if (!etapas || etapas.length === 0) return (
         <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
@@ -155,13 +156,14 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
             <style>{GANTT_ERP_STYLES}</style>
 
             {/* ── Split Layout: Sidebar + Timeline ── */}
-            <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--bg-card)', minWidth: isMobile ? 600 : 'auto' }}>
 
                 {/* Sidebar */}
-                <div style={{ width: 200, flexShrink: 0, borderRight: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
+                <div style={{ width: isMobile ? 120 : 200, flexShrink: 0, borderRight: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
                     {/* Sidebar header */}
                     <div style={{ height: 42, display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid var(--border)' }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>Etapas</span>
+                        <span style={{ fontSize: isMobile ? 9 : 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>Etapas</span>
                     </div>
                     {/* Sidebar rows */}
                     {etapas.map((e, i) => {
@@ -191,10 +193,10 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                                     }
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontWeight: 600, fontSize: 11, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={e.nome}>
+                                    <div style={{ fontWeight: 600, fontSize: isMobile ? 10 : 11, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={e.nome}>
                                         {e.nome}
                                     </div>
-                                    <div style={{ fontSize: 10, color: st.color, fontWeight: 600, marginTop: 1 }}>
+                                    <div style={{ fontSize: isMobile ? 9 : 10, color: st.color, fontWeight: 600, marginTop: 1 }}>
                                         {prog}%
                                     </div>
                                 </div>
@@ -333,7 +335,7 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                                             {e.status === 'em_andamento' && prog > 0 && prog < 100 && (
                                                 <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${prog}%`, background: 'rgba(255,255,255,0.2)', borderRadius: '10px 0 0 10px' }} />
                                             )}
-                                            {width > 10 && (
+                                            {width > 10 && !isMobile && (
                                                 <span style={{
                                                     position: 'relative', zIndex: 1, fontSize: 10, fontWeight: 700,
                                                     color: (e.status === 'nao_iniciado' || e.status === 'pendente') ? 'var(--text-muted)' : '#fff',
@@ -383,6 +385,7 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                         })}
                     </div>
                 </div>
+            </div>
             </div>
 
             {/* Legend */}
@@ -961,7 +964,7 @@ function TabCronograma({ data, load, notify, users }) {
 // ═══════════════════════════════════════════════════════
 // TAB: FINANCEIRO
 // ═══════════════════════════════════════════════════════
-function TabFinanceiro({ data, notify }) {
+function TabFinanceiro({ data, notify, load }) {
     const [resumo, setResumo] = useState(null);
     const [despesas, setDespesas] = useState([]);
     const [contas, setContas] = useState([]);
@@ -973,6 +976,9 @@ function TabFinanceiro({ data, notify }) {
     const [newCR, setNewCR] = useState({ descricao: '', valor: '', data_vencimento: '', meio_pagamento: '' });
     const [newCP, setNewCP] = useState({ descricao: '', valor: '', data_vencimento: '', categoria: 'material', fornecedor: '', meio_pagamento: '' });
     const [confirmDel, setConfirmDel] = useState(null);
+    const [mostrarPagPortal, setMostrarPagPortal] = useState(!!data.portal_mostrar_pagamento);
+
+    useEffect(() => { setMostrarPagPortal(!!data.portal_mostrar_pagamento); }, [data]);
 
     const MEIOS_PAG = ['PIX', 'Boleto', 'TED', 'Cartão', 'Dinheiro'];
 
@@ -1127,7 +1133,7 @@ function TabFinanceiro({ data, notify }) {
                 )}
             </div>
 
-            {/* Contas a Receber */}
+            {/* Toggle portal + Contas a Receber */}
             <div className={Z.card}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
                     <h2 style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 7 }}><ArrowUpCircle size={16} color="#22c55e" /> Contas a Receber</h2>
@@ -1138,6 +1144,29 @@ function TabFinanceiro({ data, notify }) {
                         <button onClick={() => setShowCRForm(!showCRForm)} className={Z.btn2} style={{ fontSize: 12, padding: '6px 12px' }}><PlusCircle size={12} /> Adicionar</button>
                     </div>
                 </div>
+
+                {/* Toggle visibilidade no portal */}
+                <label style={{
+                    display: 'flex', alignItems: 'center', gap: 8, fontSize: 12,
+                    color: mostrarPagPortal ? '#22c55e' : 'var(--text-muted)',
+                    cursor: 'pointer', marginBottom: 14,
+                    padding: '8px 12px', borderRadius: 8,
+                    background: mostrarPagPortal ? '#f0fdf420' : 'var(--bg-muted)',
+                    border: `1px solid ${mostrarPagPortal ? '#bbf7d0' : 'var(--border)'}`,
+                }}>
+                    <input type="checkbox" checked={mostrarPagPortal} onChange={() => {
+                        const next = !mostrarPagPortal;
+                        setMostrarPagPortal(next);
+                        api.put(`/projetos/${data.id}`, {
+                            nome: data.nome, descricao: data.descricao, status: data.status,
+                            data_inicio: data.data_inicio, data_vencimento: data.data_vencimento,
+                            portal_mostrar_pagamento: next,
+                        }).then(() => { if (load) load(); }).catch(() => notify('Erro ao salvar'));
+                    }} style={{ accentColor: '#22c55e' }} />
+                    <span style={{ fontWeight: 600 }}>
+                        {mostrarPagPortal ? '✓ Visível no Portal do Cliente' : 'Oculto no Portal do Cliente'}
+                    </span>
+                </label>
 
                 {showCRForm && (
                     <div style={{ background: 'var(--bg-muted)', borderRadius: 10, padding: 14, marginBottom: 14 }}>
@@ -1696,12 +1725,16 @@ function TabArquivos({ data, notify }) {
                                         }}
                                         title={f.visivel_portal ? 'Visível no portal do cliente' : 'Oculto no portal'}
                                         style={{
-                                            background: 'none', border: 'none', cursor: 'pointer', padding: 4,
-                                            color: f.visivel_portal ? '#22c55e' : '#94a3b8',
-                                            opacity: f.visivel_portal ? 1 : 0.5,
+                                            fontSize: 11, padding: '3px 8px', borderRadius: 6,
+                                            background: f.visivel_portal ? '#f0fdf4' : 'var(--bg-muted)',
+                                            color: f.visivel_portal ? '#22c55e' : 'var(--text-muted)',
+                                            border: `1px solid ${f.visivel_portal ? '#bbf7d0' : 'var(--border)'}`,
+                                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                                            fontWeight: 600,
                                         }}
                                     >
-                                        {f.visivel_portal ? <Eye size={14} /> : <EyeOff size={14} />}
+                                        {f.visivel_portal ? <Eye size={12} /> : <EyeOff size={12} />}
+                                        {f.visivel_portal ? 'No portal' : 'Oculto'}
                                     </button>
                                 )}
                                 <a href={`${API_BASE}${f.url}`} target="_blank" rel="noreferrer"
@@ -3387,6 +3420,24 @@ function TabAmbientes({ data, notify, reload }) {
                 </label>
             </div>
 
+            {/* Status summary */}
+            {total > 0 && (
+                <div className={Z.card} style={{ marginBottom: 16, padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12 }}>
+                        {AMB_STATUS.map(s => {
+                            const count = ambientes.filter(a => (AMB_STATUS_COMPAT[a.status] || a.status) === s.key).length;
+                            if (count === 0) return null;
+                            return (
+                                <span key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 4, color: s.color, fontWeight: 600 }}>
+                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color }} />
+                                    {count} {s.label}
+                                </span>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
             {/* Progresso geral */}
             {total > 0 && (
                 <div style={{ marginBottom: 16, background: 'var(--bg-muted)', borderRadius: 8, overflow: 'hidden', height: 6 }}>
@@ -3552,17 +3603,21 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user, nav }) {
         { id: 'ambientes', label: 'Ambientes', icon: <Layers size={14} /> },
         { id: 'producao', label: 'Produção', icon: <Scissors size={14} /> },
         { id: 'financeiro', label: 'Financeiro', icon: <DollarSign size={14} /> },
-        { id: 'estoque', label: 'Recursos', icon: <Package size={14} /> },
-        { id: 'arquivos', label: 'Arquivos', icon: <Ic.FolderOpen /> },
-        { id: 'portal', label: 'Portal', icon: <Ic.Message /> },
-        { id: 'entrega', label: 'Entrega', icon: <FileCheck size={14} /> },
+        { id: 'arquivos_entrega', label: 'Arquivos & Entrega', icon: <Ic.FolderOpen /> },
     ];
 
     return (
         <div className={Z.pg}>
+            {/* Breadcrumb */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+                <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: 500 }}>
+                    Projetos
+                </button>
+                <span style={{ opacity: 0.4 }}>/</span>
+                <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{data.nome}</span>
+            </div>
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 20 }}>
-                <button onClick={onBack} className={Z.btn2} style={{ padding: '7px 14px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>← Voltar</button>
                 <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                         <h1 className={Z.h1}>{data.nome}</h1>
@@ -3602,12 +3657,35 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user, nav }) {
             {/* Tab Content */}
             {tab === 'cronograma' && <TabCronograma data={data} load={load} notify={notify} users={users} />}
             {tab === 'ambientes' && <TabAmbientes data={data} notify={notify} reload={load} />}
-            {tab === 'producao' && <TabProducao data={data} notify={notify} nav={nav} />}
-            {tab === 'financeiro' && <TabFinanceiro data={data} notify={notify} />}
-            {tab === 'estoque' && <TabEstoque data={data} notify={notify} user={user} />}
-            {tab === 'arquivos' && <TabArquivos data={data} notify={notify} />}
-            {tab === 'portal' && <TabPortalMsgs data={data} notify={notify} />}
-            {tab === 'entrega' && <TabEntrega data={data} notify={notify} />}
+            {tab === 'producao' && (
+                <>
+                    <TabProducao data={data} notify={notify} nav={nav} />
+                    <div style={{ height: 24 }} />
+                    <h3 style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-primary)' }}>
+                        <Package size={16} /> Recursos / Estoque
+                    </h3>
+                    <TabEstoque data={data} notify={notify} user={user} />
+                </>
+            )}
+            {tab === 'financeiro' && <TabFinanceiro data={data} notify={notify} load={load} />}
+            {tab === 'arquivos_entrega' && (
+                <>
+                    <h3 style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-primary)' }}>
+                        <Ic.FolderOpen /> Arquivos
+                    </h3>
+                    <TabArquivos data={data} notify={notify} />
+                    <div style={{ height: 24 }} />
+                    <h3 style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-primary)' }}>
+                        <Truck size={16} /> Entrega
+                    </h3>
+                    <TabEntrega data={data} notify={notify} />
+                    <div style={{ height: 24 }} />
+                    <h3 style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-primary)' }}>
+                        <Ic.Message /> Portal do Cliente
+                    </h3>
+                    <TabPortalMsgs data={data} notify={notify} />
+                </>
+            )}
         </div>
     );
 }

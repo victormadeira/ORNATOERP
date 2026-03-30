@@ -23,7 +23,8 @@ router.get('/config', (req, res) => {
                landing_hero_video_url, landing_hero_video_poster,
                landing_grafismo_imagem,
                landing_cor_fundo, landing_cor_destaque, landing_cor_neutra, landing_cor_clara,
-               landing_servicos_json, landing_diferenciais_json, landing_etapas_json
+               landing_servicos_json, landing_diferenciais_json, landing_etapas_json,
+               instagram, facebook
         FROM empresa_config WHERE id = 1
     `).get();
 
@@ -31,10 +32,27 @@ router.get('/config', (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// GET /api/leads/stats — números reais para landing (sem auth)
+// ═══════════════════════════════════════════════════════
+router.get('/stats', (req, res) => {
+    try {
+        const projetos = db.prepare("SELECT COUNT(*) as n FROM projetos WHERE status IN ('concluido','entregue','instalado')").get()?.n || 0;
+        const clientes = db.prepare("SELECT COUNT(DISTINCT cliente_id) as n FROM orcamentos WHERE valor_venda > 0").get()?.n || 0;
+        const ambientes = db.prepare("SELECT COUNT(*) as n FROM orcamento_ambientes").get()?.n || 0;
+        const emp = db.prepare("SELECT anos_experiencia FROM empresa_config WHERE id = 1").get();
+        const anos = emp?.anos_experiencia || 0;
+        res.json({ projetos, clientes, ambientes, anos });
+    } catch (err) {
+        // Fallback: retornar zeros se tabelas não existem
+        res.json({ projetos: 0, clientes: 0, ambientes: 0, anos: 0 });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
 // POST /api/leads/captura — captação de lead (PÚBLICO, sem auth)
 // ═══════════════════════════════════════════════════════
 router.post('/captura', (req, res) => {
-    const { nome, telefone, email, tipo_projeto, mensagem,
+    const { nome, telefone, email, tipo_projeto, faixa_investimento, mensagem,
             utm_source, utm_medium, utm_campaign } = req.body;
 
     if (!nome || !telefone) {
@@ -83,6 +101,7 @@ router.post('/captura', (req, res) => {
         // Criar orçamento como lead
         const obsText = [
             tipo_projeto ? `Tipo: ${tipo_projeto}` : '',
+            faixa_investimento ? `Faixa de investimento: ${faixa_investimento}` : '',
             mensagem ? `Mensagem: ${mensagem}` : '',
             `Origem: Landing Page`,
             utm_source ? `UTM: ${utm_source}/${utm_medium || ''}/${utm_campaign || ''}` : '',

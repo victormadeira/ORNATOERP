@@ -297,7 +297,7 @@ router.post('/otimizar', requireAuth, (req, res) => {
             }
 
             // Phase 3: strip packing
-            const stripBins = runStripPacking(validPieces, effW, effH, kerf);
+            const stripBins = runStripPacking(validPieces, effW, effH, kerf, spacing, 'auto');
             const stripSc = scoreResult(stripBins);
             if (stripSc.score < bestScore.score) {
                 bestScore = stripSc; bestBins = stripBins;

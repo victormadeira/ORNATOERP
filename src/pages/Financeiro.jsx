@@ -378,7 +378,7 @@ function SecaoPagar({ notify, projetos, user }) {
                             <thead>
                                 <tr style={{ borderBottom: '2px solid var(--border)' }}>
                                     {['Status', 'Descrição', 'Fornecedor', 'Cat.', 'Projeto', 'Valor', 'Venc.', ''].map((h, i) => (
-                                        <th key={i} style={{ padding: '7px 6px', textAlign: i === 5 ? 'right' : i >= 6 ? 'center' : 'left', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>{h}</th>
+                                        <th key={i} style={{ padding: '10px 12px', textAlign: i === 5 ? 'right' : i >= 6 ? 'center' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
                                     ))}
                                 </tr>
                             </thead>
@@ -388,9 +388,9 @@ function SecaoPagar({ notify, projetos, user }) {
                                     const cat = CAT_MAP[cp.categoria];
                                     const isPago = cp.status === 'pago';
                                     return (
-                                        <tr key={cp.id} style={{ borderBottom: '1px solid var(--border)', opacity: isPago ? 0.65 : 1, background: !isPago && st.color === '#B86565' ? '#fef2f218' : 'transparent' }}>
-                                            <td style={{ padding: '7px 6px' }}><Badge label={st.label} color={st.color} icon={st.icon} /></td>
-                                            <td style={{ padding: '7px 6px' }}>
+                                        <tr key={cp.id} style={{ borderBottom: '1px solid var(--border)', opacity: isPago ? 0.65 : 1, background: !isPago && st.color === '#B86565' ? '#fef2f218' : 'transparent', borderLeft: !isPago && st.color === '#B86565' ? '3px solid #ef4444' : 'none' }}>
+                                            <td style={{ padding: '10px 12px' }}><Badge label={st.label} color={st.color} icon={st.icon} /></td>
+                                            <td style={{ padding: '10px 12px' }}>
                                                 <div style={{ fontWeight: isPago ? 400 : 600, textDecoration: isPago ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                                                     {cp.descricao}
                                                     {cp.parcela_total > 0 && <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 4, background: '#dbeafe', color: '#2563eb', fontWeight: 600 }}>{cp.parcela_num}/{cp.parcela_total}</span>}
@@ -405,41 +405,41 @@ function SecaoPagar({ notify, projetos, user }) {
                                                     </div>
                                                 )}
                                             </td>
-                                            <td style={{ padding: '7px 6px', color: 'var(--text-secondary)', fontSize: 11 }}>{cp.fornecedor || '—'}</td>
-                                            <td style={{ padding: '7px 6px' }}>
+                                            <td style={{ padding: '10px 12px', color: 'var(--text-secondary)', fontSize: 11 }}>{cp.fornecedor || '—'}</td>
+                                            <td style={{ padding: '10px 12px' }}>
                                                 {cat ? <span style={{ fontSize: 9, fontWeight: 600, color: cat.color, background: cat.color + '18', padding: '2px 5px', borderRadius: 5, whiteSpace: 'nowrap' }}>{cat.label}</span>
                                                       : <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{cp.categoria}</span>}
                                             </td>
-                                            <td style={{ padding: '7px 6px', fontSize: 11, color: cp.projeto_nome ? 'var(--primary)' : 'var(--text-muted)' }}>{cp.projeto_nome || '—'}</td>
-                                            <td style={{ padding: '7px 6px', textAlign: 'right', fontWeight: 700, color: isPago ? '#5B8C6B' : st.color === '#B86565' ? '#B86565' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cp.valor)}</td>
-                                            <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                            <td style={{ padding: '10px 12px', fontSize: 11, color: cp.projeto_nome ? 'var(--primary)' : 'var(--text-muted)' }}>{cp.projeto_nome || '—'}</td>
+                                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: isPago ? '#5B8C6B' : st.color === '#B86565' ? '#B86565' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cp.valor)}</td>
+                                            <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                 {dtFmt(cp.data_vencimento)}
                                                 {isPago && cp.data_pagamento && <div style={{ fontSize: 9, color: '#5B8C6B' }}>Pago {dtFmt(cp.data_pagamento)}</div>}
                                             </td>
-                                            <td style={{ padding: '7px 6px', textAlign: 'center' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'center', gap: 3 }}>
+                                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
                                                     <button onClick={() => togglePago(cp)} title={isPago ? 'Reabrir' : 'Marcar pago'}
-                                                        style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${isPago ? 'var(--primary)' : '#d1d5db'}`, background: isPago ? 'var(--primary)' : 'transparent', color: isPago ? '#fff' : '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                                                        <Check size={11} />
+                                                        style={{ width: 26, height: 26, borderRadius: 5, border: `2px solid ${isPago ? 'var(--primary)' : '#d1d5db'}`, background: isPago ? 'var(--primary)' : 'transparent', color: isPago ? '#fff' : '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                                                        <Check size={14} />
                                                     </button>
                                                     <button onClick={() => openAnexos(cp.id)} title="Anexos"
-                                                        style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                        <Paperclip size={11} />
+                                                        style={{ width: 26, height: 26, borderRadius: 5, border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <Paperclip size={14} />
                                                     </button>
                                                     {canViewHistory && (
                                                         <button onClick={() => setHistoricoId(cp.id)} title="Histórico"
-                                                            style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'transparent', color: '#8b5cf6', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
+                                                            style={{ width: 26, height: 26, borderRadius: 5, border: 'none', background: 'transparent', color: '#8b5cf6', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
                                                             onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                                                             onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}>
-                                                            <History size={11} />
+                                                            <History size={14} />
                                                         </button>
                                                     )}
                                                     {canDelete && (
                                                         <button onClick={() => setConfirmDel({ id: cp.id, nome: cp.descricao, tipo: 'conta' })} title="Excluir"
-                                                            style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
+                                                            style={{ width: 26, height: 26, borderRadius: 5, border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
                                                             onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                                                             onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}>
-                                                            <Trash2 size={11} />
+                                                            <Trash2 size={14} />
                                                         </button>
                                                     )}
                                                 </div>
@@ -751,7 +751,7 @@ function SecaoReceber({ notify, projetos, user }) {
                             <thead>
                                 <tr style={{ borderBottom: '2px solid var(--border)' }}>
                                     {['Status', 'Descrição', 'Projeto', 'Meio', 'Valor', 'Venc.', ''].map((h, i) => (
-                                        <th key={i} style={{ padding: '7px 6px', textAlign: i === 4 ? 'right' : i >= 5 ? 'center' : 'left', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>{h}</th>
+                                        <th key={i} style={{ padding: '10px 12px', textAlign: i === 4 ? 'right' : i >= 5 ? 'center' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
                                     ))}
                                 </tr>
                             </thead>
@@ -760,9 +760,9 @@ function SecaoReceber({ notify, projetos, user }) {
                                     const st = getStatusReceber(cr);
                                     const isRecebido = cr.status === 'pago';
                                     return (
-                                        <tr key={cr.id} style={{ borderBottom: '1px solid var(--border)', opacity: isRecebido ? 0.65 : 1, background: !isRecebido && st.color === '#B86565' ? '#fef2f218' : 'transparent' }}>
-                                            <td style={{ padding: '7px 6px' }}><Badge label={st.label} color={st.color} icon={st.icon} /></td>
-                                            <td style={{ padding: '7px 6px' }}>
+                                        <tr key={cr.id} style={{ borderBottom: '1px solid var(--border)', opacity: isRecebido ? 0.65 : 1, background: !isRecebido && st.color === '#B86565' ? '#fef2f218' : 'transparent', borderLeft: !isRecebido && st.color === '#B86565' ? '3px solid #ef4444' : 'none' }}>
+                                            <td style={{ padding: '10px 12px' }}><Badge label={st.label} color={st.color} icon={st.icon} /></td>
+                                            <td style={{ padding: '10px 12px' }}>
                                                 <div style={{ fontWeight: isRecebido ? 400 : 600, textDecoration: isRecebido ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
                                                     {cr.descricao}
                                                     {cr.parcela_total > 0 && <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 4, background: 'var(--primary-alpha, rgba(19,121,240,0.08))', color: 'var(--primary)', fontWeight: 600 }}>{cr.parcela_num}/{cr.parcela_total}</span>}
@@ -776,33 +776,33 @@ function SecaoReceber({ notify, projetos, user }) {
                                                     </div>
                                                 )}
                                             </td>
-                                            <td style={{ padding: '7px 6px', fontSize: 11, color: 'var(--primary)' }}>{cr.projeto_nome || '—'}</td>
-                                            <td style={{ padding: '7px 6px', fontSize: 11, color: 'var(--text-secondary)' }}>{cr.meio_pagamento || '—'}</td>
-                                            <td style={{ padding: '7px 6px', textAlign: 'right', fontWeight: 700, color: isRecebido ? '#5B8C6B' : st.color === '#B86565' ? '#B86565' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cr.valor)}</td>
-                                            <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                            <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--primary)' }}>{cr.projeto_nome || '—'}</td>
+                                            <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--text-secondary)' }}>{cr.meio_pagamento || '—'}</td>
+                                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: isRecebido ? '#5B8C6B' : st.color === '#B86565' ? '#B86565' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cr.valor)}</td>
+                                            <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                 {dtFmt(cr.data_vencimento)}
                                                 {isRecebido && cr.data_pagamento && <div style={{ fontSize: 9, color: '#5B8C6B' }}>Rec. {dtFmt(cr.data_pagamento)}</div>}
                                             </td>
-                                            <td style={{ padding: '7px 6px', textAlign: 'center' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'center', gap: 3 }}>
+                                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
                                                     <button onClick={() => toggleRecebido(cr)} title={isRecebido ? 'Reabrir' : 'Marcar recebido'}
-                                                        style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${isRecebido ? 'var(--primary)' : '#d1d5db'}`, background: isRecebido ? 'var(--primary)' : 'transparent', color: isRecebido ? '#fff' : '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                                                        <Check size={11} />
+                                                        style={{ width: 26, height: 26, borderRadius: 5, border: `2px solid ${isRecebido ? 'var(--primary)' : '#d1d5db'}`, background: isRecebido ? 'var(--primary)' : 'transparent', color: isRecebido ? '#fff' : '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                                                        <Check size={14} />
                                                     </button>
                                                     {canViewHistory && (
                                                         <button onClick={() => setHistoricoId(cr.id)} title="Histórico"
-                                                            style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'transparent', color: '#8b5cf6', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
+                                                            style={{ width: 26, height: 26, borderRadius: 5, border: 'none', background: 'transparent', color: '#8b5cf6', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
                                                             onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                                                             onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}>
-                                                            <History size={11} />
+                                                            <History size={14} />
                                                         </button>
                                                     )}
                                                     {canDelete && (
                                                         <button onClick={() => setConfirmDel({ id: cr.id, nome: cr.descricao })} title="Excluir"
-                                                            style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
+                                                            style={{ width: 26, height: 26, borderRadius: 5, border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
                                                             onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                                                             onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}>
-                                                            <Trash2 size={11} />
+                                                            <Trash2 size={14} />
                                                         </button>
                                                     )}
                                                 </div>
@@ -922,7 +922,7 @@ function SecaoNFs({ notify }) {
                             <thead>
                                 <tr style={{ borderBottom: '2px solid var(--border)' }}>
                                     {['Nº NF', 'Descrição / Fornecedor', 'Projeto', 'Data', 'Valor', 'Status', 'Chave NFe', 'Anexos'].map((h, i) => (
-                                        <th key={i} style={{ padding: '7px 8px', textAlign: i === 4 ? 'right' : 'left', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>{h}</th>
+                                        <th key={i} style={{ padding: '10px 12px', textAlign: i === 4 ? 'right' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
                                     ))}
                                 </tr>
                             </thead>
@@ -1102,7 +1102,7 @@ function SecaoFluxo() {
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                 {['Mês', 'Entradas', 'Saídas', 'Saldo'].map((h, i) => (
-                                    <th key={i} style={{ padding: '8px 12px', textAlign: i > 0 ? 'right' : 'left', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>{h}</th>
+                                    <th key={i} style={{ padding: '8px 12px', textAlign: i > 0 ? 'right' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
                                 ))}
                             </tr>
                         </thead>
@@ -1347,7 +1347,7 @@ function SecaoLixeira({ notify }) {
                             <thead>
                                 <tr style={{ borderBottom: '2px solid var(--border)' }}>
                                     {['Descrição', 'Valor', 'Excluído por', 'Data exclusão', ''].map((h, i) => (
-                                        <th key={i} style={{ padding: '7px 8px', textAlign: i === 1 ? 'right' : i === 4 ? 'center' : 'left', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>{h}</th>
+                                        <th key={i} style={{ padding: '10px 12px', textAlign: i === 1 ? 'right' : i === 4 ? 'center' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
                                     ))}
                                 </tr>
                             </thead>

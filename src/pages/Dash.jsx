@@ -9,7 +9,7 @@ import {
     Calendar, Eye, ChevronRight, Activity, BarChart3, Wallet,
     CheckCircle2, XCircle, PauseCircle, Zap, PieChart, ArrowUpRight,
     ArrowDownRight, Receipt, Plus, Trash2, Edit3, Check, X,
-    Factory, Truck, Package, Wrench
+    Factory, Truck, Package, Wrench, ChevronDown
 } from 'lucide-react';
 
 const greet = () => {
@@ -58,7 +58,7 @@ function ProducaoResume({ data, nav }) {
                     Ver detalhes <ChevronRight size={14} />
                 </button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
                 {items.map((it, i) => {
                     const I = it.icon;
                     return (
@@ -82,14 +82,20 @@ function ProducaoResume({ data, nav }) {
             </div>
             {data.gargalos?.length > 0 && (
                 <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {data.gargalos.map((g, i) => (
-                        <span key={i} style={{
-                            fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 6,
-                            background: 'rgba(239,68,68,0.08)', color: '#ef4444',
-                        }}>
-                            {g.etapa}: {g.qtd} pendente{g.qtd > 1 ? 's' : ''}
-                        </span>
-                    ))}
+                    {data.gargalos.map((g, i) => {
+                        const severity = g.qtd >= 8 ? { bg: 'rgba(239,68,68,0.10)', color: '#ef4444', pulse: true }
+                            : g.qtd >= 4 ? { bg: 'rgba(249,115,22,0.10)', color: '#f97316', pulse: false }
+                            : { bg: 'rgba(245,158,11,0.10)', color: '#f59e0b', pulse: false };
+                        return (
+                            <span key={i} style={{
+                                fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 6,
+                                background: severity.bg, color: severity.color,
+                                animation: severity.pulse ? 'pulse 2s ease-in-out infinite' : 'none',
+                            }}>
+                                {g.etapa}: {g.qtd} pendente{g.qtd > 1 ? 's' : ''}
+                            </span>
+                        );
+                    })}
                 </div>
             )}
         </div>
@@ -165,12 +171,17 @@ function FilaAtencao({ data, nav }) {
                         <div style={{ padding: '10px 16px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)' }}>
                             <Clock size={10} style={{ display: 'inline', marginRight: 4 }} /> Orcamentos Parados ({'>'}7 dias)
                         </div>
-                        {data.orcamentos_parados.map((o, i) => (
-                            <div key={o.id} onClick={() => nav('novo', o)}
+                        {data.orcamentos_parados.map((o, i) => {
+                            const urgency = o.dias_parado > 14 ? { bg: '#ef444418', color: '#ef4444' }
+                                : o.dias_parado >= 7 ? { bg: '#f9731618', color: '#f97316' }
+                                : { bg: '#f59e0b18', color: '#f59e0b' };
+                            return (
+                            <div key={o.id} onClick={() => nav('orcs')}
                                 style={{
                                     padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
                                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                                     animation: `stagger-in 0.25s ease ${i * 40}ms both`,
+                                    borderLeft: `3px solid ${urgency.color}`,
                                 }}
                                 className="hover:bg-[var(--bg-hover)] transition-colors">
                                 <div style={{ minWidth: 0 }}>
@@ -179,12 +190,12 @@ function FilaAtencao({ data, nav }) {
                                 </div>
                                 <span style={{
                                     fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
-                                    background: o.dias_parado > 30 ? '#ef444418' : 'var(--bg-muted)',
-                                    color: o.dias_parado > 30 ? '#ef4444' : 'var(--text-muted)',
+                                    background: urgency.bg, color: urgency.color,
                                     whiteSpace: 'nowrap', flexShrink: 0,
                                 }}>{o.dias_parado}d</span>
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
 
@@ -571,7 +582,7 @@ function FinanceiroKPI({ data }) {
     ];
 
     return (
-        <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+        <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
             {cards.map((c, i) => (
                 <KpiCard key={i} label={c.label} value={c.value} icon={c.icon} />
             ))}
@@ -843,6 +854,7 @@ export default function Dash({ nav, notify, user }) {
     const [tab, setTab] = useState('geral');
     const [finLoading, setFinLoading] = useState(false);
     const [atividades, setAtividades] = useState([]);
+    const [maisDetalhes, setMaisDetalhes] = useState(false);
 
     const load = useCallback(() => {
         api.get('/dashboard').then(d => {
@@ -851,7 +863,7 @@ export default function Dash({ nav, notify, user }) {
         }).catch(() => {
             setErr(true);
         }).finally(() => setLoading(false));
-        api.get('/atividades?limit=10').then(setAtividades).catch(() => {});
+        api.get('/atividades?limit=10').then(setAtividades).catch(err => console.error('Dash atividades:', err));
     }, []);
 
     const loadFin = useCallback(() => {
@@ -896,7 +908,7 @@ export default function Dash({ nav, notify, user }) {
                 <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
                     <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
                     <div className="skeleton skeleton-card" style={{ height: 300 }} />
                     <div className="skeleton skeleton-card" style={{ height: 300 }} />
                 </div>
@@ -939,7 +951,7 @@ export default function Dash({ nav, notify, user }) {
                     {!isVendedor && <HeadlineMes data={data.headline} />}
 
                     {isVendedor && data.vendedor && (
-                        <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+                        <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
                             {[
                                 { label: 'Orcamentos no mes', value: String(data.vendedor.orcs_mes), sub: R$(data.vendedor.orcs_valor_mes), icon: FileText },
                                 { label: 'Aprovados no mes', value: String(data.vendedor.aprovados_mes), sub: R$(data.vendedor.aprovados_valor_mes), icon: CheckCircle2 },
@@ -951,42 +963,70 @@ export default function Dash({ nav, notify, user }) {
                         </div>
                     )}
 
+                    {/* HERO: Fila de Atencao — first after KPIs */}
                     {!isVendedor ? (
                         <FilaAtencao data={data.atencao} nav={nav} />
                     ) : data.atencao?.total_parados > 0 && (
                         <FilaAtencao data={{ ...data.atencao, total_vencidas: 0, contas_vencidas: [], valor_vencido: 0 }} nav={nav} />
                     )}
-                    <div style={{ display: 'grid', gridTemplateColumns: isVendedor ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>
-                        <PipelineVisual data={data.pipeline} total={data.pipeline_total} nav={nav} />
-                        {!isVendedor && <FluxoCaixa data={data.fluxo_caixa} />}
-                    </div>
-                    <ProjetosAtivos data={data.projetos_ativos} total={data.total_projetos_ativos} nav={nav} />
+
                     {!isVendedor && data.producao_resumo && (
                         <ProducaoResume data={data.producao_resumo} nav={nav} />
                     )}
-                    <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, marginBottom: 16 }}>
-                        {shortcuts.filter(s => !(isVendedor && s.pg === 'cfg')).map((s, i) => {
-                            const I = s.ic;
-                            return (
-                                <button key={i} onClick={() => nav(s.pg)}
-                                    className="glass-card flex flex-col items-center gap-2 py-4 cursor-pointer"
-                                    style={{ transition: 'all 0.2s' }}
-                                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = 'var(--shadow-lg)'; }}
-                                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow-card)'; }}>
-                                    <div style={{
-                                        width: 40, height: 40, borderRadius: 12,
-                                        background: 'var(--primary-alpha)', color: 'var(--primary)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        transition: 'all 0.2s',
-                                    }}>
-                                        <I />
-                                    </div>
-                                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.3 }}>{s.lb}</span>
-                                </button>
-                            );
-                        })}
+
+                    <div style={{ display: 'grid', gridTemplateColumns: isVendedor ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 16 }}>
+                        <PipelineVisual data={data.pipeline} total={data.pipeline_total} nav={nav} />
+                        {!isVendedor && <FluxoCaixa data={data.fluxo_caixa} />}
                     </div>
-                    <TimelineRecente data={atividades} nav={nav} />
+
+                    {/* Collapsible: less-critical sections */}
+                    <div style={{ marginBottom: 16 }}>
+                        <button onClick={() => setMaisDetalhes(v => !v)}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                                padding: '12px 20px', borderRadius: 12,
+                                background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                                cursor: 'pointer', transition: 'all 0.2s',
+                                color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600,
+                            }}>
+                            <ChevronDown size={16} style={{
+                                transition: 'transform 0.25s',
+                                transform: maisDetalhes ? 'rotate(180deg)' : 'rotate(0deg)',
+                            }} />
+                            Mais detalhes
+                            <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 4 }}>
+                                Projetos ativos, atalhos, atividade recente
+                            </span>
+                        </button>
+                        {maisDetalhes && (
+                            <div style={{ marginTop: 16 }}>
+                                <ProjetosAtivos data={data.projetos_ativos} total={data.total_projetos_ativos} nav={nav} />
+                                <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10, marginBottom: 16 }}>
+                                    {shortcuts.filter(s => !(isVendedor && s.pg === 'cfg')).map((s, i) => {
+                                        const I = s.ic;
+                                        return (
+                                            <button key={i} onClick={() => nav(s.pg)}
+                                                className="glass-card flex flex-col items-center gap-2 py-4 cursor-pointer"
+                                                style={{ transition: 'all 0.2s' }}
+                                                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = 'var(--shadow-lg)'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow-card)'; }}>
+                                                <div style={{
+                                                    width: 40, height: 40, borderRadius: 12,
+                                                    background: 'var(--primary-alpha)', color: 'var(--primary)',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    transition: 'all 0.2s',
+                                                }}>
+                                                    <I />
+                                                </div>
+                                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.3 }}>{s.lb}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <TimelineRecente data={atividades} nav={nav} />
+                            </div>
+                        )}
+                    </div>
                 </>
             )}
 
@@ -999,7 +1039,7 @@ export default function Dash({ nav, notify, user }) {
                     <>
                         <FinanceiroKPI data={finData.resumo} />
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16, marginBottom: 16 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 16 }}>
                             <GraficoBarras6Meses data={finData.ultimos_6_meses} />
                             <GraficoPizzaDespesas data={finData.despesas_por_categoria} />
                         </div>
@@ -1008,7 +1048,7 @@ export default function Dash({ nav, notify, user }) {
                             <TabelaTopProjetos data={finData.top_projetos} />
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 16 }}>
                             <FluxoProjetado data={finData.fluxo_projetado} />
                             <ContasPagarProximas data={finData.contas_pagar_proximas} vencidas={finData.pagar_vencidas} />
                         </div>

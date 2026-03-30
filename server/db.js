@@ -945,6 +945,12 @@ const migrations = [
   "ALTER TABLE cnc_config ADD COLUMN usar_guilhotina INTEGER DEFAULT 1",
   "ALTER TABLE cnc_config ADD COLUMN usar_retalhos INTEGER DEFAULT 1",
   "ALTER TABLE cnc_config ADD COLUMN iteracoes_otimizador INTEGER DEFAULT 300",
+  // ═══ CNC: persistir todas as configs do otimizador ═══
+  "ALTER TABLE cnc_materiais ADD COLUMN permitir_rotacao INTEGER DEFAULT -1",
+  "ALTER TABLE cnc_config ADD COLUMN modo_otimizador TEXT DEFAULT 'guilhotina'",
+  "ALTER TABLE cnc_config ADD COLUMN refilo REAL DEFAULT 10",
+  "ALTER TABLE cnc_config ADD COLUMN permitir_rotacao INTEGER DEFAULT 1",
+  "ALTER TABLE cnc_config ADD COLUMN direcao_corte TEXT DEFAULT 'misto'",
   // ═══ CNC: anti-arrasto (peças pequenas) ═══
   "ALTER TABLE cnc_maquinas ADD COLUMN usar_onion_skin INTEGER DEFAULT 1",
   "ALTER TABLE cnc_maquinas ADD COLUMN onion_skin_espessura REAL DEFAULT 0.5",
@@ -1094,6 +1100,8 @@ const migrations = [
   // ── Ambientes no Projeto ──
   `ALTER TABLE projetos ADD COLUMN ambientes_json TEXT DEFAULT '[]'`,
   `ALTER TABLE projetos ADD COLUMN mostrar_ambientes_portal INTEGER DEFAULT 0`,
+  // ── Pagamento per-project no portal ──
+  `ALTER TABLE projetos ADD COLUMN portal_mostrar_pagamento INTEGER DEFAULT 0`,
   // ── Documentos visíveis no portal ──
   `ALTER TABLE projeto_arquivos ADD COLUMN visivel_portal INTEGER DEFAULT 0`,
   // ── Histórico de acessos do portal ──
@@ -1449,6 +1457,176 @@ const migrations = [
     obs TEXT DEFAULT '',
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
+  // ═══ Campos redes sociais + proposta incluso + anos experiência ═══
+  "ALTER TABLE empresa_config ADD COLUMN instagram TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN facebook TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN proposta_incluso TEXT DEFAULT 'Projeto 3D personalizado;Produção própria com maquinário industrial;Entrega e instalação no local;Acabamento premium e ferragens de primeira linha;Garantia de fábrica'",
+  "ALTER TABLE empresa_config ADD COLUMN anos_experiencia INTEGER DEFAULT 0",
+  // ═══ Portal: toggle pagamento ═══
+  "ALTER TABLE empresa_config ADD COLUMN portal_mostrar_pagamento INTEGER DEFAULT 0",
+
+  // ═══════════════════════════════════════════════════════
+  // EXPEDIÇÃO CNC — Checkpoints e Scans
+  // ═══════════════════════════════════════════════════════
+  `CREATE TABLE IF NOT EXISTS cnc_expedicao_checkpoints (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    ordem INTEGER DEFAULT 0,
+    cor TEXT DEFAULT '#3b82f6',
+    icone TEXT DEFAULT 'package',
+    ativo INTEGER DEFAULT 1,
+    obrigatorio INTEGER DEFAULT 1,
+    user_id INTEGER,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS cnc_expedicao_scans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    peca_id INTEGER NOT NULL,
+    lote_id INTEGER NOT NULL,
+    checkpoint_id INTEGER NOT NULL,
+    operador TEXT,
+    estacao TEXT,
+    observacao TEXT,
+    escaneado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (peca_id) REFERENCES cnc_pecas(id),
+    FOREIGN KEY (lote_id) REFERENCES cnc_lotes(id),
+    FOREIGN KEY (checkpoint_id) REFERENCES cnc_expedicao_checkpoints(id)
+  )`,
+  // ═══ CNC Peças: cor da fita de borda por face ═══
+  "ALTER TABLE cnc_pecas ADD COLUMN borda_cor_frontal TEXT",
+  "ALTER TABLE cnc_pecas ADD COLUMN borda_cor_traseira TEXT",
+  "ALTER TABLE cnc_pecas ADD COLUMN borda_cor_dir TEXT",
+  "ALTER TABLE cnc_pecas ADD COLUMN borda_cor_esq TEXT",
+  // ═══ CNC Materiais: cadastro completo ═══
+  `CREATE TABLE IF NOT EXISTS cnc_materiais (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id),
+    codigo TEXT NOT NULL DEFAULT '',
+    nome TEXT NOT NULL,
+    espessura REAL DEFAULT 18,
+    comprimento_chapa REAL DEFAULT 2750,
+    largura_chapa REAL DEFAULT 1830,
+    veio TEXT DEFAULT 'sem_veio',
+    melamina TEXT DEFAULT 'ambos',
+    cor TEXT DEFAULT '',
+    acabamento TEXT DEFAULT '',
+    fornecedor TEXT DEFAULT '',
+    custo_m2 REAL DEFAULT 0,
+    refilo REAL DEFAULT 10,
+    kerf REAL DEFAULT 4,
+    ativo INTEGER DEFAULT 1,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // ═══ CNC Peças: referência ao material cadastrado ═══
+  "ALTER TABLE cnc_pecas ADD COLUMN material_id INTEGER REFERENCES cnc_materiais(id)",
+  "ALTER TABLE cnc_pecas ADD COLUMN face_cnc TEXT DEFAULT 'auto'",
+  // ═══ CNC Override de usinagens por lote ═══
+  `CREATE TABLE IF NOT EXISTS cnc_lote_usinagem_overrides (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lote_id INTEGER NOT NULL REFERENCES cnc_lotes(id) ON DELETE CASCADE,
+    peca_persistent_id TEXT NOT NULL,
+    worker_index INTEGER NOT NULL,
+    ativo INTEGER DEFAULT 0,
+    motivo TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(lote_id, peca_persistent_id, worker_index)
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_cnc_materiais_ativo ON cnc_materiais(ativo)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_overrides_lote ON cnc_lote_usinagem_overrides(lote_id)",
+
+  // ═══ G-Code v4: Estratégias de usinagem, rampa helicoidal, pocket inteligente, compensação raio ═══
+  // Máquina: novos campos de estratégia
+  "ALTER TABLE cnc_maquinas ADD COLUMN rampa_tipo TEXT DEFAULT 'linear'",          // linear, helicoidal, plunge
+  "ALTER TABLE cnc_maquinas ADD COLUMN vel_rampa REAL DEFAULT 1500",               // velocidade específica da rampa (mm/min)
+  "ALTER TABLE cnc_maquinas ADD COLUMN rampa_diametro_pct REAL DEFAULT 80",        // % do diâmetro para raio da hélice
+  "ALTER TABLE cnc_maquinas ADD COLUMN stepover_pct REAL DEFAULT 60",              // % do diâmetro da fresa para stepover
+  "ALTER TABLE cnc_maquinas ADD COLUMN pocket_acabamento INTEGER DEFAULT 1",       // passe de acabamento no contorno do pocket
+  "ALTER TABLE cnc_maquinas ADD COLUMN pocket_acabamento_offset REAL DEFAULT 0.2", // material a deixar para acabamento (mm)
+  "ALTER TABLE cnc_maquinas ADD COLUMN pocket_direcao TEXT DEFAULT 'auto'",        // auto (eixo longo), x, y
+  "ALTER TABLE cnc_maquinas ADD COLUMN compensar_raio_canal INTEGER DEFAULT 1",    // compensar raio da fresa nos cantos de canais
+  "ALTER TABLE cnc_maquinas ADD COLUMN compensacao_tipo TEXT DEFAULT 'overcut'",   // overcut (avanço do raio), dogbone
+  "ALTER TABLE cnc_maquinas ADD COLUMN circular_passes_acabamento INTEGER DEFAULT 1", // passes de acabamento em furos circulares
+  "ALTER TABLE cnc_maquinas ADD COLUMN circular_offset_desbaste REAL DEFAULT 0.3",   // offset de desbaste antes do acabamento (mm)
+  "ALTER TABLE cnc_maquinas ADD COLUMN vel_acabamento_pct REAL DEFAULT 80",          // % da vel_corte para passes de acabamento
+  // Tipos de usinagem: estratégias alternativas
+  "ALTER TABLE cnc_usinagem_tipos ADD COLUMN estrategias TEXT DEFAULT '[]'",        // JSON: [{metodo, tool_match, diam_min, diam_max, params}]
+  // Segurança CNC: proteção da mesa de sacrifício
+  "ALTER TABLE cnc_maquinas ADD COLUMN margem_mesa_sacrificio REAL DEFAULT 0.5",   // mm máx. além da espessura do material
+  // G0 com velocidade: algumas máquinas precisam de F no G0
+  "ALTER TABLE cnc_maquinas ADD COLUMN g0_com_feed INTEGER DEFAULT 0",             // 0=G0 puro, 1=G0 com F (vel_vazio)
+
+  // ═══════════════════════════════════════════════════════
+  // CNC v5: Templates de Usinagem, Desgaste de Ferramentas,
+  //         Dashboard Produção, Lado A/B, Custeio, Multi-Máquina
+  // ═══════════════════════════════════════════════════════
+
+  // ═══ Machining Templates Library ═══
+  `CREATE TABLE IF NOT EXISTS cnc_machining_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id),
+    nome TEXT NOT NULL,
+    descricao TEXT DEFAULT '',
+    categoria TEXT DEFAULT '',
+    machining_json TEXT NOT NULL DEFAULT '{}',
+    espelhavel INTEGER DEFAULT 0,
+    ativo INTEGER DEFAULT 1,
+    uso_count INTEGER DEFAULT 0,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ═══ Tool Wear Tracking ═══
+  `CREATE TABLE IF NOT EXISTS cnc_tool_wear_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ferramenta_id INTEGER NOT NULL REFERENCES cnc_ferramentas(id) ON DELETE CASCADE,
+    lote_id INTEGER REFERENCES cnc_lotes(id),
+    metros_lineares REAL DEFAULT 0,
+    tempo_corte_min REAL DEFAULT 0,
+    num_operacoes INTEGER DEFAULT 0,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  "ALTER TABLE cnc_ferramentas ADD COLUMN metros_acumulados REAL DEFAULT 0",
+  "ALTER TABLE cnc_ferramentas ADD COLUMN metros_limite REAL DEFAULT 5000",
+  "ALTER TABLE cnc_ferramentas ADD COLUMN ultimo_reset_em DATETIME",
+
+  // ═══ Production Dashboard ═══
+  `CREATE TABLE IF NOT EXISTS cnc_production_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    periodo TEXT NOT NULL,
+    tipo_periodo TEXT NOT NULL,
+    chapas_cortadas INTEGER DEFAULT 0,
+    pecas_produzidas INTEGER DEFAULT 0,
+    metros_lineares REAL DEFAULT 0,
+    aproveitamento_medio REAL DEFAULT 0,
+    tempo_maquina_min REAL DEFAULT 0,
+    custo_material REAL DEFAULT 0,
+    custo_ferramentas REAL DEFAULT 0,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(periodo, tipo_periodo)
+  )`,
+
+  // ═══ Side A / Side B ═══
+  "ALTER TABLE cnc_pecas ADD COLUMN lado_ativo TEXT DEFAULT 'A'",
+  "ALTER TABLE cnc_pecas ADD COLUMN machining_json_b TEXT DEFAULT '{}'",
+
+  // ═══ Per-Piece Costing ═══
+  "ALTER TABLE cnc_config ADD COLUMN custo_hora_maquina REAL DEFAULT 80",
+  "ALTER TABLE cnc_config ADD COLUMN custo_troca_ferramenta REAL DEFAULT 5",
+
+  // ═══ Tool Change Optimization ═══
+  "ALTER TABLE cnc_config ADD COLUMN otimizar_trocas_ferramenta INTEGER DEFAULT 1",
+
+  // ═══ Multi-Machine ═══
+  `CREATE TABLE IF NOT EXISTS cnc_machine_assignments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lote_id INTEGER NOT NULL REFERENCES cnc_lotes(id) ON DELETE CASCADE,
+    chapa_idx INTEGER NOT NULL,
+    maquina_id INTEGER NOT NULL REFERENCES cnc_maquinas(id),
+    prioridade INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'pendente',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(lote_id, chapa_idx)
+  )`,
+  "ALTER TABLE cnc_lotes ADD COLUMN modo_multi_maquina INTEGER DEFAULT 0",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
@@ -1595,6 +1773,16 @@ for (const sql of indexes) {
 const empExists = db.prepare('SELECT id FROM empresa_config WHERE id = 1').get();
 if (!empExists) {
   db.prepare("INSERT INTO empresa_config (id, nome) VALUES (1, 'Minha Marcenaria')").run();
+}
+
+// Seed checkpoint padrão de Expedição
+{
+  const checkpointExists = db.prepare("SELECT id FROM cnc_expedicao_checkpoints WHERE nome = 'Expedição'").get();
+  if (!checkpointExists) {
+    db.prepare(`INSERT INTO cnc_expedicao_checkpoints (nome, ordem, cor, icone, ativo, obrigatorio)
+      VALUES ('Expedição', 0, '#22c55e', 'package', 1, 1)`).run();
+    console.log('[OK] Checkpoint padrão "Expedição" criado');
+  }
 }
 
 // ═══════════════════════════════════════════════════════

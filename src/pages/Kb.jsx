@@ -33,7 +33,7 @@ function DraggableCard({ o, col, move, nav, KCOLS: kcols }) {
         >
             {/* Drag handle + título */}
             <div className="flex items-start gap-1.5">
-                <div {...listeners} {...attributes} className="mt-0.5 cursor-grab active:cursor-grabbing text-[var(--text-muted)] opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0">
+                <div {...listeners} {...attributes} className="mt-0.5 cursor-grab active:cursor-grabbing text-[var(--text-muted)] opacity-60 md:opacity-0 md:group-hover:opacity-60 transition-opacity flex-shrink-0">
                     <GripVertical size={14} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -51,7 +51,7 @@ function DraggableCard({ o, col, move, nav, KCOLS: kcols }) {
             </div>
 
             {/* Botoes de movimentacao (fallback) */}
-            <div className="flex gap-1 mt-2.5 flex-wrap opacity-0 group-hover:opacity-100 transition-opacity items-center">
+            <div className="flex gap-1 mt-2.5 flex-wrap md:opacity-0 md:group-hover:opacity-100 transition-opacity items-center">
                 {nav && (
                     <button onClick={() => nav('whatsapp')}
                         className="text-[8px] px-2 py-0.5 rounded-md border transition-colors cursor-pointer font-semibold"

@@ -364,21 +364,39 @@ export function buildContratoHtml({
         })
         .join('\n');
 
-    // ── Extrair corpo da proposta para anexo ──
+    // ── ANEXO I — Resumo dos ambientes e móveis (sem proposta completa) ──
     let anexoHtml = '';
-    if (propostaHtml) {
-        const bodyMatch = propostaHtml.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-        const styleMatch = propostaHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
-        if (bodyMatch) {
-            anexoHtml = `
+    if (ambientes && ambientes.length > 0) {
+        const R = (v) => `R$ ${(v || 0).toFixed(2).replace('.', ',')}`;
+        const ambRows = ambientes.map(amb => {
+            const itens = (amb.itens || amb.linhas || []);
+            const itensList = itens.map(it => {
+                const nome = it.nome || it.titulo || it.descricao || 'Item';
+                const qtd = it.qtd || 1;
+                return `<tr><td style="padding:4px 10px;font-size:10.5px;color:#555;border-bottom:1px solid #f0f0f0">${nome}</td><td style="padding:4px 10px;text-align:center;font-size:10.5px;color:#555;border-bottom:1px solid #f0f0f0">${qtd}</td></tr>`;
+            }).join('');
+            return `
+            <div style="margin-bottom:14px">
+                <div style="font-weight:700;font-size:12px;color:${corPrimaria};padding:6px 10px;background:#f8f8f8;border-radius:4px;margin-bottom:4px">${amb.nome || 'Ambiente'}</div>
+                ${itens.length > 0 ? `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:4px 10px;font-size:9px;color:#999;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #eee">Móvel / Item</th><th style="text-align:center;padding:4px 10px;font-size:9px;color:#999;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #eee;width:60px">Qtd</th></tr></thead><tbody>${itensList}</tbody></table>` : '<p style="font-size:10.5px;color:#999;padding:4px 10px">Sem itens detalhados</p>'}
+            </div>`;
+        }).join('');
+
+        anexoHtml = `
     <div style="page-break-before: always"></div>
-    <div class="anexo-header">ANEXO I \u2014 PROPOSTA COMERCIAL</div>
+    <div class="anexo-header">ANEXO I \u2014 RELAÇÃO DE AMBIENTES E MÓVEIS</div>
     <div class="anexo-sub">Parte integrante do contrato \u00B7 Ref. Proposta n\u00BA ${orcamento?.numero || '\u2014'}</div>
-    ${styleMatch ? `<style>${styleMatch[1]}</style>` : ''}
-    <div class="anexo-content">
-        ${bodyMatch[1]}
+    <div class="anexo-content" style="margin-top:16px">
+        ${ambRows}
+        <div style="margin-top:16px;padding:10px;background:#f8f8f8;border-radius:6px;font-size:11px;color:#555">
+            <strong>Valor total:</strong> R$ ${pvComDesconto.toFixed(2).replace('.', ',')}
+            ${descontoR > 0 ? ` <span style="color:#999">(desconto de R$ ${descontoR.toFixed(2).replace('.', ',')} já aplicado)</span>` : ''}
+        </div>
+        <p style="font-size:9.5px;color:#999;margin-top:10px;font-style:italic">
+            As especificações completas de materiais, acabamentos e dimensões constam na Proposta Comercial nº ${orcamento?.numero || '\u2014'},
+            disponível para consulta pelo link enviado ao contratante.
+        </p>
     </div>`;
-        }
     }
 
     return `<!DOCTYPE html>

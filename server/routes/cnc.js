@@ -8,10 +8,108 @@ import {
     runNestingPass, runFillFirst, runStripPacking, runBRKGA, ruinAndRecreate,
     gerarSequenciaCortes, setVacuumAware, getVacuumAware,
     optimizeLastBin, crossBinOptimize,
+    calculatePolygonArea, isPointInPolygon, contourBoundingBox,
 } from '../lib/nesting-engine.js';
 import { isPythonAvailable, callPython } from '../lib/python-bridge.js';
+import { parseDxf } from '../utils/dxfParser.js';
+import { seedTestData } from '../utils/seedTestData.js';
+import { seedTestCabinet } from '../utils/seedTestCabinet.js';
 
 const router = Router();
+
+// ─── Gerar cortes de separação para retalhos (pós-processamento) ───
+// Para cada retalho, verifica se existe um corte horizontal ou vertical
+// nas bordas do retalho que não cruza nenhuma peça.
+// Os cortes de retalho são adicionados NO FINAL da sequência.
+function gerarCortesRetalhos(chapaInfo) {
+    const { pecas, retalhos, cortes, comprimento, largura, refilo } = chapaInfo;
+    if (!retalhos || retalhos.length === 0) return;
+
+    const ref = refilo || 0;
+    const tol = 2; // tolerância em mm
+    // Área útil (peças e retalhos estão em coords 0-based, espaço útil)
+    const usableW = comprimento - 2 * ref;
+    const usableH = largura - 2 * ref;
+
+    // Verificar se um corte horizontal na posição Y (coords usáveis) cruza alguma peça
+    const hCutValid = (cutY) => {
+        for (const p of pecas) {
+            if (p.y + tol < cutY && cutY < p.y + (p.h || 0) - tol) return false;
+        }
+        return true;
+    };
+
+    // Verificar se um corte vertical na posição X (coords usáveis) cruza alguma peça
+    const vCutValid = (cutX) => {
+        for (const p of pecas) {
+            if (p.x + tol < cutX && cutX < p.x + (p.w || 0) - tol) return false;
+        }
+        return true;
+    };
+
+    // Verificar se o corte já existe na sequência
+    const cutExists = (dir, pos) => {
+        return (cortes || []).some(c => c.dir === dir && Math.abs((c.pos || c.y || c.x || 0) - pos) < tol);
+    };
+
+    let seq = (cortes || []).length;
+    const newCuts = [];
+
+    for (const r of retalhos) {
+        const rx = r.x, ry = r.y, rw = r.w, rh = r.h;
+
+        // Testar borda superior do retalho
+        if (ry > tol && hCutValid(ry) && !cutExists('Horizontal', ry)) {
+            seq++;
+            newCuts.push({
+                seq, dir: 'Horizontal', pos: Math.round(ry),
+                len: usableW, tipo: 'separacao_retalho',
+                retalho: `${Math.round(rw)}x${Math.round(rh)}`,
+            });
+        }
+
+        // Testar borda inferior do retalho
+        const botY = ry + rh;
+        if (botY < usableH - tol && hCutValid(botY) && !cutExists('Horizontal', botY)) {
+            seq++;
+            newCuts.push({
+                seq, dir: 'Horizontal', pos: Math.round(botY),
+                len: usableW, tipo: 'separacao_retalho',
+                retalho: `${Math.round(rw)}x${Math.round(rh)}`,
+            });
+        }
+
+        // Testar borda esquerda do retalho
+        if (rx > tol && vCutValid(rx) && !cutExists('Vertical', rx)) {
+            seq++;
+            newCuts.push({
+                seq, dir: 'Vertical', pos: Math.round(rx),
+                len: usableH, tipo: 'separacao_retalho',
+                retalho: `${Math.round(rw)}x${Math.round(rh)}`,
+            });
+        }
+
+        // Testar borda direita do retalho
+        const rightX = rx + rw;
+        if (rightX < usableW - tol && vCutValid(rightX) && !cutExists('Vertical', rightX)) {
+            seq++;
+            newCuts.push({
+                seq, dir: 'Vertical', pos: Math.round(rightX),
+                len: usableH, tipo: 'separacao_retalho',
+                retalho: `${Math.round(rw)}x${Math.round(rh)}`,
+            });
+        }
+    }
+
+    if (newCuts.length > 0) {
+        if (!chapaInfo.cortes) chapaInfo.cortes = [];
+        chapaInfo.cortes.push(...newCuts);
+    }
+}
+
+// Auto-seed demo data on first import
+try { seedTestData(); } catch (e) { /* ignore if already seeded */ }
+try { seedTestCabinet(); } catch (e) { /* ignore if already seeded */ }
 
 // ═══════════════════════════════════════════════════════════════════
 // ENGINE DE NESTING: importado de ../lib/nesting-engine.js
@@ -189,6 +287,367 @@ router.post('/lotes/importar', requireAuth, (req, res) => {
     }
 });
 
+// ── Scan público (expedição) ────────────────────────────
+router.get('/scan/:codigo', (req, res) => {
+    const codigo = req.params.codigo;
+    // Search by id, persistent_id, upmcode, or controle (row number in lote)
+    let peca = db.prepare('SELECT * FROM cnc_pecas WHERE persistent_id = ?').get(codigo);
+    if (!peca) peca = db.prepare('SELECT * FROM cnc_pecas WHERE upmcode = ?').get(codigo);
+    if (!peca) peca = db.prepare('SELECT * FROM cnc_pecas WHERE id = ?').get(codigo);
+    if (!peca) {
+        // Try matching by "#NNN" format (controle number)
+        const numMatch = codigo.match(/^#?(\d+)$/);
+        if (numMatch) peca = db.prepare('SELECT * FROM cnc_pecas WHERE id = ?').get(numMatch[1]);
+    }
+    if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
+
+    const lote = db.prepare('SELECT id, nome, cliente, projeto FROM cnc_lotes WHERE id = ?').get(peca.lote_id);
+    const scans = db.prepare('SELECT s.*, c.nome as checkpoint_nome, c.cor as checkpoint_cor FROM cnc_expedicao_scans s LEFT JOIN cnc_expedicao_checkpoints c ON s.checkpoint_id = c.id WHERE s.peca_id = ? ORDER BY s.escaneado_em ASC').all(peca.id);
+    res.json({ peca, lote: lote || null, scans });
+});
+
+// ── DXF Import ──────────────────────────────────────────
+router.post('/lotes/importar-dxf', requireAuth, (req, res) => {
+    try {
+        const { dxfContent, nome, espessura, material } = req.body;
+        if (!dxfContent) return res.status(400).json({ error: 'Conteúdo DXF é obrigatório' });
+
+        const { pieces, warnings } = parseDxf(dxfContent, {
+            defaultThickness: espessura || 18,
+            defaultMaterial: material || '',
+        });
+
+        if (pieces.length === 0) {
+            return res.status(400).json({ error: 'Nenhuma peça encontrada no DXF', warnings });
+        }
+
+        const loteNome = nome || `DXF Import ${new Date().toLocaleDateString('pt-BR')}`;
+        const insertLote = db.prepare(`
+            INSERT INTO cnc_lotes (user_id, nome, total_pecas, origem)
+            VALUES (?, ?, ?, 'dxf')
+        `);
+        const result = insertLote.run(req.user.id, loteNome, pieces.length);
+        const loteId = result.lastInsertRowid;
+
+        const insertPeca = db.prepare(`
+            INSERT INTO cnc_pecas (lote_id, persistent_id, descricao, modulo_desc, material, material_code,
+              espessura, comprimento, largura, quantidade, borda_dir, borda_esq, borda_frontal, borda_traseira,
+              acabamento, machining_json, observacao)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        `);
+
+        db.transaction((items) => {
+            for (const p of items) {
+                insertPeca.run(
+                    loteId, p.persistent_id, p.descricao, p.modulo_desc,
+                    p.material, p.material_code, p.espessura, p.comprimento, p.largura,
+                    p.quantidade, p.borda_dir, p.borda_esq, p.borda_frontal, p.borda_traseira,
+                    p.acabamento, p.machining_json, p.observacao
+                );
+            }
+        })(pieces);
+
+        res.json({
+            id: Number(loteId),
+            nome: loteNome,
+            total_pecas: pieces.length,
+            warnings,
+        });
+    } catch (err) {
+        console.error('Erro ao importar DXF:', err);
+        res.status(500).json({ error: err.message || 'Erro ao importar DXF' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 1B: DXF Import para Usinagens de Peças Individuais
+// ═══════════════════════════════════════════════════════
+
+// Preview: Parseia DXF e retorna operações detectadas sem salvar
+router.post('/pecas/:pecaId/importar-usinagem-dxf', requireAuth, async (req, res) => {
+    try {
+        const peca = db.prepare('SELECT p.* FROM cnc_pecas p JOIN cnc_lotes l ON p.lote_id = l.id WHERE p.id = ? AND l.user_id = ?').get(req.params.pecaId, req.user.id);
+        if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
+
+        const { dxfContent, defaultDepth } = req.body;
+        if (!dxfContent) return res.status(400).json({ error: 'Conteúdo DXF é obrigatório' });
+
+        const DxfParserLib = (await import('dxf-parser')).default;
+        const dxfParserInst = new DxfParserLib();
+        let dxf;
+        try { dxf = dxfParserInst.parseSync(dxfContent); } catch (err) {
+            return res.status(400).json({ error: `Erro ao parsear DXF: ${err.message}` });
+        }
+        if (!dxf || !dxf.entities || dxf.entities.length === 0) {
+            return res.status(400).json({ error: 'DXF vazio ou sem entidades' });
+        }
+
+        const depth = defaultDepth || peca.espessura || 18;
+        const operations = [];
+        const layerMap = {}; // layer → detected type
+
+        // Layer-based operation type hinting
+        const inferOpType = (layer) => {
+            if (!layer) return null;
+            const l = layer.toLowerCase();
+            if (/furo|hole|drill|bore/i.test(l)) return 'hole';
+            if (/rasgo|groove|canal|channel|slot/i.test(l)) return 'groove';
+            if (/rebaixo|pocket|cav/i.test(l)) return 'pocket';
+            if (/contorn|contour|profile|recorte/i.test(l)) return 'contour';
+            return null;
+        };
+
+        for (const entity of dxf.entities) {
+            const layer = entity.layer || '0';
+            const hintedType = inferOpType(layer);
+
+            if (entity.type === 'CIRCLE') {
+                const cx = entity.center?.x || 0;
+                const cy = entity.center?.y || 0;
+                const r = entity.radius || 0;
+                operations.push({
+                    type: hintedType || 'hole',
+                    layer,
+                    x: Math.round(cx * 10) / 10,
+                    y: Math.round(cy * 10) / 10,
+                    diameter: Math.round(r * 2 * 10) / 10,
+                    depth,
+                    entity_type: 'CIRCLE',
+                });
+            } else if (entity.type === 'LINE') {
+                const x1 = entity.vertices?.[0]?.x || entity.start?.x || 0;
+                const y1 = entity.vertices?.[0]?.y || entity.start?.y || 0;
+                const x2 = entity.vertices?.[1]?.x || entity.end?.x || 0;
+                const y2 = entity.vertices?.[1]?.y || entity.end?.y || 0;
+                const len = Math.hypot(x2 - x1, y2 - y1);
+                operations.push({
+                    type: hintedType || 'groove',
+                    layer,
+                    x: Math.round(Math.min(x1, x2) * 10) / 10,
+                    y: Math.round(Math.min(y1, y2) * 10) / 10,
+                    x2: Math.round(x2 * 10) / 10,
+                    y2: Math.round(y2 * 10) / 10,
+                    w: Math.round(Math.abs(x2 - x1) * 10) / 10,
+                    h: Math.round(Math.abs(y2 - y1) * 10) / 10,
+                    length: Math.round(len * 10) / 10,
+                    depth,
+                    entity_type: 'LINE',
+                });
+            } else if (entity.type === 'LWPOLYLINE' || entity.type === 'POLYLINE') {
+                const verts = entity.vertices || [];
+                if (verts.length < 2) continue;
+                const isClosed = !!entity.shape || (verts.length >= 3 &&
+                    Math.abs(verts[0].x - verts[verts.length - 1].x) < 0.5 &&
+                    Math.abs(verts[0].y - verts[verts.length - 1].y) < 0.5);
+                const xs = verts.map(v => v.x);
+                const ys = verts.map(v => v.y);
+                const minX = Math.min(...xs), maxX = Math.max(...xs);
+                const minY = Math.min(...ys), maxY = Math.max(...ys);
+                const contourPts = verts.map(v => ({ x: Math.round(v.x * 10) / 10, y: Math.round(v.y * 10) / 10 }));
+                operations.push({
+                    type: hintedType || (isClosed ? 'pocket' : 'groove'),
+                    layer,
+                    x: Math.round(minX * 10) / 10,
+                    y: Math.round(minY * 10) / 10,
+                    w: Math.round((maxX - minX) * 10) / 10,
+                    h: Math.round((maxY - minY) * 10) / 10,
+                    depth,
+                    closed: isClosed,
+                    vertices: contourPts,
+                    entity_type: 'LWPOLYLINE',
+                });
+            } else if (entity.type === 'ARC') {
+                const cx = entity.center?.x || 0;
+                const cy = entity.center?.y || 0;
+                const r = entity.radius || 0;
+                operations.push({
+                    type: hintedType || 'groove',
+                    layer,
+                    x: Math.round(cx * 10) / 10,
+                    y: Math.round(cy * 10) / 10,
+                    radius: Math.round(r * 10) / 10,
+                    startAngle: entity.startAngle || 0,
+                    endAngle: entity.endAngle || 360,
+                    depth,
+                    entity_type: 'ARC',
+                });
+            }
+
+            if (layer && !layerMap[layer]) layerMap[layer] = inferOpType(layer) || 'auto';
+        }
+
+        // Collect unique layers for mapping UI
+        const layers = Object.entries(layerMap).map(([name, type]) => ({
+            name, inferredType: type, count: operations.filter(o => o.layer === name).length,
+        }));
+
+        res.json({
+            preview: operations,
+            entities_count: operations.length,
+            layers,
+            peca: { id: peca.id, descricao: peca.descricao, comprimento: peca.comprimento, largura: peca.largura, espessura: peca.espessura },
+        });
+    } catch (err) {
+        console.error('Erro ao importar usinagem DXF:', err);
+        res.status(500).json({ error: err.message || 'Erro ao parsear DXF' });
+    }
+});
+
+// Confirmar: salva as operações detectadas no machining_json da peça
+router.post('/pecas/:pecaId/confirmar-usinagem-dxf', requireAuth, (req, res) => {
+    try {
+        const peca = db.prepare('SELECT p.* FROM cnc_pecas p JOIN cnc_lotes l ON p.lote_id = l.id WHERE p.id = ? AND l.user_id = ?').get(req.params.pecaId, req.user.id);
+        if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
+
+        const { operations, layerMapping, defaultDepth, merge } = req.body;
+        if (!Array.isArray(operations) || operations.length === 0) {
+            return res.status(400).json({ error: 'Nenhuma operação para confirmar' });
+        }
+
+        // Convert operations to machining_json workers
+        const workers = operations.map((op, i) => {
+            // Apply layer mapping overrides if provided
+            let type = op.type;
+            if (layerMapping && layerMapping[op.layer]) {
+                type = layerMapping[op.layer];
+            }
+
+            const worker = {
+                category: type === 'hole' ? 'transfer_hole' : type === 'groove' ? 'groove' : type === 'pocket' ? 'pocket' : type === 'contour' ? 'contour' : 'groove',
+                face: 'top',
+                x: op.x || 0,
+                y: op.y || 0,
+                depth: op.depth || defaultDepth || peca.espessura || 18,
+            };
+
+            if (type === 'hole') {
+                worker.diameter = op.diameter || 5;
+            } else if (op.w) {
+                worker.width = op.w;
+                worker.height = op.h;
+            }
+            if (op.x2 != null) { worker.x2 = op.x2; worker.y2 = op.y2; }
+            if (op.vertices) worker.vertices = op.vertices;
+            if (op.radius) worker.radius = op.radius;
+            if (op.startAngle != null) { worker.startAngle = op.startAngle; worker.endAngle = op.endAngle; }
+            worker.tool_code = '';
+            worker.dxf_imported = true;
+
+            return worker;
+        });
+
+        // Merge with existing or replace
+        let existingMach = {};
+        try { existingMach = peca.machining_json ? JSON.parse(peca.machining_json) : {}; } catch (_) {}
+        const existingWorkers = existingMach.workers ? (Array.isArray(existingMach.workers) ? existingMach.workers : Object.values(existingMach.workers)) : [];
+
+        const finalWorkers = merge ? [...existingWorkers, ...workers] : workers;
+        const machiningJson = JSON.stringify({ ...existingMach, workers: finalWorkers });
+
+        db.prepare('UPDATE cnc_pecas SET machining_json = ? WHERE id = ?').run(machiningJson, peca.id);
+
+        res.json({ ok: true, total_workers: finalWorkers.length });
+    } catch (err) {
+        console.error('Erro ao confirmar usinagem DXF:', err);
+        res.status(500).json({ error: 'Erro ao salvar usinagens' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 1C: Multi-Machine Assignments
+// ═══════════════════════════════════════════════════════
+
+// Ensure table exists
+try {
+    db.prepare(`CREATE TABLE IF NOT EXISTS cnc_machine_assignments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lote_id INTEGER NOT NULL,
+        chapa_idx INTEGER NOT NULL,
+        maquina_id INTEGER NOT NULL,
+        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(lote_id, chapa_idx)
+    )`).run();
+} catch (_) {}
+
+router.get('/machine-assignments/:loteId', requireAuth, (req, res) => {
+    try {
+        const assignments = db.prepare(`
+            SELECT a.chapa_idx, a.maquina_id, m.nome as maquina_nome
+            FROM cnc_machine_assignments a
+            LEFT JOIN cnc_maquinas m ON a.maquina_id = m.id
+            WHERE a.lote_id = ?
+            ORDER BY a.chapa_idx
+        `).all(req.params.loteId);
+        res.json(assignments);
+    } catch (err) {
+        console.error('Erro ao buscar atribuições:', err);
+        res.status(500).json({ error: 'Erro ao buscar atribuições de máquinas' });
+    }
+});
+
+router.post('/machine-assignments/:loteId', requireAuth, (req, res) => {
+    try {
+        const { assignments } = req.body;
+        if (!Array.isArray(assignments)) return res.status(400).json({ error: 'assignments deve ser um array' });
+
+        const lote = db.prepare('SELECT id FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        const upsert = db.prepare('INSERT OR REPLACE INTO cnc_machine_assignments (lote_id, chapa_idx, maquina_id) VALUES (?, ?, ?)');
+        const del = db.prepare('DELETE FROM cnc_machine_assignments WHERE lote_id = ? AND chapa_idx = ?');
+
+        db.transaction(() => {
+            for (const a of assignments) {
+                if (a.maquina_id) {
+                    upsert.run(lote.id, a.chapaIdx, a.maquina_id);
+                } else {
+                    del.run(lote.id, a.chapaIdx);
+                }
+            }
+        })();
+
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('Erro ao salvar atribuições:', err);
+        res.status(500).json({ error: 'Erro ao salvar atribuições' });
+    }
+});
+
+router.post('/machine-assignments/:loteId/auto', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        if (!lote.plano_json) return res.status(400).json({ error: 'Lote sem plano de corte' });
+
+        const plano = JSON.parse(lote.plano_json);
+        const totalChapas = plano.chapas?.length || 0;
+        if (totalChapas === 0) return res.status(400).json({ error: 'Nenhuma chapa no plano' });
+
+        const maquinas = db.prepare('SELECT * FROM cnc_maquinas WHERE ativo = 1 ORDER BY padrao DESC, nome').all();
+        if (maquinas.length === 0) return res.status(400).json({ error: 'Nenhuma máquina ativa cadastrada' });
+
+        // Distribute sheets evenly across machines
+        const assignments = [];
+        for (let i = 0; i < totalChapas; i++) {
+            const maquina = maquinas[i % maquinas.length];
+            assignments.push({ chapaIdx: i, maquina_id: maquina.id, maquina_nome: maquina.nome });
+        }
+
+        // Save to DB
+        const upsert = db.prepare('INSERT OR REPLACE INTO cnc_machine_assignments (lote_id, chapa_idx, maquina_id) VALUES (?, ?, ?)');
+        db.transaction(() => {
+            for (const a of assignments) {
+                upsert.run(lote.id, a.chapaIdx, a.maquina_id);
+            }
+        })();
+
+        res.json({ ok: true, assignments });
+    } catch (err) {
+        console.error('Erro auto-assign:', err);
+        res.status(500).json({ error: 'Erro ao auto-atribuir máquinas' });
+    }
+});
+
 // ═══════════════════════════════════════════════════════
 // GRUPO 2: Listagem e CRUD
 // ═══════════════════════════════════════════════════════
@@ -210,6 +669,22 @@ router.get('/lotes/:id', requireAuth, (req, res) => {
     res.json({ ...lote, pecas, materiais, modulos, totalInstancias, areaTotal: Math.round(areaTotal * 100) / 100 });
 });
 
+// Criar lote manual (para peças criadas no editor)
+router.post('/lotes/manual', requireAuth, (req, res) => {
+    try {
+        const { nome, cliente, projeto } = req.body;
+        const loteNome = nome || `Lote Manual ${new Date().toLocaleDateString('pt-BR')}`;
+        const result = db.prepare(`
+            INSERT INTO cnc_lotes (user_id, nome, cliente, projeto, total_pecas, origem)
+            VALUES (?, ?, ?, ?, 0, 'manual')
+        `).run(req.user.id, loteNome, cliente || '', projeto || '');
+        res.json({ id: Number(result.lastInsertRowid), nome: loteNome });
+    } catch (err) {
+        console.error('Erro ao criar lote manual:', err);
+        res.status(500).json({ error: 'Erro ao criar lote' });
+    }
+});
+
 router.delete('/lotes/:id', requireAuth, (req, res) => {
     const lote = db.prepare('SELECT id FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
     if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
@@ -222,19 +697,107 @@ router.get('/pecas/:loteId', requireAuth, (req, res) => {
     res.json(pecas);
 });
 
+// Criar peça manual
+router.post('/pecas/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT id FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        const { descricao, modulo_desc, material, material_code, espessura, comprimento, largura,
+            quantidade, borda_dir, borda_esq, borda_frontal, borda_traseira, acabamento,
+            machining_json, observacao, grain, rotation,
+            borda_cor_frontal, borda_cor_traseira, borda_cor_dir, borda_cor_esq } = req.body;
+
+        if (!comprimento || !largura) return res.status(400).json({ error: 'Comprimento e largura são obrigatórios' });
+
+        const persistent_id = `M_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
+        const result = db.prepare(`
+            INSERT INTO cnc_pecas (lote_id, persistent_id, descricao, modulo_desc, material, material_code,
+              espessura, comprimento, largura, quantidade, borda_dir, borda_esq, borda_frontal, borda_traseira,
+              acabamento, machining_json, observacao,
+              borda_cor_frontal, borda_cor_traseira, borda_cor_dir, borda_cor_esq)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        `).run(
+            lote.id, persistent_id, descricao || 'Peça manual', modulo_desc || '',
+            material || material_code || '', material_code || '', espessura || 18,
+            comprimento, largura, quantidade || 1,
+            borda_dir || '', borda_esq || '', borda_frontal || '', borda_traseira || '',
+            acabamento || '', machining_json ? (typeof machining_json === 'string' ? machining_json : JSON.stringify(machining_json)) : null,
+            observacao || '',
+            borda_cor_frontal || null, borda_cor_traseira || null, borda_cor_dir || null, borda_cor_esq || null
+        );
+
+        // Update total count
+        const count = db.prepare('SELECT COUNT(*) as c FROM cnc_pecas WHERE lote_id = ?').get(lote.id).c;
+        db.prepare('UPDATE cnc_lotes SET total_pecas = ? WHERE id = ?').run(count, lote.id);
+
+        res.json({ id: Number(result.lastInsertRowid), persistent_id });
+    } catch (err) {
+        console.error('Erro ao criar peça:', err);
+        res.status(500).json({ error: 'Erro ao criar peça' });
+    }
+});
+
+// Atualizar peça (todos os campos editáveis)
 router.put('/pecas/:id', requireAuth, (req, res) => {
-    const { observacao, comprimento, largura } = req.body;
     const peca = db.prepare('SELECT p.id FROM cnc_pecas p JOIN cnc_lotes l ON p.lote_id = l.id WHERE p.id = ? AND l.user_id = ?').get(req.params.id, req.user.id);
     if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
+
+    const editableFields = [
+        'descricao', 'modulo_desc', 'material', 'material_code', 'espessura',
+        'comprimento', 'largura', 'quantidade', 'borda_dir', 'borda_esq',
+        'borda_frontal', 'borda_traseira', 'acabamento', 'machining_json',
+        'observacao', 'produto_final', 'upmcode', 'upmdraw', 'usi_a', 'usi_b',
+        'borda_cor_frontal', 'borda_cor_traseira', 'borda_cor_dir', 'borda_cor_esq',
+    ];
+
     const updates = [];
     const vals = [];
-    if (observacao !== undefined) { updates.push('observacao = ?'); vals.push(observacao); }
-    if (comprimento !== undefined) { updates.push('comprimento = ?'); vals.push(comprimento); }
-    if (largura !== undefined) { updates.push('largura = ?'); vals.push(largura); }
+    for (const field of editableFields) {
+        if (req.body[field] !== undefined) {
+            let val = req.body[field];
+            if (field === 'machining_json' && typeof val === 'object') val = JSON.stringify(val);
+            updates.push(`${field} = ?`);
+            vals.push(val);
+        }
+    }
     if (updates.length === 0) return res.json({ ok: true });
     vals.push(req.params.id);
     db.prepare(`UPDATE cnc_pecas SET ${updates.join(', ')} WHERE id = ?`).run(...vals);
     res.json({ ok: true });
+});
+
+// Deletar peça individual
+router.delete('/pecas/:id', requireAuth, (req, res) => {
+    const peca = db.prepare('SELECT p.id, p.lote_id FROM cnc_pecas p JOIN cnc_lotes l ON p.lote_id = l.id WHERE p.id = ? AND l.user_id = ?').get(req.params.id, req.user.id);
+    if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
+    db.prepare('DELETE FROM cnc_pecas WHERE id = ?').run(peca.id);
+    const count = db.prepare('SELECT COUNT(*) as c FROM cnc_pecas WHERE lote_id = ?').get(peca.lote_id).c;
+    db.prepare('UPDATE cnc_lotes SET total_pecas = ? WHERE id = ?').run(count, peca.lote_id);
+    res.json({ ok: true });
+});
+
+// Duplicar peça
+router.post('/pecas/:id/duplicar', requireAuth, (req, res) => {
+    const peca = db.prepare('SELECT p.* FROM cnc_pecas p JOIN cnc_lotes l ON p.lote_id = l.id WHERE p.id = ? AND l.user_id = ?').get(req.params.id, req.user.id);
+    if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
+    const persistent_id = `D_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const result = db.prepare(`
+        INSERT INTO cnc_pecas (lote_id, persistent_id, upmcode, descricao, modulo_desc, modulo_id,
+          produto_final, material, material_code, espessura, comprimento, largura, quantidade,
+          borda_dir, borda_esq, borda_frontal, borda_traseira, acabamento, upmdraw, usi_a, usi_b,
+          machining_json, observacao)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `).run(
+        peca.lote_id, persistent_id, peca.upmcode, `${peca.descricao || 'Peça'} (cópia)`, peca.modulo_desc, peca.modulo_id,
+        peca.produto_final, peca.material, peca.material_code, peca.espessura, peca.comprimento, peca.largura,
+        peca.quantidade, peca.borda_dir, peca.borda_esq, peca.borda_frontal, peca.borda_traseira,
+        peca.acabamento, peca.upmdraw, peca.usi_a, peca.usi_b, peca.machining_json, peca.observacao
+    );
+    const count = db.prepare('SELECT COUNT(*) as c FROM cnc_pecas WHERE lote_id = ?').get(peca.lote_id).c;
+    db.prepare('UPDATE cnc_lotes SET total_pecas = ? WHERE id = ?').run(count, peca.lote_id);
+    res.json({ id: Number(result.lastInsertRowid), persistent_id });
 });
 
 // ═══════════════════════════════════════════════════════
@@ -301,6 +864,7 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
             db.prepare("DELETE FROM cnc_retalhos WHERE origem_lote = ?").run(String(lote.id));
 
             const plano = { chapas: [], retalhos: [], materiais: {}, modo: binType, direcao_corte: direcaoCorteRaw,
+                timestamp: Date.now(),
                 classificacao: { limiar_pequena: limiarPequena, limiar_super_pequena: limiarSuperPequena, ativo: classificarPecas },
             };
             let globalChapaIdx = 0;
@@ -382,10 +946,23 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                         cortes: pyChapa.cortes || [],
                     };
 
-                    // Atualizar posicoes das pecas no DB
+                    // Atualizar posicoes das pecas no DB + injetar contour data
                     for (const pecaInfo of chapaInfo.pecas) {
                         if (pecaInfo.instancia === 0) {
                             updatePeca.run(chapaIdx, pecaInfo.x + refilo, pecaInfo.y + refilo, pecaInfo.rotated ? 1 : 0, pecaInfo.pecaId, lote.id);
+                        }
+                        // Inject contour data for irregular pieces (from machining_json)
+                        if (pecaInfo.pecaId) {
+                            const srcPeca = group.pieces.find(p => p.id === pecaInfo.pecaId);
+                            if (srcPeca?.machining_json) {
+                                try {
+                                    const mach = JSON.parse(srcPeca.machining_json);
+                                    if (mach.contour && Array.isArray(mach.contour)) {
+                                        pecaInfo.contour = mach.contour;
+                                        pecaInfo.contourArea = calculatePolygonArea(mach.contour);
+                                    }
+                                } catch (_) {}
+                            }
                         }
                     }
 
@@ -404,6 +981,7 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                         }
                     }
 
+                    gerarCortesRetalhos(chapaInfo);
                     plano.chapas.push(chapaInfo);
                 }
 
@@ -552,7 +1130,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
         }
 
         const plano = {
-            chapas: [], retalhos: [], materiais: {}, modo: binType, multi_lote: true, lote_ids: loteIds, grupo_otimizacao: grupoId,
+            chapas: [], retalhos: [], materiais: {}, modo: binType, timestamp: Date.now(), multi_lote: true, lote_ids: loteIds, grupo_otimizacao: grupoId,
             classificacao: { limiar_pequena: limiarPequena, limiar_super_pequena: limiarSuperPequena, ativo: classificarPecas },
         };
         let globalChapaIdx = 0;
@@ -591,10 +1169,22 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
             const chapaVeio = chapa.veio || 'sem_veio';
             const temVeio = chapaVeio !== 'sem_veio';
 
+            // Buscar config de rotação do material cadastrado (-1=herdar do veio, 0=nunca, 1=sempre)
+            const matCadastrado = chapa.material_code
+                ? db.prepare('SELECT permitir_rotacao FROM cnc_materiais WHERE codigo = ? LIMIT 1').get(chapa.material_code)
+                : null;
+            const matPermitirRot = matCadastrado?.permitir_rotacao;
+
             // Expandir peças com rastreio de lote_id
             const expanded = [];
             for (const p of group.pieces) {
-                const allowRotate = temVeio ? false : (permitirRotacao != null ? permitirRotacao : true);
+                // Regra simples: sem veio = SEMPRE permite rotação (melhor aproveitamento)
+                //                com veio = NUNCA permite (protege o projeto)
+                // Override do material cadastrado pode forçar diferente
+                let allowRotate;
+                if (matPermitirRot === 0) allowRotate = false;
+                else if (matPermitirRot === 1) allowRotate = true;
+                else allowRotate = !temVeio; // sem veio → true, com veio → false
                 for (let q = 0; q < p.quantidade; q++) {
                     expanded.push({
                         ref: { pecaId: p.id, instancia: q, loteId: loteMap[p.id] },
@@ -651,6 +1241,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                             chapaInfo.pecas.push(pecaM);
                             placedRefs.add(`${pecaId}_${instancia}`);
                         }
+                        gerarCortesRetalhos(chapaInfo);
                         plano.chapas.push(chapaInfo);
                         retalhosUsados.push(ret.id);
                         db.prepare('UPDATE cnc_retalhos SET disponivel = 0 WHERE id = ?').run(ret.id);
@@ -677,13 +1268,22 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
             const sheetArea = binW * binH;
             const minTeoricoChapas = Math.ceil(totalPieceArea / sheetArea);
 
+            // Respeitar o modo escolhido pelo usuário:
+            // guilhotina → só guilhotina + shelf (compatíveis com esquadrejadeira)
+            // maxrects → maxrects + skyline (CNC livre)
+            // shelf → só shelf + guilhotina
             const binTypesToTry = [binType];
-            if (!binTypesToTry.includes('guillotine')) binTypesToTry.push('guillotine');
-            if (!binTypesToTry.includes('shelf')) binTypesToTry.push('shelf');
-            if (!binTypesToTry.includes('maxrects')) binTypesToTry.push('maxrects');
-            if (!binTypesToTry.includes('skyline')) binTypesToTry.push('skyline');
+            if (binType === 'guillotine') {
+                binTypesToTry.push('shelf');
+            } else if (binType === 'shelf') {
+                binTypesToTry.push('guillotine');
+            } else {
+                // maxrects ou skyline → testa variantes CNC livre
+                if (!binTypesToTry.includes('maxrects')) binTypesToTry.push('maxrects');
+                if (!binTypesToTry.includes('skyline')) binTypesToTry.push('skyline');
+            }
 
-            const sortStrategies = [
+            const baseSortStrategies = [
                 { name: 'area_desc',    fn: (a, b) => b.area - a.area },
                 { name: 'perim_desc',   fn: (a, b) => b.perim - a.perim },
                 { name: 'maxside_desc', fn: (a, b) => b.maxSide - a.maxSide },
@@ -697,14 +1297,35 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                 { name: 'diagonal',     fn: (a, b) => Math.sqrt(b.w*b.w+b.h*b.h) - Math.sqrt(a.w*a.w+a.h*a.h) },
                 { name: 'minside_desc', fn: (a, b) => Math.min(b.w, b.h) - Math.min(a.w, a.h) },
             ];
+            // Add directional sort strategies when direction is set
+            const sortStrategies = [...baseSortStrategies];
+            if (splitDir === 'horizontal') {
+                // Horizontal: prioritize wider pieces first (fill rows efficiently)
+                sortStrategies.unshift(
+                    { name: 'width_desc',     fn: (a, b) => b.w - a.w || b.h - a.h },
+                    { name: 'width_area',     fn: (a, b) => b.w - a.w || b.area - a.area },
+                );
+            } else if (splitDir === 'vertical') {
+                // Vertical: prioritize taller pieces first (fill columns efficiently)
+                sortStrategies.unshift(
+                    { name: 'height_desc',    fn: (a, b) => b.h - a.h || b.w - a.w },
+                    { name: 'height_area',    fn: (a, b) => b.h - a.h || b.area - a.area },
+                );
+            }
 
             // FASE 2: Portfolio multi-pass
+            // When direction is set, only run directional-compatible bin types and give priority to directional strategies
+            const isDirectional = splitDir !== 'auto';
             for (const bt of binTypesToTry) {
                 for (const strat of sortStrategies) {
                     const sorted = [...pecasRestantes].sort(strat.fn);
                     for (const h of heuristics) {
                         const bins = runNestingPass(sorted, binW, binH, spacing, h, bt, kerf, splitDir);
                         const sc = scoreResult(bins);
+                        // When direction is set, give a slight bonus to directional sort strategies (same bin count = prefer directional)
+                        if (isDirectional && (strat.name.startsWith('width_') || strat.name.startsWith('height_'))) {
+                            sc.score -= 0.5; // Small bonus: wins tie-breaks without overriding fewer-bins
+                        }
                         if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = bins; bestStrategyName = `${strat.name}+${h}+${bt}`; bestBinType = bt; }
                         totalCombinacoes++;
                     }
@@ -713,14 +1334,14 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
 
             // FASE 2.5: Strip packing
             {
-                const stripBins = runStripPacking(pecasRestantes, binW, binH, kerf);
+                const stripBins = runStripPacking(pecasRestantes, binW, binH, kerf, spacing, splitDir);
                 const sc = scoreResult(stripBins);
                 if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = stripBins; bestStrategyName = 'strip_packing'; bestBinType = 'strip'; }
                 totalCombinacoes++;
             }
 
-            // FASE 3: R&R
-            const rrIter = Math.max(maxIter, 500);
+            // FASE 3: R&R (iterações otimizadas internamente — sem necessidade de configuração do usuário)
+            const rrIter = Math.max(800, Math.min(2000, pecasRestantes.length * 20));
             if (pecasRestantes.length > 3) {
                 for (const bt of binTypesToTry) {
                     const rrResult = ruinAndRecreate(pecasRestantes, binW, binH, spacing, bt, kerf, rrIter, splitDir);
@@ -783,10 +1404,13 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                 bestBins = repairOverlaps(bestBins, binW, binH, spacing, bestBinType, kerf, splitDir);
                 bestBinScore = scoreResult(bestBins);
             }
-            for (const bin of bestBins) compactBin(bin, binW, binH, kerf);
+            for (const bin of bestBins) compactBin(bin, binW, binH, kerf, spacing, splitDir);
 
             const maxTeoricoAprov = totalPieceArea / (bestBins.length * sheetArea) * 100;
-            console.log(`  [Nesting Multi] ${groupKey}: ${pecasRestantes.length} peças (${lotes.length} lotes) → ${bestBins.length} chapa(s), ${bestBinScore.avgOccupancy.toFixed(1)}% (${bestStrategyName})`);
+            console.log(`  [Nesting Multi] ${groupKey}: ${pecasRestantes.length} peças (${lotes.length} lotes) → ${bestBins.length} chapa(s), ${bestBinScore.avgOccupancy.toFixed(1)}% (${bestStrategyName}) [splitDir=${splitDir}]`);
+            if (bestBins[0] && bestBins[0].usedRects) {
+                bestBins[0].usedRects.slice(0, 3).forEach(r => console.log(`    → ${r.pieceRef}: (${Math.round(r.x)},${Math.round(r.y)}) ${Math.round(r.realW||r.w)}x${Math.round(r.realH||r.h)} rot=${r.rotated||false}`));
+            }
 
             // Gravar resultados com rastreio de lote
             for (let bi = 0; bi < bestBins.length; bi++) {
@@ -839,6 +1463,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                     }
                 }
 
+                gerarCortesRetalhos(chapaInfo);
                 plano.chapas.push(chapaInfo);
             }
 
@@ -1007,11 +1632,12 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
         if (!plano.transferencia) plano.transferencia = []; // Área de transferência
         const { chapaIdx, pecaIdx, action, x, y, targetChapaIdx, force } = req.body;
         const kerf = plano.config?.kerf || 4;
+        const moveSpacing = Math.max(kerf, plano.config?.spacing || 0); // Espaçamento efetivo para movimentação
 
         // ── Snapshot transacional antes de ações críticas ──
         const SNAPSHOT_ACTIONS = ['move_to_sheet', 'from_transfer', 'reoptimize_unlocked',
             'lock_sheet', 'unlock_sheet', 'compact', 're_optimize', 'ajustar_sobra',
-            'marcar_refugo', 'merge_sobras'];
+            'marcar_refugo', 'merge_sobras', 'recalc_sobras', 'flip'];
         if (SNAPSHOT_ACTIONS.includes(action)) {
             db.prepare('INSERT INTO cnc_plano_versions (lote_id, user_id, plano_json, acao_origem) VALUES (?, ?, ?, ?)')
                 .run(lote.id, req.user.id, lote.plano_json, action);
@@ -1021,7 +1647,7 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
         }
 
         // ── Gate de trava por chapa ──
-        const SHEET_GATED_ACTIONS = ['move', 'rotate', 'to_transfer', 'compact', 're_optimize', 'ajustar_sobra', 'marcar_refugo', 'merge_sobras'];
+        const SHEET_GATED_ACTIONS = ['move', 'rotate', 'flip', 'to_transfer', 'compact', 're_optimize', 'ajustar_sobra', 'marcar_refugo', 'merge_sobras'];
         if (SHEET_GATED_ACTIONS.includes(action) && chapaIdx != null) {
             const lockErr = assertSheetUnlocked(plano, chapaIdx, action);
             if (lockErr) return res.status(423).json(lockErr);
@@ -1044,14 +1670,13 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
             if (!peca) return res.status(400).json({ error: 'Peça inválida' });
             if (peca.locked) return res.status(400).json({ error: 'Peça travada' });
 
-            // Validar limites
+            // Validar limites: área útil completa (colisão com kerf cuida do espaçamento)
             const ref = chapa.refilo || 0;
             const clampedX = Math.max(0, Math.min(chapa.comprimento - 2 * ref - peca.w, x));
             const clampedY = Math.max(0, Math.min(chapa.largura - 2 * ref - peca.h, y));
 
             const testPeca = { ...peca, x: clampedX, y: clampedY };
-            const moveKerf = chapa.kerf || 0;
-            const collision = checkCollision(testPeca, chapa.pecas, pecaIdx, moveKerf);
+            const collision = checkCollision(testPeca, chapa.pecas, pecaIdx, moveSpacing);
 
             if (collision.collides && !force) {
                 return res.status(409).json({
@@ -1063,6 +1688,8 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
             }
             peca.x = clampedX;
             peca.y = clampedY;
+            // Limpar retalhos — devem ser recalculados sob demanda
+            chapa.retalhos = [];
 
         // ═══ ACTION: rotate ════════════════════════════════════════════
         } else if (action === 'rotate') {
@@ -1092,11 +1719,10 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
             peca.h = newH;
             peca.rotated = !peca.rotated;
 
-            // Verificar colisão pós-rotação
-            const rotKerf = chapa.kerf || 0;
-            const collision = checkCollision(peca, chapa.pecas, pecaIdx, rotKerf);
+            // Verificar colisão pós-rotação (usar espaçamento efetivo)
+            const collision = checkCollision(peca, chapa.pecas, pecaIdx, moveSpacing);
             if (collision.collides) {
-                const pos = findNonCollidingPosition(peca, chapa.pecas, pecaIdx, chapa.comprimento, chapa.largura, ref, rotKerf);
+                const pos = findNonCollidingPosition(peca, chapa.pecas, pecaIdx, chapa.comprimento, chapa.largura, ref, moveSpacing);
                 if (pos) { peca.x = pos.x; peca.y = pos.y; }
                 else {
                     // Reverter
@@ -1104,6 +1730,16 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
                     return res.status(400).json({ error: 'Sem espaço para rotacionar (colisão)' });
                 }
             }
+            chapa.retalhos = []; // Limpar retalhos — recalcular sob demanda
+
+        // ═══ ACTION: flip (inverter peça: Lado A / Lado B) ════════════
+        } else if (action === 'flip') {
+            const chapa = plano.chapas[chapaIdx];
+            if (!chapa) return res.status(400).json({ error: 'Chapa inválida' });
+            const peca = chapa.pecas[pecaIdx];
+            if (!peca) return res.status(400).json({ error: 'Peça inválida' });
+            // Toggle lado_ativo entre 'A' e 'B'
+            peca.lado_ativo = (peca.lado_ativo === 'B') ? 'A' : 'B';
 
         // ═══ ACTION: move_to_sheet ═════════════════════════════════════
         } else if (action === 'move_to_sheet') {
@@ -1292,6 +1928,7 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
                 }
             }
             chapa.pecas = placed;
+            chapa.retalhos = []; // Limpar retalhos — recalcular sob demanda
 
         // ═══ ACTION: re_optimize ══════════════════════════════════════
         } else if (action === 're_optimize') {
@@ -1303,6 +1940,13 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
             const kerfVal = plano.config?.kerf || 4;
             const hasVeio = chapa.veio && chapa.veio !== 'sem_veio';
 
+            // Consultar rotação do material cadastrado
+            const matReOpt = chapa.material_code
+                ? db.prepare('SELECT permitir_rotacao FROM cnc_materiais WHERE codigo = ? LIMIT 1').get(chapa.material_code)
+                : null;
+            const matRotReOpt = matReOpt?.permitir_rotacao;
+            const canRotate = matRotReOpt === 0 ? false : matRotReOpt === 1 ? true : !hasVeio;
+
             // Separar locked vs livres
             const locked = chapa.pecas.filter(p => p.locked);
             const free = chapa.pecas.filter(p => !p.locked);
@@ -1313,7 +1957,7 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
                 w: p.w, h: p.h, area: p.w * p.h,
                 perim: 2 * (p.w + p.h), maxSide: Math.max(p.w, p.h),
                 diff: Math.abs(p.w - p.h),
-                allowRotate: !hasVeio,
+                allowRotate: canRotate,
                 originalPeca: p,
             }));
 
@@ -1334,6 +1978,7 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
                     }
                 }
                 chapa.pecas = reOptimized;
+                chapa.retalhos = []; // Limpar retalhos — recalcular sob demanda
             }
 
         // ═══ ACTION: reoptimize_unlocked ═════════════════════════════
@@ -1503,6 +2148,22 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
                 }
             }
 
+        // ═══ ACTION: recalc_sobras (recalcular retalhos baseado nas peças atuais) ═══
+        } else if (action === 'recalc_sobras') {
+            const chapa = plano.chapas[chapaIdx];
+            if (!chapa) return res.status(400).json({ error: 'Chapa inválida' });
+            const { retalhos: newRetalhos } = req.body;
+            if (!Array.isArray(newRetalhos)) return res.status(400).json({ error: 'retalhos deve ser array' });
+            // Validar que nenhum retalho invade peças
+            for (const r of newRetalhos) {
+                for (const p of chapa.pecas) {
+                    if (r.x < p.x + p.w && r.x + r.w > p.x && r.y < p.y + p.h && r.y + r.h > p.y) {
+                        return res.status(409).json({ error: `Retalho ${Math.round(r.w)}x${Math.round(r.h)} invade peça em (${Math.round(p.x)},${Math.round(p.y)})` });
+                    }
+                }
+            }
+            chapa.retalhos = newRetalhos;
+
         // ═══ ACTION: restore (undo/redo) ══════════════════════════════
         } else if (action === 'restore') {
             const { planoData } = req.body;
@@ -1605,8 +2266,57 @@ router.get('/etiquetas/:loteId', requireAuth, (req, res) => {
                 codigo: lote.codigo,
                 fita_resumo: fitaResumo,
                 diagrama,
+                machining_json: p.machining_json,
+                peca_id: p.id,
+                chapa_idx: p.chapa_idx,
+                pos_x: p.pos_x,
+                pos_y: p.pos_y,
+                rotacionada: p.rotacionada,
             });
             controle++;
+        }
+    }
+
+    // Build sheet map for minimapa from plano_json (has ALL instances with real positions)
+    const chapasMap = {};   // chapaIdx → { w, h, pecas: [{id, instancia, x, y, w, h}] }
+    const pecaPosMap = {};  // "pecaId_instancia" → { chapa_idx, pos_x, pos_y, rotacionada }
+    try {
+        if (lote.plano_json) {
+            const pj = JSON.parse(lote.plano_json);
+            // plano_json.chapas is a flat array of all sheets (not nested under materiais)
+            for (const ch of (pj.chapas || [])) {
+                const idx = ch.idx ?? ch.index ?? 0;
+                const sheetW = ch.comprimento || 2750;
+                const sheetH = ch.largura || 1850;
+                if (!chapasMap[idx]) chapasMap[idx] = { w: sheetW, h: sheetH, pecas: [] };
+                for (const pp of (ch.pecas || [])) {
+                    // Python optimizer outputs w/h (already accounts for rotation)
+                    const pw = pp.w || 0;
+                    const ph = pp.h || 0;
+                    chapasMap[idx].pecas.push({
+                        id: pp.pecaId, instancia: pp.instancia ?? 0,
+                        x: pp.x || 0, y: pp.y || 0, w: pw, h: ph,
+                    });
+                    pecaPosMap[`${pp.pecaId}_${pp.instancia ?? 0}`] = {
+                        chapa_idx: idx, pos_x: pp.x || 0, pos_y: pp.y || 0, rotacionada: pp.rotated ? 1 : 0,
+                    };
+                }
+            }
+        }
+    } catch { /* ignore */ }
+
+    // Attach per-instance position and sheet info to each etiqueta
+    for (const et of etiquetas) {
+        const posKey = `${et.pecaId}_${et.instancia}`;
+        const pos = pecaPosMap[posKey];
+        if (pos) {
+            et.chapa_idx = pos.chapa_idx;
+            et.pos_x = pos.pos_x;
+            et.pos_y = pos.pos_y;
+            et.rotacionada = pos.rotacionada;
+        }
+        if (et.chapa_idx != null && et.chapa_idx >= 0 && chapasMap[et.chapa_idx]) {
+            et.chapa = chapasMap[et.chapa_idx];
         }
     }
 
@@ -1783,7 +2493,87 @@ function orderByProximity(ops) {
         }
         ord.push(rem.splice(bi, 1)[0]);
     }
-    return ord;
+    // Aplicar 2-opt para melhorar ~15-20% a distância total de deslocamento
+    return twoOptImprove(ord);
+}
+
+// ─── Helper: 2-opt improvement (TSP local search) ──────
+function twoOptImprove(ops) {
+    if (ops.length < 4) return ops;
+    const dist = (a, b) => (a.absX - b.absX) ** 2 + (a.absY - b.absY) ** 2;
+    let improved = true;
+    let iterations = 0;
+    const maxIter = 5; // Limitar iterações para performance
+    while (improved && iterations < maxIter) {
+        improved = false;
+        iterations++;
+        for (let i = 1; i < ops.length - 1; i++) {
+            for (let j = i + 1; j < ops.length; j++) {
+                // Calcular ganho de reverter segmento [i..j]
+                const before = dist(ops[i - 1], ops[i]) +
+                    (j + 1 < ops.length ? dist(ops[j], ops[j + 1]) : 0);
+                const after = dist(ops[i - 1], ops[j]) +
+                    (j + 1 < ops.length ? dist(ops[i], ops[j + 1]) : 0);
+                if (after < before - 0.01) {
+                    // Reverter segmento i..j
+                    const reversed = ops.slice(i, j + 1).reverse();
+                    ops.splice(i, j - i + 1, ...reversed);
+                    improved = true;
+                }
+            }
+        }
+    }
+    return ops;
+}
+
+// ─── Helper: Resolver estratégia de usinagem ────────────
+// Dado um worker e o tipo de usinagem, encontra a melhor estratégia
+// baseada nas ferramentas disponíveis
+function resolveStrategy(worker, usiTipo, toolMap) {
+    let estrategias = [];
+    try { estrategias = JSON.parse(usiTipo.estrategias || '[]'); } catch (_) {}
+    if (!Array.isArray(estrategias) || estrategias.length === 0) return null;
+
+    const diam = Number(worker.diameter || 0);
+
+    for (const est of estrategias) {
+        // Tentar encontrar ferramenta que satisfaz a estratégia
+        const candidates = Object.values(toolMap).filter(t => {
+            // Match por tipo de ferramenta
+            if (est.tool_match) {
+                const match = est.tool_match.toLowerCase();
+                const tipo = (t.tipo || '').toLowerCase();
+                const tipoCor = (t.tipo_corte || '').toLowerCase();
+                if (!tipo.includes(match) && !tipoCor.includes(match)) return false;
+            }
+            // Match por tool_codes específicos
+            if (est.tool_codes && est.tool_codes.length > 0) {
+                if (!est.tool_codes.includes(t.tool_code) && !est.tool_codes.includes(t.codigo)) return false;
+            }
+            // Match por diâmetro
+            if (est.diam_exact && Math.abs(t.diametro - est.diam_exact) > 1) return false;
+            if (est.diam_min && t.diametro < est.diam_min) return false;
+            if (est.diam_max && t.diametro > est.diam_max) return false;
+            // Match por diâmetro da operação (furo de 35mm → broca de 35mm)
+            if (est.diam_match && diam > 0 && Math.abs(t.diametro - diam) > 1) return false;
+            return true;
+        });
+
+        if (candidates.length > 0) {
+            // Selecionar melhor candidata: preferir diâmetro mais próximo da operação
+            candidates.sort((a, b) => {
+                if (diam > 0) return Math.abs(a.diametro - diam) - Math.abs(b.diametro - diam);
+                return b.diametro - a.diametro; // maior diâmetro = menos passes
+            });
+            return {
+                tool: candidates[0],
+                metodo: est.metodo || 'auto',
+                params: est.params || {},
+                nome: est.nome || est.metodo || 'auto',
+            };
+        }
+    }
+    return null; // Nenhuma estratégia satisfeita
 }
 
 // ─── Helper: Transformar coords quando peça rotacionada ─
@@ -1832,12 +2622,42 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
     const ordenarContornos = maquina.ordenar_contornos || 'menor_primeiro';
     const usarLeadIn = maquina.usar_lead_in !== 0;
     const leadInRaio = maquina.lead_in_raio ?? 5.0;
+    // Novos campos G-Code v4 — Estratégias avançadas
+    const rampaTipo = maquina.rampa_tipo || 'linear';        // linear, helicoidal, plunge
+    const velRampa = maquina.vel_rampa ?? velMergulho;       // velocidade da rampa (mm/min)
+    const rampaDiamPct = maquina.rampa_diametro_pct ?? 80;   // % do diâmetro para raio da hélice
+    const stepoverPct = (maquina.stepover_pct ?? 60) / 100;  // fração (0.6)
+    const pocketAcabamento = maquina.pocket_acabamento !== 0;
+    const pocketAcabOffset = maquina.pocket_acabamento_offset ?? 0.2;
+    const pocketDirecao = maquina.pocket_direcao || 'auto';
+    const compensarRaioCanal = maquina.compensar_raio_canal !== 0;
+    const compensacaoTipo = maquina.compensacao_tipo || 'overcut';
+    const circularPassesAcab = maquina.circular_passes_acabamento ?? 1;
+    const circularOffsetDesb = maquina.circular_offset_desbaste ?? 0.3;
+    const velAcabPct = (maquina.vel_acabamento_pct ?? 80) / 100;
+    const g0ComFeed = maquina.g0_com_feed === 1;
+    const velVazio = maquina.vel_vazio || 20000;
 
     const fmt = (n) => Number(n).toFixed(dec);
     const refilo = chapa.refilo || 10;
     const alertas = [];
     const missingTools = new Set();
+    const missingToolDetails = []; // { tool_code, peca, operacao }
     const espChapa = chapa.espessura_real || 18.5;
+
+    // ─── Segurança: proteção da mesa de sacrifício ───
+    const margemMesa = maquina.margem_mesa_sacrificio ?? 0.5;
+    const depthMaxAbsoluto = espChapa + margemMesa;
+    function clampDepth(depth, descricao) {
+        if (depth > depthMaxAbsoluto) {
+            alertas.push({
+                tipo: 'aviso',
+                msg: `SEGURANCA: Profundidade ${depth.toFixed(2)}mm excede limite da mesa (${espChapa}mm + ${margemMesa}mm margem = ${depthMaxAbsoluto.toFixed(2)}mm). Reduzido para ${depthMaxAbsoluto.toFixed(2)}mm. [${descricao}]`
+            });
+            return depthMaxAbsoluto;
+        }
+        return depth;
+    }
 
     // ─── Funções Z baseadas no z_origin ───
     function zApproach() { return zOrigin === 'mesa' ? espChapa + zAprox : zAprox; }
@@ -1877,16 +2697,26 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
         if (!pDb) continue;
 
         const pX = pp.x, pY = pp.y, pW = pp.w, pH = pp.h;
-        const rotated = pp.rotated || false;
         const compOrig = pDb.comprimento, largOrig = pDb.largura;
+        // Detectar rotação real comparando dimensões do plano com originais do DB
+        // Não confiar apenas no flag pp.rotated — pode estar incorreto
+        const flagRotated = pp.rotated || false;
+        const wMatchesComp = Math.abs(pW - compOrig) <= 1;
+        const wMatchesLarg = Math.abs(pW - largOrig) <= 1;
+        const rotated = (wMatchesLarg && !wMatchesComp) ? true : (wMatchesComp && !wMatchesLarg) ? false : flagRotated;
         const esp = pDb.espessura || 18.5;
         const areaCm2 = (pW * pH) / 100;
         const cls = pp.classificacao || 'normal';
         const isPeq = areaCm2 < feedAreaMax;
 
-        // Parse machining
+        // Parse machining — respect lado_ativo (flip)
+        const ladoAtivo = pp.lado_ativo || 'A';
         let mach = {};
         try { mach = JSON.parse(pDb.machining_json || '{}'); } catch (_) {}
+        // If piece is on side B and has dedicated machining_json_b, use that instead
+        if (ladoAtivo === 'B' && pDb.machining_json_b) {
+            try { mach = JSON.parse(pDb.machining_json_b); } catch (_) {}
+        }
 
         // Coletar workers
         const workers = [];
@@ -1911,7 +2741,10 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             if (tipo.includes('rebaixo') && !exportRebaixos) continue;
             if (tipo.includes('pocket') && !exportUsinagens) continue;
 
-            if (tc && !toolMap[tc]) missingTools.add(tc);
+            if (tc && !toolMap[tc]) {
+                missingTools.add(tc);
+                missingToolDetails.push({ tool_code: tc, peca: pDb.descricao, operacao: tipo || w.type || 'desconhecida' });
+            }
             const tool = toolMap[tc] || null;
             const usiTipo = mapWorkerToTipo(w, usinagemTipos);
 
@@ -1927,6 +2760,30 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 wy = Number(w.y ?? w.position_y ?? 0);
                 wx2 = w.x2 != null ? Number(w.x2) : undefined;
                 wy2 = w.y2 != null ? Number(w.y2) : undefined;
+                // Se tem length mas não tem x2/y2, calcular ponto inicial e final do rasgo
+                // Rasgo corre ao longo do eixo X (comprimento) por padrão
+                // Detectar se x é centro (x + length > comprimento) ou início (x + length <= comprimento)
+                if (wx2 === undefined && w.length != null) {
+                    const grooveLen = Number(w.length);
+                    if (wx + grooveLen > compOrig + 1) {
+                        // x é o CENTRO do rasgo — calcular início e fim
+                        wx2 = wx + grooveLen / 2;
+                        wy2 = wy;
+                        wx = wx - grooveLen / 2;
+                    } else {
+                        // x é o INÍCIO do rasgo
+                        wx2 = wx + grooveLen;
+                        wy2 = wy;
+                    }
+                }
+            }
+            // Mirror X for Side B (flip piece): new_x = compOrig - original_x
+            if (ladoAtivo === 'B') {
+                wx = compOrig - wx;
+                if (wx2 !== undefined) wx2 = compOrig - wx2;
+                // Swap wx/wx2 so that start < end after mirroring
+                if (wx2 !== undefined && wx > wx2) { const tmp = wx; wx = wx2; wx2 = tmp; }
+                if (wy2 !== undefined && wy > wy2) { const tmp = wy; wy = wy2; wy2 = tmp; }
             }
             if (rotated) {
                 const t1 = transformRotated(wx, wy, compOrig);
@@ -1942,17 +2799,28 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const absX2 = wx2 !== undefined ? refilo + pX + wx2 : undefined;
             const absY2 = wy2 !== undefined ? refilo + pY + wy2 : undefined;
 
-            // ─── Tool-Agnostic Machining ───
-            // Se a ferramenta especificada não existe, tentar encontrar qualquer fresa disponível
+            // ─── Tool-Agnostic Machining com Estratégias ───
             let effectiveTool = tool;
             let toolAdapted = false;
+            let resolvedMetodo = 'auto'; // metodo de execução (drill, helical, circular, pocket_zigzag, etc)
+
+            // 1) Tentar resolver pela lista de estratégias do tipo de usinagem
+            if (!effectiveTool) {
+                const resolved = resolveStrategy(w, usiTipo, toolMap);
+                if (resolved) {
+                    effectiveTool = resolved.tool;
+                    resolvedMetodo = resolved.metodo;
+                    toolAdapted = true;
+                    alertas.push({ tipo: 'info', msg: `${usiTipo.nome}: usando estratégia "${resolved.nome}" com ${resolved.tool.nome} (Ø${resolved.tool.diametro}mm) para ${pDb.descricao}` });
+                }
+            }
+
+            // 2) Fallback: buscar qualquer ferramenta compatível
             if (!effectiveTool && tc) {
-                // Buscar alternativa: qualquer fresa no magazine
                 const alternatives = Object.values(toolMap).filter(t =>
                     t.tipo === 'fresa' || t.tipo_corte === 'fresa_reta' || t.tipo_corte === 'fresa_compressao' || t.tipo === 'broca'
                 );
                 if (alternatives.length > 0) {
-                    // Para rasgo: preferir fresa menor que a largura do rasgo
                     const reqWidth = w.width_line || w.diameter || 0;
                     if (reqWidth > 0) {
                         const fitting = alternatives.filter(t => t.diametro <= reqWidth).sort((a, b) => b.diametro - a.diametro);
@@ -1967,8 +2835,26 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 }
             }
 
+            // 3) Determinar método de execução automático se não resolvido por estratégia
+            if (resolvedMetodo === 'auto' && effectiveTool) {
+                const diam = Number(w.diameter || 0);
+                const toolD = effectiveTool.diametro || 0;
+                if (isHole && diam > 0 && Math.abs(toolD - diam) < 1) {
+                    resolvedMetodo = 'drill'; // broca do diâmetro exato = furo direto
+                } else if (isHole && diam > 0 && toolD < diam) {
+                    resolvedMetodo = 'helical'; // fresa menor que o furo = helicoidal/circular
+                } else if (isPocket) {
+                    resolvedMetodo = 'pocket_zigzag';
+                } else if (isCut) {
+                    resolvedMetodo = 'groove';
+                } else {
+                    resolvedMetodo = 'drill';
+                }
+            }
+
             const profExtra = effectiveTool?.profundidade_extra ?? profExtraMaq;
-            const depthTotal = Number(w.depth ?? 5) + profExtra;
+            let depthTotal = Number(w.depth ?? 5) + profExtra;
+            depthTotal = clampDepth(depthTotal, `${pDb.descricao} - ${tipo || 'operacao'}`);
             const doc = effectiveTool?.doc || null;
             const passes = calcularPassadas(depthTotal, doc);
 
@@ -1980,7 +2866,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             if (reqWidth > 0 && toolDiamEf > 0 && reqWidth > toolDiamEf) {
                 // Canal mais largo que a fresa: calcular passadas laterais
                 grooveMultiPass = true;
-                const stepOver = toolDiamEf * 0.7;
+                const stepOver = toolDiamEf * stepoverPct;
                 const halfW = (reqWidth - toolDiamEf) / 2; // offset total do centro
                 grooveOffsets = [];
                 for (let off = -halfW; off <= halfW + 0.01; off += stepOver) {
@@ -2019,6 +2905,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 isContorno: false, needsOnionSkin: false,
                 // Tool-agnostic multi-pass
                 grooveMultiPass, grooveOffsets, grooveWidth: reqWidth, toolAdapted,
+                // Estratégia resolvida
+                resolvedMetodo, holeDiameter: Number(w.diameter || 0),
             });
         }
 
@@ -2026,7 +2914,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
         if (contTool) {
             const cR = contTool.diametro / 2;
             const profExtra = contTool.profundidade_extra ?? profExtraMaq;
-            const depthTotal = esp + profExtra;
+            const depthTotal = clampDepth(esp + profExtra, `${pDb.descricao} - contorno`);
             const needsOnion = useOnion && areaCm2 < onionAreaMax;
             const depthCont = needsOnion ? depthTotal - onionEsp : depthTotal;
             const doc = contTool.doc || null;
@@ -2079,7 +2967,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 // Furos/recortes internos (cada um = operação separada, ANTES do contorno externo)
                 if (contour.holes && contour.holes.length > 0) {
                     for (const hole of contour.holes) {
-                        const holeDepth = esp + profExtra;
+                        const holeDepth = clampDepth(esp + profExtra, `${pDb.descricao} - furo interno`);
                         const holePasses = calcularPassadas(holeDepth, doc);
                         allOps.push({
                             pecaId: pp.pecaId, pecaDesc: pDb.descricao, moduloDesc: pDb.modulo_desc,
@@ -2134,7 +3022,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 
             const cR = contTool.diametro / 2;
             const profExtra = contTool.profundidade_extra ?? profExtraMaq;
-            const depthTotal = espChapa + profExtra;
+            const depthTotal = clampDepth(espChapa + profExtra, 'contorno sobra');
             const passes = calcularPassadas(depthTotal, contTool.doc || null);
 
             const sx1 = refilo + ret.x - cR, sy1 = refilo + ret.y - cR;
@@ -2159,6 +3047,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
     // Estratégia: Fase 0 (usinagens internas) → Fase 1 (contornos peças) → Fase 2 (contornos sobras)
     // Dentro de contornos: MENOR PRIMEIRO (preservar vácuo/fixação enquanto chapa tem massa)
     // Vacuum Risk Index: combina área (60%) + distância da borda (40%)
+    const otimizarTrocas = cfg.otimizar_trocas_ferramenta !== 0;
     allOps.sort((a, b) => {
         if (a.fase !== b.fase) return a.fase - b.fase;
         if (a.prioridade !== b.prioridade) return a.prioridade - b.prioridade;
@@ -2179,7 +3068,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             }
             // else 'proximidade' — ordenação por proximity abaixo
         }
-        if (a.toolCode !== b.toolCode) return (a.toolCode || '').localeCompare(b.toolCode || '');
+        // Agrupar por ferramenta dentro de cada fase/prioridade (minimizar trocas)
+        if (otimizarTrocas && a.toolCode !== b.toolCode) return (a.toolCode || '').localeCompare(b.toolCode || '');
         return 0;
     });
 
@@ -2189,7 +3079,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
         const newGrp = i === allOps.length ||
             allOps[i].fase !== allOps[gs].fase ||
             allOps[i].prioridade !== allOps[gs].prioridade ||
-            allOps[i].toolCode !== allOps[gs].toolCode;
+            (otimizarTrocas && allOps[i].toolCode !== allOps[gs].toolCode);
         if (newGrp && i > gs) {
             const grp = allOps.slice(gs, i);
             // Para contornos com ordenação por tamanho, manter a ordem de tamanho
@@ -2362,18 +3252,59 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             L.push(`${cmt} Furo circular D${fmt(r * 2)}mm (passa-fio): ${op.pecaDesc}`);
 
             if (r > toolR * 1.5) {
-                // Contorno circular: posicionar na borda do furo, G2 volta completa
-                const cutR = r - toolR;  // Compensação do raio da fresa
+                const cutR = r - toolR;  // raio de interpolação
 
-                for (let pi = 0; pi < op.passes.length; pi++) {
-                    const zTarget = zCut(op.passes[pi]);
-                    if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)}`);
+                if (rampaTipo === 'helicoidal') {
+                    // ═══ Entrada helicoidal ═══
+                    L.push(`${cmt}   Entrada helicoidal`);
+                    const helixR = cutR * (rampaDiamPct / 100);
+                    const depthPerRev = Math.min(op.toolDiam * 0.3, 3);
 
-                    emit(`G0 X${fmt(cx + cutR)} Y${fmt(cy)}`);
+                    emit(`G0 X${fmt(cx + helixR)} Y${fmt(cy)}`);
                     emit(`G0 Z${fmt(zApproach())}`);
-                    emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
-                    // G2 volta completa: endpoint = startpoint, I = -cutR, J = 0
-                    emit(`G2 X${fmt(cx + cutR)} Y${fmt(cy)} I${fmt(-cutR)} J0 F${op.velCorte}`);
+
+                    let curZ = zApproach();
+                    const finalZ = zCut(op.depthTotal);
+                    const halfRevDepth = depthPerRev / 2;
+
+                    while (curZ > finalZ + 0.01) {
+                        const nextZ1 = Math.max(finalZ, curZ - halfRevDepth);
+                        emit(`G2 X${fmt(cx - helixR)} Y${fmt(cy)} I${fmt(-helixR)} J0 Z${fmt(nextZ1)} F${velRampa}`);
+                        curZ = nextZ1;
+                        if (curZ <= finalZ + 0.01) break;
+                        const nextZ2 = Math.max(finalZ, curZ - halfRevDepth);
+                        emit(`G2 X${fmt(cx + helixR)} Y${fmt(cy)} I${fmt(helixR)} J0 Z${fmt(nextZ2)} F${velRampa}`);
+                        curZ = nextZ2;
+                    }
+
+                    // Expandir para raio de corte real se diferente do raio de hélice
+                    if (Math.abs(cutR - helixR) > 0.05) {
+                        emit(`G1 X${fmt(cx + cutR)} Y${fmt(cy)} F${op.velCorte}`);
+                    }
+                } else {
+                    // ═══ Entrada convencional (plunge por passada) ═══
+                    for (let pi = 0; pi < op.passes.length; pi++) {
+                        const zTarget = zCut(op.passes[pi]);
+                        if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)}`);
+
+                        // Desbaste com offset
+                        const desbR = circularPassesAcab > 0 && circularOffsetDesb > 0 ? cutR - circularOffsetDesb : cutR;
+                        emit(`G0 X${fmt(cx + desbR)} Y${fmt(cy)}`);
+                        emit(`G0 Z${fmt(zApproach())}`);
+                        emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
+                        emit(`G2 X${fmt(cx + desbR)} Y${fmt(cy)} I${fmt(-desbR)} J0 F${op.velCorte}`);
+                    }
+                    // Posicionar para acabamento
+                    emit(`G1 X${fmt(cx + cutR)} Y${fmt(cy)} F${op.velCorte}`);
+                }
+
+                // Passes de acabamento no raio exato
+                if (circularPassesAcab > 0) {
+                    const velAcab = Math.round(op.velCorte * velAcabPct);
+                    for (let ac = 0; ac < circularPassesAcab; ac++) {
+                        L.push(`${cmt}   Acabamento circular ${ac + 1}/${circularPassesAcab} vel=${velAcab}`);
+                        emit(`G2 X${fmt(cx + cutR)} Y${fmt(cy)} I${fmt(-cutR)} J0 F${velAcab}`);
+                    }
                 }
                 emit(`G0 Z${fmt(zSafe())}`);
             } else {
@@ -2558,37 +3489,133 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             L.push('');
 
         } else if (op.opType === 'hole') {
-            L.push(`${cmt} Furo: ${op.pecaDesc} X${fmt(op.absX)} Y${fmt(op.absY)} Prof=${fmt(op.depthTotal)}`);
-            emit(`G0 X${fmt(op.absX)} Y${fmt(op.absY)}`);
-            emit(`G0 Z${fmt(zApproach())}`);
-            for (let pi = 0; pi < op.passes.length; pi++) {
-                if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length}`);
-                emit(`G1 Z${fmt(zCut(op.passes[pi]))} F${velMergulho}`);
-                if (pi < op.passes.length - 1) emit(`G0 Z${fmt(zApproach())}`);
+            const metodo = op.resolvedMetodo || 'drill';
+            const holeDiam = op.holeDiameter || 0;
+            const toolR = (op.toolDiam || 6) / 2;
+
+            // Se metodo = helical ou circular e furo é maior que a fresa
+            if ((metodo === 'helical' || metodo === 'circular') && holeDiam > op.toolDiam * 1.1) {
+                const cutR = (holeDiam / 2) - toolR; // raio de interpolação
+
+                if (metodo === 'helical' && rampaTipo === 'helicoidal') {
+                    // ═══ FURO HELICOIDAL: fresa desce em espiral ═══
+                    L.push(`${cmt} Furo HELICOIDAL D${holeDiam}mm (fresa D${op.toolDiam}mm): ${op.pecaDesc}`);
+                    const helixR = cutR * (rampaDiamPct / 100);
+                    const depthPerRev = Math.min(op.toolDiam * 0.3, 3); // max 3mm por revolução
+
+                    emit(`G0 X${fmt(op.absX + helixR)} Y${fmt(op.absY)}`);
+                    emit(`G0 Z${fmt(zApproach())}`);
+
+                    // Descida helicoidal em arcos G2 com Z decrescente
+                    let curZ = zApproach();
+                    const finalZ = zCut(op.depthTotal);
+                    const halfRevDepth = depthPerRev / 2;
+                    L.push(`${cmt}   Descida helicoidal: R=${fmt(helixR)}mm, ${fmt(depthPerRev)}mm/rev`);
+
+                    while (curZ > finalZ + 0.01) {
+                        // Meio arco 1 (180°): ponto oposto
+                        const nextZ1 = Math.max(finalZ, curZ - halfRevDepth);
+                        emit(`G2 X${fmt(op.absX - helixR)} Y${fmt(op.absY)} I${fmt(-helixR)} J0 Z${fmt(nextZ1)} F${velRampa}`);
+                        curZ = nextZ1;
+                        if (curZ <= finalZ + 0.01) break;
+                        // Meio arco 2 (180°): volta ao início
+                        const nextZ2 = Math.max(finalZ, curZ - halfRevDepth);
+                        emit(`G2 X${fmt(op.absX + helixR)} Y${fmt(op.absY)} I${fmt(helixR)} J0 Z${fmt(nextZ2)} F${velRampa}`);
+                        curZ = nextZ2;
+                    }
+
+                    // Passe final no diâmetro exato (acabamento) se cutR > helixR
+                    if (circularPassesAcab > 0) {
+                        // Expandir para raio de corte real
+                        if (Math.abs(cutR - helixR) > 0.05) {
+                            emit(`G1 X${fmt(op.absX + cutR)} Y${fmt(op.absY)} F${op.velCorte}`);
+                        }
+                        for (let ac = 0; ac < circularPassesAcab; ac++) {
+                            L.push(`${cmt}   Acabamento circular ${ac + 1}/${circularPassesAcab}`);
+                            emit(`G2 X${fmt(op.absX + cutR)} Y${fmt(op.absY)} I${fmt(-cutR)} J0 F${Math.round(op.velCorte * velAcabPct)}`);
+                        }
+                    }
+                    emit(`G0 Z${fmt(zSafe())}`);
+                } else {
+                    // ═══ FURO CIRCULAR (interpolação G2/G3): fresa contorna o furo ═══
+                    L.push(`${cmt} Furo CIRCULAR D${holeDiam}mm (fresa D${op.toolDiam}mm): ${op.pecaDesc}`);
+
+                    for (let pi = 0; pi < op.passes.length; pi++) {
+                        const zTarget = zCut(op.passes[pi]);
+                        if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)}`);
+
+                        // Desbaste (com offset se acabamento ativo)
+                        const desbR = circularPassesAcab > 0 && circularOffsetDesb > 0 ? cutR - circularOffsetDesb : cutR;
+
+                        emit(`G0 X${fmt(op.absX + desbR)} Y${fmt(op.absY)}`);
+                        emit(`G0 Z${fmt(zApproach())}`);
+                        emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
+                        emit(`G2 X${fmt(op.absX + desbR)} Y${fmt(op.absY)} I${fmt(-desbR)} J0 F${op.velCorte}`);
+
+                        // Passes de acabamento no raio exato
+                        if (circularPassesAcab > 0 && circularOffsetDesb > 0) {
+                            emit(`G1 X${fmt(op.absX + cutR)} Y${fmt(op.absY)} F${op.velCorte}`);
+                            for (let ac = 0; ac < circularPassesAcab; ac++) {
+                                emit(`G2 X${fmt(op.absX + cutR)} Y${fmt(op.absY)} I${fmt(-cutR)} J0 F${Math.round(op.velCorte * velAcabPct)}`);
+                            }
+                        }
+                    }
+                    emit(`G0 Z${fmt(zSafe())}`);
+                }
+            } else {
+                // ═══ FURO DIRETO (plunge) — broca do diâmetro exato ═══
+                L.push(`${cmt} Furo: ${op.pecaDesc} X${fmt(op.absX)} Y${fmt(op.absY)} Prof=${fmt(op.depthTotal)}`);
+                emit(`G0 X${fmt(op.absX)} Y${fmt(op.absY)}`);
+                emit(`G0 Z${fmt(zApproach())}`);
+                for (let pi = 0; pi < op.passes.length; pi++) {
+                    if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length}`);
+                    emit(`G1 Z${fmt(zCut(op.passes[pi]))} F${velMergulho}`);
+                    if (pi < op.passes.length - 1) emit(`G0 Z${fmt(zApproach())}`);
+                }
+                emit(`G0 Z${fmt(zSafe())}`);
             }
             // Retração: usar zRapid entre furos consecutivos da mesma ferramenta
             const nextOpH = sortedOps[sortedOps.indexOf(op) + 1];
             const fastRetractH = nextOpH && nextOpH.opType === 'hole' && nextOpH.toolCode === op.toolCode;
-            emit(`G0 Z${fmt(fastRetractH ? zRapid() : zSafe())}`);
+            if (fastRetractH) emit(`G0 Z${fmt(zRapid())}`);
             L.push('');
 
         } else if (op.opType === 'groove') {
-            const x2 = op.absX2 ?? op.absX, y2 = op.absY2 ?? op.absY;
-            const grooveLen = Math.sqrt((x2 - op.absX) ** 2 + (y2 - op.absY) ** 2);
+            let sx1 = op.absX, sy1 = op.absY;
+            let ex1 = op.absX2 ?? op.absX, ey1 = op.absY2 ?? op.absY;
+
+            // ─── Compensação de raio nos cantos do canal (overcut) ───
+            const toolR = (op.toolDiam || 0) / 2;
+            if (compensarRaioCanal && toolR > 0.1) {
+                // Estender o canal por meio raio da fresa em cada extremidade
+                // para que o espaço útil fique correto (cantos retos)
+                const dx = ex1 - sx1, dy = ey1 - sy1;
+                const grooveLenRaw = Math.sqrt(dx * dx + dy * dy);
+                if (grooveLenRaw > 0.01) {
+                    const ux = dx / grooveLenRaw, uy = dy / grooveLenRaw; // vetor unitário
+                    sx1 -= ux * toolR; // recuar o início pelo raio
+                    sy1 -= uy * toolR;
+                    ex1 += ux * toolR; // avançar o fim pelo raio
+                    ey1 += uy * toolR;
+                    L.push(`${cmt} Compensacao raio: avanco ${fmt(toolR)}mm em cada extremidade (overcut)`);
+                }
+            }
+
+            const grooveLen = Math.sqrt((ex1 - sx1) ** 2 + (ey1 - sy1) ** 2);
             const gOffsets = op.grooveMultiPass ? op.grooveOffsets : [0];
 
             if (op.grooveMultiPass) {
                 L.push(`${cmt} Rasgo MULTI-PASS: ${op.pecaDesc} Larg=${op.grooveWidth}mm Fresa=D${op.toolDiam}mm (${gOffsets.length} passadas laterais)`);
             } else {
-                L.push(`${cmt} Rasgo: ${op.pecaDesc} X${fmt(op.absX)} Y${fmt(op.absY)} -> X${fmt(x2)} Y${fmt(y2)} Prof=${fmt(op.depthTotal)} L=${fmt(grooveLen)}`);
+                L.push(`${cmt} Rasgo: ${op.pecaDesc} X${fmt(sx1)} Y${fmt(sy1)} -> X${fmt(ex1)} Y${fmt(ey1)} Prof=${fmt(op.depthTotal)} L=${fmt(grooveLen)}`);
             }
             if (op.toolAdapted) L.push(`${cmt}   FERRAMENTA ADAPTADA: usando ${op.toolNome} (D${op.toolDiam}mm)`);
 
             // Calcular vetor perpendicular ao rasgo para offsets laterais
             let perpX = 0, perpY = 0;
             if (grooveLen > 0.01) {
-                const dx = x2 - op.absX, dy = y2 - op.absY;
-                perpX = -dy / grooveLen; // perpendicular normalizado
+                const dx = ex1 - sx1, dy = ey1 - sy1;
+                perpX = -dy / grooveLen;
                 perpY = dx / grooveLen;
             }
 
@@ -2600,10 +3627,10 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 // Multi-pass lateral: cada offset lateral em cada profundidade
                 for (let li = 0; li < gOffsets.length; li++) {
                     const off = gOffsets[li];
-                    const sx = op.absX + perpX * off;
-                    const sy = op.absY + perpY * off;
-                    const ex = x2 + perpX * off;
-                    const ey = y2 + perpY * off;
+                    const sx = sx1 + perpX * off;
+                    const sy = sy1 + perpY * off;
+                    const ex = ex1 + perpX * off;
+                    const ey = ey1 + perpY * off;
 
                     if (gOffsets.length > 1) L.push(`${cmt}   Lateral ${li + 1}/${gOffsets.length} offset=${fmt(off)}mm`);
 
@@ -2615,7 +3642,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                         const ratio = rampLen / grooveLen;
                         const rampEndX = sx + (ex - sx) * ratio;
                         const rampEndY = sy + (ey - sy) * ratio;
-                        emit(`G1 X${fmt(rampEndX)} Y${fmt(rampEndY)} Z${fmt(zTarget)} F${velMergulho}`);
+                        emit(`G1 X${fmt(rampEndX)} Y${fmt(rampEndY)} Z${fmt(zTarget)} F${velRampa}`);
                         emit(`G1 X${fmt(sx)} Y${fmt(sy)} F${op.velCorte}`);
                     } else {
                         emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
@@ -2643,53 +3670,83 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
         } else if (op.opType === 'pocket') {
             const pw = op.pocketW, ph = op.pocketH;
             const toolDiam = op.toolDiam || 8;
-            L.push(`${cmt} Pocket: ${op.pecaDesc} X${fmt(op.absX)} Y${fmt(op.absY)} ${pw}x${ph} Prof=${fmt(op.depthTotal)}`);
+            const toolR = toolDiam / 2;
+            const stepOver = toolDiam * stepoverPct;
+            L.push(`${cmt} Pocket: ${op.pecaDesc} X${fmt(op.absX)} Y${fmt(op.absY)} ${pw}x${ph} Prof=${fmt(op.depthTotal)} Stepover=${Math.round(stepoverPct * 100)}%`);
+
             for (let pi = 0; pi < op.passes.length; pi++) {
                 const pd = op.passes[pi];
                 const zTarget = zCut(pd);
                 if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)}`);
 
                 if (pw > toolDiam * 1.2 && ph > toolDiam * 1.2) {
-                    // ─── Zigzag clearing para pockets maiores que a fresa ───
-                    const stepOver = toolDiam * 0.7;
-                    const toolR = toolDiam / 2;
+                    // ─── Zigzag inteligente: eixo longo, stepover configurável, acabamento ───
                     const ox = Number(op.absX), oy = Number(op.absY);
-                    const startX = ox + toolR, startY = oy + toolR;
-                    const endX = ox + pw - toolR, endY = oy + ph - toolR;
+                    // Offset para acabamento: deixar material na parede para passe final
+                    const acabOff = pocketAcabamento ? pocketAcabOffset : 0;
+                    const iStartX = ox + toolR + acabOff, iStartY = oy + toolR + acabOff;
+                    const iEndX = ox + pw - toolR - acabOff, iEndY = oy + ph - toolR - acabOff;
 
-                    emit(`G0 X${fmt(startX)} Y${fmt(startY)}`);
+                    // Determinar direção do zigzag: eixo mais longo = menos reversões
+                    const zigAlongX = pocketDirecao === 'x' ? true :
+                                      pocketDirecao === 'y' ? false :
+                                      pw >= ph; // 'auto': eixo mais longo
+
+                    emit(`G0 X${fmt(iStartX)} Y${fmt(iStartY)}`);
                     emit(`G0 Z${fmt(zApproach())}`);
 
                     if (useRampa) {
-                        // Rampa em zigzag: desce ao longo da primeira linha do zigzag
-                        const rampLen = Math.min(Math.abs(endY - startY) * 0.3, 20);
-                        const rampEndY = startY + rampLen;
-                        emit(`G1 X${fmt(startX)} Y${fmt(rampEndY)} Z${fmt(zTarget)} F${velMergulho}`);
-                        emit(`G1 X${fmt(startX)} Y${fmt(startY)} F${op.velCorte}`);
+                        const rampAxis = zigAlongX ? iEndX - iStartX : iEndY - iStartY;
+                        const rampLen = Math.min(Math.abs(rampAxis) * 0.3, 20);
+                        if (zigAlongX) {
+                            emit(`G1 X${fmt(iStartX + rampLen)} Y${fmt(iStartY)} Z${fmt(zTarget)} F${velRampa}`);
+                        } else {
+                            emit(`G1 X${fmt(iStartX)} Y${fmt(iStartY + rampLen)} Z${fmt(zTarget)} F${velRampa}`);
+                        }
+                        emit(`G1 X${fmt(iStartX)} Y${fmt(iStartY)} F${op.velCorte}`);
                     } else {
                         emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
                     }
 
-                    // Zigzag em Y com passo em X
-                    let cx = startX;
-                    let dir = 1;
-                    while (cx <= endX + 0.01) {
-                        const ty = dir === 1 ? endY : startY;
-                        emit(`G1 X${fmt(cx)} Y${fmt(ty)} F${op.velCorte}`);
-                        cx += stepOver;
-                        if (cx <= endX + 0.01) {
-                            emit(`G1 X${fmt(Math.min(cx, endX))} Y${fmt(ty)} F${op.velCorte}`);
+                    L.push(`${cmt}   Zigzag ${zigAlongX ? 'X' : 'Y'} (eixo ${zigAlongX ? 'longo' : 'curto'})`);
+
+                    if (zigAlongX) {
+                        // Zigzag ao longo de X, passo em Y
+                        let cy = iStartY, dir = 1;
+                        while (cy <= iEndY + 0.01) {
+                            const tx = dir === 1 ? iEndX : iStartX;
+                            emit(`G1 X${fmt(tx)} Y${fmt(cy)} F${op.velCorte}`);
+                            cy += stepOver;
+                            if (cy <= iEndY + 0.01) {
+                                emit(`G1 X${fmt(tx)} Y${fmt(Math.min(cy, iEndY))} F${op.velCorte}`);
+                            }
+                            dir *= -1;
                         }
-                        dir *= -1;
+                    } else {
+                        // Zigzag ao longo de Y, passo em X
+                        let cx = iStartX, dir = 1;
+                        while (cx <= iEndX + 0.01) {
+                            const ty = dir === 1 ? iEndY : iStartY;
+                            emit(`G1 X${fmt(cx)} Y${fmt(ty)} F${op.velCorte}`);
+                            cx += stepOver;
+                            if (cx <= iEndX + 0.01) {
+                                emit(`G1 X${fmt(Math.min(cx, iEndX))} Y${fmt(ty)} F${op.velCorte}`);
+                            }
+                            dir *= -1;
+                        }
                     }
 
-                    // Perímetro final (acabamento)
-                    L.push(`${cmt}   Perimetro acabamento`);
-                    emit(`G1 X${fmt(ox)} Y${fmt(oy)} F${op.velCorte}`);
-                    emit(`G1 X${fmt(ox + pw)} Y${fmt(oy)} F${op.velCorte}`);
-                    emit(`G1 X${fmt(ox + pw)} Y${fmt(oy + ph)} F${op.velCorte}`);
-                    emit(`G1 X${fmt(ox)} Y${fmt(oy + ph)} F${op.velCorte}`);
-                    emit(`G1 X${fmt(ox)} Y${fmt(oy)} F${op.velCorte}`);
+                    // ─── Passe de acabamento no perímetro ───
+                    if (pocketAcabamento) {
+                        const velAcab = Math.round(op.velCorte * velAcabPct);
+                        L.push(`${cmt}   Acabamento perimetro (offset=${fmt(pocketAcabOffset)}mm, vel=${velAcab}mm/min)`);
+                        emit(`G1 X${fmt(ox + toolR)} Y${fmt(oy + toolR)} F${op.velCorte}`);
+                        emit(`G1 X${fmt(ox + pw - toolR)} Y${fmt(oy + toolR)} F${velAcab}`);
+                        emit(`G1 X${fmt(ox + pw - toolR)} Y${fmt(oy + ph - toolR)} F${velAcab}`);
+                        emit(`G1 X${fmt(ox + toolR)} Y${fmt(oy + ph - toolR)} F${velAcab}`);
+                        emit(`G1 X${fmt(ox + toolR)} Y${fmt(oy + toolR)} F${velAcab}`);
+                    }
+
                     emit(`G0 Z${fmt(zSafe())}`);
                 } else if (pw > 0 && ph > 0) {
                     // Pocket pequeno: perímetro simples
@@ -2783,8 +3840,66 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 
     L.push('', footer);
 
+    // ─── Post-processing: adicionar F no G0 se configurado ───
+    if (g0ComFeed) {
+        for (let i = 0; i < L.length; i++) {
+            const stripped = L[i].replace(/^N\d+\s*/, '');
+            if (/^G0\s/.test(stripped) && !stripped.includes('F')) {
+                L[i] = L[i] + ` F${velVazio}`;
+            }
+        }
+    }
+
+    // ─── Estimativa de tempo REAL baseada em distâncias e velocidades ───
+    // Também calcula metros cortados por ferramenta para tool wear tracking
+    const gcodeText = L.join('\n');
+    const toolWearMap = {}; // { toolCode: metros_cortados_mm }
+    const tempoReal = (() => {
+        let cx = 0, cy = 0, cz = zSafe(), cf = maquina.vel_vazio || 20000;
+        let distRapido = 0, distCorte = 0, distMergulho = 0;
+        let tempoTrocas = trocas * (dwellSpindle + 3); // tempo troca + dwell spindle
+        let activeTool = null;
+        for (const line of L) {
+            const stripped = line.replace(/^N\d+\s*/, '').trim();
+            if (!stripped || stripped.startsWith(cmt) || stripped.startsWith('(') || stripped.startsWith('%')) continue;
+            // Detectar troca de ferramenta (Txx M6)
+            const toolMatch = stripped.match(/^(T\S+)\s/);
+            if (toolMatch) { activeTool = null; for (const [tc, t] of Object.entries(toolMap)) { if (t.codigo === toolMatch[1]) { activeTool = tc; break; } } }
+            const gMatch = stripped.match(/^G([0-3])\b/);
+            if (!gMatch) continue;
+            const gCode = parseInt(gMatch[1]);
+            const xM = stripped.match(/X(-?[\d.]+)/), yM = stripped.match(/Y(-?[\d.]+)/), zM = stripped.match(/Z(-?[\d.]+)/);
+            const fM = stripped.match(/F([\d.]+)/);
+            const nx = xM ? parseFloat(xM[1]) : cx, ny = yM ? parseFloat(yM[1]) : cy, nz = zM ? parseFloat(zM[1]) : cz;
+            if (fM) cf = parseFloat(fM[1]);
+            const dxy = Math.sqrt((nx - cx) ** 2 + (ny - cy) ** 2);
+            const dz = Math.abs(nz - cz);
+            const d3d = Math.sqrt(dxy ** 2 + dz ** 2);
+            if (gCode === 0) {
+                distRapido += d3d;
+            } else {
+                if (dxy < 0.01 && dz > 0.01) distMergulho += dz; // pure Z move
+                else distCorte += d3d;
+                // Acumular distância de corte (G1/G2/G3) por ferramenta
+                if (activeTool) toolWearMap[activeTool] = (toolWearMap[activeTool] || 0) + d3d;
+            }
+            cx = nx; cy = ny; cz = nz;
+        }
+        const velVazio = maquina.vel_vazio || 20000;
+        const tRapido = distRapido / velVazio; // minutos
+        const tCorte = distCorte > 0 ? distCorte / (velCorteMaq || 4000) : 0;
+        const tMergulho = distMergulho / (velMergulho || 1500);
+        const totalMin = tRapido + tCorte + tMergulho + tempoTrocas / 60;
+        return {
+            tempo_min: Math.round(totalMin * 10) / 10,
+            dist_rapido_m: Math.round(distRapido / 100) / 10,
+            dist_corte_m: Math.round(distCorte / 100) / 10,
+            dist_mergulho_m: Math.round(distMergulho / 100) / 10,
+        };
+    })();
+
     return {
-        gcode: L.join('\n'),
+        gcode: gcodeText,
         stats: {
             total_operacoes: totalOps,
             trocas_ferramenta: trocas,
@@ -2797,15 +3912,38 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             rasgos_multi_pass: allOps.filter(o => o.grooveMultiPass).length,
             ordenacao_contornos: ordenarContornos,
             usar_rampa: useRampa,
+            rampa_tipo: rampaTipo,
             usar_lead_in: usarLeadIn,
-            tempo_estimado_min: Math.round((totalOps * 3 + trocas * 12) / 60),
+            stepover_pct: Math.round(stepoverPct * 100),
+            pocket_acabamento: pocketAcabamento,
+            compensar_raio_canal: compensarRaioCanal,
+            furos_helicoidais: allOps.filter(o => o.resolvedMetodo === 'helical').length,
+            furos_circulares: allOps.filter(o => o.resolvedMetodo === 'circular').length,
+            tempo_estimado_min: tempoReal.tempo_min,
+            dist_rapido_m: tempoReal.dist_rapido_m,
+            dist_corte_m: tempoReal.dist_corte_m,
+            dist_mergulho_m: tempoReal.dist_mergulho_m,
         },
         alertas,
         ferramentas_faltando: [...missingTools],
+        ferramentas_faltando_detalhes: missingToolDetails,
         contorno_tool: contTool ? { codigo: contTool.codigo, nome: contTool.nome, diametro: contTool.diametro } : null,
+        tool_wear: toolWearMap, // { toolCode: distancia_mm }
     };
 }
 
+// ─── Helper: Atualizar desgaste de ferramentas após G-code ───
+function updateToolWear(toolMap, toolWearMap, loteId) {
+    const stmtUpdate = db.prepare('UPDATE cnc_ferramentas SET metros_acumulados = metros_acumulados + ? WHERE id = ?');
+    const stmtLog = db.prepare('INSERT INTO cnc_tool_wear_log (ferramenta_id, lote_id, metros_lineares, num_operacoes) VALUES (?,?,?,?)');
+    for (const [toolCode, distMm] of Object.entries(toolWearMap)) {
+        const tool = toolMap[toolCode];
+        if (!tool) continue;
+        const metros = distMm / 1000; // mm → m
+        stmtUpdate.run(metros, tool.id);
+        stmtLog.run(tool.id, loteId || null, metros, 1);
+    }
+}
 
 // ─── Endpoints G-code v2 ───────────────────────────────
 
@@ -2849,6 +3987,7 @@ function loadGcodeContext(req, loteId) {
         sobra_min_largura: cfgRow.sobra_min_largura || 300,
         sobra_min_comprimento: cfgRow.sobra_min_comprimento || 600,
         contorno_tool_code: req.body.contorno_tool_code || '',
+        otimizar_trocas_ferramenta: cfgRow.otimizar_trocas_ferramenta ?? 1,
     };
 
     const extensao = maquina.extensao_arquivo || '.nc';
@@ -2868,13 +4007,33 @@ router.post('/gcode/:loteId/chapa/:chapaIdx', requireAuth, async (req, res) => {
         }
 
         const chapa = ctx.plano.chapas[chapaIdx];
-        const result = generateGcodeForChapa(chapa, chapaIdx, ctx.pecasDb, ctx.maquina, ctx.toolMap, ctx.usinagemTipos, ctx.cfg);
+
+        // Check for machine-specific assignment
+        let maquina = ctx.maquina;
+        let toolMap = ctx.toolMap;
+        const assignment = db.prepare('SELECT maquina_id FROM cnc_machine_assignments WHERE lote_id = ? AND chapa_idx = ?').get(ctx.lote.id, chapaIdx);
+        if (assignment && assignment.maquina_id) {
+            const assignedMachine = db.prepare('SELECT * FROM cnc_maquinas WHERE id = ? AND ativo = 1').get(assignment.maquina_id);
+            if (assignedMachine) {
+                maquina = assignedMachine;
+                const ferramentas = db.prepare('SELECT * FROM cnc_ferramentas WHERE maquina_id = ? AND ativo = 1').all(assignedMachine.id);
+                toolMap = {};
+                for (const f of ferramentas) { if (f.tool_code) toolMap[f.tool_code] = f; }
+            }
+        }
+
+        const result = generateGcodeForChapa(chapa, chapaIdx, ctx.pecasDb, maquina, toolMap, ctx.usinagemTipos, ctx.cfg);
 
         if (result.ferramentas_faltando.length > 0) {
             return res.json({
                 ok: false, ...result, extensao: ctx.extensao,
                 error: `Ferramentas faltando: ${result.ferramentas_faltando.join(', ')}`,
             });
+        }
+
+        // Atualizar desgaste de ferramentas
+        if (result.tool_wear) {
+            updateToolWear(ctx.toolMap, result.tool_wear, ctx.lote.id);
         }
 
         const nomeBase = `${ctx.lote.nome || 'Lote'}_${ctx.lote.cliente || ''}_Chapa${String(chapaIdx + 1).padStart(2, '0')}`;
@@ -2966,6 +4125,160 @@ router.post('/gcode/:loteId', requireAuth, async (req, res) => {
 });
 
 
+// ─── Validação de usinagens (depth conflicts) ───────────
+router.get('/validar-usinagens/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        if (!lote.plano_json) return res.status(400).json({ error: 'Lote sem plano de corte' });
+
+        let plano;
+        try { plano = JSON.parse(lote.plano_json); } catch (_) { return res.status(400).json({ error: 'Plano inválido' }); }
+
+        // Load pieces from DB
+        const allPecaIds = new Set();
+        for (const ch of plano.chapas || []) {
+            for (const p of ch.pecas || []) { if (p.pecaId) allPecaIds.add(p.pecaId); }
+        }
+        let pecasDb = [];
+        if (allPecaIds.size > 0) {
+            const ids = [...allPecaIds];
+            pecasDb = db.prepare(`SELECT * FROM cnc_pecas WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids);
+        }
+        const pecasMap = {};
+        for (const p of pecasDb) pecasMap[p.id] = p;
+
+        // Load tools for tool length validation
+        const maquina = db.prepare('SELECT * FROM cnc_maquinas WHERE padrao = 1 AND ativo = 1 LIMIT 1').get()
+            || db.prepare('SELECT * FROM cnc_maquinas WHERE ativo = 1 LIMIT 1').get();
+        const ferramentas = maquina ? db.prepare('SELECT * FROM cnc_ferramentas WHERE maquina_id = ? AND ativo = 1').all(maquina.id) : [];
+        const toolMap = {};
+        for (const f of ferramentas) { if (f.tool_code) toolMap[f.tool_code] = f; }
+
+        const conflicts = [];
+
+        for (let ci = 0; ci < (plano.chapas || []).length; ci++) {
+            const chapa = plano.chapas[ci];
+            const espChapa = chapa.espessura || 18;
+
+            for (let pi = 0; pi < (chapa.pecas || []).length; pi++) {
+                const pp = chapa.pecas[pi];
+                const pDb = pecasMap[pp.pecaId];
+                if (!pDb) continue;
+
+                const ladoAtivo = pp.lado_ativo || 'A';
+                let mach = {};
+                try { mach = JSON.parse(pDb.machining_json || '{}'); } catch (_) {}
+                if (ladoAtivo === 'B' && pDb.machining_json_b) {
+                    try { mach = JSON.parse(pDb.machining_json_b); } catch (_) {}
+                }
+
+                // Collect all workers
+                const workers = [];
+                if (mach.workers) {
+                    const wArr = Array.isArray(mach.workers) ? mach.workers : Object.values(mach.workers);
+                    for (const r of wArr) { if (r && typeof r === 'object') workers.push(r); }
+                }
+                for (const side of ['side_a', 'side_b']) {
+                    const sd = mach[side];
+                    if (!sd) continue;
+                    const sArr = Array.isArray(sd) ? sd : Object.values(sd);
+                    for (const r of sArr) { if (r && typeof r === 'object') workers.push(r); }
+                }
+
+                const pecaEsp = pDb.espessura || espChapa;
+                const opsBBoxes = []; // for overlap detection
+
+                for (let wi = 0; wi < workers.length; wi++) {
+                    const w = workers[wi];
+                    const depth = Number(w.depth || 0);
+                    const tc = w.tool_code || w.tool || '';
+                    const tipo = (w.type || w.category || '').toLowerCase();
+                    const tool = toolMap[tc] || null;
+
+                    // Check 1: Depth exceeding piece thickness
+                    if (depth > pecaEsp) {
+                        conflicts.push({
+                            chapaIdx: ci, pecaIdx: pi,
+                            pecaDesc: pDb.descricao || `Peca #${pDb.id}`,
+                            tipo: 'profundidade_excessiva',
+                            mensagem: `Profundidade ${depth.toFixed(1)}mm excede espessura da peca (${pecaEsp}mm). Operacao: ${tipo || 'desconhecida'}`,
+                            severidade: 'erro',
+                        });
+                    }
+
+                    // Check 2: Tool length insufficient
+                    if (tool && tool.comprimento_util && depth > tool.comprimento_util) {
+                        conflicts.push({
+                            chapaIdx: ci, pecaIdx: pi,
+                            pecaDesc: pDb.descricao || `Peca #${pDb.id}`,
+                            tipo: 'ferramenta_curta',
+                            mensagem: `Profundidade ${depth.toFixed(1)}mm excede comprimento util da ferramenta ${tool.nome || tc} (${tool.comprimento_util}mm)`,
+                            severidade: 'erro',
+                        });
+                    }
+
+                    // Collect bounding boxes for overlap check
+                    const mx = Number(w.x ?? w.position_x ?? 0);
+                    const my = Number(w.y ?? w.position_y ?? 0);
+                    const diam = Number(w.diameter || 0);
+                    const pw2 = Number(w.pocket_width || w.width || diam || 6);
+                    const ph2 = Number(w.pocket_height || w.height || diam || 6);
+                    opsBBoxes.push({ x: mx - pw2 / 2, y: my - ph2 / 2, w: pw2, h: ph2, depth, idx: wi, tipo });
+                }
+
+                // Check 3: Overlapping operations whose combined depth > espessura
+                for (let a = 0; a < opsBBoxes.length; a++) {
+                    for (let b = a + 1; b < opsBBoxes.length; b++) {
+                        const ba = opsBBoxes[a], bb = opsBBoxes[b];
+                        // AABB intersection
+                        if (ba.x < bb.x + bb.w && ba.x + ba.w > bb.x &&
+                            ba.y < bb.y + bb.h && ba.y + ba.h > bb.y) {
+                            const combinedDepth = ba.depth + bb.depth;
+                            if (combinedDepth > pecaEsp) {
+                                conflicts.push({
+                                    chapaIdx: ci, pecaIdx: pi,
+                                    pecaDesc: pDb.descricao || `Peca #${pDb.id}`,
+                                    tipo: 'sobreposicao_profundidade',
+                                    mensagem: `Operacoes sobrepostas (${ba.tipo || 'op' + (ba.idx + 1)} + ${bb.tipo || 'op' + (bb.idx + 1)}) com profundidade combinada ${combinedDepth.toFixed(1)}mm > espessura ${pecaEsp}mm`,
+                                    severidade: combinedDepth > pecaEsp * 1.2 ? 'erro' : 'alerta',
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        res.json({ ok: true, conflicts });
+    } catch (err) {
+        console.error('Erro validar usinagens:', err);
+        res.status(500).json({ error: 'Erro ao validar usinagens' });
+    }
+});
+
+// ─── Salvar machining lado B de uma peça ─────────────────
+router.post('/pecas/:pecaId/machining-lado-b', requireAuth, (req, res) => {
+    try {
+        const { pecaId } = req.params;
+        const { machining_json_b } = req.body;
+        if (!machining_json_b) return res.status(400).json({ error: 'machining_json_b obrigatorio' });
+
+        // Ensure column exists
+        try {
+            db.prepare('ALTER TABLE cnc_pecas ADD COLUMN machining_json_b TEXT').run();
+        } catch (_) { /* column already exists */ }
+
+        db.prepare('UPDATE cnc_pecas SET machining_json_b = ? WHERE id = ?')
+            .run(typeof machining_json_b === 'string' ? machining_json_b : JSON.stringify(machining_json_b), pecaId);
+
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('Erro salvar machining lado B:', err);
+        res.status(500).json({ error: 'Erro ao salvar machining lado B' });
+    }
+});
+
 // GRUPO 6: CRUD Máquinas CNC (pós-processadores)
 // ═══════════════════════════════════════════════════════
 
@@ -2996,7 +4309,10 @@ router.post('/maquinas', requireAuth, (req, res) => {
         usar_lead_in, lead_in_tipo, lead_in_raio, feed_rate_pct_pequenas, feed_rate_area_max,
         z_origin, z_aproximacao, direcao_corte, usar_n_codes, n_code_incremento, dwell_spindle,
         usar_rampa, rampa_angulo, vel_mergulho, z_aproximacao_rapida, ordenar_contornos,
-        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        rampa_tipo, vel_rampa, rampa_diametro_pct, stepover_pct, pocket_acabamento, pocket_acabamento_offset, pocket_direcao,
+        compensar_raio_canal, compensacao_tipo, circular_passes_acabamento, circular_offset_desbaste, vel_acabamento_pct,
+        margem_mesa_sacrificio, g0_com_feed,
+        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(req.user.id, m.nome, m.fabricante || '', m.modelo || '', m.tipo_pos || 'generic', m.extensao_arquivo || '.nc',
             m.x_max || 2800, m.y_max || 1900, m.z_max || 200,
             m.gcode_header || '%\nG90 G54 G17',
@@ -3015,6 +4331,11 @@ router.post('/maquinas', requireAuth, (req, res) => {
             m.usar_n_codes ?? 1, m.n_code_incremento ?? 10, m.dwell_spindle ?? 1.0,
             m.usar_rampa ?? 1, m.rampa_angulo ?? 3.0, m.vel_mergulho ?? 1500,
             m.z_aproximacao_rapida ?? 5.0, m.ordenar_contornos || 'menor_primeiro',
+            m.rampa_tipo || 'linear', m.vel_rampa ?? 1500, m.rampa_diametro_pct ?? 80,
+            m.stepover_pct ?? 60, m.pocket_acabamento ?? 1, m.pocket_acabamento_offset ?? 0.2, m.pocket_direcao || 'auto',
+            m.compensar_raio_canal ?? 1, m.compensacao_tipo || 'overcut',
+            m.circular_passes_acabamento ?? 1, m.circular_offset_desbaste ?? 0.3, m.vel_acabamento_pct ?? 80,
+            m.margem_mesa_sacrificio ?? 0.5, m.g0_com_feed ?? 0,
             m.padrao || 0);
     res.json({ id: Number(r.lastInsertRowid) });
 });
@@ -3037,6 +4358,9 @@ router.put('/maquinas/:id', requireAuth, (req, res) => {
         feed_rate_pct_pequenas=?, feed_rate_area_max=?,
         z_origin=?, z_aproximacao=?, direcao_corte=?, usar_n_codes=?, n_code_incremento=?, dwell_spindle=?,
         usar_rampa=?, rampa_angulo=?, vel_mergulho=?, z_aproximacao_rapida=?, ordenar_contornos=?,
+        rampa_tipo=?, vel_rampa=?, rampa_diametro_pct=?, stepover_pct=?, pocket_acabamento=?, pocket_acabamento_offset=?, pocket_direcao=?,
+        compensar_raio_canal=?, compensacao_tipo=?, circular_passes_acabamento=?, circular_offset_desbaste=?, vel_acabamento_pct=?,
+        margem_mesa_sacrificio=?, g0_com_feed=?,
         padrao=?, ativo=?, atualizado_em=CURRENT_TIMESTAMP WHERE id=?`)
         .run(m.nome, m.fabricante, m.modelo, m.tipo_pos, m.extensao_arquivo,
             m.x_max, m.y_max, m.z_max, m.gcode_header, m.gcode_footer,
@@ -3052,6 +4376,11 @@ router.put('/maquinas/:id', requireAuth, (req, res) => {
             m.usar_n_codes ?? 1, m.n_code_incremento ?? 10, m.dwell_spindle ?? 1.0,
             m.usar_rampa ?? 1, m.rampa_angulo ?? 3.0, m.vel_mergulho ?? 1500,
             m.z_aproximacao_rapida ?? 5.0, m.ordenar_contornos || 'menor_primeiro',
+            m.rampa_tipo || 'linear', m.vel_rampa ?? 1500, m.rampa_diametro_pct ?? 80,
+            m.stepover_pct ?? 60, m.pocket_acabamento ?? 1, m.pocket_acabamento_offset ?? 0.2, m.pocket_direcao || 'auto',
+            m.compensar_raio_canal ?? 1, m.compensacao_tipo || 'overcut',
+            m.circular_passes_acabamento ?? 1, m.circular_offset_desbaste ?? 0.3, m.vel_acabamento_pct ?? 80,
+            m.margem_mesa_sacrificio ?? 0.5, m.g0_com_feed ?? 0,
             m.padrao ?? 0, m.ativo ?? 1, req.params.id);
     res.json({ ok: true });
 });
@@ -3076,7 +4405,10 @@ router.post('/maquinas/:id/duplicar', requireAuth, (req, res) => {
         usar_lead_in, lead_in_tipo, lead_in_raio, feed_rate_pct_pequenas, feed_rate_area_max,
         z_origin, z_aproximacao, direcao_corte, usar_n_codes, n_code_incremento, dwell_spindle,
         usar_rampa, rampa_angulo, vel_mergulho, z_aproximacao_rapida, ordenar_contornos,
-        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`)
+        rampa_tipo, vel_rampa, rampa_diametro_pct, stepover_pct, pocket_acabamento, pocket_acabamento_offset, pocket_direcao,
+        compensar_raio_canal, compensacao_tipo, circular_passes_acabamento, circular_offset_desbaste, vel_acabamento_pct,
+        margem_mesa_sacrificio, g0_com_feed,
+        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`)
         .run(req.user.id, `${original.nome} (cópia)`, original.fabricante, original.modelo, original.tipo_pos, original.extensao_arquivo,
             original.x_max, original.y_max, original.z_max, original.gcode_header, original.gcode_footer,
             original.z_seguro, original.vel_vazio, original.vel_corte, original.vel_aproximacao, original.rpm_padrao, original.profundidade_extra,
@@ -3090,7 +4422,12 @@ router.post('/maquinas/:id/duplicar', requireAuth, (req, res) => {
             original.z_origin || 'mesa', original.z_aproximacao ?? 2.0, original.direcao_corte || 'climb',
             original.usar_n_codes ?? 1, original.n_code_incremento ?? 10, original.dwell_spindle ?? 1.0,
             original.usar_rampa ?? 1, original.rampa_angulo ?? 3.0, original.vel_mergulho ?? 1500,
-            original.z_aproximacao_rapida ?? 5.0, original.ordenar_contornos || 'menor_primeiro');
+            original.z_aproximacao_rapida ?? 5.0, original.ordenar_contornos || 'menor_primeiro',
+            original.rampa_tipo || 'linear', original.vel_rampa ?? 1500, original.rampa_diametro_pct ?? 80,
+            original.stepover_pct ?? 60, original.pocket_acabamento ?? 1, original.pocket_acabamento_offset ?? 0.2, original.pocket_direcao || 'auto',
+            original.compensar_raio_canal ?? 1, original.compensacao_tipo || 'overcut',
+            original.circular_passes_acabamento ?? 1, original.circular_offset_desbaste ?? 0.3, original.vel_acabamento_pct ?? 80,
+            original.margem_mesa_sacrificio ?? 0.5, original.g0_com_feed ?? 0);
 
     const newId = Number(r.lastInsertRowid);
     // Duplicate tools
@@ -3113,10 +4450,11 @@ router.get('/usinagem-tipos', requireAuth, (req, res) => {
 });
 
 router.post('/usinagem-tipos', requireAuth, (req, res) => {
-    const { codigo, nome, categoria_match, diametro_match, prioridade, fase, tool_code_padrao, profundidade_padrao, largura_padrao } = req.body;
+    const { codigo, nome, categoria_match, diametro_match, prioridade, fase, tool_code_padrao, profundidade_padrao, largura_padrao, estrategias } = req.body;
     if (!codigo || !nome) return res.status(400).json({ error: 'Código e nome são obrigatórios' });
-    const r = db.prepare(`INSERT INTO cnc_usinagem_tipos (user_id, codigo, nome, categoria_match, diametro_match, prioridade, fase, tool_code_padrao, profundidade_padrao, largura_padrao) VALUES (?,?,?,?,?,?,?,?,?,?)`)
-        .run(req.user.id, codigo, nome, categoria_match || '', diametro_match ?? null, prioridade ?? 5, fase || 'interna', tool_code_padrao || '', profundidade_padrao ?? null, largura_padrao ?? null);
+    const estrategiasJson = typeof estrategias === 'string' ? estrategias : JSON.stringify(estrategias || []);
+    const r = db.prepare(`INSERT INTO cnc_usinagem_tipos (user_id, codigo, nome, categoria_match, diametro_match, prioridade, fase, tool_code_padrao, profundidade_padrao, largura_padrao, estrategias) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(req.user.id, codigo, nome, categoria_match || '', diametro_match ?? null, prioridade ?? 5, fase || 'interna', tool_code_padrao || '', profundidade_padrao ?? null, largura_padrao ?? null, estrategiasJson);
     res.json({ ok: true, id: r.lastInsertRowid });
 });
 
@@ -3133,6 +4471,10 @@ router.put('/usinagem-tipos/:id', requireAuth, (req, res) => {
     if (profundidade_padrao !== undefined) { fields.push('profundidade_padrao = ?'); vals.push(profundidade_padrao); }
     if (largura_padrao !== undefined) { fields.push('largura_padrao = ?'); vals.push(largura_padrao); }
     if (ativo !== undefined) { fields.push('ativo = ?'); vals.push(ativo); }
+    if (req.body.estrategias !== undefined) {
+        fields.push('estrategias = ?');
+        vals.push(typeof req.body.estrategias === 'string' ? req.body.estrategias : JSON.stringify(req.body.estrategias || []));
+    }
     if (fields.length === 0) return res.status(400).json({ error: 'Nenhum campo para atualizar' });
     vals.push(req.params.id);
     db.prepare(`UPDATE cnc_usinagem_tipos SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
@@ -3225,6 +4567,196 @@ router.delete('/ferramentas/:id', requireAuth, (req, res) => {
     res.json({ ok: true });
 });
 
+// ─── Tool Wear Tracking ──────────────────────────────────
+
+// GET /ferramentas/alertas — tools exceeding 80% wear limit (MUST be before :maquinaId param route)
+router.get('/ferramentas/alertas', requireAuth, (req, res) => {
+    const alertas = db.prepare(`
+        SELECT f.*, m.nome as maquina_nome
+        FROM cnc_ferramentas f
+        LEFT JOIN cnc_maquinas m ON f.maquina_id = m.id
+        WHERE f.ativo = 1 AND f.metros_limite > 0
+          AND (CAST(f.metros_acumulados AS REAL) / CAST(f.metros_limite AS REAL)) >= 0.8
+        ORDER BY (CAST(f.metros_acumulados AS REAL) / CAST(f.metros_limite AS REAL)) DESC
+    `).all();
+    res.json(alertas.map(f => ({
+        ...f,
+        percentage: Math.round(((f.metros_acumulados || 0) / (f.metros_limite || 5000)) * 1000) / 10,
+    })));
+});
+
+// GET /ferramentas/:maquinaId/desgaste — wear data for all tools of a machine
+router.get('/ferramentas/:maquinaId/desgaste', requireAuth, (req, res) => {
+    const ferramentas = db.prepare('SELECT * FROM cnc_ferramentas WHERE maquina_id = ? AND ativo = 1 ORDER BY codigo').all(req.params.maquinaId);
+    const result = ferramentas.map(f => {
+        const metros_acumulados = f.metros_acumulados || 0;
+        const metros_limite = f.metros_limite || 5000;
+        const percentage = metros_limite > 0 ? Math.min(100, (metros_acumulados / metros_limite) * 100) : 0;
+        return {
+            ...f,
+            metros_acumulados,
+            metros_limite,
+            percentage: Math.round(percentage * 10) / 10,
+            alert: percentage >= 80,
+        };
+    });
+    res.json(result);
+});
+
+// POST /ferramentas/:id/reset-desgaste — reset accumulated meters
+router.post('/ferramentas/:id/reset-desgaste', requireAuth, (req, res) => {
+    db.prepare('UPDATE cnc_ferramentas SET metros_acumulados = 0, ultimo_reset_em = CURRENT_TIMESTAMP WHERE id = ?').run(req.params.id);
+    res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// EXPEDIÇÃO — Checkpoints e Scans
+// ═══════════════════════════════════════════════════════════════════
+
+// ── Checkpoint CRUD ──────────────────────────────────────────────
+
+router.get('/checkpoints', requireAuth, (req, res) => {
+    const checkpoints = db.prepare('SELECT * FROM cnc_expedicao_checkpoints ORDER BY ordem ASC, id ASC').all();
+    res.json(checkpoints);
+});
+
+router.post('/checkpoints', requireAuth, (req, res) => {
+    const { nome, ordem, cor, icone, obrigatorio } = req.body;
+    if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
+    const r = db.prepare(`INSERT INTO cnc_expedicao_checkpoints (nome, ordem, cor, icone, obrigatorio, user_id)
+        VALUES (?, ?, ?, ?, ?, ?)`).run(
+        nome, ordem ?? 0, cor || '#3b82f6', icone || 'package',
+        obrigatorio != null ? (obrigatorio ? 1 : 0) : 1,
+        req.user.id
+    );
+    res.json({ id: Number(r.lastInsertRowid) });
+});
+
+router.put('/checkpoints/:id', requireAuth, (req, res) => {
+    const { nome, ordem, cor, icone, ativo, obrigatorio } = req.body;
+    const fields = [];
+    const vals = [];
+    if (nome !== undefined) { fields.push('nome = ?'); vals.push(nome); }
+    if (ordem !== undefined) { fields.push('ordem = ?'); vals.push(ordem); }
+    if (cor !== undefined) { fields.push('cor = ?'); vals.push(cor); }
+    if (icone !== undefined) { fields.push('icone = ?'); vals.push(icone); }
+    if (ativo !== undefined) { fields.push('ativo = ?'); vals.push(ativo ? 1 : 0); }
+    if (obrigatorio !== undefined) { fields.push('obrigatorio = ?'); vals.push(obrigatorio ? 1 : 0); }
+    if (fields.length === 0) return res.json({ ok: true });
+    vals.push(req.params.id);
+    db.prepare(`UPDATE cnc_expedicao_checkpoints SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
+    res.json({ ok: true });
+});
+
+router.delete('/checkpoints/:id', requireAuth, (req, res) => {
+    db.prepare('DELETE FROM cnc_expedicao_checkpoints WHERE id = ?').run(req.params.id);
+    res.json({ ok: true });
+});
+
+// ── Expedition Scanning ──────────────────────────────────────────
+
+// Helper: resolve peca by codigo (same logic as GET /scan/:codigo)
+function resolvePecaByCodigo(codigo) {
+    let peca = db.prepare('SELECT * FROM cnc_pecas WHERE persistent_id = ?').get(codigo);
+    if (!peca) peca = db.prepare('SELECT * FROM cnc_pecas WHERE upmcode = ?').get(codigo);
+    if (!peca) peca = db.prepare('SELECT * FROM cnc_pecas WHERE id = ?').get(codigo);
+    if (!peca) {
+        const numMatch = String(codigo).match(/^#?(\d+)$/);
+        if (numMatch) peca = db.prepare('SELECT * FROM cnc_pecas WHERE id = ?').get(numMatch[1]);
+    }
+    return peca || null;
+}
+
+router.post('/expedicao/scan', requireAuth, (req, res) => {
+    try {
+        const { peca_id, codigo, checkpoint_id, operador, estacao, observacao } = req.body;
+
+        if (!checkpoint_id) return res.status(400).json({ error: 'checkpoint_id é obrigatório' });
+
+        // Resolve piece
+        let peca = null;
+        if (peca_id) {
+            peca = db.prepare('SELECT * FROM cnc_pecas WHERE id = ?').get(peca_id);
+        } else if (codigo) {
+            peca = resolvePecaByCodigo(codigo);
+        }
+        if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
+
+        const checkpoint = db.prepare('SELECT * FROM cnc_expedicao_checkpoints WHERE id = ?').get(checkpoint_id);
+        if (!checkpoint) return res.status(404).json({ error: 'Checkpoint não encontrado' });
+
+        const r = db.prepare(`INSERT INTO cnc_expedicao_scans (peca_id, lote_id, checkpoint_id, operador, estacao, observacao)
+            VALUES (?, ?, ?, ?, ?, ?)`).run(
+            peca.id, peca.lote_id, checkpoint_id,
+            operador || null, estacao || null, observacao || null
+        );
+
+        const scan = db.prepare('SELECT * FROM cnc_expedicao_scans WHERE id = ?').get(r.lastInsertRowid);
+        const lote = db.prepare('SELECT id, nome, cliente, projeto FROM cnc_lotes WHERE id = ?').get(peca.lote_id);
+        res.json({ scan, peca, lote: lote || null });
+    } catch (err) {
+        console.error('Erro ao registrar scan:', err);
+        res.status(500).json({ error: err.message || 'Erro ao registrar scan' });
+    }
+});
+
+router.get('/expedicao/lote/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        const checkpoints = db.prepare('SELECT * FROM cnc_expedicao_checkpoints WHERE ativo = 1 ORDER BY ordem ASC, id ASC').all();
+        const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ? ORDER BY id ASC').all(lote.id);
+        const allScans = db.prepare('SELECT * FROM cnc_expedicao_scans WHERE lote_id = ?').all(lote.id);
+
+        // Group scans by peca_id -> checkpoint_id
+        const scanMap = {};
+        for (const s of allScans) {
+            if (!scanMap[s.peca_id]) scanMap[s.peca_id] = {};
+            scanMap[s.peca_id][s.checkpoint_id] = s;
+        }
+
+        const pecasComScans = pecas.map(p => ({
+            ...p,
+            scans: scanMap[p.id] || {},
+        }));
+
+        res.json({ lote, checkpoints, pecas: pecasComScans });
+    } catch (err) {
+        console.error('Erro ao buscar status expedição:', err);
+        res.status(500).json({ error: err.message || 'Erro interno' });
+    }
+});
+
+router.get('/expedicao/lote/:loteId/progresso', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        const totalPecas = db.prepare('SELECT COUNT(*) as c FROM cnc_pecas WHERE lote_id = ?').get(lote.id).c;
+        const checkpoints = db.prepare('SELECT * FROM cnc_expedicao_checkpoints WHERE ativo = 1 ORDER BY ordem ASC, id ASC').all();
+
+        const checkpointsComProgresso = checkpoints.map(cp => {
+            const escaneadas = db.prepare(
+                'SELECT COUNT(DISTINCT peca_id) as c FROM cnc_expedicao_scans WHERE lote_id = ? AND checkpoint_id = ?'
+            ).get(lote.id, cp.id).c;
+            return { ...cp, escaneadas, total: totalPecas };
+        });
+
+        res.json({ total_pecas: totalPecas, checkpoints: checkpointsComProgresso });
+    } catch (err) {
+        console.error('Erro ao buscar progresso expedição:', err);
+        res.status(500).json({ error: err.message || 'Erro interno' });
+    }
+});
+
+router.delete('/expedicao/scan/:scanId', requireAuth, (req, res) => {
+    const scan = db.prepare('SELECT s.* FROM cnc_expedicao_scans s JOIN cnc_lotes l ON s.lote_id = l.id WHERE s.id = ? AND l.user_id = ?').get(req.params.scanId, req.user.id);
+    if (!scan) return res.status(404).json({ error: 'Scan não encontrado' });
+    db.prepare('DELETE FROM cnc_expedicao_scans WHERE id = ?').run(scan.id);
+    res.json({ ok: true });
+});
+
 // ─── Config (otimizador apenas) ──────────────────────────────────
 router.get('/config', requireAuth, (req, res) => {
     const config = db.prepare('SELECT * FROM cnc_config WHERE id = 1').get();
@@ -3237,13 +4769,953 @@ router.put('/config', requireAuth, (req, res) => {
         espaco_pecas=?, peca_min_largura=?, peca_min_comprimento=?,
         considerar_sobra=?, sobra_min_largura=?, sobra_min_comprimento=?,
         kerf_padrao=?, usar_guilhotina=?, usar_retalhos=?, iteracoes_otimizador=?,
+        modo_otimizador=?, refilo=?, permitir_rotacao=?, direcao_corte=?,
+        otimizar_trocas_ferramenta=?,
         atualizado_em=CURRENT_TIMESTAMP WHERE id=1`).run(
         c.espaco_pecas ?? 7,
         c.peca_min_largura ?? 200, c.peca_min_comprimento ?? 200,
         c.considerar_sobra ?? 1, c.sobra_min_largura ?? 300, c.sobra_min_comprimento ?? 600,
-        c.kerf_padrao ?? 4, c.usar_guilhotina ?? 1, c.usar_retalhos ?? 1, c.iteracoes_otimizador ?? 300
+        c.kerf_padrao ?? 4, c.usar_guilhotina ?? 1, c.usar_retalhos ?? 1, c.iteracoes_otimizador ?? 300,
+        c.modo_otimizador ?? 'guilhotina', c.refilo ?? 10, c.permitir_rotacao ?? 1, c.direcao_corte ?? 'misto',
+        c.otimizar_trocas_ferramenta ?? 1
     );
     res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// MATERIAIS — Cadastro completo
+// ═══════════════════════════════════════════════════════════════════
+
+router.get('/materiais', requireAuth, (req, res) => {
+    const { ativo, q } = req.query;
+    let sql = 'SELECT * FROM cnc_materiais';
+    const params = [];
+    const conds = [];
+    if (ativo !== undefined) { conds.push('ativo = ?'); params.push(+ativo); }
+    if (q) { conds.push('(nome LIKE ? OR codigo LIKE ? OR cor LIKE ? OR fornecedor LIKE ?)'); const like = `%${q}%`; params.push(like, like, like, like); }
+    if (conds.length) sql += ' WHERE ' + conds.join(' AND ');
+    sql += ' ORDER BY nome';
+    res.json(db.prepare(sql).all(...params));
+});
+
+router.get('/materiais/:id', requireAuth, (req, res) => {
+    const m = db.prepare('SELECT * FROM cnc_materiais WHERE id = ?').get(req.params.id);
+    if (!m) return res.status(404).json({ error: 'Material não encontrado' });
+    res.json(m);
+});
+
+router.post('/materiais', requireAuth, (req, res) => {
+    const b = req.body;
+    if (!b.nome) return res.status(400).json({ error: 'Nome é obrigatório' });
+    const r = db.prepare(`INSERT INTO cnc_materiais
+        (user_id, codigo, nome, espessura, comprimento_chapa, largura_chapa, veio, melamina, cor, acabamento, fornecedor, custo_m2, refilo, kerf, permitir_rotacao)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        req.user.id, b.codigo || '', b.nome, b.espessura ?? 18,
+        b.comprimento_chapa ?? 2750, b.largura_chapa ?? 1830,
+        b.veio || 'sem_veio', b.melamina || 'ambos',
+        b.cor || '', b.acabamento || '', b.fornecedor || '',
+        b.custo_m2 ?? 0, b.refilo ?? 10, b.kerf ?? 4, b.permitir_rotacao ?? -1
+    );
+    res.json({ id: Number(r.lastInsertRowid) });
+});
+
+router.put('/materiais/:id', requireAuth, (req, res) => {
+    const b = req.body;
+    db.prepare(`UPDATE cnc_materiais SET
+        codigo=?, nome=?, espessura=?, comprimento_chapa=?, largura_chapa=?,
+        veio=?, melamina=?, cor=?, acabamento=?, fornecedor=?, custo_m2=?,
+        refilo=?, kerf=?, ativo=?, permitir_rotacao=?
+        WHERE id=?`).run(
+        b.codigo, b.nome, b.espessura, b.comprimento_chapa, b.largura_chapa,
+        b.veio, b.melamina, b.cor, b.acabamento, b.fornecedor, b.custo_m2,
+        b.refilo, b.kerf, b.ativo ?? 1, b.permitir_rotacao ?? -1, req.params.id
+    );
+    res.json({ ok: true });
+});
+
+router.delete('/materiais/:id', requireAuth, (req, res) => {
+    // Soft delete — apenas desativa
+    db.prepare('UPDATE cnc_materiais SET ativo = 0 WHERE id = ?').run(req.params.id);
+    res.json({ ok: true });
+});
+
+router.post('/materiais/:id/duplicar', requireAuth, (req, res) => {
+    const m = db.prepare('SELECT * FROM cnc_materiais WHERE id = ?').get(req.params.id);
+    if (!m) return res.status(404).json({ error: 'Material não encontrado' });
+    const r = db.prepare(`INSERT INTO cnc_materiais
+        (user_id, codigo, nome, espessura, comprimento_chapa, largura_chapa, veio, melamina, cor, acabamento, fornecedor, custo_m2, refilo, kerf, permitir_rotacao)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        req.user.id, m.codigo + '_COPIA', m.nome + ' (cópia)', m.espessura,
+        m.comprimento_chapa, m.largura_chapa, m.veio, m.melamina,
+        m.cor, m.acabamento, m.fornecedor, m.custo_m2, m.refilo, m.kerf, m.permitir_rotacao ?? -1
+    );
+    res.json({ id: Number(r.lastInsertRowid) });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// OVERRIDE DE USINAGENS POR LOTE
+// ═══════════════════════════════════════════════════════════════════
+
+router.get('/lotes/:loteId/overrides', requireAuth, (req, res) => {
+    const rows = db.prepare('SELECT * FROM cnc_lote_usinagem_overrides WHERE lote_id = ?').all(req.params.loteId);
+    res.json(rows);
+});
+
+router.post('/lotes/:loteId/overrides', requireAuth, (req, res) => {
+    const { peca_persistent_id, worker_index, ativo, motivo } = req.body;
+    db.prepare(`INSERT OR REPLACE INTO cnc_lote_usinagem_overrides (lote_id, peca_persistent_id, worker_index, ativo, motivo)
+        VALUES (?, ?, ?, ?, ?)`).run(req.params.loteId, peca_persistent_id, worker_index, ativo ? 1 : 0, motivo || '');
+    res.json({ ok: true });
+});
+
+router.post('/lotes/:loteId/overrides/bulk', requireAuth, (req, res) => {
+    const { overrides } = req.body; // [{ peca_persistent_id, worker_index, ativo, motivo }]
+    if (!Array.isArray(overrides)) return res.status(400).json({ error: 'overrides deve ser array' });
+    const stmt = db.prepare(`INSERT OR REPLACE INTO cnc_lote_usinagem_overrides (lote_id, peca_persistent_id, worker_index, ativo, motivo)
+        VALUES (?, ?, ?, ?, ?)`);
+    const tx = db.transaction(() => {
+        for (const o of overrides) {
+            stmt.run(req.params.loteId, o.peca_persistent_id, o.worker_index, o.ativo ? 1 : 0, o.motivo || '');
+        }
+    });
+    tx();
+    res.json({ ok: true, count: overrides.length });
+});
+
+router.delete('/lotes/:loteId/overrides', requireAuth, (req, res) => {
+    db.prepare('DELETE FROM cnc_lote_usinagem_overrides WHERE lote_id = ?').run(req.params.loteId);
+    res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// ALGORITMO DE FACE CNC — Calcula qual face deve ir na CNC
+// ═══════════════════════════════════════════════════════════════════
+
+// Pesos de dificuldade manual por tipo de usinagem
+const DIFICULDADE_MANUAL = {
+    'Transfer_vertical_saw_cut': 10,  // Rasgo/canal
+    'transfer_pocket': 10,            // Rebaixo
+    'transfer_slot': 8,               // Fresa
+    'transfer_hole_blind': 4,         // Furo cego (minifix)
+    'transfer_hole': 3,               // Furo passante
+};
+
+// Heurística: furos com diâmetro grande = mais difícil manual
+function scoreDificuldade(worker) {
+    const cat = worker.category || '';
+    let base = DIFICULDADE_MANUAL[cat] || 3;
+    // Ajustes por características
+    if (/hole/i.test(cat)) {
+        const d = worker.diameter || 8;
+        if (d >= 35) base = 2;       // Dobradiça ⌀35 = fácil (broca Forstner)
+        else if (d <= 5) base = 1;   // Furo prateleira ⌀5 = trivial
+        else if (d <= 8) base = 1.5; // Cavilha ⌀8 = simples
+    }
+    // Rasgos/canais longos são mais difíceis manualmente
+    if (/saw_cut|slot|groove/i.test(cat) && worker.length > 200) base += 2;
+    return base;
+}
+
+function calcularFaceCNC(pecas, melamina = 'ambos') {
+    const resultado = [];
+    for (const peca of pecas) {
+        let mj;
+        try { mj = typeof peca.machining_json === 'string' ? JSON.parse(peca.machining_json) : peca.machining_json; } catch { mj = {}; }
+        const workers = Array.isArray(mj) ? mj : (mj?.workers || []);
+
+        let scoreA = 0, scoreB = 0, countA = 0, countB = 0;
+        workers.forEach((w, i) => {
+            const face = (w.face || 'top').toLowerCase();
+            const score = scoreDificuldade(w);
+            const isA = face === 'top' || face === 'side_a';
+            const isB = face === 'bottom' || face === 'side_b';
+            // Laterais contam para Face A (geralmente usinadas com peça face A pra cima)
+            if (isB) { scoreB += score; countB++; }
+            else { scoreA += score; countA++; }
+        });
+
+        let faceCNC = 'A';
+        let motivo = '';
+
+        if (melamina === 'face_a') {
+            // Melamina só na Face A → Face A pra cima (visível), CNC usina Face A
+            faceCNC = 'A';
+            motivo = 'Melamina apenas Face A — face decorativa pra cima';
+        } else if (melamina === 'face_b') {
+            faceCNC = 'B';
+            motivo = 'Melamina apenas Face B — face decorativa pra cima';
+        } else {
+            // Ambos os lados têm melamina — escolher pelo score de dificuldade
+            if (scoreA >= scoreB) {
+                faceCNC = 'A';
+                motivo = `Face A tem maior dificuldade manual (${scoreA.toFixed(1)} vs ${scoreB.toFixed(1)})`;
+            } else {
+                faceCNC = 'B';
+                motivo = `Face B tem maior dificuldade manual (${scoreB.toFixed(1)} vs ${scoreA.toFixed(1)})`;
+            }
+        }
+
+        resultado.push({
+            peca_id: peca.id,
+            persistent_id: peca.persistent_id,
+            descricao: peca.descricao,
+            face_cnc: faceCNC,
+            motivo,
+            score_a: scoreA,
+            score_b: scoreB,
+            count_a: countA,
+            count_b: countB,
+            total_workers: workers.length,
+        });
+    }
+    return resultado;
+}
+
+router.get('/lotes/:loteId/face-cnc', requireAuth, (req, res) => {
+    const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ?').all(req.params.loteId);
+    // Determinar melamina: pegar do material da primeira peça (ou default 'ambos')
+    let melamina = 'ambos';
+    for (const p of pecas) {
+        if (p.material_id) {
+            const mat = db.prepare('SELECT melamina FROM cnc_materiais WHERE id = ?').get(p.material_id);
+            if (mat?.melamina) { melamina = mat.melamina; break; }
+        }
+    }
+    const resultado = calcularFaceCNC(pecas, melamina);
+    res.json({ melamina, faces: resultado });
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 9: Machining Templates Library
+// ═══════════════════════════════════════════════════════
+
+// GET /machining-templates — list all templates (with search/filter by categoria)
+router.get('/machining-templates', requireAuth, (req, res) => {
+    const { categoria, q } = req.query;
+    let sql = 'SELECT * FROM cnc_machining_templates WHERE ativo = 1';
+    const params = [];
+    if (categoria) { sql += ' AND categoria = ?'; params.push(categoria); }
+    if (q) { sql += ' AND (nome LIKE ? OR descricao LIKE ? OR categoria LIKE ?)'; const like = `%${q}%`; params.push(like, like, like); }
+    sql += ' ORDER BY uso_count DESC, nome';
+    res.json(db.prepare(sql).all(...params));
+});
+
+// POST /machining-templates — create template
+router.post('/machining-templates', requireAuth, (req, res) => {
+    const { nome, descricao, categoria, machining_json, espelhavel } = req.body;
+    if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
+    const mjson = typeof machining_json === 'string' ? machining_json : JSON.stringify(machining_json || {});
+    const r = db.prepare(`INSERT INTO cnc_machining_templates (user_id, nome, descricao, categoria, machining_json, espelhavel)
+        VALUES (?,?,?,?,?,?)`).run(req.user.id, nome, descricao || '', categoria || '', mjson, espelhavel ? 1 : 0);
+    res.json({ ok: true, id: Number(r.lastInsertRowid) });
+});
+
+// PUT /machining-templates/:id — update template
+router.put('/machining-templates/:id', requireAuth, (req, res) => {
+    const { nome, descricao, categoria, machining_json, espelhavel } = req.body;
+    const fields = [];
+    const vals = [];
+    if (nome !== undefined) { fields.push('nome = ?'); vals.push(nome); }
+    if (descricao !== undefined) { fields.push('descricao = ?'); vals.push(descricao); }
+    if (categoria !== undefined) { fields.push('categoria = ?'); vals.push(categoria); }
+    if (machining_json !== undefined) { fields.push('machining_json = ?'); vals.push(typeof machining_json === 'string' ? machining_json : JSON.stringify(machining_json)); }
+    if (espelhavel !== undefined) { fields.push('espelhavel = ?'); vals.push(espelhavel ? 1 : 0); }
+    if (fields.length === 0) return res.status(400).json({ error: 'Nenhum campo para atualizar' });
+    vals.push(req.params.id);
+    db.prepare(`UPDATE cnc_machining_templates SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
+    res.json({ ok: true });
+});
+
+// DELETE /machining-templates/:id — soft delete
+router.delete('/machining-templates/:id', requireAuth, (req, res) => {
+    db.prepare('UPDATE cnc_machining_templates SET ativo = 0 WHERE id = ?').run(req.params.id);
+    res.json({ ok: true });
+});
+
+// POST /machining-templates/:id/aplicar — apply template to a piece
+router.post('/machining-templates/:id/aplicar', requireAuth, (req, res) => {
+    const { peca_id, espelhar, offset_x, offset_y } = req.body;
+    if (!peca_id) return res.status(400).json({ error: 'peca_id é obrigatório' });
+
+    const template = db.prepare('SELECT * FROM cnc_machining_templates WHERE id = ? AND ativo = 1').get(req.params.id);
+    if (!template) return res.status(404).json({ error: 'Template não encontrado' });
+
+    const peca = db.prepare('SELECT * FROM cnc_pecas WHERE id = ?').get(peca_id);
+    if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
+
+    let tplMach;
+    try { tplMach = JSON.parse(template.machining_json); } catch { return res.status(400).json({ error: 'JSON do template inválido' }); }
+
+    let pecaMach;
+    try { pecaMach = JSON.parse(peca.machining_json || '{}'); } catch { pecaMach = {}; }
+
+    // Garantir estrutura workers
+    const tplWorkers = tplMach.workers ? (Array.isArray(tplMach.workers) ? tplMach.workers : Object.values(tplMach.workers)) : [];
+    const pecaWorkers = pecaMach.workers ? (typeof pecaMach.workers === 'object' && !Array.isArray(pecaMach.workers) ? { ...pecaMach.workers } : {}) : {};
+
+    const ox = offset_x || 0;
+    const oy = offset_y || 0;
+    const pecaComp = peca.comprimento || 600;
+
+    let nextKey = Object.keys(pecaWorkers).length;
+    for (const w of tplWorkers) {
+        const nw = { ...w };
+        // Aplicar offset
+        if (nw.position_x != null) { nw.position_x = (nw.position_x || 0) + ox; nw.position_y = (nw.position_y || 0) + oy; }
+        // Espelhar X se solicitado (para peças par esquerda/direita)
+        if (espelhar && nw.position_x != null) {
+            nw.position_x = pecaComp - nw.position_x;
+        }
+        if (espelhar && nw.pos_start_for_line) {
+            nw.pos_start_for_line = { ...nw.pos_start_for_line, position_x: pecaComp - nw.pos_start_for_line.position_x };
+            if (nw.pos_end_for_line) nw.pos_end_for_line = { ...nw.pos_end_for_line, position_x: pecaComp - nw.pos_end_for_line.position_x };
+        }
+        pecaWorkers[`tpl_${nextKey++}`] = nw;
+    }
+
+    pecaMach.workers = pecaWorkers;
+    db.prepare('UPDATE cnc_pecas SET machining_json = ? WHERE id = ?').run(JSON.stringify(pecaMach), peca_id);
+
+    // Incrementar uso_count
+    db.prepare('UPDATE cnc_machining_templates SET uso_count = uso_count + 1 WHERE id = ?').run(req.params.id);
+
+    res.json({ ok: true, workers_added: tplWorkers.length });
+});
+
+// POST /machining-templates/from-peca/:pecaId — create template from piece
+router.post('/machining-templates/from-peca/:pecaId', requireAuth, (req, res) => {
+    const peca = db.prepare('SELECT * FROM cnc_pecas WHERE id = ?').get(req.params.pecaId);
+    if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
+
+    const { nome, descricao, categoria } = req.body;
+    const machJson = peca.machining_json || '{}';
+
+    let parsed;
+    try { parsed = JSON.parse(machJson); } catch { return res.status(400).json({ error: 'machining_json inválido na peça' }); }
+
+    const workers = parsed.workers ? (Array.isArray(parsed.workers) ? parsed.workers : Object.values(parsed.workers)) : [];
+    if (workers.length === 0) return res.status(400).json({ error: 'Peça não possui usinagens para criar template' });
+
+    const r = db.prepare(`INSERT INTO cnc_machining_templates (user_id, nome, descricao, categoria, machining_json, espelhavel)
+        VALUES (?,?,?,?,?,?)`).run(
+        req.user.id,
+        nome || `Template de ${peca.descricao || 'Peça #' + peca.id}`,
+        descricao || '',
+        categoria || '',
+        JSON.stringify({ workers }),
+        0
+    );
+    res.json({ ok: true, id: Number(r.lastInsertRowid) });
+});
+
+// ═══════════════════════════════════════════════════════
+// RELATÓRIO POR CHAPA (Operator Sheet Report)
+// ═══════════════════════════════════════════════════════
+
+router.get('/relatorio-chapa/:loteId/:chapaIdx', requireAuth, (req, res) => {
+    const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+    if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+    if (!lote.plano_json) return res.status(400).json({ error: 'Lote sem plano de corte' });
+
+    let plano;
+    try { plano = JSON.parse(lote.plano_json); } catch { return res.status(400).json({ error: 'Plano inválido' }); }
+
+    const chapaIdx = parseInt(req.params.chapaIdx, 10);
+    const chapas = plano.chapas || [];
+    if (chapaIdx < 0 || chapaIdx >= chapas.length) return res.status(404).json({ error: 'Chapa não encontrada' });
+
+    const chapa = chapas[chapaIdx];
+    const pecaIds = (chapa.pecas || []).map(p => p.pecaId).filter(Boolean);
+    const pecasDb = pecaIds.length > 0
+        ? db.prepare(`SELECT * FROM cnc_pecas WHERE id IN (${pecaIds.map(() => '?').join(',')})`).all(...pecaIds)
+        : [];
+    const pecasMap = {};
+    for (const p of pecasDb) pecasMap[p.id] = p;
+
+    // Build pieces list
+    const pieces = (chapa.pecas || []).map((p, i) => {
+        const dbp = pecasMap[p.pecaId] || {};
+        return {
+            index: i + 1,
+            descricao: dbp.descricao || `#${p.pecaId}`,
+            modulo: dbp.modulo_desc || '-',
+            comprimento: Math.round(p.w || dbp.comprimento || 0),
+            largura: Math.round(p.h || dbp.largura || 0),
+            espessura: dbp.espessura || 0,
+            rotated: !!p.rotated,
+            borda_frontal: dbp.borda_frontal || '',
+            borda_traseira: dbp.borda_traseira || '',
+            borda_dir: dbp.borda_dir || '',
+            borda_esq: dbp.borda_esq || '',
+        };
+    });
+
+    // Machining operations from pecas
+    const opSummary = { furos: 0, rasgos: 0, rebaixos: 0 };
+    const toolsNeeded = new Map();
+    for (const dbp of pecasDb) {
+        let mach = {};
+        try { mach = JSON.parse(dbp.machining_json || '{}'); } catch { /* skip */ }
+        const workers = mach.workers ? (Array.isArray(mach.workers) ? mach.workers : Object.values(mach.workers)) : [];
+        for (const w of workers) {
+            const cat = (w.category || w.tipo || '').toLowerCase();
+            if (cat.includes('furo') || cat.includes('drill') || cat.includes('hole')) opSummary.furos++;
+            else if (cat.includes('rasgo') || cat.includes('slot') || cat.includes('groove')) opSummary.rasgos++;
+            else if (cat.includes('rebaixo') || cat.includes('pocket') || cat.includes('recess')) opSummary.rebaixos++;
+            const toolKey = w.tool_code || w.ferramenta || cat || 'default';
+            if (!toolsNeeded.has(toolKey)) {
+                toolsNeeded.set(toolKey, {
+                    tool_code: toolKey,
+                    tipo: w.category || w.tipo || '-',
+                    diametro: w.diameter || w.diametro || 0,
+                    rpm: w.rpm || 0,
+                    count: 0,
+                });
+            }
+            toolsNeeded.get(toolKey).count++;
+        }
+    }
+
+    // Usinagem tipos matching
+    const usinagemTipos = db.prepare('SELECT * FROM cnc_usinagem_tipos WHERE ativo = 1 ORDER BY prioridade').all();
+
+    // Tool setup table
+    const tools = Array.from(toolsNeeded.values()).map((t, i) => ({
+        position: `T${String(i + 1).padStart(2, '0')}`,
+        ...t,
+    }));
+
+    // Estimated cutting time (rough: 3s per piece + 1s per operation)
+    const totalOps = opSummary.furos + opSummary.rasgos + opSummary.rebaixos;
+    const estimatedTime = Math.round((pieces.length * 3 + totalOps * 1) / 60 * 10) / 10; // minutes
+
+    res.json({
+        lote: { id: lote.id, nome: lote.nome, cliente: lote.cliente, projeto: lote.projeto },
+        chapaIdx,
+        totalChapas: chapas.length,
+        chapa: {
+            material: chapa.material || '-',
+            comprimento: chapa.comprimento,
+            largura: chapa.largura,
+            veio: chapa.veio || 'sem_veio',
+            refilo: chapa.refilo || 0,
+            kerf: plano.config?.kerf || 4,
+            aproveitamento: chapa.aproveitamento || 0,
+            is_retalho: !!chapa.is_retalho,
+        },
+        pieces,
+        tools,
+        opSummary,
+        estimatedTimeMin: estimatedTime,
+    });
+});
+
+// ═══════════════════════════════════════════════════════
+// DASHBOARD — Production Stats
+// ═══════════════════════════════════════════════════════
+
+router.get('/dashboard/stats', requireAuth, (req, res) => {
+    const de = req.query.de || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const ate = req.query.ate || new Date().toISOString().slice(0, 10);
+
+    const lotes = db.prepare(`
+        SELECT id, nome, cliente, projeto, total_pecas, total_chapas, aproveitamento, status, criado_em, plano_json
+        FROM cnc_lotes WHERE user_id = ? AND date(criado_em) >= date(?) AND date(criado_em) <= date(?)
+        ORDER BY criado_em DESC
+    `).all(req.user.id, de, ate);
+
+    let totalChapas = 0, totalPecas = 0, sumAprov = 0, countAprov = 0, lotesConcluidos = 0;
+    for (const l of lotes) {
+        totalChapas += l.total_chapas || 0;
+        totalPecas += l.total_pecas || 0;
+        if (l.aproveitamento > 0) { sumAprov += l.aproveitamento; countAprov++; }
+        if (l.status === 'concluido') lotesConcluidos++;
+    }
+
+    // Daily breakdown
+    const daily = {};
+    for (const l of lotes) {
+        const day = (l.criado_em || '').slice(0, 10);
+        if (!day) continue;
+        if (!daily[day]) daily[day] = { date: day, chapas: 0, pecas: 0, sumAprov: 0, count: 0 };
+        daily[day].chapas += l.total_chapas || 0;
+        daily[day].pecas += l.total_pecas || 0;
+        if (l.aproveitamento > 0) { daily[day].sumAprov += l.aproveitamento; daily[day].count++; }
+    }
+    const dailyData = Object.values(daily)
+        .map(d => ({ ...d, avgAprov: d.count > 0 ? Math.round(d.sumAprov / d.count * 10) / 10 : 0 }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+    const recentLotes = lotes.slice(0, 10).map(l => ({
+        id: l.id, nome: l.nome, cliente: l.cliente, projeto: l.projeto,
+        total_pecas: l.total_pecas, total_chapas: l.total_chapas,
+        aproveitamento: l.aproveitamento, status: l.status,
+        criado_em: l.criado_em,
+    }));
+
+    res.json({
+        totalChapas,
+        totalPecas,
+        avgAproveitamento: countAprov > 0 ? Math.round(sumAprov / countAprov * 10) / 10 : 0,
+        lotesConcluidos,
+        totalLotes: lotes.length,
+        dailyData,
+        recentLotes,
+    });
+});
+
+router.get('/dashboard/materiais', requireAuth, (req, res) => {
+    const lotes = db.prepare(`
+        SELECT plano_json, aproveitamento FROM cnc_lotes
+        WHERE user_id = ? AND plano_json IS NOT NULL AND plano_json != ''
+        ORDER BY criado_em DESC LIMIT 100
+    `).all(req.user.id);
+
+    const matMap = {};
+    for (const l of lotes) {
+        let plano;
+        try { plano = JSON.parse(l.plano_json); } catch { continue; }
+        for (const ch of (plano.chapas || [])) {
+            const mat = ch.material || 'Desconhecido';
+            if (!matMap[mat]) matMap[mat] = { material: mat, chapas_usadas: 0, area_total: 0, sumAprov: 0, countAprov: 0 };
+            matMap[mat].chapas_usadas++;
+            matMap[mat].area_total += ((ch.comprimento || 0) * (ch.largura || 0)) / 1e6; // m²
+            if (ch.aproveitamento > 0) {
+                matMap[mat].sumAprov += ch.aproveitamento;
+                matMap[mat].countAprov++;
+            }
+        }
+    }
+
+    const result = Object.values(matMap)
+        .map(m => ({
+            material: m.material,
+            chapas_usadas: m.chapas_usadas,
+            area_total: Math.round(m.area_total * 100) / 100,
+            desperdicio_medio: m.countAprov > 0 ? Math.round((100 - m.sumAprov / m.countAprov) * 10) / 10 : 0,
+        }))
+        .sort((a, b) => b.chapas_usadas - a.chapas_usadas)
+        .slice(0, 10);
+
+    res.json(result);
+});
+
+router.get('/dashboard/eficiencia', requireAuth, (req, res) => {
+    const days = parseInt(req.query.days || '30', 10);
+    const desde = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+
+    const lotes = db.prepare(`
+        SELECT total_chapas, aproveitamento, criado_em FROM cnc_lotes
+        WHERE user_id = ? AND date(criado_em) >= date(?) AND aproveitamento > 0
+        ORDER BY criado_em ASC
+    `).all(req.user.id, desde);
+
+    const daily = {};
+    for (const l of lotes) {
+        const day = (l.criado_em || '').slice(0, 10);
+        if (!day) continue;
+        if (!daily[day]) daily[day] = { date: day, chapas: 0, sumAprov: 0, count: 0 };
+        daily[day].chapas += l.total_chapas || 0;
+        daily[day].sumAprov += l.aproveitamento;
+        daily[day].count++;
+    }
+
+    const result = Object.values(daily)
+        .map(d => ({ date: d.date, chapas: d.chapas, avgAprov: Math.round(d.sumAprov / d.count * 10) / 10 }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+    res.json(result);
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// FEATURE 1: PER-PIECE COSTING
+// ═══════════════════════════════════════════════════════════════════
+
+router.get('/custos/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        if (!lote.plano_json) return res.status(400).json({ error: 'Lote sem plano de corte' });
+
+        const plano = JSON.parse(lote.plano_json);
+        const config = db.prepare('SELECT * FROM cnc_config WHERE id = 1').get() || {};
+        const custoHora = config.custo_hora_maquina || 80;
+        const custoTroca = config.custo_troca_ferramenta || 5;
+
+        const pecasDB = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ?').all(lote.id);
+        const pecasMap = {};
+        for (const p of pecasDB) pecasMap[p.id] = p;
+
+        let totalGeral = 0;
+        const chapasResult = [];
+
+        for (let ci = 0; ci < (plano.chapas || []).length; ci++) {
+            const chapa = plano.chapas[ci];
+            const sheetArea = (chapa.comprimento || 2750) * (chapa.largura || 1850);
+            // Get sheet price from cnc_chapas matching material
+            let chapaDB = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(chapa.material_code || chapa.material || '');
+            if (!chapaDB) chapaDB = db.prepare('SELECT * FROM cnc_chapas WHERE ativo = 1 ORDER BY comprimento DESC LIMIT 1').get();
+            const sheetPrice = chapa.preco || chapaDB?.preco || 0;
+
+            let custoMaterialChapa = 0, custoUsinagemChapa = 0, custoBordasChapa = 0;
+            const pecasResult = [];
+
+            for (let pi = 0; pi < (chapa.pecas || []).length; pi++) {
+                const p = chapa.pecas[pi];
+                const piece = pecasMap[p.pecaId];
+                const pieceArea = (p.w || 0) * (p.h || 0);
+
+                // Material cost: proportional to area
+                const custoMaterial = sheetArea > 0 ? (pieceArea / sheetArea) * sheetPrice : 0;
+
+                // Machining cost: count operations from machining_json
+                let tempoSeg = 0;
+                if (piece?.machining_json) {
+                    try {
+                        const ops = JSON.parse(piece.machining_json);
+                        for (const op of (Array.isArray(ops) ? ops : [])) {
+                            const tipo = (op.tipo || op.type || '').toLowerCase();
+                            if (/furo|hole|drill/.test(tipo)) tempoSeg += 2;
+                            else if (/canal|groove|rasgo/.test(tipo)) tempoSeg += 5;
+                            else if (/pocket|rebaixo|cavidade/.test(tipo)) tempoSeg += 8;
+                            else tempoSeg += 3; // default operation
+                        }
+                    } catch (_) {}
+                }
+                const custoUsinagem = (tempoSeg / 3600) * custoHora;
+
+                // Edge banding cost: count edges with banding × 0.5 per linear meter
+                let metrosBorda = 0;
+                const comp = piece?.comprimento || p.w || 0;
+                const larg = piece?.largura || p.h || 0;
+                if (piece?.borda_frontal) metrosBorda += comp / 1000;
+                if (piece?.borda_traseira) metrosBorda += comp / 1000;
+                if (piece?.borda_esq) metrosBorda += larg / 1000;
+                if (piece?.borda_dir) metrosBorda += larg / 1000;
+                const custoBordas = metrosBorda * 0.5;
+
+                const custoTotal = custoMaterial + custoUsinagem + custoBordas;
+                custoMaterialChapa += custoMaterial;
+                custoUsinagemChapa += custoUsinagem;
+                custoBordasChapa += custoBordas;
+
+                pecasResult.push({
+                    pecaIdx: pi,
+                    desc: piece?.descricao || p.nome || `Peça #${p.pecaId}`,
+                    custo_material: Math.round(custoMaterial * 100) / 100,
+                    custo_usinagem: Math.round(custoUsinagem * 100) / 100,
+                    custo_bordas: Math.round(custoBordas * 100) / 100,
+                    custo_total: Math.round(custoTotal * 100) / 100,
+                });
+            }
+
+            // Waste cost
+            const aproveitamento = chapa.aproveitamento || 0;
+            const custoDesperdicio = Math.round((1 - aproveitamento / 100) * sheetPrice * 100) / 100;
+
+            const custoTotalChapa = custoMaterialChapa + custoUsinagemChapa + custoBordasChapa + custoDesperdicio;
+            totalGeral += custoTotalChapa;
+
+            chapasResult.push({
+                chapaIdx: ci,
+                material: chapa.material || chapa.material_code || '?',
+                custo_material: Math.round(custoMaterialChapa * 100) / 100,
+                custo_usinagem: Math.round(custoUsinagemChapa * 100) / 100,
+                custo_bordas: Math.round(custoBordasChapa * 100) / 100,
+                custo_desperdicio: custoDesperdicio,
+                custo_total: Math.round(custoTotalChapa * 100) / 100,
+                pecas: pecasResult,
+            });
+        }
+
+        res.json({
+            config: { custo_hora_maquina: custoHora, custo_troca_ferramenta: custoTroca },
+            chapas: chapasResult,
+            total_geral: Math.round(totalGeral * 100) / 100,
+        });
+    } catch (err) {
+        console.error('custos error:', err);
+        res.status(500).json({ error: 'Erro ao calcular custos' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// FEATURE 2: MULTI-FORMAT EXPORT
+// ═══════════════════════════════════════════════════════════════════
+
+router.get('/export/:loteId/csv', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        if (!lote.plano_json) return res.status(400).json({ error: 'Lote sem plano' });
+
+        const plano = JSON.parse(lote.plano_json);
+        const pecasDB = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ?').all(lote.id);
+        const pecasMap = {};
+        for (const p of pecasDB) pecasMap[p.id] = p;
+
+        const BOM = '\uFEFF';
+        const sep = ';';
+        let csv = BOM;
+        csv += ['Chapa', 'Material', 'Peça', 'Descrição', 'Módulo', 'Comprimento', 'Largura', 'Espessura', 'Rotação', 'Bordas', 'Área (mm²)'].join(sep) + '\n';
+
+        for (let ci = 0; ci < (plano.chapas || []).length; ci++) {
+            const ch = plano.chapas[ci];
+            for (const p of ch.pecas || []) {
+                const piece = pecasMap[p.pecaId];
+                const bordas = [
+                    piece?.borda_frontal ? 'F' : '',
+                    piece?.borda_traseira ? 'T' : '',
+                    piece?.borda_esq ? 'E' : '',
+                    piece?.borda_dir ? 'D' : '',
+                ].filter(Boolean).join('+') || '-';
+                csv += [
+                    ci + 1,
+                    ch.material || ch.material_code || '',
+                    piece?.descricao || p.nome || `#${p.pecaId}`,
+                    (piece?.descricao || '').replace(/;/g, ','),
+                    piece?.modulo_desc || '',
+                    Math.round(p.w),
+                    Math.round(p.h),
+                    ch.espessura_real || ch.espessura || '',
+                    p.rotated ? 'Sim' : 'Não',
+                    bordas,
+                    Math.round(p.w * p.h),
+                ].join(sep) + '\n';
+            }
+        }
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="plano_${lote.nome || lote.id}.csv"`);
+        res.send(csv);
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao exportar CSV' });
+    }
+});
+
+router.get('/export/:loteId/json', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        if (!lote.plano_json) return res.status(400).json({ error: 'Lote sem plano' });
+
+        const plano = JSON.parse(lote.plano_json);
+        const pecasDB = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ?').all(lote.id);
+
+        const exportData = {
+            lote: { id: lote.id, nome: lote.nome, cliente: lote.cliente, projeto: lote.projeto, status: lote.status },
+            config: plano.config || {},
+            stats: {
+                total_chapas: plano.chapas?.length || 0,
+                total_pecas: (plano.chapas || []).reduce((s, c) => s + (c.pecas?.length || 0), 0),
+                aproveitamento: lote.aproveitamento,
+            },
+            chapas: (plano.chapas || []).map((ch, ci) => ({
+                idx: ci,
+                material: ch.material || ch.material_code,
+                comprimento: ch.comprimento,
+                largura: ch.largura,
+                espessura: ch.espessura_real || ch.espessura,
+                aproveitamento: ch.aproveitamento,
+                pecas: (ch.pecas || []).map(p => ({
+                    pecaId: p.pecaId,
+                    nome: p.nome,
+                    x: Math.round(p.x),
+                    y: Math.round(p.y),
+                    w: Math.round(p.w),
+                    h: Math.round(p.h),
+                    rotated: !!p.rotated,
+                })),
+                retalhos: ch.retalhos || [],
+            })),
+            pecas: pecasDB.map(p => ({
+                id: p.id,
+                descricao: p.descricao,
+                comprimento: p.comprimento,
+                largura: p.largura,
+                espessura: p.espessura,
+                material_code: p.material_code,
+                modulo_desc: p.modulo_desc,
+            })),
+        };
+
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="plano_${lote.nome || lote.id}.json"`);
+        res.json(exportData);
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao exportar JSON' });
+    }
+});
+
+router.get('/export/:loteId/resumo', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        if (!lote.plano_json) return res.status(400).json({ error: 'Lote sem plano' });
+
+        const plano = JSON.parse(lote.plano_json);
+        const totalPecas = (plano.chapas || []).reduce((s, c) => s + (c.pecas?.length || 0), 0);
+        const totalChapas = plano.chapas?.length || 0;
+        const totalRetalhos = (plano.chapas || []).reduce((s, c) => s + (c.retalhos?.length || 0), 0);
+
+        // Material breakdown
+        const matMap = {};
+        for (const ch of (plano.chapas || [])) {
+            const key = ch.material_code || ch.material || '?';
+            if (!matMap[key]) matMap[key] = { nome: ch.material || key, count: 0, preco: 0, sumAprov: 0 };
+            matMap[key].count++;
+            matMap[key].preco += ch.preco || 0;
+            matMap[key].sumAprov += ch.aproveitamento || 0;
+        }
+
+        const matRows = Object.values(matMap).map(m => `
+            <tr>
+                <td style="padding:6px 12px;border-bottom:1px solid #e5e7eb">${m.nome}</td>
+                <td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;text-align:center">${m.count}</td>
+                <td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;text-align:right">${m.count > 0 ? (m.sumAprov / m.count).toFixed(1) : 0}%</td>
+                <td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;text-align:right">R$ ${m.preco.toFixed(2)}</td>
+            </tr>
+        `).join('');
+
+        const html = `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Resumo — ${lote.nome || 'Plano'}</title>
+<style>
+    body{font-family:Inter,system-ui,sans-serif;padding:40px;max-width:900px;margin:0 auto;color:#1f2937}
+    h1{font-size:22px;margin-bottom:4px}
+    .sub{color:#6b7280;font-size:13px;margin-bottom:24px}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+    .card{padding:16px;border-radius:10px;background:#f9fafb;border:1px solid #e5e7eb}
+    .card .num{font-size:24px;font-weight:800;color:#1379F0}
+    .card .lb{font-size:11px;color:#6b7280;text-transform:uppercase;font-weight:600;margin-top:4px}
+    table{width:100%;border-collapse:collapse;margin-top:16px}
+    th{text-align:left;padding:8px 12px;background:#f3f4f6;font-size:11px;text-transform:uppercase;color:#6b7280;font-weight:700}
+    @media print{body{padding:20px}.grid{grid-template-columns:repeat(4,1fr)}}
+</style></head><body>
+    <h1>Resumo do Plano de Corte</h1>
+    <div class="sub">${lote.nome || ''} ${lote.cliente ? '— ' + lote.cliente : ''} ${lote.projeto ? '— ' + lote.projeto : ''} — ${new Date().toLocaleDateString('pt-BR')}</div>
+    <div class="grid">
+        <div class="card"><div class="num">${totalChapas}</div><div class="lb">Chapas</div></div>
+        <div class="card"><div class="num">${totalPecas}</div><div class="lb">Peças</div></div>
+        <div class="card"><div class="num">${lote.aproveitamento || '—'}%</div><div class="lb">Aproveitamento</div></div>
+        <div class="card"><div class="num">${totalRetalhos}</div><div class="lb">Retalhos</div></div>
+    </div>
+    <h2 style="font-size:16px;margin-bottom:8px">Materiais</h2>
+    <table>
+        <thead><tr><th>Material</th><th style="text-align:center">Chapas</th><th style="text-align:right">Aprov. Médio</th><th style="text-align:right">Custo</th></tr></thead>
+        <tbody>${matRows}</tbody>
+    </table>
+    <div style="margin-top:32px;font-size:10px;color:#9ca3af;text-align:center">Gerado em ${new Date().toLocaleString('pt-BR')} — Ornato ERP</div>
+</body></html>`;
+
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(html);
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao gerar resumo' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// FEATURE 4: PLAN VERSION DIFF
+// ═══════════════════════════════════════════════════════════════════
+
+router.get('/plano/:loteId/versions/diff/:v1/:v2', requireAuth, (req, res) => {
+    try {
+        const { loteId, v1, v2 } = req.params;
+        const ver1 = db.prepare('SELECT * FROM cnc_plano_versions WHERE id = ? AND lote_id = ? AND user_id = ?')
+            .get(v1, loteId, req.user.id);
+        const ver2 = db.prepare('SELECT * FROM cnc_plano_versions WHERE id = ? AND lote_id = ? AND user_id = ?')
+            .get(v2, loteId, req.user.id);
+        if (!ver1 || !ver2) return res.status(404).json({ error: 'Versão não encontrada' });
+
+        const plano1 = JSON.parse(ver1.plano_json);
+        const plano2 = JSON.parse(ver2.plano_json);
+
+        const changes = [];
+
+        // Build piece map for each version: key = pecaId, value = {chapaIdx, x, y, w, h, rotated}
+        const buildMap = (plano) => {
+            const map = {};
+            for (let ci = 0; ci < (plano.chapas || []).length; ci++) {
+                for (let pi = 0; pi < (plano.chapas[ci].pecas || []).length; pi++) {
+                    const p = plano.chapas[ci].pecas[pi];
+                    const key = `${p.pecaId}_${ci}_${pi}`;
+                    map[key] = { chapaIdx: ci, pecaIdx: pi, pecaId: p.pecaId, x: p.x, y: p.y, w: p.w, h: p.h, rotated: !!p.rotated, nome: p.nome };
+                }
+            }
+            return map;
+        };
+
+        // Also build a map by pecaId only (for tracking moves across sheets)
+        const buildPecaMap = (plano) => {
+            const map = {};
+            for (let ci = 0; ci < (plano.chapas || []).length; ci++) {
+                for (let pi = 0; pi < (plano.chapas[ci].pecas || []).length; pi++) {
+                    const p = plano.chapas[ci].pecas[pi];
+                    if (!map[p.pecaId]) map[p.pecaId] = [];
+                    map[p.pecaId].push({ chapaIdx: ci, pecaIdx: pi, x: p.x, y: p.y, w: p.w, h: p.h, rotated: !!p.rotated, nome: p.nome });
+                }
+            }
+            return map;
+        };
+
+        const pecaMap1 = buildPecaMap(plano1);
+        const pecaMap2 = buildPecaMap(plano2);
+
+        const allPecaIds = new Set([...Object.keys(pecaMap1), ...Object.keys(pecaMap2)]);
+
+        for (const pid of allPecaIds) {
+            const locs1 = pecaMap1[pid] || [];
+            const locs2 = pecaMap2[pid] || [];
+            const desc = locs1[0]?.nome || locs2[0]?.nome || `Peça #${pid}`;
+
+            if (locs1.length === 0 && locs2.length > 0) {
+                for (const l of locs2) {
+                    changes.push({ tipo: 'adicionado', chapaIdx: l.chapaIdx, pecaIdx: l.pecaIdx, pecaDesc: desc, de: null, para: { x: Math.round(l.x), y: Math.round(l.y) } });
+                }
+            } else if (locs1.length > 0 && locs2.length === 0) {
+                for (const l of locs1) {
+                    changes.push({ tipo: 'removido', chapaIdx: l.chapaIdx, pecaIdx: l.pecaIdx, pecaDesc: desc, de: { x: Math.round(l.x), y: Math.round(l.y) }, para: null });
+                }
+            } else {
+                // Compare positions
+                const maxLen = Math.max(locs1.length, locs2.length);
+                for (let i = 0; i < maxLen; i++) {
+                    const a = locs1[i], b = locs2[i];
+                    if (!a && b) {
+                        changes.push({ tipo: 'adicionado', chapaIdx: b.chapaIdx, pecaIdx: b.pecaIdx, pecaDesc: desc, de: null, para: { x: Math.round(b.x), y: Math.round(b.y) } });
+                    } else if (a && !b) {
+                        changes.push({ tipo: 'removido', chapaIdx: a.chapaIdx, pecaIdx: a.pecaIdx, pecaDesc: desc, de: { x: Math.round(a.x), y: Math.round(a.y) }, para: null });
+                    } else if (a && b) {
+                        if (a.chapaIdx !== b.chapaIdx) {
+                            changes.push({ tipo: 'transferido', chapaIdx: b.chapaIdx, pecaIdx: b.pecaIdx, pecaDesc: desc, de: { chapaIdx: a.chapaIdx, x: Math.round(a.x), y: Math.round(a.y) }, para: { chapaIdx: b.chapaIdx, x: Math.round(b.x), y: Math.round(b.y) } });
+                        } else if (a.rotated !== b.rotated) {
+                            changes.push({ tipo: 'rotacionado', chapaIdx: b.chapaIdx, pecaIdx: b.pecaIdx, pecaDesc: desc, de: { x: Math.round(a.x), y: Math.round(a.y) }, para: { x: Math.round(b.x), y: Math.round(b.y) } });
+                        } else if (Math.abs(a.x - b.x) > 1 || Math.abs(a.y - b.y) > 1) {
+                            changes.push({ tipo: 'movido', chapaIdx: b.chapaIdx, pecaIdx: b.pecaIdx, pecaDesc: desc, de: { x: Math.round(a.x), y: Math.round(a.y) }, para: { x: Math.round(b.x), y: Math.round(b.y) } });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Summary
+        const summary = {};
+        for (const c of changes) {
+            summary[c.tipo] = (summary[c.tipo] || 0) + 1;
+        }
+
+        res.json({
+            v1: { id: ver1.id, acao: ver1.acao_origem, data: ver1.criado_em },
+            v2: { id: ver2.id, acao: ver2.acao_origem, data: ver2.criado_em },
+            chapas_v1: plano1.chapas?.length || 0,
+            chapas_v2: plano2.chapas?.length || 0,
+            summary,
+            changes,
+        });
+    } catch (err) {
+        console.error('diff error:', err);
+        res.status(500).json({ error: 'Erro ao comparar versões' });
+    }
 });
 
 export default router;

@@ -250,6 +250,7 @@ export function buildPropostaHtml({
     const txtGarantia = empresa?.proposta_garantia || DEFAULT_GARANTIA;
     const txtConsideracoes = empresa?.proposta_consideracoes || DEFAULT_CONSIDERACOES;
     const txtRodape = empresa?.proposta_rodape || '';
+    const txtIncluso = empresa?.proposta_incluso || 'Projeto 3D personalizado;Produção própria com maquinário industrial;Entrega e instalação no local;Acabamento premium e ferragens de primeira linha;Garantia de fábrica';
 
     const empresaNome = empresa?.nome || '';
     const empresaCnpj = empresa?.cnpj || '';
@@ -376,15 +377,31 @@ export function buildPropostaHtml({
             </div>`;
     }).join('');
 
+    // ── P2: O que está incluso (checklist) ─────────────────────────────────
+    const inclusoItems = txtIncluso.split(';').map(s => s.trim()).filter(Boolean);
+    const inclusoHtml = inclusoItems.length > 0 ? `
+        <div class="incluso-section" data-section="incluso" data-section-nome="O que está incluso">
+            <div class="invest-header">O que está incluso</div>
+            <div class="incluso-grid">
+                ${inclusoItems.map(item => `
+                    <div class="incluso-item">
+                        <span class="incluso-check">✓</span>
+                        <span>${item}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>` : '';
+
     // ── Resumo ──────────────────────────────────────────────────────────────
     const numAmbientes = ambValores.length;
+    const custoDiario = pvComDesconto > 0 ? (pvComDesconto / (10 * 365)).toFixed(2) : null;
     const resumoHtml = `
         <div class="invest-section" data-section="resumo" data-section-nome="Resumo Financeiro">
             <div class="invest-header">Investimento</div>
             <table class="invest-table">
                 <tr class="invest-divider">
                     <td class="invest-row-label">${numAmbientes} ambiente${numAmbientes > 1 ? 's' : ''} sob medida</td>
-                    <td class="invest-row-value">${R$(tot.pvFinal)}</td>
+                    <td class="invest-row-value">${descontoR > 0 ? `<span class="invest-anchor">${R$(tot.pvFinal)}</span>` : R$(tot.pvFinal)}</td>
                 </tr>
                 ${descontoR > 0 ? `
                 <tr class="invest-divider invest-row-discount">
@@ -397,6 +414,7 @@ export function buildPropostaHtml({
                 </tr>
             </table>
             ${descontoR > 0 ? `<div class="invest-savings">Você economiza ${R$(descontoR)} nesta proposta</div>` : ''}
+            ${custoDiario ? `<div class="invest-daily">Apenas R$ ${custoDiario}/dia ao longo de 10 anos de uso</div>` : ''}
         </div>`;
 
     // ── Pagamento (reframing: facilidade, não condição) ─────────────────────
@@ -429,11 +447,15 @@ export function buildPropostaHtml({
         </div>
     ` : '';
 
-    // ── Garantia (como benefício, não restrição) ─────────────────────────
+    // ── Garantia (risk reversal visual) ───────────────────────────────────
     const garantiaHtml = txtGarantia ? `
         <div class="section garantia-section">
             <div class="sec-title">SUA GARANTIA</div>
             <div class="garantia-box">
+                <div class="garantia-header">
+                    <svg class="garantia-shield" viewBox="0 0 24 24" fill="none" stroke="${corAccent}" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4" stroke="${corAccent}" stroke-width="2"/></svg>
+                    <span class="garantia-title">Seu investimento protegido</span>
+                </div>
                 <p class="txt" style="margin:0">${txtGarantia}</p>
             </div>
         </div>` : '';
@@ -452,6 +474,7 @@ export function buildPropostaHtml({
                     <div class="info-label">Validade da proposta</div>
                     <div class="info-value">${validadeProposta || '15 dias'}</div>
                     ${orcamento.data_vencimento ? `<div class="info-sub">até ${new Date(orcamento.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}</div>` : ''}
+                    <div class="info-urgency">Valores sujeitos a reajuste de materiais após este prazo</div>
                 </div>
                 ${enderecoObra ? `<div class="info-item">
                     <div class="info-label">Local da obra</div>
@@ -492,7 +515,7 @@ export function buildPropostaHtml({
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
     @page {
-        margin: 22mm 18mm 26mm 18mm;
+        margin: 18mm 12mm 22mm 12mm;
         size: A4;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -529,7 +552,7 @@ export function buildPropostaHtml({
 
     /* ══════════ HEADER UNIFICADO ══════════ */
     .prop-header {
-        padding: 0 40px;
+        padding: 0 20px;
         margin-bottom: 0;
     }
     .prop-header-top {
@@ -611,7 +634,7 @@ export function buildPropostaHtml({
 
     /* ══════════ CONTENT BODY ══════════ */
     .content-body {
-        padding: 24px 40px 50px;
+        padding: 18px 20px 36px;
     }
 
     /* ── Watermark ── */
@@ -865,6 +888,88 @@ export function buildPropostaHtml({
         font-size: 10px;
     }
 
+    /* ══════════ P1: ANCORAGEM PREÇO ══════════ */
+    .invest-anchor {
+        text-decoration: line-through;
+        color: #999;
+        font-weight: 400;
+        font-size: 11px;
+    }
+
+    /* ══════════ P2: INCLUSO CHECKLIST ══════════ */
+    .incluso-section {
+        margin: 24px 0 8px;
+        page-break-inside: avoid;
+    }
+    .incluso-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px 20px;
+    }
+    .incluso-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11.5px;
+        color: #444;
+        padding: 4px 0;
+    }
+    .incluso-check {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: ${caLight};
+        color: ${corAccent};
+        font-size: 11px;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+
+    /* ══════════ P3: CUSTO DIÁRIO ══════════ */
+    .invest-daily {
+        margin-top: 6px;
+        font-size: 10px;
+        color: #888;
+        text-align: right;
+        font-style: italic;
+    }
+
+    /* ══════════ P4: RISK REVERSAL GARANTIA ══════════ */
+    .garantia-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+    .garantia-shield {
+        width: 28px;
+        height: 28px;
+        flex-shrink: 0;
+    }
+    .garantia-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: ${corPrimaria};
+    }
+
+    /* ══════════ P5: URGÊNCIA VALIDADE ══════════ */
+    .info-urgency {
+        margin-top: 4px;
+        font-size: 9px;
+        color: ${corAccent};
+        font-weight: 600;
+    }
+
+    /* ══════════ P6: FOOTER SOCIAL ══════════ */
+    .footer-social {
+        margin-top: 4px;
+        font-size: 9px;
+        color: #888;
+    }
+
     @media print {
         .prop-header { padding: 0; }
     }
@@ -917,6 +1022,9 @@ export function buildPropostaHtml({
     <p class="txt" style="margin-bottom:16px">Detalhamento dos ambientes e itens que compõem o projeto desenvolvido para você:</p>
     ${ambientesHtml}
 
+    <!-- ═══ O QUE ESTÁ INCLUSO (valor percebido) ═══ -->
+    ${inclusoHtml}
+
     <!-- ═══ INVESTIMENTO (preço — quanto custa) ═══ -->
     ${resumoHtml}
 
@@ -958,6 +1066,9 @@ export function buildPropostaHtml({
         ${txtRodape ? `<div style="margin-bottom:3px">${txtRodape}</div>` : ''}
         <div class="footer-brand">${empresaNome}</div>
         <div>${empresaContato.length > 0 ? `${empresaContato.join(' · ')}` : ''}</div>
+        ${empresa?.instagram ? `<div class="footer-social">
+            <span style="margin-right:4px">📷</span> @${empresa.instagram.replace(/^@/, '')}
+        </div>` : ''}
     </div>
 
     </div><!-- /content-body -->

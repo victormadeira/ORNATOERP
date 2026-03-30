@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { MapPin, Phone, Mail, Calendar, MessageSquare, Lock, CheckCircle2, Printer, PauseCircle, Clock, Play, AlertCircle, Send, User, Camera, X, ChevronLeft, ChevronRight, ZoomIn, Ruler, ClipboardCheck, ShoppingCart, Factory, Paintbrush, Truck, Wrench, ListChecks, Scissors, Layers, FileText, Download } from 'lucide-react';
+import { MapPin, Phone, Mail, Calendar, MessageSquare, Lock, CheckCircle2, Printer, PauseCircle, Clock, Play, AlertCircle, Send, User, Camera, X, ChevronLeft, ChevronRight, ZoomIn, Ruler, ClipboardCheck, ShoppingCart, Factory, Paintbrush, Truck, Wrench, ListChecks, Scissors, Layers, FileText, Download, DollarSign, Activity, Bell } from 'lucide-react';
 
 const dtFmt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const timeFmt = (s) => {
@@ -172,7 +172,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
     const getBarStyle = (status) => {
         // No portal: atrasada mascarada como em_andamento
         const effectiveStatus = status === 'atrasada' ? 'em_andamento' : status;
-        const base = { position: 'absolute', height: 30, borderRadius: 10, display: 'flex', alignItems: 'center', overflow: 'hidden', zIndex: 2, transition: 'transform 0.2s, box-shadow 0.2s' };
+        const base = { position: 'absolute', height: 30, borderRadius: 4, display: 'flex', alignItems: 'center', overflow: 'hidden', zIndex: 2, transition: 'transform 0.2s, box-shadow 0.2s' };
         switch (effectiveStatus) {
             case 'em_andamento':
                 return { ...base, background: `linear-gradient(90deg, ${accent}, ${accent}bb, ${accent})`, backgroundSize: '200% 100%', animation: 'ganttShimmer 2.5s ease-in-out infinite', boxShadow: `0 3px 10px ${accent}40` };
@@ -209,10 +209,10 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                     </div>
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ flex: 1, background: '#e2e8f0', borderRadius: 99, height: 8, overflow: 'hidden' }}>
-                        <div className={globalProg < 100 ? 'gantt-progress-active' : ''} style={{ width: `${globalProg}%`, height: '100%', background: `linear-gradient(90deg, ${accent}, ${primary})`, borderRadius: 99, animation: 'ganttProgressFill 1.2s ease-out' }} />
+                    <div style={{ flex: 1, background: '#e2e8f0', borderRadius: 4, height: 8, overflow: 'hidden' }}>
+                        <div className={globalProg < 100 ? 'gantt-progress-active' : ''} style={{ width: `${globalProg}%`, height: '100%', background: `linear-gradient(90deg, ${accent}, ${primary})`, borderRadius: 4, animation: 'ganttProgressFill 1.2s ease-out' }} />
                     </div>
-                    <span style={{ fontWeight: 800, fontSize: 14, color: accent, minWidth: 38, textAlign: 'right' }}>
+                    <span style={{ fontWeight: 800, fontSize: 14, color: accent, minWidth: 38, textAlign: 'right', fontFamily: 'SF Mono, Monaco, monospace', fontVariantNumeric: 'tabular-nums' }}>
                         <AnimatedCounter value={globalProg} />%
                     </span>
                 </div>
@@ -236,8 +236,8 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                 <div style={{
                                     width: effectiveStatus === 'concluida' ? 28 : isActive ? 30 : 24,
                                     height: effectiveStatus === 'concluida' ? 28 : isActive ? 30 : 24,
-                                    borderRadius: '50%',
-                                    background: effectiveStatus === 'concluida' ? '#22c55e' : isActive ? accent : '#f1f5f9',
+                                    borderRadius: 6,
+                                    background: effectiveStatus === 'concluida' ? '#22c55e' : isActive ? accent : '#f8fafc',
                                     border: effectiveStatus === 'nao_iniciado' || effectiveStatus === 'pendente' ? '2px dashed #cbd5e1' : `2px solid ${st.color}`,
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                                     boxShadow: isActive ? `0 0 12px ${accent}40` : 'none',
@@ -258,7 +258,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                 flex: 1, paddingBottom: isLast ? 0 : 12, paddingLeft: 10, minWidth: 0,
                             }}>
                                 <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', marginBottom: 2 }}>{e.nome}</div>
-                                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>
+                                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6, fontVariantNumeric: 'tabular-nums' }}>
                                     {e.data_inicio && e.data_vencimento
                                         ? `${dtFmt(e.data_inicio).slice(0, 5)} → ${dtFmt(e.data_vencimento).slice(0, 5)}`
                                         : e.data_vencimento ? dtFmt(e.data_vencimento).slice(0, 5) : ''}
@@ -270,10 +270,10 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                 </div>
                                 {/* Progress bar */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 99, height: 5, overflow: 'hidden' }}>
-                                        <div className={isActive ? 'gantt-progress-active' : ''} style={{ width: `${prog}%`, height: '100%', background: st.color, borderRadius: 99, transition: 'width 0.6s ease' }} />
+                                    <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 4, height: 5, overflow: 'hidden' }}>
+                                        <div className={isActive ? 'gantt-progress-active' : ''} style={{ width: `${prog}%`, height: '100%', background: st.color, borderRadius: 4, transition: 'width 0.6s ease' }} />
                                     </div>
-                                    <span style={{ fontSize: 10, fontWeight: 700, color: st.color, minWidth: 28 }}>{prog}%</span>
+                                    <span style={{ fontSize: 10, fontWeight: 700, color: st.color, minWidth: 28, fontFamily: 'SF Mono, Monaco, monospace', fontVariantNumeric: 'tabular-nums' }}>{prog}%</span>
                                 </div>
                             </div>
                         </div>
@@ -289,7 +289,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
             <style>{GANTT_STYLES}</style>
 
             {/* ── Context Header ── */}
-            <div style={{ marginBottom: 20, padding: '18px 22px', borderRadius: 14, background: `linear-gradient(135deg, ${primary}08, ${accent}08)`, border: `1px solid ${primary}15` }}>
+            <div style={{ marginBottom: 20, padding: '18px 22px', borderRadius: 6, background: `linear-gradient(135deg, ${primary}08, ${accent}08)`, border: `1px solid ${primary}15` }}>
                 <div style={{ fontSize: 15, color: '#334155', marginBottom: 4 }}>
                     Seu projeto está na etapa: <strong style={{ color: primary }}>{currentEtapa.nome}</strong>
                 </div>
@@ -299,17 +299,17 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                     </div>
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ flex: 1, background: '#e2e8f0', borderRadius: 99, height: 10, overflow: 'hidden' }}>
-                        <div className={globalProg < 100 ? 'gantt-progress-active' : ''} style={{ width: `${globalProg}%`, height: '100%', background: `linear-gradient(90deg, ${accent}, ${primary})`, borderRadius: 99, animation: 'ganttProgressFill 1.2s ease-out' }} />
+                    <div style={{ flex: 1, background: '#e2e8f0', borderRadius: 4, height: 10, overflow: 'hidden' }}>
+                        <div className={globalProg < 100 ? 'gantt-progress-active' : ''} style={{ width: `${globalProg}%`, height: '100%', background: `linear-gradient(90deg, ${accent}, ${primary})`, borderRadius: 4, animation: 'ganttProgressFill 1.2s ease-out' }} />
                     </div>
-                    <span style={{ fontWeight: 800, fontSize: 16, color: accent, minWidth: 44, textAlign: 'right' }}>
+                    <span style={{ fontWeight: 800, fontSize: 16, color: accent, minWidth: 44, textAlign: 'right', fontFamily: 'SF Mono, Monaco, monospace', fontVariantNumeric: 'tabular-nums' }}>
                         <AnimatedCounter value={globalProg} />%
                     </span>
                 </div>
             </div>
 
             {/* ── Split Layout: Sidebar + Timeline ── */}
-            <div style={{ display: 'flex', borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0', background: '#fff' }}>
+            <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #e2e8f0', background: '#fff' }}>
 
                 {/* Sidebar */}
                 <div style={{ width: 200, flexShrink: 0, borderRight: '1px solid #e2e8f0', background: '#fafbfc' }}>
@@ -329,28 +329,29 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                 height: ROW_H, display: 'flex', alignItems: 'center', gap: 8,
                                 padding: '0 14px', borderBottom: i < etapas.length - 1 ? '1px solid #f1f5f9' : 'none',
                                 animation: `ganttSlideIn 0.4s ease ${i * 100}ms both`,
-                                background: isActive ? `${accent}06` : 'transparent',
-                                borderLeft: isActive ? `3px solid ${accent}` : '3px solid transparent',
+                                background: isActive ? `${accent}06` : '#f8fafc',
+                                borderLeft: `3px solid ${st.color}`,
                             }}>
                                 <div style={{
-                                    width: 30, height: 30, borderRadius: 8,
+                                    width: 28, height: 28, borderRadius: 4,
                                     background: `${st.color}12`, color: st.color,
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                    fontFamily: 'SF Mono, Monaco, monospace', fontSize: 11, fontWeight: 700,
                                 }}>
                                     {effectiveStatus === 'concluida'
                                         ? <CheckCircle2 size={15} style={{ animation: 'ganttCheckPop 0.5s ease both', animationDelay: `${i * 100 + 300}ms` }} />
-                                        : <Ic size={14} />
+                                        : <span>{String(i + 1).padStart(2, '0')}</span>
                                     }
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontWeight: 600, fontSize: 12, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={e.nome}>
                                         {e.nome}
                                     </div>
-                                    <div style={{ fontSize: 10, color: st.color, fontWeight: 600, marginTop: 1 }}>
+                                    <div style={{ fontSize: 10, color: st.color, fontWeight: 600, marginTop: 1, fontFamily: 'SF Mono, Monaco, monospace', fontVariantNumeric: 'tabular-nums' }}>
                                         <AnimatedCounter value={prog} />%
                                     </div>
                                 </div>
-                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: st.color, flexShrink: 0, boxShadow: isActive ? `0 0 6px ${st.color}50` : 'none' }} />
+                                <div style={{ width: 8, height: 8, borderRadius: 3, background: st.color, flexShrink: 0, boxShadow: isActive ? `0 0 6px ${st.color}50` : 'none' }} />
                             </div>
                         );
                     })}
@@ -470,8 +471,8 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                             }}
                                         >
                                             {(effectiveStatus === 'nao_iniciado' || effectiveStatus === 'pendente') && (
-                                                <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', borderRadius: 10 }}>
-                                                    <rect x="1" y="1" width="calc(100% - 2px)" height="calc(100% - 2px)" rx="9"
+                                                <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', borderRadius: 4 }}>
+                                                    <rect x="1" y="1" width="calc(100% - 2px)" height="calc(100% - 2px)" rx="3"
                                                         fill="none" stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="6 4"
                                                         style={{ animation: 'ganttDashMove 2s linear infinite' }} />
                                                 </svg>
@@ -480,7 +481,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                                 <div style={{
                                                     position: 'absolute', left: 0, top: 0, bottom: 0,
                                                     width: `${prog}%`, background: 'rgba(255,255,255,0.2)',
-                                                    borderRadius: '10px 0 0 10px',
+                                                    borderRadius: '4px 0 0 4px',
                                                 }} />
                                             )}
                                             {width > 10 && (
@@ -488,6 +489,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                                     position: 'relative', zIndex: 1, fontSize: 10, fontWeight: 700,
                                                     color: (effectiveStatus === 'nao_iniciado' || effectiveStatus === 'pendente') ? '#94a3b8' : '#fff',
                                                     padding: '0 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                                    fontVariantNumeric: 'tabular-nums',
                                                 }}>
                                                     {dtFmt(e.data_inicio).slice(0, 5)} → {dtFmt(e.data_vencimento).slice(0, 5)}
                                                 </span>
@@ -503,7 +505,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                             top: ROW_H - 2,
                                             transform: 'translateX(-50%)',
                                             background: '#fff', border: '1px solid #e2e8f0',
-                                            borderRadius: 12, padding: '14px 18px', zIndex: 50,
+                                            borderRadius: 6, padding: '14px 18px', zIndex: 50,
                                             boxShadow: '0 8px 30px rgba(0,0,0,0.12)', minWidth: 220, maxWidth: 300,
                                             pointerEvents: 'none',
                                         }}>
@@ -520,10 +522,10 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                                 {e.status === 'concluida' ? 'Esta etapa foi concluída com sucesso!' : getEtapaDesc(e.nome)}
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 99, height: 6, overflow: 'hidden' }}>
-                                                    <div style={{ width: `${prog}%`, height: '100%', background: STATUS[effectiveStatus]?.color || '#94a3b8', borderRadius: 99 }} />
+                                                <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+                                                    <div style={{ width: `${prog}%`, height: '100%', background: STATUS[effectiveStatus]?.color || '#94a3b8', borderRadius: 4 }} />
                                                 </div>
-                                                <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>{prog}%</span>
+                                                <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', fontFamily: 'SF Mono, Monaco, monospace', fontVariantNumeric: 'tabular-nums' }}>{prog}%</span>
                                             </div>
                                         </div>
                                     )}
@@ -562,7 +564,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
 }
 
 // ─── Chat de mensagens do portal ──────────────
-function PortalChat({ token, mensagens: initialMsgs, accent, primary, clienteNome }) {
+function PortalChat({ token, mensagens: initialMsgs, accent, primary, clienteNome, msgNaoLidas = 0 }) {
     const [msgs, setMsgs] = useState(initialMsgs || []);
     const [text, setText] = useState('');
     const [nome, setNome] = useState(() => localStorage.getItem(`portal_nome_${token}`) || clienteNome || '');
@@ -611,9 +613,20 @@ function PortalChat({ token, mensagens: initialMsgs, accent, primary, clienteNom
 
     return (
         <div style={{ background: '#fff', padding: '24px 32px', borderBottom: '1px solid #e2e8f0' }}>
-            <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <MessageSquare size={16} style={{ color: accent }} /> Mensagens
-            </h2>
+            <div style={{ marginBottom: 16 }}>
+                <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                    <MessageSquare size={16} style={{ color: accent }} /> Mensagens
+                    {msgNaoLidas > 0 && (
+                        <span style={{
+                            background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 700,
+                            padding: '2px 8px', borderRadius: 99, marginLeft: 4,
+                        }}>
+                            {msgNaoLidas} nova{msgNaoLidas > 1 ? 's' : ''}
+                        </span>
+                    )}
+                </h2>
+                <span style={{ fontSize: 12, color: '#94a3b8', paddingLeft: 24 }}>Concierge do Projeto — Seu consultor direto</span>
+            </div>
 
             {/* Chat area */}
             <div ref={chatRef} style={{
@@ -709,7 +722,7 @@ function PortalChat({ token, mensagens: initialMsgs, accent, primary, clienteNom
                     value={text}
                     onChange={e => setText(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviar()}
-                    placeholder="Digite sua mensagem..."
+                    placeholder="Escreva sua dúvida ou solicitação..."
                     disabled={sending}
                     style={{
                         flex: 1, padding: '10px 14px',
@@ -1058,6 +1071,7 @@ export default function PortalCliente({ token, isPreview = false }) {
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [tab, setTab] = useState('cronograma');
 
     useEffect(() => {
         const authToken = localStorage.getItem('erp_token');
@@ -1116,6 +1130,9 @@ export default function PortalCliente({ token, isPreview = false }) {
     const etapas = projeto.etapas || [];
     const ocorrencias = projeto.ocorrencias || [];
     const mensagens = projeto.mensagens || [];
+    const pagamento = projeto.pagamento || null;
+    const atividades = projeto.atividades || [];
+    const msgNaoLidas = projeto.msgNaoLidas || 0;
     const concluidasPct = etapas.length
         ? Math.round(etapas.filter(e => e.status === 'concluida').length / etapas.length * 100)
         : 0;
@@ -1241,8 +1258,44 @@ export default function PortalCliente({ token, isPreview = false }) {
 
                 </div>
 
+                {/* ─── Tab Navigation ──────────────────────────── */}
+                <div className="no-print" style={{
+                    background: '#fff', borderBottom: '2px solid #e2e8f0',
+                    display: 'flex', gap: 0, overflowX: 'auto',
+                    position: 'sticky', top: 0, zIndex: 10,
+                }}>
+                    {[
+                        { id: 'cronograma', label: 'Cronograma', icon: Calendar },
+                        { id: 'mensagens', label: 'Mensagens', icon: MessageSquare, badge: msgNaoLidas },
+                        ...(pagamento ? [{ id: 'financeiro', label: 'Financeiro', icon: DollarSign }] : []),
+                        { id: 'fotos', label: 'Fotos', icon: Camera },
+                        { id: 'docs', label: 'Documentos', icon: FileText },
+                    ].map(t => (
+                        <button key={t.id} onClick={() => setTab(t.id)} style={{
+                            padding: '14px 20px', border: 'none', background: 'none',
+                            cursor: 'pointer', fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
+                            color: tab === t.id ? primary : '#64748b',
+                            borderBottom: tab === t.id ? `2px solid ${primary}` : '2px solid transparent',
+                            marginBottom: -2, display: 'flex', alignItems: 'center', gap: 6,
+                            whiteSpace: 'nowrap', transition: 'all 0.2s',
+                        }}>
+                            <t.icon size={15} />
+                            {t.label}
+                            {t.badge > 0 && (
+                                <span style={{
+                                    background: '#ef4444', color: '#fff', fontSize: 10,
+                                    fontWeight: 700, padding: '1px 6px', borderRadius: 10,
+                                }}>{t.badge}</span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+
+                {/* ─── Tab: Cronograma ─────────────────────────── */}
+                {tab === 'cronograma' && (
+                <>
                 {/* ─── Etapas / Cronograma ────────────────────── */}
-                <div style={{ background: '#fff', padding: '24px 32px', borderBottom: '1px solid #e2e8f0' }}>
+                <div style={{ background: '#fff', padding: '24px 32px' }}>
                     <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}><Calendar size={16} style={{ color: accent }} /> Cronograma</h2>
 
                     <GanttPublic etapas={etapas} primary={primary} accent={accent} />
@@ -1267,7 +1320,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                     const ambs = projeto.ambientes.map(a => ({ ...a, status: AMB_COMPAT[a.status] || a.status }));
 
                     return (
-                        <div style={{ background: '#fff', padding: '24px 32px', borderBottom: '1px solid #e2e8f0' }}>
+                        <div style={{ background: '#fff', padding: '24px 32px', borderTop: '1px solid #f1f5f9' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                                 <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
                                     <Layers size={16} style={{ color: accent }} /> Ambientes
@@ -1332,9 +1385,9 @@ export default function PortalCliente({ token, isPreview = false }) {
                     );
                 })()}
 
-                {/* ─── Ocorrências (apenas públicas) ──────────── */}
+                {/* ─── Comunicados (collapsible, dentro do Cronograma) ── */}
                 {ocorrencias.length > 0 && (
-                    <div style={{ background: '#fff', padding: '24px 32px', borderBottom: '1px solid #e2e8f0' }}>
+                    <div style={{ background: '#fff', padding: '24px 32px', borderTop: '1px solid #f1f5f9' }}>
                         <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}><MessageSquare size={16} style={{ color: accent }} /> Comunicados</h2>
                         <div style={{ display: 'grid', gap: 10 }}>
                             {ocorrencias.map(oc => (
@@ -1361,7 +1414,38 @@ export default function PortalCliente({ token, isPreview = false }) {
                     </div>
                 )}
 
-                {/* ─── Chat de Mensagens (Portal v2) ──────────── */}
+                {/* ─── Feed de Atividades (dentro do Cronograma) ── */}
+                {atividades.length > 0 && (
+                    <div style={{ background: '#fff', padding: '24px 32px', borderTop: '1px solid #f1f5f9' }}>
+                        <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Activity size={16} style={{ color: accent }} /> Atualizações
+                        </h2>
+                        <div style={{ position: 'relative', paddingLeft: 20 }}>
+                            <div style={{ position: 'absolute', left: 6, top: 4, bottom: 4, width: 2, background: '#e2e8f0' }} />
+                            {atividades.slice(0, 10).map((a, i) => (
+                                <div key={i} style={{ position: 'relative', marginBottom: 14, paddingLeft: 12 }}>
+                                    <div style={{
+                                        position: 'absolute', left: -17, top: 4,
+                                        width: 10, height: 10, borderRadius: '50%',
+                                        background: i === 0 ? accent : '#cbd5e1',
+                                        border: '2px solid #fff',
+                                    }} />
+                                    <div style={{ fontSize: 13, color: '#334155', lineHeight: 1.5 }}>{a.descricao}</div>
+                                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                        {new Date(a.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                        {' · '}
+                                        {new Date(a.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                </>
+                )}
+
+                {/* ─── Tab: Mensagens ──────────────────────────── */}
+                {tab === 'mensagens' && (
                 <div className="no-print">
                     <PortalChat
                         token={token}
@@ -1369,14 +1453,76 @@ export default function PortalCliente({ token, isPreview = false }) {
                         accent={accent}
                         primary={primary}
                         clienteNome={projeto.cliente_nome}
+                        msgNaoLidas={msgNaoLidas}
                     />
                 </div>
+                )}
 
-                {/* ─── Galeria de Fotos ──────────────────────── */}
+                {/* ─── Tab: Financeiro ─────────────────────────── */}
+                {tab === 'financeiro' && pagamento && (
+                    <div style={{ background: '#fff', padding: '24px 32px' }}>
+                        <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <DollarSign size={16} style={{ color: accent }} /> Financeiro
+                        </h2>
+                        {/* Barra de progresso */}
+                        <div style={{ marginBottom: 16 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
+                                <span style={{ color: '#64748b' }}>Pago: <strong style={{ color: '#22c55e' }}>R$ {(pagamento.totalPago || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></span>
+                                <span style={{ color: '#64748b' }}>Total: <strong style={{ color: '#0f172a' }}>R$ {(pagamento.totalGeral || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></span>
+                            </div>
+                            <div style={{ background: '#e2e8f0', borderRadius: 99, height: 10, overflow: 'hidden' }}>
+                                <div style={{
+                                    width: `${pagamento.totalGeral > 0 ? Math.round((pagamento.totalPago / pagamento.totalGeral) * 100) : 0}%`,
+                                    height: '100%', background: 'linear-gradient(90deg, #22c55e, #16a34a)', borderRadius: 99, transition: 'width 0.5s',
+                                }} />
+                            </div>
+                        </div>
+                        {/* Lista de parcelas */}
+                        <div style={{ display: 'grid', gap: 8 }}>
+                            {pagamento.contas.map(c => {
+                                const vencida = c.status === 'pendente' && c.data_vencimento && new Date(c.data_vencimento + 'T12:00:00') < new Date();
+                                const paga = c.status === 'pago';
+                                return (
+                                    <div key={c.id} style={{
+                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                        padding: '10px 14px', borderRadius: 8,
+                                        background: paga ? '#f0fdf4' : vencida ? '#fef2f2' : '#f8fafc',
+                                        border: `1px solid ${paga ? '#bbf7d0' : vencida ? '#fecaca' : '#e2e8f0'}`,
+                                    }}>
+                                        <div>
+                                            <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{c.descricao || 'Parcela'}</div>
+                                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                                Vence: {dtFmt(c.data_vencimento)}
+                                                {paga && c.data_pagamento ? ` · Pago em ${dtFmt(c.data_pagamento)}` : ''}
+                                            </div>
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div style={{ fontSize: 14, fontWeight: 700, color: paga ? '#22c55e' : vencida ? '#ef4444' : '#0f172a' }}>
+                                                R$ {(c.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </div>
+                                            <div style={{
+                                                fontSize: 10, fontWeight: 700, marginTop: 2,
+                                                color: paga ? '#22c55e' : vencida ? '#ef4444' : '#94a3b8',
+                                            }}>
+                                                {paga ? '✓ PAGO' : vencida ? 'VENCIDA' : 'PENDENTE'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* ─── Tab: Fotos ──────────────────────────────── */}
+                {tab === 'fotos' && (
                 <PortalGaleria token={token} accent={accent} primary={primary} />
+                )}
 
-                {/* ─── Documentos ────────────────────────────── */}
+                {/* ─── Tab: Documentos ─────────────────────────── */}
+                {tab === 'docs' && (
                 <PortalDocumentos token={token} accent={accent} />
+                )}
 
                 {/* ─── Rodapé ─────────────────────────────────── */}
                 <div style={{

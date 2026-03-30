@@ -237,11 +237,11 @@ router.get('/landing/:token', (req, res) => {
     const portalToken = db.prepare('SELECT * FROM portal_tokens WHERE token = ? AND ativo = 1 AND (expira_em IS NULL OR expira_em > datetime(\'now\'))').get(token);
     if (!portalToken) return res.status(404).json({ error: 'Link inválido ou expirado' });
 
-    const orc = db.prepare('SELECT id, cliente_nome, numero FROM orcamentos WHERE id = ?').get(portalToken.orc_id);
+    const orc = db.prepare('SELECT id, cliente_nome, numero, mods, criado_em FROM orcamentos WHERE id = ?').get(portalToken.orc_id);
     if (!orc) return res.status(404).json({ error: 'Proposta não encontrada' });
 
     const emp = db.prepare(`
-        SELECT nome, telefone, email, site,
+        SELECT nome, telefone, email, site, instagram,
                proposta_cor_primaria, proposta_cor_accent,
                logo_sistema
         FROM empresa_config WHERE id = 1
@@ -251,14 +251,26 @@ router.get('/landing/:token', (req, res) => {
         'SELECT id, titulo, designer, descricao, imagem FROM portfolio WHERE ativo = 1 ORDER BY ordem ASC, id ASC'
     ).all();
 
+    // Calcular data de validade da proposta
+    let validade = null;
+    try {
+        const mods = orc.mods ? JSON.parse(orc.mods) : {};
+        const dias = mods.validade_dias || parseInt(mods.validade_proposta) || 15;
+        const base = orc.criado_em ? new Date(orc.criado_em) : new Date();
+        base.setDate(base.getDate() + dias);
+        validade = base.toISOString().split('T')[0];
+    } catch(e) {}
+
     res.json({
         cliente_nome: orc.cliente_nome || '',
         numero: orc.numero || '',
+        validade,
         empresa: {
             nome: emp?.nome || 'Marcenaria',
             telefone: emp?.telefone || '',
             email: emp?.email || '',
             site: emp?.site || '',
+            instagram: emp?.instagram || '',
             logo: emp?.logo_sistema || '',
             cor_primaria: emp?.proposta_cor_primaria || '#1B2A4A',
             cor_accent: emp?.proposta_cor_accent || '#C9A96E',

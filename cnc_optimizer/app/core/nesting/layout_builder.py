@@ -412,7 +412,7 @@ class LayoutBuilder:
         if best and best.bins and not is_guillotine_only:
             compacted_bins = []
             for b in best.bins:
-                compacted = compact_bin(b, sheet, self.config.compact_passes)
+                compacted = compact_bin(b, sheet, self.config.compact_passes, self.config.split_direction, self.config.spacing)
                 compacted_bins.append(compacted)
             best.bins = compacted_bins
             # Recalcular score apos compactacao
@@ -1840,11 +1840,17 @@ def detect_remnants(
     Returns:
         Lista de dicts com {x, y, w, h, area}
     """
+    def _remnant_valid(w: float, h: float) -> bool:
+        """Verifica se retalho atende dimensoes minimas (min de ambos lados)."""
+        short = min(w, h)
+        long = max(w, h)
+        return short >= min_width and long >= min_length
+
     if not sheet_layout.placements:
         # Chapa inteira e retalho
         w = sheet_layout.sheet.usable_length
         h = sheet_layout.sheet.usable_width
-        if w >= min_length and h >= min_width:
+        if _remnant_valid(w, h):
             return [{"x": 0, "y": 0, "w": w, "h": h, "area": w * h}]
         return []
 
@@ -1852,12 +1858,12 @@ def detect_remnants(
     usable_w = sheet.usable_length
     usable_h = sheet.usable_width
 
-    # Encontrar bounding box das pecas colocadas
+    # Encontrar bounding box das pecas colocadas (posicoes 0-based, sem trim)
     max_x = 0
     max_y = 0
     for p in sheet_layout.placements:
-        px = (p.x - sheet.trim) + p.effective_length
-        py = (p.y - sheet.trim) + p.effective_width
+        px = p.x + p.effective_length
+        py = p.y + p.effective_width
         max_x = max(max_x, px)
         max_y = max(max_y, py)
 
@@ -1865,20 +1871,20 @@ def detect_remnants(
 
     # Retalho a direita (faixa vertical)
     right_w = usable_w - max_x
-    if right_w >= min_width and usable_h >= min_length:
+    if _remnant_valid(right_w, usable_h):
         remnants.append({
             "x": max_x, "y": 0,
             "w": right_w, "h": usable_h,
             "area": right_w * usable_h,
         })
 
-    # Retalho acima (faixa horizontal)
-    top_h = usable_h - max_y
-    if top_h >= min_width and max_x >= min_length:
+    # Retalho abaixo (faixa horizontal)
+    bottom_h = usable_h - max_y
+    if _remnant_valid(max_x, bottom_h):
         remnants.append({
             "x": 0, "y": max_y,
-            "w": max_x, "h": top_h,
-            "area": max_x * top_h,
+            "w": max_x, "h": bottom_h,
+            "area": max_x * bottom_h,
         })
 
     return remnants

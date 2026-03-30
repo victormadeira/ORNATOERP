@@ -1,18 +1,27 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import api from '../api';
 import { Ic, Z, Modal, Spinner, tagStyle, tagClass } from '../ui';
 import { colorBg, colorBorder } from '../theme';
-import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
+import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp } from 'lucide-react';
 import EditorEtiquetas, { EtiquetaSVG } from '../components/EditorEtiquetas';
+import PecaViewer3D from '../components/PecaViewer3D';
+import PecaEditor from '../components/PecaEditor';
+import ToolpathSimulator, { parseGcodeToMoves } from '../components/ToolpathSimulator';
 // GcodeSim3D removido — simulador 2D com cores por operação é suficiente
 
-const TABS = [
+// Nível 1 — sempre visível
+const TABS_MAIN = [
     { id: 'importar', lb: 'Importar', ic: Upload },
-    { id: 'pecas', lb: 'Peças', ic: Layers },
-    { id: 'plano', lb: 'Plano de Corte', ic: Scissors },
-    { id: 'etiquetas', lb: 'Etiquetas', ic: TagIcon },
-    { id: 'gcode', lb: 'G-code / CNC', ic: Settings },
+    { id: 'lotes', lb: 'Lotes', ic: Package },
+    { id: 'dashboard', lb: 'Dashboard', ic: BarChart3 },
     { id: 'config', lb: 'Configurações', ic: Settings },
+];
+
+// Nível 2 — só aparece com lote selecionado
+const TABS_LOTE = [
+    { id: 'pecas', lb: 'Peças', ic: Layers, step: 1 },
+    { id: 'plano', lb: 'Plano de Corte', ic: Scissors, step: 2 },
+    { id: 'gcode', lb: 'G-code / CNC', ic: Cpu, step: 3 },
 ];
 
 const STATUS_COLORS = {
@@ -30,12 +39,32 @@ export default function ProducaoCNC({ notify }) {
     const [editorMode, setEditorMode] = useState(false);
     const [editorTemplateId, setEditorTemplateId] = useState(null);
     const [configSection, setConfigSection] = useState('maquinas');
+    const [toolAlerts, setToolAlerts] = useState([]);
 
     const loadLotes = useCallback(() => {
         api.get('/cnc/lotes').then(setLotes).catch(e => notify(e.error || 'Erro ao carregar lotes'));
     }, []);
 
-    useEffect(() => { loadLotes(); }, [loadLotes]);
+    const loadToolAlerts = useCallback(() => {
+        api.get('/cnc/ferramentas/alertas').then(setToolAlerts).catch(() => {});
+    }, []);
+
+    useEffect(() => { loadLotes(); loadToolAlerts(); }, [loadLotes, loadToolAlerts]);
+
+    // Abrir lote = entrar no workspace do lote
+    const abrirLote = useCallback((lote, aba = 'pecas') => {
+        setLoteAtual(lote);
+        setTab(aba);
+    }, []);
+
+    // Voltar para lista de lotes
+    const voltarLotes = useCallback(() => {
+        setLoteAtual(null);
+        setTab('lotes');
+    }, []);
+
+    // Determina se estamos no nível 2 (dentro de um lote)
+    const isInsideLote = loteAtual && ['pecas', 'plano', 'etiquetas', 'gcode'].includes(tab);
 
     // ── MODO EDITOR FULL-SCREEN ──────────────────────────
     if (editorMode) {
@@ -59,13 +88,33 @@ export default function ProducaoCNC({ notify }) {
             <h1 className={Z.h1}>Produção CNC</h1>
             <p className={Z.sub}>Importar JSON, otimizar corte, etiquetas e G-code</p>
 
-            {/* Tab bar */}
-            <div style={{ display: 'flex', gap: 2, marginBottom: 20, overflowX: 'auto', borderBottom: '2px solid var(--border)', paddingBottom: 0 }}>
-                {TABS.map(t => {
-                    const active = tab === t.id;
+            {/* Alerta global de desgaste de ferramentas */}
+            {toolAlerts.length > 0 && (
+                <div style={{
+                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
+                    background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8,
+                    marginBottom: 12, fontSize: 12, color: '#991b1b',
+                }}>
+                    <ShieldAlert size={16} style={{ flexShrink: 0 }} />
+                    <span>
+                        <b>{toolAlerts.length} ferramenta(s)</b> com desgaste acima de 80%:
+                        {' '}{toolAlerts.slice(0, 3).map(t => `${t.nome} (${t.percentage}%)`).join(', ')}
+                        {toolAlerts.length > 3 && ` e mais ${toolAlerts.length - 3}...`}
+                    </span>
+                    <button onClick={() => { setTab('config'); setConfigSection('maquinas'); }}
+                        style={{ marginLeft: 'auto', fontSize: 11, padding: '3px 10px', borderRadius: 4, border: '1px solid #fca5a5', background: '#fff', cursor: 'pointer', color: '#991b1b', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        Ver Ferramentas
+                    </button>
+                </div>
+            )}
+
+            {/* Nível 1 — Tab bar principal */}
+            <div style={{ display: 'flex', gap: 2, overflowX: 'auto', borderBottom: '2px solid var(--border)', paddingBottom: 0, marginBottom: isInsideLote ? 0 : 20 }}>
+                {TABS_MAIN.map(t => {
+                    const active = !isInsideLote && tab === t.id;
                     const I = t.ic;
                     return (
-                        <button key={t.id} onClick={() => setTab(t.id)}
+                        <button key={t.id} onClick={() => { setTab(t.id); if (t.id !== 'config') setLoteAtual(null); }}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px',
                                 fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer',
@@ -75,17 +124,70 @@ export default function ProducaoCNC({ notify }) {
                                 marginBottom: -2, whiteSpace: 'nowrap', transition: 'all .15s',
                             }}>
                             <I size={15} />
-                            <span className="hidden sm:inline">{t.lb}</span>
+                            <span>{t.lb}</span>
                         </button>
                     );
                 })}
             </div>
 
-            {tab === 'importar' && <TabImportar lotes={lotes} loadLotes={loadLotes} notify={notify} setLoteAtual={setLoteAtual} setTab={setTab} />}
-            {tab === 'pecas' && <TabPecas lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} />}
-            {tab === 'plano' && <TabPlano lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} loadLotes={loadLotes} />}
-            {tab === 'etiquetas' && <TabEtiquetas lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} />}
-            {tab === 'gcode' && <TabGcode lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} />}
+            {/* Nível 2 — Workspace do lote (aparece só com lote aberto) */}
+            {isInsideLote && (
+                <div style={{
+                    display: 'flex', alignItems: 'center', gap: 0,
+                    borderBottom: '2px solid var(--border)', marginBottom: 20,
+                    background: 'var(--bg-muted, #f8f9fa)',
+                }}>
+                    {/* Botão voltar + nome do lote */}
+                    <button onClick={voltarLotes}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
+                            fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            color: 'var(--text-muted)', background: 'none', border: 'none',
+                            borderRight: '1px solid var(--border)', whiteSpace: 'nowrap',
+                        }}>
+                        <ArrowLeft size={14} />
+                        <span style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {loteAtual.nome || `Lote #${loteAtual.id}`}
+                        </span>
+                    </button>
+
+                    {/* Tabs do lote */}
+                    {TABS_LOTE.map(t => {
+                        const active = tab === t.id;
+                        const I = t.ic;
+                        return (
+                            <button key={t.id} onClick={() => setTab(t.id)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px',
+                                    fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
+                                    color: active ? 'var(--primary)' : 'var(--text-muted)',
+                                    borderBottom: active ? '2px solid var(--primary)' : '2px solid transparent',
+                                    background: 'none', border: 'none', borderBottomWidth: 2, borderBottomStyle: 'solid',
+                                    marginBottom: -2, whiteSpace: 'nowrap', transition: 'all .15s',
+                                }}>
+                                <span style={{
+                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                    width: 16, height: 16, borderRadius: '50%', fontSize: 9, fontWeight: 700,
+                                    background: active ? 'var(--primary)' : 'transparent',
+                                    color: active ? '#fff' : 'var(--text-muted)',
+                                    border: `1px solid ${active ? 'var(--primary)' : 'var(--border)'}`,
+                                    flexShrink: 0,
+                                }}>{t.step}</span>
+                                <I size={13} />
+                                <span>{t.lb}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
+            {tab === 'importar' && !isInsideLote && <TabImportar lotes={lotes} loadLotes={loadLotes} notify={notify} setLoteAtual={abrirLote} setTab={setTab} />}
+            {tab === 'lotes' && !isInsideLote && <TabLotes lotes={lotes} loadLotes={loadLotes} notify={notify} abrirLote={abrirLote} />}
+            {tab === 'dashboard' && !isInsideLote && <TabDashboard notify={notify} />}
+            {tab === 'pecas' && isInsideLote && <TabPecas lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} setTab={setTab} />}
+            {tab === 'plano' && isInsideLote && <TabPlano lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} loadLotes={loadLotes} setTab={setTab} />}
+            {tab === 'etiquetas' && isInsideLote && <TabEtiquetas lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} />}
+            {tab === 'gcode' && isInsideLote && <TabGcode lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} />}
             {tab === 'config' && <TabConfig notify={notify} setEditorMode={setEditorMode} setEditorTemplateId={setEditorTemplateId} initialSection={configSection} setConfigSection={setConfigSection} />}
         </div>
     );
@@ -125,57 +227,32 @@ function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) {
     const [jsonData, setJsonData] = useState(null);
     const [nome, setNome] = useState('');
     const [importing, setImporting] = useState(false);
-    const [selectedLotes, setSelectedLotes] = useState(new Set());
-    const [multiOptimizing, setMultiOptimizing] = useState(false);
+    const [lastImportedLote, setLastImportedLote] = useState(null);
     const fileRef = useRef(null);
 
-    const toggleLoteSelection = (id) => {
-        setSelectedLotes(prev => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id); else next.add(id);
-            return next;
-        });
-    };
-    const toggleAllLotes = () => {
-        if (selectedLotes.size === lotes.length) setSelectedLotes(new Set());
-        else setSelectedLotes(new Set(lotes.map(l => l.id)));
-    };
-    const doMultiOptimize = async () => {
-        if (selectedLotes.size < 2) { notify('Selecione pelo menos 2 lotes'); return; }
-        setMultiOptimizing(true);
-        try {
-            const r = await api.post('/cnc/otimizar-multi', {
-                loteIds: [...selectedLotes],
-                espaco_pecas: espacoPecas, refilo, permitir_rotacao: permitirRotacao,
-                modo, kerf, usar_retalhos: usarRetalhos, iteracoes,
-                considerar_sobra: considerarSobra, sobra_min_largura: sobraMinW,
-                sobra_min_comprimento: sobraMinH, direcao_corte: direcaoCorte,
-            });
-            const mats = Object.values(r.plano?.materiais || {});
-            const minTeorico = mats.reduce((s, m) => s + (m.min_teorico_chapas || 0), 0);
-            const eficiencia = minTeorico > 0 ? Math.round(minTeorico / r.total_chapas * 100) : 100;
-            notify(`Multi-Projeto otimizado: ${r.total_chapas} chapa(s), ${r.aproveitamento}% aproveitamento (mín.teórico: ${minTeorico}, eficiência: ${eficiencia}%) — ${r.lotes.length} projetos combinados`);
-            loadLotes();
-            setSelectedLotes(new Set());
-            // Navegar para o plano do primeiro lote
-            if (r.lotes?.[0]) {
-                setLoteAtual({ id: r.lotes[0].id, ...r.lotes[0] });
-                setTab('plano');
-            }
-        } catch (err) {
-            notify('Erro: ' + (err.error || err.message));
-        } finally {
-            setMultiOptimizing(false);
-        }
-    };
-
     const handleFile = (file) => {
-        if (!file || !file.name.endsWith('.json')) {
-            notify('Selecione um arquivo .json');
+        if (!file) return;
+        const isDxf = file.name.toLowerCase().endsWith('.dxf');
+        const isJson = file.name.toLowerCase().endsWith('.json');
+        if (!isDxf && !isJson) {
+            notify('Selecione um arquivo .json ou .dxf');
             return;
         }
+
         const reader = new FileReader();
         reader.onload = (e) => {
+            if (isDxf) {
+                // DXF import — send content to backend for parsing
+                setJsonData({ _isDxf: true, dxfContent: e.target.result });
+                setPreview({
+                    cliente: '', projeto: '', codigo: '', vendedor: '',
+                    totalPecas: '(será calculado)', totalModulos: '-',
+                    materiais: [], modulos: [],
+                    _isDxf: true, fileName: file.name,
+                });
+                setNome(file.name.replace(/\.dxf$/i, ''));
+                return;
+            }
             try {
                 const data = JSON.parse(e.target.result);
                 setJsonData(data);
@@ -223,27 +300,23 @@ function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) {
         if (!jsonData) return;
         setImporting(true);
         try {
-            const r = await api.post('/cnc/lotes/importar', { json: jsonData, nome });
+            let r;
+            if (jsonData._isDxf) {
+                r = await api.post('/cnc/lotes/importar-dxf', { dxfContent: jsonData.dxfContent, nome });
+                if (r.warnings?.length) notify(`Avisos: ${r.warnings.join(', ')}`);
+            } else {
+                r = await api.post('/cnc/lotes/importar', { json: jsonData, nome });
+            }
             notify(`Lote importado: ${r.total_pecas} peças`);
             setPreview(null);
             setJsonData(null);
             setNome('');
+            setLastImportedLote(r);
             loadLotes();
         } catch (err) {
             notify('Erro: ' + (err.error || err.message));
         } finally {
             setImporting(false);
-        }
-    };
-
-    const deleteLote = async (id) => {
-        if (!confirm('Excluir este lote e todas as peças?')) return;
-        try {
-            await api.del(`/cnc/lotes/${id}`);
-            notify('Lote excluído');
-            loadLotes();
-        } catch (err) {
-            notify('Erro ao excluir');
         }
     };
 
@@ -263,12 +336,12 @@ function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) {
                 }}>
                 <Upload size={36} style={{ color: dragging ? 'var(--primary)' : 'var(--text-muted)', margin: '0 auto 12px' }} />
                 <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
-                    Arraste o arquivo JSON ou clique para selecionar
+                    Arraste o arquivo JSON ou DXF, ou clique para selecionar
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    JSON exportado pelo Plugin Ornato SketchUp
+                    JSON (Plugin SketchUp) ou DXF (Promob, AutoCAD, etc.)
                 </div>
-                <input ref={fileRef} type="file" accept=".json" style={{ display: 'none' }}
+                <input ref={fileRef} type="file" accept=".json,.dxf" style={{ display: 'none' }}
                     onChange={e => handleFile(e.target.files?.[0])} />
             </div>
 
@@ -301,112 +374,356 @@ function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) {
                 </div>
             )}
 
-            {/* Lotes list */}
-            <div className="glass-card p-4">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
-                        <Package size={16} style={{ display: 'inline', marginRight: 6, verticalAlign: -3 }} />
-                        Lotes Importados ({lotes.length})
-                    </h3>
-                    <button onClick={loadLotes} className={Z.btn2} style={{ padding: '4px 10px', fontSize: 11 }}>
-                        <RefreshCw size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: -2 }} />
-                        Atualizar
+            {/* Next step prompt — shown after a successful import */}
+            {lastImportedLote && (
+                <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '12px 16px', borderRadius: 10,
+                    background: 'rgba(19,121,240,0.08)', border: '1px solid rgba(19,121,240,0.25)',
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <CheckCircle2 size={16} color="var(--primary)" />
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                            Lote importado com sucesso — {lastImportedLote.total_pecas} peças
+                        </span>
+                    </div>
+                    <button onClick={() => setLoteAtual(lastImportedLote, 'pecas')}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '10px 24px', borderRadius: 8,
+                            background: 'var(--primary)', color: '#fff',
+                            border: 'none', cursor: 'pointer',
+                            fontSize: 13, fontWeight: 700,
+                        }}>
+                        Abrir Lote <ChevronRight size={16} />
                     </button>
                 </div>
+            )}
 
-                {/* Multi-projeto action bar */}
-                {selectedLotes.size >= 2 && (
-                    <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 8, background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                        <Zap size={16} style={{ color: '#3b82f6' }} />
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {selectedLotes.size} lotes selecionados
-                        </span>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                            {lotes.filter(l => selectedLotes.has(l.id)).reduce((s, l) => s + l.total_pecas, 0)} peças total
-                        </span>
-                        <button onClick={doMultiOptimize} disabled={multiOptimizing}
-                            className={Z.btn} style={{ padding: '6px 18px', fontSize: 12, marginLeft: 'auto', background: '#3b82f6' }}>
-                            {multiOptimizing ? <><Spinner size={12} /> Otimizando...</> : <><Zap size={13} style={{ marginRight: 4 }} /> Otimizar Juntos</>}
-                        </button>
-                        <button onClick={() => setSelectedLotes(new Set())} className={Z.btn2} style={{ padding: '6px 12px', fontSize: 11 }}>
-                            Limpar
-                        </button>
-                    </div>
-                )}
+            {/* Resumo dos lotes existentes */}
+            {lotes.length > 0 && !preview && (
+                <div style={{
+                    padding: '12px 16px', borderRadius: 10,
+                    background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                        <Package size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: -2 }} />
+                        {lotes.length} lote(s) importado(s)
+                    </span>
+                    <button onClick={() => setTab('lotes')}
+                        className={Z.btn2} style={{ padding: '6px 14px', fontSize: 12 }}>
+                        Ver Lotes <ChevronRight size={14} style={{ display: 'inline', marginLeft: 4, verticalAlign: -2 }} />
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
 
-                {lotes.length === 0 ? (
-                    <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                        Nenhum lote importado ainda
+// ═══════════════════════════════════════════════════════
+// ABA: LOTES (lista completa + multi-otimização)
+// ═══════════════════════════════════════════════════════
+function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
+    const [selectedLotes, setSelectedLotes] = useState(new Set());
+
+    const toggleLoteSelection = (id) => {
+        setSelectedLotes(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
+    const toggleAllLotes = () => {
+        if (selectedLotes.size === lotes.length) setSelectedLotes(new Set());
+        else setSelectedLotes(new Set(lotes.map(l => l.id)));
+    };
+
+    const deleteLote = async (id) => {
+        if (!confirm('Excluir este lote e todas as peças?')) return;
+        try {
+            await api.del(`/cnc/lotes/${id}`);
+            notify('Lote excluído');
+            loadLotes();
+        } catch (err) {
+            notify('Erro ao excluir');
+        }
+    };
+
+    return (
+        <div className="glass-card p-4">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    <Package size={16} style={{ display: 'inline', marginRight: 6, verticalAlign: -3 }} />
+                    Lotes Importados ({lotes.length})
+                </h3>
+                <button onClick={loadLotes} className={Z.btn2} style={{ padding: '4px 10px', fontSize: 11 }}>
+                    <RefreshCw size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: -2 }} />
+                    Atualizar
+                </button>
+            </div>
+
+            {lotes.length === 0 ? (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                    Nenhum lote importado ainda
+                </div>
+            ) : (
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 12 }}>
+                        <thead>
+                            <tr>
+                                <th className={Z.th} style={{ padding: '8px 6px', width: 32 }}>
+                                    <input type="checkbox" checked={selectedLotes.size === lotes.length && lotes.length > 0}
+                                        onChange={toggleAllLotes} style={{ cursor: 'pointer' }} />
+                                </th>
+                                {['#', 'Nome', 'Cliente', 'Projeto', 'Peças', 'Chapas', 'Aprov.', 'Status', 'Data', ''].map(h => (
+                                    <th key={h} className={Z.th} style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {lotes.map((l, i) => (
+                                <tr key={l.id}
+                                    onClick={() => abrirLote(l)}
+                                    style={{
+                                        background: selectedLotes.has(l.id) ? 'rgba(59,130,246,0.06)' : i % 2 === 0 ? 'transparent' : 'var(--bg-muted)',
+                                        transition: 'background .15s', cursor: 'pointer',
+                                    }}
+                                    onMouseEnter={e => { if (!selectedLotes.has(l.id)) e.currentTarget.style.background = 'rgba(19,121,240,0.04)'; }}
+                                    onMouseLeave={e => { if (!selectedLotes.has(l.id)) e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'var(--bg-muted)'; }}
+                                >
+                                    <td style={{ padding: '8px 6px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                                        <input type="checkbox" checked={selectedLotes.has(l.id)}
+                                            onChange={() => toggleLoteSelection(l.id)} style={{ cursor: 'pointer' }} />
+                                    </td>
+                                    <td style={{ padding: '8px 10px', fontWeight: 600 }}>{l.id}</td>
+                                    <td style={{ padding: '8px 10px', fontWeight: 600, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.nome}</td>
+                                    <td style={{ padding: '8px 10px' }}>{l.cliente || '-'}</td>
+                                    <td style={{ padding: '8px 10px', fontSize: 11, color: 'var(--text-muted)' }}>{l.projeto || '-'}</td>
+                                    <td style={{ padding: '8px 10px', textAlign: 'center' }}>{l.total_pecas}</td>
+                                    <td style={{ padding: '8px 10px', textAlign: 'center' }}>{l.total_chapas || '-'}</td>
+                                    <td style={{ padding: '8px 10px', textAlign: 'center' }}>{l.aproveitamento ? `${l.aproveitamento}%` : '-'}</td>
+                                    <td style={{ padding: '8px 10px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                            <span className={tagClass} style={tagStyle(STATUS_COLORS[l.status])}>
+                                                {l.status}
+                                            </span>
+                                            {l.grupo_otimizacao && (
+                                                <span title="Otimizado em grupo" style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', fontWeight: 600 }}>
+                                                    MULTI
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
+                                        {new Date(l.criado_em).toLocaleDateString('pt-BR')}
+                                    </td>
+                                    <td style={{ padding: '8px 10px' }} onClick={e => e.stopPropagation()}>
+                                        <div style={{ display: 'flex', gap: 4 }}>
+                                            <button onClick={() => abrirLote(l, 'pecas')}
+                                                title="Ver peças" className={Z.btn2} style={{ padding: '3px 8px', fontSize: 11 }}>
+                                                <Eye size={12} />
+                                            </button>
+                                            <button onClick={() => abrirLote(l, 'plano')}
+                                                title="Plano de corte" className={Z.btn2} style={{ padding: '3px 8px', fontSize: 11 }}>
+                                                <Scissors size={12} />
+                                            </button>
+                                            <button onClick={() => deleteLote(l.id)}
+                                                title="Excluir" className={Z.btnD} style={{ padding: '3px 8px', fontSize: 11 }}>
+                                                <Trash2 size={12} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════
+// DASHBOARD — Production Statistics
+// ═══════════════════════════════════════════════════════
+function TabDashboard({ notify }) {
+    const [stats, setStats] = useState(null);
+    const [materiais, setMateriais] = useState([]);
+    const [eficiencia, setEficiencia] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        setLoading(true);
+        Promise.all([
+            api.get('/cnc/dashboard/stats').catch(() => null),
+            api.get('/cnc/dashboard/materiais').catch(() => []),
+            api.get('/cnc/dashboard/eficiencia?days=30').catch(() => []),
+        ]).then(([s, m, e]) => {
+            setStats(s);
+            setMateriais(Array.isArray(m) ? m : []);
+            setEficiencia(Array.isArray(e) ? e : []);
+        }).finally(() => setLoading(false));
+    }, []);
+
+    if (loading) return <div style={{ padding: 40, textAlign: 'center' }}><Spinner /> Carregando dashboard...</div>;
+    if (!stats) return <div className="glass-card p-4" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Sem dados de producao disponveis.</div>;
+
+    // Last 14 days for efficiency chart
+    const chartDays = eficiencia.slice(-14);
+    const maxChapas = Math.max(1, ...chartDays.map(d => d.chapas || 1));
+
+    const cardStyle = {
+        flex: '1 1 200px', padding: '16px 20px', borderRadius: 10,
+        background: 'var(--bg-card, #fff)', border: '1px solid var(--border)',
+        textAlign: 'center', minWidth: 160,
+    };
+    const cardLabel = { fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)', marginBottom: 6 };
+    const cardValue = { fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 };
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Summary Cards */}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <div style={cardStyle}>
+                    <div style={cardLabel}>Chapas Cortadas</div>
+                    <div style={cardValue}>{stats.totalChapas || 0}</div>
+                </div>
+                <div style={cardStyle}>
+                    <div style={cardLabel}>Pecas Produzidas</div>
+                    <div style={cardValue}>{stats.totalPecas || 0}</div>
+                </div>
+                <div style={cardStyle}>
+                    <div style={cardLabel}>Aproveitamento Medio</div>
+                    <div style={{ ...cardValue, color: (stats.avgAproveitamento || 0) >= 80 ? '#16a34a' : (stats.avgAproveitamento || 0) >= 60 ? '#ca8a04' : '#dc2626' }}>
+                        {stats.avgAproveitamento || 0}%
                     </div>
-                ) : (
+                </div>
+                <div style={cardStyle}>
+                    <div style={cardLabel}>Lotes Concluidos</div>
+                    <div style={cardValue}>{stats.lotesConcluidos || 0}<span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}> / {stats.totalLotes || 0}</span></div>
+                </div>
+            </div>
+
+            {/* Efficiency Chart (inline SVG bar chart) */}
+            {chartDays.length > 0 && (
+                <div className="glass-card p-4">
+                    <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: 'var(--text-primary)' }}>
+                        <BarChart3 size={16} style={{ display: 'inline', marginRight: 6, verticalAlign: -3 }} />
+                        Eficiencia - Ultimos {chartDays.length} dias
+                    </h3>
+                    <div style={{ overflowX: 'auto' }}>
+                        <svg width={Math.max(chartDays.length * 50, 300)} height={200} viewBox={`0 0 ${Math.max(chartDays.length * 50, 300)} 200`} style={{ display: 'block' }}>
+                            {/* Grid lines */}
+                            {[0, 20, 40, 60, 80, 100].map(v => {
+                                const y = 170 - v * 1.5;
+                                return <Fragment key={v}>
+                                    <line x1={30} y1={y} x2={chartDays.length * 50 + 10} y2={y} stroke="var(--border)" strokeWidth={0.5} strokeDasharray={v > 0 ? "3 3" : "0"} />
+                                    <text x={26} y={y + 3} textAnchor="end" fontSize={8} fill="var(--text-muted)">{v}%</text>
+                                </Fragment>;
+                            })}
+                            {/* Bars */}
+                            {chartDays.map((d, i) => {
+                                const barH = Math.max(2, d.avgAprov * 1.5);
+                                const barY = 170 - barH;
+                                const barW = 28;
+                                const bx = 35 + i * 50;
+                                const color = d.avgAprov >= 80 ? '#16a34a' : d.avgAprov >= 60 ? '#ca8a04' : '#dc2626';
+                                const dayLabel = d.date ? d.date.slice(5) : '';
+                                return <Fragment key={i}>
+                                    <rect x={bx} y={barY} width={barW} height={barH} fill={color} rx={3} opacity={0.85} />
+                                    <text x={bx + barW / 2} y={barY - 4} textAnchor="middle" fontSize={8} fill="var(--text-primary)" fontWeight={600}>{d.avgAprov}%</text>
+                                    <text x={bx + barW / 2} y={185} textAnchor="middle" fontSize={7} fill="var(--text-muted)">{dayLabel}</text>
+                                    <text x={bx + barW / 2} y={194} textAnchor="middle" fontSize={6} fill="var(--text-muted)">{d.chapas}ch</text>
+                                </Fragment>;
+                            })}
+                        </svg>
+                    </div>
+                </div>
+            )}
+
+            {/* Material Ranking */}
+            {materiais.length > 0 && (
+                <div className="glass-card p-4">
+                    <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: 'var(--text-primary)' }}>
+                        <Layers size={16} style={{ display: 'inline', marginRight: 6, verticalAlign: -3 }} />
+                        Ranking de Materiais
+                    </h3>
                     <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 12 }}>
                             <thead>
                                 <tr>
-                                    <th className={Z.th} style={{ padding: '8px 6px', width: 32 }}>
-                                        <input type="checkbox" checked={selectedLotes.size === lotes.length && lotes.length > 0}
-                                            onChange={toggleAllLotes} style={{ cursor: 'pointer' }} />
-                                    </th>
-                                    {['#', 'Nome', 'Cliente', 'Projeto', 'Peças', 'Chapas', 'Aprov.', 'Status', 'Data', 'Ações'].map(h => (
+                                    {['Material', 'Chapas', 'Area Total (m2)', 'Desperdicio Medio'].map(h => (
                                         <th key={h} className={Z.th} style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{h}</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
-                                {lotes.map((l, i) => (
-                                    <tr key={l.id} style={{
-                                        background: selectedLotes.has(l.id) ? 'rgba(59,130,246,0.06)' : i % 2 === 0 ? 'transparent' : 'var(--bg-muted)',
-                                        transition: 'background .15s',
-                                    }}>
-                                        <td style={{ padding: '8px 6px', textAlign: 'center' }}>
-                                            <input type="checkbox" checked={selectedLotes.has(l.id)}
-                                                onChange={() => toggleLoteSelection(l.id)} style={{ cursor: 'pointer' }} />
-                                        </td>
-                                        <td style={{ padding: '8px 10px', fontWeight: 600 }}>{l.id}</td>
-                                        <td style={{ padding: '8px 10px', fontWeight: 600, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.nome}</td>
-                                        <td style={{ padding: '8px 10px' }}>{l.cliente || '-'}</td>
-                                        <td style={{ padding: '8px 10px', fontSize: 11, color: 'var(--text-muted)' }}>{l.projeto || '-'}</td>
-                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>{l.total_pecas}</td>
-                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>{l.total_chapas || '-'}</td>
-                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>{l.aproveitamento ? `${l.aproveitamento}%` : '-'}</td>
-                                        <td style={{ padding: '8px 10px' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                <span className={tagClass} style={tagStyle(STATUS_COLORS[l.status])}>
-                                                    {l.status}
-                                                </span>
-                                                {l.grupo_otimizacao && (
-                                                    <span title="Otimizado em grupo" style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', fontWeight: 600 }}>
-                                                        MULTI
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
-                                            {new Date(l.criado_em).toLocaleDateString('pt-BR')}
-                                        </td>
-                                        <td style={{ padding: '8px 10px' }}>
-                                            <div style={{ display: 'flex', gap: 4 }}>
-                                                <button onClick={() => { setLoteAtual(l); setTab('pecas'); }}
-                                                    title="Ver peças" className={Z.btn2} style={{ padding: '3px 8px', fontSize: 11 }}>
-                                                    <Eye size={12} />
-                                                </button>
-                                                <button onClick={() => { setLoteAtual(l); setTab('plano'); }}
-                                                    title="Plano de corte" className={Z.btn2} style={{ padding: '3px 8px', fontSize: 11 }}>
-                                                    <Scissors size={12} />
-                                                </button>
-                                                <button onClick={() => deleteLote(l.id)}
-                                                    title="Excluir" className={Z.btnD} style={{ padding: '3px 8px', fontSize: 11 }}>
-                                                    <Trash2 size={12} />
-                                                </button>
-                                            </div>
+                                {materiais.map((m, i) => (
+                                    <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-muted)' }}>
+                                        <td style={{ padding: '8px 10px', fontWeight: 600 }}>{m.material}</td>
+                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>{m.chapas_usadas}</td>
+                                        <td style={{ padding: '8px 10px', textAlign: 'center', fontFamily: 'monospace' }}>{m.area_total}</td>
+                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                            <span style={{
+                                                padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600,
+                                                background: m.desperdicio_medio <= 20 ? '#dcfce7' : m.desperdicio_medio <= 40 ? '#fef9c3' : '#fee2e2',
+                                                color: m.desperdicio_medio <= 20 ? '#166534' : m.desperdicio_medio <= 40 ? '#854d0e' : '#991b1b',
+                                            }}>
+                                                {m.desperdicio_medio}%
+                                            </span>
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
+
+            {/* Recent Lotes */}
+            {(stats.recentLotes || []).length > 0 && (
+                <div className="glass-card p-4">
+                    <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: 'var(--text-primary)' }}>
+                        <Package size={16} style={{ display: 'inline', marginRight: 6, verticalAlign: -3 }} />
+                        Lotes Recentes
+                    </h3>
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 12 }}>
+                            <thead>
+                                <tr>
+                                    {['Nome', 'Cliente', 'Data', 'Chapas', 'Pecas', 'Aprov.', 'Status'].map(h => (
+                                        <th key={h} className={Z.th} style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{h}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {stats.recentLotes.map((l, i) => {
+                                    const statusColor = l.status === 'concluido' ? '#8b5cf6' : l.status === 'otimizado' ? '#22c55e' : l.status === 'produzindo' ? '#f59e0b' : '#3b82f6';
+                                    return (
+                                        <tr key={l.id} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-muted)' }}>
+                                            <td style={{ padding: '8px 10px', fontWeight: 600, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.nome}</td>
+                                            <td style={{ padding: '8px 10px' }}>{l.cliente || '-'}</td>
+                                            <td style={{ padding: '8px 10px', fontSize: 11, color: 'var(--text-muted)' }}>{l.criado_em ? new Date(l.criado_em).toLocaleDateString('pt-BR') : '-'}</td>
+                                            <td style={{ padding: '8px 10px', textAlign: 'center' }}>{l.total_chapas || '-'}</td>
+                                            <td style={{ padding: '8px 10px', textAlign: 'center' }}>{l.total_pecas || '-'}</td>
+                                            <td style={{ padding: '8px 10px', textAlign: 'center' }}>{l.aproveitamento ? `${l.aproveitamento}%` : '-'}</td>
+                                            <td style={{ padding: '8px 10px' }}>
+                                                <span style={{
+                                                    padding: '2px 10px', borderRadius: 10, fontSize: 10, fontWeight: 600,
+                                                    background: statusColor + '18', color: statusColor, border: `1px solid ${statusColor}40`,
+                                                }}>
+                                                    {l.status || 'importado'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -425,18 +742,86 @@ function InfoCard({ label, value, highlight }) {
 // ═══════════════════════════════════════════════════════
 // ABA 2: PEÇAS
 // ═══════════════════════════════════════════════════════
-function TabPecas({ lotes, loteAtual, setLoteAtual, notify }) {
+function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab }) {
     const [pecas, setPecas] = useState([]);
     const [loading, setLoading] = useState(false);
     const [filtroMat, setFiltroMat] = useState('');
     const [filtroMod, setFiltroMod] = useState('');
     const [busca, setBusca] = useState('');
+    const [pecaSel, setPecaSel] = useState(null);
+    const [viewMode, setViewMode] = useState('3d'); // '3d' | '2d'
+    const [editorPeca, setEditorPeca] = useState(undefined); // undefined=closed, null=new, object=edit
+    const [criarLoteModal, setCriarLoteModal] = useState(false);
+    const [templateLib, setTemplateLib] = useState(false); // show template library modal
+    const [templateApplyTarget, setTemplateApplyTarget] = useState(null); // peca to apply template to
+
+    // DXF Machining Import state
+    const [dxfUsiTarget, setDxfUsiTarget] = useState(null); // peca to import DXF machining into
+    const [dxfUsiPreview, setDxfUsiPreview] = useState(null); // parsed DXF preview data
+    const [dxfUsiLoading, setDxfUsiLoading] = useState(false);
+    const [dxfUsiDepth, setDxfUsiDepth] = useState(10);
+    const [dxfUsiLayerMap, setDxfUsiLayerMap] = useState({}); // layer → type override
+    const dxfFileRef = useRef(null);
+
+    const handleDxfUsiImport = async (peca) => {
+        setDxfUsiTarget(peca);
+        setDxfUsiDepth(peca.espessura || 10);
+        setDxfUsiPreview(null);
+        setDxfUsiLayerMap({});
+        // Trigger file picker
+        if (dxfFileRef.current) dxfFileRef.current.click();
+    };
+
+    const handleDxfUsiFileSelect = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file || !dxfUsiTarget) return;
+        e.target.value = '';
+        setDxfUsiLoading(true);
+        try {
+            const text = await file.text();
+            const r = await api.post(`/cnc/pecas/${dxfUsiTarget.id}/importar-usinagem-dxf`, { dxfContent: text, defaultDepth: dxfUsiDepth });
+            setDxfUsiPreview(r);
+            // Init layer map from detected layers
+            const map = {};
+            for (const l of (r.layers || [])) { map[l.name] = l.inferredType || 'auto'; }
+            setDxfUsiLayerMap(map);
+        } catch (err) {
+            notify('Erro ao parsear DXF: ' + (err.error || err.message));
+            setDxfUsiTarget(null);
+        } finally {
+            setDxfUsiLoading(false);
+        }
+    };
+
+    const handleDxfUsiConfirm = async () => {
+        if (!dxfUsiTarget || !dxfUsiPreview) return;
+        setDxfUsiLoading(true);
+        try {
+            // Apply depth override and layer mapping
+            const ops = dxfUsiPreview.preview.map(op => ({ ...op, depth: dxfUsiDepth }));
+            await api.post(`/cnc/pecas/${dxfUsiTarget.id}/confirmar-usinagem-dxf`, {
+                operations: ops,
+                layerMapping: dxfUsiLayerMap,
+                defaultDepth: dxfUsiDepth,
+                merge: false,
+            });
+            notify(`${ops.length} usinagem(s) importada(s) com sucesso`);
+            setDxfUsiTarget(null);
+            setDxfUsiPreview(null);
+            load();
+        } catch (err) {
+            notify('Erro: ' + (err.error || err.message));
+        } finally {
+            setDxfUsiLoading(false);
+        }
+    };
 
     const load = useCallback(() => {
         if (!loteAtual) return;
         setLoading(true);
         api.get(`/cnc/lotes/${loteAtual.id}`).then(d => {
             setPecas(d.pecas || []);
+            setPecaSel(null);
         }).catch(e => notify(e.error || 'Erro ao carregar peças')).finally(() => setLoading(false));
     }, [loteAtual]);
 
@@ -461,15 +846,62 @@ function TabPecas({ lotes, loteAtual, setLoteAtual, notify }) {
     const totalInst = filtered.reduce((s, p) => s + p.quantidade, 0);
     const areaTot = filtered.reduce((s, p) => s + (p.comprimento * p.largura * p.quantidade) / 1e6, 0);
 
+    // Parse machining workers for detail panel
+    const parseMach = (mj) => {
+        if (!mj) return [];
+        try { const d = typeof mj === 'string' ? JSON.parse(mj) : mj; return Array.isArray(d) ? d : d.workers ? (Array.isArray(d.workers) ? d.workers : Object.values(d.workers)) : []; } catch { return []; }
+    };
+
+    const handleSavePeca = async (data) => {
+        if (editorPeca && editorPeca.id) {
+            await api.put(`/cnc/pecas/${editorPeca.id}`, data);
+            notify('Peça atualizada');
+        } else {
+            await api.post(`/cnc/pecas/${loteAtual.id}`, data);
+            notify('Peça criada');
+        }
+        setEditorPeca(undefined);
+        load();
+    };
+
+    const handleDeletePeca = async (p) => {
+        if (!confirm(`Excluir peça "${p.descricao || p.upmcode || 'sem nome'}"?`)) return;
+        await api.del(`/cnc/pecas/${p.id}`);
+        notify('Peça excluída');
+        if (pecaSel?.id === p.id) setPecaSel(null);
+        load();
+    };
+
+    const handleDuplicarPeca = async (p) => {
+        await api.post(`/cnc/pecas/${p.id}/duplicar`);
+        notify('Peça duplicada');
+        load();
+    };
+
+    const handleCriarLote = async (nome) => {
+        const r = await api.post('/cnc/lotes/manual', { nome });
+        notify('Lote criado');
+        setCriarLoteModal(false);
+        // Reload lotes list and select new one
+        const novosLotes = await api.get('/cnc/lotes');
+        if (typeof window.__setCncLotes === 'function') window.__setCncLotes(novosLotes);
+        setLoteAtual(novosLotes.find(l => l.id === r.id) || null);
+    };
+
     return (
         <div>
-            <LoteSelector lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} />
+            {/* Piece Editor Modal */}
+            {editorPeca !== undefined && (
+                <PecaEditor
+                    peca={editorPeca}
+                    loteId={loteAtual?.id}
+                    onSave={handleSavePeca}
+                    onClose={() => setEditorPeca(undefined)}
+                    materiais={materiais}
+                />
+            )}
 
-            {!loteAtual ? (
-                <div className="glass-card p-8" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                    Selecione um lote para ver as peças
-                </div>
-            ) : loading ? (
+            {loading ? (
                 <Spinner text="Carregando peças..." />
             ) : (
                 <>
@@ -482,7 +914,152 @@ function TabPecas({ lotes, loteAtual, setLoteAtual, notify }) {
                         <InfoCard label="Área Total" value={`${areaTot.toFixed(2)} m²`} />
                     </div>
 
-                    {/* Filters */}
+                    {/* 3D Detail Panel — viewer + info sidebar */}
+                    {pecaSel && (
+                        <div className="glass-card" style={{ marginBottom: 16, padding: 0, overflow: 'hidden' }}>
+                            <div style={{ display: 'flex', minHeight: 460 }}>
+                                {/* Viewer — preenche todo espaço à esquerda da sidebar (210px + bordas) */}
+                                <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+                                    <PecaViewer3D peca={pecaSel} width={Math.max(300, window.innerWidth - 48 - 212)} height={460} force2d={viewMode === '2d'} />
+                                </div>
+
+                                {/* Info sidebar direita */}
+                                <div style={{
+                                    width: 210, flexShrink: 0, padding: '12px 14px',
+                                    borderLeft: '1px solid var(--border, #e5e7eb)',
+                                    background: 'var(--bg-card, #fff)',
+                                    display: 'flex', flexDirection: 'column', gap: 10,
+                                    overflowY: 'auto',
+                                }}>
+                                    {/* Header + toggle + close */}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 4 }}>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2 }}>
+                                                {pecaSel.descricao || pecaSel.upmcode || 'Peça'}
+                                            </div>
+                                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                                                {pecaSel.modulo_desc || ''}
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                                            {/* Toggle 2D/3D */}
+                                            <div style={{
+                                                display: 'flex', borderRadius: 5, overflow: 'hidden',
+                                                border: '1px solid var(--border)',
+                                            }}>
+                                                <button onClick={() => setViewMode('3d')} title="Vista 3D" style={{
+                                                    background: viewMode === '3d' ? 'var(--primary, #1379F0)' : 'var(--bg-muted)',
+                                                    border: 'none', cursor: 'pointer',
+                                                    color: viewMode === '3d' ? '#fff' : 'var(--text-muted)',
+                                                    padding: '3px 7px', fontSize: 10, fontWeight: 600,
+                                                }}>3D</button>
+                                                <button onClick={() => setViewMode('2d')} title="Vista 2D (planta)" style={{
+                                                    background: viewMode === '2d' ? 'var(--primary, #1379F0)' : 'var(--bg-muted)',
+                                                    border: 'none', cursor: 'pointer', borderLeft: '1px solid var(--border)',
+                                                    color: viewMode === '2d' ? '#fff' : 'var(--text-muted)',
+                                                    padding: '3px 7px', fontSize: 10, fontWeight: 600,
+                                                }}>2D</button>
+                                            </div>
+                                            <button onClick={() => setPecaSel(null)} title="Fechar" style={{
+                                                background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                                                cursor: 'pointer', color: 'var(--text-muted)',
+                                                borderRadius: 5, padding: '3px 5px', display: 'flex', alignItems: 'center',
+                                            }}><X size={13} /></button>
+                                        </div>
+                                    </div>
+
+                                    {/* Dimensões */}
+                                    <div>
+                                        <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Dimensões</div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
+                                            {[
+                                                [pecaSel.comprimento, 'Comp'],
+                                                [pecaSel.largura, 'Larg'],
+                                                [pecaSel.espessura, 'Esp'],
+                                            ].map(([v, l]) => (
+                                                <div key={l} style={{ textAlign: 'center', padding: '4px 2px', background: 'var(--bg-muted, #f3f4f6)', borderRadius: 4 }}>
+                                                    <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'monospace' }}>{v}</div>
+                                                    <div style={{ fontSize: 8, color: 'var(--text-muted)' }}>{l}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Material */}
+                                    <div>
+                                        <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Material</div>
+                                        <div style={{ fontSize: 11, fontWeight: 500 }}>{pecaSel.material_code || pecaSel.material || '-'}</div>
+                                    </div>
+
+                                    {/* Bordas */}
+                                    <div>
+                                        <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Bordas</div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, fontSize: 10 }}>
+                                            {[
+                                                ['Frontal', pecaSel.borda_frontal],
+                                                ['Traseira', pecaSel.borda_traseira],
+                                                ['Direita', pecaSel.borda_dir],
+                                                ['Esquerda', pecaSel.borda_esq],
+                                            ].map(([label, val]) => (
+                                                <div key={label} style={{
+                                                    display: 'flex', justifyContent: 'space-between', padding: '2px 5px',
+                                                    borderRadius: 3, background: val && val !== '-' ? 'rgba(59,130,246,0.08)' : 'transparent',
+                                                }}>
+                                                    <span style={{ color: 'var(--text-muted)', fontSize: 9 }}>{label}</span>
+                                                    <span style={{ fontWeight: 600, color: val && val !== '-' ? '#3b82f6' : 'var(--text-muted)', fontSize: 9 }}>{val || '-'}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Usinagens */}
+                                    {(() => {
+                                        const workers = parseMach(pecaSel.machining_json);
+                                        if (!workers.length) return (
+                                            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>Sem usinagens</div>
+                                        );
+                                        return (
+                                            <div style={{ flex: 1, minHeight: 0 }}>
+                                                <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>
+                                                    Usinagens ({workers.length})
+                                                </div>
+                                                <div style={{ maxHeight: 120, overflowY: 'auto', fontSize: 9 }}>
+                                                    {workers.map((w, wi) => {
+                                                        const cat = (w.category || '').replace(/_/g, ' ');
+                                                        const isHole = /hole|furo/i.test(cat);
+                                                        return (
+                                                            <div key={wi} style={{
+                                                                padding: '3px 0', borderBottom: '1px solid var(--border, #eee)',
+                                                                display: 'flex', flexDirection: 'column', gap: 1,
+                                                            }}>
+                                                                <div style={{ fontWeight: 600, textTransform: 'capitalize', fontSize: 10 }}>{cat}</div>
+                                                                <div style={{ color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: 9 }}>
+                                                                    {w.face || 'top'} · {isHole ? `⌀${w.diameter || '?'}` : `${w.length || '?'}×${w.width || '?'}`} · prof {w.depth || '?'}mm
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Extra info */}
+                                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 'auto' }}>
+                                        <span style={{ ...tagStyle('blue'), fontSize: 9, padding: '2px 6px' }}>Qtd: {pecaSel.quantidade}</span>
+                                        {pecaSel.grain && pecaSel.grain !== 'sem_veio' && (
+                                            <span style={{ ...tagStyle('amber'), fontSize: 9, padding: '2px 6px' }}>Veio: {pecaSel.grain}</span>
+                                        )}
+                                        {pecaSel.acabamento && (
+                                            <span style={{ ...tagStyle('gray'), fontSize: 9, padding: '2px 6px' }}>{pecaSel.acabamento}</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Filters + Actions */}
                     <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                         <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar peça..."
                             className={Z.inp} style={{ width: 200, fontSize: 12 }} />
@@ -496,6 +1073,16 @@ function TabPecas({ lotes, loteAtual, setLoteAtual, notify }) {
                             <option value="">Todos módulos</option>
                             {modulos.map(m => <option key={m} value={m}>{m}</option>)}
                         </select>
+                        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                            <button onClick={() => setTemplateLib(true)} className={Z.btn2}
+                                style={{ fontSize: 11, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <Star size={14} /> Biblioteca Usinagens
+                            </button>
+                            <button onClick={() => setEditorPeca(null)} className={Z.btn}
+                                style={{ fontSize: 11, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 4, background: 'var(--primary)', color: '#fff' }}>
+                                <Plus size={14} /> Nova Peça
+                            </button>
+                        </div>
                     </div>
 
                     {/* Table */}
@@ -504,39 +1091,403 @@ function TabPecas({ lotes, loteAtual, setLoteAtual, notify }) {
                             <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 11, whiteSpace: 'nowrap' }}>
                                 <thead>
                                     <tr>
-                                        {['#', 'Qtd', 'Material', 'Comp', 'Larg', 'Esp', 'B.Dir', 'B.Esq', 'B.Front', 'B.Tras', 'Acab.', 'Descrição', 'Módulo', 'UsiA', 'UsiB', 'Obs'].map(h => (
-                                            <th key={h} className={Z.th} style={{ padding: '6px 8px', fontSize: 10 }}>{h}</th>
+                                        {['#', 'Qtd', 'Material', 'Comp', 'Larg', 'Esp', 'B.Dir', 'B.Esq', 'B.Front', 'B.Tras', 'Acab.', 'Descrição', 'Módulo', 'UsiA', 'UsiB', 'Obs', ''].map(h => (
+                                            <th key={h || 'actions'} className={Z.th} style={{ padding: '6px 8px', fontSize: 10 }}>{h}</th>
                                         ))}
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filtered.map((p, i) => (
-                                        <tr key={p.id} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-muted)' }}>
-                                            <td style={{ padding: '6px 8px', fontWeight: 600 }}>{i + 1}</td>
-                                            <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 600 }}>{p.quantidade}</td>
-                                            <td style={{ padding: '6px 8px', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.material_code || p.material}</td>
-                                            <td style={{ padding: '6px 8px', textAlign: 'right' }}>{p.comprimento}</td>
-                                            <td style={{ padding: '6px 8px', textAlign: 'right' }}>{p.largura}</td>
-                                            <td style={{ padding: '6px 8px', textAlign: 'right' }}>{p.espessura}</td>
-                                            <td style={{ padding: '6px 8px', fontSize: 10 }}>{p.borda_dir || '-'}</td>
-                                            <td style={{ padding: '6px 8px', fontSize: 10 }}>{p.borda_esq || '-'}</td>
-                                            <td style={{ padding: '6px 8px', fontSize: 10 }}>{p.borda_frontal || '-'}</td>
-                                            <td style={{ padding: '6px 8px', fontSize: 10 }}>{p.borda_traseira || '-'}</td>
-                                            <td style={{ padding: '6px 8px', fontSize: 10 }}>{p.acabamento || '-'}</td>
-                                            <td style={{ padding: '6px 8px', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.descricao}</td>
-                                            <td style={{ padding: '6px 8px', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.modulo_desc}</td>
-                                            <td style={{ padding: '6px 8px', fontSize: 10 }}>{p.usi_a || '-'}</td>
-                                            <td style={{ padding: '6px 8px', fontSize: 10 }}>{p.usi_b || '-'}</td>
-                                            <td style={{ padding: '6px 8px', color: 'var(--text-muted)' }}>{p.observacao || '-'}</td>
-                                        </tr>
-                                    ))}
+                                    {filtered.map((p, i) => {
+                                        const sel = pecaSel?.id === p.id;
+                                        return (
+                                            <tr key={p.id} onClick={() => setPecaSel(sel ? null : p)}
+                                                style={{
+                                                    background: sel ? 'rgba(59,130,246,0.12)' : i % 2 === 0 ? 'transparent' : 'var(--bg-muted)',
+                                                    cursor: 'pointer', transition: 'background .1s',
+                                                    borderLeft: sel ? '3px solid var(--primary)' : '3px solid transparent',
+                                                }}>
+                                                <td style={{ padding: '6px 8px', fontWeight: 600 }}>{i + 1}</td>
+                                                <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 600 }}>{p.quantidade}</td>
+                                                <td style={{ padding: '6px 8px', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.material_code || p.material}</td>
+                                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{p.comprimento}</td>
+                                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{p.largura}</td>
+                                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{p.espessura}</td>
+                                                <td style={{ padding: '6px 8px', fontSize: 10 }}>{p.borda_dir || '-'}</td>
+                                                <td style={{ padding: '6px 8px', fontSize: 10 }}>{p.borda_esq || '-'}</td>
+                                                <td style={{ padding: '6px 8px', fontSize: 10 }}>{p.borda_frontal || '-'}</td>
+                                                <td style={{ padding: '6px 8px', fontSize: 10 }}>{p.borda_traseira || '-'}</td>
+                                                <td style={{ padding: '6px 8px', fontSize: 10 }}>{p.acabamento || '-'}</td>
+                                                <td style={{ padding: '6px 8px', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.descricao}</td>
+                                                <td style={{ padding: '6px 8px', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.modulo_desc}</td>
+                                                <td style={{ padding: '6px 8px', fontSize: 10 }}>{p.usi_a || '-'}</td>
+                                                <td style={{ padding: '6px 8px', fontSize: 10 }}>{p.usi_b || '-'}</td>
+                                                <td style={{ padding: '6px 8px', color: 'var(--text-muted)' }}>{p.observacao || '-'}</td>
+                                                <td style={{ padding: '6px 4px', whiteSpace: 'nowrap' }}>
+                                                    <div style={{ display: 'flex', gap: 2 }} onClick={e => e.stopPropagation()}>
+                                                        <button onClick={() => setPecaSel(sel ? null : p)} title="Ver 3D"
+                                                            style={{
+                                                                background: sel ? 'var(--primary)' : 'none',
+                                                                border: sel ? 'none' : '1px solid var(--border)',
+                                                                cursor: 'pointer',
+                                                                color: sel ? '#fff' : 'var(--primary)',
+                                                                padding: '2px 5px', borderRadius: 4,
+                                                                display: 'flex', alignItems: 'center',
+                                                            }}>
+                                                            <Eye size={13} />
+                                                        </button>
+                                                        <button onClick={() => setEditorPeca(p)} title="Editar"
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: 2 }}>
+                                                            <Edit size={13} />
+                                                        </button>
+                                                        <button onClick={() => handleDuplicarPeca(p)} title="Duplicar"
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2 }}>
+                                                            <Copy size={13} />
+                                                        </button>
+                                                        <button onClick={() => handleDxfUsiImport(p)} title="Importar DXF Usinagem"
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0891b2', padding: 2 }}>
+                                                            <FileUp size={13} />
+                                                        </button>
+                                                        <button onClick={() => setTemplateApplyTarget(p)} title="Aplicar Template"
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8b5cf6', padding: 2 }}>
+                                                            <Zap size={13} />
+                                                        </button>
+                                                        <button onClick={async () => {
+                                                            const nome = prompt('Nome do template:', `Template de ${p.descricao || 'Peça'}`);
+                                                            if (!nome) return;
+                                                            const cat = prompt('Categoria (Dobradiça, Minifix, Puxador, Corrediça, Geral):', 'Geral');
+                                                            try {
+                                                                await api.post(`/cnc/machining-templates/from-peca/${p.id}`, { nome, categoria: cat || 'Geral' });
+                                                                notify('Template criado com sucesso');
+                                                            } catch (err) { notify('Erro: ' + (err.error || err.message), 'error'); }
+                                                        }} title="Salvar como Template"
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f59e0b', padding: 2 }}>
+                                                            <Star size={13} />
+                                                        </button>
+                                                        <button onClick={() => handleDeletePeca(p)} title="Excluir"
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 2 }}>
+                                                            <Trash2 size={13} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </>
             )}
+
+            {/* Hidden DXF file input */}
+            <input type="file" ref={dxfFileRef} accept=".dxf" style={{ display: 'none' }} onChange={handleDxfUsiFileSelect} />
+
+            {/* DXF Machining Preview Modal */}
+            {dxfUsiPreview && dxfUsiTarget && (
+                <Modal onClose={() => { setDxfUsiTarget(null); setDxfUsiPreview(null); }} wide>
+                    <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>Importar Usinagem DXF - {dxfUsiTarget.descricao || 'Peca'}</h3>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
+                        {dxfUsiPreview.entities_count} operacao(es) detectada(s)
+                    </p>
+
+                    {/* Default depth input */}
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+                        <label style={{ fontSize: 11, fontWeight: 600 }}>Profundidade padrao (mm):</label>
+                        <input type="number" value={dxfUsiDepth} onChange={e => setDxfUsiDepth(Number(e.target.value))}
+                            className={Z.inp} style={{ width: 80, fontSize: 12, padding: '4px 8px' }} min={0.5} max={50} step={0.5} />
+                    </div>
+
+                    {/* Layer mapping */}
+                    {dxfUsiPreview.layers?.length > 0 && (
+                        <div style={{ marginBottom: 12 }}>
+                            <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>Mapeamento de Layers:</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {dxfUsiPreview.layers.map(l => (
+                                    <div key={l.name} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 11 }}>
+                                        <span style={{ fontWeight: 500, minWidth: 80 }}>{l.name}</span>
+                                        <span style={{ color: 'var(--text-muted)', minWidth: 30 }}>({l.count})</span>
+                                        <select value={dxfUsiLayerMap[l.name] || 'auto'}
+                                            onChange={e => setDxfUsiLayerMap(prev => ({ ...prev, [l.name]: e.target.value }))}
+                                            className={Z.inp} style={{ fontSize: 11, padding: '2px 6px' }}>
+                                            <option value="auto">Auto</option>
+                                            <option value="hole">Furo</option>
+                                            <option value="groove">Rasgo/Canal</option>
+                                            <option value="pocket">Rebaixo/Pocket</option>
+                                            <option value="contour">Contorno</option>
+                                        </select>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 2D Preview */}
+                    <div style={{ background: '#f8f8f8', border: '1px solid var(--border)', borderRadius: 6, padding: 8, marginBottom: 12, maxHeight: 300, overflow: 'auto' }}>
+                        <svg viewBox={`-5 -5 ${(dxfUsiPreview.peca?.comprimento || 600) + 10} ${(dxfUsiPreview.peca?.largura || 400) + 10}`}
+                            style={{ width: '100%', maxHeight: 260, background: '#fff' }}>
+                            {/* Piece outline */}
+                            <rect x={0} y={0} width={dxfUsiPreview.peca?.comprimento || 600} height={dxfUsiPreview.peca?.largura || 400}
+                                fill="none" stroke="#333" strokeWidth={1} />
+                            {/* Operations */}
+                            {dxfUsiPreview.preview.map((op, i) => {
+                                const opType = (dxfUsiLayerMap[op.layer] && dxfUsiLayerMap[op.layer] !== 'auto') ? dxfUsiLayerMap[op.layer] : op.type;
+                                const color = opType === 'hole' ? '#ef4444' : opType === 'groove' ? '#3b82f6' : opType === 'pocket' ? '#f59e0b' : '#22c55e';
+                                if (op.entity_type === 'CIRCLE') {
+                                    return <circle key={i} cx={op.x} cy={op.y} r={op.diameter / 2} fill={color} fillOpacity={0.3} stroke={color} strokeWidth={0.8} />;
+                                } else if (op.entity_type === 'LINE') {
+                                    return <line key={i} x1={op.x} y1={op.y} x2={op.x2} y2={op.y2} stroke={color} strokeWidth={1.5} />;
+                                } else if (op.vertices) {
+                                    const pts = op.vertices.map(v => `${v.x},${v.y}`).join(' ');
+                                    return op.closed
+                                        ? <polygon key={i} points={pts} fill={color} fillOpacity={0.2} stroke={color} strokeWidth={0.8} />
+                                        : <polyline key={i} points={pts} fill="none" stroke={color} strokeWidth={1.2} />;
+                                } else if (op.w) {
+                                    return <rect key={i} x={op.x} y={op.y} width={op.w} height={op.h} fill={color} fillOpacity={0.2} stroke={color} strokeWidth={0.8} />;
+                                }
+                                return null;
+                            })}
+                        </svg>
+                    </div>
+
+                    {/* Operations list */}
+                    <div style={{ maxHeight: 180, overflow: 'auto', fontSize: 10, marginBottom: 12 }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <th style={{ padding: '4px 6px', textAlign: 'left' }}>#</th>
+                                    <th style={{ padding: '4px 6px', textAlign: 'left' }}>Tipo</th>
+                                    <th style={{ padding: '4px 6px', textAlign: 'left' }}>Layer</th>
+                                    <th style={{ padding: '4px 6px', textAlign: 'right' }}>X</th>
+                                    <th style={{ padding: '4px 6px', textAlign: 'right' }}>Y</th>
+                                    <th style={{ padding: '4px 6px', textAlign: 'right' }}>Dims</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {dxfUsiPreview.preview.map((op, i) => (
+                                    <tr key={i} style={{ borderBottom: '1px solid var(--bg-muted)' }}>
+                                        <td style={{ padding: '3px 6px' }}>{i + 1}</td>
+                                        <td style={{ padding: '3px 6px' }}>
+                                            <span style={{
+                                                padding: '1px 5px', borderRadius: 3, fontSize: 9, fontWeight: 600,
+                                                background: op.type === 'hole' ? '#fef2f2' : op.type === 'groove' ? '#eff6ff' : '#fffbeb',
+                                                color: op.type === 'hole' ? '#991b1b' : op.type === 'groove' ? '#1e40af' : '#92400e',
+                                            }}>
+                                                {op.type === 'hole' ? 'Furo' : op.type === 'groove' ? 'Rasgo' : op.type === 'pocket' ? 'Rebaixo' : 'Contorno'}
+                                            </span>
+                                        </td>
+                                        <td style={{ padding: '3px 6px', color: 'var(--text-muted)' }}>{op.layer}</td>
+                                        <td style={{ padding: '3px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{op.x}</td>
+                                        <td style={{ padding: '3px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{op.y}</td>
+                                        <td style={{ padding: '3px 6px', textAlign: 'right', fontFamily: 'monospace' }}>
+                                            {op.diameter ? `d${op.diameter}` : op.w ? `${op.w}x${op.h}` : op.length ? `L${op.length}` : '-'}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <button onClick={() => { setDxfUsiTarget(null); setDxfUsiPreview(null); }}
+                            className={Z.btn} style={{ background: 'var(--bg-muted)', color: 'var(--text-primary)' }}>
+                            Cancelar
+                        </button>
+                        <button onClick={handleDxfUsiConfirm} disabled={dxfUsiLoading}
+                            className={Z.btn} style={{ background: 'var(--primary)', color: '#fff' }}>
+                            {dxfUsiLoading ? 'Salvando...' : `Confirmar ${dxfUsiPreview.entities_count} operacao(es)`}
+                        </button>
+                    </div>
+                </Modal>
+            )}
+
+            {/* Template Library Modal */}
+            {templateLib && <MachiningTemplateLibrary notify={notify} onClose={() => setTemplateLib(false)} onApply={(tpl) => {
+                setTemplateLib(false);
+                if (templateApplyTarget) {
+                    // Direct apply — ask for mirror
+                    const espelhar = confirm('Espelhar usinagens? (para peças par esquerda/direita)');
+                    api.post(`/cnc/machining-templates/${tpl.id}/aplicar`, { peca_id: templateApplyTarget.id, espelhar }).then(() => {
+                        notify('Template aplicado com sucesso');
+                        setTemplateApplyTarget(null);
+                        load();
+                    }).catch(err => notify('Erro: ' + (err.error || err.message), 'error'));
+                }
+            }} />}
+
+            {/* Apply Template Modal (triggered from piece action button) */}
+            {templateApplyTarget && !templateLib && <MachiningTemplateLibrary notify={notify} onClose={() => setTemplateApplyTarget(null)} applyMode pecaTarget={templateApplyTarget} onApply={(tpl) => {
+                const espelhar = confirm('Espelhar usinagens? (para peças par esquerda/direita)');
+                api.post(`/cnc/machining-templates/${tpl.id}/aplicar`, { peca_id: templateApplyTarget.id, espelhar }).then(() => {
+                    notify('Template aplicado com sucesso');
+                    setTemplateApplyTarget(null);
+                    load();
+                }).catch(err => notify('Erro: ' + (err.error || err.message), 'error'));
+            }} />}
+
+            {/* Next step — go to optimization */}
+            {loteAtual && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                    <button onClick={() => setTab('plano')}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '10px 24px', borderRadius: 8,
+                            background: 'var(--primary)', color: '#fff',
+                            border: 'none', cursor: 'pointer',
+                            fontSize: 13, fontWeight: 700,
+                        }}>
+                        Próxima: Otimizar Plano de Corte <ChevronRight size={16} />
+                    </button>
+                </div>
+            )}
         </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════
+// Machining Template Library Modal
+// ═══════════════════════════════════════════════════════
+const TEMPLATE_CATEGORIES = ['Dobradiça', 'Minifix', 'Puxador', 'Corrediça', 'Geral'];
+
+function MachiningTemplateLibrary({ notify, onClose, onApply, applyMode, pecaTarget }) {
+    const [templates, setTemplates] = useState([]);
+    const [filtro, setFiltro] = useState('');
+    const [catFiltro, setCatFiltro] = useState('');
+    const [modal, setModal] = useState(null); // edit/create modal
+
+    const load = useCallback(() => {
+        const params = new URLSearchParams();
+        if (catFiltro) params.set('categoria', catFiltro);
+        if (filtro) params.set('q', filtro);
+        api.get(`/cnc/machining-templates?${params}`).then(setTemplates).catch(e => notify(e.error || 'Erro'));
+    }, [catFiltro, filtro]);
+
+    useEffect(() => { load(); }, [load]);
+
+    const del = async (id) => {
+        if (!confirm('Excluir este template?')) return;
+        await api.del(`/cnc/machining-templates/${id}`);
+        notify('Template excluído');
+        load();
+    };
+
+    const save = async (data) => {
+        try {
+            if (data.id) {
+                await api.put(`/cnc/machining-templates/${data.id}`, data);
+                notify('Template atualizado');
+            } else {
+                await api.post('/cnc/machining-templates', data);
+                notify('Template criado');
+            }
+            setModal(null);
+            load();
+        } catch (err) { notify('Erro: ' + (err.error || err.message), 'error'); }
+    };
+
+    const catIcons = { 'Dobradiça': '🔩', 'Minifix': '⚙️', 'Puxador': '🚪', 'Corrediça': '📏', 'Geral': '🔧' };
+
+    return (
+        <Modal title={applyMode ? `Aplicar Template em "${pecaTarget?.descricao || 'Peça'}"` : 'Biblioteca de Usinagens'} close={onClose} w={700}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                <input value={filtro} onChange={e => setFiltro(e.target.value)} placeholder="Buscar template..."
+                    className={Z.inp} style={{ width: 200, fontSize: 12 }} />
+                <select value={catFiltro} onChange={e => setCatFiltro(e.target.value)} className={Z.inp} style={{ width: 160, fontSize: 12 }}>
+                    <option value="">Todas categorias</option>
+                    {TEMPLATE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                {!applyMode && (
+                    <button onClick={() => setModal({ nome: '', descricao: '', categoria: 'Geral', machining_json: '{}', espelhavel: 0 })}
+                        className={Z.btn} style={{ fontSize: 11, padding: '5px 12px', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Plus size={12} /> Novo Template
+                    </button>
+                )}
+            </div>
+
+            {templates.length === 0 ? (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                    Nenhum template encontrado
+                </div>
+            ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, maxHeight: 400, overflowY: 'auto' }}>
+                    {templates.map(t => {
+                        let workerCount = 0;
+                        try { const mj = JSON.parse(t.machining_json || '{}'); const w = mj.workers; workerCount = w ? (Array.isArray(w) ? w.length : Object.keys(w).length) : 0; } catch {}
+                        return (
+                            <div key={t.id} style={{
+                                padding: 12, borderRadius: 8, border: '1px solid var(--border)',
+                                background: 'var(--bg-card)', cursor: applyMode ? 'pointer' : 'default',
+                                transition: 'all .15s',
+                            }}
+                                onClick={applyMode ? () => onApply(t) : undefined}
+                                onMouseEnter={applyMode ? e => e.currentTarget.style.borderColor = 'var(--primary)' : undefined}
+                                onMouseLeave={applyMode ? e => e.currentTarget.style.borderColor = 'var(--border)' : undefined}
+                            >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 700 }}>{t.nome}</div>
+                                    <span style={{ fontSize: 16 }}>{catIcons[t.categoria] || '🔧'}</span>
+                                </div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t.descricao || ''}</div>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 10, marginBottom: 6 }}>
+                                    <span style={{ ...tagStyle('blue'), padding: '1px 6px' }}>{t.categoria || 'Geral'}</span>
+                                    <span style={{ ...tagStyle('gray'), padding: '1px 6px' }}>{workerCount} op.</span>
+                                    <span style={{ ...tagStyle('green'), padding: '1px 6px' }}>{t.uso_count || 0}x usado</span>
+                                </div>
+                                {!applyMode && (
+                                    <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                                        <button onClick={() => setModal(t)} className={Z.btn2} style={{ padding: '2px 6px', fontSize: 10 }}><Edit size={10} /></button>
+                                        <button onClick={() => del(t.id)} className={Z.btnD} style={{ padding: '2px 6px', fontSize: 10 }}><Trash2 size={10} /></button>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {modal && <MachiningTemplateModal data={modal} onSave={save} onClose={() => setModal(null)} />}
+        </Modal>
+    );
+}
+
+function MachiningTemplateModal({ data, onSave, onClose }) {
+    const [f, setF] = useState({ ...data });
+    const upd = (k, v) => setF(p => ({ ...p, [k]: v }));
+    return (
+        <Modal title={f.id ? 'Editar Template' : 'Novo Template'} close={onClose} w={480}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ gridColumn: '1/-1' }}>
+                    <label className={Z.lbl}>Nome</label>
+                    <input value={f.nome} onChange={e => upd('nome', e.target.value)} className={Z.inp} />
+                </div>
+                <div>
+                    <label className={Z.lbl}>Categoria</label>
+                    <select value={f.categoria} onChange={e => upd('categoria', e.target.value)} className={Z.inp}>
+                        {TEMPLATE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label className={Z.lbl}>Espelhável</label>
+                    <select value={f.espelhavel ? '1' : '0'} onChange={e => upd('espelhavel', e.target.value === '1')} className={Z.inp}>
+                        <option value="0">Não</option>
+                        <option value="1">Sim</option>
+                    </select>
+                </div>
+                <div style={{ gridColumn: '1/-1' }}>
+                    <label className={Z.lbl}>Descrição</label>
+                    <input value={f.descricao} onChange={e => upd('descricao', e.target.value)} className={Z.inp} />
+                </div>
+                <div style={{ gridColumn: '1/-1' }}>
+                    <label className={Z.lbl}>Machining JSON</label>
+                    <textarea value={typeof f.machining_json === 'string' ? f.machining_json : JSON.stringify(f.machining_json, null, 2)}
+                        onChange={e => upd('machining_json', e.target.value)}
+                        className={Z.inp} style={{ fontFamily: 'monospace', fontSize: 10, minHeight: 120 }} />
+                </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+                <button onClick={onClose} className={Z.btn2}>Cancelar</button>
+                <button onClick={() => onSave(f)} className={Z.btn}>Salvar</button>
+            </div>
+        </Modal>
     );
 }
 
@@ -694,10 +1645,252 @@ function printPlano(plano, pecasMap, loteAtual, getModColor) {
     win.document.close();
 }
 
+// ─── Folha de Produção CNC (per-chapa print — enhanced operator report) ────────────────
+function printFolhaProducao(chapa, chapaIdx, pecasMap, loteAtual, getModColor, kerf, refilo, totalChapas) {
+    const modColors = ['#5b7fa6', '#8b6e4e', '#6a8e6e', '#9e7b5c', '#7a8999', '#a67c52', '#6b8f8b', '#8a7d6d', '#5f7d8a', '#7d6b5e'];
+    const getColor = (pecaId) => {
+        const piece = pecasMap[pecaId];
+        if (!piece) return modColors[0];
+        return modColors[(piece.modulo_id || 0) % modColors.length];
+    };
+
+    const nPecas = chapa.pecas.length;
+    const ref = chapa.refilo || refilo || 0;
+    const hasVeio = chapa.veio && chapa.veio !== 'sem_veio';
+    const totalCh = totalChapas || '?';
+
+    // ─── Build SVG (high-res for print ~170mm on A4) ───
+    const maxSvgW = 640;
+    const maxSvgH = nPecas <= 12 ? 280 : 360;
+    const sc = Math.min(maxSvgW / chapa.comprimento, maxSvgH / chapa.largura);
+    const sw = Math.round(chapa.comprimento * sc);
+    const sh = Math.round(chapa.largura * sc);
+
+    let pecasSvg = '';
+    for (let pi = 0; pi < nPecas; pi++) {
+        const p = chapa.pecas[pi];
+        const px = (p.x + ref) * sc, py = (p.y + ref) * sc, pw = p.w * sc, ph = p.h * sc;
+        const c = getColor(p.pecaId);
+        const piece = pecasMap[p.pecaId];
+        const num = pi + 1;
+
+        pecasSvg += `<rect x="${px}" y="${py}" width="${pw}" height="${ph}" fill="${c}25" stroke="#1a1a1a" stroke-width="0.8"/>`;
+
+        // Dimension labels on pieces
+        if (pw > 35 && ph > 14) {
+            pecasSvg += `<text x="${px + pw / 2}" y="${py + ph - 3}" text-anchor="middle" font-size="5.5" fill="#555" font-family="monospace">${Math.round(p.w)}x${Math.round(p.h)}</text>`;
+        }
+
+        // Borders as colored lines
+        if (piece?.borda_frontal) pecasSvg += `<line x1="${px}" y1="${py}" x2="${px + pw}" y2="${py}" stroke="#d97706" stroke-width="2.5"/>`;
+        if (piece?.borda_traseira) pecasSvg += `<line x1="${px}" y1="${py + ph}" x2="${px + pw}" y2="${py + ph}" stroke="#d97706" stroke-width="2.5"/>`;
+        if (piece?.borda_esq) pecasSvg += `<line x1="${px}" y1="${py}" x2="${px}" y2="${py + ph}" stroke="#d97706" stroke-width="2.5"/>`;
+        if (piece?.borda_dir) pecasSvg += `<line x1="${px + pw}" y1="${py}" x2="${px + pw}" y2="${py + ph}" stroke="#d97706" stroke-width="2.5"/>`;
+
+        // Number circle
+        const numR = Math.min(12, Math.min(pw, ph) * 0.3);
+        if (numR >= 5) {
+            pecasSvg += `<circle cx="${px + pw / 2}" cy="${py + ph / 2}" r="${numR}" fill="#1a1a1a" opacity="0.85"/>`;
+            pecasSvg += `<text x="${px + pw / 2}" y="${py + ph / 2}" text-anchor="middle" dominant-baseline="central" font-size="${Math.min(10, numR * 1.3)}" fill="#fff" font-weight="700">${num}</text>`;
+        }
+
+        // Rotation indicator
+        if (p.rotated && pw > 18 && ph > 18) {
+            pecasSvg += `<text x="${px + 4}" y="${py + 9}" font-size="6" fill="#1a1a1a" font-weight="700" opacity="0.6">R</text>`;
+        }
+    }
+
+    // Retalhos (remnants)
+    let retSvg = '';
+    for (const r of (chapa.retalhos || [])) {
+        const rx = (r.x + ref) * sc, ry = (r.y + ref) * sc, rw = r.w * sc, rh = r.h * sc;
+        retSvg += `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="none" stroke="#9ca3af" stroke-width="0.8" stroke-dasharray="4 2" opacity="0.5"/>`;
+        if (rw > 30 && rh > 12) retSvg += `<text x="${rx + rw / 2}" y="${ry + rh / 2}" text-anchor="middle" dominant-baseline="central" font-size="6" fill="#9ca3af" opacity="0.7">${Math.round(r.w)}x${Math.round(r.h)}</text>`;
+    }
+
+    // Grain direction arrow
+    let grainSvg = '';
+    if (hasVeio) {
+        const gx = sw - 50, gy = sh + 14;
+        if (chapa.veio === 'horizontal') {
+            grainSvg = `<g transform="translate(${gx},${gy})"><line x1="0" y1="0" x2="30" y2="0" stroke="#555" stroke-width="1.2"/><polygon points="30,-3 36,0 30,3" fill="#555"/><text x="18" y="-5" text-anchor="middle" font-size="6" fill="#555">VEIO</text></g>`;
+        } else {
+            grainSvg = `<g transform="translate(${gx},${gy - 20})"><line x1="0" y1="0" x2="0" y2="20" stroke="#555" stroke-width="1.2"/><polygon points="-3,20 0,26 3,20" fill="#555"/><text x="8" y="12" font-size="6" fill="#555">VEIO</text></g>`;
+        }
+    }
+
+    // Scale bar (100mm reference)
+    const scaleBarPx = 100 * sc;
+    const scaleBarSvg = `<g transform="translate(4,${sh + 10})"><line x1="0" y1="0" x2="${scaleBarPx}" y2="0" stroke="#333" stroke-width="1"/><line x1="0" y1="-3" x2="0" y2="3" stroke="#333" stroke-width="0.8"/><line x1="${scaleBarPx}" y1="-3" x2="${scaleBarPx}" y2="3" stroke="#333" stroke-width="0.8"/><text x="${scaleBarPx / 2}" y="9" text-anchor="middle" font-size="6" fill="#555">100mm</text></g>`;
+
+    const svgBlock = `<svg width="${sw + 4}" height="${sh + 28}" viewBox="-2 -2 ${sw + 4} ${sh + 28}" style="border:1px solid #ccc;background:#fff">
+        <rect x="0" y="0" width="${sw}" height="${sh}" fill="#eae5dc" stroke="#8a7d6d" stroke-width="1"/>
+        ${ref > 0 ? `<rect x="${ref * sc}" y="${ref * sc}" width="${sw - 2 * ref * sc}" height="${sh - 2 * ref * sc}" fill="none" stroke="#b5a99a" stroke-width="0.5" stroke-dasharray="3 2"/>` : ''}
+        ${pecasSvg}${retSvg}${grainSvg}${scaleBarSvg}
+    </svg>`;
+
+    // ─── Build piece table rows (4 separate border columns) ───
+    const bdCell = (val) => val ? `<td class="bd-yes">${val}</td>` : `<td class="bd-no">-</td>`;
+
+    let tableRows = '';
+    for (let pi = 0; pi < nPecas; pi++) {
+        const p = chapa.pecas[pi];
+        const piece = pecasMap[p.pecaId];
+        const bg = pi % 2 === 0 ? '#fff' : '#f8f7f5';
+        const esp = piece?.espessura || '-';
+        tableRows += `<tr style="background:${bg}">
+            <td style="text-align:center;font-weight:700;color:#1a1a1a">${pi + 1}</td>
+            <td>${piece?.descricao || '#' + p.pecaId}</td>
+            <td style="font-size:9px;color:#666">${piece?.modulo_desc || '-'}</td>
+            <td style="text-align:right;font-family:monospace;font-size:10px">${Math.round(p.w)} x ${Math.round(p.h)} x ${esp}</td>
+            <td style="text-align:center">${p.rotated ? '90deg' : '-'}</td>
+            ${bdCell(piece?.borda_frontal)}
+            ${bdCell(piece?.borda_traseira)}
+            ${bdCell(piece?.borda_dir)}
+            ${bdCell(piece?.borda_esq)}
+        </tr>`;
+    }
+
+    const tableBlock = `<table class="ft">
+        <thead><tr><th style="width:28px">#</th><th>Descricao</th><th>Modulo</th><th style="width:88px">C x L x E</th><th style="width:36px">Rot.</th><th class="bh">F</th><th class="bh">T</th><th class="bh">D</th><th class="bh">E</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+    </table>`;
+
+    // ─── Machining operations summary ───
+    let opFuros = 0, opRasgos = 0, opRebaixos = 0, opOutros = 0;
+    const toolSet = new Map();
+    for (let pi = 0; pi < nPecas; pi++) {
+        const p = chapa.pecas[pi];
+        const piece = pecasMap[p.pecaId];
+        if (!piece) continue;
+        let mach = {};
+        try { mach = JSON.parse(piece.machining_json || '{}'); } catch { /* skip */ }
+        const workers = mach.workers ? (Array.isArray(mach.workers) ? mach.workers : Object.values(mach.workers)) : [];
+        for (const w of workers) {
+            const cat = (w.category || w.tipo || '').toLowerCase();
+            if (cat.includes('furo') || cat.includes('drill') || cat.includes('hole')) opFuros++;
+            else if (cat.includes('rasgo') || cat.includes('slot') || cat.includes('groove')) opRasgos++;
+            else if (cat.includes('rebaixo') || cat.includes('pocket') || cat.includes('recess')) opRebaixos++;
+            else opOutros++;
+            const tk = w.tool_code || w.ferramenta || cat || 'geral';
+            if (!toolSet.has(tk)) toolSet.set(tk, { code: tk, tipo: w.category || w.tipo || '-', diametro: w.diameter || w.diametro || 0, rpm: w.rpm || 0, count: 0 });
+            toolSet.get(tk).count++;
+        }
+    }
+    const totalOps = opFuros + opRasgos + opRebaixos + opOutros;
+    const estTime = Math.round((nPecas * 3 + totalOps * 1) / 60 * 10) / 10;
+
+    // Tool setup table
+    let toolTableHtml = '';
+    if (toolSet.size > 0) {
+        let toolRows = '';
+        let ti = 0;
+        for (const [, t] of toolSet) {
+            ti++;
+            const bg = ti % 2 === 0 ? '#fff' : '#f8f7f5';
+            toolRows += `<tr style="background:${bg}"><td style="text-align:center;font-weight:700">T${String(ti).padStart(2, '0')}</td><td>${t.tipo}</td><td style="text-align:center">${t.diametro || '-'}</td><td style="text-align:center">${t.rpm || '-'}</td><td style="text-align:center;font-weight:600">${t.count}</td></tr>`;
+        }
+        toolTableHtml = `<div style="margin-top:10px"><div style="font-size:10px;font-weight:700;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;color:#555">Ferramentas</div><table class="ft"><thead><tr><th style="width:40px">Pos.</th><th>Tipo</th><th style="width:50px">Diam.</th><th style="width:50px">RPM</th><th style="width:40px">Ops</th></tr></thead><tbody>${toolRows}</tbody></table></div>`;
+    }
+
+    // Operations summary
+    let opSummaryHtml = '';
+    if (totalOps > 0) {
+        opSummaryHtml = `<div style="margin-top:8px;display:flex;gap:16px;font-size:10px;flex-wrap:wrap;padding:6px 8px;border:1px solid #e5e5e5;border-radius:4px;background:#fafaf8">
+            <span style="font-weight:700;color:#555">USINAGENS:</span>
+            ${opFuros > 0 ? `<span>Furos: <b>${opFuros}</b></span>` : ''}
+            ${opRasgos > 0 ? `<span>Rasgos: <b>${opRasgos}</b></span>` : ''}
+            ${opRebaixos > 0 ? `<span>Rebaixos: <b>${opRebaixos}</b></span>` : ''}
+            ${opOutros > 0 ? `<span>Outros: <b>${opOutros}</b></span>` : ''}
+            <span style="margin-left:auto;color:#555">Tempo est.: <b>${estTime} min</b></span>
+        </div>`;
+    }
+
+    // ─── Header info ───
+    const headerHtml = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid #1a1a1a">
+            <div>
+                <h2 style="margin:0 0 2px;font-size:16px;color:#1a1a1a;letter-spacing:0.5px">FOLHA DE PRODUCAO CNC</h2>
+                <div style="font-size:11px;color:#666">${loteAtual?.nome || 'Lote #' + (loteAtual?.id || '')}${loteAtual?.cliente ? ' | ' + loteAtual.cliente : ''}</div>
+            </div>
+            <div style="text-align:right;font-size:11px;color:#444">
+                <div style="font-weight:700;font-size:13px">Chapa ${chapaIdx + 1} / ${totalCh}</div>
+                <div>${chapa.material}</div>
+                <div style="font-family:monospace">${chapa.comprimento} x ${chapa.largura} mm</div>
+                <div style="font-size:9px;color:#888">${new Date().toLocaleDateString('pt-BR')}</div>
+            </div>
+        </div>
+        <div style="display:flex;gap:16px;margin-bottom:10px;font-size:10px;flex-wrap:wrap">
+            <span><b>Pecas:</b> ${nPecas}</span>
+            <span><b>Aproveitamento:</b> ${(chapa.aproveitamento || 0).toFixed(1)}%</span>
+            ${hasVeio ? `<span><b>Veio:</b> ${chapa.veio === 'horizontal' ? 'Horizontal' : 'Vertical'}</span>` : ''}
+            ${kerf ? `<span><b>Kerf:</b> ${kerf}mm</span>` : ''}
+            ${ref > 0 ? `<span><b>Refilo:</b> ${ref}mm</span>` : ''}
+            ${chapa.is_retalho ? '<span style="color:#0e7490;font-weight:700">RETALHO</span>' : ''}
+        </div>`;
+
+    // ─── Footer ───
+    const footerHtml = `<div style="margin-top:12px;padding-top:6px;border-top:1px solid #ddd;font-size:8px;color:#999;display:flex;justify-content:space-between">
+        <span>${chapa.material} | ${chapa.comprimento}x${chapa.largura}mm | Aprov. ${(chapa.aproveitamento || 0).toFixed(1)}%</span>
+        <span>Ornato ERP</span>
+        <span>${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+    </div>`;
+
+    // ─── Borda legend ───
+    const bordaLegend = `<div style="margin-top:4px;font-size:8px;color:#92400e;display:flex;gap:10px;align-items:center">
+        <span style="display:inline-block;width:14px;height:2px;background:#d97706;vertical-align:middle;margin-right:2px"></span> Fita de borda
+        <span style="color:#666;margin-left:4px">F=Frontal T=Traseira D=Direita E=Esquerda</span>
+    </div>`;
+
+    // ─── Build page layout ───
+    const needsPageBreak = nPecas > 12;
+    let bodyHtml = `
+        ${headerHtml}
+        <div style="text-align:center;margin-bottom:6px">${svgBlock}</div>
+        ${bordaLegend}
+        ${opSummaryHtml}
+        ${needsPageBreak ? '<div style="page-break-before:always;padding-top:8px">' : '<div style="margin-top:8px">'}
+            ${needsPageBreak ? `<div style="font-size:11px;font-weight:700;margin-bottom:6px;color:#1a1a1a">Lista de Pecas - Chapa ${chapaIdx + 1}: ${chapa.material}</div>` : ''}
+            ${tableBlock}
+        </div>
+        ${toolTableHtml}
+        ${footerHtml}`;
+
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html><head><title>Folha de Producao CNC - Chapa ${chapaIdx + 1}</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, 'Inter', Arial, sans-serif; margin: 16px; color: #333; font-size: 11px; }
+        @page { size: A4 portrait; margin: 10mm; }
+        .ft { width: 100%; border-collapse: collapse; font-size: 10px; }
+        .ft th, .ft td { border: 1px solid #ddd; padding: 3px 5px; text-align: left; }
+        .ft th { background: #f0ede8; font-weight: 700; font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px; color: #555; }
+        .ft tr:hover { background: #f5f3ef !important; }
+        .bh { text-align: center; width: 52px; background: #fef3c7 !important; color: #92400e; }
+        .bd-yes { text-align: center; font-size: 9px; color: #92400e; font-weight: 600; background: #fffbeb; }
+        .bd-no { text-align: center; font-size: 9px; color: #d1d5db; }
+        .no-print { margin-bottom: 12px; }
+        @media print {
+            .no-print { display: none; }
+            body { margin: 8px; }
+            svg { max-width: 170mm !important; }
+            .ft { page-break-inside: auto; }
+            .ft tr { page-break-inside: avoid; }
+        }
+    </style></head><body>
+    <div class="no-print">
+        <button onclick="window.print()" style="padding:8px 20px;font-size:13px;cursor:pointer;background:#1e40af;color:#fff;border:none;border-radius:4px;font-weight:600">Imprimir</button>
+        <span style="margin-left:12px;font-size:11px;color:#888">Chapa ${chapaIdx + 1}/${totalCh} | ${nPecas} pecas | ${totalOps} usinagens | A4 Retrato</span>
+    </div>
+    ${bodyHtml}
+    </body></html>`);
+    win.document.close();
+}
+
 // ═══════════════════════════════════════════════════════
 // ABA 3: PLANO DE CORTE (com painel de configuração)
 // ═══════════════════════════════════════════════════════
-function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
+function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab }) {
     const [plano, setPlano] = useState(null);
     const [loading, setLoading] = useState(false);
     const [otimizando, setOtimizando] = useState(false);
@@ -711,6 +1904,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
 
     // Transfer area + undo/redo + selection
     const [transferArea, setTransferArea] = useState([]);
+    const [transferOpen, setTransferOpen] = useState(false);
     const [undoStack, setUndoStack] = useState([]);
     const [redoStack, setRedoStack] = useState([]);
     const [selectedPieces, setSelectedPieces] = useState([]); // pecaIdx list for active sheet
@@ -734,12 +1928,79 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
     const [limiarSuperPequena, setLimiarSuperPequena] = useState(200);
     const [colorMode, setColorMode] = useState('modulo'); // 'modulo' | 'classificacao'
 
+    // 3D modal + label print from context menu
+    const [view3dPeca, setView3dPeca] = useState(null); // piece object for 3D modal
+    const [printLabelPeca, setPrintLabelPeca] = useState(null); // piece for label printing
+
+    // Multi-Machine state
+    const [multiMaqMode, setMultiMaqMode] = useState(false);
+    const [maquinas, setMaquinas] = useState([]);
+    const [machineAssignments, setMachineAssignments] = useState({}); // chapaIdx → { maquina_id, maquina_nome }
+
+    const loadMaquinas = useCallback(() => {
+        api.get('/cnc/maquinas').then(setMaquinas).catch(() => {});
+    }, []);
+
+    const loadMachineAssignments = useCallback(() => {
+        if (!loteAtual) return;
+        api.get(`/cnc/machine-assignments/${loteAtual.id}`).then(list => {
+            const map = {};
+            for (const a of list) map[a.chapa_idx] = { maquina_id: a.maquina_id, maquina_nome: a.maquina_nome };
+            setMachineAssignments(map);
+            if (list.length > 0) setMultiMaqMode(true);
+        }).catch(() => {});
+    }, [loteAtual]);
+
+    useEffect(() => { loadMaquinas(); }, [loadMaquinas]);
+    useEffect(() => { loadMachineAssignments(); }, [loadMachineAssignments]);
+
+    const assignMachine = async (chapaIdx, maquina_id) => {
+        const newMap = { ...machineAssignments };
+        if (maquina_id) {
+            const maq = maquinas.find(m => m.id === Number(maquina_id));
+            newMap[chapaIdx] = { maquina_id: Number(maquina_id), maquina_nome: maq?.nome || '' };
+        } else {
+            delete newMap[chapaIdx];
+        }
+        setMachineAssignments(newMap);
+        try {
+            await api.post(`/cnc/machine-assignments/${loteAtual.id}`, {
+                assignments: [{ chapaIdx, maquina_id: maquina_id ? Number(maquina_id) : null }],
+            });
+        } catch (err) { notify('Erro ao salvar atribuicao: ' + (err.error || err.message)); }
+    };
+
+    const autoAssignMachines = async () => {
+        if (!loteAtual) return;
+        try {
+            const r = await api.post(`/cnc/machine-assignments/${loteAtual.id}/auto`);
+            if (r.ok && r.assignments) {
+                const map = {};
+                for (const a of r.assignments) map[a.chapaIdx] = { maquina_id: a.maquina_id, maquina_nome: a.maquina_nome };
+                setMachineAssignments(map);
+                notify(`Auto-atribuicao: ${r.assignments.length} chapa(s) distribuida(s)`);
+            }
+        } catch (err) { notify('Erro: ' + (err.error || err.message)); }
+    };
+
+    // Machine color palette for border coding
+    const machineColors = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+    const getMachineColor = (maquinaId) => {
+        if (!maquinaId) return null;
+        const idx = maquinas.findIndex(m => m.id === maquinaId);
+        return machineColors[idx % machineColors.length];
+    };
+
     // Load config defaults from API
     useEffect(() => {
         api.get('/cnc/config').then(cfg => {
             setEspacoPecas(cfg.espaco_pecas ?? 7);
             setKerf(cfg.kerf_padrao ?? 4);
-            setModo(cfg.usar_guilhotina !== 0 ? 'guilhotina' : 'maxrects');
+            // modo_otimizador tem prioridade; fallback para usar_guilhotina
+            setModo(cfg.modo_otimizador || (cfg.usar_guilhotina !== 0 ? 'guilhotina' : 'maxrects'));
+            setRefilo(cfg.refilo ?? 10);
+            setPermitirRotacao(cfg.permitir_rotacao !== 0);
+            setDirecaoCorte(cfg.direcao_corte || 'misto');
             setUsarRetalhos(cfg.usar_retalhos !== 0);
             setIteracoes(cfg.iteracoes_otimizador ?? 300);
             setConsiderarSobra(cfg.considerar_sobra !== 0);
@@ -748,6 +2009,29 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
             setCfgLoaded(true);
         }).catch(() => setCfgLoaded(true));
     }, []);
+
+    // Auto-save config quando parâmetros do otimizador mudam
+    const cfgSaveTimer = useRef(null);
+    useEffect(() => {
+        if (!cfgLoaded) return;
+        if (cfgSaveTimer.current) clearTimeout(cfgSaveTimer.current);
+        cfgSaveTimer.current = setTimeout(() => {
+            api.put('/cnc/config', {
+                espaco_pecas: espacoPecas, kerf_padrao: kerf,
+                modo_otimizador: modo,
+                usar_guilhotina: modo === 'guilhotina' ? 1 : 0,
+                refilo,
+                permitir_rotacao: permitirRotacao ? 1 : 0,
+                direcao_corte: direcaoCorte,
+                usar_retalhos: usarRetalhos ? 1 : 0,
+                iteracoes_otimizador: iteracoes,
+                considerar_sobra: considerarSobra ? 1 : 0,
+                sobra_min_largura: sobraMinW,
+                sobra_min_comprimento: sobraMinH,
+            }).catch(() => {});
+        }, 1500);
+        return () => { if (cfgSaveTimer.current) clearTimeout(cfgSaveTimer.current); };
+    }, [cfgLoaded, espacoPecas, kerf, modo, refilo, permitirRotacao, direcaoCorte, usarRetalhos, iteracoes, considerarSobra, sobraMinW, sobraMinH]);
 
     const loadPlano = useCallback(() => {
         if (!loteAtual) return;
@@ -785,7 +2069,19 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
     }, [loteAtual]);
 
     useEffect(() => { loadPlano(); }, [loadPlano]);
-    useEffect(() => { setSelectedChapa(0); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }, [plano]);
+    const planoIdRef = useRef(null); // rastreia se é um plano NOVO ou atualização do mesmo
+    useEffect(() => {
+        const newId = plano ? `${plano.chapas?.length}_${plano.modo}_${plano.timestamp || ''}` : null;
+        const isNewPlan = planoIdRef.current !== newId && planoIdRef.current !== null;
+        planoIdRef.current = newId;
+        if (isNewPlan) {
+            // Plano novo (re-otimização) → volta pra chapa 0
+            setSelectedChapa(0); setZoomLevel(1); setPanOffset({ x: 0, y: 0 });
+        } else if (plano) {
+            // Mesmo plano atualizado (edição) → mantém chapa atual, só garante que é válida
+            setSelectedChapa(prev => Math.min(prev, (plano.chapas?.length || 1) - 1));
+        }
+    }, [plano]);
 
     const otimizar = async () => {
         if (!loteAtual) return;
@@ -878,7 +2174,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
     const resetView = () => { setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); };
 
     // Module color palette
-    const modColorPalette = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#6366f1'];
+    const modColorPalette = ['#5b7fa6', '#8b6e4e', '#6a8e6e', '#9e7b5c', '#7a8999', '#a67c52', '#6b8f8b', '#8a7d6d', '#5f7d8a', '#7d6b5e'];
     const isMultiLote = plano?.multi_lote && plano?.lotes_info?.length > 1;
 
     // Classification colors: green=normal, yellow=pequena, red=super_pequena
@@ -970,7 +2266,119 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
     // Pending changes counter (unsaved adjustments)
     const [pendingChanges, setPendingChanges] = useState(0);
 
+    // ═══ Validation state ═══
+    const [validationResult, setValidationResult] = useState(null); // { conflicts: [] }
+    const [validating, setValidating] = useState(false);
+    const [showValidation, setShowValidation] = useState(false);
+    const validarUsinagens = async () => {
+        if (!loteAtual) return;
+        setValidating(true);
+        try {
+            const r = await api.get(`/cnc/validar-usinagens/${loteAtual.id}`);
+            setValidationResult(r);
+            setShowValidation(true);
+            if (r.conflicts?.length === 0) notify('Nenhum conflito encontrado.');
+            else notify(`${r.conflicts.length} conflito(s) detectado(s).`);
+        } catch (err) {
+            notify('Erro ao validar: ' + (err.error || err.message));
+        } finally { setValidating(false); }
+    };
+
     // Handle manual adjustments — zero-refresh: update local state, sync to server silently
+    // ═══ Feature 1: Per-piece costing ═══
+    const [custosData, setCustosData] = useState(null);
+    const [custosLoading, setCustosLoading] = useState(false);
+    const [showCustos, setShowCustos] = useState(false);
+    const [custosExpanded, setCustosExpanded] = useState({});
+    const loadCustos = async () => {
+        if (!loteAtual) return;
+        setCustosLoading(true);
+        try {
+            const data = await api.get(`/cnc/custos/${loteAtual.id}`);
+            setCustosData(data);
+            setShowCustos(true);
+        } catch (err) {
+            notify('Erro ao carregar custos: ' + (err.error || err.message));
+        } finally { setCustosLoading(false); }
+    };
+
+    // ═══ Feature 2: Multi-format export ═══
+    const [showExportMenu, setShowExportMenu] = useState(false);
+    useEffect(() => {
+        if (!showExportMenu) return;
+        const close = () => setShowExportMenu(false);
+        setTimeout(() => document.addEventListener('click', close), 0);
+        return () => document.removeEventListener('click', close);
+    }, [showExportMenu]);
+    const handleExport = async (format) => {
+        if (!loteAtual) return;
+        setShowExportMenu(false);
+        try {
+            const token = localStorage.getItem('erp_token');
+            const resp = await fetch(`/api/cnc/export/${loteAtual.id}/${format}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!resp.ok) throw new Error('Erro ao exportar');
+            const blob = await resp.blob();
+            const contentType = resp.headers.get('content-type') || '';
+            if (format === 'resumo') {
+                // Open HTML in new tab
+                const url = URL.createObjectURL(blob);
+                window.open(url, '_blank');
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+            } else {
+                // Download file
+                const ext = format === 'csv' ? '.csv' : '.json';
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `plano_${loteAtual.nome || loteAtual.id}${ext}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+            notify(`Exportado: ${format.toUpperCase()}`);
+        } catch (err) {
+            notify('Erro ao exportar: ' + err.message);
+        }
+    };
+
+    // ═══ Feature 3: Toolpath Simulator ═══
+    const [toolpathOpen, setToolpathOpen] = useState(false);
+    const [toolpathMoves, setToolpathMoves] = useState([]);
+    const [toolpathChapa, setToolpathChapa] = useState(null);
+
+    // ═══ Feature 4: Version diff ═══
+    const [showVersions, setShowVersions] = useState(false);
+    const [versions, setVersions] = useState([]);
+    const [versionsLoading, setVersionsLoading] = useState(false);
+    const [diffV1, setDiffV1] = useState(null);
+    const [diffV2, setDiffV2] = useState(null);
+    const [diffResult, setDiffResult] = useState(null);
+    const [diffLoading, setDiffLoading] = useState(false);
+    const loadVersions = async () => {
+        if (!loteAtual) return;
+        setVersionsLoading(true);
+        try {
+            const r = await api.get(`/cnc/plano/${loteAtual.id}/versions`);
+            setVersions(r.versions || []);
+            setShowVersions(true);
+        } catch (err) {
+            notify('Erro ao carregar versões: ' + (err.error || err.message));
+        } finally { setVersionsLoading(false); }
+    };
+    const loadDiff = async () => {
+        if (!diffV1 || !diffV2 || !loteAtual) return;
+        setDiffLoading(true);
+        try {
+            const r = await api.get(`/cnc/plano/${loteAtual.id}/versions/diff/${diffV1}/${diffV2}`);
+            setDiffResult(r);
+        } catch (err) {
+            notify('Erro ao comparar versões: ' + (err.error || err.message));
+        } finally { setDiffLoading(false); }
+    };
+
     // ═══ Gerar G-Code por chapa ═══
     const [gcodeLoading, setGcodeLoading] = useState(null); // chapaIdx sendo gerado
     const [gcodePreview, setGcodePreview] = useState(null); // { gcode, filename, stats, alertas, chapaIdx, contorno_tool, ferramentas_faltando }
@@ -999,11 +2407,23 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                         retalhos: chapaInfo.retalhos || [],
                     } : null,
                 });
+            } else if (r.ferramentas_faltando?.length > 0) {
+                // Mostrar detalhes de ferramentas faltantes no preview modal (sem G-code)
+                setGcodePreview({
+                    gcode: '', filename: '', stats: r.stats || {}, chapaIdx,
+                    contorno_tool: r.contorno_tool || null, chapa: null,
+                    alertas: [
+                        { tipo: 'erro_critico', msg: `BLOQUEADO: ${r.ferramentas_faltando.length} ferramenta(s) faltando no magazine da máquina` },
+                        ...(r.ferramentas_faltando_detalhes || []).map(d =>
+                            ({ tipo: 'erro_critico', msg: `Ferramenta "${d.tool_code}" necessária para ${d.operacao} na peça "${d.peca}"` })
+                        ),
+                        ...(r.alertas || []),
+                    ],
+                    ferramentas_faltando: r.ferramentas_faltando,
+                });
+                notify(`G-Code bloqueado: ${r.ferramentas_faltando.length} ferramenta(s) faltando`, 'error');
             } else {
                 notify(r.error || 'Erro ao gerar G-Code', 'error');
-                if (r.ferramentas_faltando?.length > 0) {
-                    notify(`Ferramentas faltando: ${r.ferramentas_faltando.join(', ')}`, 'error');
-                }
             }
         } catch (err) {
             notify('Erro ao gerar G-Code: ' + err.message, 'error');
@@ -1070,6 +2490,30 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                     const pecas = ch.pecas.map((p, pi) => {
                         if (pi !== params.pecaIdx) return p;
                         return { ...p, w: p.h, h: p.w, rotated: !p.rotated };
+                    });
+                    return { ...ch, pecas };
+                });
+                return { ...prev, chapas };
+            });
+            setPendingChanges(prev => prev + 1);
+            api.put(`/cnc/plano/${loteAtual.id}/ajustar`, params).catch(() => {
+                setUndoStack(prev => {
+                    const last = prev[prev.length - 1];
+                    if (last) setPlano(JSON.parse(last));
+                    return prev.slice(0, -1);
+                });
+            });
+            return;
+        }
+
+        if (params.action === 'flip' && params.chapaIdx != null && params.pecaIdx != null) {
+            setPlano(prev => {
+                if (!prev?.chapas) return prev;
+                const chapas = prev.chapas.map((ch, ci) => {
+                    if (ci !== params.chapaIdx) return ch;
+                    const pecas = ch.pecas.map((p, pi) => {
+                        if (pi !== params.pecaIdx) return p;
+                        return { ...p, lado_ativo: (p.lado_ativo === 'B') ? 'A' : 'B' };
                     });
                     return { ...ch, pecas };
                 });
@@ -1188,13 +2632,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
 
     return (
         <div>
-            <LoteSelector lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} />
-
-            {!loteAtual ? (
-                <div className="glass-card p-8" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                    Selecione um lote para ver o plano de corte
-                </div>
-            ) : loading ? (
+            {loading ? (
                 <Spinner text="Carregando plano..." />
             ) : (
                 <>
@@ -1230,18 +2668,18 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                                         <select value={direcaoCorte} onChange={e => setDirecaoCorte(e.target.value)}
                                             className={Z.inp} style={{ width: 190, fontSize: 12, padding: '5px 8px' }}>
                                             <option value="misto">Misto (livre)</option>
-                                            <option value="horizontal">Horizontal (faixas)</option>
-                                            <option value="vertical">Vertical (colunas)</option>
+                                            <option value="horizontal">Horizontal (sobras compridas)</option>
+                                            <option value="vertical">Vertical (sobras largas)</option>
                                         </select>
                                     </div>
                                     {cfgInput('Espaçamento (mm)', espacoPecas, setEspacoPecas, { min: 0, max: 30, step: 0.5 })}
                                     {cfgInput('Refilo (mm)', refilo, setRefilo, { min: 0, max: 50 })}
                                     {(modo === 'guilhotina' || modo === 'shelf') && cfgInput('Kerf serra (mm)', kerf, setKerf, { min: 1, max: 10, step: 0.5 })}
-                                    {cfgInput('Iterações R&R', iteracoes, setIteracoes, { min: 0, max: 2000, step: 50, w: 100 })}
+                                    {/* Iterações R&R: otimizado automaticamente */}
                                 </div>
 
                                 <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
-                                    {cfgToggle('Permitir rotação 90°', permitirRotacao, setPermitirRotacao, 'Materiais com veio ignoram esta opção')}
+                                    {cfgToggle('Permitir rotação 90°', permitirRotacao, setPermitirRotacao, 'Automático: sem veio → permite rotação se melhorar o aproveitamento. Com veio → nunca rotaciona.')}
                                     {cfgToggle('Usar retalhos', usarRetalhos, setUsarRetalhos)}
                                     {cfgToggle('Gerar sobras', considerarSobra, setConsiderarSobra)}
                                 </div>
@@ -1290,6 +2728,46 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                                 <Printer size={14} /> Imprimir / PDF
                             </button>
                         )}
+                        {plano && plano.chapas?.length > 0 && (
+                            <button onClick={loadCustos} disabled={custosLoading} className={Z.btn2}
+                                style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <DollarSign size={14} /> {custosLoading ? 'Calculando...' : 'Custos'}
+                            </button>
+                        )}
+                        {plano && plano.chapas?.length > 0 && (
+                            <div style={{ position: 'relative' }}>
+                                <button onClick={() => setShowExportMenu(!showExportMenu)} className={Z.btn2}
+                                    style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <FileDown size={14} /> Exportar <ChevronDown size={12} />
+                                </button>
+                                {showExportMenu && (
+                                    <div style={{
+                                        position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 50,
+                                        background: 'var(--bg-card)', border: '1px solid var(--border)',
+                                        borderRadius: 8, boxShadow: 'var(--shadow-lg)', minWidth: 160, padding: '4px 0',
+                                    }}>
+                                        {[
+                                            { id: 'csv', lb: 'CSV (Excel)', ic: FileText },
+                                            { id: 'json', lb: 'JSON', ic: FileDown },
+                                            { id: 'resumo', lb: 'Resumo HTML', ic: Printer },
+                                        ].map(opt => (
+                                            <div key={opt.id} onClick={() => handleExport(opt.id)}
+                                                style={{ padding: '8px 14px', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8, transition: 'background .1s' }}
+                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                <opt.ic size={13} style={{ color: 'var(--text-muted)' }} /> {opt.lb}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        {plano && plano.chapas?.length > 0 && (
+                            <button onClick={loadVersions} disabled={versionsLoading} className={Z.btn2}
+                                style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Clock size={14} /> Histórico
+                            </button>
+                        )}
                         {loteAtual.status === 'otimizado' && (
                             <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 600 }}>
                                 <CheckCircle2 size={14} style={{ display: 'inline', verticalAlign: -2, marginRight: 4 }} />
@@ -1298,7 +2776,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                         )}
                         {otimizando && (
                             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                Testando {modo === 'guilhotina' ? 'guilhotina' : modo === 'shelf' ? 'shelf' : 'MaxRects'} · Todos os algoritmos · {iteracoes} iterações R&R...
+                                Testando {modo === 'guilhotina' ? 'guilhotina' : modo === 'shelf' ? 'shelf' : 'MaxRects'} · Todos os algoritmos · Otimizando...
                             </span>
                         )}
                         {/* Action buttons for manual adjustments */}
@@ -1337,9 +2815,49 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                                     title="Adicionar chapa" style={{ padding: '6px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <Plus size={13} /> Chapa
                                 </button>
+                                <span style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
+                                <button onClick={validarUsinagens} disabled={validating} className={Z.btn2}
+                                    title="Validar usinagens (profundidade, sobreposicao, ferramentas)"
+                                    style={{ padding: '6px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, color: validationResult?.conflicts?.length > 0 ? '#ef4444' : undefined }}>
+                                    <ShieldAlert size={13} /> {validating ? 'Validando...' : 'Validar'}
+                                    {validationResult?.conflicts?.length > 0 && (
+                                        <span style={{ background: '#ef4444', color: '#fff', borderRadius: 8, padding: '0 5px', fontSize: 9, fontWeight: 700, marginLeft: 2 }}>
+                                            {validationResult.conflicts.length}
+                                        </span>
+                                    )}
+                                </button>
                             </div>
                         )}
                     </div>
+
+                    {/* Validation conflicts modal */}
+                    {showValidation && validationResult?.conflicts?.length > 0 && (
+                        <div className="glass-card p-4" style={{ marginBottom: 16, borderLeft: '3px solid #ef4444' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <AlertTriangle size={15} /> Conflitos de Usinagem ({validationResult.conflicts.length})
+                                </h3>
+                                <button onClick={() => setShowValidation(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                                    <X size={14} />
+                                </button>
+                            </div>
+                            <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {validationResult.conflicts.map((c, i) => (
+                                    <div key={i} style={{
+                                        display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, padding: '4px 8px',
+                                        background: c.severidade === 'erro' ? '#fef2f210' : '#fefce810',
+                                        borderRadius: 4, border: `1px solid ${c.severidade === 'erro' ? '#ef444430' : '#eab30830'}`,
+                                    }}>
+                                        <AlertTriangle size={12} style={{ color: c.severidade === 'erro' ? '#ef4444' : '#eab308', flexShrink: 0 }} />
+                                        <span style={{ fontWeight: 600, color: 'var(--text-primary)', minWidth: 100 }}>
+                                            Ch{c.chapaIdx + 1} P{c.pecaIdx + 1} - {c.pecaDesc}
+                                        </span>
+                                        <span style={{ color: 'var(--text-secondary)' }}>{c.mensagem}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* RESULTS */}
                     {plano && plano.chapas && plano.chapas.length > 0 ? (
@@ -1419,40 +2937,105 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                                 </div>
                             )}
 
+                            {/* Multi-Maquina section */}
+                            {maquinas.length > 1 && (
+                                <div style={{ marginBottom: 12, padding: '8px 14px', borderRadius: 8, background: 'var(--bg-muted)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => setMultiMaqMode(!multiMaqMode)}>
+                                        <div style={{
+                                            width: 36, height: 20, borderRadius: 10, padding: 2, transition: 'all .2s',
+                                            background: multiMaqMode ? 'var(--primary)' : 'var(--bg-muted)',
+                                            border: `1px solid ${multiMaqMode ? 'var(--primary)' : 'var(--border)'}`,
+                                            display: 'flex', alignItems: 'center',
+                                        }}>
+                                            <div style={{
+                                                width: 14, height: 14, borderRadius: 7, background: '#fff', transition: 'all .2s',
+                                                transform: multiMaqMode ? 'translateX(16px)' : 'translateX(0)',
+                                                boxShadow: '0 1px 3px rgba(0,0,0,.2)',
+                                            }} />
+                                        </div>
+                                        <Server size={14} style={{ color: multiMaqMode ? 'var(--primary)' : 'var(--text-muted)' }} />
+                                        <span style={{ fontSize: 11, fontWeight: 600, color: multiMaqMode ? 'var(--primary)' : 'var(--text-primary)' }}>Modo Multi-Maquina</span>
+                                    </div>
+                                    {multiMaqMode && (
+                                        <>
+                                            <button onClick={autoAssignMachines} className={Z.btn2}
+                                                style={{ padding: '4px 10px', fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                <Zap size={12} /> Auto-Atribuir
+                                            </button>
+                                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                                                {maquinas.filter(m => m.ativo !== 0).map(m => {
+                                                    const color = getMachineColor(m.id);
+                                                    const count = Object.values(machineAssignments).filter(a => a.maquina_id === m.id).length;
+                                                    return (
+                                                        <span key={m.id} style={{ fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                                            <span style={{ width: 8, height: 8, borderRadius: 2, background: color, display: 'inline-block' }} />
+                                                            {m.nome} {count > 0 && <span style={{ fontWeight: 700 }}>({count})</span>}
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
                             {/* ═══ LAYOUT LADO A LADO: Thumbnails + Detalhe ═══ */}
                             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
 
-                                {/* LEFT: Thumbnail list */}
-                                <div style={{ width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 'calc(100vh - 300px)', overflowY: 'auto', paddingRight: 4 }}>
+                                {/* LEFT: Thumbnail list — agrupado por material/espessura */}
+                                <div style={{ width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 'calc(100vh - 300px)', overflowY: 'auto', paddingRight: 4 }}>
                                     {plano.chapas.map((chapa, ci) => {
                                         const isActive = ci === selectedChapa;
                                         const thumbScale = Math.min(180 / chapa.comprimento, 80 / chapa.largura);
                                         const thumbW = chapa.comprimento * thumbScale;
                                         const thumbH = chapa.largura * thumbScale;
+                                        // Material group header
+                                        const matKey = `${chapa.material_code || chapa.material || '?'}${(chapa.espessura_real || chapa.espessura) ? ` ${chapa.espessura_real || chapa.espessura}mm` : ''}`;
+                                        const prevMatKey = ci > 0 ? `${plano.chapas[ci-1].material_code || plano.chapas[ci-1].material || '?'}${(plano.chapas[ci-1].espessura_real || plano.chapas[ci-1].espessura) ? ` ${plano.chapas[ci-1].espessura_real || plano.chapas[ci-1].espessura}mm` : ''}` : '';
+                                        const matKeys = [...new Set(plano.chapas.map(c => `${c.material_code || c.material || '?'}${(c.espessura_real || c.espessura) ? ` ${c.espessura_real || c.espessura}mm` : ''}`))];
+                                        const showMatHeader = matKeys.length > 1 && matKey !== prevMatKey;
+                                        const matColors = ['#3b82f6', '#e67e22', '#8b5cf6', '#22c55e', '#ef4444', '#06b6d4', '#ec4899'];
+                                        const matColor = matColors[matKeys.indexOf(matKey) % matColors.length];
+                                        const matCount = plano.chapas.filter(c => `${c.material_code || c.material || '?'}${(c.espessura_real || c.espessura) ? ` ${c.espessura_real || c.espessura}mm` : ''}` === matKey).length;
                                         return (
-                                            <div key={ci}
+                                            <Fragment key={ci}>
+                                            {showMatHeader && (
+                                                <div style={{
+                                                    fontSize: 9, fontWeight: 700, color: matColor,
+                                                    textTransform: 'uppercase', letterSpacing: 0.5,
+                                                    padding: '4px 8px', marginTop: ci > 0 ? 6 : 0,
+                                                    background: `${matColor}10`,
+                                                    borderRadius: 4, borderLeft: `3px solid ${matColor}`,
+                                                }}>
+                                                    {matKey} ({matCount} chapa{matCount > 1 ? 's' : ''})
+                                                </div>
+                                            )}
+                                            <div
                                                 onClick={() => { setSelectedChapa(ci); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
                                                 style={{
                                                     padding: 8, borderRadius: 8, cursor: 'pointer', transition: 'all .15s',
                                                     background: isActive ? 'var(--primary-bg, rgba(230,126,34,0.08))' : chapa.locked ? 'rgba(59,130,246,0.05)' : 'var(--bg-card)',
-                                                    border: `2px solid ${chapa.locked ? '#3b82f6' : isActive ? 'var(--primary)' : 'var(--border)'}`,
+                                                    border: `2px solid ${multiMaqMode && machineAssignments[ci] ? getMachineColor(machineAssignments[ci].maquina_id) : chapa.locked ? '#3b82f6' : isActive ? 'var(--primary)' : 'var(--border)'}`,
                                                     boxShadow: isActive ? '0 0 0 1px var(--primary)' : 'none',
                                                 }}>
                                                 {/* Mini SVG */}
                                                 <svg width={thumbW} height={thumbH} viewBox={`0 0 ${chapa.comprimento} ${chapa.largura}`}
                                                     style={{ display: 'block', margin: '0 auto 6px', background: 'var(--bg-body)', borderRadius: 3, border: '1px solid var(--border)' }}>
-                                                    {chapa.pecas.map((p, pi) => (
-                                                        <rect key={pi}
-                                                            x={p.x + (chapa.refilo || 0)} y={p.y + (chapa.refilo || 0)}
-                                                            width={p.w} height={p.h}
-                                                            fill={`${getModColor(p.pecaId, p)}30`}
-                                                            stroke={getModColor(p.pecaId, p)} strokeWidth={Math.max(1, 2 / thumbScale)} />
-                                                    ))}
+                                                    {chapa.pecas.map((p, pi) => {
+                                                        const ref = chapa.refilo || 0;
+                                                        const col = getModColor(p.pecaId, p);
+                                                        if (p.contour && p.contour.length >= 3) {
+                                                            const pts = p.contour.map(v => `${p.x + ref + (v.x / p.w) * p.w},${p.y + ref + (v.y / p.h) * p.h}`).join(' ');
+                                                            return <polygon key={pi} points={pts} fill={`${col}30`} stroke={col} strokeWidth={Math.max(1, 2 / thumbScale)} />;
+                                                        }
+                                                        return <rect key={pi} x={p.x + ref} y={p.y + ref} width={p.w} height={p.h}
+                                                            fill={`${col}30`} stroke={col} strokeWidth={Math.max(1, 2 / thumbScale)} />;
+                                                    })}
                                                     {(chapa.retalhos || []).map((r, ri) => (
                                                         <rect key={`s${ri}`}
                                                             x={r.x + (chapa.refilo || 0)} y={r.y + (chapa.refilo || 0)}
                                                             width={r.w} height={r.h}
-                                                            fill="#22c55e08" stroke="#22c55e" strokeWidth={Math.max(1, 2 / thumbScale)} strokeDasharray="8 4" opacity={0.5} />
+                                                            fill="none" stroke="#9ca3af" strokeWidth={Math.max(1, 2 / thumbScale)} strokeDasharray="6 3" opacity={0.5} />
                                                     ))}
                                                 </svg>
                                                 {/* Info */}
@@ -1479,10 +3062,40 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                                                     <div style={{
                                                         height: '100%', borderRadius: 2, transition: 'width .3s',
                                                         width: `${Math.min(100, chapa.aproveitamento)}%`,
-                                                        background: chapa.aproveitamento >= 80 ? '#22c55e' : chapa.aproveitamento >= 60 ? '#f59e0b' : '#ef4444',
+                                                        background: chapa.aproveitamento >= 80 ? '#2563eb' : chapa.aproveitamento >= 60 ? '#d97706' : '#dc2626',
                                                     }} />
                                                 </div>
+                                                {/* Machine assignment */}
+                                                {multiMaqMode && (
+                                                    <div style={{ marginTop: 4 }} onClick={e => e.stopPropagation()}>
+                                                        <select value={machineAssignments[ci]?.maquina_id || ''}
+                                                            onChange={e => assignMachine(ci, e.target.value)}
+                                                            style={{
+                                                                width: '100%', fontSize: 9, padding: '2px 4px', borderRadius: 4,
+                                                                border: `1px solid ${machineAssignments[ci] ? getMachineColor(machineAssignments[ci].maquina_id) || 'var(--border)' : 'var(--border)'}`,
+                                                                background: machineAssignments[ci] ? `${getMachineColor(machineAssignments[ci].maquina_id)}10` : 'var(--bg-card)',
+                                                                color: 'var(--text-primary)', cursor: 'pointer',
+                                                            }}>
+                                                            <option value="">Sem maquina</option>
+                                                            {maquinas.filter(m => m.ativo !== 0).map(m => (
+                                                                <option key={m.id} value={m.id}>{m.nome}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                )}
+                                                {/* Machine badge when assigned and not in multi-machine mode */}
+                                                {!multiMaqMode && machineAssignments[ci] && (
+                                                    <div style={{
+                                                        marginTop: 3, fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+                                                        background: `${getMachineColor(machineAssignments[ci].maquina_id)}15`,
+                                                        color: getMachineColor(machineAssignments[ci].maquina_id),
+                                                        display: 'inline-block',
+                                                    }}>
+                                                        {machineAssignments[ci].maquina_nome}
+                                                    </div>
+                                                )}
                                             </div>
+                                            </Fragment>
                                         );
                                     })}
 
@@ -1502,78 +3115,10 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                                             </div>
                                         </div>
                                     )}
-                                    {/* ═══ BANDEJA DE TRANSFERÊNCIA ═══ */}
-                                    <div style={{
-                                        marginTop: 8, padding: 8, borderRadius: 8, position: 'sticky', bottom: 0, zIndex: 2,
-                                        background: transferArea.length > 0 ? 'var(--bg-card)' : 'var(--bg-muted)',
-                                        border: `2px ${transferArea.length > 0 ? 'solid' : 'dashed'} ${transferArea.length > 0 ? '#f59e0b' : 'var(--border)'}`,
-                                        transition: 'all .2s',
-                                    }}>
-                                        <div style={{ fontSize: 10, fontWeight: 700, color: transferArea.length > 0 ? '#f59e0b' : 'var(--text-muted)', textTransform: 'uppercase', marginBottom: transferArea.length > 0 ? 6 : 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                            <ArrowLeftRight size={11} /> Transferência {transferArea.length > 0 ? `(${transferArea.length})` : ''}
-                                        </div>
-                                        {transferArea.length === 0 && (
-                                            <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, fontStyle: 'italic' }}>
-                                                Clique direito em uma peça → "Mover para transferência"
-                                            </div>
-                                        )}
-                                        {transferArea.map((tp, ti) => {
-                                            const piece = pecasMap[tp.pecaId];
-                                            const targetChapa = plano.chapas[selectedChapa];
-                                            const tpMat = tp.fromMaterial;
-                                            const isCompatible = !tpMat || !targetChapa?.material_code || tpMat === (targetChapa.material_code || targetChapa.material);
-                                            const compatibleChapas = plano.chapas
-                                                .map((ch, ci) => ({ idx: ci, material_code: ch.material_code || ch.material, material: ch.material, nome: ch.nome }))
-                                                .filter(ch => !tpMat || tpMat === ch.material_code);
-
-                                            return (
-                                                <div key={ti} style={{
-                                                    padding: '5px 7px', marginBottom: 4, borderRadius: 5, fontSize: 9,
-                                                    background: isCompatible ? 'var(--bg-muted)' : '#fef2f233',
-                                                    border: `1px solid ${isCompatible ? '#f59e0b44' : '#ef444466'}`,
-                                                    transition: 'all .15s',
-                                                }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 10 }}>
-                                                            {piece?.descricao?.substring(0, 18) || tp.nome?.substring(0, 18) || `#${tp.pecaId}`}
-                                                        </div>
-                                                        <span style={{ fontSize: 8, padding: '1px 4px', borderRadius: 3,
-                                                            background: '#f59e0b22', color: '#f59e0b', fontWeight: 600 }}>
-                                                            {Math.round(tp.w)}x{Math.round(tp.h)}
-                                                        </span>
-                                                    </div>
-                                                    {tpMat && (
-                                                        <div style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 2 }}>
-                                                            {tpMat} {tp.espessura ? `· ${tp.espessura}mm` : ''}
-                                                        </div>
-                                                    )}
-                                                    <div style={{ display: 'flex', gap: 3, marginTop: 4, flexWrap: 'wrap' }}>
-                                                        {compatibleChapas.map(ch => (
-                                                            <button key={ch.idx}
-                                                                onClick={() => handleAdjust({ action: 'from_transfer', transferIdx: ti, targetChapaIdx: ch.idx })}
-                                                                className={Z.btn2}
-                                                                style={{
-                                                                    padding: '2px 6px', fontSize: 8, fontWeight: 600,
-                                                                    background: ch.idx === selectedChapa ? '#f59e0b' : undefined,
-                                                                    color: ch.idx === selectedChapa ? '#fff' : '#f59e0b',
-                                                                    border: '1px solid #f59e0b44', borderRadius: 3,
-                                                                }}>
-                                                                → Ch {ch.idx + 1}
-                                                            </button>
-                                                        ))}
-                                                        {compatibleChapas.length === 0 && (
-                                                            <span style={{ fontSize: 8, color: '#ef4444', fontStyle: 'italic' }}>
-                                                                Nenhuma chapa compatível
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
                                 </div>
 
-                                {/* RIGHT: Detail view */}
+                                {/* RIGHT: Detail view + Transfer panel */}
+                                <div style={{ flex: 1, minWidth: 0, display: 'flex', gap: 0 }}>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     {plano.chapas[selectedChapa] && (
                                         <ChapaViz
@@ -1594,14 +3139,187 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                                             selectedPieces={selectedPieces}
                                             onSelectPiece={handleSelectPiece}
                                             kerfSize={kerf}
+                                            espacoPecas={espacoPecas}
                                             allChapas={plano.chapas}
                                             classifyLocal={classifyLocal}
                                             classColors={classColors}
                                             classLabels={classLabels}
                                             onGerarGcode={handleGerarGcode}
                                             gcodeLoading={gcodeLoading}
+                                            onView3D={(piece) => setView3dPeca(piece)}
+                                            onPrintLabel={(chapaIdx) => {
+                                                // Navigate to etiquetas tab with chapa filter
+                                                setTab('etiquetas');
+                                            }}
+                                            onPrintSingleLabel={(piece) => setPrintLabelPeca(piece)}
+                                            sobraMinW={sobraMinW}
+                                            sobraMinH={sobraMinH}
+                                            onPrintFolha={(chapaIdx) => printFolhaProducao(plano.chapas[chapaIdx], chapaIdx, pecasMap, loteAtual, getModColor, kerf, refilo, plano.chapas.length)}
+                                            onSaveRetalhos={async (chapaIdx, retalhos, refugos) => {
+                                                try {
+                                                    const ch = plano.chapas[chapaIdx];
+                                                    let saved = 0;
+                                                    for (const r of retalhos) {
+                                                        await api.post('/cnc/retalhos', {
+                                                            nome: `Chapa ${chapaIdx + 1} — ${Math.round(r.w)}×${Math.round(r.h)}`,
+                                                            material_code: ch.material_code || ch.material || '',
+                                                            espessura_real: ch.espessura || 18,
+                                                            comprimento: Math.round(r.w),
+                                                            largura: Math.round(r.h),
+                                                        });
+                                                        saved++;
+                                                    }
+                                                    notify(`${saved} retalho(s) salvos no estoque, ${refugos.length} refugo(s) descartados`);
+                                                } catch (e) {
+                                                    notify(e.error || 'Erro ao salvar retalhos');
+                                                }
+                                            }}
+                                            setTab={setTab}
+                                            validationConflicts={validationResult?.conflicts || []}
                                         />
                                     )}
+                                </div>
+
+                                {/* ═══ PAINEL DE TRANSFERÊNCIA (inline à direita da chapa) ═══ */}
+                                {transferArea.length > 0 && plano && (() => {
+                                    const currentChapa = plano.chapas[selectedChapa];
+                                    const currentMat = currentChapa?.material_code || currentChapa?.material || '';
+                                    const currentEsp = currentChapa?.espessura || 0;
+                                    const currentVeio = currentChapa?.veio || 'sem_veio';
+
+                                    const compatItems = transferArea.map((tp, ti) => {
+                                        const tpMat = tp.fromMaterial || '';
+                                        const tpEsp = tp.espessura || 0;
+                                        const tpVeio = tp.veio || 'sem_veio';
+                                        const compatible = tpMat === currentMat
+                                            && Math.abs(tpEsp - currentEsp) <= 0.1
+                                            && (tpVeio === 'sem_veio' || currentVeio === 'sem_veio' || tpVeio === currentVeio);
+                                        return { ...tp, _idx: ti, _compatible: compatible };
+                                    });
+                                    const compatCount = compatItems.filter(c => c._compatible).length;
+                                    const incompatCount = transferArea.length - compatCount;
+
+                                    return (
+                                        <div style={{
+                                            width: transferOpen ? 220 : 36,
+                                            minWidth: transferOpen ? 220 : 36,
+                                            transition: 'width .2s, min-width .2s',
+                                            borderLeft: '1px solid var(--border)',
+                                            background: 'var(--bg-card)',
+                                            display: 'flex', flexDirection: 'column',
+                                            overflow: 'hidden', borderRadius: '0 8px 8px 0',
+                                        }}>
+                                            {!transferOpen ? (
+                                                <button
+                                                    onClick={() => setTransferOpen(true)}
+                                                    style={{
+                                                        background: 'none', border: 'none', cursor: 'pointer',
+                                                        padding: '12px 0', display: 'flex', flexDirection: 'column',
+                                                        alignItems: 'center', gap: 6, color: 'var(--text-muted)',
+                                                    }}
+                                                    title="Abrir painel de transferência"
+                                                >
+                                                    <ArrowLeftRight size={14} />
+                                                    <span style={{
+                                                        background: compatCount > 0 ? '#1e40af' : '#64748b',
+                                                        color: '#fff', borderRadius: 10,
+                                                        padding: '1px 6px', fontSize: 9, fontWeight: 800,
+                                                        minWidth: 16, textAlign: 'center',
+                                                    }}>{transferArea.length}</span>
+                                                    {compatCount > 0 && (
+                                                        <span style={{ fontSize: 8, color: '#16a34a', fontWeight: 700 }}>
+                                                            {compatCount}✓
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            ) : (
+                                                <>
+                                                    <div style={{
+                                                        padding: '8px 10px', borderBottom: '1px solid var(--border)',
+                                                        background: '#1e293b', color: '#fff',
+                                                        display: 'flex', alignItems: 'center', gap: 6,
+                                                    }}>
+                                                        <ArrowLeftRight size={12} />
+                                                        <span style={{ fontSize: 10, fontWeight: 700, flex: 1 }}>
+                                                            Transferência
+                                                        </span>
+                                                        <button onClick={() => setTransferOpen(false)}
+                                                            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2, display: 'flex' }}
+                                                            title="Minimizar">
+                                                            <X size={13} />
+                                                        </button>
+                                                    </div>
+
+                                                    <div style={{
+                                                        padding: '4px 10px', fontSize: 9, color: 'var(--text-muted)',
+                                                        background: 'var(--bg-muted)', borderBottom: '1px solid var(--border)',
+                                                    }}>
+                                                        {compatCount > 0 ? (
+                                                            <span><b style={{ color: '#16a34a' }}>{compatCount}</b> compatíve{compatCount === 1 ? 'l' : 'is'} c/ esta chapa</span>
+                                                        ) : (
+                                                            <span style={{ color: '#dc2626' }}>Nenhuma compatível c/ esta chapa</span>
+                                                        )}
+                                                        {incompatCount > 0 && (
+                                                            <span style={{ marginLeft: 4, color: '#94a3b8' }}>
+                                                                · {incompatCount} outra{incompatCount > 1 ? 's' : ''}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <div style={{ flex: 1, overflow: 'auto', padding: 6 }}>
+                                                        {compatItems.filter(c => c._compatible).map(tp => {
+                                                            const piece = pecasMap[tp.pecaId];
+                                                            return (
+                                                                <div key={tp._idx} style={{
+                                                                    padding: 6, marginBottom: 4, background: '#f0f9ff',
+                                                                    border: '1px solid #bae6fd', borderRadius: 4, fontSize: 10,
+                                                                }}>
+                                                                    <div style={{ fontWeight: 700, fontSize: 10, color: '#0c4a6e', marginBottom: 1 }}>
+                                                                        {piece?.descricao?.substring(0, 22) || `#${tp.pecaId}`}
+                                                                    </div>
+                                                                    <div style={{ color: '#64748b', fontSize: 9, marginBottom: 4 }}>
+                                                                        {Math.round(tp.w)}×{Math.round(tp.h)}mm
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => handleAdjust({ action: 'from_transfer', transferIdx: tp._idx, targetChapaIdx: selectedChapa })}
+                                                                        style={{
+                                                                            padding: '3px 10px', fontSize: 9, fontWeight: 700, borderRadius: 4,
+                                                                            background: '#1e40af', color: '#fff',
+                                                                            border: 'none', cursor: 'pointer', width: '100%',
+                                                                        }}>
+                                                                        ↓ Colocar nesta chapa
+                                                                    </button>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        {compatItems.filter(c => !c._compatible).length > 0 && (
+                                                            <div style={{ fontSize: 9, color: '#94a3b8', padding: '6px 2px 3px', fontWeight: 600, borderTop: '1px solid var(--border)', marginTop: 4 }}>
+                                                                Incompatíveis (cor/espessura)
+                                                            </div>
+                                                        )}
+                                                        {compatItems.filter(c => !c._compatible).map(tp => {
+                                                            const piece = pecasMap[tp.pecaId];
+                                                            return (
+                                                                <div key={tp._idx} style={{
+                                                                    padding: 5, marginBottom: 3, background: 'var(--bg-muted)',
+                                                                    border: '1px solid var(--border)', borderRadius: 4, fontSize: 10,
+                                                                    opacity: 0.5,
+                                                                }}>
+                                                                    <div style={{ fontWeight: 600, fontSize: 9, color: 'var(--text-muted)' }}>
+                                                                        {piece?.descricao?.substring(0, 22) || `#${tp.pecaId}`}
+                                                                    </div>
+                                                                    <div style={{ color: '#94a3b8', fontSize: 8 }}>
+                                                                        {Math.round(tp.w)}×{Math.round(tp.h)}mm · {tp.fromMaterial || '?'} · {tp.espessura || '?'}mm
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                                 </div>
                             </div>
                         </>
@@ -1621,7 +3339,380 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes }) {
                     data={gcodePreview}
                     onDownload={handleDownloadGcode}
                     onClose={() => setGcodePreview(null)}
+                    onSimulate={(gcodeText, chapaData) => {
+                        const moves = parseGcodeToMoves(gcodeText);
+                        setToolpathMoves(moves);
+                        setToolpathChapa(chapaData);
+                        setToolpathOpen(true);
+                        setGcodePreview(null);
+                    }}
                 />
+            )}
+
+            {/* Transferência movida para inline à direita da chapa */}
+
+            {/* ═══ Modal Custos (Feature 1) ═══ */}
+            {showCustos && custosData && (
+                <Modal title="Custos Detalhados" close={() => setShowCustos(false)} w={800}>
+                    {/* Summary cards */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 16 }}>
+                        <div style={{ padding: '10px 14px', background: 'var(--bg-muted)', borderRadius: 8, textAlign: 'center' }}>
+                            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>R$ {custosData.total_geral?.toFixed(2)}</div>
+                            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Custo Total</div>
+                        </div>
+                        <div style={{ padding: '10px 14px', background: 'var(--bg-muted)', borderRadius: 8, textAlign: 'center' }}>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: '#22c55e', fontFamily: 'monospace' }}>
+                                R$ {custosData.chapas?.length > 0 ? (custosData.chapas.reduce((s, c) => s + c.custo_material, 0)).toFixed(2) : '0.00'}
+                            </div>
+                            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Material</div>
+                        </div>
+                        <div style={{ padding: '10px 14px', background: 'var(--bg-muted)', borderRadius: 8, textAlign: 'center' }}>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: '#3b82f6', fontFamily: 'monospace' }}>
+                                R$ {custosData.chapas?.length > 0 ? (custosData.chapas.reduce((s, c) => s + c.custo_usinagem, 0)).toFixed(2) : '0.00'}
+                            </div>
+                            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Usinagem</div>
+                        </div>
+                        <div style={{ padding: '10px 14px', background: 'var(--bg-muted)', borderRadius: 8, textAlign: 'center' }}>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: '#f59e0b', fontFamily: 'monospace' }}>
+                                R$ {custosData.chapas?.length > 0 ? (custosData.chapas.reduce((s, c) => s + c.custo_bordas, 0)).toFixed(2) : '0.00'}
+                            </div>
+                            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Bordas</div>
+                        </div>
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 8 }}>
+                        Config: R$ {custosData.config?.custo_hora_maquina}/h maquina, R$ {custosData.config?.custo_troca_ferramenta}/troca
+                    </div>
+
+                    {/* Per-sheet breakdown */}
+                    <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                        {custosData.chapas?.map((ch, ci) => (
+                            <div key={ci} style={{ marginBottom: 8, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                                <div
+                                    onClick={() => setCustosExpanded(prev => ({ ...prev, [ci]: !prev[ci] }))}
+                                    style={{
+                                        padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                        background: 'var(--bg-muted)', borderBottom: custosExpanded[ci] ? '1px solid var(--border)' : 'none',
+                                    }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <Box size={13} style={{ color: 'var(--primary)' }} />
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>Chapa {ch.chapaIdx + 1} — {ch.material}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                            Mat: R${ch.custo_material.toFixed(2)} | Usin: R${ch.custo_usinagem.toFixed(2)} | Borda: R${ch.custo_bordas.toFixed(2)} | Desp: R${ch.custo_desperdicio.toFixed(2)}
+                                        </span>
+                                        <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>R$ {ch.custo_total.toFixed(2)}</span>
+                                        {custosExpanded[ci] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                                    </div>
+                                </div>
+                                {custosExpanded[ci] && (
+                                    <div style={{ padding: '8px 14px' }}>
+                                        <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                                    <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>#</th>
+                                                    <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Descricao</th>
+                                                    <th style={{ textAlign: 'right', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Material</th>
+                                                    <th style={{ textAlign: 'right', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Usinagem</th>
+                                                    <th style={{ textAlign: 'right', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Bordas</th>
+                                                    <th style={{ textAlign: 'right', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Total</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {ch.pecas.map((p, pi) => (
+                                                    <tr key={pi} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                        <td style={{ padding: '4px 6px', color: 'var(--text-muted)' }}>{p.pecaIdx + 1}</td>
+                                                        <td style={{ padding: '4px 6px', fontWeight: 600 }}>{p.desc}</td>
+                                                        <td style={{ padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>R$ {p.custo_material.toFixed(2)}</td>
+                                                        <td style={{ padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>R$ {p.custo_usinagem.toFixed(2)}</td>
+                                                        <td style={{ padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>R$ {p.custo_bordas.toFixed(2)}</td>
+                                                        <td style={{ padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: 'var(--primary)' }}>R$ {p.custo_total.toFixed(2)}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </Modal>
+            )}
+
+            {/* ═══ Modal Historico / Diff (Feature 4) ═══ */}
+            {showVersions && (
+                <Modal title="Historico de Versoes" close={() => { setShowVersions(false); setDiffResult(null); setDiffV1(null); setDiffV2(null); }} w={700}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                        Selecione duas versoes para comparar
+                    </div>
+                    <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: 200 }}>
+                            <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Versao A (anterior)</label>
+                            <select value={diffV1 || ''} onChange={e => setDiffV1(e.target.value || null)} className={Z.inp} style={{ width: '100%', fontSize: 12, marginTop: 4 }}>
+                                <option value="">Selecionar...</option>
+                                {versions.map(v => (
+                                    <option key={v.id} value={v.id}>#{v.id} — {v.acao_origem} — {new Date(v.criado_em).toLocaleString('pt-BR')}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 200 }}>
+                            <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Versao B (posterior)</label>
+                            <select value={diffV2 || ''} onChange={e => setDiffV2(e.target.value || null)} className={Z.inp} style={{ width: '100%', fontSize: 12, marginTop: 4 }}>
+                                <option value="">Selecionar...</option>
+                                {versions.map(v => (
+                                    <option key={v.id} value={v.id}>#{v.id} — {v.acao_origem} — {new Date(v.criado_em).toLocaleString('pt-BR')}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                            <button onClick={loadDiff} disabled={!diffV1 || !diffV2 || diffLoading} className={Z.btn}
+                                style={{ padding: '8px 20px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <GitCompare size={13} /> {diffLoading ? 'Comparando...' : 'Comparar'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {diffResult && (
+                        <>
+                            {/* Summary */}
+                            <div style={{ padding: '10px 14px', background: 'var(--bg-muted)', borderRadius: 8, marginBottom: 12, fontSize: 12 }}>
+                                <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+                                    Resumo: {diffResult.changes?.length || 0} alteracao(es)
+                                </div>
+                                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11 }}>
+                                    {diffResult.summary?.movido > 0 && <span style={{ color: '#3b82f6' }}>{diffResult.summary.movido} movida(s)</span>}
+                                    {diffResult.summary?.rotacionado > 0 && <span style={{ color: '#8b5cf6' }}>{diffResult.summary.rotacionado} rotacionada(s)</span>}
+                                    {diffResult.summary?.transferido > 0 && <span style={{ color: '#f59e0b' }}>{diffResult.summary.transferido} transferida(s)</span>}
+                                    {diffResult.summary?.adicionado > 0 && <span style={{ color: '#22c55e' }}>{diffResult.summary.adicionado} adicionada(s)</span>}
+                                    {diffResult.summary?.removido > 0 && <span style={{ color: '#ef4444' }}>{diffResult.summary.removido} removida(s)</span>}
+                                </div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                                    Chapas: {diffResult.chapas_v1} → {diffResult.chapas_v2}
+                                </div>
+                            </div>
+
+                            {/* Changes table */}
+                            {diffResult.changes?.length > 0 && (
+                                <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                                    <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                                <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Tipo</th>
+                                                <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Peca</th>
+                                                <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Chapa</th>
+                                                <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Detalhes</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {diffResult.changes.map((c, i) => {
+                                                const typeColors = { movido: '#3b82f6', rotacionado: '#8b5cf6', transferido: '#f59e0b', adicionado: '#22c55e', removido: '#ef4444' };
+                                                return (
+                                                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                        <td style={{ padding: '4px 6px' }}>
+                                                            <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: `${typeColors[c.tipo] || '#6b7280'}15`, color: typeColors[c.tipo] || '#6b7280' }}>
+                                                                {c.tipo}
+                                                            </span>
+                                                        </td>
+                                                        <td style={{ padding: '4px 6px', fontWeight: 600 }}>{c.pecaDesc}</td>
+                                                        <td style={{ padding: '4px 6px', color: 'var(--text-muted)' }}>
+                                                            {c.tipo === 'transferido' ? `Ch${c.de?.chapaIdx + 1} → Ch${c.para?.chapaIdx + 1}` : `Ch${c.chapaIdx + 1}`}
+                                                        </td>
+                                                        <td style={{ padding: '4px 6px', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: 10 }}>
+                                                            {c.de && c.para && c.tipo !== 'transferido' && `(${c.de.x},${c.de.y}) → (${c.para.x},${c.para.y})`}
+                                                            {c.tipo === 'transferido' && c.de && c.para && `(${c.de.x},${c.de.y}) → (${c.para.x},${c.para.y})`}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {/* Versions list */}
+                    {!diffResult && (
+                        <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                            <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                        <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>#</th>
+                                        <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Acao</th>
+                                        <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Data</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {versions.map(v => (
+                                        <tr key={v.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                            <td style={{ padding: '4px 6px', fontWeight: 600 }}>{v.id}</td>
+                                            <td style={{ padding: '4px 6px' }}>{v.acao_origem}</td>
+                                            <td style={{ padding: '4px 6px', color: 'var(--text-muted)' }}>{new Date(v.criado_em).toLocaleString('pt-BR')}</td>
+                                        </tr>
+                                    ))}
+                                    {versions.length === 0 && (
+                                        <tr><td colSpan={3} style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)' }}>Nenhuma versao salva ainda</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </Modal>
+            )}
+
+            {/* ═══ Toolpath Simulator (Feature 3) ═══ */}
+            <ToolpathSimulator
+                chapData={toolpathChapa}
+                operations={toolpathMoves}
+                isOpen={toolpathOpen}
+                onClose={() => { setToolpathOpen(false); setToolpathMoves([]); setToolpathChapa(null); }}
+            />
+
+            {/* ══ Modal 3D flutuante ══ */}
+            {view3dPeca && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 9999,
+                    background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }} onClick={() => setView3dPeca(null)}>
+                    <div style={{
+                        background: 'var(--bg-card)', borderRadius: 14, border: '1px solid var(--border)',
+                        boxShadow: 'var(--shadow-xl)', maxWidth: 700, width: '90vw', overflow: 'hidden',
+                    }} onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
+                            <div>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{view3dPeca.descricao}</div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                                    {view3dPeca.comprimento} × {view3dPeca.largura} × {view3dPeca.espessura} mm · {view3dPeca.material_code}
+                                </div>
+                            </div>
+                            <button onClick={() => setView3dPeca(null)} style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', display: 'flex' }}>
+                                <X size={16} style={{ color: 'var(--text-muted)' }} />
+                            </button>
+                        </div>
+                        {/* 3D Viewer */}
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: 16, background: '#1a1a2e' }}>
+                            <PecaViewer3D peca={view3dPeca} width={Math.min(640, window.innerWidth - 80)} height={400} />
+                        </div>
+                        {/* Info bar */}
+                        <div style={{ display: 'flex', gap: 12, padding: '12px 20px', borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                            {view3dPeca.borda_frontal && (
+                                <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
+                                    Frontal: {view3dPeca.borda_cor_frontal || view3dPeca.borda_frontal}
+                                </span>
+                            )}
+                            {view3dPeca.borda_traseira && (
+                                <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
+                                    Traseira: {view3dPeca.borda_cor_traseira || view3dPeca.borda_traseira}
+                                </span>
+                            )}
+                            {view3dPeca.borda_esq && (
+                                <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
+                                    Esquerda: {view3dPeca.borda_cor_esq || view3dPeca.borda_esq}
+                                </span>
+                            )}
+                            {view3dPeca.borda_dir && (
+                                <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
+                                    Direita: {view3dPeca.borda_cor_dir || view3dPeca.borda_dir}
+                                </span>
+                            )}
+                            {(() => {
+                                const ops = (() => { try { const d = typeof view3dPeca.machining_json === 'string' ? JSON.parse(view3dPeca.machining_json) : view3dPeca.machining_json; return d?.workers || []; } catch { return []; } })();
+                                return ops.length > 0 && (
+                                    <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: '#e11d4815', color: '#e11d48', fontWeight: 600 }}>
+                                        {ops.length} usinagem{ops.length > 1 ? 'ns' : ''}
+                                    </span>
+                                );
+                            })()}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ══ Print label modal ══ */}
+            {printLabelPeca && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 9999,
+                    background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }} onClick={() => setPrintLabelPeca(null)}>
+                    <div style={{
+                        background: 'var(--bg-card)', borderRadius: 14, border: '1px solid var(--border)',
+                        boxShadow: 'var(--shadow-xl)', maxWidth: 500, width: '90vw', padding: 24,
+                    }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <Printer size={18} /> Imprimir Etiqueta
+                            </h3>
+                            <button onClick={() => setPrintLabelPeca(null)} style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', display: 'flex' }}>
+                                <X size={16} style={{ color: 'var(--text-muted)' }} />
+                            </button>
+                        </div>
+                        {/* Piece info */}
+                        <div className="glass-card" style={{ padding: 14, marginBottom: 16 }}>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{printLabelPeca.descricao}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                                {printLabelPeca.comprimento} × {printLabelPeca.largura} × {printLabelPeca.espessura} mm · {printLabelPeca.material_code}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                                Módulo: {printLabelPeca.modulo_desc} · Qtd: {printLabelPeca.quantidade}
+                            </div>
+                        </div>
+                        {/* Print action */}
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button onClick={() => {
+                                // Navigate to etiquetas tab with this piece pre-selected for printing
+                                setPrintLabelPeca(null);
+                                if (setTab) setTab('etiquetas');
+                            }} style={{
+                                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                padding: '12px 20px', borderRadius: 8,
+                                background: 'var(--primary)', color: '#fff',
+                                border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                            }}>
+                                <TagIcon size={15} /> Abrir Etiquetas
+                            </button>
+                            <button onClick={() => {
+                                // Quick print — open print dialog with piece label
+                                const win = window.open('', '_blank', 'width=400,height=300');
+                                if (win) {
+                                    const p = printLabelPeca;
+                                    const bordas = ['frontal','traseira','esq','dir'].map(s => {
+                                        const v = p[`borda_${s}`];
+                                        const c = p[`borda_cor_${s}`];
+                                        return v ? `${s}: ${c || v}` : null;
+                                    }).filter(Boolean).join(' | ');
+                                    win.document.write(`<html><head><style>
+                                        body { font-family: Arial, sans-serif; padding: 10px; margin: 0; }
+                                        .label { border: 1px solid #000; padding: 8px; width: 95mm; }
+                                        .name { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+                                        .dims { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+                                        .info { font-size: 10px; color: #555; margin-bottom: 2px; }
+                                        @media print { body { padding: 0; } }
+                                    </style></head><body onload="window.print();window.close()">
+                                        <div class="label">
+                                            <div class="name">${p.descricao}</div>
+                                            <div class="dims">${p.comprimento} × ${p.largura} × ${p.espessura} mm</div>
+                                            <div class="info">${p.material || ''} · ${p.modulo_desc || ''}</div>
+                                            <div class="info">Qtd: ${p.quantidade} · ${p.persistent_id || p.upmcode || ''}</div>
+                                            ${bordas ? `<div class="info">Fitas: ${bordas}</div>` : ''}
+                                        </div>
+                                    </body></html>`);
+                                    win.document.close();
+                                }
+                                setPrintLabelPeca(null);
+                            }} style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                padding: '12px 20px', borderRadius: 8,
+                                background: 'var(--bg-muted)', color: 'var(--text-primary)',
+                                border: '1px solid var(--border)', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                            }}>
+                                <Printer size={15} /> Imprimir Rápido
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
@@ -2008,7 +4099,7 @@ function GcodeSimCanvas({ gcode, chapa }) {
     );
 }
 
-function GcodePreviewModal({ data, onDownload, onClose }) {
+function GcodePreviewModal({ data, onDownload, onClose, onSimulate }) {
     const { gcode, filename, stats, alertas, chapaIdx, contorno_tool } = data;
     const lines = (gcode || '').split('\n');
     const lineCount = lines.length;
@@ -2030,12 +4121,14 @@ function GcodePreviewModal({ data, onDownload, onClose }) {
     return (
         <Modal title={`Preview G-Code — Chapa ${chapaIdx + 1}`} close={onClose} w={820}>
             {/* Stats cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 6, marginBottom: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 6, marginBottom: 10 }}>
                 {[
+                    { lb: 'Tempo Est.', val: stats.tempo_estimado_min ? `${stats.tempo_estimado_min} min` : '—', color: '#e67e22' },
                     { lb: 'Operacoes', val: stats.total_operacoes ?? 0, color: '#3b82f6' },
                     { lb: 'Trocas Ferr.', val: stats.trocas_ferramenta ?? 0, color: stats.trocas_ferramenta > 3 ? '#f59e0b' : '#22c55e' },
                     { lb: 'Contornos', val: (stats.contornos_peca ?? 0) + (stats.contornos_sobra ?? 0), color: '#8b5cf6' },
-                    { lb: 'Onion Skin', val: stats.onion_skin_ops ?? 0, color: '#e67e22' },
+                    { lb: 'Dist. Corte', val: stats.dist_corte_m ? `${stats.dist_corte_m}m` : '—', color: '#a6e3a1' },
+                    { lb: 'Dist. Rapido', val: stats.dist_rapido_m ? `${stats.dist_rapido_m}m` : '—', color: '#f38ba8' },
                     { lb: 'Linhas', val: lineCount, color: 'var(--text-muted)' },
                     { lb: 'Tamanho', val: `${sizeKB.toFixed(1)} KB`, color: 'var(--text-muted)' },
                 ].map(s => (
@@ -2054,12 +4147,22 @@ function GcodePreviewModal({ data, onDownload, onClose }) {
             )}
 
             {alertas.length > 0 && (
-                <div style={{ marginBottom: 6 }}>
-                    {alertas.map((a, i) => (
-                        <div key={i} style={{ fontSize: 11, padding: '4px 10px', background: '#fefce8', borderRadius: 6, marginBottom: 2, border: '1px solid #fef08a', display: 'flex', alignItems: 'center', gap: 6, color: '#854d0e' }}>
-                            <AlertTriangle size={12} /> {a.msg || a}
-                        </div>
-                    ))}
+                <div style={{ marginBottom: 6, maxHeight: 180, overflowY: 'auto' }}>
+                    {alertas.map((a, i) => {
+                        const isCrit = (a.tipo || '').includes('erro') || (a.tipo || '').includes('critico');
+                        return (
+                            <div key={i} style={{
+                                fontSize: 11, padding: '4px 10px', borderRadius: 6, marginBottom: 2,
+                                background: isCrit ? '#fef2f2' : '#fefce8',
+                                border: `1px solid ${isCrit ? '#fecaca' : '#fef08a'}`,
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                color: isCrit ? '#991b1b' : '#854d0e',
+                                fontWeight: isCrit ? 600 : 400,
+                            }}>
+                                <AlertTriangle size={12} /> {a.msg || a}
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 
@@ -2125,93 +4228,188 @@ function GcodePreviewModal({ data, onDownload, onClose }) {
             {/* Actions */}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
                 <button onClick={onClose} className={Z.btn2} style={{ padding: '8px 20px' }}>Fechar</button>
-                <button onClick={onDownload} className={Z.btn} style={{ padding: '8px 24px', display: 'flex', alignItems: 'center', gap: 6, background: '#e67e22', fontSize: 13, fontWeight: 700 }}>
-                    <Download size={15} /> Baixar {filename}
-                </button>
+                {gcode && onSimulate && (
+                    <button onClick={() => onSimulate(gcode, chapaData)} className={Z.btn2}
+                        style={{ padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                        <Play size={14} /> Simular Percurso
+                    </button>
+                )}
+                {gcode && (
+                    <button onClick={onDownload} className={Z.btn} style={{ padding: '8px 24px', display: 'flex', alignItems: 'center', gap: 6, background: '#e67e22', fontSize: 13, fontWeight: 700 }}>
+                        <Download size={15} /> Baixar {filename}
+                    </button>
+                )}
+                {!gcode && data.ferramentas_faltando?.length > 0 && (
+                    <div style={{ padding: '8px 16px', background: '#fef2f2', borderRadius: 8, border: '1px solid #fecaca', fontSize: 12, color: '#991b1b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <AlertTriangle size={14} /> Adicione as ferramentas faltantes para gerar o G-Code
+                    </div>
+                )}
             </div>
         </Modal>
     );
 }
 
 // ─── Render machining operations (usinagens) on piece SVG ──
+// Usa exatamente a mesma lógica do gerador de G-code para transformar coordenadas.
+// machining_json coords: x = eixo comprimento original, y = eixo largura original
+// No plano: se NÃO rotated → p.w=comprimento, p.h=largura
+//           se rotated     → p.w=largura,      p.h=comprimento
+// Rotação (igual ao backend): transformRotated(wx,wy,compOrig) → {x: wy, y: compOrig - wx}
 let _machClipId = 0;
-function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, pieceH) {
-    if (!piece?.machining_json || piece.machining_json === '{}') return null;
+function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, pieceH, ladoAtivo) {
+    const isSideB = ladoAtivo === 'B';
+    // If side B has dedicated machining data, use it; otherwise use normal machining_json
+    let machSource = piece?.machining_json;
+    if (isSideB && piece?.machining_json_b) machSource = piece.machining_json_b;
+    if (!machSource || machSource === '{}') return null;
     let mach;
-    try { mach = JSON.parse(piece.machining_json); } catch { return null; }
+    try { mach = typeof machSource === 'string' ? JSON.parse(machSource) : machSource; } catch { return null; }
     if (!mach.workers) return null;
 
     const elements = [];
-    const scX = pw / pieceW; // scale from piece mm to SVG px
-    const scY = ph / pieceH;
     const clipId = `mach-clip-${piece.id || (++_machClipId)}`;
 
-    // Clamp helper: keep coordinates within piece boundaries (0..pieceW, 0..pieceH)
-    const clampX = (v) => Math.max(0, Math.min(v, pw));
-    const clampY = (v) => Math.max(0, Math.min(v, ph));
+    // Dimensões originais da peça do DB
+    const compOrig = Number(piece.comprimento || pieceW);
+    const largOrig = Number(piece.largura || pieceH);
 
-    for (const [k, w] of Object.entries(mach.workers)) {
-        if (w.position_x == null && !w.pos_start_for_line) continue;
+    // Detectar rotação REAL comparando dimensões do plano com originais do DB
+    // Não confiar apenas no flag rotated — pode estar incorreto (bug do otimizador)
+    const wMatchesComp = Math.abs(pieceW - compOrig) <= 1;
+    const wMatchesLarg = Math.abs(pieceW - largOrig) <= 1;
+    const isRotated = (wMatchesLarg && !wMatchesComp) ? true : (wMatchesComp && !wMatchesLarg) ? false : rotated;
 
-        // Transform coordinates based on rotation
-        let wx, wy;
-        if (w.position_x != null) {
-            if (rotated) {
-                wx = clampX(w.position_y * scX);
-                wy = clampY((pieceW - w.position_x) * scY);
-            } else {
-                wx = clampX(w.position_x * scX);
-                wy = clampY(w.position_y * scY);
-            }
+    // Transforma coordenadas do machining (relativas à peça original: x=comprimento, y=largura)
+    // para posição SVG na peça colocada (pieceW × pieceH px)
+    // Idêntico ao backend: transformRotated(wx,wy,compOrig) → {x: wy, y: compOrig - wx}
+    function toSvg(mx, my) {
+        // Mirror X for Side B (flip piece)
+        let effX = isSideB ? compOrig - mx : mx;
+        let lx, ly;
+        if (isRotated) {
+            lx = my;
+            ly = compOrig - effX;
+        } else {
+            lx = effX;
+            ly = my;
+        }
+        const sx = (lx / pieceW) * pw;
+        const sy = (ly / pieceH) * ph;
+        return { sx: Math.max(0, Math.min(sx, pw)), sy: Math.max(0, Math.min(sy, ph)) };
+    }
+
+    // Collect all workers (workers + side_a + side_b)
+    const allWorkers = [];
+    if (mach.workers) {
+        const wArr = Array.isArray(mach.workers) ? mach.workers : Object.entries(mach.workers);
+        for (const entry of wArr) {
+            const [k, w] = Array.isArray(entry) ? entry : [allWorkers.length, entry];
+            if (w && typeof w === 'object') allWorkers.push([k, w]);
+        }
+    }
+
+    for (const [k, w] of allWorkers) {
+        const face = w.quadrant || w.face || 'top';
+        const cat = (w.category || w.type || '').toLowerCase();
+
+        // ── Extrair coordenadas locais (mesma lógica do backend) ──
+        let mx, my, mx2, my2;
+        if (w.pos_start_for_line) {
+            mx = Number(w.pos_start_for_line.position_x ?? w.pos_start_for_line.x ?? 0);
+            my = Number(w.pos_start_for_line.position_y ?? w.pos_start_for_line.y ?? 0);
+            mx2 = Number(w.pos_end_for_line?.position_x ?? w.pos_end_for_line?.x ?? mx);
+            my2 = Number(w.pos_end_for_line?.position_y ?? w.pos_end_for_line?.y ?? my);
+        } else {
+            mx = Number(w.x ?? w.position_x ?? 0);
+            my = Number(w.y ?? w.position_y ?? 0);
+            mx2 = w.x2 != null ? Number(w.x2) : undefined;
+            my2 = w.y2 != null ? Number(w.y2) : undefined;
         }
 
-        if (w.category === 'Transfer_vertical_saw_cut' || w.tool === 'r_f') {
-            // Groove/Rasgo — render as thin rectangle (clamped to piece bounds)
-            if (w.pos_start_for_line && w.pos_end_for_line) {
-                let sx, sy, ex, ey, gw;
-                if (rotated) {
-                    sx = clampX(w.pos_start_for_line.position_y * scX);
-                    sy = clampY((pieceW - w.pos_start_for_line.position_x) * scY);
-                    ex = clampX(w.pos_end_for_line.position_y * scX);
-                    ey = clampY((pieceW - w.pos_end_for_line.position_x) * scY);
-                    gw = (w.width_line || w.width || 3) * scY;
-                } else {
-                    sx = clampX(w.pos_start_for_line.position_x * scX);
-                    sy = clampY(w.pos_start_for_line.position_y * scY);
-                    ex = clampX(w.pos_end_for_line.position_x * scX);
-                    ey = clampY(w.pos_end_for_line.position_y * scY);
-                    gw = (w.width_line || w.width || 3) * scY;
-                }
-                elements.push(
-                    <line key={`g${k}`} x1={px + sx} y1={py + sy} x2={px + ex} y2={py + ey}
-                        stroke="#e11d48" strokeWidth={Math.max(1, gw)} opacity={0.45} strokeLinecap="butt" />
-                );
-            }
-        } else if (w.diameter) {
-            // Hole/Furo — render as circle
-            const r = Math.max(1.5, (w.diameter / 2) * Math.min(scX, scY));
-            const isTopFace = w.quadrant === 'top' || w.quadrant === 'bottom';
-            const isSide = w.quadrant === 'right' || w.quadrant === 'left';
+        let p1 = toSvg(mx, my);
 
-            if (isTopFace) {
+        // ── Rasgos / Canais (saw cut, grooves) ──
+        if (cat.includes('saw_cut') || w.tool === 'r_f') {
+            const grooveW = (w.width_line || w.width || 3) * (pw / pieceW);
+            let p2;
+            if (w.pos_start_for_line && w.pos_end_for_line) {
+                // Formato com start/end explícitos
+                p2 = toSvg(mx2, my2);
+            } else if (w.length) {
+                // Formato simples: x/y + length (rasgo corre ao longo do eixo X = comprimento)
+                // Detectar se x é centro (x+length > comprimento) ou início
+                const grooveLen = Number(w.length);
+                let startX, endX;
+                if (mx + grooveLen > compOrig + 1) {
+                    // x é CENTRO do rasgo
+                    startX = mx - grooveLen / 2;
+                    endX = mx + grooveLen / 2;
+                } else {
+                    // x é INÍCIO do rasgo
+                    startX = mx;
+                    endX = mx + grooveLen;
+                }
+                p1 = toSvg(startX, my);
+                p2 = toSvg(endX, my);
+            } else {
+                continue; // sem dados suficientes
+            }
+            elements.push(
+                <line key={`g${k}`} x1={px + p1.sx} y1={py + p1.sy} x2={px + p2.sx} y2={py + p2.sy}
+                    stroke="#eab308" strokeWidth={Math.max(1.5, grooveW)} opacity={0.6} strokeLinecap="round" />
+            );
+
+        // ── Rebaixos / Pockets ──
+        } else if (cat.includes('pocket') || cat.includes('rebaixo')) {
+            const rw = (w.pocket_width || w.width || 20) * (pw / pieceW);
+            const rh = (w.pocket_height || w.height || 20) * (ph / pieceH);
+            elements.push(
+                <rect key={`p${k}`} x={px + p1.sx - rw / 2} y={py + p1.sy - rh / 2} width={rw} height={rh}
+                    fill="#a855f7" opacity={0.3} stroke="#7c3aed" strokeWidth={0.8} strokeDasharray="2,1" rx={1} />
+            );
+
+        // ── Slots / Fresagens ──
+        } else if (cat.includes('slot') || cat.includes('fresa')) {
+            const slotLen = (w.slot_length || w.length || 20) * (pw / pieceW);
+            const slotW = (w.slot_width || w.width || w.diameter || 6) * (ph / pieceH);
+            elements.push(
+                <rect key={`s${k}`} x={px + p1.sx} y={py + p1.sy - slotW / 2} width={slotLen} height={slotW}
+                    fill="#06b6d4" opacity={0.35} stroke="#0891b2" strokeWidth={0.6} rx={slotW / 2} />
+            );
+
+        // ── Furos (holes, boreholes) ──
+        } else if (w.diameter) {
+            const r = Math.max(1.5, (w.diameter / 2) * Math.min(pw / pieceW, ph / pieceH));
+            const isTopFace = face === 'top' || face === 'bottom';
+            const isSide = face === 'right' || face === 'left';
+            const isBlind = cat.includes('blind');
+
+            if (isTopFace || (!isSide)) {
+                const fillColor = face === 'bottom' ? '#7c3aed' : '#e11d48';
+                const strokeColor = face === 'bottom' ? '#6d28d9' : '#be123c';
                 elements.push(
-                    <circle key={`h${k}`} cx={px + wx} cy={py + wy} r={r}
-                        fill={w.quadrant === 'top' ? '#e11d48' : '#7c3aed'} opacity={0.55}
-                        stroke={w.quadrant === 'top' ? '#be123c' : '#6d28d9'} strokeWidth={0.5} />
+                    <circle key={`h${k}`} cx={px + p1.sx} cy={py + p1.sy} r={r}
+                        fill={fillColor} opacity={0.55}
+                        stroke={strokeColor} strokeWidth={0.5} />
                 );
+                if (isBlind) {
+                    elements.push(
+                        <circle key={`hb${k}`} cx={px + p1.sx} cy={py + p1.sy} r={Math.max(1, r * 0.35)}
+                            fill="none" stroke={strokeColor} strokeWidth={0.6} opacity={0.7} />
+                    );
+                }
             } else if (isSide) {
-                // Furo lateral — small triangle on piece edge
                 const edgeSize = Math.max(2, r * 0.8);
-                if (w.quadrant === 'right') {
+                if (face === 'right') {
                     elements.push(
                         <polygon key={`h${k}`}
-                            points={`${px + pw},${py + wy - edgeSize} ${px + pw - edgeSize * 1.5},${py + wy} ${px + pw},${py + wy + edgeSize}`}
+                            points={`${px + pw},${py + p1.sy - edgeSize} ${px + pw - edgeSize * 1.5},${py + p1.sy} ${px + pw},${py + p1.sy + edgeSize}`}
                             fill="#2563eb" opacity={0.6} />
                     );
                 } else {
                     elements.push(
                         <polygon key={`h${k}`}
-                            points={`${px},${py + wy - edgeSize} ${px + edgeSize * 1.5},${py + wy} ${px},${py + wy + edgeSize}`}
+                            points={`${px},${py + p1.sy - edgeSize} ${px + edgeSize * 1.5},${py + p1.sy} ${px},${py + p1.sy + edgeSize}`}
                             fill="#2563eb" opacity={0.6} />
                     );
                 }
@@ -2235,7 +4433,7 @@ function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, pieceH) 
 }
 
 // ─── SVG visualization with collision detection, magnetic snap, kerf, lock, context menu ──
-function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, gcodeLoading }) {
+function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, espacoPecas = 7, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, gcodeLoading, onView3D, onPrintLabel, onPrintSingleLabel, onPrintFolha, onSaveRetalhos, setTab, sobraMinW = 300, sobraMinH = 600, validationConflicts = [] }) {
     const [hovered, setHovered] = useState(null);
     const [showCuts, setShowCuts] = useState(false);
     const [showMachining, setShowMachining] = useState(true);
@@ -2245,11 +4443,48 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
     const [ctxMenu, setCtxMenu] = useState(null);
     const [sobraCtxMenu, setSobraCtxMenu] = useState(null);
     const [sobraDrag, setSobraDrag] = useState(null);
+    // ─── Retalhos management mode ───
+    const [retMode, setRetMode] = useState(false);
+    const [retDefs, setRetDefs] = useState([]); // [{x,y,w,h,type:'retalho'|'refugo'|null}]
+    const [retSelected, setRetSelected] = useState(null); // index
+    const [retSplitPreview, setRetSplitPreview] = useState(null); // {retIdx, axis:'h'|'v', pos}
     const containerRef = useRef(null);
     const svgRef = useRef(null);
-    const maxW = 900;
+    const [containerW, setContainerW] = useState(0);
     const marginDim = 30;
-    const scale = Math.min((maxW - marginDim * 2) / chapa.comprimento, 450 / chapa.largura);
+
+    // Medir container real para adaptar o SVG
+    useEffect(() => {
+        if (!containerRef.current) return;
+        const measure = () => {
+            const w = containerRef.current?.clientWidth || 0;
+            if (w > 0) setContainerW(w);
+        };
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(containerRef.current);
+        return () => ro.disconnect();
+    }, []);
+
+    // Escala adaptada ao container — a chapa é o elemento principal, deve ocupar bem o espaço
+    const maxW = containerW > 100 ? containerW - 40 : 800;
+    const maxH = Math.min(window.innerHeight * 0.58, 720);
+    const scale = Math.min((maxW - marginDim * 2) / chapa.comprimento, (maxH - marginDim) / chapa.largura);
+
+    // Edge band color — based on color name (hash) or type fallback
+    const edgeColorGlobal = (val, corVal) => {
+        if (!val) return null;
+        if (corVal) {
+            let hash = 0;
+            for (let i = 0; i < corVal.length; i++) hash = corVal.charCodeAt(i) + ((hash << 5) - hash);
+            return `hsl(${Math.abs(hash) % 360}, 70%, 50%)`;
+        }
+        if (val.includes('2MM')) return '#e74c3c';
+        if (val.includes('1MM')) return '#3498db';
+        if (val.includes('0.4')) return '#2ecc71';
+        if (val.includes('MELAM')) return '#f39c12';
+        return '#9b59b6';
+    };
     const svgW = chapa.comprimento * scale;
     const svgH = chapa.largura * scale;
     const refilo = (chapa.refilo || 0) * scale;
@@ -2259,56 +4494,78 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
 
     // ─── Client-side AABB collision check (com kerf, igual ao backend) ───
     const isColliding = useCallback((tx, ty, tw, th, exIdx) => {
-        const k = chapa.kerf || 0; // Expansão por kerf (largura do disco)
+        const k = Math.max(chapa.kerf || kerfSize || 0, espacoPecas || 0); // Usar o MAIOR entre kerf e espaço entre peças
         for (let i = 0; i < chapa.pecas.length; i++) {
             if (i === exIdx) continue;
             const b = chapa.pecas[i];
-            // Expandir a peça testada por kerf em todos os lados (mesma lógica do backend checkCollision)
+            // Expandir a peça testada por espaçamento em todos os lados (mesma lógica do backend compactBin)
             if (tx - k < b.x + b.w && tx + tw + k > b.x && ty - k < b.y + b.h && ty + th + k > b.y) return true;
         }
         return false;
-    }, [chapa.pecas, chapa.kerf]);
+    }, [chapa.pecas, chapa.kerf, kerfSize, espacoPecas]);
 
-    // ─── Magnetic snap to adjacent edges ───
+    // ─── Magnetic snap to adjacent edges (durante arrasto) ───
     const magneticSnap = useCallback((tx, ty, tw, th, exIdx) => {
-        // Snap threshold adaptivo ao zoom: quanto mais zoom-out, mais tolerante (em mm)
-        const k = chapa.kerf || kerfSize || 0; // Usa kerf real da chapa (mesmo valor que isColliding/backend)
-        const S = Math.max(8, Math.min(25, 12 / (zoomLevel || 1)));
+        const k = Math.max(chapa.kerf || kerfSize || 0, espacoPecas || 0);
         const ref = chapa.refilo || 0;
         const uW = chapa.comprimento - 2 * ref, uH = chapa.largura - 2 * ref;
-        let sx = tx, sy = ty;
+        // Limites: área útil completa
+        const maxPosX = uW - tw, maxPosY = uH - th;
         const guides = [];
-        // Sheet edges
-        if (Math.abs(tx) < S) { sx = 0; guides.push({ t: 'v', p: 0 }); }
-        if (Math.abs(ty) < S) { sy = 0; guides.push({ t: 'h', p: 0 }); }
-        if (Math.abs(tx + tw - uW) < S) { sx = uW - tw; guides.push({ t: 'v', p: uW }); }
-        if (Math.abs(ty + th - uH) < S) { sy = uH - th; guides.push({ t: 'h', p: uH }); }
-        // Adjacent piece edges (with kerf gap)
+
+        // SEMPRE coletar todos os snaps — sem threshold de distância
+        const snapsX = [];
+        const snapsY = [];
+
+        // Paredes (sempre disponíveis)
+        snapsX.push({ pos: 0, guide: { t: 'v', p: 0 }, dist: Math.abs(tx) });
+        snapsX.push({ pos: maxPosX, guide: { t: 'v', p: uW }, dist: Math.abs(tx - maxPosX) });
+        snapsY.push({ pos: 0, guide: { t: 'h', p: 0 }, dist: Math.abs(ty) });
+        snapsY.push({ pos: maxPosY, guide: { t: 'h', p: uH }, dist: Math.abs(ty - maxPosY) });
+
+        // Bordas de TODAS as peças vizinhas (sem filtro de overlap — snap global)
         for (let i = 0; i < chapa.pecas.length; i++) {
             if (i === exIdx) continue;
             const o = chapa.pecas[i];
-            const overlapY = ty < o.y + o.h && ty + th > o.y;
-            const overlapX = tx < o.x + o.w && tx + tw > o.x;
-            if (overlapY && Math.abs(tx - (o.x + o.w + k)) < S) { sx = o.x + o.w + k; guides.push({ t: 'v', p: o.x + o.w }); }
-            if (overlapY && Math.abs(tx + tw + k - o.x) < S) { sx = o.x - tw - k; guides.push({ t: 'v', p: o.x }); }
-            if (overlapX && Math.abs(ty - (o.y + o.h + k)) < S) { sy = o.y + o.h + k; guides.push({ t: 'h', p: o.y + o.h }); }
-            if (overlapX && Math.abs(ty + th + k - o.y) < S) { sy = o.y - th - k; guides.push({ t: 'h', p: o.y }); }
-            // Align edges (same x or y start/end)
-            if (Math.abs(tx - o.x) < S && overlapY) { sx = o.x; guides.push({ t: 'v', p: o.x }); }
-            if (Math.abs(tx + tw - (o.x + o.w)) < S && overlapY) { sx = o.x + o.w - tw; guides.push({ t: 'v', p: o.x + o.w }); }
-            if (Math.abs(ty - o.y) < S && overlapX) { sy = o.y; guides.push({ t: 'h', p: o.y }); }
-            if (Math.abs(ty + th - (o.y + o.h)) < S && overlapX) { sy = o.y + o.h - th; guides.push({ t: 'h', p: o.y + o.h }); }
+            // Snap X: encostar com kerf, alinhar bordas
+            snapsX.push({ pos: o.x + o.w + k, guide: { t: 'v', p: o.x + o.w }, dist: Math.abs(tx - (o.x + o.w + k)) });
+            snapsX.push({ pos: o.x - tw - k, guide: { t: 'v', p: o.x }, dist: Math.abs(tx + tw + k - o.x) });
+            snapsX.push({ pos: o.x, guide: { t: 'v', p: o.x }, dist: Math.abs(tx - o.x) });
+            snapsX.push({ pos: o.x + o.w - tw, guide: { t: 'v', p: o.x + o.w }, dist: Math.abs(tx + tw - (o.x + o.w)) });
+            // Snap Y: encostar com kerf, alinhar bordas
+            snapsY.push({ pos: o.y + o.h + k, guide: { t: 'h', p: o.y + o.h }, dist: Math.abs(ty - (o.y + o.h + k)) });
+            snapsY.push({ pos: o.y - th - k, guide: { t: 'h', p: o.y }, dist: Math.abs(ty + th + k - o.y) });
+            snapsY.push({ pos: o.y, guide: { t: 'h', p: o.y }, dist: Math.abs(ty - o.y) });
+            snapsY.push({ pos: o.y + o.h - th, guide: { t: 'h', p: o.y + o.h }, dist: Math.abs(ty + th - (o.y + o.h)) });
         }
+
+        // Threshold: snap ATIVO quando dentro de S mm. FORA de S, usa posição arredondada para inteiro.
+        const S = Math.max(20, Math.min(50, 30 / (zoomLevel || 1)));
+
+        let sx = Math.round(tx), sy = Math.round(ty);
+        snapsX.sort((a, b) => a.dist - b.dist);
+        snapsY.sort((a, b) => a.dist - b.dist);
+        // Sempre snap ao mais próximo se dentro de S — senão arredonda para inteiro (nunca decimal)
+        if (snapsX.length > 0 && snapsX[0].dist < S) { sx = Math.round(snapsX[0].pos); guides.push(snapsX[0].guide); }
+        if (snapsY.length > 0 && snapsY[0].dist < S) { sy = Math.round(snapsY[0].pos); guides.push(snapsY[0].guide); }
+
         return { x: sx, y: sy, guides };
-    }, [chapa.pecas, chapa.refilo, chapa.comprimento, chapa.largura, chapa.kerf, kerfSize, zoomLevel]);
+    }, [chapa.pecas, chapa.refilo, chapa.comprimento, chapa.largura, chapa.kerf, kerfSize, espacoPecas, zoomLevel]);
 
     // ─── Pixel to MM ───
     const pixelToMM = (clientX, clientY) => {
         if (!svgRef.current) return { x: 0, y: 0 };
         const rect = svgRef.current.getBoundingClientRect();
-        const mmX = ((clientX - rect.left) / rect.width) * (chapa.comprimento + 2 * refiloVal + marginDim * 2 / scale) - marginDim / scale - refiloVal;
-        const mmY = ((clientY - rect.top) / rect.height) * (chapa.largura + refiloVal + 20 / scale + 14 / scale) - 14 / scale - refiloVal;
-        return { x: Math.max(0, mmX), y: Math.max(0, mmY) };
+        // viewBox: -marginDim, -14, svgW+marginDim*2+2, svgH+marginDim+20
+        const vbW = svgW + marginDim * 2 + 2;
+        const vbH = svgH + marginDim + 20;
+        // pixel → SVG coord
+        const svgX = -marginDim + ((clientX - rect.left) / rect.width) * vbW;
+        const svgY = -14 + ((clientY - rect.top) / rect.height) * vbH;
+        // SVG coord → usable mm (pieces render at (x + refilo) * scale)
+        const mmX = svgX / scale - refiloVal;
+        const mmY = svgY / scale - refiloVal;
+        return { x: mmX, y: mmY };
     };
 
     // ─── Drag handlers with collision + snap ───
@@ -2329,12 +4586,16 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
         const mm = pixelToMM(e.clientX, e.clientY);
         const p = chapa.pecas[dragging.pecaIdx];
         const ref = chapa.refilo || 0;
-        let rx = Math.max(0, Math.min(chapa.comprimento - 2 * ref - p.w, dragging.origX + (mm.x - dragging.startX)));
-        let ry = Math.max(0, Math.min(chapa.largura - 2 * ref - p.h, dragging.origY + (mm.y - dragging.startY)));
+        // Limites: área útil completa (0 a binW-pw). Colisão com kerf cuida do espaçamento.
+        const maxX = chapa.comprimento - 2 * ref - p.w;
+        const maxY = chapa.largura - 2 * ref - p.h;
+        let rx = Math.max(0, Math.min(maxX, dragging.origX + (mm.x - dragging.startX)));
+        let ry = Math.max(0, Math.min(maxY, dragging.origY + (mm.y - dragging.startY)));
         // Magnetic snap
         const snap = magneticSnap(rx, ry, p.w, p.h, dragging.pecaIdx);
-        rx = Math.max(0, Math.min(chapa.comprimento - 2 * ref - p.w, snap.x));
-        ry = Math.max(0, Math.min(chapa.largura - 2 * ref - p.h, snap.y));
+        // Round to integer mm and clamp STRICTLY within usable area
+        rx = Math.round(Math.max(0, Math.min(maxX, snap.x)));
+        ry = Math.round(Math.max(0, Math.min(maxY, snap.y)));
         setSnapGuides(snap.guides);
         // Collision check
         const collision = isColliding(rx, ry, p.w, p.h, dragging.pecaIdx);
@@ -2348,22 +4609,115 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
         setDragging(prev => ({ ...prev, newX: rx, newY: ry }));
     };
 
+    // ─── Force-snap: peça DEVE sempre encostar em parede ou outra peça ───
+    // Gera todas as posições válidas de encaixe e retorna a mais próxima sem colisão
+    const forceSnap = useCallback((tx, ty, tw, th, exIdx) => {
+        const k = Math.max(chapa.kerf || kerfSize || 0, espacoPecas || 0);
+        const ref = chapa.refilo || 0;
+        const uW = chapa.comprimento - 2 * ref, uH = chapa.largura - 2 * ref;
+        // Limites: área útil completa (mesma que o otimizador + compactBin)
+        const maxPosX = Math.round(uW - tw);
+        const maxPosY = Math.round(uH - th);
+
+        // Coletar TODAS as âncoras possíveis em X e Y (arredondadas para inteiro)
+        // Âncora X = posição onde o left da peça pode ir (ou right - tw)
+        const anchorsX = [0, maxPosX]; // paredes esquerda e direita (com kerf)
+        const anchorsY = [0, maxPosY]; // paredes topo e base (com kerf)
+
+        for (let i = 0; i < chapa.pecas.length; i++) {
+            if (i === exIdx) continue;
+            const o = chapa.pecas[i];
+            // Âncoras X: encostar à direita da peça vizinha, ou à esquerda
+            anchorsX.push(Math.round(o.x + o.w + k));      // left da peça = right do vizinho + kerf
+            anchorsX.push(Math.round(o.x - tw - k));        // right da peça = left do vizinho - kerf
+            // Alinhar bordas (mesma posição X)
+            anchorsX.push(Math.round(o.x));                  // left alinhado
+            anchorsX.push(Math.round(o.x + o.w - tw));       // right alinhado
+            // Âncoras Y: encostar abaixo da peça vizinha, ou acima
+            anchorsY.push(Math.round(o.y + o.h + k));
+            anchorsY.push(Math.round(o.y - th - k));
+            anchorsY.push(Math.round(o.y));
+            anchorsY.push(Math.round(o.y + o.h - th));
+        }
+
+        // Filtrar âncoras ESTRITAMENTE dentro da área útil (nunca no refilo nem além do kerf da borda)
+        const validX = [...new Set(anchorsX.map(x => Math.round(x)))].filter(x => x >= 0 && x <= maxPosX + 0.1).map(x => Math.max(0, Math.min(maxPosX, x)));
+        const validY = [...new Set(anchorsY.map(y => Math.round(y)))].filter(y => y >= 0 && y <= maxPosY + 0.1).map(y => Math.max(0, Math.min(maxPosY, y)));
+
+        // Verificar que a posição toca pelo menos uma parede ou peça em cada eixo
+        const touchesX = (fx) => {
+            if (Math.abs(fx) < 1 || Math.abs(fx + tw - uW) < 1) return true;
+            for (let i = 0; i < chapa.pecas.length; i++) {
+                if (i === exIdx) continue;
+                const o = chapa.pecas[i];
+                if (Math.abs(fx - (o.x + o.w + k)) < 1 || Math.abs(fx + tw + k - o.x) < 1) return true;
+            }
+            return false;
+        };
+        const touchesY = (fy) => {
+            if (Math.abs(fy) < 1 || Math.abs(fy + th - uH) < 1) return true;
+            for (let i = 0; i < chapa.pecas.length; i++) {
+                if (i === exIdx) continue;
+                const o = chapa.pecas[i];
+                if (Math.abs(fy - (o.y + o.h + k)) < 1 || Math.abs(fy + th + k - o.y) < 1) return true;
+            }
+            return false;
+        };
+
+        // Gerar todas as combinações (X, Y) e ordenar por distância ao ponto de drop
+        // Prioridade: toca em ambos eixos > toca em 1 eixo > nenhum toque
+        const candidates = [];
+        for (const ax of validX) {
+            const tx_ = touchesX(ax);
+            for (const ay of validY) {
+                const ty_ = touchesY(ay);
+                if (!tx_ && !ty_) continue; // pelo menos 1 eixo deve tocar
+                const priority = (tx_ && ty_) ? 0 : 1; // ambos tocam = melhor
+                const dist = Math.hypot(ax - tx, ay - ty);
+                candidates.push({ x: Math.round(ax), y: Math.round(ay), dist, priority });
+            }
+        }
+        candidates.sort((a, b) => a.priority - b.priority || a.dist - b.dist);
+
+        // Retornar a candidata mais próxima que não colide
+        for (const c of candidates) {
+            if (!isColliding(c.x, c.y, tw, th, exIdx)) {
+                return { x: c.x, y: c.y, valid: true };
+            }
+        }
+
+        // Fallback: nenhuma posição alinhada disponível → tentar apenas snap por eixo mais próximo
+        const sortedX = validX.map(x => ({ x: Math.round(x), d: Math.abs(x - tx) })).sort((a, b) => a.d - b.d);
+        const sortedY = validY.map(y => ({ y: Math.round(y), d: Math.abs(y - ty) })).sort((a, b) => a.d - b.d);
+        for (const sx of sortedX) {
+            for (const sy of sortedY) {
+                if (!isColliding(sx.x, sy.y, tw, th, exIdx)) {
+                    return { x: sx.x, y: sy.y, valid: true };
+                }
+            }
+        }
+
+        // Nenhuma posição válida — reverter
+        return { x: tx, y: ty, valid: false };
+    }, [chapa.pecas, chapa.refilo, chapa.comprimento, chapa.largura, chapa.kerf, kerfSize, espacoPecas, isColliding]);
+
     const handleDragEnd = () => {
         if (!dragging || dragging.newX == null) { setDragging(null); setDragCollision(false); setSnapGuides([]); return; }
         const g = svgRef.current?.querySelector(`[data-pidx="${dragging.pecaIdx}"]`);
         if (g) g.removeAttribute('transform');
-        // If collision → revert (don't move)
-        if (dragCollision) {
-            setDragging(null); setDragCollision(false); setSnapGuides([]);
-            return;
-        }
         const p = chapa.pecas[dragging.pecaIdx];
-        const sx = Math.round(dragging.newX / 2) * 2, sy = Math.round(dragging.newY / 2) * 2;
-        // Re-check colisão na posição arredondada (evita desync com backend)
-        if (p && isColliding(sx, sy, p.w, p.h, dragging.pecaIdx)) {
+        if (!p) { setDragging(null); setDragCollision(false); setSnapGuides([]); return; }
+
+        // Force-snap: encontrar melhor posição alinhada sem colisão
+        const snapped = forceSnap(dragging.newX, dragging.newY, p.w, p.h, dragging.pecaIdx);
+
+        if (!snapped.valid) {
+            // Nenhuma posição válida → reverter ao original
             setDragging(null); setDragCollision(false); setSnapGuides([]);
             return;
         }
+
+        const sx = snapped.x, sy = snapped.y;
         if (onAdjust && (Math.abs(sx - dragging.origX) > 1 || Math.abs(sy - dragging.origY) > 1)) {
             onAdjust({ action: 'move', chapaIdx: idx, pecaIdx: dragging.pecaIdx, x: sx, y: sy });
         }
@@ -2397,45 +4751,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
         return () => document.removeEventListener('click', close);
     }, [sobraCtxMenu]);
 
-    // ─── Drag de sobras adjacentes (mousemove/mouseup global) ───
-    useEffect(() => {
-        if (!sobraDrag || !sobraDrag.startMouse) return;
-        const handleMove = (e) => {
-            // Visual feedback é no SVG inline, mas precisamos do delta em mm
-            // Será tratado no mouseUp para simplicidade
-        };
-        const handleUp = (e) => {
-            const ch = allChapas[sobraDrag.chapaIdx];
-            const rets = ch?.retalhos;
-            if (!rets) { setSobraDrag(null); return; }
-            const s1 = rets[sobraDrag.idx1], s2 = rets[sobraDrag.idx2];
-            if (!s1 || !s2) { setSobraDrag(null); return; }
-            const maxW2 = 900, marg = 30;
-            const sc = Math.min((maxW2 - marg * 2) / ch.comprimento, 450 / ch.largura);
-            const deltaPx = sobraDrag.axis === 'x' ? e.clientX - sobraDrag.startMouse : e.clientY - sobraDrag.startMouse;
-            const deltaMM = deltaPx / sc;
-            if (Math.abs(deltaMM) < 5) { setSobraDrag(null); return; }
-            let n1 = { ...s1 }, n2 = { ...s2 };
-            if (sobraDrag.axis === 'x') {
-                n1.w = Math.max(50, s1.w + deltaMM);
-                n2.x = s2.x + deltaMM;
-                n2.w = Math.max(0, s2.w - deltaMM);
-            } else {
-                n1.h = Math.max(50, s1.h + deltaMM);
-                n2.y = s2.y + deltaMM;
-                n2.h = Math.max(0, s2.h - deltaMM);
-            }
-            onAdjust({
-                action: 'ajustar_sobra', chapaIdx: sobraDrag.chapaIdx,
-                retalhoIdx: sobraDrag.idx1, novoX: n1.x, novoY: n1.y, novoW: n1.w, novoH: n1.h,
-                retalho2Idx: sobraDrag.idx2, novo2X: n2.x, novo2Y: n2.y, novo2W: n2.w, novo2H: n2.h,
-            });
-            setSobraDrag(null);
-        };
-        document.addEventListener('mousemove', handleMove);
-        document.addEventListener('mouseup', handleUp);
-        return () => { document.removeEventListener('mousemove', handleMove); document.removeEventListener('mouseup', handleUp); };
-    }, [sobraDrag, allChapas, onAdjust]);
+    // (Drag de sobras removido — agora é por clique na barra "CORTAR")
 
     // ─── Piece click (select) ───
     const handlePieceClick = (e, pecaIdx) => {
@@ -2455,14 +4771,210 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                     </span>
                 </h4>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <span className={tagClass} style={tagStyle(chapa.aproveitamento >= 80 ? '#22c55e' : chapa.aproveitamento >= 60 ? '#f59e0b' : '#ef4444')}>
+                    <span className={tagClass} style={tagStyle(chapa.aproveitamento >= 80 ? '#2563eb' : chapa.aproveitamento >= 60 ? '#d97706' : '#dc2626')}>
                         {chapa.aproveitamento.toFixed(1)}%
                     </span>
-                    {chapa.is_retalho && <span className={tagClass} style={tagStyle('#06b6d4')}>RETALHO</span>}
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{chapa.pecas.length} pç</span>
+                    {chapa.is_retalho && <span className={tagClass} style={tagStyle('#0e7490')}>RETALHO</span>}
                     {hasVeio && (
-                        <span className={tagClass} style={tagStyle('#8b5cf6')}>
-                            {chapa.veio === 'horizontal' ? '━ Veio Horiz.' : '┃ Veio Vert.'}
+                        <span className={tagClass} style={tagStyle('#7c3aed')}>
+                            {chapa.veio === 'horizontal' ? '━ Veio H' : '┃ Veio V'}
                         </span>
+                    )}
+                    {onPrintLabel && (
+                        <button onClick={() => onPrintLabel(idx)}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 4,
+                                padding: '4px 10px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+                                background: 'var(--bg-muted)', color: 'var(--text-primary)',
+                                border: '1px solid var(--border)', cursor: 'pointer',
+                            }}
+                            title="Etiquetas desta chapa">
+                            <TagIcon size={11} /> Etiquetas
+                        </button>
+                    )}
+                    {onPrintFolha && (
+                        <button onClick={() => onPrintFolha(idx)}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 4,
+                                padding: '4px 10px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+                                background: 'var(--bg-muted)', color: 'var(--text-primary)',
+                                border: '1px solid var(--border)', cursor: 'pointer',
+                            }}
+                            title="Folha de Produção desta chapa">
+                            <FileText size={11} /> Folha
+                        </button>
+                    )}
+                    {/* Recalcular Sobras — detecta espaço livre SEM sobreposição */}
+                    <button onClick={() => {
+                        const ref = chapa.refilo || 0;
+                        const uW = chapa.comprimento - 2 * ref;
+                        const uH = chapa.largura - 2 * ref;
+                        const pecas = chapa.pecas || [];
+                        if (pecas.length === 0) return;
+
+                        // ── Helper: recortar retângulo A removendo área de B ──
+                        const clipRect = (a, b) => {
+                            // Se não se tocam, A fica inteiro
+                            if (a.x >= b.x + b.w || b.x >= a.x + a.w || a.y >= b.y + b.h || b.y >= a.y + a.h) return [a];
+                            const result = [];
+                            // Faixa acima de B
+                            if (a.y < b.y) result.push({ x: a.x, y: a.y, w: a.w, h: b.y - a.y });
+                            // Faixa abaixo de B
+                            if (a.y + a.h > b.y + b.h) result.push({ x: a.x, y: b.y + b.h, w: a.w, h: (a.y + a.h) - (b.y + b.h) });
+                            // Faixa à esquerda (só na zona de overlap Y)
+                            const oy1 = Math.max(a.y, b.y), oy2 = Math.min(a.y + a.h, b.y + b.h);
+                            if (oy2 > oy1) {
+                                if (a.x < b.x) result.push({ x: a.x, y: oy1, w: b.x - a.x, h: oy2 - oy1 });
+                                if (a.x + a.w > b.x + b.w) result.push({ x: b.x + b.w, y: oy1, w: (a.x + a.w) - (b.x + b.w), h: oy2 - oy1 });
+                            }
+                            return result.filter(r => r.w > 1 && r.h > 1);
+                        };
+
+                        // ── 1. Criar grade de células livres ──
+                        const xsSet = new Set([0, uW]);
+                        const ysSet = new Set([0, uH]);
+                        for (const p of pecas) {
+                            xsSet.add(Math.max(0, Math.min(uW, p.x)));
+                            xsSet.add(Math.max(0, Math.min(uW, p.x + p.w)));
+                            ysSet.add(Math.max(0, Math.min(uH, p.y)));
+                            ysSet.add(Math.max(0, Math.min(uH, p.y + p.h)));
+                        }
+                        const xs = [...xsSet].sort((a, b) => a - b);
+                        const ys = [...ysSet].sort((a, b) => a - b);
+                        const nx = xs.length - 1, ny = ys.length - 1;
+                        if (nx <= 0 || ny <= 0) return;
+
+                        const occ = Array.from({ length: nx }, () => Array(ny).fill(false));
+                        for (const p of pecas) {
+                            for (let ci = 0; ci < nx; ci++) {
+                                if (xs[ci + 1] <= p.x + 0.5 || xs[ci] >= p.x + p.w - 0.5) continue;
+                                for (let cj = 0; cj < ny; cj++) {
+                                    if (ys[cj + 1] <= p.y + 0.5 || ys[cj] >= p.y + p.h - 0.5) continue;
+                                    occ[ci][cj] = true;
+                                }
+                            }
+                        }
+
+                        // ── 2. Histograma → retângulos maximais ──
+                        const height = Array.from({ length: nx }, () => Array(ny).fill(0));
+                        for (let ci = 0; ci < nx; ci++) {
+                            for (let cj = 0; cj < ny; cj++) {
+                                height[ci][cj] = occ[ci][cj] ? 0 : (cj > 0 ? height[ci][cj - 1] + 1 : 1);
+                            }
+                        }
+                        const allRects = [];
+                        for (let cj = 0; cj < ny; cj++) {
+                            const stack = [];
+                            for (let ci = 0; ci <= nx; ci++) {
+                                const h = ci < nx ? height[ci][cj] : 0;
+                                let start = ci;
+                                while (stack.length && stack[stack.length - 1][1] > h) {
+                                    const [sci, sh] = stack.pop();
+                                    const rx = xs[sci], rw = (ci < xs.length ? xs[ci] : xs[xs.length - 1]) - rx;
+                                    const ry = ys[cj - sh + 1], rh = ys[cj + 1] - ry;
+                                    if (rw > 5 && rh > 5) allRects.push({ x: rx, y: ry, w: rw, h: rh, area: rw * rh });
+                                    start = sci;
+                                }
+                                stack.push([start, h]);
+                            }
+                        }
+                        // Deduplicar exatos
+                        const seen = new Set();
+                        const uniqueRects = allRects.filter(r => {
+                            const key = `${r.x.toFixed(1)}_${r.y.toFixed(1)}_${r.w.toFixed(1)}_${r.h.toFixed(1)}`;
+                            if (seen.has(key)) return false;
+                            seen.add(key);
+                            return true;
+                        });
+                        uniqueRects.sort((a, b) => b.area - a.area);
+
+                        // ── 3. Seleção gulosa SEM sobreposição ──
+                        // Pegar o maior, recortar todos os outros contra ele, repetir
+                        const minW = sobraMinW, minH = sobraMinH;
+                        const isValid = (r) => { const s = Math.min(r.w, r.h), l = Math.max(r.w, r.h); return s >= minW && l >= minH; };
+
+                        const selected = [];
+                        let candidates = uniqueRects.filter(r => isValid(r));
+
+                        for (let iter = 0; iter < 20 && candidates.length > 0; iter++) {
+                            // Pegar o maior candidato
+                            candidates.sort((a, b) => (b.w * b.h) - (a.w * a.h));
+                            const best = candidates.shift();
+                            selected.push(best);
+
+                            // Recortar todos os restantes contra o selecionado
+                            const nextCandidates = [];
+                            for (const c of candidates) {
+                                const clipped = clipRect(c, best);
+                                for (const piece of clipped) {
+                                    piece.area = piece.w * piece.h;
+                                    if (isValid(piece)) nextCandidates.push(piece);
+                                }
+                            }
+                            candidates = nextCandidates;
+                        }
+
+                        // ── 4. Tentar merge adjacente dos selecionados ──
+                        let rects = selected;
+                        let merged = true;
+                        while (merged) {
+                            merged = false;
+                            const next = [];
+                            const skip = new Set();
+                            for (let i = 0; i < rects.length; i++) {
+                                if (skip.has(i)) continue;
+                                let { x: rx, y: ry, w: rw, h: rh } = rects[i];
+                                for (let j = i + 1; j < rects.length; j++) {
+                                    if (skip.has(j)) continue;
+                                    const o = rects[j];
+                                    const T = 1;
+                                    if (Math.abs(ry - o.y) < T && Math.abs(rh - o.h) < T && Math.abs(rx + rw - o.x) < T) { rw += o.w; skip.add(j); merged = true; }
+                                    else if (Math.abs(ry - o.y) < T && Math.abs(rh - o.h) < T && Math.abs(o.x + o.w - rx) < T) { rx = o.x; rw += o.w; skip.add(j); merged = true; }
+                                    else if (Math.abs(rx - o.x) < T && Math.abs(rw - o.w) < T && Math.abs(ry + rh - o.y) < T) { rh += o.h; skip.add(j); merged = true; }
+                                    else if (Math.abs(rx - o.x) < T && Math.abs(rw - o.w) < T && Math.abs(o.y + o.h - ry) < T) { ry = o.y; rh += o.h; skip.add(j); merged = true; }
+                                }
+                                next.push({ x: rx, y: ry, w: rw, h: rh });
+                            }
+                            rects = next;
+                        }
+
+                        const remnants = rects
+                            .filter(r => isValid(r))
+                            .map(r => ({ x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) }));
+
+                        if (onAdjust) {
+                            onAdjust({ action: 'recalc_sobras', chapaIdx: idx, retalhos: remnants });
+                        }
+                    }}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 4,
+                            padding: '4px 10px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+                            background: 'var(--bg-muted)', color: 'var(--text-primary)',
+                            border: '1px solid var(--border)', cursor: 'pointer',
+                        }}
+                        title="Detectar espaço livre e gerar retalhos baseado na posição atual das peças">
+                        <RefreshCw size={11} /> Recalcular Sobras
+                    </button>
+                    {(chapa.retalhos?.length > 0) && (
+                        <button onClick={() => {
+                            if (!retMode) {
+                                setRetDefs((chapa.retalhos || []).map(r => ({ ...r, type: null })));
+                                setRetSelected(null);
+                                setRetSplitPreview(null);
+                            }
+                            setRetMode(!retMode);
+                        }}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 4,
+                                padding: '4px 10px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+                                background: retMode ? '#059669' : 'var(--bg-muted)',
+                                color: retMode ? '#fff' : 'var(--text-primary)',
+                                border: retMode ? '1px solid #059669' : '1px solid var(--border)', cursor: 'pointer',
+                            }}
+                            title="Definir retalhos e refugos">
+                            <Scissors size={11} /> {retMode ? 'Editando Sobras' : 'Definir Sobras'}
+                        </button>
                     )}
                     {onGerarGcode && (
                         <button
@@ -2470,14 +4982,13 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                             disabled={gcodeLoading === idx}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 4,
-                                padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 700,
-                                background: gcodeLoading === idx ? 'var(--bg-muted)' : '#e67e22',
+                                padding: '4px 10px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+                                background: gcodeLoading === idx ? 'var(--bg-muted)' : '#1e40af',
                                 color: '#fff', border: 'none', cursor: gcodeLoading === idx ? 'wait' : 'pointer',
-                                transition: 'all .15s',
                             }}
                             title="Gerar e baixar G-Code desta chapa"
                         >
-                            <Download size={12} />
+                            <Download size={11} />
                             {gcodeLoading === idx ? 'Gerando...' : 'G-Code'}
                         </button>
                     )}
@@ -2507,8 +5018,37 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                 </div>
             </div>
 
+            {/* Edge band legend — dynamic from actual piece data */}
+            {(() => {
+                const fitaSet = new Map();
+                chapa.pecas.forEach(p => {
+                    const pc = pecasMap[p.pecaId];
+                    if (!pc) return;
+                    ['frontal','traseira','esq','dir'].forEach(side => {
+                        const tipo = pc[`borda_${side}`];
+                        const cor = pc[`borda_cor_${side}`];
+                        if (tipo) {
+                            const key = cor || tipo;
+                            if (!fitaSet.has(key)) fitaSet.set(key, edgeColorGlobal(tipo, cor));
+                        }
+                    });
+                });
+                if (fitaSet.size === 0) return null;
+                return (
+                    <div style={{ display: 'flex', gap: 10, padding: '3px 8px', fontSize: 9, color: 'var(--text-muted)', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700 }}>Fitas:</span>
+                        {[...fitaSet.entries()].map(([name, color]) => (
+                            <span key={name} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                                <span style={{ width: 14, height: 3, borderRadius: 1, background: color, display: 'inline-block' }} />
+                                {name.replace(/_/g, ' ')}
+                            </span>
+                        ))}
+                    </div>
+                );
+            })()}
+
             {/* SVG Canvas with zoom/pan */}
-            <div style={{ overflow: 'hidden', borderRadius: 8, border: `2px solid ${dragCollision ? '#ef4444' : dragging ? '#22c55e' : 'var(--border)'}`, background: 'var(--bg-muted)', position: 'relative', cursor: dragging ? 'grabbing' : isPanningCursor(zoomLevel), transition: 'border-color .15s' }}
+            <div style={{ overflow: 'hidden', border: `2px solid ${dragCollision ? '#ef4444' : dragging ? '#2563eb' : 'var(--border)'}`, background: '#f8f7f5', position: 'relative', cursor: dragging ? 'grabbing' : isPanningCursor(zoomLevel), transition: 'border-color .15s' }}
                 onWheel={onWheel}
                 onMouseDown={dragging ? undefined : onPanStart}
                 onMouseMove={dragging ? handleDragMove : onPanMove}
@@ -2523,14 +5063,17 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                         viewBox={`-${marginDim} -14 ${svgW + marginDim * 2 + 2} ${svgH + marginDim + 20}`}
                         style={{ display: 'block', userSelect: 'none' }}>
 
-                        {/* Defs: grain pattern */}
+                        {/* Defs: grain pattern + text shadow filter */}
                         <defs>
                             <pattern id={`grain-h-${idx}`} patternUnits="userSpaceOnUse" width={svgW} height="6" patternTransform="rotate(0)">
-                                <line x1="0" y1="3" x2={svgW} y2="3" stroke="#8b5cf6" strokeWidth="0.3" opacity="0.2" />
+                                <line x1="0" y1="3" x2={svgW} y2="3" stroke="#a08060" strokeWidth="0.4" opacity="0.3" />
                             </pattern>
                             <pattern id={`grain-v-${idx}`} patternUnits="userSpaceOnUse" width="6" height={svgH} patternTransform="rotate(0)">
-                                <line x1="3" y1="0" x2="3" y2={svgH} stroke="#8b5cf6" strokeWidth="0.3" opacity="0.2" />
+                                <line x1="3" y1="0" x2="3" y2={svgH} stroke="#a08060" strokeWidth="0.4" opacity="0.3" />
                             </pattern>
+                            <filter id={`ts-${idx}`} x="-5%" y="-5%" width="110%" height="110%">
+                                <feDropShadow dx="0" dy="0.5" stdDeviation="0.8" floodColor="#000" floodOpacity="0.6"/>
+                            </filter>
                         </defs>
 
                         {/* Dimension label: width (top) */}
@@ -2546,16 +5089,16 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                             <g>
                                 {chapa.veio === 'horizontal' ? (
                                     <>
-                                        <line x1={svgW * 0.2} y1={-12} x2={svgW * 0.8} y2={-12} stroke="#8b5cf6" strokeWidth={1.5} markerEnd={`url(#arrow-${idx})`} />
-                                        <text x={svgW * 0.5} y={-13} textAnchor="middle" fontSize={7} fill="#8b5cf6" fontWeight={700}>VEIO</text>
+                                        <line x1={svgW * 0.2} y1={-12} x2={svgW * 0.8} y2={-12} stroke="#a08060" strokeWidth={1.5} markerEnd={`url(#arrow-${idx})`} />
+                                        <text x={svgW * 0.5} y={-13} textAnchor="middle" fontSize={7} fill="#a08060" fontWeight={700}>VEIO</text>
                                     </>
                                 ) : (
-                                    <text x={svgW + marginDim + 5} y={svgH * 0.5} textAnchor="middle" fontSize={7} fill="#8b5cf6" fontWeight={700}
+                                    <text x={svgW + marginDim + 5} y={svgH * 0.5} textAnchor="middle" fontSize={7} fill="#a08060" fontWeight={700}
                                         transform={`rotate(90, ${svgW + marginDim + 5}, ${svgH * 0.5})`}>VEIO ↓</text>
                                 )}
                                 <defs>
                                     <marker id={`arrow-${idx}`} markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
-                                        <polygon points="0 0, 6 2, 0 4" fill="#8b5cf6" />
+                                        <polygon points="0 0, 6 2, 0 4" fill="#a08060" />
                                     </marker>
                                 </defs>
                             </g>
@@ -2570,8 +5113,9 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                             {chapa.largura} mm
                         </text>
 
-                        {/* Sheet background */}
-                        <rect x={0} y={0} width={svgW} height={svgH} fill="var(--bg-body)" stroke="var(--border)" strokeWidth={1} />
+                        {/* Sheet background — clean industrial look */}
+                        <rect x={0} y={0} width={svgW} height={svgH}
+                            fill="#eae5dc" stroke="#8a7d6d" strokeWidth={1.5} />
 
                         {/* Grain pattern overlay on sheet */}
                         {hasVeio && (
@@ -2579,14 +5123,19 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                 fill={`url(#grain-${chapa.veio === 'horizontal' ? 'h' : 'v'}-${idx})`} />
                         )}
 
-                        {/* Refilo area (border trim) */}
+                        {/* Refilo area (border trim) — zona proibida com hachura */}
                         {refiloVal > 0 && <>
-                            <rect x={0} y={0} width={svgW} height={refilo} fill="rgba(120,120,120,0.12)" />
-                            <rect x={0} y={svgH - refilo} width={svgW} height={refilo} fill="rgba(120,120,120,0.12)" />
-                            <rect x={0} y={0} width={refilo} height={svgH} fill="rgba(120,120,120,0.12)" />
-                            <rect x={svgW - refilo} y={0} width={refilo} height={svgH} fill="rgba(120,120,120,0.12)" />
+                            <defs>
+                                <pattern id={`refilo-hatch-${idx}`} patternUnits="userSpaceOnUse" width={4} height={4} patternTransform="rotate(45)">
+                                    <line x1={0} y1={0} x2={0} y2={4} stroke="rgba(200,60,60,0.35)" strokeWidth={0.8} />
+                                </pattern>
+                            </defs>
+                            <rect x={0} y={0} width={svgW} height={refilo} fill={`url(#refilo-hatch-${idx})`} />
+                            <rect x={0} y={svgH - refilo} width={svgW} height={refilo} fill={`url(#refilo-hatch-${idx})`} />
+                            <rect x={0} y={refilo} width={refilo} height={svgH - 2 * refilo} fill={`url(#refilo-hatch-${idx})`} />
+                            <rect x={svgW - refilo} y={refilo} width={refilo} height={svgH - 2 * refilo} fill={`url(#refilo-hatch-${idx})`} />
                             {refilo > 6 && (
-                                <text x={refilo / 2} y={svgH / 2} textAnchor="middle" fontSize={Math.min(7, refilo * 0.7)} fill="rgba(120,120,120,0.5)"
+                                <text x={refilo / 2} y={svgH / 2} textAnchor="middle" fontSize={Math.min(7, refilo * 0.7)} fill="rgba(180,50,50,0.6)"
                                     transform={`rotate(-90, ${refilo / 2}, ${svgH / 2})`}>
                                     refilo {refiloVal}mm
                                 </text>
@@ -2607,7 +5156,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                             const kw = p.w * scale + kerfPx * 2;
                             const kh = p.h * scale + kerfPx * 2;
                             return <rect key={`kerf-${pi}`} x={kx} y={ky} width={kw} height={kh}
-                                fill="none" stroke="#f59e0b" strokeWidth={0.5} strokeDasharray="2 2" opacity={0.25} />;
+                                fill="none" stroke="#d4a053" strokeWidth={0.5} strokeDasharray="2 2" opacity={0.35} />;
                         })}
 
                         {/* ══ Snap guide lines ══ */}
@@ -2628,25 +5177,27 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                         {/* Cut lines (toggle) — formato GuillotineBin: {dir, x, y, length} */}
                         {showCuts && chapa.cortes && chapa.cortes.map((c, ci) => {
                             const isH = c.dir === 'Horizontal';
+                            const isRet = c.tipo === 'separacao_retalho';
                             // GuillotineBin format: x, y, length (position within usable area)
                             const cx = (c.x != null ? c.x : 0) + refiloVal;
                             const cy = (c.y != null ? c.y : (c.pos || 0)) + refiloVal;
-                            const len = c.length || (isH ? chapa.comprimento - 2 * refiloVal : chapa.largura - 2 * refiloVal);
+                            const len = c.length || c.len || (isH ? chapa.comprimento - 2 * refiloVal : chapa.largura - 2 * refiloVal);
+                            const color = isRet ? '#059669' : (isH ? '#ef4444' : '#f59e0b');
                             return (
                                 <g key={`cut${ci}`}>
                                     {isH ? (
                                         <line x1={cx * scale} y1={cy * scale}
                                             x2={(cx + len) * scale} y2={cy * scale}
-                                            stroke="#ef444480" strokeWidth={1.5} strokeDasharray="6 3" />
+                                            stroke={`${color}80`} strokeWidth={isRet ? 2 : 1.5} strokeDasharray={isRet ? '8 4' : '6 3'} />
                                     ) : (
                                         <line x1={cx * scale} y1={cy * scale}
                                             x2={cx * scale} y2={(cy + len) * scale}
-                                            stroke="#f59e0b80" strokeWidth={1.5} strokeDasharray="6 3" />
+                                            stroke={`${color}80`} strokeWidth={isRet ? 2 : 1.5} strokeDasharray={isRet ? '8 4' : '6 3'} />
                                     )}
                                     <text x={isH ? cx * scale + 3 : cx * scale + 2}
                                         y={isH ? cy * scale - 2 : cy * scale + 10}
-                                        fontSize={7} fill={isH ? '#ef4444' : '#f59e0b'} fontWeight={700}>
-                                        {c.seq || (ci + 1)}
+                                        fontSize={7} fill={color} fontWeight={700}>
+                                        {isRet ? `R${c.seq || ''}` : (c.seq || (ci + 1))}
                                     </text>
                                 </g>
                             );
@@ -2674,11 +5225,10 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                             const isLocked = p.locked || chapa.locked;
 
                             // Dynamic colors during drag
-                            let fillColor = color, fillOp = isHovered ? '40' : '25', strokeClr = color, strokeW = isHovered ? 2.5 : 1;
+                            let fillColor = color, strokeClr = color, strokeW = isHovered ? 2.5 : 1;
                             if (isDragging) {
-                                fillColor = dragCollision ? '#ef4444' : '#22c55e';
-                                fillOp = '30';
-                                strokeClr = dragCollision ? '#ef4444' : '#22c55e';
+                                fillColor = dragCollision ? '#ef4444' : '#2563eb';
+                                strokeClr = dragCollision ? '#ef4444' : '#2563eb';
                                 strokeW = 2.5;
                             }
                             if (isSelected && !isDragging) strokeW = 2.5;
@@ -2693,30 +5243,36 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                     onContextMenu={(e) => handleCtxMenu(e, pi)}
                                     style={{ cursor: isLocked ? 'not-allowed' : dragging ? 'grabbing' : 'grab' }}>
 
-                                    {/* Piece rect */}
-                                    <rect x={px} y={py} width={pw} height={ph}
-                                        fill={`${fillColor}${fillOp}`}
-                                        stroke={strokeClr} strokeWidth={strokeW}
-                                        rx={1} />
+                                    {/* Piece fill — contour polygon or rectangle */}
+                                    {p.contour && p.contour.length >= 3 ? (
+                                        <polygon
+                                            points={p.contour.map(v => `${px + (v.x / p.w) * pw},${py + (v.y / p.h) * ph}`).join(' ')}
+                                            fill={fillColor} fillOpacity={isDragging ? 0.3 : isHovered ? 0.85 : 0.7}
+                                            stroke={isDragging ? strokeClr : '#1a1a1a'} strokeWidth={isDragging ? strokeW : isHovered ? 1.5 : 0.8} />
+                                    ) : (
+                                        <rect x={px} y={py} width={pw} height={ph}
+                                            fill={fillColor} fillOpacity={isDragging ? 0.3 : isHovered ? 0.85 : 0.7}
+                                            stroke={isDragging ? strokeClr : '#1a1a1a'} strokeWidth={isDragging ? strokeW : isHovered ? 1.5 : 0.8} />
+                                    )}
 
                                     {/* Selection border */}
                                     {isSelected && !isDragging && (
                                         <rect x={px - 2} y={py - 2} width={pw + 4} height={ph + 4}
-                                            fill="none" stroke="#3b82f6" strokeWidth={1.5} strokeDasharray="4 2" rx={2} />
+                                            fill="none" stroke="#2563eb" strokeWidth={1.5} strokeDasharray="4 2" />
                                     )}
 
-                                    {/* Grain lines on piece (subtle) */}
+                                    {/* Grain lines on piece (subtle warm) */}
                                     {hasVeio && pw > 20 && ph > 20 && (
-                                        <g opacity={0.12}>
+                                        <g opacity={0.22}>
                                             {chapa.veio === 'horizontal' ? (
                                                 Array.from({ length: Math.floor(ph / 5) }, (_, i) => (
                                                     <line key={i} x1={px + 1} y1={py + i * 5 + 2.5} x2={px + pw - 1} y2={py + i * 5 + 2.5}
-                                                        stroke={color} strokeWidth={0.5} />
+                                                        stroke="#a08060" strokeWidth={0.5} />
                                                 ))
                                             ) : (
                                                 Array.from({ length: Math.floor(pw / 5) }, (_, i) => (
                                                     <line key={i} x1={px + i * 5 + 2.5} y1={py + 1} x2={px + i * 5 + 2.5} y2={py + ph - 1}
-                                                        stroke={color} strokeWidth={0.5} />
+                                                        stroke="#a08060" strokeWidth={0.5} />
                                                 ))
                                             )}
                                         </g>
@@ -2726,7 +5282,8 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                     {pw > 35 && ph > 16 && (
                                         <text x={px + pw / 2} y={py + ph / 2 - (pw > 50 && ph > 28 ? 5 : 0)}
                                             textAnchor="middle" dominantBaseline="central"
-                                            fontSize={Math.min(10, Math.min(pw / 8, ph / 3))} fill={color} fontWeight={600}
+                                            fontSize={Math.min(10, Math.min(pw / 8, ph / 3))} fill="#1a1a1a" fontWeight={700}
+                                            stroke="#fff" strokeWidth={2.5} paintOrder="stroke"
                                             style={{ pointerEvents: 'none' }}>
                                             {piece ? piece.descricao?.substring(0, Math.floor(pw / 6)) : `P${pi + 1}`}
                                         </text>
@@ -2735,18 +5292,34 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                     {pw > 50 && ph > 28 && (
                                         <text x={px + pw / 2} y={py + ph / 2 + 7}
                                             textAnchor="middle" dominantBaseline="central"
-                                            fontSize={Math.min(8, pw / 10)} fill={color} opacity={0.7}
+                                            fontSize={Math.min(8, pw / 10)} fill="#333" fontWeight={600}
+                                            stroke="#fff" strokeWidth={2} paintOrder="stroke"
                                             style={{ pointerEvents: 'none' }}>
-                                            {Math.round(p.w)} x {Math.round(p.h)}
+                                            {Math.round(p.w)} × {Math.round(p.h)}
                                         </text>
                                     )}
                                     {/* Rotation indicator */}
                                     {p.rotated && pw > 18 && ph > 18 && (
                                         <g style={{ pointerEvents: 'none' }}>
-                                            <rect x={px + 2} y={py + 2} width={12} height={10} rx={2}
-                                                fill={color} opacity={0.15} />
-                                            <text x={px + 8} y={py + 9} textAnchor="middle" fontSize={7} fill={color} fontWeight={700}>R</text>
+                                            <rect x={px + 2} y={py + 2} width={14} height={11}
+                                                fill="rgba(0,0,0,0.5)" />
+                                            <text x={px + 9} y={py + 10} textAnchor="middle" fontSize={8} fill="#fff" fontWeight={700}>R</text>
                                         </g>
+                                    )}
+
+                                    {/* Side B indicator (flip) */}
+                                    {p.lado_ativo === 'B' && pw > 18 && ph > 18 && (
+                                        <g style={{ pointerEvents: 'none' }}>
+                                            <rect x={px + pw - 18} y={py + ph - 15} width={16} height={13}
+                                                fill="rgba(14,165,233,0.85)" rx={2} />
+                                            <text x={px + pw - 10} y={py + ph - 5} textAnchor="middle" fontSize={9} fill="#fff" fontWeight={800}>B</text>
+                                        </g>
+                                    )}
+                                    {/* Side B overlay tint */}
+                                    {p.lado_ativo === 'B' && (
+                                        <rect x={px} y={py} width={pw} height={ph}
+                                            fill="#0ea5e9" fillOpacity={0.08}
+                                            style={{ pointerEvents: 'none' }} />
                                     )}
 
                                     {/* Classification badge (pequena/super_pequena) */}
@@ -2757,25 +5330,45 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                         const label = cls === 'super_pequena' ? 'SP' : 'P';
                                         return (
                                             <g transform={`translate(${px + 2}, ${py + ph - 14})`} style={{ pointerEvents: 'none' }}>
-                                                <rect width={cls === 'super_pequena' ? 16 : 12} height={11} rx={3} fill={clsC} opacity={0.9} />
+                                                <rect width={cls === 'super_pequena' ? 16 : 12} height={11} fill={clsC} opacity={0.9} />
                                                 <text x={cls === 'super_pequena' ? 8 : 6} y={8} textAnchor="middle" fontSize={7} fill="#fff" fontWeight={800}>{label}</text>
                                             </g>
                                         );
                                     })()}
 
-                                    {/* Edge band indicators (fita borda) */}
-                                    {piece && (piece.borda_dir || piece.borda_esq || piece.borda_frontal || piece.borda_traseira) && pw > 20 && ph > 20 && (
-                                        <g style={{ pointerEvents: 'none' }}>
-                                            {piece.borda_frontal && <line x1={px} y1={py} x2={px + pw} y2={py} stroke="#ff6b35" strokeWidth={2.5} />}
-                                            {piece.borda_traseira && <line x1={px} y1={py + ph} x2={px + pw} y2={py + ph} stroke="#ff6b35" strokeWidth={2.5} />}
-                                            {piece.borda_esq && <line x1={px} y1={py} x2={px} y2={py + ph} stroke="#ff6b35" strokeWidth={2.5} />}
-                                            {piece.borda_dir && <line x1={px + pw} y1={py} x2={px + pw} y2={py + ph} stroke="#ff6b35" strokeWidth={2.5} />}
-                                        </g>
-                                    )}
+                                    {/* Edge band indicators (fita borda) — follows contour for irregular pieces */}
+                                    {piece && (piece.borda_dir || piece.borda_esq || piece.borda_frontal || piece.borda_traseira) && pw > 12 && ph > 12 && (() => {
+                                        if (p.contour && p.contour.length >= 3) {
+                                            // For contour pieces, draw edge band as a polyline along the contour
+                                            const anyBorda = piece.borda_frontal || piece.borda_traseira || piece.borda_dir || piece.borda_esq;
+                                            const c = edgeColorGlobal(anyBorda, piece.borda_cor_frontal || piece.borda_cor_dir || piece.borda_cor_esq || piece.borda_cor_traseira);
+                                            const pts = p.contour.map(v => `${px + (v.x / p.w) * pw},${py + (v.y / p.h) * ph}`).join(' ');
+                                            return (
+                                                <g style={{ pointerEvents: 'none' }}>
+                                                    <polygon points={pts} fill="none" stroke={c} strokeWidth={2.5} strokeLinecap="round" />
+                                                </g>
+                                            );
+                                        }
+                                        const t = 2.5, inset = 0.5;
+                                        const edges = [
+                                            piece.borda_frontal && { x1: px + inset, y1: py + t/2, x2: px + pw - inset, y2: py + t/2, c: edgeColorGlobal(piece.borda_frontal, piece.borda_cor_frontal) },
+                                            piece.borda_traseira && { x1: px + inset, y1: py + ph - t/2, x2: px + pw - inset, y2: py + ph - t/2, c: edgeColorGlobal(piece.borda_traseira, piece.borda_cor_traseira) },
+                                            piece.borda_esq && { x1: px + t/2, y1: py + inset, x2: px + t/2, y2: py + ph - inset, c: edgeColorGlobal(piece.borda_esq, piece.borda_cor_esq) },
+                                            piece.borda_dir && { x1: px + pw - t/2, y1: py + inset, x2: px + pw - t/2, y2: py + ph - inset, c: edgeColorGlobal(piece.borda_dir, piece.borda_cor_dir) },
+                                        ].filter(Boolean);
+                                        return edges.length > 0 && (
+                                            <g style={{ pointerEvents: 'none' }}>
+                                                {edges.map((e, i) => (
+                                                    <line key={i} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
+                                                        stroke={e.c} strokeWidth={t} strokeLinecap="round" />
+                                                ))}
+                                            </g>
+                                        );
+                                    })()}
 
                                     {/* Machining operations (usinagens) */}
                                     {showMachining && piece && pw > 25 && ph > 25 &&
-                                        renderMachining(piece, px, py, pw, ph, scale, p.rotated, p.w, p.h)
+                                        renderMachining(piece, px, py, pw, ph, scale, p.rotated, p.w, p.h, p.lado_ativo)
                                     }
 
                                     {/* ══ Lock icon ══ */}
@@ -2786,16 +5379,27 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                             <path d="M4 5 V3.5 A2.5 2.5 0 0 1 9 3.5 V5" fill="none" stroke="#fbbf24" strokeWidth={1.5} strokeLinecap="round" />
                                         </g>
                                     )}
+
+                                    {/* Validation conflict warning */}
+                                    {validationConflicts.some(c => c.chapaIdx === idx && c.pecaIdx === pi) && pw > 18 && ph > 18 && (
+                                        <g style={{ pointerEvents: 'none' }}>
+                                            <polygon
+                                                points={`${px + pw / 2 - 7},${py + 2 + 12} ${px + pw / 2},${py + 2} ${px + pw / 2 + 7},${py + 2 + 12}`}
+                                                fill="#ef4444" opacity={0.9} stroke="#fff" strokeWidth={0.5} />
+                                            <text x={px + pw / 2} y={py + 2 + 10} textAnchor="middle" fontSize={8} fill="#fff" fontWeight={900}>!</text>
+                                        </g>
+                                    )}
                                 </g>
                             );
                         })}
 
-                        {/* Scraps (green dashed) */}
+                        {/* Scraps — diagonal hatch, neutral */}
                         {(chapa.retalhos || []).map((r, ri) => {
-                            const rx = (r.x + refiloVal) * scale;
-                            const ry = (r.y + refiloVal) * scale;
-                            const rw = r.w * scale;
-                            const rh = r.h * scale;
+                            const srx = (r.x + refiloVal) * scale;
+                            const sry = (r.y + refiloVal) * scale;
+                            const srw = r.w * scale;
+                            const srh = r.h * scale;
+                            const hatchId = `hatch-${idx}-${ri}`;
                             return (
                                 <g key={`s${ri}`} style={{ cursor: 'context-menu' }}
                                     onContextMenu={(e) => {
@@ -2804,65 +5408,198 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                         setSobraCtxMenu({ x: e.clientX - (cr?.left || 0), y: e.clientY - (cr?.top || 0), retalhoIdx: ri, chapaIdx: idx });
                                         setCtxMenu(null);
                                     }}>
-                                    <rect x={rx} y={ry} width={rw} height={rh}
-                                        fill="#22c55e08" stroke="#22c55e" strokeWidth={1} strokeDasharray="4 2" opacity={0.6} />
-                                    {rw > 40 && rh > 16 && (
-                                        <text x={rx + rw / 2} y={ry + rh / 2} textAnchor="middle" dominantBaseline="central"
-                                            fontSize={7} fill="#22c55e" opacity={0.7} style={{ pointerEvents: 'none' }}>
-                                            {Math.round(r.w)}x{Math.round(r.h)}
+                                    <defs>
+                                        <pattern id={hatchId} patternUnits="userSpaceOnUse" width={6} height={6} patternTransform="rotate(45)">
+                                            <line x1={0} y1={0} x2={0} y2={6} stroke="#9ca3af" strokeWidth={0.6} />
+                                        </pattern>
+                                    </defs>
+                                    <rect x={srx} y={sry} width={srw} height={srh}
+                                        fill={`url(#${hatchId})`} stroke="#9ca3af" strokeWidth={0.8} opacity={0.6} />
+                                    {srw > 40 && srh > 16 && (
+                                        <text x={srx + srw / 2} y={sry + srh / 2} textAnchor="middle" dominantBaseline="central"
+                                            fontSize={7} fill="#6b7280" fontWeight={600}
+                                            stroke="#fff" strokeWidth={2} paintOrder="stroke"
+                                            style={{ pointerEvents: 'none' }}>
+                                            {Math.round(r.w)}×{Math.round(r.h)}
                                         </text>
                                     )}
                                 </g>
                             );
                         })}
-                        {/* Drag handles para sobras adjacentes */}
-                        {sobraDrag && sobraDrag.chapaIdx === idx && (() => {
-                            const rets = chapa.retalhos || [];
+                        {/* ══ Retalhos Mode Overlay ══ */}
+                        {retMode && retDefs.map((rd, ri) => {
+                            const rx = (rd.x + refiloVal) * scale;
+                            const ry = (rd.y + refiloVal) * scale;
+                            const rw = rd.w * scale;
+                            const rh = rd.h * scale;
+                            const isSelected = retSelected === ri;
+                            const fillColor = rd.type === 'retalho' ? '#059669' : rd.type === 'refugo' ? '#dc2626' : '#3b82f6';
+                            const fillOpacity = rd.type ? 0.25 : 0.1;
+                            const strokeColor = isSelected ? '#fff' : fillColor;
+                            return (
+                                <g key={`rm${ri}`} style={{ cursor: 'pointer' }}
+                                    onClick={(e) => { e.stopPropagation(); setRetSelected(isSelected ? null : ri); setRetSplitPreview(null); }}>
+                                    <rect x={rx} y={ry} width={rw} height={rh}
+                                        fill={fillColor} fillOpacity={fillOpacity}
+                                        stroke={strokeColor} strokeWidth={isSelected ? 2 : 1}
+                                        strokeDasharray={isSelected ? '6 3' : rd.type ? 'none' : '4 2'} />
+                                    {/* Label */}
+                                    <text x={rx + rw / 2} y={ry + rh / 2 - (rh > 30 ? 7 : 0)}
+                                        textAnchor="middle" dominantBaseline="central"
+                                        fontSize={Math.min(11, rw / 8)} fontWeight={700}
+                                        fill={fillColor} stroke="#fff" strokeWidth={2.5} paintOrder="stroke"
+                                        style={{ pointerEvents: 'none' }}>
+                                        {Math.round(rd.w)}×{Math.round(rd.h)}
+                                    </text>
+                                    {rh > 30 && (
+                                        <text x={rx + rw / 2} y={ry + rh / 2 + 8}
+                                            textAnchor="middle" dominantBaseline="central"
+                                            fontSize={Math.min(9, rw / 10)} fontWeight={600}
+                                            fill={fillColor} stroke="#fff" strokeWidth={2} paintOrder="stroke"
+                                            style={{ pointerEvents: 'none' }}>
+                                            {rd.type === 'retalho' ? '✓ RETALHO' : rd.type === 'refugo' ? '✗ REFUGO' : 'Clique p/ definir'}
+                                        </text>
+                                    )}
+                                    {/* Split preview line */}
+                                    {retSplitPreview && retSplitPreview.retIdx === ri && (() => {
+                                        const sp = retSplitPreview;
+                                        if (sp.axis === 'h') {
+                                            const ly = (sp.pos + refiloVal) * scale;
+                                            return <line x1={rx} y1={ly} x2={rx + rw} y2={ly}
+                                                stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" />;
+                                        } else {
+                                            const lx = (sp.pos + refiloVal) * scale;
+                                            return <line x1={lx} y1={ry} x2={lx} y2={ry + rh}
+                                                stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" />;
+                                        }
+                                    })()}
+                                </g>
+                            );
+                        })}
+
+                        {/* Barra clicável na divisa entre sobras — clique = cortar a linha (toggle) */}
+                        {(chapa.retalhos?.length >= 2) && (() => {
+                            const rets = chapa.retalhos;
                             const handles = [];
+                            const tol = 5;
+                            const pecas = chapa.pecas || [];
+                            const ref = chapa.refilo || 0;
+                            const uW = chapa.comprimento - 2 * ref;
+                            const uH = chapa.largura - 2 * ref;
+                            const noOverlap = (r) => !pecas.some(p => r.x < p.x + p.w && r.x + r.w > p.x && r.y < p.y + p.h && r.y + r.h > p.y);
+
+                            // Função: cortar a linha — a menor sobra atravessa, a maior é cortada
+                            const cutLine = (e, i, j, axis) => {
+                                e.stopPropagation();
+                                const a = rets[i], b = rets[j];
+                                // Determinar qual é a menor (ela atravessa)
+                                const aArea = a.w * a.h, bArea = b.w * b.h;
+                                let extending, clipped;
+
+                                if (axis === 'y') {
+                                    // Divisa horizontal — sobras empilhadas
+                                    // A menor atravessa verticalmente (ganha altura total)
+                                    if (aArea <= bArea) {
+                                        extending = { x: a.x, y: Math.min(a.y, b.y), w: a.w, h: a.h + b.h };
+                                        // B perde a coluna de A
+                                        if (a.x >= b.x) {
+                                            clipped = { x: b.x, y: b.y, w: a.x - b.x, h: b.h };
+                                        } else {
+                                            clipped = { x: a.x + a.w, y: b.y, w: (b.x + b.w) - (a.x + a.w), h: b.h };
+                                        }
+                                    } else {
+                                        extending = { x: b.x, y: Math.min(a.y, b.y), w: b.w, h: a.h + b.h };
+                                        if (b.x >= a.x) {
+                                            clipped = { x: a.x, y: a.y, w: b.x - a.x, h: a.h };
+                                        } else {
+                                            clipped = { x: b.x + b.w, y: a.y, w: (a.x + a.w) - (b.x + b.w), h: a.h };
+                                        }
+                                    }
+                                } else {
+                                    // Divisa vertical — sobras lado a lado
+                                    if (aArea <= bArea) {
+                                        extending = { x: Math.min(a.x, b.x), y: a.y, w: a.w + b.w, h: a.h };
+                                        if (a.y >= b.y) {
+                                            clipped = { x: b.x, y: b.y, w: b.w, h: a.y - b.y };
+                                        } else {
+                                            clipped = { x: b.x, y: a.y + a.h, w: b.w, h: (b.y + b.h) - (a.y + a.h) };
+                                        }
+                                    } else {
+                                        extending = { x: Math.min(a.x, b.x), y: b.y, w: a.w + b.w, h: b.h };
+                                        if (b.y >= a.y) {
+                                            clipped = { x: a.x, y: a.y, w: a.w, h: b.y - a.y };
+                                        } else {
+                                            clipped = { x: a.x, y: b.y + b.h, w: a.w, h: (a.y + a.h) - (b.y + b.h) };
+                                        }
+                                    }
+                                }
+
+                                // Arredondar e validar
+                                [extending, clipped].forEach(r => { r.x = Math.round(r.x); r.y = Math.round(r.y); r.w = Math.round(r.w); r.h = Math.round(r.h); });
+                                // Preservar sobras não envolvidas no corte
+                                const newRetalhos = rets.filter((_, idx2) => idx2 !== i && idx2 !== j);
+                                if (extending.w > 50 && extending.h > 50 && noOverlap(extending)) newRetalhos.push(extending);
+                                // Sobra cortada: só incluir se atende dimensões mínimas do config
+                                const cShort = Math.min(clipped.w, clipped.h), cLong = Math.max(clipped.w, clipped.h);
+                                if (cShort >= sobraMinW && cLong >= sobraMinH && noOverlap(clipped)) newRetalhos.push(clipped);
+
+                                if (onAdjust && newRetalhos.length > 0) {
+                                    onAdjust({ action: 'recalc_sobras', chapaIdx: idx, retalhos: newRetalhos });
+                                }
+                            };
+
+                            const seen = new Set();
                             for (let i = 0; i < rets.length; i++) {
                                 for (let j = i + 1; j < rets.length; j++) {
                                     const a = rets[i], b = rets[j];
-                                    const tol = 2;
-                                    // Adjacente horizontal: a.x+a.w ≈ b.x
-                                    if (Math.abs((a.x + a.w) - b.x) < tol && a.y < b.y + b.h && b.y < a.y + a.h) {
-                                        const oy1 = Math.max(a.y, b.y), oy2 = Math.min(a.y + a.h, b.y + b.h);
-                                        const hx = (a.x + a.w + refiloVal) * scale - 2;
-                                        const hy = (oy1 + refiloVal) * scale;
-                                        const hh = (oy2 - oy1) * scale;
-                                        handles.push(<rect key={`dh${i}-${j}`} x={hx} y={hy} width={4} height={hh}
-                                            fill="#f59e0b" opacity={0.8} rx={1} cursor="col-resize" style={{ pointerEvents: 'all' }}
-                                            onMouseDown={(e) => { e.stopPropagation(); setSobraDrag({ chapaIdx: idx, idx1: i, idx2: j, axis: 'x', startVal: a.x + a.w, startMouse: e.clientX }); }} />);
-                                    }
-                                    // Adjacente vertical: a.y+a.h ≈ b.y
-                                    if (Math.abs((a.y + a.h) - b.y) < tol && a.x < b.x + b.w && b.x < a.x + a.w) {
-                                        const ox1 = Math.max(a.x, b.x), ox2 = Math.min(a.x + a.w, b.x + b.w);
-                                        const hx = (ox1 + refiloVal) * scale;
-                                        const hy = (a.y + a.h + refiloVal) * scale - 2;
-                                        const hw = (ox2 - ox1) * scale;
-                                        handles.push(<rect key={`dv${i}-${j}`} x={hx} y={hy} width={hw} height={4}
-                                            fill="#f59e0b" opacity={0.8} rx={1} cursor="row-resize" style={{ pointerEvents: 'all' }}
-                                            onMouseDown={(e) => { e.stopPropagation(); setSobraDrag({ chapaIdx: idx, idx1: i, idx2: j, axis: 'y', startVal: a.y + a.h, startMouse: e.clientY }); }} />);
-                                    }
-                                    // Adjacente reverso: b.x+b.w ≈ a.x
-                                    if (Math.abs((b.x + b.w) - a.x) < tol && a.y < b.y + b.h && b.y < a.y + a.h) {
-                                        const oy1 = Math.max(a.y, b.y), oy2 = Math.min(a.y + a.h, b.y + b.h);
-                                        const hx = (b.x + b.w + refiloVal) * scale - 2;
-                                        const hy = (oy1 + refiloVal) * scale;
-                                        const hh = (oy2 - oy1) * scale;
-                                        handles.push(<rect key={`dhr${i}-${j}`} x={hx} y={hy} width={4} height={hh}
-                                            fill="#f59e0b" opacity={0.8} rx={1} cursor="col-resize" style={{ pointerEvents: 'all' }}
-                                            onMouseDown={(e) => { e.stopPropagation(); setSobraDrag({ chapaIdx: idx, idx1: j, idx2: i, axis: 'x', startVal: b.x + b.w, startMouse: e.clientX }); }} />);
-                                    }
-                                    // Adjacente reverso vertical: b.y+b.h ≈ a.y
-                                    if (Math.abs((b.y + b.h) - a.y) < tol && a.x < b.x + b.w && b.x < a.x + a.w) {
-                                        const ox1 = Math.max(a.x, b.x), ox2 = Math.min(a.x + a.w, b.x + b.w);
-                                        const hx = (ox1 + refiloVal) * scale;
-                                        const hy = (b.y + b.h + refiloVal) * scale - 2;
-                                        const hw = (ox2 - ox1) * scale;
-                                        handles.push(<rect key={`dvr${i}-${j}`} x={hx} y={hy} width={hw} height={4}
-                                            fill="#f59e0b" opacity={0.8} rx={1} cursor="row-resize" style={{ pointerEvents: 'all' }}
-                                            onMouseDown={(e) => { e.stopPropagation(); setSobraDrag({ chapaIdx: idx, idx1: j, idx2: i, axis: 'y', startVal: b.y + b.h, startMouse: e.clientY }); }} />);
-                                    }
+                                    // Verificar adjacência e renderizar barra clicável
+                                    const checkAdj = (ax, ay, aw, ah, bx, by, bw, bh, axis, key) => {
+                                        if (seen.has(key)) return;
+                                        if (axis === 'y') {
+                                            // a.bottom ≈ b.top — divisa horizontal
+                                            if (Math.abs((ay + ah) - by) < tol) {
+                                                const ox1 = Math.max(ax, bx), ox2 = Math.min(ax + aw, bx + bw);
+                                                if (ox2 - ox1 > 10) {
+                                                    seen.add(key);
+                                                    const hx = (ox1 + refiloVal) * scale;
+                                                    const hy = (ay + ah + refiloVal) * scale - 4;
+                                                    const hw = (ox2 - ox1) * scale;
+                                                    handles.push(
+                                                        <g key={key} style={{ cursor: 'pointer' }} onClick={(e) => cutLine(e, i, j, 'y')}>
+                                                            <rect x={hx} y={hy + 1} width={hw} height={12}
+                                                                fill="transparent" style={{ pointerEvents: 'all' }} />
+                                                            <line x1={hx} y1={hy + 1.5} x2={hx + hw} y2={hy + 1.5}
+                                                                stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="4,3" opacity={0.7} style={{ pointerEvents: 'none' }} />
+                                                        </g>
+                                                    );
+                                                }
+                                            }
+                                        } else {
+                                            // a.right ≈ b.left — divisa vertical
+                                            if (Math.abs((ax + aw) - bx) < tol) {
+                                                const oy1 = Math.max(ay, by), oy2 = Math.min(ay + ah, by + bh);
+                                                if (oy2 - oy1 > 10) {
+                                                    seen.add(key);
+                                                    const hx2 = (ax + aw + refiloVal) * scale - 4;
+                                                    const hy2 = (oy1 + refiloVal) * scale;
+                                                    const hh2 = (oy2 - oy1) * scale;
+                                                    handles.push(
+                                                        <g key={key} style={{ cursor: 'pointer' }} onClick={(e) => cutLine(e, i, j, 'x')}>
+                                                            <rect x={hx2} y={hy2} width={12} height={hh2}
+                                                                fill="transparent" style={{ pointerEvents: 'all' }} />
+                                                            <line x1={hx2 + 1.5} y1={hy2} x2={hx2 + 1.5} y2={hy2 + hh2}
+                                                                stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="4,3" opacity={0.7} style={{ pointerEvents: 'none' }} />
+                                                        </g>
+                                                    );
+                                                }
+                                            }
+                                        }
+                                    };
+                                    // Testar ambas as direções
+                                    checkAdj(a.x, a.y, a.w, a.h, b.x, b.y, b.w, b.h, 'y', `cv${i}-${j}`);
+                                    checkAdj(b.x, b.y, b.w, b.h, a.x, a.y, a.w, a.h, 'y', `cv${j}-${i}`);
+                                    checkAdj(a.x, a.y, a.w, a.h, b.x, b.y, b.w, b.h, 'x', `ch${i}-${j}`);
+                                    checkAdj(b.x, b.y, b.w, b.h, a.x, a.y, a.w, a.h, 'x', `ch${j}-${i}`);
                                 }
                             }
                             return handles;
@@ -2912,14 +5649,20 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                 <b>Módulo:</b> {piece?.modulo_desc || '-'}<br />
                                 <b>Material:</b> {piece?.material_code || '-'}<br />
                                 {piece?.quantidade > 1 && <><b>Instância:</b> {(p.instancia || 0) + 1} de {piece.quantidade}<br /></>}
-                                {piece && (piece.borda_dir || piece.borda_esq || piece.borda_frontal || piece.borda_traseira) && (
-                                    <><b>Fita borda:</b> {[
-                                        piece.borda_frontal && 'Frontal',
-                                        piece.borda_traseira && 'Traseira',
-                                        piece.borda_esq && 'Esquerda',
-                                        piece.borda_dir && 'Direita',
-                                    ].filter(Boolean).join(', ')}<br /></>
-                                )}
+                                {piece && (piece.borda_dir || piece.borda_esq || piece.borda_frontal || piece.borda_traseira) && (() => {
+                                    const sides = [
+                                        piece.borda_frontal && { l: 'Frontal', v: piece.borda_frontal, cor: piece.borda_cor_frontal, c: edgeColorGlobal(piece.borda_frontal, piece.borda_cor_frontal) },
+                                        piece.borda_traseira && { l: 'Traseira', v: piece.borda_traseira, cor: piece.borda_cor_traseira, c: edgeColorGlobal(piece.borda_traseira, piece.borda_cor_traseira) },
+                                        piece.borda_esq && { l: 'Esquerda', v: piece.borda_esq, cor: piece.borda_cor_esq, c: edgeColorGlobal(piece.borda_esq, piece.borda_cor_esq) },
+                                        piece.borda_dir && { l: 'Direita', v: piece.borda_dir, cor: piece.borda_cor_dir, c: edgeColorGlobal(piece.borda_dir, piece.borda_cor_dir) },
+                                    ].filter(Boolean);
+                                    return <><b>Fita borda:</b><br />{sides.map((s, i) => (
+                                        <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, paddingLeft: 8 }}>
+                                            <span style={{ width: 8, height: 3, borderRadius: 1, background: s.c, display: 'inline-block' }} />
+                                            {s.l}: {s.cor ? `${s.cor.replace(/_/g, ' ')} (${s.v.replace(/_/g, ' ')})` : s.v.replace(/_/g, ' ')}
+                                        </span>
+                                    ))}</>;
+                                })()}
                                 {piece?.acabamento && <><b>Acabamento:</b> {piece.acabamento}<br /></>}
                             </div>
                             {/* Special cut rules */}
@@ -2938,50 +5681,82 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                     );
                 })()}
 
-                {/* ══ Context Menu ══ */}
+                {/* ══ Context Menu — Rich actions ══ */}
                 {ctxMenu && (() => {
                     const p = chapa.pecas[ctxMenu.pecaIdx];
                     if (!p) return null;
+                    const piece = pecasMap[p.pecaId];
                     const isLocked = p.locked;
                     const compatibleSheets = allChapas.map((ch, ci) => ({ ch, ci })).filter(({ ch, ci }) => ci !== idx && ch.material === chapa.material);
-                    const ctxSt = (extra) => ({
-                        padding: '7px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-                        fontSize: 12, color: 'var(--text-primary)', transition: 'background .1s', ...extra
-                    });
+                    const MI = ({ icon: Icon, label, color, onClick, disabled }) => (
+                        <div style={{
+                            padding: '7px 14px', cursor: disabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 10,
+                            fontSize: 12, color: disabled ? 'var(--text-muted)' : 'var(--text-primary)', transition: 'background .1s',
+                            opacity: disabled ? 0.5 : 1,
+                        }}
+                            onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = 'var(--bg-muted)'; }}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            onClick={() => { if (!disabled) { onClick(); setCtxMenu(null); } }}>
+                            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 5, background: color ? `${color}18` : 'var(--bg-muted)' }}>
+                                <Icon size={13} style={{ color: color || 'var(--text-secondary)' }} />
+                            </span>
+                            {label}
+                        </div>
+                    );
+                    const Sep = ({ label }) => (
+                        <>
+                            <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+                            {label && <div style={{ padding: '3px 14px', fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>}
+                        </>
+                    );
                     return (
                         <div style={{
-                            position: 'absolute', left: Math.min(ctxMenu.x, 300), top: ctxMenu.y,
+                            position: 'absolute', left: Math.min(ctxMenu.x, 280), top: Math.min(ctxMenu.y, 400),
                             background: 'var(--bg-card)', border: '1px solid var(--border)',
-                            borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,.25)', zIndex: 100,
-                            minWidth: 200, padding: '4px 0', overflow: 'hidden',
+                            borderRadius: 10, boxShadow: 'var(--shadow-lg)', zIndex: 100,
+                            minWidth: 230, padding: '6px 0', overflow: 'hidden',
                         }} onClick={e => e.stopPropagation()}>
-                            <div style={ctxSt()} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                onClick={() => { onAdjust({ action: isLocked ? 'unlock' : 'lock', chapaIdx: idx, pecaIdx: ctxMenu.pecaIdx }); setCtxMenu(null); }}>
-                                {isLocked ? <><Unlock size={13} /> Desbloquear posição</> : <><Lock size={13} /> Bloquear posição</>}
-                            </div>
-                            {!hasVeio && !isLocked && (
-                                <div style={ctxSt()} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
-                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                    onClick={() => { handleRotate(ctxMenu.pecaIdx); setCtxMenu(null); }}>
-                                    <RotateCw size={13} /> Rotacionar 90°
+                            {/* Header */}
+                            <div style={{ padding: '6px 14px 8px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: getModColor(p.pecaId, p) }} />
+                                <div>
+                                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>{piece?.descricao || `Peça #${p.pecaId}`}</div>
+                                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                                        {Math.round(p.w)} × {Math.round(p.h)} mm{p.rotated ? ' (R)' : ''}
+                                        {p.lado_ativo === 'B' ? <span style={{ color: '#0ea5e9', fontWeight: 700, marginLeft: 4 }}>Lado B</span> : ' Lado A'}
+                                    </div>
                                 </div>
-                            )}
-                            <div style={ctxSt()} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                onClick={() => { onAdjust({ action: 'to_transfer', chapaIdx: idx, pecaIdx: ctxMenu.pecaIdx }); setCtxMenu(null); }}>
-                                <ArrowLeftRight size={13} /> Enviar p/ Transferência
                             </div>
+
+                            {/* Ações rápidas */}
+                            {!hasVeio && !isLocked && (
+                                <MI icon={RotateCw} label="Rotacionar 90°" color="#8b5cf6" onClick={() => handleRotate(ctxMenu.pecaIdx)} />
+                            )}
+                            {!isLocked && (
+                                <MI icon={FlipVertical2} label={`Inverter → Lado ${(p.lado_ativo === 'B') ? 'A' : 'B'}`} color="#0ea5e9"
+                                    onClick={() => onAdjust({ action: 'flip', chapaIdx: idx, pecaIdx: ctxMenu.pecaIdx })} />
+                            )}
+                            <MI icon={Eye} label="Ver Peça 3D" color="#3b82f6" onClick={() => onView3D && onView3D(piece)} />
+                            <MI icon={Printer} label="Imprimir Etiqueta" color="#d97706" onClick={() => onPrintSingleLabel && onPrintSingleLabel(piece)} />
+
+                            <Sep label="Organização" />
+                            <MI icon={isLocked ? Unlock : Lock} label={isLocked ? 'Desbloquear posição' : 'Bloquear posição'} color="#fbbf24"
+                                onClick={() => onAdjust({ action: isLocked ? 'unlock' : 'lock', chapaIdx: idx, pecaIdx: ctxMenu.pecaIdx })} />
+                            <MI icon={ArrowLeftRight} label="Enviar p/ Transferência" color="#06b6d4"
+                                onClick={() => onAdjust({ action: 'to_transfer', chapaIdx: idx, pecaIdx: ctxMenu.pecaIdx })} />
+
+                            {/* Navegação */}
+                            <Sep label="Navegação" />
+                            <MI icon={Layers} label="Ver no Lote (Peças)" color="#22c55e"
+                                onClick={() => setTab && setTab('pecas')} />
+
+                            {/* Mover para outra chapa */}
                             {compatibleSheets.length > 0 && (
                                 <>
-                                    <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-                                    <div style={{ padding: '4px 14px', fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Mover para chapa</div>
+                                    <Sep label="Mover para chapa" />
                                     {compatibleSheets.map(({ ci }) => (
-                                        <div key={ci} style={ctxSt()} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
-                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                            onClick={() => { onAdjust({ action: 'move_to_sheet', chapaIdx: idx, pecaIdx: ctxMenu.pecaIdx, targetChapaIdx: ci }); setCtxMenu(null); }}>
-                                            <Box size={13} /> Chapa {ci + 1}
-                                        </div>
+                                        <MI key={ci} icon={Box} label={`Chapa ${ci + 1}`} color="#64748b"
+                                            onClick={() => onAdjust({ action: 'move_to_sheet', chapaIdx: idx, pecaIdx: ctxMenu.pecaIdx, targetChapaIdx: ci })} />
                                     ))}
                                 </>
                             )}
@@ -2993,27 +5768,57 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                 {sobraCtxMenu && sobraCtxMenu.chapaIdx === idx && (() => {
                     const r = (chapa.retalhos || [])[sobraCtxMenu.retalhoIdx];
                     if (!r) return null;
-                    // Verificar se tem adjacente
                     const rets = chapa.retalhos || [];
-                    const tol = 2;
-                    const hasAdj = rets.some((b, bi) => {
-                        if (bi === sobraCtxMenu.retalhoIdx) return false;
-                        return (Math.abs((r.x + r.w) - b.x) < tol || Math.abs((b.x + b.w) - r.x) < tol ||
-                                Math.abs((r.y + r.h) - b.y) < tol || Math.abs((b.y + b.h) - r.y) < tol);
-                    });
+                    const tol = 5;
+                    const hasAdj = rets.length >= 2;
                     const ctxSt2 = (extra) => ({
                         padding: '7px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
                         fontSize: 12, color: 'var(--text-primary)', transition: 'background .1s', ...extra
                     });
+
+                    // Função para alternar orientação do corte do L
+                    const toggleCutOrientation = () => {
+                        const ref = chapa.refilo || 0;
+                        const uW = chapa.comprimento - 2 * ref;
+                        const uH = chapa.largura - 2 * ref;
+                        const pecas = chapa.pecas || [];
+                        let maxPecaX = 0, maxPecaY = 0;
+                        for (const p of pecas) {
+                            if (p.x + p.w > maxPecaX) maxPecaX = p.x + p.w;
+                            if (p.y + p.h > maxPecaY) maxPecaY = p.y + p.h;
+                        }
+                        const noOverlap = (rr) => !pecas.some(p => rr.x < p.x + p.w && rr.x + rr.w > p.x && rr.y < p.y + p.h && rr.y + rr.h > p.y);
+                        const isOk = (rr) => { const s = Math.min(rr.w, rr.h), l = Math.max(rr.w, rr.h); return s >= sobraMinW && l >= sobraMinH && noOverlap(rr); };
+
+                        // Detectar orientação atual: se a sobra clicada tem altura total = vertical, senão = horizontal
+                        const isCurrentlyVertical = Math.abs(r.h - uH) < 5 || Math.abs(r.w - uW) < 5;
+
+                        let newRetalhos;
+                        if (isCurrentlyVertical || r.h > r.w) {
+                            // Mudar para horizontal: faixa inferior larga + faixa direita curta
+                            const bottom = { x: 0, y: Math.round(maxPecaY), w: Math.round(uW), h: Math.round(uH - maxPecaY) };
+                            const right = { x: Math.round(maxPecaX), y: 0, w: Math.round(uW - maxPecaX), h: Math.round(maxPecaY) };
+                            newRetalhos = [bottom, right].filter(isOk);
+                        } else {
+                            // Mudar para vertical: faixa direita alta + faixa inferior curta
+                            const right = { x: Math.round(maxPecaX), y: 0, w: Math.round(uW - maxPecaX), h: Math.round(uH) };
+                            const bottom = { x: 0, y: Math.round(maxPecaY), w: Math.round(maxPecaX), h: Math.round(uH - maxPecaY) };
+                            newRetalhos = [right, bottom].filter(isOk);
+                        }
+
+                        if (onAdjust) onAdjust({ action: 'recalc_sobras', chapaIdx: idx, retalhos: newRetalhos });
+                        setSobraCtxMenu(null);
+                    };
+
                     return (
                         <div style={{
                             position: 'absolute', left: Math.min(sobraCtxMenu.x, 300), top: sobraCtxMenu.y,
                             background: 'var(--bg-card)', border: '1px solid var(--border)',
                             borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,.25)', zIndex: 100,
-                            minWidth: 200, padding: '4px 0', overflow: 'hidden',
+                            minWidth: 220, padding: '4px 0', overflow: 'hidden',
                         }} onClick={e => e.stopPropagation()}>
                             <div style={{ padding: '4px 14px 6px', fontSize: 10, fontWeight: 700, color: '#22c55e' }}>
-                                Sobra {Math.round(r.w)}x{Math.round(r.h)}mm
+                                Sobra {Math.round(r.w)}×{Math.round(r.h)}mm ({(r.w * r.h / 1e6).toFixed(3)} m²)
                             </div>
                             <div style={ctxSt2()} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
                                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -3021,14 +5826,17 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                 <Trash2 size={13} color="#ef4444" /> Marcar como Refugo
                             </div>
                             {hasAdj && (
-                                <div style={ctxSt2()} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
-                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                    onClick={() => {
-                                        setSobraDrag({ chapaIdx: idx, active: true });
-                                        setSobraCtxMenu(null);
-                                    }}>
-                                    <Maximize2 size={13} color="#f59e0b" /> Ajustar Corte de Sobra
-                                </div>
+                                <>
+                                    <div style={{ height: 1, background: 'var(--border)', margin: '2px 10px' }} />
+                                    <div style={ctxSt2()} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
+                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                        onClick={toggleCutOrientation}>
+                                        <ArrowLeftRight size={13} color="#f59e0b" /> Alternar Corte (trocar orientação)
+                                    </div>
+                                    <div style={{ padding: '2px 14px', fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                        Arraste a barra ⇔ para cortar a linha e redistribuir
+                                    </div>
+                                </>
                             )}
                         </div>
                     );
@@ -3040,7 +5848,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                         position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
                         padding: '4px 14px', borderRadius: 6, fontSize: 11, fontWeight: 600,
                         background: dragCollision ? colorBg('#ef4444') : colorBg('#22c55e'),
-                        color: dragCollision ? '#ef4444' : '#22c55e',
+                        color: dragCollision ? '#ef4444' : '#2563eb',
                         border: `1px solid ${dragCollision ? colorBorder('#ef4444') : colorBorder('#22c55e')}`,
                         zIndex: 10, whiteSpace: 'nowrap',
                     }}>
@@ -3075,6 +5883,163 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                 </span>
             </div>
 
+            {/* ══ Retalhos Mode Toolbar ══ */}
+            {retMode && (
+                <div style={{
+                    marginTop: 10, padding: 12, background: 'var(--bg-muted)',
+                    border: '1px solid var(--border)', borderRadius: 8,
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Scissors size={14} /> Definir Sobras — Chapa {idx + 1}
+                        </span>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                            <button onClick={() => { setRetDefs((chapa.retalhos || []).map(r => ({ ...r, type: null }))); setRetSelected(null); setRetSplitPreview(null); }}
+                                style={{ padding: '4px 10px', fontSize: 10, fontWeight: 600, background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer' }}>
+                                <Undo2 size={10} /> Reset
+                            </button>
+                            {onSaveRetalhos && (
+                                <button onClick={() => {
+                                    const retalhos = retDefs.filter(r => r.type === 'retalho');
+                                    const refugos = retDefs.filter(r => r.type === 'refugo');
+                                    onSaveRetalhos(idx, retalhos, refugos);
+                                    setRetMode(false);
+                                }}
+                                    style={{ padding: '4px 14px', fontSize: 10, fontWeight: 700, background: '#059669', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                                    Salvar ({retDefs.filter(r => r.type === 'retalho').length} retalhos)
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Summary row */}
+                    <div style={{ display: 'flex', gap: 12, marginBottom: 10, fontSize: 10, flexWrap: 'wrap' }}>
+                        <span style={{ color: '#059669', fontWeight: 600 }}>
+                            ✓ Retalhos: {retDefs.filter(r => r.type === 'retalho').length}
+                            {retDefs.filter(r => r.type === 'retalho').length > 0 && ` (${(retDefs.filter(r => r.type === 'retalho').reduce((s, r) => s + r.w * r.h, 0) / 1000000).toFixed(3)} m²)`}
+                        </span>
+                        <span style={{ color: '#dc2626', fontWeight: 600 }}>
+                            ✗ Refugos: {retDefs.filter(r => r.type === 'refugo').length}
+                        </span>
+                        <span style={{ color: 'var(--text-muted)' }}>
+                            Sem definição: {retDefs.filter(r => !r.type).length}
+                        </span>
+                    </div>
+
+                    {/* Selected retalho actions */}
+                    {retSelected != null && retDefs[retSelected] && (() => {
+                        const rd = retDefs[retSelected];
+                        const canSplitH = rd.h > 100; // min 100mm para dividir H
+                        const canSplitV = rd.w > 100; // min 100mm para dividir V
+                        return (
+                            <div style={{
+                                padding: 10, background: 'var(--bg-card)', border: '1px solid var(--border)',
+                                borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                            }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', marginRight: 4 }}>
+                                    Sobra #{retSelected + 1}: {Math.round(rd.w)}×{Math.round(rd.h)}mm
+                                    <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 4 }}>
+                                        ({(rd.w * rd.h / 1000000).toFixed(3)} m²)
+                                    </span>
+                                </span>
+                                <button onClick={() => { const n = [...retDefs]; n[retSelected] = { ...rd, type: 'retalho' }; setRetDefs(n); }}
+                                    style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, borderRadius: 4, cursor: 'pointer',
+                                        background: rd.type === 'retalho' ? '#059669' : 'transparent',
+                                        color: rd.type === 'retalho' ? '#fff' : '#059669',
+                                        border: '1px solid #059669' }}>
+                                    ✓ Retalho
+                                </button>
+                                <button onClick={() => { const n = [...retDefs]; n[retSelected] = { ...rd, type: 'refugo' }; setRetDefs(n); }}
+                                    style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, borderRadius: 4, cursor: 'pointer',
+                                        background: rd.type === 'refugo' ? '#dc2626' : 'transparent',
+                                        color: rd.type === 'refugo' ? '#fff' : '#dc2626',
+                                        border: '1px solid #dc2626' }}>
+                                    ✗ Refugo
+                                </button>
+                                <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>│</span>
+                                {canSplitH && (
+                                    <button onClick={() => {
+                                        const midY = rd.y + rd.h / 2;
+                                        setRetSplitPreview({ retIdx: retSelected, axis: 'h', pos: midY });
+                                    }}
+                                        style={{ padding: '4px 10px', fontSize: 10, fontWeight: 600, borderRadius: 4, cursor: 'pointer',
+                                            background: retSplitPreview?.axis === 'h' ? '#f59e0b' : 'transparent',
+                                            color: retSplitPreview?.axis === 'h' ? '#fff' : '#f59e0b',
+                                            border: '1px solid #f59e0b' }}>
+                                        ━ Dividir H
+                                    </button>
+                                )}
+                                {canSplitV && (
+                                    <button onClick={() => {
+                                        const midX = rd.x + rd.w / 2;
+                                        setRetSplitPreview({ retIdx: retSelected, axis: 'v', pos: midX });
+                                    }}
+                                        style={{ padding: '4px 10px', fontSize: 10, fontWeight: 600, borderRadius: 4, cursor: 'pointer',
+                                            background: retSplitPreview?.axis === 'v' ? '#f59e0b' : 'transparent',
+                                            color: retSplitPreview?.axis === 'v' ? '#fff' : '#f59e0b',
+                                            border: '1px solid #f59e0b' }}>
+                                        ┃ Dividir V
+                                    </button>
+                                )}
+                                {retSplitPreview && retSplitPreview.retIdx === retSelected && (
+                                    <>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                            <input type="range"
+                                                min={retSplitPreview.axis === 'h' ? Math.round(rd.y + 50) : Math.round(rd.x + 50)}
+                                                max={retSplitPreview.axis === 'h' ? Math.round(rd.y + rd.h - 50) : Math.round(rd.x + rd.w - 50)}
+                                                value={Math.round(retSplitPreview.pos)}
+                                                onChange={(e) => setRetSplitPreview({ ...retSplitPreview, pos: Number(e.target.value) })}
+                                                style={{ width: 120 }}
+                                            />
+                                            <span style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', fontFamily: 'monospace', minWidth: 45 }}>
+                                                {retSplitPreview.axis === 'h'
+                                                    ? `${Math.round(retSplitPreview.pos - rd.y)} / ${Math.round(rd.y + rd.h - retSplitPreview.pos)}`
+                                                    : `${Math.round(retSplitPreview.pos - rd.x)} / ${Math.round(rd.x + rd.w - retSplitPreview.pos)}`
+                                                }
+                                            </span>
+                                        </div>
+                                        <button onClick={() => {
+                                            const sp = retSplitPreview;
+                                            const r = retDefs[sp.retIdx];
+                                            const newDefs = [...retDefs];
+                                            newDefs.splice(sp.retIdx, 1);
+                                            if (sp.axis === 'h') {
+                                                newDefs.push({ x: r.x, y: r.y, w: r.w, h: sp.pos - r.y, type: null });
+                                                newDefs.push({ x: r.x, y: sp.pos, w: r.w, h: r.y + r.h - sp.pos, type: null });
+                                            } else {
+                                                newDefs.push({ x: r.x, y: r.y, w: sp.pos - r.x, h: r.h, type: null });
+                                                newDefs.push({ x: sp.pos, y: r.y, w: r.w - (sp.pos - r.x), h: r.h, type: null });
+                                            }
+                                            setRetDefs(newDefs);
+                                            setRetSplitPreview(null);
+                                            setRetSelected(null);
+                                        }}
+                                            style={{ padding: '4px 12px', fontSize: 10, fontWeight: 700, background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                                            Cortar
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        );
+                    })()}
+
+                    {/* List of all retalho defs */}
+                    <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {retDefs.map((rd, ri) => (
+                            <div key={ri} onClick={() => { setRetSelected(ri); setRetSplitPreview(null); }}
+                                style={{
+                                    padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 10, fontWeight: 600,
+                                    background: retSelected === ri ? 'var(--bg-card)' : 'transparent',
+                                    border: `1px solid ${rd.type === 'retalho' ? '#059669' : rd.type === 'refugo' ? '#dc2626' : 'var(--border)'}`,
+                                    color: rd.type === 'retalho' ? '#059669' : rd.type === 'refugo' ? '#dc2626' : 'var(--text-muted)',
+                                }}>
+                                {rd.type === 'retalho' ? '✓' : rd.type === 'refugo' ? '✗' : '○'} {Math.round(rd.w)}×{Math.round(rd.h)}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Piece list (expandable) */}
             <details style={{ marginTop: 8 }}>
                 <summary style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer' }}>
@@ -3090,6 +6055,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                 <th style={{ textAlign: 'right', padding: '3px 6px', fontWeight: 600 }}>C x L (mm)</th>
                                 <th style={{ textAlign: 'right', padding: '3px 6px', fontWeight: 600 }}>Posição</th>
                                 <th style={{ textAlign: 'center', padding: '3px 6px', fontWeight: 600 }}>Rot.</th>
+                                <th style={{ textAlign: 'center', padding: '3px 6px', fontWeight: 600 }}>Lado</th>
                                 <th style={{ textAlign: 'center', padding: '3px 6px', fontWeight: 600 }}>Borda</th>
                                 <th style={{ textAlign: 'center', padding: '3px 6px', fontWeight: 600 }}>Class.</th>
                                 <th style={{ textAlign: 'center', padding: '3px 6px', fontWeight: 600 }}>Lock</th>
@@ -3109,6 +6075,11 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                         <td style={{ padding: '3px 6px', textAlign: 'right', fontFamily: 'monospace', color: 'var(--text-muted)' }}>{Math.round(p.x)},{Math.round(p.y)}</td>
                                         <td style={{ padding: '3px 6px', textAlign: 'center' }}>
                                             {p.rotated ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>90°</span> : '-'}
+                                        </td>
+                                        <td style={{ padding: '3px 6px', textAlign: 'center' }}>
+                                            {p.lado_ativo === 'B'
+                                                ? <span style={{ color: '#0ea5e9', fontWeight: 700, fontSize: 9 }}>B</span>
+                                                : <span style={{ color: 'var(--text-muted)', fontSize: 9 }}>A</span>}
                                         </td>
                                         <td style={{ padding: '3px 6px', textAlign: 'center' }}>
                                             {hasBorda ? <span style={{ color: '#ff6b35', fontWeight: 600 }}>●</span> : '-'}
@@ -3140,17 +6111,21 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                         Sequência de Cortes ({chapa.cortes.length} cortes)
                     </summary>
                     <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {chapa.cortes.map((c, ci) => (
-                            <span key={ci} style={{
-                                fontSize: 10, padding: '3px 8px', borderRadius: 4,
-                                background: c.dir === 'Horizontal' ? colorBg('#3b82f6') : colorBg('#f59e0b'),
-                                border: `1px solid ${c.dir === 'Horizontal' ? colorBorder('#3b82f6') : colorBorder('#f59e0b')}`,
-                                color: c.dir === 'Horizontal' ? '#3b82f6' : '#f59e0b',
-                                fontWeight: 600,
-                            }}>
-                                {c.seq}. {c.dir === 'Horizontal' ? '━' : '┃'} {c.pos}mm ({c.len}mm)
-                            </span>
-                        ))}
+                        {chapa.cortes.map((c, ci) => {
+                            const isRet = c.tipo === 'separacao_retalho';
+                            const clr = isRet ? '#059669' : (c.dir === 'Horizontal' ? '#3b82f6' : '#f59e0b');
+                            return (
+                                <span key={ci} style={{
+                                    fontSize: 10, padding: '3px 8px', borderRadius: 4,
+                                    background: colorBg(clr), border: `1px solid ${colorBorder(clr)}`,
+                                    color: clr, fontWeight: 600,
+                                }}>
+                                    {c.seq || ci + 1}. {c.dir === 'Horizontal' ? '━' : '┃'} {c.pos}mm
+                                    {c.len ? ` (${c.len}mm)` : ''}
+                                    {isRet ? ' ✂ RET' : ''}
+                                </span>
+                            );
+                        })}
                     </div>
                 </details>
             )}
@@ -3220,6 +6195,458 @@ function BarcodeSVG({ value, width = 120, height = 28 }) {
     );
 }
 
+// ═══════════════════════════════════════════════════════
+// ABA: MATERIAIS — Cadastro completo
+// ═══════════════════════════════════════════════════════
+function TabMateriais({ notify }) {
+    const [materiais, setMateriais] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [busca, setBusca] = useState('');
+    const [editando, setEditando] = useState(null); // null=fechado, {}=novo, {...}=editar
+    const [saving, setSaving] = useState(false);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        try { setMateriais(await api.get('/cnc/materiais')); }
+        catch { notify?.('Erro ao carregar materiais', 'error'); }
+        setLoading(false);
+    }, [notify]);
+
+    useEffect(() => { load(); }, [load]);
+
+    const filtered = materiais.filter(m => {
+        if (!busca) return true;
+        const q = busca.toLowerCase();
+        return (m.nome || '').toLowerCase().includes(q) ||
+            (m.codigo || '').toLowerCase().includes(q) ||
+            (m.cor || '').toLowerCase().includes(q) ||
+            (m.fornecedor || '').toLowerCase().includes(q);
+    });
+
+    const handleSave = async () => {
+        if (!editando?.nome) return;
+        setSaving(true);
+        try {
+            if (editando.id) {
+                await api.put(`/cnc/materiais/${editando.id}`, editando);
+                notify?.('Material atualizado');
+            } else {
+                await api.post('/cnc/materiais', editando);
+                notify?.('Material criado');
+            }
+            setEditando(null);
+            load();
+        } catch (err) {
+            notify?.('Erro ao salvar: ' + (err.message || ''), 'error');
+        }
+        setSaving(false);
+    };
+
+    const handleDelete = async (id) => {
+        if (!confirm('Desativar este material?')) return;
+        await api.del(`/cnc/materiais/${id}`);
+        notify?.('Material desativado');
+        load();
+    };
+
+    const handleDuplicar = async (id) => {
+        await api.post(`/cnc/materiais/${id}/duplicar`);
+        notify?.('Material duplicado');
+        load();
+    };
+
+    const novoMaterial = () => setEditando({
+        nome: '', codigo: '', espessura: 18, comprimento_chapa: 2750, largura_chapa: 1830,
+        veio: 'sem_veio', melamina: 'ambos', cor: '', acabamento: '', fornecedor: '',
+        custo_m2: 0, refilo: 10, kerf: 4, ativo: 1, permitir_rotacao: -1,
+    });
+
+    const EF = ({ label, field, type = 'text', opts, w }) => (
+        <div style={{ flex: w || 1 }}>
+            <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>{label}</label>
+            {opts ? (
+                <select value={editando[field] ?? ''} onChange={e => {
+                    const v = e.target.value;
+                    // Converter para número se o valor original das options é numérico
+                    const isNum = opts.some(o => typeof o.v === 'number');
+                    setEditando(f => ({ ...f, [field]: isNum ? Number(v) : v }));
+                }} className={Z.inp} style={{ fontSize: 12, padding: '6px 8px' }}>
+                    {opts.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+                </select>
+            ) : (
+                <input type={type} value={editando[field] ?? ''} onChange={e => setEditando(f => ({ ...f, [field]: type === 'number' ? +e.target.value : e.target.value }))}
+                    className={Z.inp} style={{ fontSize: 12, padding: '6px 8px', fontFamily: type === 'number' ? 'monospace' : 'inherit' }} />
+            )}
+        </div>
+    );
+
+    const MELAMINA_LABELS = { ambos: '✅ Ambos os lados', face_a: '🔼 Só Face A', face_b: '🔽 Só Face B', cru: '⬜ Cru (sem melamina)' };
+    const VEIO_LABELS = { sem_veio: 'Sem veio', horizontal: 'Horizontal →', vertical: 'Vertical ↓' };
+
+    return (
+        <div>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, flex: 1 }}>
+                    📦 Cadastro de Materiais <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)' }}>({materiais.length})</span>
+                </h3>
+                <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar material..."
+                    className={Z.inp} style={{ width: 220, fontSize: 12 }} />
+                <button onClick={novoMaterial} className={Z.btn}
+                    style={{ background: 'var(--primary)', color: '#fff', fontSize: 12, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Plus size={14} /> Novo Material
+                </button>
+            </div>
+
+            {/* Tabela */}
+            {loading ? <Spinner /> : (
+                <div className="glass-card" style={{ overflow: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                            <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left' }}>
+                                {['Código', 'Nome', 'Esp.', 'Chapa', 'Veio', 'Melamina', 'Cor', 'Fornecedor', 'R$/m²', 'Ações'].map(h => (
+                                    <th key={h} style={{ padding: '8px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filtered.map(m => (
+                                <tr key={m.id} style={{ borderBottom: '1px solid var(--border)', opacity: m.ativo ? 1 : 0.5 }}>
+                                    <td style={{ padding: '6px 10px', fontFamily: 'monospace', fontWeight: 600 }}>{m.codigo || '—'}</td>
+                                    <td style={{ padding: '6px 10px', fontWeight: 600 }}>{m.nome}</td>
+                                    <td style={{ padding: '6px 10px', fontFamily: 'monospace' }}>{m.espessura}mm</td>
+                                    <td style={{ padding: '6px 10px', fontFamily: 'monospace', fontSize: 11 }}>{m.comprimento_chapa}×{m.largura_chapa}</td>
+                                    <td style={{ padding: '6px 10px' }}>{VEIO_LABELS[m.veio] || m.veio}</td>
+                                    <td style={{ padding: '6px 10px' }}>
+                                        <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4,
+                                            background: m.melamina === 'ambos' ? '#dcfce7' : m.melamina === 'cru' ? '#f3f4f6' : '#fef3c7',
+                                            color: m.melamina === 'ambos' ? '#166534' : m.melamina === 'cru' ? '#666' : '#92400e',
+                                        }}>{MELAMINA_LABELS[m.melamina] || m.melamina}</span>
+                                    </td>
+                                    <td style={{ padding: '6px 10px' }}>{m.cor || '—'}</td>
+                                    <td style={{ padding: '6px 10px' }}>{m.fornecedor || '—'}</td>
+                                    <td style={{ padding: '6px 10px', fontFamily: 'monospace' }}>{m.custo_m2 > 0 ? `R$ ${m.custo_m2.toFixed(2)}` : '—'}</td>
+                                    <td style={{ padding: '6px 10px' }}>
+                                        <div style={{ display: 'flex', gap: 4 }}>
+                                            <button onClick={() => setEditando({ ...m })} title="Editar"
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: 2 }}>
+                                                <Edit size={13} />
+                                            </button>
+                                            <button onClick={() => handleDuplicar(m.id)} title="Duplicar"
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2 }}>
+                                                <Copy size={13} />
+                                            </button>
+                                            <button onClick={() => handleDelete(m.id)} title="Desativar"
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 2 }}>
+                                                <Trash2 size={13} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                            {filtered.length === 0 && (
+                                <tr><td colSpan={10} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
+                                    {busca ? 'Nenhum material encontrado' : 'Nenhum material cadastrado. Clique em "+ Novo Material" para começar.'}
+                                </td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {/* Modal de edição */}
+            {editando && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', background: 'rgba(0,0,0,0.5)' }}
+                    onClick={e => { if (e.target === e.currentTarget) setEditando(null); }}>
+                    <div style={{ margin: 'auto', width: '95vw', maxWidth: 700, background: 'var(--bg-card)', borderRadius: 12, overflow: 'hidden', boxShadow: '0 24px 48px rgba(0,0,0,0.25)' }}
+                        onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
+                            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
+                                {editando.id ? 'Editar Material' : '+ Novo Material'}
+                            </h3>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                                <button onClick={handleSave} disabled={saving || !editando.nome}
+                                    className={Z.btn} style={{ background: 'var(--primary)', color: '#fff', fontSize: 12, padding: '6px 14px' }}>
+                                    <Save size={14} /> {saving ? 'Salvando...' : 'Salvar'}
+                                </button>
+                                <button onClick={() => setEditando(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                                    <X size={18} />
+                                </button>
+                            </div>
+                        </div>
+                        <div style={{ padding: 16 }}>
+                            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                                <EF label="Código" field="codigo" />
+                                <EF label="Nome *" field="nome" w={2} />
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                                <EF label="Espessura (mm)" field="espessura" type="number" />
+                                <EF label="Comp. Chapa (mm)" field="comprimento_chapa" type="number" />
+                                <EF label="Larg. Chapa (mm)" field="largura_chapa" type="number" />
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                                <EF label="Veio" field="veio" opts={[
+                                    { v: 'sem_veio', l: 'Sem veio' },
+                                    { v: 'horizontal', l: 'Horizontal →' },
+                                    { v: 'vertical', l: 'Vertical ↓' },
+                                ]} />
+                                <EF label="Melamina" field="melamina" opts={[
+                                    { v: 'ambos', l: '✅ Ambos os lados' },
+                                    { v: 'face_a', l: '🔼 Apenas Face A (topo)' },
+                                    { v: 'face_b', l: '🔽 Apenas Face B (fundo)' },
+                                    { v: 'cru', l: '⬜ Cru (sem melamina)' },
+                                ]} />
+                                <EF label="Cor / Acabamento" field="cor" />
+                                <EF label="Rotação" field="permitir_rotacao" opts={[
+                                    { v: -1, l: '🔄 Automático (segue veio)' },
+                                    { v: 1, l: '✅ Sempre permitir' },
+                                    { v: 0, l: '🚫 Nunca permitir' },
+                                ]} />
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                                <EF label="Fornecedor" field="fornecedor" />
+                                <EF label="Custo R$/m²" field="custo_m2" type="number" />
+                                <EF label="Refilo (mm)" field="refilo" type="number" />
+                                <EF label="Kerf (mm)" field="kerf" type="number" />
+                            </div>
+                            {editando.melamina && editando.melamina !== 'ambos' && (
+                                <div style={{ padding: '8px 12px', borderRadius: 6, background: '#fef3c7', border: '1px solid #fcd34d', fontSize: 11, color: '#92400e', marginTop: 8 }}>
+                                    ⚠️ <strong>Melamina em {editando.melamina === 'face_a' ? 'apenas Face A' : editando.melamina === 'face_b' ? 'apenas Face B' : 'nenhum lado'}:</strong> O algoritmo de face CNC levará isso em conta automaticamente para orientar a peça na máquina.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════
+// ABA: USINAGENS — Gestão por lote + Face CNC
+// ═══════════════════════════════════════════════════════
+
+const USIN_LABELS = {
+    'Transfer_vertical_saw_cut': { label: 'Rasgo/Canal', icon: '━', color: '#eab308' },
+    'transfer_pocket': { label: 'Rebaixo', icon: '▬', color: '#a855f7' },
+    'transfer_slot': { label: 'Fresa/Slot', icon: '◆', color: '#06b6d4' },
+    'transfer_hole_blind': { label: 'Furo cego', icon: '◐', color: '#f97316' },
+    'transfer_hole': { label: 'Furo passante', icon: '●', color: '#dc2626' },
+};
+
+function usinInfo(cat) {
+    return USIN_LABELS[cat] || { label: cat || '?', icon: '?', color: '#888' };
+}
+
+function TabUsinagens({ lotes, loteAtual, setLoteAtual, notify }) {
+    const [pecas, setPecas] = useState([]);
+    const [overrides, setOverrides] = useState([]);
+    const [faceCNC, setFaceCNC] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
+
+    const load = useCallback(async () => {
+        if (!loteAtual?.id) return;
+        setLoading(true);
+        try {
+            const [p, o, f] = await Promise.all([
+                api.get(`/cnc/pecas/${loteAtual.id}`),
+                api.get(`/cnc/lotes/${loteAtual.id}/overrides`),
+                api.get(`/cnc/lotes/${loteAtual.id}/face-cnc`),
+            ]);
+            setPecas(p);
+            setOverrides(o);
+            setFaceCNC(f);
+        } catch { notify?.('Erro ao carregar usinagens', 'error'); }
+        setLoading(false);
+    }, [loteAtual?.id, notify]);
+
+    useEffect(() => { load(); }, [load]);
+
+    const parseMach = (mj) => {
+        if (!mj) return [];
+        try { const d = typeof mj === 'string' ? JSON.parse(mj) : mj; return Array.isArray(d) ? d : d.workers || []; } catch { return []; }
+    };
+
+    const isDisabled = (pid, idx) => {
+        return overrides.some(o => o.peca_persistent_id === pid && o.worker_index === idx && !o.ativo);
+    };
+
+    const toggleWorker = async (pid, idx, currentlyActive) => {
+        setSaving(true);
+        try {
+            await api.post(`/cnc/lotes/${loteAtual.id}/overrides`, {
+                peca_persistent_id: pid,
+                worker_index: idx,
+                ativo: currentlyActive ? 0 : 1,
+                motivo: currentlyActive ? 'Desativado manualmente' : '',
+            });
+            await load();
+        } catch { notify?.('Erro', 'error'); }
+        setSaving(false);
+    };
+
+    const disableAll = async (pid) => {
+        const workers = parseMach(pecas.find(p => p.persistent_id === pid)?.machining_json);
+        const bulk = workers.map((_, i) => ({ peca_persistent_id: pid, worker_index: i, ativo: 0, motivo: 'Desativado em lote' }));
+        await api.post(`/cnc/lotes/${loteAtual.id}/overrides/bulk`, { overrides: bulk });
+        load();
+        notify?.('Todas usinagens desativadas');
+    };
+
+    const enableAll = async (pid) => {
+        const workers = parseMach(pecas.find(p => p.persistent_id === pid)?.machining_json);
+        const bulk = workers.map((_, i) => ({ peca_persistent_id: pid, worker_index: i, ativo: 1 }));
+        await api.post(`/cnc/lotes/${loteAtual.id}/overrides/bulk`, { overrides: bulk });
+        load();
+        notify?.('Todas usinagens ativadas');
+    };
+
+    // Contar totais
+    let totalOps = 0, totalAtivas = 0;
+    pecas.forEach(p => {
+        const ws = parseMach(p.machining_json);
+        totalOps += ws.length;
+        ws.forEach((_, i) => { if (!isDisabled(p.persistent_id, i)) totalAtivas++; });
+    });
+
+    return (
+        <div>
+            <LoteSelector lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} />
+
+            {!loteAtual ? (
+                <div className="glass-card p-8" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                    Selecione um lote para gerenciar usinagens
+                </div>
+            ) : loading ? <Spinner /> : (
+                <div>
+                    {/* Resumo Face CNC */}
+                    {faceCNC && (
+                        <div className="glass-card" style={{ padding: 16, marginBottom: 16 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                                <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>🧠 Algoritmo de Face CNC</h4>
+                                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4,
+                                    background: faceCNC.melamina === 'ambos' ? '#dcfce7' : '#fef3c7',
+                                    color: faceCNC.melamina === 'ambos' ? '#166534' : '#92400e',
+                                }}>Melamina: {faceCNC.melamina}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                {(faceCNC.faces || []).map(f => (
+                                    <div key={f.peca_id} style={{
+                                        padding: '6px 10px', borderRadius: 6, fontSize: 11,
+                                        border: '1px solid var(--border)', background: 'var(--bg-muted)',
+                                        display: 'flex', alignItems: 'center', gap: 6,
+                                    }}>
+                                        <span style={{
+                                            padding: '1px 6px', borderRadius: 4, fontWeight: 700, fontSize: 10,
+                                            background: f.face_cnc === 'A' ? '#dbeafe' : '#fce7f3',
+                                            color: f.face_cnc === 'A' ? '#1e40af' : '#9d174d',
+                                        }}>Face {f.face_cnc}</span>
+                                        <span style={{ fontWeight: 600 }}>{f.descricao || `Peça ${f.peca_id}`}</span>
+                                        <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>
+                                            A:{f.score_a.toFixed(0)} vs B:{f.score_b.toFixed(0)}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Resumo */}
+                    <div className="glass-card" style={{ padding: 12, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
+                        <div>
+                            <span style={{ fontSize: 24, fontWeight: 700 }}>{totalAtivas}</span>
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}> / {totalOps} usinagens ativas</span>
+                        </div>
+                        <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--border)' }}>
+                            <div style={{ width: totalOps > 0 ? `${(totalAtivas / totalOps * 100)}%` : '0%', height: '100%', borderRadius: 4, background: 'var(--primary)', transition: 'width .3s' }} />
+                        </div>
+                        <span style={{ fontSize: 11, color: totalAtivas < totalOps ? '#f59e0b' : '#22c55e', fontWeight: 600 }}>
+                            {totalAtivas < totalOps ? `${totalOps - totalAtivas} desativada(s)` : 'Todas ativas'}
+                        </span>
+                    </div>
+
+                    {/* Lista por peça */}
+                    {pecas.map(p => {
+                        const workers = parseMach(p.machining_json);
+                        if (!workers.length) return null;
+                        const pid = p.persistent_id || `peca_${p.id}`;
+                        const fInfo = faceCNC?.faces?.find(f => f.peca_id === p.id);
+
+                        return (
+                            <div key={p.id} className="glass-card" style={{ padding: 12, marginBottom: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                    <span style={{ fontWeight: 700, fontSize: 13 }}>{p.descricao || p.upmcode || `Peça #${p.id}`}</span>
+                                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                                        {p.comprimento}×{p.largura}×{p.espessura}mm · {p.modulo_desc || ''}
+                                    </span>
+                                    {fInfo && (
+                                        <span style={{
+                                            padding: '1px 6px', borderRadius: 4, fontSize: 9, fontWeight: 700,
+                                            background: fInfo.face_cnc === 'A' ? '#dbeafe' : '#fce7f3',
+                                            color: fInfo.face_cnc === 'A' ? '#1e40af' : '#9d174d',
+                                        }}>CNC: Face {fInfo.face_cnc}</span>
+                                    )}
+                                    <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                                        <button onClick={() => enableAll(pid)}
+                                            style={{ fontSize: 9, padding: '2px 6px', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 4, cursor: 'pointer', color: '#166534' }}>
+                                            ✓ Ativar tudo
+                                        </button>
+                                        <button onClick={() => disableAll(pid)}
+                                            style={{ fontSize: 9, padding: '2px 6px', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 4, cursor: 'pointer', color: '#991b1b' }}>
+                                            ✕ Desativar tudo
+                                        </button>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                    {workers.map((w, i) => {
+                                        const info = usinInfo(w.category);
+                                        const disabled = isDisabled(pid, i);
+                                        const isHole = /hole|furo/i.test(w.category || '');
+                                        const faceLabel = { top: 'Face A', bottom: 'Face B', front: 'Frontal', back: 'Traseira', left: 'Esquerda', right: 'Direita' }[w.face] || w.face;
+
+                                        return (
+                                            <div key={i} style={{
+                                                display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px',
+                                                borderRadius: 5, background: disabled ? 'var(--bg-muted)' : 'transparent',
+                                                opacity: disabled ? 0.5 : 1, transition: 'all .2s',
+                                            }}>
+                                                <input type="checkbox" checked={!disabled} onChange={() => toggleWorker(pid, i, !disabled)}
+                                                    style={{ cursor: 'pointer', accentColor: info.color }} disabled={saving} />
+                                                <span style={{ width: 20, height: 20, borderRadius: 5, background: `${info.color}18`, color: info.color,
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>
+                                                    {info.icon}
+                                                </span>
+                                                <span style={{ fontSize: 11, fontWeight: 600, minWidth: 100 }}>{info.label}</span>
+                                                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{faceLabel}</span>
+                                                <span style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--text-muted)' }}>
+                                                    {isHole ? `⌀${w.diameter || 8}mm` : `${w.length || 0}×${w.width || 0}mm`}
+                                                    {' · prof. '}
+                                                    {w.depth || 0}mm
+                                                </span>
+                                                <span style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                                                    x:{w.x} y:{w.y}
+                                                </span>
+                                                {disabled && <span style={{ fontSize: 9, color: '#ef4444', fontWeight: 600 }}>MANUAL</span>}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })}
+
+                    {pecas.every(p => !parseMach(p.machining_json).length) && (
+                        <div className="glass-card p-8" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                            Nenhuma peça neste lote tem usinagens definidas.
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
 function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
     const [etiquetas, setEtiquetas] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -3274,96 +6701,7 @@ function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
 
     useEffect(() => { loadTemplatePadrao(); }, [loadTemplatePadrao]);
 
-    // Imprimir com template SVG
-    const imprimirTemplate = () => {
-        if (!templatePadrao) return imprimirLegacy();
-        const cols = templatePadrao.colunas_impressao || 2;
-        const margem = templatePadrao.margem_pagina || 8;
-        const gap = templatePadrao.gap_etiquetas || 4;
-        const wMm = templatePadrao.largura || 100;
-        const hMm = templatePadrao.altura || 70;
-        const styleId = 'etiqueta-print-style';
-        let styleEl = document.getElementById(styleId);
-        if (!styleEl) {
-            styleEl = document.createElement('style');
-            styleEl.id = styleId;
-            document.head.appendChild(styleEl);
-        }
-        styleEl.textContent = `
-            @media print {
-                body * { visibility: hidden !important; }
-                .print-area, .print-area * { visibility: visible !important; }
-                .print-area {
-                    position: absolute !important;
-                    left: 0 !important;
-                    top: 0 !important;
-                    width: 100% !important;
-                    display: grid !important;
-                    grid-template-columns: repeat(${cols}, ${wMm}mm) !important;
-                    gap: ${gap}mm !important;
-                    padding: 0 !important;
-                }
-                .print-area .etiqueta-svg-wrap {
-                    width: ${wMm}mm !important;
-                    height: ${hMm}mm !important;
-                    page-break-inside: avoid !important;
-                    break-inside: avoid !important;
-                }
-                .print-area .etiqueta-svg-wrap svg {
-                    width: ${wMm}mm !important;
-                    height: ${hMm}mm !important;
-                }
-                .no-print { display: none !important; }
-                @page {
-                    margin: ${margem}mm !important;
-                    size: A4 !important;
-                }
-            }
-        `;
-        window.print();
-    };
-
-    // Imprimir legado (EtiquetaCard)
-    const imprimirLegacy = () => {
-        const cols = cfg?.colunas_impressao || 2;
-        const fmt = FORMATOS_ETIQUETA[cfg?.formato] || FORMATOS_ETIQUETA['100x70'];
-        const gap = cfg?.gap_etiquetas || 4;
-        const margem = cfg?.margem_pagina || 8;
-        const styleId = 'etiqueta-print-style';
-        let styleEl = document.getElementById(styleId);
-        if (!styleEl) {
-            styleEl = document.createElement('style');
-            styleEl.id = styleId;
-            document.head.appendChild(styleEl);
-        }
-        styleEl.textContent = `
-            @media print {
-                .etiqueta-grid {
-                    display: grid !important;
-                    grid-template-columns: repeat(${cols}, 1fr) !important;
-                    gap: ${gap}mm !important;
-                    padding: 0 !important;
-                }
-                .etiqueta-card-print {
-                    width: ${fmt.w}mm !important;
-                    min-height: ${fmt.h}mm !important;
-                    page-break-inside: avoid !important;
-                    break-inside: avoid !important;
-                    border: 0.5pt solid #ccc !important;
-                }
-                @page {
-                    margin: ${margem}mm !important;
-                    size: A4 !important;
-                }
-            }
-        `;
-        window.print();
-    };
-
-    const imprimir = () => {
-        if (usarTemplate && templatePadrao) imprimirTemplate();
-        else imprimirLegacy();
-    };
+    // (impressão e ZPL agora são por chapa — definidos após filtros)
 
     // Filtrar etiquetas
     const modulos = [...new Set(etiquetas.map(e => e.modulo_desc).filter(Boolean))];
@@ -3374,6 +6712,129 @@ function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
         return true;
     });
 
+    // Agrupar etiquetas por chapa
+    const chapaGroups = useMemo(() => {
+        const groups = {};
+        for (const et of etiquetasFiltradas) {
+            const key = et.chapa_idx != null && et.chapa_idx >= 0 ? et.chapa_idx : 'sem_chapa';
+            if (!groups[key]) groups[key] = { chapa_idx: key, etiquetas: [], material: et.material || et.material_code || '', chapa: et.chapa };
+            groups[key].etiquetas.push(et);
+        }
+        // Ordenar: chapas numéricas primeiro, 'sem_chapa' por último
+        return Object.values(groups).sort((a, b) => {
+            if (a.chapa_idx === 'sem_chapa') return 1;
+            if (b.chapa_idx === 'sem_chapa') return -1;
+            return a.chapa_idx - b.chapa_idx;
+        });
+    }, [etiquetasFiltradas]);
+
+    const totalChapas = chapaGroups.filter(g => g.chapa_idx !== 'sem_chapa').length;
+
+    // Imprimir uma chapa específica
+    const imprimirChapa = (chapaIdx) => {
+        // Esconder todas as etiquetas que NÃO são desta chapa antes de imprimir
+        const styleId = 'etiqueta-print-style';
+        let styleEl = document.getElementById(styleId);
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = styleId;
+            document.head.appendChild(styleEl);
+        }
+        if (usarTemplate && templatePadrao) {
+            const cols = templatePadrao.colunas_impressao || 2;
+            const margem = templatePadrao.margem_pagina || 8;
+            const gap = templatePadrao.gap_etiquetas || 4;
+            const wMm = templatePadrao.largura || 100;
+            const hMm = templatePadrao.altura || 70;
+            styleEl.textContent = `
+                @media print {
+                    body * { visibility: hidden !important; }
+                    .print-chapa-${chapaIdx}, .print-chapa-${chapaIdx} * { visibility: visible !important; }
+                    .print-chapa-${chapaIdx} {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        display: grid !important;
+                        grid-template-columns: repeat(${cols}, ${wMm}mm) !important;
+                        gap: ${gap}mm !important;
+                        padding: 0 !important;
+                    }
+                    .print-chapa-${chapaIdx} .etiqueta-svg-wrap {
+                        width: ${wMm}mm !important;
+                        height: ${hMm}mm !important;
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
+                    }
+                    .print-chapa-${chapaIdx} .etiqueta-svg-wrap svg {
+                        width: ${wMm}mm !important;
+                        height: ${hMm}mm !important;
+                    }
+                    .no-print { display: none !important; }
+                    @page { margin: ${margem}mm !important; size: A4 !important; }
+                }
+            `;
+        } else {
+            const cols = cfg?.colunas_impressao || 2;
+            const fmt = FORMATOS_ETIQUETA[cfg?.formato] || FORMATOS_ETIQUETA['100x70'];
+            const gap = cfg?.gap_etiquetas || 4;
+            const margem = cfg?.margem_pagina || 8;
+            styleEl.textContent = `
+                @media print {
+                    body * { visibility: hidden !important; }
+                    .print-chapa-${chapaIdx}, .print-chapa-${chapaIdx} * { visibility: visible !important; }
+                    .print-chapa-${chapaIdx} {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        display: grid !important;
+                        grid-template-columns: repeat(${cols}, 1fr) !important;
+                        gap: ${gap}mm !important;
+                        padding: 0 !important;
+                    }
+                    .etiqueta-card-print {
+                        width: ${fmt.w}mm !important;
+                        min-height: ${fmt.h}mm !important;
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
+                        border: 0.5pt solid #ccc !important;
+                    }
+                    .no-print { display: none !important; }
+                    @page { margin: ${margem}mm !important; size: A4 !important; }
+                }
+            `;
+        }
+        window.print();
+    };
+
+    // ZPL por chapa
+    const exportarZPLChapa = async (chapaEtiquetas) => {
+        if (!templatePadrao || chapaEtiquetas.length === 0) {
+            notify('Configure um template e selecione etiquetas');
+            return;
+        }
+        try {
+            const { generateZPLBatch } = await import('../utils/zplGenerator.js');
+            const zpl = generateZPLBatch(
+                templatePadrao.elementos || [],
+                chapaEtiquetas,
+                cfg,
+                { largura: templatePadrao.largura || 100, altura: templatePadrao.altura || 70 }
+            );
+            const blob = new Blob([zpl], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `etiquetas_chapa.zpl`;
+            a.click();
+            URL.revokeObjectURL(url);
+            notify(`ZPL exportado: ${chapaEtiquetas.length} etiqueta(s)`);
+        } catch (err) {
+            notify('Erro ao gerar ZPL: ' + err.message);
+        }
+    };
+
     if (cfgLoading) return <Spinner text="Carregando configurações..." />;
 
     const fontes = FONTES_TAMANHO[cfg?.fonte_tamanho] || FONTES_TAMANHO.medio;
@@ -3381,41 +6842,25 @@ function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
     const corCtrl = cfg?.cor_controle || 'var(--primary)';
 
     // ═══════════════════════════════════════════════════════
-    // PREVIEW — Visualização e impressão de etiquetas
+    // PREVIEW — Etiquetas agrupadas por chapa
     // ═══════════════════════════════════════════════════════
     return (
         <div>
-            <LoteSelector lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} />
-
-            {!loteAtual ? (
-                <div className="glass-card p-8" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                    Selecione um lote para ver as etiquetas
-                </div>
-            ) : loading ? (
+            {loading ? (
                 <Spinner text="Carregando etiquetas..." />
             ) : (
                 <>
-                    {/* Barra de ações */}
+                    {/* Barra de ações global */}
                     <div className="no-print" style={{ marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <button onClick={imprimir} className={Z.btn} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px' }}>
-                            <Printer size={14} /> Imprimir Etiquetas
-                        </button>
                         {/* Toggle template vs legacy */}
                         {templatePadrao && (
-                            <label className="no-print" style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', padding: '6px 10px', background: 'var(--bg-muted)', borderRadius: 6, border: '1px solid var(--border)' }}>
+                            <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', padding: '6px 10px', background: 'var(--bg-muted)', borderRadius: 6, border: '1px solid var(--border)' }}>
                                 <input type="checkbox" checked={usarTemplate} onChange={e => setUsarTemplate(e.target.checked)} />
                                 Usar template personalizado
                             </label>
                         )}
 
                         {/* Filtros */}
-                        {modulos.length > 1 && (
-                            <select value={filtroModulo} onChange={e => setFiltroModulo(e.target.value)}
-                                className={Z.inp} style={{ width: 160, fontSize: 11, padding: '6px 8px' }}>
-                                <option value="">Todos os módulos</option>
-                                {modulos.map(m => <option key={m} value={m}>{m}</option>)}
-                            </select>
-                        )}
                         {materiais.length > 1 && (
                             <select value={filtroMaterial} onChange={e => setFiltroMaterial(e.target.value)}
                                 className={Z.inp} style={{ width: 180, fontSize: 11, padding: '6px 8px' }}>
@@ -3425,58 +6870,101 @@ function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
                         )}
 
                         <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>
-                            {etiquetasFiltradas.length} de {etiquetas.length} etiqueta(s)
-                            {templatePadrao && usarTemplate && <span style={{ color: 'var(--primary)', fontWeight: 600, marginLeft: 6 }}>| Template: {templatePadrao.nome}</span>}
+                            {etiquetasFiltradas.length} etiqueta(s) em {totalChapas} chapa(s)
+                            {templatePadrao && usarTemplate && <span style={{ color: 'var(--primary)', fontWeight: 600, marginLeft: 6 }}>| {templatePadrao.nome}</span>}
                         </span>
                     </div>
 
-                    {/* Template info bar */}
-                    {templatePadrao && usarTemplate && (
-                        <div className="no-print" style={{ marginBottom: 12, padding: '8px 14px', background: 'var(--bg-muted)', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10, fontSize: 11 }}>
-                            <PenTool size={13} style={{ color: 'var(--primary)' }} />
-                            <span style={{ fontWeight: 600 }}>Template ativo: <span style={{ color: 'var(--primary)' }}>{templatePadrao.nome}</span></span>
-                            <span style={{ color: 'var(--text-muted)' }}>|</span>
-                            <span style={{ color: 'var(--text-muted)' }}>{templatePadrao.largura}×{templatePadrao.altura}mm</span>
-                            <span style={{ color: 'var(--text-muted)' }}>|</span>
-                            <span style={{ color: 'var(--text-muted)' }}>{templatePadrao.elementos?.length || 0} elementos</span>
-                            <span style={{ color: 'var(--text-muted)' }}>|</span>
-                            <span style={{ color: 'var(--text-muted)' }}>{templatePadrao.colunas_impressao || 2} colunas</span>
-                            <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 'auto' }}>
-                                (Configurações → Etiquetas para editar layout)
-                            </span>
-                        </div>
-                    )}
+                    {/* Grupos por chapa */}
+                    {chapaGroups.map((group) => {
+                        const isNoChapa = group.chapa_idx === 'sem_chapa';
+                        const chapaLabel = isNoChapa ? 'Sem chapa atribuída' : `Chapa ${group.chapa_idx + 1} de ${totalChapas}`;
+                        const chapaW = group.chapa?.w || 0;
+                        const chapaH = group.chapa?.h || 0;
+                        const printClass = `print-chapa-${group.chapa_idx}`;
 
-                    {/* Grid de etiquetas */}
-                    {usarTemplate && templatePadrao ? (
-                        /* ─── Template-based rendering (EtiquetaSVG) ─── */
-                        <div className="print-area" style={{
-                            display: 'grid',
-                            gridTemplateColumns: `repeat(auto-fill, minmax(${Math.max(280, (templatePadrao.largura || 100) * 3.5)}px, 1fr))`,
-                            gap: templatePadrao.gap_etiquetas ? `${templatePadrao.gap_etiquetas * 2}px` : '8px',
-                        }}>
-                            {etiquetasFiltradas.map((et, i) => (
-                                <div key={i} className="etiqueta-svg-wrap" style={{
-                                    background: '#fff', borderRadius: 6, border: '1px solid #e5e7eb',
-                                    overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-                                    transition: 'box-shadow 0.15s',
+                        return (
+                            <div key={group.chapa_idx} style={{ marginBottom: 20 }}>
+                                {/* Cabeçalho da chapa */}
+                                <div className="no-print" style={{
+                                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                                    background: isNoChapa ? 'var(--bg-muted)' : 'linear-gradient(135deg, var(--primary), #1a6ad4)',
+                                    borderRadius: '10px 10px 0 0', flexWrap: 'wrap',
                                 }}>
-                                    <EtiquetaSVG template={templatePadrao} etiqueta={et} cfg={cfg} />
+                                    <Layers size={16} style={{ color: isNoChapa ? 'var(--text-muted)' : '#fff' }} />
+                                    <span style={{ fontWeight: 700, fontSize: 14, color: isNoChapa ? 'var(--text-primary)' : '#fff' }}>
+                                        {chapaLabel}
+                                    </span>
+                                    {!isNoChapa && (
+                                        <>
+                                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>
+                                                {group.material}
+                                            </span>
+                                            {chapaW > 0 && (
+                                                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', background: 'rgba(255,255,255,0.15)', padding: '2px 8px', borderRadius: 4 }}>
+                                                    {chapaW}×{chapaH}mm
+                                                </span>
+                                            )}
+                                        </>
+                                    )}
+                                    <span style={{
+                                        fontSize: 11, fontWeight: 600,
+                                        color: isNoChapa ? 'var(--text-muted)' : 'rgba(255,255,255,0.9)',
+                                        background: isNoChapa ? 'var(--border)' : 'rgba(255,255,255,0.2)',
+                                        padding: '2px 10px', borderRadius: 10,
+                                    }}>
+                                        {group.etiquetas.length} peça(s)
+                                    </span>
+                                    <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                                        <button onClick={() => imprimirChapa(group.chapa_idx)}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px',
+                                                fontSize: 11, fontWeight: 600, borderRadius: 6, border: 'none', cursor: 'pointer',
+                                                background: isNoChapa ? 'var(--primary)' : 'rgba(255,255,255,0.95)',
+                                                color: isNoChapa ? '#fff' : 'var(--primary)',
+                                            }}>
+                                            <Printer size={12} /> Imprimir
+                                        </button>
+                                        {templatePadrao && (
+                                            <button onClick={() => exportarZPLChapa(group.etiquetas)}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px',
+                                                    fontSize: 11, fontWeight: 600, borderRadius: 6, border: 'none', cursor: 'pointer',
+                                                    background: isNoChapa ? 'var(--bg-muted)' : 'rgba(255,255,255,0.2)',
+                                                    color: isNoChapa ? 'var(--text-primary)' : '#fff',
+                                                }}>
+                                                <Download size={12} /> ZPL
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
-                            ))}
-                        </div>
-                    ) : (
-                        /* ─── Legacy rendering (EtiquetaCard) ─── */
-                        <div className="print-area etiqueta-grid" style={{
-                            display: 'grid',
-                            gridTemplateColumns: `repeat(auto-fill, minmax(${Math.max(280, 320)}px, 1fr))`,
-                            gap: cfg?.gap_etiquetas ? `${cfg.gap_etiquetas * 2}px` : '8px',
-                        }}>
-                            {etiquetasFiltradas.map((et, i) => (
-                                <EtiquetaCard key={i} et={et} cfg={cfg} fontes={fontes} corFita={corFita} corCtrl={corCtrl} />
-                            ))}
-                        </div>
-                    )}
+
+                                {/* Grid de etiquetas desta chapa */}
+                                <div className={printClass} style={{
+                                    padding: 12, background: 'var(--bg-card)', border: '1px solid var(--border)',
+                                    borderTop: 'none', borderRadius: '0 0 10px 10px',
+                                    display: 'grid',
+                                    gridTemplateColumns: usarTemplate && templatePadrao
+                                        ? `repeat(auto-fill, minmax(${Math.max(280, (templatePadrao.largura || 100) * 3.5)}px, 1fr))`
+                                        : `repeat(auto-fill, minmax(${Math.max(280, 320)}px, 1fr))`,
+                                    gap: (usarTemplate && templatePadrao ? templatePadrao.gap_etiquetas : cfg?.gap_etiquetas || 4) * 2 + 'px',
+                                }}>
+                                    {group.etiquetas.map((et, i) => (
+                                        usarTemplate && templatePadrao ? (
+                                            <div key={i} className="etiqueta-svg-wrap" style={{
+                                                background: '#fff', borderRadius: 6, border: '1px solid #e5e7eb',
+                                                overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                                            }}>
+                                                <EtiquetaSVG template={templatePadrao} etiqueta={et} cfg={cfg} />
+                                            </div>
+                                        ) : (
+                                            <EtiquetaCard key={i} et={et} cfg={cfg} fontes={fontes} corFita={corFita} corCtrl={corCtrl} />
+                                        )
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })}
 
                     {etiquetasFiltradas.length === 0 && (
                         <div className="glass-card p-6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -3866,6 +7354,11 @@ function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
     const [gerando, setGerando] = useState(false);
     const [maquinas, setMaquinas] = useState([]);
     const [maquinaId, setMaquinaId] = useState('');
+    const [gcodeValidation, setGcodeValidation] = useState(null);
+    const [showGcodeConflicts, setShowGcodeConflicts] = useState(false);
+    const [toolpathOpen, setToolpathOpen] = useState(false);
+    const [toolpathMoves, setToolpathMoves] = useState([]);
+    const [toolpathChapa, setToolpathChapa] = useState(null);
 
     // Carregar máquinas disponíveis
     useEffect(() => {
@@ -3882,6 +7375,23 @@ function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
 
     const gerar = async () => {
         if (!loteAtual) return;
+        // Auto-validate before generating
+        try {
+            const val = await api.get(`/cnc/validar-usinagens/${loteAtual.id}`);
+            setGcodeValidation(val);
+            const erros = (val.conflicts || []).filter(c => c.severidade === 'erro');
+            if (erros.length > 0) {
+                setShowGcodeConflicts(true);
+                const proceed = window.confirm(
+                    `${erros.length} erro(s) de usinagem detectado(s):\n\n` +
+                    erros.slice(0, 5).map(c => `- ${c.pecaDesc}: ${c.mensagem}`).join('\n') +
+                    (erros.length > 5 ? `\n...e mais ${erros.length - 5}` : '') +
+                    '\n\nDeseja gerar o G-code mesmo assim?'
+                );
+                if (!proceed) return;
+            }
+        } catch (_) { /* validation failed, proceed anyway */ }
+
         setGerando(true);
         try {
             const body = maquinaId ? { maquina_id: Number(maquinaId) } : {};
@@ -3913,15 +7423,7 @@ function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
 
     return (
         <div>
-            <LoteSelector lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} />
-
-            {!loteAtual ? (
-                <div className="glass-card p-8" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                    Selecione um lote para gerar G-code
-                </div>
-            ) : (
-                <>
-                    {/* Machine selector */}
+            {/* Machine selector */}
                     <div className="glass-card p-4" style={{ marginBottom: 16 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -3986,6 +7488,29 @@ function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                         </div>
                     )}
 
+                    {/* Pre-generation validation warnings */}
+                    {showGcodeConflicts && gcodeValidation?.conflicts?.length > 0 && (
+                        <div className="glass-card p-4" style={{ marginBottom: 16, borderLeft: '3px solid #ef4444' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <AlertTriangle size={14} /> Conflitos detectados ({gcodeValidation.conflicts.length})
+                                </span>
+                                <button onClick={() => setShowGcodeConflicts(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                                    <X size={13} />
+                                </button>
+                            </div>
+                            <div style={{ maxHeight: 150, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                {gcodeValidation.conflicts.map((c, i) => (
+                                    <div key={i} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6, color: c.severidade === 'erro' ? '#ef4444' : '#eab308' }}>
+                                        <AlertTriangle size={11} style={{ flexShrink: 0 }} />
+                                        <span style={{ fontWeight: 600 }}>{c.pecaDesc}</span>
+                                        <span style={{ color: 'var(--text-secondary)' }}>{c.mensagem}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     <div style={{ marginBottom: 16, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                         <button onClick={gerar} disabled={gerando || maquinas.length === 0} className={Z.btn}
                             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 20px' }}>
@@ -3995,6 +7520,17 @@ function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                             <button onClick={downloadGcode} className={Z.btn2}
                                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 20px' }}>
                                 <Download size={14} /> Baixar {result.extensao || '.nc'}
+                            </button>
+                        )}
+                        {result?.ok && result?.gcode && (
+                            <button onClick={() => {
+                                const moves = parseGcodeToMoves(result.gcode);
+                                setToolpathMoves(moves);
+                                setToolpathChapa(null);
+                                setToolpathOpen(true);
+                            }} className={Z.btn2}
+                                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 20px' }}>
+                                <Play size={14} /> Simular Percurso
                             </button>
                         )}
                         {result?.ok && (
@@ -4036,8 +7572,14 @@ function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                             </pre>
                         </div>
                     )}
-                </>
-            )}
+
+                    {/* Toolpath Simulator */}
+                    <ToolpathSimulator
+                        chapData={toolpathChapa}
+                        operations={toolpathMoves}
+                        isOpen={toolpathOpen}
+                        onClose={() => { setToolpathOpen(false); setToolpathMoves([]); setToolpathChapa(null); }}
+                    />
         </div>
     );
 }
@@ -4254,7 +7796,7 @@ function CfgFerramentas({ maquinaId, notify }) {
                     <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 11 }}>
                         <thead>
                             <tr>
-                                {['Código', 'Nome', 'Tipo Corte', 'Ø mm', 'Tool Code', 'RPM', 'Vel.Corte', 'Prof.Max', 'DOC', 'Prof.Extra', 'Ações'].map(h => (
+                                {['Código', 'Nome', 'Tipo Corte', 'Ø mm', 'Tool Code', 'RPM', 'Vel.Corte', 'Prof.Max', 'DOC', 'Prof.Extra', 'Desgaste', 'Ações'].map(h => (
                                     <th key={h} className={Z.th} style={{ padding: '5px 6px', fontSize: 10 }}>{h}</th>
                                 ))}
                             </tr>
@@ -4284,6 +7826,31 @@ function CfgFerramentas({ maquinaId, notify }) {
                                     </td>
                                     <td style={{ padding: '5px 6px', textAlign: 'center', fontWeight: 600, color: f.profundidade_extra ? '#e67e22' : 'var(--text-muted)' }}>
                                         {f.profundidade_extra ? `${f.profundidade_extra}mm` : '—'}
+                                    </td>
+                                    <td style={{ padding: '5px 6px', minWidth: 100 }}>
+                                        {(() => {
+                                            const acum = f.metros_acumulados || 0;
+                                            const limite = f.metros_limite || 5000;
+                                            const pct = limite > 0 ? Math.min(100, (acum / limite) * 100) : 0;
+                                            const barColor = pct < 50 ? '#22c55e' : pct < 80 ? '#f59e0b' : '#ef4444';
+                                            return (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                    <div style={{ flex: 1, height: 6, background: 'var(--bg-muted)', borderRadius: 3, overflow: 'hidden', minWidth: 40 }}>
+                                                        <div style={{ width: `${pct}%`, height: '100%', background: barColor, borderRadius: 3, transition: 'width .3s' }} />
+                                                    </div>
+                                                    <span style={{ fontSize: 9, fontWeight: 600, color: barColor, whiteSpace: 'nowrap' }}>
+                                                        {acum.toFixed(0)}m
+                                                    </span>
+                                                    {pct >= 80 && (
+                                                        <button onClick={async () => { await api.post(`/cnc/ferramentas/${f.id}/reset-desgaste`); notify('Desgaste resetado'); load(); }}
+                                                            title="Resetar desgaste (troca de ferramenta)"
+                                                            className={Z.btn2} style={{ padding: '1px 4px', fontSize: 9, whiteSpace: 'nowrap' }}>
+                                                            <RotateCw size={9} /> Reset
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
                                     </td>
                                     <td style={{ padding: '5px 6px' }}>
                                         <div style={{ display: 'flex', gap: 4 }}>
@@ -4413,17 +7980,22 @@ function CfgParametros({ notify }) {
                         <input type="checkbox" checked={(cfg.considerar_sobra ?? 1) === 1} onChange={e => upd('considerar_sobra', e.target.checked ? 1 : 0)} />
                         Gerar retalhos (considerar sobras)
                     </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', padding: '6px 10px', background: 'var(--bg-body)', borderRadius: 6 }}>
+                        <input type="checkbox" checked={(cfg.otimizar_trocas_ferramenta ?? 1) === 1} onChange={e => upd('otimizar_trocas_ferramenta', e.target.checked ? 1 : 0)} />
+                        Otimizar trocas de ferramenta
+                    </label>
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8 }}>
                     O otimizador testa automaticamente os 3 algoritmos (Guilhotina, MaxRects, Shelf) e escolhe o melhor resultado.
                     Guilhotina: cortes ponta-a-ponta (para esquadrejadeira). MaxRects: posicionamento livre (CNC). Shelf: faixas horizontais (híbrido).
+                    Trocas de ferramenta: agrupa operações por ferramenta dentro de cada fase para minimizar M6.
                 </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
                 <div><label className={Z.lbl}>Espaço entre peças (mm)</label><input type="number" value={cfg.espaco_pecas} onChange={e => upd('espaco_pecas', Number(e.target.value))} className={Z.inp} /></div>
                 <div><label className={Z.lbl}>Kerf padrão - largura serra (mm)</label><input type="number" value={cfg.kerf_padrao ?? 4} onChange={e => upd('kerf_padrao', Number(e.target.value))} className={Z.inp} step="0.5" /></div>
-                <div><label className={Z.lbl}>Iterações otimizador (R&R)</label><input type="number" value={cfg.iteracoes_otimizador ?? 300} onChange={e => upd('iteracoes_otimizador', Number(e.target.value))} className={Z.inp} min={0} max={2000} /></div>
+                {/* Iterações R&R: otimizado automaticamente pelo backend — não precisa configurar */}
                 <div><label className={Z.lbl}>Peça mín. largura (mm)</label><input type="number" value={cfg.peca_min_largura} onChange={e => upd('peca_min_largura', Number(e.target.value))} className={Z.inp} /></div>
                 <div><label className={Z.lbl}>Peça mín. comprimento (mm)</label><input type="number" value={cfg.peca_min_comprimento} onChange={e => upd('peca_min_comprimento', Number(e.target.value))} className={Z.inp} /></div>
                 <div><label className={Z.lbl}>Sobra mín. largura (mm)</label><input type="number" value={cfg.sobra_min_largura} onChange={e => upd('sobra_min_largura', Number(e.target.value))} className={Z.inp} /></div>
@@ -4583,6 +8155,11 @@ function newMaquinaDefaults() {
         // G-Code v3 — Ramping, Lead-in, Velocidade mergulho, Ordenação
         usar_rampa: 1, rampa_angulo: 3.0, vel_mergulho: 1500,
         z_aproximacao_rapida: 5.0, ordenar_contornos: 'menor_primeiro',
+        // G-Code v4 — Estratégias avançadas
+        rampa_tipo: 'linear', vel_rampa: 1500, rampa_diametro_pct: 80,
+        stepover_pct: 60, pocket_acabamento: 1, pocket_acabamento_offset: 0.2, pocket_direcao: 'auto',
+        compensar_raio_canal: 1, compensacao_tipo: 'overcut',
+        circular_passes_acabamento: 1, circular_offset_desbaste: 0.3, vel_acabamento_pct: 80,
         //
         exportar_lado_a: 1, exportar_lado_b: 1, exportar_furos: 1, exportar_rebaixos: 1, exportar_usinagens: 1,
         usar_ponto_decimal: 1, casas_decimais: 3,
@@ -4592,6 +8169,8 @@ function newMaquinaDefaults() {
         usar_tabs: 0, tab_largura: 4, tab_altura: 1.5, tab_qtd: 2, tab_area_max: 800,
         usar_lead_in: 0, lead_in_tipo: 'arco', lead_in_raio: 5,
         feed_rate_pct_pequenas: 50, feed_rate_area_max: 500,
+        margem_mesa_sacrificio: 0.5,
+        g0_com_feed: 0,
         padrao: 0, ativo: 1,
     };
 }
@@ -4605,6 +8184,7 @@ function MaquinaModal({ data, onSave, onClose }) {
         { id: 'geral', lb: 'Geral' },
         { id: 'gcode', lb: 'G-code / Pós-processador' },
         { id: 'velocidades', lb: 'Velocidades' },
+        { id: 'estrategias', lb: 'Estratégias Usinagem' },
         { id: 'antiarrasto', lb: 'Anti-Arrasto' },
         { id: 'exportacao', lb: 'Exportação' },
         { id: 'formato', lb: 'Formato' },
@@ -4717,12 +8297,131 @@ function MaquinaModal({ data, onSave, onClose }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <div><label className={Z.lbl}>Z Seguro (mm)</label><input type="number" value={f.z_seguro} onChange={e => upd('z_seguro', Number(e.target.value))} className={Z.inp} /></div>
                     <div><label className={Z.lbl}>RPM Padrão</label><input type="number" value={f.rpm_padrao} onChange={e => upd('rpm_padrao', Number(e.target.value))} className={Z.inp} /></div>
-                    <div><label className={Z.lbl}>Vel. Vazio (mm/min)</label><input type="number" value={f.vel_vazio} onChange={e => upd('vel_vazio', Number(e.target.value))} className={Z.inp} /></div>
+                    <div>
+                        <label className={Z.lbl}>Vel. Vazio (mm/min)</label>
+                        <input type="number" value={f.vel_vazio} onChange={e => upd('vel_vazio', Number(e.target.value))} className={Z.inp} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 6 }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={(f.g0_com_feed ?? 0) === 1} onChange={e => upd('g0_com_feed', e.target.checked ? 1 : 0)} />
+                            Incluir F no G0 (vel. vazio)
+                        </label>
+                    </div>
                     <div><label className={Z.lbl}>Vel. Corte (mm/min)</label><input type="number" value={f.vel_corte} onChange={e => upd('vel_corte', Number(e.target.value))} className={Z.inp} /></div>
                     <div><label className={Z.lbl}>Vel. Aproximação (mm/min)</label><input type="number" value={f.vel_aproximacao} onChange={e => upd('vel_aproximacao', Number(e.target.value))} className={Z.inp} /></div>
                     <div><label className={Z.lbl}>Prof. Extra (mm)</label><input type="number" value={f.profundidade_extra} onChange={e => upd('profundidade_extra', Number(e.target.value))} className={Z.inp} step="0.01" /></div>
                     <div><label className={Z.lbl}>Z Aproximação (mm acima)</label><input type="number" value={f.z_aproximacao ?? 2} onChange={e => upd('z_aproximacao', Number(e.target.value))} className={Z.inp} step="0.5" min="0.5" /></div>
                     <div><label className={Z.lbl}>Dwell Spindle (s)</label><input type="number" value={f.dwell_spindle ?? 1} onChange={e => upd('dwell_spindle', Number(e.target.value))} className={Z.inp} step="0.5" min="0" /></div>
+                    <div style={{ gridColumn: '1/-1', padding: '10px 14px', background: '#ef444415', borderRadius: 8, border: '1px solid #ef444440' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <span style={{ fontSize: 14 }}>&#9888;</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#ef4444' }}>Proteção da Mesa de Sacrifício</span>
+                        </div>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px', lineHeight: 1.5 }}>
+                            Limita a profundidade máxima de corte para não danificar a mesa de sacrifício.
+                            Ex: chapa de 15mm com margem 0.5mm = profundidade máxima 15.5mm.
+                            Qualquer operação que ultrapasse será automaticamente reduzida.
+                        </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div><label className={Z.lbl}>Margem além do material (mm)</label><input type="number" value={f.margem_mesa_sacrificio ?? 0.5} onChange={e => upd('margem_mesa_sacrificio', Number(e.target.value))} className={Z.inp} step="0.1" min="0" max="3" /></div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {secao === 'estrategias' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+                        Configurações avançadas de estratégia de usinagem: como a fresa executa rebaixos, furos circulares, canais e rampas.
+                    </p>
+
+                    {/* Rampa */}
+                    <div style={{ padding: '12px 16px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Entrada em Rampa / Mergulho</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                            <div>
+                                <label className={Z.lbl}>Tipo de Rampa</label>
+                                <select value={f.rampa_tipo || 'linear'} onChange={e => upd('rampa_tipo', e.target.value)} className={Z.inp}>
+                                    <option value="linear">Linear (diagonal)</option>
+                                    <option value="helicoidal">Helicoidal (espiral)</option>
+                                    <option value="plunge">Plunge direto</option>
+                                </select>
+                            </div>
+                            <div><label className={Z.lbl}>Vel. Rampa (mm/min)</label><input type="number" value={f.vel_rampa ?? 1500} onChange={e => upd('vel_rampa', Number(e.target.value))} className={Z.inp} step="100" min="100" /></div>
+                            <div><label className={Z.lbl}>Diâmetro Hélice (%)</label><input type="number" value={f.rampa_diametro_pct ?? 80} onChange={e => upd('rampa_diametro_pct', Number(e.target.value))} className={Z.inp} step="5" min="30" max="100" /></div>
+                        </div>
+                        <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.4 }}>
+                            <b>Linear</b>: fresa desce em diagonal (ideal para canais). <b>Helicoidal</b>: fresa desce em espiral (ideal para furos circulares). <b>Diâmetro Hélice</b>: % do diâmetro do furo usado para raio da espiral.
+                        </p>
+                    </div>
+
+                    {/* Pocket / Rebaixo */}
+                    <div style={{ padding: '12px 16px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Rebaixo (Pocket)</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                            <div><label className={Z.lbl}>Stepover (%)</label><input type="number" value={f.stepover_pct ?? 60} onChange={e => upd('stepover_pct', Number(e.target.value))} className={Z.inp} step="5" min="20" max="90" /></div>
+                            <div>
+                                <label className={Z.lbl}>Direção Zigzag</label>
+                                <select value={f.pocket_direcao || 'auto'} onChange={e => upd('pocket_direcao', e.target.value)} className={Z.inp}>
+                                    <option value="auto">Auto (eixo mais longo)</option>
+                                    <option value="x">Sempre X</option>
+                                    <option value="y">Sempre Y</option>
+                                </select>
+                            </div>
+                            <div><label className={Z.lbl}>Vel. Acabamento (%)</label><input type="number" value={f.vel_acabamento_pct ?? 80} onChange={e => upd('vel_acabamento_pct', Number(e.target.value))} className={Z.inp} step="5" min="30" max="100" /></div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 10 }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 2 }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+                                    <input type="checkbox" checked={(f.pocket_acabamento ?? 1) === 1} onChange={e => upd('pocket_acabamento', e.target.checked ? 1 : 0)} />
+                                    Passe de acabamento
+                                </label>
+                            </div>
+                            <div><label className={Z.lbl}>Offset acabamento (mm)</label><input type="number" value={f.pocket_acabamento_offset ?? 0.2} onChange={e => upd('pocket_acabamento_offset', Number(e.target.value))} className={Z.inp} step="0.05" min="0.05" max="2" /></div>
+                        </div>
+                        <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.4 }}>
+                            <b>Stepover</b>: espaçamento entre passadas = % do diâmetro da fresa. 60% é ideal para MDF.
+                            <b>Passe de acabamento</b>: após o zigzag, faz uma passada final no contorno do pocket com velocidade reduzida para paredes limpas.
+                        </p>
+                    </div>
+
+                    {/* Furos Circulares */}
+                    <div style={{ padding: '12px 16px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Furos Circulares (Interpolação)</div>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px', lineHeight: 1.5 }}>
+                            Quando não há broca do diâmetro exato, a fresa contorna o furo em círculo (G2/G3). Aplica-se a dobradiças (Ø35mm), minifix, etc.
+                        </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div><label className={Z.lbl}>Passes de acabamento</label><input type="number" value={f.circular_passes_acabamento ?? 1} onChange={e => upd('circular_passes_acabamento', Number(e.target.value))} className={Z.inp} min="0" max="5" /></div>
+                            <div><label className={Z.lbl}>Offset desbaste (mm)</label><input type="number" value={f.circular_offset_desbaste ?? 0.3} onChange={e => upd('circular_offset_desbaste', Number(e.target.value))} className={Z.inp} step="0.05" min="0" max="2" /></div>
+                        </div>
+                        <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.4 }}>
+                            <b>Offset desbaste</b>: no desbaste, a fresa fica X mm afastada da parede final. O passe de acabamento remove esse material com velocidade reduzida para dimensão precisa.
+                        </p>
+                    </div>
+
+                    {/* Compensação de Raio */}
+                    <div style={{ padding: '12px 16px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Compensação de Raio em Canais</div>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px', lineHeight: 1.5 }}>
+                            A fresa tem diâmetro &gt; 0, então cantos de canais ficam arredondados. A compensação avança a fresa além do canto para que o espaço útil fique com cantos retos.
+                        </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 2 }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+                                    <input type="checkbox" checked={(f.compensar_raio_canal ?? 1) === 1} onChange={e => upd('compensar_raio_canal', e.target.checked ? 1 : 0)} />
+                                    Ativar compensação
+                                </label>
+                            </div>
+                            <div>
+                                <label className={Z.lbl}>Tipo</label>
+                                <select value={f.compensacao_tipo || 'overcut'} onChange={e => upd('compensacao_tipo', e.target.value)} className={Z.inp}>
+                                    <option value="overcut">Overcut (avanço do raio)</option>
+                                    <option value="dogbone">Dog-bone (furo nos cantos)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -5041,6 +8740,21 @@ function CfgUsinagem({ notify }) {
 function UsinagemTipoModal({ data, onSave, onClose }) {
     const [f, setF] = useState({ ...data });
     const upd = (k, v) => setF(p => ({ ...p, [k]: v }));
+
+    // Parse estrategias JSON
+    const [estrategias, setEstrategias] = useState(() => {
+        try { return JSON.parse(data.estrategias || '[]'); } catch { return []; }
+    });
+    const addEst = () => setEstrategias(p => [...p, { nome: '', metodo: 'drill', tool_match: '', diam_match: false, diam_min: null, diam_max: null }]);
+    const updEst = (i, k, v) => setEstrategias(p => p.map((e, j) => j === i ? { ...e, [k]: v } : e));
+    const delEst = (i) => setEstrategias(p => p.filter((_, j) => j !== i));
+    const moveEst = (i, dir) => setEstrategias(p => {
+        const arr = [...p]; const ni = i + dir;
+        if (ni < 0 || ni >= arr.length) return arr;
+        [arr[i], arr[ni]] = [arr[ni], arr[i]]; return arr;
+    });
+    // Sync estrategias to f on every change
+    useEffect(() => { upd('estrategias', JSON.stringify(estrategias)); }, [estrategias]);
     return (
         <Modal title={f.id ? 'Editar Tipo de Usinagem' : 'Novo Tipo de Usinagem'} close={onClose} w={560}>
             {/* Identificação */}
@@ -5116,6 +8830,61 @@ function UsinagemTipoModal({ data, onSave, onClose }) {
                         step="0.5" placeholder="Do JSON" />
                 </div>
             </div>
+
+            {/* Estratégias de Execução */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, marginTop: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Estratégias de Execução (ordem de preferência)
+            </div>
+            <div style={{ padding: '8px 10px', background: 'var(--bg-muted)', borderRadius: 6, fontSize: 10, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
+                Defina como executar esta operação. O sistema tenta a 1ª estratégia; se a ferramenta não existir, tenta a 2ª, e assim por diante.
+                Ex: furo Ø35 → 1) broca 35mm (drill) → 2) fresa 8mm (helicoidal) → 3) fresa 6mm (pocket circular).
+            </div>
+            {estrategias.map((est, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '30px 1fr 120px 120px 70px 70px 60px', gap: 6, alignItems: 'end', marginBottom: 4, fontSize: 11 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <button onClick={() => moveEst(i, -1)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: 10, lineHeight: 1 }}>▲</button>
+                        <span style={{ textAlign: 'center', fontWeight: 700, fontSize: 10, color: 'var(--text-muted)' }}>{i + 1}</span>
+                        <button onClick={() => moveEst(i, 1)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: 10, lineHeight: 1 }}>▼</button>
+                    </div>
+                    <div>
+                        {i === 0 && <label className={Z.lbl} style={{ fontSize: 9 }}>Nome</label>}
+                        <input value={est.nome || ''} onChange={e => updEst(i, 'nome', e.target.value)} className={Z.inp} placeholder="broca_35mm" style={{ fontSize: 11 }} />
+                    </div>
+                    <div>
+                        {i === 0 && <label className={Z.lbl} style={{ fontSize: 9 }}>Método</label>}
+                        <select value={est.metodo || 'drill'} onChange={e => updEst(i, 'metodo', e.target.value)} className={Z.inp} style={{ fontSize: 11 }}>
+                            <option value="drill">Furação direta</option>
+                            <option value="helical">Helicoidal</option>
+                            <option value="circular">Circular (G2/G3)</option>
+                            <option value="pocket_zigzag">Rebaixo zigzag</option>
+                            <option value="pocket_spiral">Rebaixo espiral</option>
+                            <option value="groove">Rasgo linear</option>
+                        </select>
+                    </div>
+                    <div>
+                        {i === 0 && <label className={Z.lbl} style={{ fontSize: 9 }}>Tipo ferramenta</label>}
+                        <select value={est.tool_match || ''} onChange={e => updEst(i, 'tool_match', e.target.value)} className={Z.inp} style={{ fontSize: 11 }}>
+                            <option value="">Qualquer</option>
+                            <option value="broca">Broca</option>
+                            <option value="fresa">Fresa</option>
+                            <option value="fresa_compressao">Fresa Compressão</option>
+                        </select>
+                    </div>
+                    <div>
+                        {i === 0 && <label className={Z.lbl} style={{ fontSize: 9 }}>Ø Min</label>}
+                        <input type="number" value={est.diam_min ?? ''} onChange={e => updEst(i, 'diam_min', e.target.value === '' ? null : Number(e.target.value))} className={Z.inp} style={{ fontSize: 11 }} step="0.5" placeholder="-" />
+                    </div>
+                    <div>
+                        {i === 0 && <label className={Z.lbl} style={{ fontSize: 9 }}>Ø Max</label>}
+                        <input type="number" value={est.diam_max ?? ''} onChange={e => updEst(i, 'diam_max', e.target.value === '' ? null : Number(e.target.value))} className={Z.inp} style={{ fontSize: 11 }} step="0.5" placeholder="-" />
+                    </div>
+                    <div>
+                        {i === 0 && <label className={Z.lbl} style={{ fontSize: 9 }}>&nbsp;</label>}
+                        <button onClick={() => delEst(i)} className={Z.btn2} style={{ fontSize: 10, padding: '3px 8px', color: '#ef4444' }}>✕</button>
+                    </div>
+                </div>
+            ))}
+            <button onClick={addEst} className={Z.btn2} style={{ fontSize: 11, marginTop: 4 }}>+ Adicionar estratégia</button>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
                 <button onClick={onClose} className={Z.btn2}>Cancelar</button>

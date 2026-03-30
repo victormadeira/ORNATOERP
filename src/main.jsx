@@ -10,6 +10,7 @@ import LandingPage from './pages/LandingPage';
 import PropostaApresentacao from './pages/PropostaApresentacao';
 import AssinaturaPublic from './pages/AssinaturaPublic';
 import VerificacaoAssinatura from './pages/VerificacaoAssinatura';
+import ScanPeca3D from './pages/ScanPeca3D';
 
 // Detectar acesso público via query params OU path
 const params = new URLSearchParams(window.location.search);
@@ -45,12 +46,23 @@ const assinaturaToken = (path.match(/^\/assinar\/([a-f0-9]+)$/i) || [])[1] || nu
 // Verificação de assinatura: /verificar/CODIGO
 const verificacaoCodigo = (path.match(/^\/verificar\/([A-Z0-9]+)$/i) || [])[1] || null;
 
+// Scan peça 3D: /scan/CODIGO ou /scan
+const scanCodigo = (path.match(/^\/scan\/(.+)$/i) || [])[1] || null;
+const isScanPage = path === '/scan' || path === '/scan/';
+
+// Preview peça pública: /p/ID
+const pecaPublicId = (path.match(/^\/p\/(\d+)$/i) || [])[1] || null;
+
 // Landing page pública: /contato, /landing ou /landingpage
 const isLanding = ['/contato', '/landing', '/landingpage', '/landingpage/'].includes(path);
 
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
-        {isLanding ? (
+        {pecaPublicId ? (
+            <ScanPeca3D codigo={pecaPublicId} />
+        ) : (scanCodigo || isScanPage) ? (
+            <ScanPeca3D codigo={scanCodigo} />
+        ) : isLanding ? (
             <LandingPage />
         ) : apresentacaoToken ? (
             <PropostaApresentacao token={apresentacaoToken} />
