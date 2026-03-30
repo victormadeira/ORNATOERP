@@ -5211,6 +5211,40 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                 fill="rgba(59,130,246,0.06)" pointerEvents="none" />
                         )}
 
+                        {/* Scraps — diagonal hatch, neutral (rendered BEFORE pieces so pieces stay on top and draggable) */}
+                        {(chapa.retalhos || []).map((r, ri) => {
+                            const srx = (r.x + refiloVal) * scale;
+                            const sry = (r.y + refiloVal) * scale;
+                            const srw = r.w * scale;
+                            const srh = r.h * scale;
+                            const hatchId = `hatch-${idx}-${ri}`;
+                            return (
+                                <g key={`s${ri}`} style={{ cursor: 'context-menu' }}
+                                    onContextMenu={(e) => {
+                                        e.preventDefault(); e.stopPropagation();
+                                        const cr = containerRef.current?.getBoundingClientRect();
+                                        setSobraCtxMenu({ x: e.clientX - (cr?.left || 0), y: e.clientY - (cr?.top || 0), retalhoIdx: ri, chapaIdx: idx });
+                                        setCtxMenu(null);
+                                    }}>
+                                    <defs>
+                                        <pattern id={hatchId} patternUnits="userSpaceOnUse" width={6} height={6} patternTransform="rotate(45)">
+                                            <line x1={0} y1={0} x2={0} y2={6} stroke="#9ca3af" strokeWidth={0.6} />
+                                        </pattern>
+                                    </defs>
+                                    <rect x={srx} y={sry} width={srw} height={srh}
+                                        fill={`url(#${hatchId})`} stroke="#9ca3af" strokeWidth={0.8} opacity={0.6} />
+                                    {srw > 40 && srh > 16 && (
+                                        <text x={srx + srw / 2} y={sry + srh / 2} textAnchor="middle" dominantBaseline="central"
+                                            fontSize={7} fill="#6b7280" fontWeight={600}
+                                            stroke="#fff" strokeWidth={2} paintOrder="stroke"
+                                            style={{ pointerEvents: 'none' }}>
+                                            {Math.round(r.w)}×{Math.round(r.h)}
+                                        </text>
+                                    )}
+                                </g>
+                            );
+                        })}
+
                         {/* ══ PIECES with collision feedback, lock, selection ══ */}
                         {chapa.pecas.map((p, pi) => {
                             const px = (p.x + refiloVal) * scale;
@@ -5393,39 +5427,6 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                             );
                         })}
 
-                        {/* Scraps — diagonal hatch, neutral */}
-                        {(chapa.retalhos || []).map((r, ri) => {
-                            const srx = (r.x + refiloVal) * scale;
-                            const sry = (r.y + refiloVal) * scale;
-                            const srw = r.w * scale;
-                            const srh = r.h * scale;
-                            const hatchId = `hatch-${idx}-${ri}`;
-                            return (
-                                <g key={`s${ri}`} style={{ cursor: 'context-menu' }}
-                                    onContextMenu={(e) => {
-                                        e.preventDefault(); e.stopPropagation();
-                                        const cr = containerRef.current?.getBoundingClientRect();
-                                        setSobraCtxMenu({ x: e.clientX - (cr?.left || 0), y: e.clientY - (cr?.top || 0), retalhoIdx: ri, chapaIdx: idx });
-                                        setCtxMenu(null);
-                                    }}>
-                                    <defs>
-                                        <pattern id={hatchId} patternUnits="userSpaceOnUse" width={6} height={6} patternTransform="rotate(45)">
-                                            <line x1={0} y1={0} x2={0} y2={6} stroke="#9ca3af" strokeWidth={0.6} />
-                                        </pattern>
-                                    </defs>
-                                    <rect x={srx} y={sry} width={srw} height={srh}
-                                        fill={`url(#${hatchId})`} stroke="#9ca3af" strokeWidth={0.8} opacity={0.6} />
-                                    {srw > 40 && srh > 16 && (
-                                        <text x={srx + srw / 2} y={sry + srh / 2} textAnchor="middle" dominantBaseline="central"
-                                            fontSize={7} fill="#6b7280" fontWeight={600}
-                                            stroke="#fff" strokeWidth={2} paintOrder="stroke"
-                                            style={{ pointerEvents: 'none' }}>
-                                            {Math.round(r.w)}×{Math.round(r.h)}
-                                        </text>
-                                    )}
-                                </g>
-                            );
-                        })}
                         {/* ══ Retalhos Mode Overlay ══ */}
                         {retMode && retDefs.map((rd, ri) => {
                             const rx = (rd.x + refiloVal) * scale;
