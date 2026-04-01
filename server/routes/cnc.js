@@ -5718,4 +5718,211 @@ router.get('/plano/:loteId/versions/diff/:v1/:v2', requireAuth, (req, res) => {
     }
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// PLUGIN SYNC — Ponte SketchUp Plugin ↔ ERP
+// ═══════════════════════════════════════════════════════════════════
+
+// POST /api/cnc/plugin/sync — Sync bidirecional
+// Recebe módulos do SketchUp, retorna status de produção, custos, alertas
+router.post('/plugin/sync', requireAuth, (req, res) => {
+    try {
+        const { action, payload } = req.body;
+        if (!action) return res.status(400).json({ error: 'action é obrigatório' });
+
+        switch (action) {
+            // ── Importar módulos do plugin ────────────
+            case 'import': {
+                const { json, nome, projeto_id, orc_id } = payload || {};
+                if (!json) return res.status(400).json({ error: 'JSON é obrigatório' });
+
+                const { loteInfo, pecas } = parsePluginJSON(json);
+                if (pecas.length === 0) return res.status(400).json({ error: 'Nenhuma peça encontrada' });
+
+                const loteNome = nome || loteInfo.projeto || `Plugin ${new Date().toLocaleDateString('pt-BR')}`;
+                const insertLote = db.prepare(`
+                    INSERT INTO cnc_lotes (user_id, nome, cliente, projeto, codigo, vendedor, json_original, total_pecas, projeto_id, orc_id, origem)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sketchup')
+                `);
+                const result = insertLote.run(
+                    req.user.id, loteNome, loteInfo.cliente, loteInfo.projeto,
+                    loteInfo.codigo, loteInfo.vendedor, typeof json === 'string' ? json : JSON.stringify(json),
+                    pecas.length, projeto_id || null, orc_id || null
+                );
+                const loteId = Number(result.lastInsertRowid);
+
+                const insertPeca = db.prepare(`
+                    INSERT INTO cnc_pecas (lote_id, persistent_id, upmcode, descricao, modulo_desc, modulo_id,
+                      produto_final, material, material_code, espessura, comprimento, largura, quantidade,
+                      borda_dir, borda_esq, borda_frontal, borda_traseira, acabamento, upmdraw, usi_a, usi_b,
+                      machining_json, observacao)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                `);
+                db.transaction(() => {
+                    for (const p of pecas) {
+                        insertPeca.run(
+                            loteId, p.persistent_id, p.upmcode, p.descricao, p.modulo_desc, p.modulo_id,
+                            p.produto_final, p.material, p.material_code, p.espessura, p.comprimento, p.largura,
+                            p.quantidade, p.borda_dir, p.borda_esq, p.borda_frontal, p.borda_traseira,
+                            p.acabamento, p.upmdraw, p.usi_a, p.usi_b, p.machining_json, p.observacao
+                        );
+                    }
+                })();
+
+                return res.json({
+                    ok: true,
+                    lote_id: loteId,
+                    total_pecas: pecas.length,
+                    nome: loteNome,
+                    msg: `${pecas.length} peças importadas com sucesso`,
+                });
+            }
+
+            // ── Status de produção de um lote ────────
+            case 'status': {
+                const { lote_id } = payload || {};
+                if (!lote_id) return res.status(400).json({ error: 'lote_id é obrigatório' });
+
+                const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(lote_id, req.user.id);
+                if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+                const pecas = db.prepare('SELECT id, descricao, modulo_desc, comprimento, largura, espessura, material, quantidade FROM cnc_pecas WHERE lote_id = ?').all(lote_id);
+                const totalPecas = pecas.reduce((s, p) => s + (p.quantidade || 1), 0);
+
+                // Verificar scans de expedição (progresso)
+                const scansCount = db.prepare(`
+                    SELECT COUNT(DISTINCT s.peca_id) as escaneadas
+                    FROM cnc_expedicao_scans s
+                    JOIN cnc_pecas p ON p.id = s.peca_id
+                    WHERE p.lote_id = ?
+                `).get(lote_id);
+
+                const otimizado = !!lote.plano_json;
+                const aproveitamento = lote.aproveitamento || null;
+
+                return res.json({
+                    ok: true,
+                    lote: {
+                        id: lote.id,
+                        nome: lote.nome,
+                        cliente: lote.cliente,
+                        projeto: lote.projeto,
+                        status: lote.status || 'aguardando',
+                        criado_em: lote.criado_em,
+                    },
+                    producao: {
+                        total_pecas: totalPecas,
+                        total_tipos: pecas.length,
+                        escaneadas: scansCount?.escaneadas || 0,
+                        progresso_pct: totalPecas > 0 ? Math.round(((scansCount?.escaneadas || 0) / totalPecas) * 100) : 0,
+                        otimizado,
+                        aproveitamento,
+                    },
+                });
+            }
+
+            // ── Resumo de custos por material ────────
+            case 'custos': {
+                const { lote_id } = payload || {};
+                if (!lote_id) return res.status(400).json({ error: 'lote_id é obrigatório' });
+
+                const lote = db.prepare('SELECT plano_json, aproveitamento FROM cnc_lotes WHERE id = ? AND user_id = ?').get(lote_id, req.user.id);
+                if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+                const pecas = db.prepare('SELECT material, material_code, espessura, comprimento, largura, quantidade FROM cnc_pecas WHERE lote_id = ?').all(lote_id);
+
+                // Agrupar por material
+                const matMap = {};
+                for (const p of pecas) {
+                    const key = p.material_code || p.material || '?';
+                    if (!matMap[key]) matMap[key] = { nome: p.material, code: key, espessura: p.espessura, area_mm2: 0, qtd_pecas: 0 };
+                    matMap[key].area_mm2 += (p.comprimento || 0) * (p.largura || 0) * (p.quantidade || 1);
+                    matMap[key].qtd_pecas += (p.quantidade || 1);
+                }
+
+                // Converter para m² e calcular chapas estimadas
+                const materiais = Object.values(matMap).map(m => ({
+                    ...m,
+                    area_m2: (m.area_mm2 / 1e6).toFixed(2),
+                    chapas_estimadas: Math.ceil(m.area_mm2 / (2750 * 1850)), // chapa padrão BR
+                }));
+
+                // Se tem plano otimizado, usar dados reais
+                let planoResumo = null;
+                if (lote.plano_json) {
+                    try {
+                        const plano = JSON.parse(lote.plano_json);
+                        planoResumo = {
+                            total_chapas: plano.chapas?.length || 0,
+                            aproveitamento: lote.aproveitamento,
+                        };
+                    } catch { /* ignore */ }
+                }
+
+                return res.json({
+                    ok: true,
+                    materiais,
+                    plano: planoResumo,
+                });
+            }
+
+            // ── Listar lotes do usuário ────────
+            case 'listar_lotes': {
+                const lotes = db.prepare(`
+                    SELECT id, nome, cliente, projeto, total_pecas, aproveitamento, status, origem, criado_em
+                    FROM cnc_lotes WHERE user_id = ?
+                    ORDER BY criado_em DESC LIMIT 20
+                `).all(req.user.id);
+                return res.json({ ok: true, lotes });
+            }
+
+            // ── Alertas de validação ────────
+            case 'alertas': {
+                const { lote_id } = payload || {};
+                if (!lote_id) return res.status(400).json({ error: 'lote_id é obrigatório' });
+
+                const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ?').all(lote_id);
+                const alertas = [];
+
+                for (const p of pecas) {
+                    // Peça maior que chapa padrão
+                    if ((p.comprimento || 0) > 2750 || (p.largura || 0) > 1850) {
+                        alertas.push({ nivel: 'erro', peca: p.descricao, modulo: p.modulo_desc, msg: `Peça excede dimensão da chapa (${p.comprimento}×${p.largura})` });
+                    }
+                    // Peça muito pequena (difícil de usinar)
+                    if ((p.comprimento || 0) < 50 || (p.largura || 0) < 50) {
+                        alertas.push({ nivel: 'aviso', peca: p.descricao, modulo: p.modulo_desc, msg: `Peça muito pequena (${p.comprimento}×${p.largura})` });
+                    }
+                    // Material não definido
+                    if (!p.material && !p.material_code) {
+                        alertas.push({ nivel: 'erro', peca: p.descricao, modulo: p.modulo_desc, msg: 'Material não definido' });
+                    }
+                    // Espessura zero
+                    if (!p.espessura || p.espessura <= 0) {
+                        alertas.push({ nivel: 'aviso', peca: p.descricao, modulo: p.modulo_desc, msg: 'Espessura não definida' });
+                    }
+                }
+
+                return res.json({ ok: true, total: alertas.length, alertas });
+            }
+
+            default:
+                return res.status(400).json({ error: `Ação desconhecida: ${action}` });
+        }
+    } catch (err) {
+        console.error('Plugin sync error:', err);
+        res.status(500).json({ error: 'Erro no sync do plugin' });
+    }
+});
+
+// POST /api/cnc/plugin/ping — Health check para o plugin verificar conexão
+router.get('/plugin/ping', (req, res) => {
+    res.json({
+        ok: true,
+        server: 'Ornato ERP',
+        version: '1.0',
+        ts: new Date().toISOString(),
+        features: ['import', 'status', 'custos', 'alertas', 'etiquetas', 'csv', 'gcode'],
+    });
+});
+
 export default router;
