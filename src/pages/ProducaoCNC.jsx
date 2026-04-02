@@ -2114,6 +2114,36 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
         }
     }, [plano, loteAtual, notify]);
 
+    // Desmarcar chapa cortada
+    const desmarcarChapaCortada = useCallback(async (chapaIdx) => {
+        if (!plano || !loteAtual) return;
+        const chapa = plano.chapas[chapaIdx];
+        if (!chapa) return;
+
+        const pecaIds = chapa.pecas.map(p => p.pecaId).filter(Boolean);
+        if (pecaIds.length === 0) return;
+
+        setMarkingChapa(chapaIdx);
+        try {
+            const data = await api.post('/cnc/expedicao/desmarcar-chapa', {
+                lote_id: loteAtual.id,
+                peca_ids: pecaIds,
+            });
+            if (data.ok) {
+                notify(`Chapa ${chapaIdx + 1} desmarcada — ${data.removed} registro(s) removidos`);
+                setCortadasSet(prev => {
+                    const next = new Set(prev);
+                    for (const id of pecaIds) next.delete(id);
+                    return next;
+                });
+            }
+        } catch (err) {
+            notify('Erro: ' + (err.error || err.message));
+        } finally {
+            setMarkingChapa(null);
+        }
+    }, [plano, loteAtual, notify]);
+
     const planoIdRef = useRef(null); // rastreia se é um plano NOVO ou atualização do mesmo
     useEffect(() => {
         const newId = plano ? `${plano.chapas?.length}_${plano.modo}_${plano.timestamp || ''}` : null;
@@ -3147,11 +3177,16 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                                     const someCut = cortadas > 0 && !allCut;
                                                     return (
                                                         <button
-                                                            onClick={(e) => { e.stopPropagation(); if (!allCut) marcarChapaCortada(ci); }}
-                                                            disabled={markingChapa === ci || allCut}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (markingChapa === ci) return;
+                                                                if (allCut) { if (confirm(`Desmarcar chapa ${ci + 1}?`)) desmarcarChapaCortada(ci); }
+                                                                else marcarChapaCortada(ci);
+                                                            }}
+                                                            disabled={markingChapa === ci}
                                                             style={{
                                                                 marginTop: 5, width: '100%', padding: '4px 0', borderRadius: 5,
-                                                                fontSize: 10, fontWeight: 700, cursor: allCut ? 'default' : 'pointer',
+                                                                fontSize: 10, fontWeight: 700, cursor: 'pointer',
                                                                 border: allCut ? '1px solid rgba(34,197,94,0.3)' : '1px solid var(--border)',
                                                                 background: allCut ? 'rgba(34,197,94,0.1)' : someCut ? 'rgba(245,158,11,0.08)' : 'var(--bg-card)',
                                                                 color: allCut ? '#22c55e' : someCut ? '#f59e0b' : 'var(--text-muted)',
@@ -3160,7 +3195,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                                             }}
                                                         >
                                                             {markingChapa === ci ? (
-                                                                <><Scissors size={10} style={{ animation: 'spin .7s linear infinite' }} /> Marcando...</>
+                                                                <><Scissors size={10} style={{ animation: 'spin .7s linear infinite' }} /> Processando...</>
                                                             ) : allCut ? (
                                                                 <><CheckCircle2 size={10} /> Cortada</>
                                                             ) : someCut ? (

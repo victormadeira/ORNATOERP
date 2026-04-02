@@ -4922,6 +4922,38 @@ router.get('/expedicao/corte-status/:loteId', requireAuth, (req, res) => {
     }
 });
 
+// ── Desmarcar chapa inteira (reverter corte) ────────────────────────────
+router.post('/expedicao/desmarcar-chapa', requireAuth, (req, res) => {
+    try {
+        const { lote_id, peca_ids } = req.body;
+
+        if (!lote_id || !Array.isArray(peca_ids) || peca_ids.length === 0) {
+            return res.status(400).json({ error: 'lote_id e peca_ids são obrigatórios' });
+        }
+
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(lote_id, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        const checkpoint = db.prepare("SELECT * FROM cnc_expedicao_checkpoints WHERE nome = 'Corte' LIMIT 1").get();
+        if (!checkpoint) return res.json({ ok: true, removed: 0 });
+
+        const deleteStmt = db.prepare('DELETE FROM cnc_expedicao_scans WHERE peca_id = ? AND checkpoint_id = ? AND lote_id = ?');
+        let removed = 0;
+
+        const runBulk = db.transaction(() => {
+            for (const pecaId of peca_ids) {
+                const r = deleteStmt.run(pecaId, checkpoint.id, lote_id);
+                removed += r.changes;
+            }
+        });
+        runBulk();
+
+        res.json({ ok: true, removed });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── Config (otimizador apenas) ──────────────────────────────────
 router.get('/config', requireAuth, (req, res) => {
     const config = db.prepare('SELECT * FROM cnc_config WHERE id = 1').get();
