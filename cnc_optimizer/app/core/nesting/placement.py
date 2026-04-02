@@ -237,23 +237,27 @@ def _compute_fragmentation_penalty(
     penalidade proporcional. Premiar layouts com sobras grandes
     e continuas; punir layouts com muitas tiras estreitas.
 
+    Penalidades agressivas para garantir sobras realmente utilizaveis:
+    - Tiras < 200mm: penalidade forte (inutilizaveis)
+    - Area livre > 10% sem sobra util: penalidade proporcional
+    - Quanto mais fragmentado, mais penaliza
+
     Retorna valor positivo (sera somado ao score = piora).
     """
     total_penalty = 0.0
+    sheet_area = sheet_w * sheet_h
 
     for b in bins:
         if not b.placements:
             continue
 
-        # Calcular area livre total
         total_piece_area = sum(
             p.effective_length * p.effective_width for p in b.placements
         )
-        free_area = sheet_w * sheet_h - total_piece_area
+        free_area = sheet_area - total_piece_area
         if free_area <= 0:
             continue
 
-        # Estimar sobras usando bounding box (posicoes 0-based)
         max_x = max(
             (p.x + p.effective_length)
             for p in b.placements
@@ -267,26 +271,34 @@ def _compute_fragmentation_penalty(
         right_w = sheet_w - max_x
         top_h = sheet_h - max_y
         usable_area = 0.0
-        n_usable = 0
 
         if right_w >= min_w and sheet_h >= min_l:
             usable_area += right_w * sheet_h
-            n_usable += 1
         if top_h >= min_w and max_x >= min_l:
             usable_area += max_x * top_h
-            n_usable += 1
+
+        # Penalidade por tiras inutilizaveis (< 200mm em qualquer dimensao)
+        if right_w > 10 and right_w < min_w:
+            # Tira lateral estreita — desperdicou material
+            thin_area = right_w * sheet_h
+            total_penalty += (thin_area / sheet_area) * 500
+        if top_h > 10 and top_h < min_w:
+            # Tira superior estreita
+            thin_area = max_x * top_h
+            total_penalty += (thin_area / sheet_area) * 500
 
         # Fragmentacao = % de area livre que NAO e reutilizavel
-        if free_area > sheet_w * sheet_h * 0.05:  # So penalizar se > 5% livre
+        free_pct = free_area / sheet_area
+        if free_pct > 0.03:  # > 3% livre
             waste_ratio = max(0, 1.0 - usable_area / free_area) if free_area > 0 else 0
 
-            # Penalidade cresce com a quantidade de area desperdicada
-            if waste_ratio > 0.6:
-                penalty = waste_ratio * (free_area / (sheet_w * sheet_h)) * 150
-                total_penalty += penalty
-            elif waste_ratio > 0.3:
-                penalty = waste_ratio * (free_area / (sheet_w * sheet_h)) * 50
-                total_penalty += penalty
+            if waste_ratio > 0.7:
+                # Mais de 70% do espaco livre e inutilizavel
+                total_penalty += waste_ratio * free_pct * 800
+            elif waste_ratio > 0.4:
+                total_penalty += waste_ratio * free_pct * 400
+            elif waste_ratio > 0.2:
+                total_penalty += waste_ratio * free_pct * 150
 
     return total_penalty
 
@@ -385,14 +397,22 @@ def run_nesting_pass(
     bins: list[BinResult] = []
     unplaced: list[Piece] = []
 
+    # Detectar se ha pecas irregulares — usar NFP bin automaticamente
+    has_irregular = any(not p.is_rectangular and p.contour for p in pieces)
+    effective_bin_type = "nfp" if has_irregular and bin_type == "maxrects" else bin_type
+
     # Criar primeiro bin
-    current_bin = create_bin(bin_type, bin_w, bin_h, spacing, sheet.kerf, split_dir=split_direction)
+    current_bin = create_bin(effective_bin_type, bin_w, bin_h, spacing, sheet.kerf, split_dir=split_direction)
     current_bin_result = BinResult(
         index=0, sheet=sheet,
         total_area=usable_w * usable_h,
-        bin_type=bin_type,
+        bin_type=effective_bin_type,
         heuristic=heuristic.value,
     )
+    has_irregular = any(not p.is_rectangular and p.contour for p in pieces)
+    effective_bin_type = "nfp" if has_irregular and bin_type == "maxrects" else bin_type
+
+    is_nfp = effective_bin_type == "nfp"
 
     for piece in pieces:
         # Determinar dimensoes efetivas e rotacao permitida
@@ -406,19 +426,21 @@ def run_nesting_pass(
         # Classificacao CNC
         piece_class = classify_piece_size(piece) if vacuum_aware else "normal"
 
+        # Kwargs extras para NFPBin
+        nfp_kw = {"piece": piece} if is_nfp else {}
+
         # Encontrar posicao
         if multi_heuristic:
             candidate = current_bin.find_best_multi_heuristic(
-                pw, ph, can_rotate, piece_class
+                pw, ph, can_rotate, piece_class, **nfp_kw
             )
         else:
             candidate = current_bin.find_best(
-                pw, ph, can_rotate, heuristic, piece_class
+                pw, ph, can_rotate, heuristic, piece_class, **nfp_kw
             )
 
         if candidate is None:
             # Nao cabe neste bin → criar novo bin
-            # Finalizar bin atual — usar area util real para ocupacao
             mid_used = sum(r["real_w"] * r["real_h"] for r in current_bin.used_rects)
             real_area = usable_w * usable_h
             current_bin_result.occupancy = (mid_used / real_area * 100) if real_area > 0 else 0
@@ -427,26 +449,25 @@ def run_nesting_pass(
                 bins.append(current_bin_result)
 
             # Novo bin
-            current_bin = create_bin(bin_type, bin_w, bin_h, spacing, sheet.kerf, split_dir=split_direction)
+            current_bin = create_bin(effective_bin_type, bin_w, bin_h, spacing, sheet.kerf, split_dir=split_direction)
             current_bin_result = BinResult(
                 index=len(bins), sheet=sheet,
                 total_area=usable_w * usable_h,
-                bin_type=bin_type,
+                bin_type=effective_bin_type,
                 heuristic=heuristic.value,
             )
 
             # Tentar novamente no novo bin
             if multi_heuristic:
                 candidate = current_bin.find_best_multi_heuristic(
-                    pw, ph, can_rotate, piece_class
+                    pw, ph, can_rotate, piece_class, **nfp_kw
                 )
             else:
                 candidate = current_bin.find_best(
-                    pw, ph, can_rotate, heuristic, piece_class
+                    pw, ph, can_rotate, heuristic, piece_class, **nfp_kw
                 )
 
         if candidate is None:
-            # Peca nao cabe em nenhum bin (maior que a chapa?)
             unplaced.append(piece)
             continue
 
@@ -457,9 +478,11 @@ def run_nesting_pass(
             eff_l, eff_w = pw, ph
 
         # Colocar no bin
+        place_kw = {"piece": piece} if is_nfp else {}
         current_bin.place_rect(
             candidate.x, candidate.y, eff_l, eff_w,
             piece_ref={"piece_id": piece.id, "persistent_id": piece.persistent_id},
+            **place_kw,
         )
 
         # Criar Placement

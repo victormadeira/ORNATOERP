@@ -768,6 +768,209 @@ class ShelfBin:
 
 
 # ---------------------------------------------------------------------------
+# NFP Bin (pecas irregulares)
+# ---------------------------------------------------------------------------
+
+class NFPBin:
+    """Bin com posicionamento por No-Fit Polygon para pecas irregulares.
+
+    Usa NFP para calcular posicoes validas quando pecas tem contornos
+    nao-retangulares. Fallback para bounding-box MaxRects quando ambas
+    as pecas sao retangulares.
+
+    O bin mantem um poligono de espaco livre (IFP = Inner-Fit Polygon)
+    que e atualizado a cada peca colocada via operacoes booleanas com NFP.
+    """
+
+    def __init__(self, width: float, height: float, spacing: float = 7.0):
+        self.width = width
+        self.height = height
+        self.spacing = spacing
+        self.used_rects: list[dict] = []
+
+        # Poligono que representa a chapa inteira
+        self._sheet_poly = box(0, 0, width, height)
+        # Poligonos das pecas ja colocadas
+        self._placed_polys: list[Polygon] = []
+        # Cache de NFP
+        from app.core.geometry.nfp import NFPCache
+        self._nfp_cache = NFPCache()
+        # Fallback MaxRects para pecas retangulares
+        self._maxrects = MaxRectsBin(width, height, spacing)
+
+    def _piece_polygon(self, piece: Piece, x: float = 0, y: float = 0,
+                       rotation: float = 0) -> Polygon:
+        """Converter peca em Polygon na posicao (x, y) com rotacao."""
+        from shapely.affinity import translate, rotate as shapely_rotate
+
+        if piece.contour and not piece.is_rectangular:
+            # Construir poligono a partir do contorno
+            from app.core.geometry.polygon_utils import contour_to_polygon
+            try:
+                poly = contour_to_polygon(piece.contour)
+            except Exception:
+                poly = box(0, 0, piece.length, piece.width)
+        else:
+            poly = box(0, 0, piece.length, piece.width)
+
+        if abs(rotation) > 0.01:
+            poly = shapely_rotate(poly, rotation, origin=(0, 0))
+
+        # Normalizar para que o bbox comece em (0,0)
+        bx0, by0 = poly.bounds[:2]
+        poly = translate(poly, -bx0, -by0)
+
+        # Buffer pelo spacing/2 (espaco entre pecas)
+        if self.spacing > 0:
+            poly = poly.buffer(self.spacing / 2, join_style=2)
+
+        return translate(poly, x, y)
+
+    def _find_nfp_position(self, piece: Piece, allow_rotate: bool,
+                           ) -> Optional[CandidatePoint]:
+        """Encontrar melhor posicao usando NFP.
+
+        Gera pontos candidatos no perimetro dos NFPs e testa
+        qual posicao cabe na chapa sem sobrepor pecas existentes.
+        """
+        from shapely.affinity import translate
+        from app.core.geometry.nfp import compute_nfp
+        from app.core.geometry.polygon_utils import normalize_polygon
+
+        rotations = [0]
+        if allow_rotate:
+            rotations.append(90)
+
+        best: Optional[CandidatePoint] = None
+        best_score = float("inf")
+
+        for rot in rotations:
+            # Poligono da peca movel na origem
+            moving = self._piece_polygon(piece, rotation=rot)
+            moving_norm = normalize_polygon(moving)
+            mw, mh = moving.bounds[2] - moving.bounds[0], moving.bounds[3] - moving.bounds[1]
+
+            if mw > self.width or mh > self.height:
+                continue
+
+            # Inner-Fit Polygon: onde o ref-point pode estar dentro da chapa
+            # IFP = retangulo (0, 0) → (sheet_w - piece_w, sheet_h - piece_h)
+            ifp = box(0, 0, self.width - mw, self.height - mh)
+            if ifp.is_empty or ifp.area <= 0:
+                continue
+
+            # Subtrair NFPs de todas as pecas ja colocadas
+            feasible = ifp
+            for placed_poly in self._placed_polys:
+                nfp = self._nfp_cache.get_or_compute(placed_poly, moving_norm, rot)
+                if nfp and nfp.is_valid:
+                    feasible = feasible.difference(nfp)
+                    if feasible.is_empty:
+                        break
+
+            if feasible.is_empty:
+                continue
+
+            # Gerar pontos candidatos do perimetro da regiao viavel
+            candidates = []
+            if hasattr(feasible, 'geoms'):
+                # MultiPolygon
+                for geom in feasible.geoms:
+                    if geom.is_valid and geom.area > 0:
+                        coords = list(geom.exterior.coords)
+                        candidates.extend(coords[:20])  # Limitar por performance
+            else:
+                coords = list(feasible.exterior.coords)
+                candidates.extend(coords[:30])
+
+            # Avaliar cada ponto candidato (bottom-left heuristic)
+            for cx, cy in candidates:
+                if cx < -0.01 or cy < -0.01:
+                    continue
+                if cx + mw > self.width + 0.01 or cy + mh > self.height + 0.01:
+                    continue
+
+                # Score: bottom-left (Y primeiro, depois X)
+                score = cy * 10000 + cx
+
+                if score < best_score:
+                    best_score = score
+                    best = CandidatePoint(
+                        x=round(cx, 3), y=round(cy, 3),
+                        rotation=rot, score=score,
+                        heuristic_used="nfp_bl",
+                    )
+
+        return best
+
+    def find_best(
+        self,
+        pw: float,
+        ph: float,
+        allow_rotate: bool = True,
+        heuristic: NestingHeuristic = NestingHeuristic.BSSF,
+        piece_class: str = "normal",
+        piece: Piece | None = None,
+    ) -> Optional[CandidatePoint]:
+        """Encontrar melhor posicao para peca.
+
+        Se peca e retangular, usa MaxRects (rapido).
+        Se tem contorno irregular, usa NFP.
+        """
+        if piece and piece.contour and not piece.is_rectangular:
+            return self._find_nfp_position(piece, allow_rotate)
+
+        # Fallback: MaxRects para pecas retangulares
+        return self._maxrects.find_best(pw, ph, allow_rotate, heuristic, piece_class)
+
+    def find_best_multi_heuristic(
+        self,
+        pw: float,
+        ph: float,
+        allow_rotate: bool = True,
+        piece_class: str = "normal",
+        piece: Piece | None = None,
+    ) -> Optional[CandidatePoint]:
+        """Multi-heuristic com suporte NFP."""
+        if piece and piece.contour and not piece.is_rectangular:
+            return self._find_nfp_position(piece, allow_rotate)
+
+        return self._maxrects.find_best_multi_heuristic(pw, ph, allow_rotate, piece_class)
+
+    def place_rect(self, x: float, y: float, pw: float, ph: float,
+                   piece_ref: dict | None = None, piece: Piece | None = None) -> None:
+        """Colocar peca na posicao."""
+        if piece and piece.contour and not piece.is_rectangular:
+            # Colocar poligono real
+            rot = 0  # A rotacao ja foi aplicada pelo caller
+            poly = self._piece_polygon(piece, x, y)
+            self._placed_polys.append(poly)
+        else:
+            # Retangular: colocar no MaxRects tambem
+            self._maxrects.place_rect(x, y, pw, ph, piece_ref)
+            poly = box(x, y, x + pw + self.spacing, y + ph + self.spacing)
+            self._placed_polys.append(poly)
+
+        self.used_rects.append({
+            "x": x, "y": y,
+            "w": pw + self.spacing, "h": ph + self.spacing,
+            "real_w": pw, "real_h": ph,
+            "ref": piece_ref,
+        })
+
+    def occupancy(self) -> float:
+        total_area = self.width * self.height
+        if total_area == 0:
+            return 0
+        used_area = sum(r["real_w"] * r["real_h"] for r in self.used_rects)
+        return (used_area / total_area) * 100
+
+    @property
+    def nfp_stats(self) -> dict:
+        return self._nfp_cache.stats
+
+
+# ---------------------------------------------------------------------------
 # Factory de bins
 # ---------------------------------------------------------------------------
 
@@ -775,6 +978,7 @@ BIN_TYPES = {
     "maxrects": MaxRectsBin,
     "guillotine": GuillotineBin,
     "shelf": ShelfBin,
+    "nfp": NFPBin,
 }
 
 
@@ -785,11 +989,11 @@ def create_bin(
     spacing: float = 7.0,
     kerf: float = 4.0,
     **kwargs,
-) -> MaxRectsBin | GuillotineBin | ShelfBin:
+) -> MaxRectsBin | GuillotineBin | ShelfBin | NFPBin:
     """Criar bin pelo tipo.
 
     Args:
-        bin_type: "maxrects", "guillotine", "shelf"
+        bin_type: "maxrects", "guillotine", "shelf", "nfp"
         width: Largura util
         height: Altura util
         spacing: Espacamento entre pecas
@@ -802,6 +1006,8 @@ def create_bin(
         return GuillotineBin(width, height, spacing, kerf, **kwargs)
     elif bin_type == "shelf":
         return ShelfBin(width, height, spacing)
+    elif bin_type == "nfp":
+        return NFPBin(width, height, spacing)
     else:
         split_dir = kwargs.get("split_dir", "auto")
         return MaxRectsBin(width, height, spacing, split_dir=split_dir)

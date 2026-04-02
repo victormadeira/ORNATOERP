@@ -3,11 +3,13 @@
 Decide quando usar retalho existente vs abrir chapa nova,
 baseado em aproveitamento previsto e valor do retalho.
 
-Regras principais:
-- Usar retalho se aproveitamento > 50% E cobre > 30% da area das pecas
-- Priorizar retalhos por material_code exato
-- Considerar grade do retalho (A/B preferidos)
-- Fallback para chapa nova se retalhos insuficientes
+Regras de viabilidade (evita destruir retalho valioso):
+- CONSUMO TOTAL: ocupacao >= 90% — retalho consumido, otimo
+- TROCA PRA CIMA: sobra resultante >= grade do retalho original
+- MARGEM UTIL: sobra resultante >= 70% da area do retalho original
+- Qualquer regra satisfeita = uso viavel
+
+Se nenhuma regra satisfeita, nao usar retalho (evita perder material).
 """
 
 from __future__ import annotations
@@ -64,10 +66,16 @@ class SelectionResult:
     remnant_score: float = 0.0       # Score do retalho selecionado
     occupancy_estimate: float = 0.0  # % de uso estimado
 
+    # Viabilidade
+    viability_rule: str = ""         # qual regra aprovou: "consumo_total"|"troca_cima"|"margem_util"
+    resulting_remnant_area: float = 0.0
+    resulting_remnant_grade: str = ""
+
     # Informacoes
     reason: str = ""
     candidates_evaluated: int = 0
     pieces_that_fit: int = 0
+    rejected_remnants: list = field(default_factory=list)  # [{id, reason}]
 
     def to_dict(self) -> dict:
         return {
@@ -76,8 +84,11 @@ class SelectionResult:
             "sheet_id": self.selected_sheet.id if self.selected_sheet else None,
             "decision_score": round(self.decision_score, 1),
             "occupancy_estimate": round(self.occupancy_estimate, 1),
+            "viability_rule": self.viability_rule,
+            "resulting_remnant_grade": self.resulting_remnant_grade,
             "reason": self.reason,
             "candidates": self.candidates_evaluated,
+            "rejected": self.rejected_remnants,
         }
 
 
@@ -137,6 +148,89 @@ def _pieces_fit_in_remnant(
     return all_fit, occupancy, fit_count
 
 
+def _estimate_resulting_remnant(
+    remnant: Remnant,
+    pieces_area: float,
+    occupancy_pct: float,
+    config: SelectionConfig,
+) -> tuple[float, str]:
+    """Estimar area e grade da sobra resultante apos usar o retalho.
+
+    Heuristica: area_sobra = area_retalho - area_pecas.
+    Grade estimada usando a proporcao da area restante.
+
+    Returns:
+        (area_sobra_mm2, grade_estimada)
+    """
+    remnant_area = (remnant.length - config.margin) * (remnant.width - config.margin)
+    remaining_area = max(0, remnant_area - pieces_area)
+
+    # Estimar dimensoes da sobra (heuristica: assume tira lateral)
+    # Se ocupacao alta, sobra e uma tira fina; se baixa, sobra grande
+    if remnant_area > 0:
+        used_fraction = pieces_area / remnant_area
+        # Sobra como tira: largura proporcional ao que nao foi usado
+        est_width = remnant.width * (1 - used_fraction)
+        est_length = remnant.length
+        min_dim = min(est_width, est_length)
+    else:
+        min_dim = 0
+
+    # Classificar sobra resultante
+    if remaining_area < 100_000 or min_dim < 200:  # < 10x10cm ou < 200mm
+        grade = "F"
+    elif min_dim < 300:
+        grade = "D"
+    elif remaining_area > remnant_area * 0.5:
+        grade = "A"
+    elif remaining_area > remnant_area * 0.3:
+        grade = "B"
+    else:
+        grade = "C"
+
+    return remaining_area, grade
+
+
+def _check_viability(
+    remnant: Remnant,
+    valuation: RemnantValuation,
+    occupancy_pct: float,
+    pieces_area: float,
+    config: SelectionConfig,
+) -> tuple[bool, str, float, str]:
+    """Verificar viabilidade de usar retalho (nao destruir valor).
+
+    Regras:
+    1. CONSUMO TOTAL: ocupacao >= 90% — retalho consumido, otimo
+    2. TROCA PRA CIMA: sobra resultante grade >= grade original
+    3. MARGEM UTIL: sobra resultante area >= 70% da area original
+
+    Returns:
+        (viavel, regra_aplicada, sobra_area, sobra_grade)
+    """
+    remaining_area, remaining_grade = _estimate_resulting_remnant(
+        remnant, pieces_area, occupancy_pct, config
+    )
+
+    grade_order = {"A": 5, "B": 4, "C": 3, "D": 2, "F": 1}
+    original_grade_level = grade_order.get(valuation.grade, 0)
+    remaining_grade_level = grade_order.get(remaining_grade, 0)
+
+    # Regra 1: Consumo total (>= 80%)
+    if occupancy_pct >= 80:
+        return True, "consumo_total", remaining_area, remaining_grade
+
+    # Regra 2: Troca pra cima (sobra >= grade original)
+    if remaining_grade_level >= original_grade_level:
+        return True, "troca_cima", remaining_area, remaining_grade
+
+    # Regra 3: Margem util (sobra >= 70% da area original)
+    if remaining_area >= remnant.area * 0.70:
+        return True, "margem_util", remaining_area, remaining_grade
+
+    return False, "", remaining_area, remaining_grade
+
+
 def _calculate_remnant_score(
     remnant: Remnant,
     occupancy_estimate: float,
@@ -152,14 +246,11 @@ def _calculate_remnant_score(
     - Valor do retalho (inverso: retalho barato = melhor usar)
     - Bonus por reuso
     """
-    # Score base: ocupacao
-    occ_score = occupancy_estimate  # 0-100
+    occ_score = occupancy_estimate
 
-    # Retalhos de grade baixa sao melhores para usar (menos desperdicio)
     grade_bonus = {"A": 0, "B": 5, "C": 10, "D": 15, "F": 20}
     bonus = grade_bonus.get(valuation.grade, 0)
 
-    # Score total
     score = occ_score + bonus + config.reuse_bonus
 
     return min(100, score)
@@ -213,6 +304,8 @@ def select_remnant_or_sheet(
     # Avaliar cada retalho
     best_result: Optional[SelectionResult] = None
     best_score = -1.0
+    rejected: list[dict] = []
+    total_pieces_area = sum(p.length * p.width for p in pieces)
 
     for remnant in matching_remnants:
         # Avaliar valor do retalho
@@ -220,6 +313,11 @@ def select_remnant_or_sheet(
 
         # Verificar grade minima
         if grade_order.get(valuation.grade, 0) < min_level:
+            rejected.append({
+                "id": remnant.id,
+                "dims": f"{remnant.length}x{remnant.width}",
+                "reason": f"Grade {valuation.grade} abaixo do minimo {config.min_grade}",
+            })
             continue
 
         # Verificar se pecas cabem
@@ -228,17 +326,49 @@ def select_remnant_or_sheet(
         )
 
         if fit_count == 0:
+            rejected.append({
+                "id": remnant.id,
+                "dims": f"{remnant.length}x{remnant.width}",
+                "reason": "Nenhuma peca cabe neste retalho",
+            })
             continue
 
-        # Verificar thresholds
+        # Verificar thresholds basicos
         if occupancy < config.min_remnant_occupancy:
+            rejected.append({
+                "id": remnant.id,
+                "dims": f"{remnant.length}x{remnant.width}",
+                "reason": f"Ocupacao {occupancy:.0f}% abaixo do minimo {config.min_remnant_occupancy}%",
+            })
             continue
 
-        total_pieces_area = sum(p.length * p.width for p in pieces)
         remnant_area = remnant.area
         coverage = (total_pieces_area / remnant_area * 100) if remnant_area > 0 else 0
 
         if coverage < config.min_area_coverage:
+            rejected.append({
+                "id": remnant.id,
+                "dims": f"{remnant.length}x{remnant.width}",
+                "reason": f"Cobertura {coverage:.0f}% abaixo do minimo {config.min_area_coverage}%",
+            })
+            continue
+
+        # Verificar viabilidade (nao destruir valor do retalho)
+        viable, rule, rem_area, rem_grade = _check_viability(
+            remnant, valuation, occupancy, total_pieces_area, config
+        )
+
+        if not viable:
+            rejected.append({
+                "id": remnant.id,
+                "dims": f"{remnant.length}x{remnant.width}",
+                "reason": (
+                    f"Sobra resultante (grade {rem_grade}, "
+                    f"{rem_area / 1_000_000:.2f}m²) seria pior que "
+                    f"retalho original (grade {valuation.grade}, "
+                    f"{remnant.area / 1_000_000:.2f}m²)"
+                ),
+            })
             continue
 
         # Calcular score
@@ -254,10 +384,15 @@ def select_remnant_or_sheet(
                 decision_score=score,
                 remnant_score=valuation.total_score,
                 occupancy_estimate=occupancy,
+                viability_rule=rule,
+                resulting_remnant_area=rem_area,
+                resulting_remnant_grade=rem_grade,
                 reason=f"Retalho {remnant.id} ({remnant.length}x{remnant.width}mm, "
-                       f"grade {valuation.grade}, ocupacao estimada {occupancy:.0f}%)",
+                       f"grade {valuation.grade}, ocupacao {occupancy:.0f}%, "
+                       f"regra: {rule})",
                 candidates_evaluated=len(matching_remnants),
                 pieces_that_fit=fit_count,
+                rejected_remnants=rejected,
             )
 
     if best_result is not None:
@@ -269,7 +404,8 @@ def select_remnant_or_sheet(
         decision="new_sheet",
         selected_sheet=sheet,
         candidates_evaluated=len(matching_remnants),
-        reason="Nenhum retalho atende criterios minimos de ocupacao/cobertura",
+        reason="Nenhum retalho atende criterios de viabilidade",
+        rejected_remnants=rejected,
     )
 
 

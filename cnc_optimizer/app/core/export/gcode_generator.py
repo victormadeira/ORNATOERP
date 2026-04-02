@@ -83,6 +83,13 @@ class MachineConfig:
     feed_area_max: float = 500.0    # cm² — abaixo disso reduz feed
     feed_percentual: float = 50.0   # % do feed normal
 
+    # Pocket/rebaixo
+    pocket_stepover_desbaste: float = 0.55   # % do diametro (55%)
+    pocket_stepover_acabamento: float = 0.15  # % do diametro (15%)
+    pocket_acabamento: bool = True            # passada de acabamento no perimetro
+    pocket_espiral_threshold: float = 10000.0  # mm² — acima usa espiral (100x100)
+    pocket_helical_entry: bool = True          # entrada helicoidal ao inves de plunge
+
     # N-codes
     usar_n_codes: bool = False
     n_code_incremento: int = 10
@@ -113,6 +120,8 @@ class GcodeTool:
     profundidade_extra: float = 0.1
     tipo: str = "fresa"         # fresa, broca, fresa_compressao
     tipo_corte: str = ""
+    n_flutes: int = 2           # numero de dentes/gumes
+    chip_load: float = 0.0      # mm/dente (0 = usar velocidade_corte direta)
 
 
 # ---------------------------------------------------------------------------
@@ -411,13 +420,124 @@ class GcodeGenerator:
 
         self._rapid_z(self.z_rapid())
 
+    def _helical_entry(self, cx: float, cy: float, z_start: float,
+                       z_end: float, tool: GcodeTool, feed: float):
+        """Entrada helicoidal — fresa desce em espiral ao inves de plunge reto.
+
+        Gera arcos G2 com Z decrescente. Raio = 65% do raio da fresa.
+        Multiplas voltas se profundidade > DOC por volta.
+        """
+        helix_r = tool.diametro * 0.30  # raio da helice = 30% do diametro
+        if helix_r < 0.5:
+            # Ferramenta muito pequena, plunge normal
+            self._plunge(z_end, feed=self.machine.vel_mergulho)
+            return
+
+        # Ponto de inicio da helice (deslocado em X do centro)
+        start_x = cx + helix_r
+        start_y = cy
+
+        self._rapid_xy(start_x, start_y)
+        self._rapid_z(z_start)
+
+        # Calcular quantas voltas (cada volta desce no maximo DOC)
+        total_depth = z_start - z_end  # positivo (mesa) ou abs
+        if self.machine.z_origin == "topo":
+            total_depth = abs(z_end - z_start)
+
+        doc_per_turn = tool.doc or self.machine.doc_default
+        n_turns = max(1, math.ceil(total_depth / doc_per_turn))
+        z_per_turn = (z_start - z_end) / n_turns
+
+        plunge_feed = self.machine.vel_mergulho
+
+        z_cur = z_start
+        for _ in range(n_turns):
+            z_half = z_cur - z_per_turn / 2
+            z_next = z_cur - z_per_turn
+            # Primeira meia volta (180°): volta ao lado oposto
+            self._arc(cx - helix_r, cy, -helix_r, 0, cw=True, z=z_half, feed=plunge_feed)
+            # Segunda meia volta (360°): volta ao ponto de inicio
+            self._arc(cx + helix_r, cy, helix_r, 0, cw=True, z=z_next, feed=plunge_feed)
+            z_cur = z_next
+
+        # Volta final sem descida para nivelar o fundo
+        self._arc(cx - helix_r, cy, -helix_r, 0, cw=True, feed=feed)
+        self._arc(cx + helix_r, cy, helix_r, 0, cw=True, feed=feed)
+
+        # Retornar ao centro para iniciar clearing
+        self._linear(cx, cy, feed=feed)
+
+    def _pocket_zigzag(self, x_min: float, x_max: float, y_min: float,
+                       y_max: float, step_over: float, feed: float):
+        """Desbaste zigzag de pocket."""
+        y = y_min
+        direction = 1
+        while y <= y_max + 0.001:
+            if direction == 1:
+                self._linear(x_max, y, feed=feed)
+            else:
+                self._linear(x_min, y, feed=feed)
+            direction *= -1
+            next_y = y + step_over
+            if next_y <= y_max + 0.001:
+                self._linear(x_max if direction == -1 else x_min, next_y, feed=feed)
+            y = next_y
+
+    def _pocket_spiral(self, x_min: float, x_max: float, y_min: float,
+                       y_max: float, step_over: float, feed: float):
+        """Desbaste espiral de pocket (contornos concentricos de fora pra dentro)."""
+        xlo, xhi = x_min, x_max
+        ylo, yhi = y_min, y_max
+
+        # Ir ao canto inferior esquerdo
+        self._linear(xlo, ylo, feed=feed)
+
+        while xlo <= xhi and ylo <= yhi:
+            # Contorno retangular: baixo→direita→cima→esquerda
+            self._linear(xhi, ylo, feed=feed)
+            self._linear(xhi, yhi, feed=feed)
+            self._linear(xlo, yhi, feed=feed)
+            xlo += step_over
+            ylo += step_over
+            xhi -= step_over
+            yhi -= step_over
+            if xlo <= xhi and ylo <= yhi:
+                self._linear(xlo, ylo + step_over if ylo > y_min else ylo, feed=feed)
+                self._linear(xlo, ylo, feed=feed)
+            else:
+                # Ultimo contorno: fechar no centro
+                mid_x = (xlo + xhi) / 2
+                mid_y = (ylo + yhi) / 2
+                self._linear(mid_x, mid_y, feed=feed)
+
+    def _pocket_finish_contour(self, x_min: float, x_max: float, y_min: float,
+                               y_max: float, allowance: float, feed: float):
+        """Passada de acabamento no perimetro do pocket.
+
+        Percorre o contorno com 'allowance' mm de material removido.
+        """
+        # Contorno com offset de acabamento (mais pra fora que o desbaste)
+        ax = x_min - allowance
+        bx = x_max + allowance
+        ay = y_min - allowance
+        by = y_max + allowance
+
+        self._comment("Acabamento perimetro pocket")
+        self._linear(ax, ay, feed=feed)
+        self._linear(bx, ay, feed=feed)
+        self._linear(bx, by, feed=feed)
+        self._linear(ax, by, feed=feed)
+        self._linear(ax, ay, feed=feed)
+
     def _do_pocket(self, op: GcodeOp, tool: GcodeTool):
-        """Pocket retangular."""
+        """Pocket retangular — desbaste + acabamento industrial."""
         prof_extra = tool.profundidade_extra or self.machine.profundidade_extra
         depth = op.depth + prof_extra
         passes = calcular_passadas(depth, tool.doc or self.machine.doc_default)
         vel = self._effective_feed(op, tool)
         tool_r = tool.diametro / 2
+        m = self.machine
 
         pw = op.width
         ph = op.height
@@ -425,7 +545,6 @@ class GcodeGenerator:
         self._comment(f"Pocket {op.piece_persistent_id} {pw:.0f}x{ph:.0f} D={op.depth:.1f}mm")
 
         if pw <= 0.1 and ph <= 0.1:
-            # Pocket zerado = plunge simples
             self._rapid_xy(op.abs_x, op.abs_y)
             self._rapid_z(self.z_approach())
             for p_depth in passes:
@@ -434,44 +553,50 @@ class GcodeGenerator:
             self._rapid_z(self.z_rapid())
             return
 
-        # Centro do pocket
         cx = op.abs_x
         cy = op.abs_y
 
-        # Limites internos (compensados pelo raio da fresa)
-        x_min = cx - pw / 2 + tool_r
-        x_max = cx + pw / 2 - tool_r
-        y_min = cy - ph / 2 + tool_r
-        y_max = cy + ph / 2 - tool_r
+        # Limites de desbaste (deixa allowance para acabamento)
+        allowance = 0.15 if m.pocket_acabamento else 0.0
+        x_min = cx - pw / 2 + tool_r + allowance
+        x_max = cx + pw / 2 - tool_r - allowance
+        y_min = cy - ph / 2 + tool_r + allowance
+        y_max = cy + ph / 2 - tool_r - allowance
 
         if x_min > x_max:
             x_min = x_max = cx
         if y_min > y_max:
             y_min = y_max = cy
 
-        step_over = tool.diametro * 0.7
+        step_desbaste = tool.diametro * m.pocket_stepover_desbaste
+        pocket_area = pw * ph
+        use_spiral = pocket_area > m.pocket_espiral_threshold
+        use_helical = m.pocket_helical_entry and tool.tipo != "broca"
 
-        for p_depth in passes:
+        for i, p_depth in enumerate(passes):
             z = self.z_cut(p_depth)
 
-            # Zigzag clearing
-            self._rapid_xy(x_min, y_min)
-            self._rapid_z(self.z_approach())
-            self._plunge(z)
-
-            y = y_min
-            direction = 1  # 1=esquerda→direita, -1=direita→esquerda
-            while y <= y_max + 0.001:
-                if direction == 1:
-                    self._linear(x_max, y, feed=vel)
+            if use_helical and (x_max - x_min) > tool.diametro and (y_max - y_min) > tool.diametro:
+                # Entrada helicoidal
+                z_from = self.z_approach() if i == 0 else self.z_cut(passes[i - 1])
+                self._helical_entry(cx, cy, z_from, z, tool, vel)
+                # Clearing
+                self._linear(x_min, y_min, feed=vel)
+                if use_spiral:
+                    self._pocket_spiral(x_min, x_max, y_min, y_max, step_desbaste, vel)
                 else:
-                    self._linear(x_min, y, feed=vel)
-                direction *= -1
+                    self._pocket_zigzag(x_min, x_max, y_min, y_max, step_desbaste, vel)
+            else:
+                # Pocket pequeno ou broca: plunge + zigzag
+                self._rapid_xy(x_min, y_min)
+                if i == 0:
+                    self._rapid_z(self.z_approach())
+                self._plunge(z)
+                self._pocket_zigzag(x_min, x_max, y_min, y_max, step_desbaste, vel)
 
-                next_y = y + step_over
-                if next_y <= y_max + 0.001:
-                    self._linear(x_max if direction == -1 else x_min, next_y, feed=vel)
-                y = next_y
+            # Passada de acabamento no perimetro (ultima passada)
+            if m.pocket_acabamento and i == len(passes) - 1 and allowance > 0:
+                self._pocket_finish_contour(x_min, x_max, y_min, y_max, allowance, vel)
 
             self._rapid_z(self.z_approach())
 
@@ -650,10 +775,9 @@ class GcodeGenerator:
         self._rapid_z(self.z_rapid())
 
     def _do_circular_hole(self, op: GcodeOp, tool: GcodeTool):
-        """Furo circular (G2 360°)."""
+        """Furo circular com descida helicoidal (G2 com Z decrescente)."""
         prof_extra = tool.profundidade_extra or self.machine.profundidade_extra
         depth = op.depth + prof_extra
-        passes = calcular_passadas(depth, tool.doc or self.machine.doc_default)
         vel = self._effective_feed(op, tool)
         tool_r = tool.diametro / 2
 
@@ -664,6 +788,7 @@ class GcodeGenerator:
 
         if cut_r < 0.5:
             # Raio muito pequeno — plunge simples
+            passes = calcular_passadas(depth, tool.doc or self.machine.doc_default)
             self._rapid_xy(cx, cy)
             self._rapid_z(self.z_approach())
             for p_depth in passes:
@@ -672,19 +797,30 @@ class GcodeGenerator:
             self._rapid_z(self.z_rapid())
             return
 
-        # Posicionar no ponto de inicio do arco
         start_x = cx + cut_r
         start_y = cy
 
         self._rapid_xy(start_x, start_y)
         self._rapid_z(self.z_approach())
 
-        for p_depth in passes:
-            z = self.z_cut(p_depth)
-            self._plunge(z)
-            # Arco completo 360° (retorna ao mesmo ponto)
-            self._arc(start_x, start_y, -cut_r, 0, cw=True, feed=vel)
-            self._rapid_z(self.z_approach())
+        # Descida helicoidal: G2 360° com Z decrescente a cada volta
+        doc = tool.doc or self.machine.doc_default
+        z_top = self.z_approach()
+        z_bottom = self.z_cut(depth)
+        z_cur = z_top
+        plunge_feed = self.machine.vel_mergulho
+
+        while z_cur > z_bottom + 0.001:
+            z_next = max(z_cur - doc, z_bottom)
+            # Meia volta com descida
+            z_half = (z_cur + z_next) / 2
+            self._arc(cx - cut_r, cy, -cut_r, 0, cw=True, z=z_half, feed=plunge_feed)
+            # Segunda meia volta completando a descida
+            self._arc(start_x, start_y, cut_r, 0, cw=True, z=z_next, feed=plunge_feed)
+            z_cur = z_next
+
+        # Volta final sem descida para nivelar o fundo
+        self._arc(start_x, start_y, -cut_r, 0, cw=True, feed=vel)
 
         self._rapid_z(self.z_rapid())
 
@@ -707,11 +843,19 @@ class GcodeGenerator:
     # --- Feed ---
 
     def _effective_feed(self, op: GcodeOp, tool: GcodeTool) -> float:
-        """Feed efetivo considerando pecas pequenas."""
-        vel = tool.velocidade_corte or self.machine.vel_corte
+        """Feed efetivo com chip load calculation.
+
+        Se chip_load > 0: feed = chip_load × n_flutes × RPM
+        Senao: usa velocidade_corte direta.
+        Reduz para pecas pequenas.
+        """
+        if tool.chip_load > 0 and tool.n_flutes > 0:
+            vel = tool.chip_load * tool.n_flutes * tool.rpm
+        else:
+            vel = tool.velocidade_corte or self.machine.vel_corte
         if op.is_small_piece:
             vel = round(vel * self.machine.feed_percentual / 100)
-        return vel
+        return round(vel)
 
     # --- Onion skin breakthrough ---
 
