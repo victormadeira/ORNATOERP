@@ -22,10 +22,10 @@ module.exports = {
     },
     {
       name: 'cnc-optimizer',
-      script: '-m',
-      args: 'uvicorn app.main:app --host 0.0.0.0 --port 8000',
+      script: '/usr/bin/python3',
+      args: '-m uvicorn app.main:app --host 0.0.0.0 --port 8000',
       cwd: '/home/ornato/app/cnc_optimizer',
-      interpreter: 'python3',
+      interpreter: 'none',
       env: {
         PYTHONUNBUFFERED: '1',
       },
