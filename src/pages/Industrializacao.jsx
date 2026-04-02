@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
-import { Z, Spinner, Modal } from '../ui';
+import { Z, Spinner, Modal, PageHeader, EmptyState, TabBar } from '../ui';
 import {
     Factory, ArrowRight, ArrowLeft, Scissors, Tag, Settings, CheckCircle2, Package,
     AlertTriangle, XCircle, Layers, Cpu, Printer, Download, Monitor, RefreshCw,
@@ -75,25 +75,9 @@ export default function Industrializacao({ notify, nav }) {
     if (loading) return <div style={{ padding: 32 }}><Spinner text="Carregando industrialização..." /></div>;
 
     return (
-        <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
+        <div className="page-enter" style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-                <div style={{
-                    width: 48, height: 48, borderRadius: 14,
-                    background: 'linear-gradient(135deg, #e67e22, #d35400)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}>
-                    <Factory size={24} color="#fff" />
-                </div>
-                <div style={{ flex: 1 }}>
-                    <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                        Industrialização
-                    </h1>
-                    <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-                        Fluxo guiado: do projeto à liberação para produção
-                    </p>
-                </div>
-            </div>
+            <PageHeader icon={Factory} title="Industrialização" subtitle="Fluxo guiado: do projeto à liberação para produção" />
 
             {/* Seletor de OP ou criar nova */}
             <OPSelector
@@ -123,7 +107,7 @@ export default function Industrializacao({ notify, nav }) {
                         <button
                             onClick={() => setStep(s => Math.max(0, s - 1))}
                             disabled={step === 0}
-                            className={Z.btn2}
+                            className="btn-secondary"
                             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 20px', opacity: step === 0 ? 0.4 : 1 }}
                         >
                             <ArrowLeft size={16} /> Voltar
@@ -131,7 +115,7 @@ export default function Industrializacao({ notify, nav }) {
                         <button
                             onClick={() => setStep(s => Math.min(STEPS.length - 1, s + 1))}
                             disabled={step === STEPS.length - 1}
-                            className={Z.btn}
+                            className="btn-primary"
                             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 20px', opacity: step === STEPS.length - 1 ? 0.4 : 1 }}
                         >
                             Próximo <ArrowRight size={16} />
@@ -269,70 +253,74 @@ function OPSelector({ ordens, projetos, opAtual, setOpAtual, criarOP, notify, on
     };
 
     const STATUS_COR = {
-        rascunho: '#6b7280', readiness: '#3b82f6', otimizando: '#f59e0b',
+        rascunho: '#94a3b8', readiness: '#3b82f6', otimizando: '#f59e0b',
         otimizada: '#8b5cf6', etiquetas: '#06b6d4', gcode: '#ec4899', liberada: '#22c55e'
     };
 
-    const tabSt = (active) => ({
-        padding: '8px 16px', fontSize: 12, fontWeight: active ? 700 : 500, border: 'none', cursor: 'pointer',
-        borderRadius: '8px 8px 0 0', background: active ? 'var(--bg-card)' : 'transparent',
-        color: active ? 'var(--primary)' : 'var(--text-muted)',
-        borderBottom: active ? '2px solid var(--primary)' : '2px solid transparent',
-    });
-
     return (
-        <div className="glass-card" style={{ padding: 16, marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>Ordem de Produção:</span>
-                <select
-                    value={opAtual?.id || ''}
-                    onChange={e => {
-                        const op = ordens.find(o => o.id === Number(e.target.value));
-                        setOpAtual(op || null);
-                    }}
-                    className={Z.inp}
-                    style={{ minWidth: 320, fontSize: 13 }}
-                >
-                    <option value="">Selecione uma OP...</option>
-                    {ordens.map(op => (
-                        <option key={op.id} value={op.id}>
-                            {op.numero} — {op.cliente_nome || op.projeto_nome || 'Sem projeto'} [{op.status}] ({op.total_pecas || 0} pç)
-                        </option>
-                    ))}
-                </select>
+        <div className="glass-card" style={{ overflow: 'hidden', marginBottom: 20 }}>
+            <div className="section-card-header">
+                <div className="section-card-header-title">
+                    <div className="section-card-header-icon" style={{ background: 'var(--primary-light)' }}>
+                        <Layers size={14} style={{ color: 'var(--primary)' }} />
+                    </div>
+                    Ordem de Produção
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    {opAtual && (
+                        <span style={{
+                            fontSize: 10, fontWeight: 700, padding: '3px 10px',
+                            borderRadius: 20, background: (STATUS_COR[opAtual.status] || '#6b7280') + '15',
+                            color: STATUS_COR[opAtual.status] || '#6b7280',
+                            border: `1px solid ${(STATUS_COR[opAtual.status] || '#6b7280')}25`,
+                            textTransform: 'uppercase', letterSpacing: '0.03em',
+                        }}>
+                            {opAtual.status}
+                        </span>
+                    )}
+                    <button onClick={onRefresh} className="btn-secondary" title="Atualizar" style={{ padding: '5px 8px', minHeight: 0 }}>
+                        <RefreshCw size={13} />
+                    </button>
+                </div>
+            </div>
+            <div style={{ padding: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <select
+                        value={opAtual?.id || ''}
+                        onChange={e => {
+                            const op = ordens.find(o => o.id === Number(e.target.value));
+                            setOpAtual(op || null);
+                        }}
+                        className="input-glass"
+                        style={{ flex: 1, minWidth: 280, fontSize: 13, cursor: 'pointer' }}
+                    >
+                        <option value="">Selecione uma OP...</option>
+                        {ordens.map(op => (
+                            <option key={op.id} value={op.id}>
+                                {op.numero} — {op.cliente_nome || op.projeto_nome || 'Sem projeto'} [{op.status}] ({op.total_pecas || 0} pç)
+                            </option>
+                        ))}
+                    </select>
 
-                <button onClick={() => { setShowNova(!showNova); setJsonData(null); setJsonPreview(null); }} className={Z.btn}
-                    style={{ padding: '8px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Factory size={14} /> Nova OP
-                </button>
-
-                <button onClick={onRefresh} className={Z.btn2} title="Atualizar" style={{ padding: 8 }}>
-                    <RefreshCw size={14} />
-                </button>
-
-                {opAtual && (
-                    <span style={{
-                        marginLeft: 'auto', fontSize: 11, fontWeight: 600, padding: '4px 10px',
-                        borderRadius: 6, background: (STATUS_COR[opAtual.status] || '#6b7280') + '20',
-                        color: STATUS_COR[opAtual.status] || '#6b7280',
-                    }}>
-                        {opAtual.status?.toUpperCase()}
-                    </span>
-                )}
+                    <button onClick={() => { setShowNova(!showNova); setJsonData(null); setJsonPreview(null); }} className="btn-primary"
+                        style={{ padding: '8px 16px', fontSize: 12, whiteSpace: 'nowrap' }}>
+                        <Plus size={14} /> Nova OP
+                    </button>
+                </div>
             </div>
 
             {/* Nova OP — Duas abas */}
             {showNova && (
                 <div style={{ marginTop: 12, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
                     {/* Tabs */}
-                    <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', background: 'var(--bg-muted)', padding: '4px 4px 0' }}>
-                        <button onClick={() => setNovaTab('projeto')} style={tabSt(novaTab === 'projeto')}>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>📋 De Projeto / Orçamento</span>
-                        </button>
-                        <button onClick={() => setNovaTab('json')} style={tabSt(novaTab === 'json')}>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>📦 De Arquivo JSON (SketchUp)</span>
-                        </button>
-                    </div>
+                    <TabBar
+                        tabs={[
+                            { id: 'projeto', label: 'De Projeto / Orçamento', icon: Package },
+                            { id: 'json', label: 'De Arquivo JSON (SketchUp)', icon: Layers },
+                        ]}
+                        active={novaTab}
+                        onChange={setNovaTab}
+                    />
 
                     <div style={{ padding: 16 }}>
                         {/* Tab 1: De Projeto */}
@@ -471,27 +459,31 @@ function OPSelector({ ordens, projetos, opAtual, setOpAtual, criarOP, notify, on
 function StepBar({ steps, current, setCurrent }) {
     return (
         <div style={{
-            display: 'flex', gap: 2, background: 'var(--bg-card)', borderRadius: 12,
-            padding: 4, border: '1px solid var(--border)', overflow: 'auto'
+            display: 'flex', gap: 0, background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)',
+            padding: 4, border: '1px solid var(--border)', overflow: 'auto',
         }}>
             {steps.map((s, i) => {
                 const active = i === current;
                 const done = i < current;
+                const I = s.icon;
                 return (
                     <button key={s.id} onClick={() => setCurrent(i)} style={{
-                        flex: 1, minWidth: 100, padding: '10px 8px', border: 'none', cursor: 'pointer',
-                        borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                        background: active ? 'var(--primary)' : done ? '#e0e7ff' : 'transparent',
+                        flex: 1, minWidth: 90, padding: '10px 8px', border: 'none', cursor: 'pointer',
+                        borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        background: active ? 'var(--primary-gradient)' : done ? 'var(--primary-light)' : 'transparent',
                         color: active ? '#fff' : done ? 'var(--primary)' : 'var(--text-muted)',
                         fontWeight: active ? 700 : 500, fontSize: 12, transition: 'all 0.2s',
+                        fontFamily: 'var(--font-sans)',
+                        boxShadow: active ? '0 2px 8px var(--primary-ring)' : 'none',
                     }}>
                         <span style={{
-                            width: 20, height: 20, borderRadius: 6, fontSize: 10, fontWeight: 700,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            background: active ? 'rgba(255,255,255,0.25)' : done ? 'var(--primary)' : 'var(--bg-hover)',
+                            width: 22, height: 22, borderRadius: '50%', fontSize: 10, fontWeight: 700,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                            background: active ? 'rgba(255,255,255,0.25)' : done ? 'var(--primary)' : 'var(--bg-muted)',
                             color: active ? '#fff' : done ? '#fff' : 'var(--text-muted)',
+                            transition: 'all 0.2s',
                         }}>
-                            {done ? '✓' : i + 1}
+                            {done ? '\u2713' : i + 1}
                         </span>
                         <span className="hide-mobile">{s.label}</span>
                     </button>
@@ -519,7 +511,7 @@ function StepPecas({ op, notify }) {
             .finally(() => setLoading(false));
     }, [op?.lote_id]);
 
-    if (!op?.lote_id) return <EmptyState text="OP sem lote vinculado" />;
+    if (!op?.lote_id) return <LocalEmpty text="OP sem lote vinculado" />;
     if (loading) return <Spinner text="Carregando peças..." />;
 
     const materiais = [...new Set(pecas.map(p => p.material_code).filter(Boolean))];
@@ -614,7 +606,7 @@ function StepReadiness({ op, notify, setStep }) {
     useEffect(() => { verificar(); }, [verificar]);
 
     if (loading) return <Spinner text="Verificando prontidão fabril..." />;
-    if (!readiness) return <EmptyState text="Clique para verificar readiness" />;
+    if (!readiness) return <LocalEmpty text="Clique para verificar readiness" />;
 
     return (
         <div>
@@ -770,7 +762,7 @@ function StepCorte({ op, notify }) {
         setOtimizando(false);
     };
 
-    if (!op?.lote_id) return <EmptyState text="OP sem lote vinculado" />;
+    if (!op?.lote_id) return <LocalEmpty text="OP sem lote vinculado" />;
     if (loading) return <Spinner text="Carregando plano de corte..." />;
 
     const inputSt = { padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 13, width: '100%' };
@@ -1012,7 +1004,7 @@ function StepCorte({ op, notify }) {
             )}
 
             {!plano && (
-                <EmptyState text="Nenhum plano de corte gerado. Clique em 'Otimizar Plano de Corte' acima." />
+                <LocalEmpty text="Nenhum plano de corte gerado. Clique em 'Otimizar Plano de Corte' acima." />
             )}
         </div>
     );
@@ -1079,7 +1071,7 @@ function StepEtiquetas({ op, notify }) {
         window.print();
     };
 
-    if (!op?.lote_id) return <EmptyState text="OP sem lote vinculado" />;
+    if (!op?.lote_id) return <LocalEmpty text="OP sem lote vinculado" />;
     if (loading) return <Spinner text="Carregando etiquetas..." />;
 
     // Modo Editor — abre o EditorEtiquetas completo
@@ -1136,7 +1128,7 @@ function StepEtiquetas({ op, notify }) {
                     ))}
                 </div>
             ) : (
-                <EmptyState text="Nenhum template de etiqueta configurado. Clique em 'Editar Template' para criar um." />
+                <LocalEmpty text="Nenhum template de etiqueta configurado. Clique em 'Editar Template' para criar um." />
             )}
         </div>
     );
@@ -1446,7 +1438,7 @@ function StepGcode({ op, notify }) {
         URL.revokeObjectURL(url);
     };
 
-    if (!op?.lote_id) return <EmptyState text="OP sem lote vinculado" />;
+    if (!op?.lote_id) return <LocalEmpty text="OP sem lote vinculado" />;
 
     const maquinaSel = maquinas.find(m => String(m.id) === maquinaId);
 
@@ -1638,9 +1630,9 @@ function KPI({ label, value, highlight }) {
     );
 }
 
-function EmptyState({ text }) {
+function LocalEmpty({ text }) {
     return (
-        <div className="glass-card" style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>
+        <div className="glass-card" style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
             {text}
         </div>
     );

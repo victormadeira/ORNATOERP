@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import api from '../api';
-import { Ic, Z, Modal, Spinner, tagStyle, tagClass } from '../ui';
-import { colorBg, colorBorder } from '../theme';
-import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp } from 'lucide-react';
+import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar } from '../ui';
+import { colorBg, colorBorder, getStatus, STATUS_COLORS as GLOBAL_STATUS } from '../theme';
+import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send } from 'lucide-react';
 import EditorEtiquetas, { EtiquetaSVG } from '../components/EditorEtiquetas';
 import PecaViewer3D from '../components/PecaViewer3D';
 import PecaEditor from '../components/PecaEditor';
@@ -40,6 +40,10 @@ export default function ProducaoCNC({ notify }) {
     const [editorTemplateId, setEditorTemplateId] = useState(null);
     const [configSection, setConfigSection] = useState('maquinas');
     const [toolAlerts, setToolAlerts] = useState([]);
+    const [materialAlerts, setMaterialAlerts] = useState([]);
+    const [materialAlertsDismissed, setMaterialAlertsDismissed] = useState(false);
+    const [sugestoes, setSugestoes] = useState([]);
+    const [sugestoesOpen, setSugestoesOpen] = useState(false);
 
     const loadLotes = useCallback(() => {
         api.get('/cnc/lotes').then(setLotes).catch(e => notify(e.error || 'Erro ao carregar lotes'));
@@ -55,12 +59,25 @@ export default function ProducaoCNC({ notify }) {
     const abrirLote = useCallback((lote, aba = 'pecas') => {
         setLoteAtual(lote);
         setTab(aba);
+        setMaterialAlertsDismissed(false);
+        // Fetch material alerts for this lote
+        api.get(`/cnc/alertas-material?lote_id=${lote.id}`).then(r => {
+            const alerts = (r.alertas || []).filter(a => a.chapas_necessarias > (a.estoque_chapas + a.retalhos_disponiveis));
+            setMaterialAlerts(alerts);
+        }).catch(() => setMaterialAlerts([]));
+        // Fetch grouping suggestions
+        api.get(`/cnc/sugestao-agrupamento/${lote.id}`).then(r => {
+            setSugestoes(r.sugestoes || []);
+        }).catch(() => setSugestoes([]));
     }, []);
 
     // Voltar para lista de lotes
     const voltarLotes = useCallback(() => {
         setLoteAtual(null);
         setTab('lotes');
+        setMaterialAlerts([]);
+        setSugestoes([]);
+        setSugestoesOpen(false);
     }, []);
 
     // Determina se estamos no nível 2 (dentro de um lote)
@@ -85,99 +102,178 @@ export default function ProducaoCNC({ notify }) {
     // ── MODO NORMAL ───────────────────────────────────────
     return (
         <div className={Z.pg}>
-            <h1 className={Z.h1}>Produção CNC</h1>
-            <p className={Z.sub}>Importar JSON, otimizar corte, etiquetas e G-code</p>
+            <PageHeader icon={Cpu} title="Produção CNC" subtitle="Importar JSON, otimizar corte, etiquetas e G-code" />
 
             {/* Alerta global de desgaste de ferramentas */}
             {toolAlerts.length > 0 && (
-                <div style={{
-                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
-                    background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8,
-                    marginBottom: 12, fontSize: 12, color: '#991b1b',
-                }}>
-                    <ShieldAlert size={16} style={{ flexShrink: 0 }} />
-                    <span>
+                <div className="alert-banner alert-banner-error" style={{ marginBottom: 12 }}>
+                    <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+                    <span style={{ flex: 1 }}>
                         <b>{toolAlerts.length} ferramenta(s)</b> com desgaste acima de 80%:
                         {' '}{toolAlerts.slice(0, 3).map(t => `${t.nome} (${t.percentage}%)`).join(', ')}
                         {toolAlerts.length > 3 && ` e mais ${toolAlerts.length - 3}...`}
                     </span>
                     <button onClick={() => { setTab('config'); setConfigSection('maquinas'); }}
-                        style={{ marginLeft: 'auto', fontSize: 11, padding: '3px 10px', borderRadius: 4, border: '1px solid #fca5a5', background: '#fff', cursor: 'pointer', color: '#991b1b', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        className="btn-secondary" style={{ fontSize: 11, padding: '3px 10px', whiteSpace: 'nowrap', minHeight: 0 }}>
                         Ver Ferramentas
                     </button>
                 </div>
             )}
 
             {/* Nível 1 — Tab bar principal */}
-            <div style={{ display: 'flex', gap: 2, overflowX: 'auto', borderBottom: '2px solid var(--border)', paddingBottom: 0, marginBottom: isInsideLote ? 0 : 20 }}>
-                {TABS_MAIN.map(t => {
-                    const active = !isInsideLote && tab === t.id;
-                    const I = t.ic;
-                    return (
-                        <button key={t.id} onClick={() => { setTab(t.id); if (t.id !== 'config') setLoteAtual(null); }}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px',
-                                fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer',
-                                color: active ? 'var(--primary)' : 'var(--text-muted)',
-                                borderBottom: active ? '2px solid var(--primary)' : '2px solid transparent',
-                                background: 'none', border: 'none', borderBottomWidth: 2, borderBottomStyle: 'solid',
-                                marginBottom: -2, whiteSpace: 'nowrap', transition: 'all .15s',
-                            }}>
-                            <I size={15} />
-                            <span>{t.lb}</span>
-                        </button>
-                    );
-                })}
-            </div>
+            <TabBar
+                tabs={TABS_MAIN.map(t => ({ id: t.id, label: t.lb, icon: t.ic }))}
+                active={!isInsideLote ? tab : null}
+                onChange={(id) => { setTab(id); if (id !== 'config') setLoteAtual(null); }}
+            />
 
             {/* Nível 2 — Workspace do lote (aparece só com lote aberto) */}
             {isInsideLote && (
                 <div style={{
                     display: 'flex', alignItems: 'center', gap: 0,
                     borderBottom: '2px solid var(--border)', marginBottom: 20,
-                    background: 'var(--bg-muted, #f8f9fa)',
+                    background: 'var(--bg-muted)',
+                    borderRadius: '8px 8px 0 0',
                 }}>
                     {/* Botão voltar + nome do lote */}
                     <button onClick={voltarLotes}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
-                            fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                            color: 'var(--text-muted)', background: 'none', border: 'none',
-                            borderRight: '1px solid var(--border)', whiteSpace: 'nowrap',
+                        className="btn-secondary" style={{
+                            borderRadius: '8px 0 0 0', border: 'none', borderRight: '1px solid var(--border)',
+                            padding: '8px 14px', fontSize: 12, gap: 6, minHeight: 0,
                         }}>
                         <ArrowLeft size={14} />
-                        <span style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {loteAtual.nome || `Lote #${loteAtual.id}`}
                         </span>
                     </button>
 
-                    {/* Tabs do lote */}
-                    {TABS_LOTE.map(t => {
+                    {/* Tabs do lote com step numbers */}
+                    {TABS_LOTE.map((t, idx) => {
                         const active = tab === t.id;
                         const I = t.ic;
+                        const stepIdx = TABS_LOTE.findIndex(x => x.id === tab);
+                        const isDone = idx < stepIdx;
                         return (
                             <button key={t.id} onClick={() => setTab(t.id)}
                                 style={{
-                                    display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px',
+                                    display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px',
                                     fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
-                                    color: active ? 'var(--primary)' : 'var(--text-muted)',
+                                    color: active ? 'var(--primary)' : isDone ? '#22c55e' : 'var(--text-muted)',
                                     borderBottom: active ? '2px solid var(--primary)' : '2px solid transparent',
                                     background: 'none', border: 'none', borderBottomWidth: 2, borderBottomStyle: 'solid',
                                     marginBottom: -2, whiteSpace: 'nowrap', transition: 'all .15s',
+                                    fontFamily: 'var(--font-sans)',
                                 }}>
                                 <span style={{
                                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                    width: 16, height: 16, borderRadius: '50%', fontSize: 9, fontWeight: 700,
-                                    background: active ? 'var(--primary)' : 'transparent',
-                                    color: active ? '#fff' : 'var(--text-muted)',
-                                    border: `1px solid ${active ? 'var(--primary)' : 'var(--border)'}`,
-                                    flexShrink: 0,
-                                }}>{t.step}</span>
+                                    width: 20, height: 20, borderRadius: '50%', fontSize: 10, fontWeight: 700,
+                                    background: active ? 'var(--primary)' : isDone ? '#22c55e' : 'transparent',
+                                    color: (active || isDone) ? '#fff' : 'var(--text-muted)',
+                                    border: `1.5px solid ${active ? 'var(--primary)' : isDone ? '#22c55e' : 'var(--border)'}`,
+                                    flexShrink: 0, transition: 'all .2s',
+                                }}>{isDone ? '\u2713' : t.step}</span>
                                 <I size={13} />
                                 <span>{t.lb}</span>
                             </button>
                         );
                     })}
+                </div>
+            )}
+
+            {/* Material stock alert banner */}
+            {isInsideLote && materialAlerts.length > 0 && !materialAlertsDismissed && (
+                <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {materialAlerts.map((a, i) => {
+                        const noStock = a.estoque_chapas === 0 && a.retalhos_disponiveis === 0;
+                        return (
+                            <div key={i} className={`alert-banner ${noStock ? 'alert-banner-error' : 'alert-banner-warning'}`}>
+                                <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                                <span style={{ flex: 1 }}>
+                                    <b>{a.material || a.material_code}</b>
+                                    {' — precisa de '}<b>{a.chapas_necessarias}</b>{' chapa(s), '}
+                                    {a.estoque_chapas > 0
+                                        ? <>estoque: <b>{a.estoque_chapas}</b></>
+                                        : <span style={{ fontWeight: 700 }}>sem estoque</span>}
+                                    {a.retalhos_disponiveis > 0 && <>, retalhos: <b>{a.retalhos_disponiveis}</b></>}
+                                    {noStock && <span style={{ fontWeight: 700, marginLeft: 6 }}>MATERIAL INDISPONIVEL</span>}
+                                </span>
+                                {i === 0 && (
+                                    <button onClick={() => setMaterialAlertsDismissed(true)}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, opacity: 0.6 }}>
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Grouping suggestions */}
+            {isInsideLote && sugestoes.length > 0 && (
+                <div className="glass-card" style={{ marginBottom: 12, overflow: 'hidden' }}>
+                    <button onClick={() => setSugestoesOpen(!sugestoesOpen)}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                            padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer',
+                            fontSize: 12, fontWeight: 600, color: 'var(--text-primary)',
+                            borderBottom: sugestoesOpen ? '1px solid var(--border)' : 'none',
+                        }}>
+                        <GitCompare size={14} style={{ color: '#8b5cf6' }} />
+                        <span>Sugestoes de Agrupamento</span>
+                        <span style={{ marginLeft: 4, fontSize: 10, color: '#8b5cf6', fontWeight: 700 }}>
+                            {sugestoes.length} lote{sugestoes.length > 1 ? 's' : ''}
+                        </span>
+                        <ChevronDown size={13} style={{ marginLeft: 'auto', transition: 'transform .2s', transform: sugestoesOpen ? 'rotate(180deg)' : '' }} />
+                    </button>
+                    {sugestoesOpen && (
+                        <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+                                Lotes que usam os mesmos materiais e podem ser otimizados juntos para reduzir desperdicio:
+                            </p>
+                            {sugestoes.map((s, i) => (
+                                <div key={i} style={{
+                                    display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px',
+                                    background: 'var(--bg-muted)', borderRadius: 6, border: '1px solid var(--border)',
+                                }}>
+                                    <Package size={13} style={{ color: '#8b5cf6', flexShrink: 0 }} />
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {s.lote_nome}
+                                        </div>
+                                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                                            {s.pecas_count} peca(s) em comum
+                                            {s.material_codes.length > 0 && ` — ${s.material_codes.join(', ')}`}
+                                        </div>
+                                    </div>
+                                    {s.economia_estimada_pct > 0 && (
+                                        <span style={{
+                                            fontSize: 10, fontWeight: 700, color: '#16a34a',
+                                            background: '#f0fdf4', padding: '2px 6px', borderRadius: 4,
+                                            whiteSpace: 'nowrap',
+                                        }}>
+                                            -{s.economia_estimada_pct}% desperdicio
+                                        </span>
+                                    )}
+                                    <span style={{
+                                        fontSize: 9, padding: '2px 6px', borderRadius: 4,
+                                        background: STATUS_COLORS[s.lote_status] || '#888', color: '#fff',
+                                        fontWeight: 600, textTransform: 'uppercase', whiteSpace: 'nowrap',
+                                    }}>
+                                        {s.lote_status}
+                                    </span>
+                                    <button onClick={() => abrirLote({ id: s.lote_id, nome: s.lote_nome }, 'plano')}
+                                        style={{
+                                            fontSize: 10, padding: '3px 8px', borderRadius: 4,
+                                            border: '1px solid var(--border)', background: '#fff', cursor: 'pointer',
+                                            color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap',
+                                        }}>
+                                        Abrir
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -1237,6 +1333,41 @@ function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab }) {
                             {modulos.map(m => <option key={m} value={m}>{m}</option>)}
                         </select>
                         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                            <button onClick={() => {
+                                if (!filtered.length) return notify('Nenhuma peça para exportar');
+                                const BOM = '\uFEFF';
+                                const sep = ';';
+                                const header = ['#', 'Descrição', 'Ambiente/Módulo', 'Comprimento', 'Largura', 'Espessura', 'Material', 'Veio', 'Borda Frontal', 'Borda Traseira', 'Borda Dir', 'Borda Esq', 'Rotação'].join(sep);
+                                const rows = filtered.map((p, i) => [
+                                    i + 1,
+                                    (p.descricao || '').replace(/;/g, ','),
+                                    (p.modulo_desc || '').replace(/;/g, ','),
+                                    p.comprimento || '',
+                                    p.largura || '',
+                                    p.espessura || '',
+                                    (p.material_code || p.material || '').replace(/;/g, ','),
+                                    p.grain || 'sem_veio',
+                                    p.borda_frontal || '-',
+                                    p.borda_traseira || '-',
+                                    p.borda_dir || '-',
+                                    p.borda_esq || '-',
+                                    p.grain && p.grain !== 'sem_veio' ? 'Com veio' : 'Livre',
+                                ].join(sep));
+                                const csv = BOM + header + '\n' + rows.join('\n');
+                                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `pecas_${loteAtual.nome || loteAtual.id}.csv`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
+                                notify('CSV exportado com sucesso');
+                            }} className={Z.btn2}
+                                style={{ fontSize: 11, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <FileDown size={14} /> Exportar CSV
+                            </button>
                             <button onClick={() => setTemplateLib(true)} className={Z.btn2}
                                 style={{ fontSize: 11, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 4 }}>
                                 <Star size={14} /> Biblioteca Usinagens
@@ -1731,13 +1862,32 @@ function printPlano(plano, pecasMap, loteAtual, getModColor) {
             if (rw > 30 && rh > 12) retSvg += `<text x="${rx + rw / 2}" y="${ry + rh / 2}" text-anchor="middle" dominant-baseline="central" font-size="6" fill="#22c55e" opacity="0.7">${Math.round(r.w)}x${Math.round(r.h)}</text>`;
         }
 
-        // Piece table
-        let peçaRows = '';
+        // Piece table — grouped by ambiente
+        const ambGroupsPlano = new Map();
         for (let pi = 0; pi < ch.pecas.length; pi++) {
             const p = ch.pecas[pi];
             const piece = pecasMap[p.pecaId];
-            const hasBorda = piece && (piece.borda_dir || piece.borda_esq || piece.borda_frontal || piece.borda_traseira);
-            peçaRows += `<tr><td>${pi + 1}</td><td>${piece?.descricao || '#' + p.pecaId}</td><td>${piece?.modulo_desc || '-'}</td><td style="text-align:right;font-family:monospace">${Math.round(p.w)} x ${Math.round(p.h)}</td><td style="text-align:center">${p.rotated ? '90°' : '-'}</td><td style="text-align:center">${hasBorda ? '●' : '-'}</td></tr>`;
+            const amb = piece?.ambiente || piece?.modulo_desc || 'Sem Ambiente';
+            if (!ambGroupsPlano.has(amb)) ambGroupsPlano.set(amb, []);
+            ambGroupsPlano.get(amb).push({ p, pi, piece });
+        }
+
+        let peçaRows = '';
+        let gNum = 0;
+        for (const [amb, items] of ambGroupsPlano) {
+            const clientLabel = items[0].p.loteNome || items[0].p.cliente || loteAtual?.cliente || '';
+            peçaRows += `<tr><td colspan="7" style="background:#f0f0f0;font-weight:700;font-size:10px;padding:4px 6px;border-top:2px solid #999;color:#333">▸ ${amb}${clientLabel ? ` <span style="font-weight:400;color:#888;font-size:9px">— ${clientLabel}</span>` : ''}</td></tr>`;
+            for (const { p, piece } of items) {
+                gNum++;
+                const hasBorda = piece && (piece.borda_dir || piece.borda_esq || piece.borda_frontal || piece.borda_traseira);
+                const bordas = [];
+                if (piece?.borda_frontal) bordas.push(`F:${piece.borda_frontal}`);
+                if (piece?.borda_traseira) bordas.push(`T:${piece.borda_traseira}`);
+                if (piece?.borda_dir) bordas.push(`D:${piece.borda_dir}`);
+                if (piece?.borda_esq) bordas.push(`E:${piece.borda_esq}`);
+                const upmCode = piece?.upmcode || '';
+                peçaRows += `<tr><td>${gNum}</td><td>${piece?.descricao || '#' + p.pecaId}${upmCode ? `<br><span style="font-size:8px;color:#999;font-family:monospace">${upmCode}</span>` : ''}</td><td style="font-size:9px">${piece?.modulo_desc || '-'}</td><td style="text-align:right;font-family:monospace">${Math.round(p.w)} x ${Math.round(p.h)}${piece?.espessura ? ' x ' + piece.espessura : ''}</td><td style="text-align:center">${p.rotated ? '90°' : '-'}</td><td style="text-align:center;font-size:9px;color:#92400e">${bordas.length > 0 ? bordas.join(' ') : '-'}</td></tr>`;
+            }
         }
 
         chapasHtml += `
@@ -1755,7 +1905,7 @@ function printPlano(plano, pecasMap, loteAtual, getModColor) {
                     ${ref > 0 ? `<rect x="${ref * sc}" y="${ref * sc}" width="${sw - 2 * ref * sc}" height="${sh - 2 * ref * sc}" fill="none" stroke="#ccc" stroke-width="0.5" stroke-dasharray="3 2"/>` : ''}
                     ${pecasSvg}${retSvg}
                 </svg>
-                <table class="pt"><thead><tr><th>#</th><th>Peça</th><th>Módulo</th><th>C x L (mm)</th><th>Rot.</th><th>Borda</th></tr></thead><tbody>${peçaRows}</tbody></table>
+                <table class="pt"><thead><tr><th>#</th><th>Peça</th><th>Módulo</th><th>C x L x E (mm)</th><th>Rot.</th><th>Bordas</th></tr></thead><tbody>${peçaRows}</tbody></table>
                 ${ch.cortes?.length ? `<div style="margin-top:6px;font-size:10px;color:#666"><b>Sequência de Cortes:</b> ${ch.cortes.map(c => `${c.seq}. ${c.dir === 'Horizontal' ? '━' : '┃'} ${c.pos}mm`).join(' · ')}</div>` : ''}
             </div>`;
     }
@@ -1850,11 +2000,14 @@ function printFolhaProducao(chapa, chapaIdx, pecasMap, loteAtual, getModColor, k
         if (piece?.borda_esq) pecasSvg += `<line x1="${px}" y1="${py}" x2="${px}" y2="${py + ph}" stroke="#d97706" stroke-width="2.5"/>`;
         if (piece?.borda_dir) pecasSvg += `<line x1="${px + pw}" y1="${py}" x2="${px + pw}" y2="${py + ph}" stroke="#d97706" stroke-width="2.5"/>`;
 
-        // Number circle
+        // Number circle — for small pieces, show number as tiny label above
         const numR = Math.min(12, Math.min(pw, ph) * 0.3);
         if (numR >= 5) {
             pecasSvg += `<circle cx="${px + pw / 2}" cy="${py + ph / 2}" r="${numR}" fill="#1a1a1a" opacity="0.85"/>`;
             pecasSvg += `<text x="${px + pw / 2}" y="${py + ph / 2}" text-anchor="middle" dominant-baseline="central" font-size="${Math.min(10, numR * 1.3)}" fill="#fff" font-weight="700">${num}</text>`;
+        } else if (pw >= 8 && ph >= 8) {
+            // Small piece — tiny number without circle
+            pecasSvg += `<text x="${px + pw / 2}" y="${py + ph / 2}" text-anchor="middle" dominant-baseline="central" font-size="4" fill="#1a1a1a" font-weight="800">${num}</text>`;
         }
 
         // Rotation indicator
@@ -1892,26 +2045,55 @@ function printFolhaProducao(chapa, chapaIdx, pecasMap, loteAtual, getModColor, k
         ${pecasSvg}${retSvg}${grainSvg}${scaleBarSvg}
     </svg>`;
 
-    // ─── Build piece table rows (4 separate border columns) ───
+    // ─── Build piece table rows grouped by ambiente ───
     const bdCell = (val) => val ? `<td class="bd-yes">${val}</td>` : `<td class="bd-no">-</td>`;
 
-    let tableRows = '';
-    for (let pi = 0; pi < nPecas; pi++) {
-        const p = chapa.pecas[pi];
+    // Group pieces by ambiente for separator headers
+    const groupedPieces = [];
+    let currentAmbiente = null;
+    const sortedPieces = chapa.pecas.map((p, idx) => ({ ...p, _origIdx: idx }));
+
+    // Build groups
+    const ambienteGroups = new Map();
+    for (const p of sortedPieces) {
         const piece = pecasMap[p.pecaId];
-        const bg = pi % 2 === 0 ? '#fff' : '#f8f7f5';
-        const esp = piece?.espessura || '-';
-        tableRows += `<tr style="background:${bg}">
-            <td style="text-align:center;font-weight:700;color:#1a1a1a">${pi + 1}</td>
-            <td>${piece?.descricao || '#' + p.pecaId}</td>
-            <td style="font-size:9px;color:#666">${piece?.modulo_desc || '-'}</td>
-            <td style="text-align:right;font-family:monospace;font-size:10px">${Math.round(p.w)} x ${Math.round(p.h)} x ${esp}</td>
-            <td style="text-align:center">${p.rotated ? '90deg' : '-'}</td>
-            ${bdCell(piece?.borda_frontal)}
-            ${bdCell(piece?.borda_traseira)}
-            ${bdCell(piece?.borda_dir)}
-            ${bdCell(piece?.borda_esq)}
+        const amb = piece?.ambiente || piece?.modulo_desc || 'Sem Ambiente';
+        if (!ambienteGroups.has(amb)) ambienteGroups.set(amb, []);
+        ambienteGroups.get(amb).push(p);
+    }
+
+    let tableRows = '';
+    let globalNum = 0;
+    for (const [amb, pieces] of ambienteGroups) {
+        const firstPiece = pecasMap[pieces[0].pecaId];
+        const clientLabel = pieces[0].loteNome || pieces[0].cliente || loteAtual?.cliente || '';
+
+        // Ambiente separator header
+        tableRows += `<tr class="amb-header">
+            <td colspan="9" style="background:#f0ede8;padding:5px 8px;font-weight:700;font-size:10px;color:#1a1a1a;border-top:2px solid #8a7d6d;letter-spacing:0.3px">
+                <span style="color:#5b7fa6">▸</span> ${amb}${clientLabel ? ` <span style="font-weight:400;color:#888;font-size:9px">— ${clientLabel}</span>` : ''}
+            </td>
         </tr>`;
+
+        for (let pi = 0; pi < pieces.length; pi++) {
+            const p = pieces[pi];
+            globalNum++;
+            const piece = pecasMap[p.pecaId];
+            const bg = pi % 2 === 0 ? '#fff' : '#f8f7f5';
+            const esp = piece?.espessura || '-';
+            const upmCode = piece?.upmcode || '';
+            tableRows += `<tr style="background:${bg}">
+                <td style="text-align:center;font-weight:700;color:#1a1a1a">${globalNum}</td>
+                <td>${piece?.descricao || '#' + p.pecaId}${upmCode ? `<br><span style="font-size:7px;color:#999;font-family:monospace">${upmCode}</span>` : ''}</td>
+                <td style="font-size:9px;color:#666">${piece?.modulo_desc || '-'}</td>
+                <td style="text-align:right;font-family:monospace;font-size:10px">${Math.round(p.w)} x ${Math.round(p.h)} x ${esp}</td>
+                <td style="text-align:center">${p.rotated ? '90°' : '-'}</td>
+                ${bdCell(piece?.borda_frontal)}
+                ${bdCell(piece?.borda_traseira)}
+                ${bdCell(piece?.borda_dir)}
+                ${bdCell(piece?.borda_esq)}
+            </tr>`;
+        }
     }
 
     const tableBlock = `<table class="ft">
@@ -2032,6 +2214,7 @@ function printFolhaProducao(chapa, chapaIdx, pecasMap, loteAtual, getModColor, k
         .bh { text-align: center; width: 52px; background: #fef3c7 !important; color: #92400e; }
         .bd-yes { text-align: center; font-size: 9px; color: #92400e; font-weight: 600; background: #fffbeb; }
         .bd-no { text-align: center; font-size: 9px; color: #d1d5db; }
+        .amb-header td { page-break-after: avoid; }
         .no-print { margin-bottom: 12px; }
         @media print {
             .no-print { display: none; }
@@ -2101,6 +2284,210 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
 
     // Keyboard shortcuts help panel
     const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+
+    // ═══ Chapa Status (multi-state) ═══
+    const [chapaStatuses, setChapaStatuses] = useState({});
+    const loadChapaStatuses = useCallback(() => {
+        if (!loteAtual) return;
+        api.get(`/cnc/chapa-status/${loteAtual.id}`).then(rows => {
+            const map = {};
+            for (const r of rows) map[r.chapa_idx] = r;
+            setChapaStatuses(map);
+        }).catch(() => {});
+    }, [loteAtual]);
+    useEffect(() => { loadChapaStatuses(); }, [loadChapaStatuses]);
+    const updateChapaStatus = async (chapaIdx, status) => {
+        try {
+            await api.post(`/cnc/chapa-status/${loteAtual.id}`, { chapa_idx: chapaIdx, status });
+            loadChapaStatuses();
+            notify(`Chapa ${chapaIdx + 1}: ${status.replace('_', ' ')}`, 'success');
+        } catch (err) { notify(err.error || 'Erro ao atualizar status'); }
+    };
+
+    // ═══ Review Checklist ═══
+    const [reviewData, setReviewData] = useState(null);
+    const [showReview, setShowReview] = useState(false);
+    const loadReview = async () => {
+        if (!loteAtual) return;
+        try {
+            const data = await api.get(`/cnc/review/${loteAtual.id}`);
+            setReviewData(data);
+            setShowReview(true);
+        } catch (err) { notify(err.error || 'Erro no review'); }
+    };
+
+    // ═══ Material Report ═══
+    const [materialReport, setMaterialReport] = useState(null);
+    const [showMaterialReport, setShowMaterialReport] = useState(false);
+    const loadMaterialReport = async () => {
+        if (!loteAtual) return;
+        try {
+            const data = await api.get(`/cnc/relatorio-materiais/${loteAtual.id}`);
+            setMaterialReport(data);
+            setShowMaterialReport(true);
+        } catch (err) { notify(err.error || 'Erro ao carregar relatório'); }
+    };
+
+    // ═══ G-Code History ═══
+    const [gcodeHistory, setGcodeHistory] = useState([]);
+    const [showGcodeHistory, setShowGcodeHistory] = useState(false);
+    const loadGcodeHistory = async () => {
+        if (!loteAtual) return;
+        try {
+            const data = await api.get(`/cnc/gcode-historico/${loteAtual.id}`);
+            setGcodeHistory(data);
+            setShowGcodeHistory(true);
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+
+    // ═══ Piece Labels ═══
+    const [showLabels, setShowLabels] = useState(false);
+    const printLabels = async () => {
+        if (!loteAtual) return;
+        try {
+            const data = await api.get(`/cnc/etiquetas/${loteAtual.id}`);
+            const win = window.open('', '_blank');
+            const labelsHtml = data.labels.map(l => `
+                <div class="label">
+                    <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(l.codigo_scan)}" width="70" height="70"/></div>
+                    <div class="info">
+                        <div class="desc">${l.descricao || l.upmcode}</div>
+                        <div class="mod">${l.modulo || ''}</div>
+                        <div class="dim">${l.dimensoes}</div>
+                        ${l.bordas ? `<div class="borda">${l.bordas}</div>` : ''}
+                        <div class="meta">${l.cliente} · Ch.${l.chapa?.idx || '?'}</div>
+                        <div class="code">${l.codigo_scan}</div>
+                    </div>
+                </div>
+            `).join('');
+            win.document.write(`<!DOCTYPE html><html><head><title>Etiquetas — ${data.lote.nome}</title>
+            <style>
+                * { box-sizing: border-box; margin: 0; }
+                body { font-family: Arial, sans-serif; }
+                .label { display: inline-flex; width: 90mm; height: 38mm; border: 1px dashed #ccc; padding: 3mm; margin: 1mm; gap: 3mm; page-break-inside: avoid; align-items: center; }
+                .qr { flex-shrink: 0; }
+                .info { flex: 1; overflow: hidden; }
+                .desc { font-size: 11px; font-weight: 700; line-height: 1.2; max-height: 2.4em; overflow: hidden; }
+                .mod { font-size: 9px; color: #666; }
+                .dim { font-size: 10px; font-family: monospace; font-weight: 600; margin-top: 2px; }
+                .borda { font-size: 8px; color: #92400e; margin-top: 1px; }
+                .meta { font-size: 8px; color: #999; margin-top: 2px; }
+                .code { font-size: 7px; font-family: monospace; color: #aaa; margin-top: 1px; }
+                @media print { .no-print { display: none; } body { margin: 0; } .label { border: 1px solid #eee; } }
+            </style></head><body>
+            <div class="no-print" style="padding:10px"><button onclick="window.print()" style="padding:8px 20px;font-size:14px;cursor:pointer;background:#e67e22;color:#fff;border:none;border-radius:6px">Imprimir Etiquetas</button>
+            <span style="margin-left:12px;font-size:12px;color:#888">${data.labels.length} etiquetas · ${data.lote.nome}</span></div>
+            ${labelsHtml}
+            </body></html>`);
+            win.document.close();
+        } catch (err) { notify(err.error || 'Erro ao gerar etiquetas'); }
+    };
+
+    // ═══ Relatório de Bordas ═══
+    const [bordasData, setBordasData] = useState(null);
+    const [bordasLoading, setBordasLoading] = useState(false);
+    const [showBordas, setShowBordas] = useState(false);
+    const [bordasExpanded, setBordasExpanded] = useState({});
+    const loadBordas = async () => {
+        if (!loteAtual) return;
+        setBordasLoading(true);
+        try {
+            const data = await api.get(`/cnc/relatorio-bordas/${loteAtual.id}`);
+            setBordasData({ bordas: data.bordas || [] });
+            setShowBordas(true);
+        } catch (err) {
+            notify('Erro ao carregar bordas: ' + (err.error || err.message));
+        } finally { setBordasLoading(false); }
+    };
+
+    // ═══ Timer de corte por chapa ═══
+    const [chapaTimers, setChapaTimers] = useState(() => {
+        // Restore all timers from localStorage on mount
+        const timers = {};
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('chapa_timer_')) {
+                    timers[key] = JSON.parse(localStorage.getItem(key));
+                }
+            }
+        } catch (_) {}
+        return timers;
+    });
+
+    const getTimerKey = useCallback((chapaIdx) => {
+        return `chapa_timer_${loteAtual?.id}_${chapaIdx}`;
+    }, [loteAtual]);
+
+    const startTimer = useCallback((chapaIdx) => {
+        const key = getTimerKey(chapaIdx);
+        const existing = chapaTimers[key];
+        const now = Date.now();
+        const timerData = {
+            running: true,
+            startedAt: now,
+            elapsed: existing?.elapsed || 0, // accumulated seconds before this start
+        };
+        localStorage.setItem(key, JSON.stringify(timerData));
+        setChapaTimers(prev => ({ ...prev, [key]: timerData }));
+    }, [getTimerKey, chapaTimers]);
+
+    const stopTimer = useCallback((chapaIdx) => {
+        const key = getTimerKey(chapaIdx);
+        const existing = chapaTimers[key];
+        if (!existing) return;
+        const now = Date.now();
+        const elapsed = existing.elapsed + (existing.running ? Math.floor((now - existing.startedAt) / 1000) : 0);
+        const timerData = { running: false, startedAt: null, elapsed };
+        localStorage.setItem(key, JSON.stringify(timerData));
+        setChapaTimers(prev => ({ ...prev, [key]: timerData }));
+    }, [getTimerKey, chapaTimers]);
+
+    const resetTimer = useCallback((chapaIdx) => {
+        const key = getTimerKey(chapaIdx);
+        localStorage.removeItem(key);
+        setChapaTimers(prev => { const n = { ...prev }; delete n[key]; return n; });
+    }, [getTimerKey]);
+
+    // Tick running timers every second
+    const [timerTick, setTimerTick] = useState(0);
+    useEffect(() => {
+        const hasRunning = Object.values(chapaTimers).some(t => t.running);
+        if (!hasRunning) return;
+        const iv = setInterval(() => setTimerTick(t => t + 1), 1000);
+        return () => clearInterval(iv);
+    }, [chapaTimers]);
+
+    const getTimerElapsed = useCallback((chapaIdx) => {
+        const key = getTimerKey(chapaIdx);
+        const t = chapaTimers[key];
+        if (!t) return 0;
+        if (t.running) return t.elapsed + Math.floor((Date.now() - t.startedAt) / 1000);
+        return t.elapsed || 0;
+    }, [getTimerKey, chapaTimers, timerTick]);
+
+    const formatTimer = (secs) => {
+        const m = Math.floor(secs / 60);
+        const s = secs % 60;
+        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    };
+
+    const getEstimatedTime = useCallback((chapa) => {
+        // Same logic as printFolhaProducao estTime
+        const nPecas = chapa.pecas?.length || 0;
+        let totalOps = 0;
+        for (const p of (chapa.pecas || [])) {
+            const pid = p.pecaId;
+            const dbp = pecasMap[pid];
+            if (!dbp) continue;
+            let mach = {};
+            try { mach = JSON.parse(dbp.machining_json || '{}'); } catch (_) {}
+            for (const face of Object.values(mach)) {
+                if (Array.isArray(face)) totalOps += face.length;
+            }
+        }
+        return Math.round((nPecas * 3 + totalOps * 1) / 60 * 10) / 10; // minutes
+    }, [pecasMap]);
 
     // Fullscreen for chapa visualization
     const chapaVizContainerRef = useRef(null);
@@ -2446,8 +2833,16 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
             const info = plano.lotes_info.find(l => l.id === pecaObj.loteId);
             if (info?.cor) return info.cor;
         }
+        // Color by ambiente/environment (more useful than module)
         const piece = pecasMap[pecaId];
         if (!piece) return modColorPalette[0];
+        const ambienteName = piece.ambiente || piece.modulo || '';
+        if (ambienteName) {
+            // Generate consistent color from ambiente name hash
+            let hash = 0;
+            for (let i = 0; i < ambienteName.length; i++) hash = ((hash << 5) - hash + ambienteName.charCodeAt(i)) | 0;
+            return modColorPalette[Math.abs(hash) % modColorPalette.length];
+        }
         const modId = piece.modulo_id || 0;
         return modColorPalette[modId % modColorPalette.length];
     };
@@ -2668,9 +3063,23 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                 });
                 notify(`G-Code bloqueado: ${r.ferramentas_faltando.length} ferramenta(s) faltando`, 'error');
             } else {
+                // Show error in modal with details instead of just a toast
+                setGcodePreview({
+                    gcode: '', filename: '', stats: r.stats || {}, chapaIdx,
+                    contorno_tool: null, chapa: null,
+                    alertas: [{ tipo: 'erro_critico', msg: r.error || 'Erro desconhecido ao gerar G-Code' }, ...(r.alertas || [])],
+                    ferramentas_faltando: [],
+                });
                 notify(r.error || 'Erro ao gerar G-Code', 'error');
             }
         } catch (err) {
+            // Network/server error — show in modal too
+            setGcodePreview({
+                gcode: '', filename: '', stats: {}, chapaIdx,
+                contorno_tool: null, chapa: null,
+                alertas: [{ tipo: 'erro_critico', msg: `Erro de conexão: ${err.message}` }],
+                ferramentas_faltando: [],
+            });
             notify('Erro ao gerar G-Code: ' + err.message, 'error');
         } finally {
             setGcodeLoading(null);
@@ -2690,6 +3099,20 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
         URL.revokeObjectURL(url);
         notify(`GCode baixado: ${gcodePreview.filename}`);
         setGcodePreview(null);
+    };
+
+    const handleSendToMachine = async () => {
+        if (!gcodePreview || !loteAtual) return;
+        try {
+            const r = await api.post(`/cnc/enviar-gcode/${loteAtual.id}/chapa/${gcodePreview.chapaIdx}`, {});
+            if (r.ok) {
+                notify(`Enviado: ${r.filename} → ${r.msg || r.path}`, 'success');
+            } else {
+                notify(r.error || 'Erro ao enviar', 'error');
+            }
+        } catch (err) {
+            notify(err.error || 'Erro ao enviar para máquina', 'error');
+        }
     };
 
     const handleAdjust = async (params) => {
@@ -2779,12 +3202,10 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
         const mainEl = document.querySelector('main');
         const savedScroll = mainEl?.scrollTop ?? 0;
         const restoreScroll = () => {
+            // Use setTimeout to wait for React re-render cycle to complete
+            const doRestore = () => { if (mainEl) mainEl.scrollTop = savedScroll; };
             requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        if (mainEl) mainEl.scrollTop = savedScroll;
-                    });
-                });
+                setTimeout(doRestore, 50);
             });
         };
 
@@ -3056,6 +3477,36 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                             </button>
                         )}
                         {plano && plano.chapas?.length > 0 && (
+                            <button onClick={loadBordas} disabled={bordasLoading} className={Z.btn2}
+                                style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <PenTool size={14} /> {bordasLoading ? 'Carregando...' : 'Rel. Bordas'}
+                            </button>
+                        )}
+                        {plano && plano.chapas?.length > 0 && (
+                            <button onClick={loadMaterialReport} className={Z.btn2}
+                                style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Package size={14} /> Lista Material
+                            </button>
+                        )}
+                        {plano && plano.chapas?.length > 0 && (
+                            <button onClick={loadReview} className={Z.btn2}
+                                style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, color: reviewData?.allOk === false ? '#ef4444' : undefined }}>
+                                <ClipboardCheck size={14} /> Review
+                            </button>
+                        )}
+                        {plano && plano.chapas?.length > 0 && (
+                            <button onClick={printLabels} className={Z.btn2}
+                                style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <TagIcon size={14} /> Etiquetas
+                            </button>
+                        )}
+                        {plano && plano.chapas?.length > 0 && (
+                            <button onClick={loadGcodeHistory} className={Z.btn2}
+                                style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <History size={14} /> G-Code Log
+                            </button>
+                        )}
+                        {plano && plano.chapas?.length > 0 && (
                             <div style={{ position: 'relative' }}>
                                 <button onClick={() => setShowExportMenu(!showExportMenu)} className={Z.btn2}
                                     style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -3082,6 +3533,23 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                     </div>
                                 )}
                             </div>
+                        )}
+                        {plano && plano.chapas?.length > 0 && (
+                            <button onClick={async () => {
+                                try {
+                                    const r = await api.post(`/cnc/plano/${loteAtual.id}/duplicar`);
+                                    if (r.ok) {
+                                        notify('Plano duplicado como nova versão (v' + r.version_id + ')');
+                                    } else {
+                                        notify(r.error || 'Erro ao duplicar plano');
+                                    }
+                                } catch (err) {
+                                    notify('Erro ao duplicar plano: ' + (err.error || err.message));
+                                }
+                            }} className={Z.btn2}
+                                style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Copy size={14} /> Duplicar Plano
+                            </button>
                         )}
                         {plano && plano.chapas?.length > 0 && (
                             <button onClick={loadVersions} disabled={versionsLoading} className={Z.btn2}
@@ -3300,6 +3768,38 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                 </div>
                             )}
 
+                            {/* ═══ STEPPER: Progresso horizontal das chapas ═══ */}
+                            {plano && plano.chapas.length > 1 && (
+                                <div style={{ display: 'flex', gap: 0, alignItems: 'center', marginBottom: 10, overflowX: 'auto', paddingBottom: 4 }}>
+                                    {plano.chapas.map((ch, ci) => {
+                                        const isActive = ci === selectedChapa;
+                                        const st = chapaStatuses[ci];
+                                        const statusColor = !st || st.status === 'pendente' ? '#9ca3af' : st.status === 'em_corte' ? '#f59e0b' : st.status === 'cortada' ? '#22c55e' : '#3b82f6';
+                                        const statusIcon = !st || st.status === 'pendente' ? '○' : st.status === 'em_corte' ? '◐' : st.status === 'cortada' ? '●' : '✓';
+                                        return (
+                                            <Fragment key={ci}>
+                                                {ci > 0 && <div style={{ width: 16, height: 2, background: chapaStatuses[ci - 1]?.status === 'cortada' || chapaStatuses[ci - 1]?.status === 'conferida' ? '#22c55e' : 'var(--border)', flexShrink: 0 }} />}
+                                                <button
+                                                    onClick={() => { setSelectedChapa(ci); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
+                                                    title={`Chapa ${ci + 1}: ${ch.material} · ${ch.aproveitamento.toFixed(1)}% · ${st?.status || 'pendente'}`}
+                                                    style={{
+                                                        flexShrink: 0, width: 32, height: 32, borderRadius: '50%', border: `2px solid ${isActive ? 'var(--primary)' : statusColor}`,
+                                                        background: isActive ? 'var(--primary)' : 'var(--bg-card)', color: isActive ? '#fff' : statusColor,
+                                                        fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        transition: 'all .15s', boxShadow: isActive ? '0 0 0 3px rgba(230,126,34,0.2)' : 'none',
+                                                    }}
+                                                >
+                                                    {isActive ? ci + 1 : statusIcon}
+                                                </button>
+                                            </Fragment>
+                                        );
+                                    })}
+                                    <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, fontSize: 9, color: 'var(--text-muted)', alignItems: 'center', flexShrink: 0, paddingLeft: 12 }}>
+                                        <span>○ Pendente</span><span style={{ color: '#f59e0b' }}>◐ Em corte</span><span style={{ color: '#22c55e' }}>● Cortada</span><span style={{ color: '#3b82f6' }}>✓ Conferida</span>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* ═══ LAYOUT LADO A LADO: Thumbnails + Detalhe ═══ */}
                             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
 
@@ -3415,41 +3915,47 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                                         {machineAssignments[ci].maquina_nome}
                                                     </div>
                                                 )}
-                                                {/* Chapa cortada button */}
+                                                {/* Tempo estimado */}
                                                 {(() => {
-                                                    const pecaIds = chapa.pecas.map(p => p.pecaId).filter(Boolean);
-                                                    const cortadas = pecaIds.filter(id => cortadasSet.has(id)).length;
-                                                    const allCut = pecaIds.length > 0 && cortadas === pecaIds.length;
-                                                    const someCut = cortadas > 0 && !allCut;
+                                                    const estMin = getEstimatedTime(chapa);
+                                                    if (!estMin || estMin <= 0) return null;
                                                     return (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                if (markingChapa === ci) return;
-                                                                if (allCut) { if (confirm(`Desmarcar chapa ${ci + 1}?`)) desmarcarChapaCortada(ci); }
-                                                                else marcarChapaCortada(ci);
-                                                            }}
-                                                            disabled={markingChapa === ci}
+                                                        <div style={{
+                                                            marginTop: 4, display: 'flex', alignItems: 'center', gap: 4,
+                                                            fontSize: 9, fontFamily: 'monospace', color: 'var(--text-muted)',
+                                                        }}>
+                                                            <Clock size={9} />
+                                                            <span>~{estMin}m est.</span>
+                                                        </div>
+                                                    );
+                                                })()}
+                                                {/* Status selector (multi-state) */}
+                                                {(() => {
+                                                    const st = chapaStatuses[ci];
+                                                    const status = st?.status || 'pendente';
+                                                    const statusOpts = [
+                                                        { val: 'pendente', label: 'Pendente', color: '#9ca3af', icon: '○' },
+                                                        { val: 'em_corte', label: 'Em Corte', color: '#f59e0b', icon: '◐' },
+                                                        { val: 'cortada', label: 'Cortada', color: '#22c55e', icon: '●' },
+                                                        { val: 'conferida', label: 'Conferida', color: '#3b82f6', icon: '✓' },
+                                                    ];
+                                                    const cur = statusOpts.find(s => s.val === status) || statusOpts[0];
+                                                    return (
+                                                        <select
+                                                            value={status}
+                                                            onClick={e => e.stopPropagation()}
+                                                            onChange={e => { e.stopPropagation(); updateChapaStatus(ci, e.target.value); marcarChapaCortada(ci); }}
                                                             style={{
-                                                                marginTop: 5, width: '100%', padding: '4px 0', borderRadius: 5,
+                                                                marginTop: 5, width: '100%', padding: '4px 6px', borderRadius: 5,
                                                                 fontSize: 10, fontWeight: 700, cursor: 'pointer',
-                                                                border: allCut ? '1px solid rgba(34,197,94,0.3)' : '1px solid var(--border)',
-                                                                background: allCut ? 'rgba(34,197,94,0.1)' : someCut ? 'rgba(245,158,11,0.08)' : 'var(--bg-card)',
-                                                                color: allCut ? '#22c55e' : someCut ? '#f59e0b' : 'var(--text-muted)',
-                                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                                                                transition: 'all .2s',
+                                                                border: `1px solid ${cur.color}40`,
+                                                                background: `${cur.color}10`,
+                                                                color: cur.color,
+                                                                textAlign: 'center',
                                                             }}
                                                         >
-                                                            {markingChapa === ci ? (
-                                                                <><Scissors size={10} style={{ animation: 'spin .7s linear infinite' }} /> Processando...</>
-                                                            ) : allCut ? (
-                                                                <><CheckCircle2 size={10} /> Cortada</>
-                                                            ) : someCut ? (
-                                                                <><Scissors size={10} /> {cortadas}/{pecaIds.length} cortadas</>
-                                                            ) : (
-                                                                <><Scissors size={10} /> Marcar cortada</>
-                                                            )}
-                                                        </button>
+                                                            {statusOpts.map(s => <option key={s.val} value={s.val}>{s.icon} {s.label}</option>)}
+                                                        </select>
                                                     );
                                                 })()}
                                             </div>
@@ -3534,6 +4040,16 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                             }}
                                             setTab={setTab}
                                             validationConflicts={validationResult?.conflicts || []}
+                                            timerInfo={null && {
+                                                elapsed: getTimerElapsed(selectedChapa),
+                                                running: chapaTimers[getTimerKey(selectedChapa)]?.running || false,
+                                                hasTimer: !!chapaTimers[getTimerKey(selectedChapa)],
+                                                estMin: getEstimatedTime(plano.chapas[selectedChapa]),
+                                                formatTimer,
+                                                onStart: () => startTimer(selectedChapa),
+                                                onStop: () => stopTimer(selectedChapa),
+                                                onReset: () => resetTimer(selectedChapa),
+                                            }}
                                         />
                                     )}
 
@@ -3749,6 +4265,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                 <GcodePreviewModal
                     data={gcodePreview}
                     onDownload={handleDownloadGcode}
+                    onSendToMachine={handleSendToMachine}
                     onClose={() => setGcodePreview(null)}
                     onSimulate={(gcodeText, chapaData) => {
                         const moves = parseGcodeToMoves(gcodeText);
@@ -3847,6 +4364,91 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                             </div>
                         ))}
                     </div>
+                </Modal>
+            )}
+
+            {/* ═══ Modal Relatório de Bordas ═══ */}
+            {showBordas && bordasData && (
+                <Modal title="Relatorio de Bordas / Fitagem" close={() => setShowBordas(false)} w={800}>
+                    {!bordasData.bordas || bordasData.bordas.length === 0 ? (
+                        <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                            Nenhuma borda/fita encontrada neste lote.
+                        </div>
+                    ) : (<>
+                        {/* Summary */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 16 }}>
+                            <div style={{ padding: '10px 14px', background: 'var(--bg-muted)', borderRadius: 8, textAlign: 'center' }}>
+                                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>
+                                    {bordasData.bordas.reduce((s, b) => s + b.metros, 0).toFixed(1)}m
+                                </div>
+                                <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Total Metros</div>
+                            </div>
+                            <div style={{ padding: '10px 14px', background: 'var(--bg-muted)', borderRadius: 8, textAlign: 'center' }}>
+                                <div style={{ fontSize: 20, fontWeight: 800, color: '#f59e0b', fontFamily: 'monospace' }}>
+                                    {bordasData.bordas.length}
+                                </div>
+                                <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Tipos de Borda</div>
+                            </div>
+                            <div style={{ padding: '10px 14px', background: 'var(--bg-muted)', borderRadius: 8, textAlign: 'center' }}>
+                                <div style={{ fontSize: 20, fontWeight: 800, color: '#3b82f6', fontFamily: 'monospace' }}>
+                                    {bordasData.bordas.reduce((s, b) => s + b.quantidade_pecas, 0)}
+                                </div>
+                                <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Pecas c/ Borda</div>
+                            </div>
+                        </div>
+
+                        {/* Table per borda type */}
+                        <div style={{ maxHeight: 450, overflowY: 'auto' }}>
+                            {bordasData.bordas.map((b, bi) => (
+                                <div key={bi} style={{ marginBottom: 8, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                                    <div
+                                        onClick={() => setBordasExpanded(prev => ({ ...prev, [bi]: !prev[bi] }))}
+                                        style={{
+                                            padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                            background: 'var(--bg-muted)', borderBottom: bordasExpanded[bi] ? '1px solid var(--border)' : 'none',
+                                        }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <PenTool size={13} style={{ color: '#f59e0b' }} />
+                                            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{b.tipo}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{b.quantidade_pecas} peca(s)</span>
+                                            <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>{b.metros.toFixed(2)}m</span>
+                                            {bordasExpanded[bi] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                                        </div>
+                                    </div>
+                                    {bordasExpanded[bi] && (
+                                        <div style={{ padding: '8px 14px' }}>
+                                            <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                                                <thead>
+                                                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                                        <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Peca</th>
+                                                        <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Modulo</th>
+                                                        <th style={{ textAlign: 'center', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Lado</th>
+                                                        <th style={{ textAlign: 'right', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Comp. (mm)</th>
+                                                        <th style={{ textAlign: 'center', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Qtd</th>
+                                                        <th style={{ textAlign: 'right', padding: '4px 6px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Metros</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {b.detalhes.map((d, di) => (
+                                                        <tr key={di} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                            <td style={{ padding: '4px 6px', fontWeight: 600 }}>{d.descricao || `#${d.peca_id}`}</td>
+                                                            <td style={{ padding: '4px 6px', color: 'var(--text-muted)' }}>{d.modulo}</td>
+                                                            <td style={{ padding: '4px 6px', textAlign: 'center' }}>{d.lado}</td>
+                                                            <td style={{ padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{d.comprimento_mm}</td>
+                                                            <td style={{ padding: '4px 6px', textAlign: 'center' }}>{d.quantidade}</td>
+                                                            <td style={{ padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: 'var(--primary)' }}>{d.metros.toFixed(3)}m</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </>)}
                 </Modal>
             )}
 
@@ -4124,6 +4726,160 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* ═══ Modal Review Checklist ═══ */}
+            {showReview && reviewData && (
+                <Modal title="Review Pre-Corte" close={() => setShowReview(false)} w={600}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                        {reviewData.passed}/{reviewData.total} verificações OK
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {reviewData.checks.map(c => (
+                            <div key={c.id} style={{
+                                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8,
+                                background: c.ok ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)',
+                                border: `1px solid ${c.ok ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
+                            }}>
+                                <span style={{ fontSize: 16 }}>{c.ok ? '✓' : '✗'}</span>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: 12, fontWeight: 600, color: c.ok ? '#22c55e' : '#ef4444' }}>{c.label}</div>
+                                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{c.detail}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    {reviewData.allOk && (
+                        <div style={{ marginTop: 16, padding: 12, borderRadius: 8, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', textAlign: 'center' }}>
+                            <CheckCircle2 size={24} style={{ color: '#22c55e' }} />
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#22c55e', marginTop: 6 }}>Pronto para cortar!</div>
+                        </div>
+                    )}
+                </Modal>
+            )}
+
+            {/* ═══ Modal Material Report ═══ */}
+            {showMaterialReport && materialReport && (
+                <Modal title="Relatorio de Materiais — Lista de Compras" close={() => setShowMaterialReport(false)} w={800}>
+                    {/* Materiais */}
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>Chapas</div>
+                    <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse', marginBottom: 16 }}>
+                        <thead>
+                            <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                                <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10 }}>Material</th>
+                                <th style={{ textAlign: 'center', padding: '4px 6px', fontSize: 10 }}>Qtd</th>
+                                <th style={{ textAlign: 'center', padding: '4px 6px', fontSize: 10 }}>Dimensao</th>
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontSize: 10 }}>Area m2</th>
+                                <th style={{ textAlign: 'center', padding: '4px 6px', fontSize: 10 }}>Aprov.</th>
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontSize: 10 }}>Custo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {materialReport.materiais.map((m, i) => (
+                                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <td style={{ padding: '6px', fontWeight: 600 }}>{m.material}{m.chapas_retalho > 0 && <span style={{ fontSize: 9, color: '#06b6d4', marginLeft: 4 }}>({m.chapas_retalho} ret.)</span>}</td>
+                                    <td style={{ textAlign: 'center', fontWeight: 700 }}>{m.chapas}</td>
+                                    <td style={{ textAlign: 'center', fontFamily: 'monospace', fontSize: 10 }}>{m.dim_chapa}</td>
+                                    <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{m.area_total_m2}</td>
+                                    <td style={{ textAlign: 'center', color: m.aproveitamento_medio >= 80 ? '#22c55e' : m.aproveitamento_medio >= 60 ? '#f59e0b' : '#ef4444', fontWeight: 600 }}>{m.aproveitamento_medio}%</td>
+                                    <td style={{ textAlign: 'right', fontWeight: 600 }}>{m.custo_total > 0 ? `R$ ${m.custo_total.toFixed(2)}` : '-'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot>
+                            <tr style={{ borderTop: '2px solid var(--text-primary)' }}>
+                                <td style={{ padding: '6px', fontWeight: 700 }}>TOTAL</td>
+                                <td style={{ textAlign: 'center', fontWeight: 700 }}>{materialReport.resumo.total_chapas}</td>
+                                <td />
+                                <td style={{ textAlign: 'right', fontWeight: 700 }}>{materialReport.resumo.area_total_m2.toFixed(2)} m2</td>
+                                <td />
+                                <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--primary)' }}>{materialReport.resumo.custo_total > 0 ? `R$ ${materialReport.resumo.custo_total.toFixed(2)}` : '-'}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+
+                    {/* Bordas */}
+                    {materialReport.bordas.length > 0 && (
+                        <>
+                            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>Fitas de Borda</div>
+                            <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                                        <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10 }}>Tipo/Cor</th>
+                                        <th style={{ textAlign: 'right', padding: '4px 6px', fontSize: 10 }}>Metros</th>
+                                        <th style={{ textAlign: 'right', padding: '4px 6px', fontSize: 10 }}>Pecas</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {materialReport.bordas.map((b, i) => (
+                                        <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                            <td style={{ padding: '6px', fontWeight: 600 }}>{b.tipo}</td>
+                                            <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{b.metros} m</td>
+                                            <td style={{ textAlign: 'right' }}>{b.pecas}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </>
+                    )}
+
+                    {/* Print button */}
+                    <div style={{ marginTop: 16, textAlign: 'center' }}>
+                        <button onClick={() => {
+                            const win = window.open('', '_blank');
+                            const mr = materialReport;
+                            win.document.write(`<!DOCTYPE html><html><head><title>Lista de Materiais</title>
+                            <style>body{font-family:Arial,sans-serif;margin:20px;font-size:12px}table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border:1px solid #ddd;padding:4px 8px;text-align:left}th{background:#f5f5f5;font-weight:700}h2{margin:0 0 10px}@media print{.no-print{display:none}}</style></head><body>
+                            <div class="no-print" style="margin-bottom:12px"><button onclick="window.print()" style="padding:8px 20px;font-size:14px;cursor:pointer;background:#e67e22;color:#fff;border:none;border-radius:6px">Imprimir</button></div>
+                            <h2>Lista de Materiais — ${loteAtual?.nome || ''}</h2>
+                            <table><tr><th>Material</th><th>Qtd Chapas</th><th>Dimensao</th><th>Area m2</th><th>Aprov.</th><th>Custo</th></tr>
+                            ${mr.materiais.map(m => `<tr><td>${m.material}</td><td style="text-align:center">${m.chapas}</td><td>${m.dim_chapa}</td><td style="text-align:right">${m.area_total_m2}</td><td style="text-align:center">${m.aproveitamento_medio}%</td><td style="text-align:right">${m.custo_total > 0 ? 'R$ ' + m.custo_total.toFixed(2) : '-'}</td></tr>`).join('')}
+                            <tr style="border-top:2px solid #333"><td><b>TOTAL</b></td><td style="text-align:center"><b>${mr.resumo.total_chapas}</b></td><td></td><td style="text-align:right"><b>${mr.resumo.area_total_m2.toFixed(2)} m2</b></td><td></td><td style="text-align:right"><b>${mr.resumo.custo_total > 0 ? 'R$ ' + mr.resumo.custo_total.toFixed(2) : '-'}</b></td></tr></table>
+                            ${mr.bordas.length > 0 ? `<h3>Fitas de Borda</h3><table><tr><th>Tipo</th><th>Metros</th><th>Pecas</th></tr>${mr.bordas.map(b => `<tr><td>${b.tipo}</td><td style="text-align:right">${b.metros} m</td><td style="text-align:right">${b.pecas}</td></tr>`).join('')}</table>` : ''}
+                            <div style="margin-top:12px;font-size:9px;color:#999">Ornato ERP · ${new Date().toLocaleDateString('pt-BR')}</div>
+                            </body></html>`);
+                            win.document.close();
+                        }} className={Z.btn2} style={{ padding: '10px 24px', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <Printer size={14} /> Imprimir Lista
+                        </button>
+                    </div>
+                </Modal>
+            )}
+
+            {/* ═══ Modal G-Code History ═══ */}
+            {showGcodeHistory && (
+                <Modal title="Historico de Geracao G-Code" close={() => setShowGcodeHistory(false)} w={700}>
+                    {gcodeHistory.length === 0 ? (
+                        <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Nenhuma geração registrada.</div>
+                    ) : (
+                        <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                                    <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10 }}>Data</th>
+                                    <th style={{ textAlign: 'center', padding: '4px 6px', fontSize: 10 }}>Chapa</th>
+                                    <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10 }}>Maquina</th>
+                                    <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10 }}>Arquivo</th>
+                                    <th style={{ textAlign: 'center', padding: '4px 6px', fontSize: 10 }}>Ops</th>
+                                    <th style={{ textAlign: 'right', padding: '4px 6px', fontSize: 10 }}>Tempo</th>
+                                    <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10 }}>Gerado por</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {gcodeHistory.map((h, i) => (
+                                    <tr key={h.id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'var(--bg-card)' : 'var(--bg-body)' }}>
+                                        <td style={{ padding: '5px 6px', fontSize: 10, color: 'var(--text-muted)' }}>{new Date(h.criado_em).toLocaleString('pt-BR')}</td>
+                                        <td style={{ textAlign: 'center', fontWeight: 700 }}>{(h.chapa_idx ?? -1) + 1}</td>
+                                        <td style={{ padding: '5px 6px' }}>{h.maquina_nome || '-'}</td>
+                                        <td style={{ padding: '5px 6px', fontFamily: 'monospace', fontSize: 10 }}>{h.filename || '-'}</td>
+                                        <td style={{ textAlign: 'center' }}>{h.total_operacoes}</td>
+                                        <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{h.tempo_estimado_min > 0 ? `${h.tempo_estimado_min}m` : '-'}</td>
+                                        <td style={{ padding: '5px 6px', fontSize: 10, color: 'var(--text-muted)' }}>{h.user_nome || '-'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </Modal>
             )}
         </div>
     );
@@ -4510,7 +5266,7 @@ function GcodeSimCanvas({ gcode, chapa }) {
     );
 }
 
-function GcodePreviewModal({ data, onDownload, onClose, onSimulate }) {
+function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, onSimulate }) {
     const { gcode, filename, stats, alertas, chapaIdx, contorno_tool } = data;
     const lines = (gcode || '').split('\n');
     const lineCount = lines.length;
@@ -4648,6 +5404,11 @@ function GcodePreviewModal({ data, onDownload, onClose, onSimulate }) {
                 {gcode && (
                     <button onClick={onDownload} className={Z.btn} style={{ padding: '8px 24px', display: 'flex', alignItems: 'center', gap: 6, background: '#e67e22', fontSize: 13, fontWeight: 700 }}>
                         <Download size={15} /> Baixar {filename}
+                    </button>
+                )}
+                {gcode && onSendToMachine && (
+                    <button onClick={onSendToMachine} className={Z.btn2} style={{ padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600 }}>
+                        <Send size={14} /> Enviar p/ Maquina
                     </button>
                 )}
                 {!gcode && data.ferramentas_faltando?.length > 0 && (
@@ -4844,7 +5605,7 @@ function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, pieceH, 
 }
 
 // ─── SVG visualization with collision detection, magnetic snap, kerf, lock, context menu ──
-function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, espacoPecas = 7, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, gcodeLoading, onView3D, onPrintLabel, onPrintSingleLabel, onPrintFolha, onSaveRetalhos, setTab, sobraMinW = 300, sobraMinH = 600, validationConflicts = [] }) {
+function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, espacoPecas = 7, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, gcodeLoading, onView3D, onPrintLabel, onPrintSingleLabel, onPrintFolha, onSaveRetalhos, setTab, sobraMinW = 300, sobraMinH = 600, validationConflicts = [], timerInfo }) {
     const [hovered, setHovered] = useState(null);
     const [showCuts, setShowCuts] = useState(false);
     const [showMachining, setShowMachining] = useState(true);
@@ -5191,6 +5952,29 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                         <span className={tagClass} style={tagStyle('#7c3aed')}>
                             {chapa.veio === 'horizontal' ? '━ Veio H' : '┃ Veio V'}
                         </span>
+                    )}
+                    {/* Timer de corte */}
+                    {timerInfo && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, background: timerInfo.running ? 'rgba(34,197,94,0.08)' : 'var(--bg-muted)', border: `1px solid ${timerInfo.running ? 'rgba(34,197,94,0.3)' : 'var(--border)'}` }}>
+                            <Clock size={11} style={{ color: timerInfo.running ? '#22c55e' : 'var(--text-muted)' }} />
+                            <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'monospace', color: timerInfo.running ? '#22c55e' : 'var(--text-primary)' }}>
+                                {timerInfo.formatTimer(timerInfo.elapsed)}
+                            </span>
+                            {timerInfo.estMin > 0 && (
+                                <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>/ {timerInfo.estMin}m</span>
+                            )}
+                            <button onClick={(e) => { e.stopPropagation(); timerInfo.running ? timerInfo.onStop() : timerInfo.onStart(); }}
+                                style={{ padding: '1px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600, cursor: 'pointer', border: '1px solid var(--border)', background: timerInfo.running ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.08)', color: timerInfo.running ? '#ef4444' : '#22c55e' }}>
+                                {timerInfo.running ? 'Pausar' : 'Iniciar'}
+                            </button>
+                            {timerInfo.hasTimer && !timerInfo.running && timerInfo.elapsed > 0 && (
+                                <button onClick={(e) => { e.stopPropagation(); if (confirm('Resetar timer?')) timerInfo.onReset(); }}
+                                    style={{ padding: '1px 4px', borderRadius: 4, fontSize: 9, cursor: 'pointer', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)' }}
+                                    title="Resetar timer">
+                                    <Undo2 size={9} />
+                                </button>
+                            )}
+                        </div>
                     )}
                     {onPrintLabel && (
                         <button onClick={() => onPrintLabel(idx)}
@@ -5955,7 +6739,12 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                 const cShort = Math.min(clipped.w, clipped.h), cLong = Math.max(clipped.w, clipped.h);
                                 if (cShort >= sobraMinW && cLong >= sobraMinH && noOverlap(clipped)) newRetalhos.push(clipped);
 
-                                if (onAdjust && newRetalhos.length > 0) {
+                                if (newRetalhos.length === 0) {
+                                    // Ambas sobras falharam na validação — avisar usuário em vez de sumir silenciosamente
+                                    if (typeof notify === 'function') notify('Não foi possível unir: as sobras resultantes são menores que o mínimo configurado.', 'warning');
+                                    return;
+                                }
+                                if (onAdjust) {
                                     onAdjust({ action: 'recalc_sobras', chapaIdx: idx, retalhos: newRetalhos });
                                 }
                             };
@@ -6122,8 +6911,22 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                         </>
                     );
                     return (
-                        <div style={{
-                            position: 'absolute', left: Math.min(ctxMenu.x, 280), top: Math.min(ctxMenu.y, 400),
+                        <div ref={el => {
+                            // Viewport-aware positioning after render
+                            if (el) {
+                                const rect = el.getBoundingClientRect();
+                                const parent = el.parentElement?.getBoundingClientRect() || { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+                                const maxX = parent.width - rect.width - 8;
+                                const maxY = parent.height - rect.height - 8;
+                                const newLeft = Math.max(0, Math.min(ctxMenu.x, maxX));
+                                const newTop = Math.max(0, Math.min(ctxMenu.y, maxY));
+                                if (parseInt(el.style.left) !== Math.round(newLeft) || parseInt(el.style.top) !== Math.round(newTop)) {
+                                    el.style.left = newLeft + 'px';
+                                    el.style.top = newTop + 'px';
+                                }
+                            }
+                        }} style={{
+                            position: 'absolute', left: ctxMenu.x, top: ctxMenu.y,
                             background: 'var(--bg-card)', border: '1px solid var(--border)',
                             borderRadius: 10, boxShadow: 'var(--shadow-lg)', zIndex: 100,
                             minWidth: 230, padding: '6px 0', overflow: 'hidden',
@@ -8584,6 +9387,8 @@ function newMaquinaDefaults() {
         margem_mesa_sacrificio: 0.5,
         g0_com_feed: 0,
         padrao: 0, ativo: 1,
+        // Envio direto
+        envio_tipo: '', envio_host: '', envio_porta: 21, envio_usuario: '', envio_senha: '', envio_pasta: '/',
     };
 }
 
@@ -8600,6 +9405,7 @@ function MaquinaModal({ data, onSave, onClose }) {
         { id: 'antiarrasto', lb: 'Anti-Arrasto' },
         { id: 'exportacao', lb: 'Exportação' },
         { id: 'formato', lb: 'Formato' },
+        { id: 'envio', lb: 'Envio Direto' },
     ];
 
     return (
@@ -8992,6 +9798,36 @@ function MaquinaModal({ data, onSave, onClose }) {
                     </div>
                     {(f.usar_n_codes ?? 1) === 1 && (
                         <div><label className={Z.lbl}>Incremento N</label><input type="number" value={f.n_code_incremento ?? 10} onChange={e => upd('n_code_incremento', Number(e.target.value))} className={Z.inp} min={1} max={100} /></div>
+                    )}
+                </div>
+            )}
+
+            {secao === 'envio' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div style={{ gridColumn: '1/-1', fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
+                        Configure o envio direto do G-Code para a máquina via rede ou pasta compartilhada.
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Tipo de Envio</label>
+                        <select value={f.envio_tipo || ''} onChange={e => upd('envio_tipo', e.target.value)} className={Z.inp}>
+                            <option value="">Desativado</option>
+                            <option value="pasta">Pasta / Volume de Rede</option>
+                            <option value="ftp">FTP</option>
+                        </select>
+                    </div>
+                    {f.envio_tipo === 'ftp' && (
+                        <>
+                            <div><label className={Z.lbl}>Host / IP</label><input value={f.envio_host || ''} onChange={e => upd('envio_host', e.target.value)} className={Z.inp} placeholder="192.168.1.100" /></div>
+                            <div><label className={Z.lbl}>Porta</label><input type="number" value={f.envio_porta || 21} onChange={e => upd('envio_porta', Number(e.target.value))} className={Z.inp} /></div>
+                            <div><label className={Z.lbl}>Usuario</label><input value={f.envio_usuario || ''} onChange={e => upd('envio_usuario', e.target.value)} className={Z.inp} /></div>
+                            <div><label className={Z.lbl}>Senha</label><input type="password" value={f.envio_senha || ''} onChange={e => upd('envio_senha', e.target.value)} className={Z.inp} /></div>
+                        </>
+                    )}
+                    {(f.envio_tipo === 'pasta' || f.envio_tipo === 'ftp') && (
+                        <div style={{ gridColumn: '1/-1' }}>
+                            <label className={Z.lbl}>Pasta Destino</label>
+                            <input value={f.envio_pasta || '/'} onChange={e => upd('envio_pasta', e.target.value)} className={Z.inp} placeholder="/home/cnc/programas" style={{ width: '100%' }} />
+                        </div>
                     )}
                 </div>
             )}

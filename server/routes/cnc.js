@@ -1007,10 +1007,14 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                             const w = Math.round(Math.max(s.w, s.h));
                             const h = Math.round(Math.min(s.w, s.h));
                             if (w >= sobraMinH && h >= sobraMinW) {
-                                db.prepare(`INSERT INTO cnc_retalhos (user_id, chapa_ref_id, nome, material_code, espessura_real, comprimento, largura, origem_lote)
+                                const retResult = db.prepare(`INSERT INTO cnc_retalhos (user_id, chapa_ref_id, nome, material_code, espessura_real, comprimento, largura, origem_lote)
                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
                                     req.user.id, chapa.id || null,
                                     `Retalho ${w}x${h}`, group.material_code, group.espessura, w, h, String(lote.id)
+                                );
+                                db.prepare(`INSERT INTO cnc_retalho_historico (retalho_id, lote_id, chapa_idx, largura, comprimento, material_code, espessura, origem_lote_id, origem_chapa_idx, acao)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'criado')`).run(
+                                    String(retResult.lastInsertRowid), lote.id, chapaInfo.idx, h, w, group.material_code, group.espessura, lote.id, chapaInfo.idx
                                 );
                             }
                         }
@@ -1282,6 +1286,10 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                         plano.chapas.push(chapaInfo);
                         retalhosUsados.push(ret.id);
                         db.prepare('UPDATE cnc_retalhos SET disponivel = 0 WHERE id = ?').run(ret.id);
+                        db.prepare(`INSERT INTO cnc_retalho_historico (retalho_id, lote_id, chapa_idx, largura, comprimento, material_code, espessura, origem_lote_id, acao)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'usado')`).run(
+                            String(ret.id), loteIds[0], chapaInfo.idx, ret.largura, ret.comprimento, ret.material_code, ret.espessura_real, ret.origem_lote ? Number(ret.origem_lote) : null
+                        );
                         pecasRestantes = pecasRestantes.filter(p => !placedRefs.has(`${p.ref.pecaId}_${p.ref.instancia}`));
                     }
                 }
@@ -1490,12 +1498,16 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                     for (const s of sobras) {
                         const w = Math.round(s.w), h = Math.round(s.h);
                         chapaInfo.retalhos.push({ x: s.x, y: s.y, w: s.w, h: s.h });
-                        db.prepare(`INSERT INTO cnc_retalhos (user_id, chapa_ref_id, nome, material_code, espessura_real, comprimento, largura, origem_lote)
+                        const retResult = db.prepare(`INSERT INTO cnc_retalhos (user_id, chapa_ref_id, nome, material_code, espessura_real, comprimento, largura, origem_lote)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
                             req.user.id, chapa.id || null,
                             `Retalho ${Math.max(w, h)}x${Math.min(w, h)}`,
                             group.material_code, group.espessura,
                             Math.max(w, h), Math.min(w, h), loteIds.join(',')
+                        );
+                        db.prepare(`INSERT INTO cnc_retalho_historico (retalho_id, lote_id, chapa_idx, largura, comprimento, material_code, espessura, origem_lote_id, origem_chapa_idx, acao)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'criado')`).run(
+                            String(retResult.lastInsertRowid), loteIds[0], chapaInfo.idx, Math.min(w, h), Math.max(w, h), group.material_code, group.espessura, loteIds[0], chapaInfo.idx
                         );
                     }
                 }
@@ -2248,6 +2260,30 @@ router.get('/plano/:loteId/versions/:versionId', requireAuth, (req, res) => {
         res.json({ ok: true, plano_json: v.plano_json, acao_origem: v.acao_origem, criado_em: v.criado_em });
     } catch (err) {
         res.status(500).json({ error: 'Erro ao buscar versão' });
+    }
+});
+
+// ─── Duplicar plano de corte ─────────────────────────────────────────
+router.post('/plano/:loteId/duplicar', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        if (!lote.plano_json) return res.status(400).json({ error: 'Lote sem plano de corte para duplicar' });
+
+        // Save current plan as a version before duplicating
+        const info = db.prepare('INSERT INTO cnc_plano_versions (lote_id, user_id, plano_json, acao_origem) VALUES (?, ?, ?, ?)')
+            .run(lote.id, req.user.id, lote.plano_json, 'duplicar_plano');
+
+        // Cleanup old versions (keep last 50)
+        db.prepare(`DELETE FROM cnc_plano_versions WHERE lote_id = ? AND id NOT IN
+            (SELECT id FROM cnc_plano_versions WHERE lote_id = ? ORDER BY id DESC LIMIT 50)`)
+            .run(lote.id, lote.id);
+
+        const plano = JSON.parse(lote.plano_json);
+        res.json({ ok: true, version_id: info.lastInsertRowid, plano, message: 'Plano duplicado como nova versão' });
+    } catch (err) {
+        console.error('Erro ao duplicar plano:', err);
+        res.status(500).json({ error: 'Erro ao duplicar plano' });
     }
 });
 
@@ -3430,9 +3466,10 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)}`);
 
                 // ─── Calcular comprimento da primeira aresta para rampa ───
+                // Climb=CCW starts toward p3, Conv=CW starts toward p1
                 const firstEdgeLen = dirCorte === 'climb'
-                    ? Math.sqrt((p1.x - p0.x) ** 2 + (p1.y - p0.y) ** 2)
-                    : Math.sqrt((p3.x - p0.x) ** 2 + (p3.y - p0.y) ** 2);
+                    ? Math.sqrt((p3.x - p0.x) ** 2 + (p3.y - p0.y) ** 2)
+                    : Math.sqrt((p1.x - p0.x) ** 2 + (p1.y - p0.y) ** 2);
                 const rampLen = Math.min(firstEdgeLen * 0.4, 50); // max 50mm de rampa, 40% da aresta
                 const depthNeeded = zApproach() - zTarget;
 
@@ -3447,8 +3484,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 
                     // 3. Descer: rampa ao longo da primeira aresta OU plunge no ponto de entrada
                     if (useRampa && rampLen > 5) {
-                        // Rampa ao longo da primeira aresta do contorno
-                        const nextPt = dirCorte === 'climb' ? p1 : p0;
+                        // Rampa ao longo da primeira aresta (climb=CCW→p0, conv=CW→p1)
+                        const nextPt = dirCorte === 'climb' ? p0 : p1;
                         const dx = nextPt.x - contX, dy = nextPt.y - contY;
                         const edgeLenFromCont = Math.sqrt(dx * dx + dy * dy);
                         const rampFrac = Math.min(rampLen / edgeLenFromCont, 0.9);
@@ -3464,17 +3501,19 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     }
 
                     // 4. Percorrer contorno completo a partir do meio da aresta
+                    // Climb milling (concordante) com spindle CW = CCW no contorno externo (p0→p3→p2→p1)
+                    // Conventional (convencional) = CW no contorno externo (p0→p1→p2→p3)
                     if (dirCorte === 'climb') {
-                        emit(`G1 X${fmt(p1.x)} Y${fmt(p1.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p3.x)} Y${fmt(p3.y)} F${op.velCorte}`);
                         emit(`G1 X${fmt(p0.x)} Y${fmt(p0.y)} F${op.velCorte}`);
+                        emit(`G1 X${fmt(p3.x)} Y${fmt(p3.y)} F${op.velCorte}`);
+                        emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${op.velCorte}`);
+                        emit(`G1 X${fmt(p1.x)} Y${fmt(p1.y)} F${op.velCorte}`);
                         emit(`G1 X${fmt(contX)} Y${fmt(contY)} F${op.velCorte}`);
                     } else {
-                        emit(`G1 X${fmt(p0.x)} Y${fmt(p0.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p3.x)} Y${fmt(p3.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${op.velCorte}`);
                         emit(`G1 X${fmt(p1.x)} Y${fmt(p1.y)} F${op.velCorte}`);
+                        emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${op.velCorte}`);
+                        emit(`G1 X${fmt(p3.x)} Y${fmt(p3.y)} F${op.velCorte}`);
+                        emit(`G1 X${fmt(p0.x)} Y${fmt(p0.y)} F${op.velCorte}`);
                         emit(`G1 X${fmt(contX)} Y${fmt(contY)} F${op.velCorte}`);
                     }
 
@@ -3487,8 +3526,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     emit(`G0 Z${fmt(zApproach())}`);
 
                     if (useRampa && rampLen > 5) {
-                        // Rampa ao longo da primeira aresta do contorno
-                        const nextPt = dirCorte === 'climb' ? p1 : p3;
+                        // Rampa ao longo da primeira aresta do contorno (climb=CCW→p3, conv=CW→p1)
+                        const nextPt = dirCorte === 'climb' ? p3 : p1;
                         const dx = nextPt.x - p0.x, dy = nextPt.y - p0.y;
                         const edgeL = Math.sqrt(dx * dx + dy * dy);
                         const rampFrac = Math.min(rampLen / edgeL, 0.9);
@@ -3501,16 +3540,16 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                         emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
                     }
 
-                    // Direção do contorno
+                    // Direção do contorno: climb=CCW (p0→p3→p2→p1), conv=CW (p0→p1→p2→p3)
                     if (dirCorte === 'climb') {
-                        emit(`G1 X${fmt(p1.x)} Y${fmt(p1.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${op.velCorte}`);
                         emit(`G1 X${fmt(p3.x)} Y${fmt(p3.y)} F${op.velCorte}`);
+                        emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${op.velCorte}`);
+                        emit(`G1 X${fmt(p1.x)} Y${fmt(p1.y)} F${op.velCorte}`);
                         emit(`G1 X${fmt(p0.x)} Y${fmt(p0.y)} F${op.velCorte}`);
                     } else {
-                        emit(`G1 X${fmt(p3.x)} Y${fmt(p3.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${op.velCorte}`);
                         emit(`G1 X${fmt(p1.x)} Y${fmt(p1.y)} F${op.velCorte}`);
+                        emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${op.velCorte}`);
+                        emit(`G1 X${fmt(p3.x)} Y${fmt(p3.y)} F${op.velCorte}`);
                         emit(`G1 X${fmt(p0.x)} Y${fmt(p0.y)} F${op.velCorte}`);
                     }
                 }
@@ -3856,15 +3895,16 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 emit(`G1 Z${fmt(zCut(dFull))} F${Math.min(velMergulho, os.velFinal)}`);
                 L.push(`${cmt}   vel. reduzida (breakthrough ${onionEsp}mm)`);
 
+                // Climb=CCW (p0→p3→p2→p1), Conv=CW (p0→p1→p2→p3)
                 if (dirCorte === 'climb') {
-                    emit(`G1 X${fmt(p1.x)} Y${fmt(p1.y)} F${os.velFinal}`);
-                    emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${os.velFinal}`);
                     emit(`G1 X${fmt(p3.x)} Y${fmt(p3.y)} F${os.velFinal}`);
+                    emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${os.velFinal}`);
+                    emit(`G1 X${fmt(p1.x)} Y${fmt(p1.y)} F${os.velFinal}`);
                     emit(`G1 X${fmt(p0.x)} Y${fmt(p0.y)} F${os.velFinal}`);
                 } else {
-                    emit(`G1 X${fmt(p3.x)} Y${fmt(p3.y)} F${os.velFinal}`);
-                    emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${os.velFinal}`);
                     emit(`G1 X${fmt(p1.x)} Y${fmt(p1.y)} F${os.velFinal}`);
+                    emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${os.velFinal}`);
+                    emit(`G1 X${fmt(p3.x)} Y${fmt(p3.y)} F${os.velFinal}`);
                     emit(`G1 X${fmt(p0.x)} Y${fmt(p0.y)} F${os.velFinal}`);
                 }
                 emit(`G0 Z${fmt(zRapid())}`);
@@ -3934,6 +3974,15 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             dist_mergulho_m: Math.round(distMergulho / 100) / 10,
         };
     })();
+
+    // Validar se G-code contém operações reais (não apenas header/footer/comentários)
+    const realLines = L.filter(l => {
+        const s = l.replace(/^N\d+\s*/, '').trim();
+        return s && !s.startsWith(cmt) && !s.startsWith('(') && !s.startsWith('%') && /^[GM]/.test(s);
+    });
+    if (realLines.length < 3) {
+        alertas.push({ tipo: 'erro_critico', msg: 'G-Code gerado sem operações de corte. Verifique: ferramentas cadastradas, peças com usinagens, e configurações de exportação (lado A/B, furos, contornos).' });
+    }
 
     return {
         gcode: gcodeText,
@@ -4075,6 +4124,17 @@ router.post('/gcode/:loteId/chapa/:chapaIdx', requireAuth, async (req, res) => {
 
         const nomeBase = `${ctx.lote.nome || 'Lote'}_${ctx.lote.cliente || ''}_Chapa${String(chapaIdx + 1).padStart(2, '0')}`;
         const filename = nomeBase.replace(/[^a-zA-Z0-9_-]/g, '_') + ctx.extensao;
+
+        // Log G-code generation history
+        try {
+            const crypto = await import('crypto');
+            const hash = crypto.createHash('md5').update(result.gcode || '').digest('hex').slice(0, 12);
+            db.prepare(`INSERT INTO cnc_gcode_historico (lote_id, chapa_idx, maquina_id, maquina_nome, filename, gcode_hash, total_operacoes, tempo_estimado_min, dist_corte_m, alertas_count, user_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(
+                ctx.lote.id, chapaIdx, maquina.id, maquina.nome || '', filename, hash,
+                result.stats?.total_operacoes || 0, result.stats?.tempo_estimado_min || 0, result.stats?.dist_corte_m || 0,
+                (result.alertas || []).length, req.user.id
+            );
+        } catch (_) { /* non-critical */ }
 
         res.json({ ok: true, ...result, extensao: ctx.extensao, filename, chapa_idx: chapaIdx });
     } catch (err) {
@@ -4564,12 +4624,59 @@ router.post('/retalhos', requireAuth, (req, res) => {
     const { nome, material_code, espessura_real, comprimento, largura } = req.body;
     const r = db.prepare(`INSERT INTO cnc_retalhos (user_id, nome, material_code, espessura_real, comprimento, largura)
         VALUES (?,?,?,?,?,?)`).run(req.user.id, nome || '', material_code || '', espessura_real || 0, comprimento || 0, largura || 0);
+    // Log history: manual creation
+    db.prepare(`INSERT INTO cnc_retalho_historico (retalho_id, largura, comprimento, material_code, espessura, acao)
+        VALUES (?, ?, ?, ?, ?, 'criado')`).run(
+        String(r.lastInsertRowid), largura || 0, comprimento || 0, material_code || '', espessura_real || 0
+    );
     res.json({ id: Number(r.lastInsertRowid) });
 });
 
 router.delete('/retalhos/:id', requireAuth, (req, res) => {
+    const ret = db.prepare('SELECT * FROM cnc_retalhos WHERE id = ?').get(Number(req.params.id));
     db.prepare('UPDATE cnc_retalhos SET disponivel = 0 WHERE id = ?').run(req.params.id);
+    if (ret) {
+        db.prepare(`INSERT INTO cnc_retalho_historico (retalho_id, largura, comprimento, material_code, espessura, origem_lote_id, acao)
+            VALUES (?, ?, ?, ?, ?, ?, 'descartado')`).run(
+            String(ret.id), ret.largura, ret.comprimento, ret.material_code, ret.espessura_real, ret.origem_lote ? Number(ret.origem_lote) : null
+        );
+    }
     res.json({ ok: true });
+});
+
+// ─── Retalhos Histórico ──────────────────────────────────────────
+router.post('/retalhos/historico', requireAuth, (req, res) => {
+    try {
+        const { retalho_id, lote_id, chapa_idx, largura, comprimento, material_code, espessura, origem_lote_id, origem_chapa_idx, acao } = req.body;
+        if (!acao) return res.status(400).json({ error: 'acao é obrigatório' });
+        const result = db.prepare(`INSERT INTO cnc_retalho_historico (retalho_id, lote_id, chapa_idx, largura, comprimento, material_code, espessura, origem_lote_id, origem_chapa_idx, acao)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+            retalho_id || null, lote_id || null, chapa_idx ?? null, largura || null, comprimento || null,
+            material_code || null, espessura || null, origem_lote_id || null, origem_chapa_idx ?? null, acao
+        );
+        res.json({ id: Number(result.lastInsertRowid), ok: true });
+    } catch (err) {
+        console.error('Erro log histórico retalho:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/retalhos/historico', requireAuth, (req, res) => {
+    try {
+        const { lote_id, material_code, retalho_id, limit: lim } = req.query;
+        let sql = 'SELECT * FROM cnc_retalho_historico WHERE 1=1';
+        const params = [];
+        if (lote_id) { sql += ' AND (lote_id = ? OR origem_lote_id = ?)'; params.push(Number(lote_id), Number(lote_id)); }
+        if (material_code) { sql += ' AND material_code = ?'; params.push(material_code); }
+        if (retalho_id) { sql += ' AND retalho_id = ?'; params.push(retalho_id); }
+        sql += ' ORDER BY criado_em DESC';
+        if (lim) { sql += ' LIMIT ?'; params.push(Number(lim)); }
+        const rows = db.prepare(sql).all(...params);
+        res.json({ historico: rows });
+    } catch (err) {
+        console.error('Erro listar histórico retalhos:', err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ─── Ferramentas (vinculadas a máquina) ──────────────────────────
@@ -6896,6 +7003,62 @@ router.delete('/expedicao/fotos/:fotoId', requireAuth, (req, res) => {
     }
 });
 
+// ─── Fotos Retalhos ─────────────────────────────────────────────
+const retalhoUploadDir = join(__cncDirname, '..', 'uploads', 'retalhos');
+if (!existsSync(retalhoUploadDir)) mkdirSync(retalhoUploadDir, { recursive: true });
+
+const retalhoFotoStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, retalhoUploadDir),
+    filename: (_req, file, cb) => {
+        const unique = Date.now() + '-' + Math.round(Math.random() * 1e6);
+        const ext = file.originalname.split('.').pop();
+        cb(null, `retalho-${unique}.${ext}`);
+    },
+});
+const uploadRetalhoFoto = multer({
+    storage: retalhoFotoStorage,
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+        if (/^image\/(jpeg|png|webp|heic|heif)$/i.test(file.mimetype)) cb(null, true);
+        else cb(new Error('Tipo de arquivo não permitido'));
+    },
+});
+
+router.post('/retalhos/foto', requireAuth, uploadRetalhoFoto.single('foto'), (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'Nenhuma foto enviada' });
+        const { retalho_id, lote_id, chapa_idx } = req.body;
+        if (!retalho_id) return res.status(400).json({ error: 'retalho_id obrigatório' });
+
+        const result = db.prepare(`
+            INSERT INTO cnc_retalho_fotos (retalho_id, lote_id, chapa_idx, foto_path)
+            VALUES (?, ?, ?, ?)
+        `).run(
+            String(retalho_id),
+            lote_id ? Number(lote_id) : null,
+            chapa_idx != null ? Number(chapa_idx) : null,
+            req.file.filename
+        );
+
+        res.json({ id: Number(result.lastInsertRowid), filename: req.file.filename, ok: true });
+    } catch (err) {
+        console.error('Erro upload foto retalho:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/retalhos/foto/:retalhoId', requireAuth, (req, res) => {
+    try {
+        const rows = db.prepare(`
+            SELECT * FROM cnc_retalho_fotos WHERE retalho_id = ? ORDER BY criado_em DESC
+        `).all(String(req.params.retalhoId));
+        res.json({ fotos: rows });
+    } catch (err) {
+        console.error('Erro listar fotos retalho:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── Feature: Smart Remnant Suggestions ──────────────────────────
 router.get('/retalhos/sugestoes', requireAuth, (req, res) => {
     try {
@@ -6967,10 +7130,15 @@ router.get('/retalhos/sugestoes', requireAuth, (req, res) => {
 // ─── Feature: Material Alerts for Pending Lotes ──────────────────
 router.get('/alertas-material', requireAuth, (req, res) => {
     try {
-        // Get all non-concluded lotes with a cutting plan
-        const lotes = db.prepare(
-            "SELECT id, nome, plano_json, status FROM cnc_lotes WHERE user_id = ? AND status != 'concluido' AND plano_json IS NOT NULL AND plano_json != ''"
-        ).all(req.user.id);
+        const { lote_id } = req.query;
+        // Get non-concluded lotes with a cutting plan (optionally filtered by lote_id)
+        let lotesSql = "SELECT id, nome, plano_json, status FROM cnc_lotes WHERE user_id = ? AND status != 'concluido' AND plano_json IS NOT NULL AND plano_json != ''";
+        const params = [req.user.id];
+        if (lote_id) {
+            lotesSql += " AND id = ?";
+            params.push(Number(lote_id));
+        }
+        const lotes = db.prepare(lotesSql).all(...params);
 
         // Aggregate material needs from plano_json
         const materialMap = {}; // keyed by material_code
@@ -7262,6 +7430,645 @@ router.post('/lotes/:loteId/trocar-material', requireAuth, (req, res) => {
         res.json({ ok: true, pecas_atualizadas: updateResult.changes });
     } catch (err) {
         console.error('Erro trocar-material:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── Feature: Smart lote grouping suggestions ───────────────────────
+router.get('/sugestao-agrupamento/:loteId', requireAuth, (req, res) => {
+    try {
+        const loteId = Number(req.params.loteId);
+        const loteAtual = db.prepare(
+            "SELECT id, nome, plano_json, status FROM cnc_lotes WHERE id = ? AND user_id = ?"
+        ).get(loteId, req.user.id);
+        if (!loteAtual) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        // 1. Get materials used by the current lote (from pecas)
+        const pecasAtual = db.prepare(
+            "SELECT material_code, material, espessura, comprimento, largura, quantidade FROM cnc_pecas WHERE lote_id = ?"
+        ).all(loteId);
+
+        const materiaisAtual = {};
+        let areaTotal = 0;
+        for (const p of pecasAtual) {
+            const mc = p.material_code || p.material || '';
+            if (!mc) continue;
+            if (!materiaisAtual[mc]) materiaisAtual[mc] = { material_code: mc, material: p.material || mc, espessura: p.espessura, pecas: 0, area: 0 };
+            const qty = p.quantidade || 1;
+            materiaisAtual[mc].pecas += qty;
+            materiaisAtual[mc].area += (p.comprimento || 0) * (p.largura || 0) * qty;
+            areaTotal += (p.comprimento || 0) * (p.largura || 0) * qty;
+        }
+
+        if (Object.keys(materiaisAtual).length === 0) {
+            return res.json({ sugestoes: [] });
+        }
+
+        // 2. Find other pending lotes with same materials
+        const materialCodes = Object.keys(materiaisAtual);
+        const outrosLotes = db.prepare(
+            "SELECT id, nome, status FROM cnc_lotes WHERE user_id = ? AND id != ? AND status IN ('importado', 'otimizado')"
+        ).all(req.user.id, loteId);
+
+        const sugestoes = [];
+
+        for (const outro of outrosLotes) {
+            const pecasOutro = db.prepare(
+                "SELECT material_code, material, espessura, comprimento, largura, quantidade FROM cnc_pecas WHERE lote_id = ?"
+            ).all(outro.id);
+
+            let matchCount = 0;
+            let matchArea = 0;
+            const matchMaterials = [];
+
+            for (const p of pecasOutro) {
+                const mc = p.material_code || p.material || '';
+                if (materialCodes.includes(mc)) {
+                    const qty = p.quantidade || 1;
+                    matchCount += qty;
+                    matchArea += (p.comprimento || 0) * (p.largura || 0) * qty;
+                    if (!matchMaterials.includes(mc)) matchMaterials.push(mc);
+                }
+            }
+
+            if (matchCount > 0) {
+                // 3. Estimate waste reduction: combining pieces fills waste areas
+                // Rough estimate: more pieces on same sheet = less wasted area per sheet
+                // We estimate savings as % of a full sheet that the extra pieces could fill
+                const chapaDim = 2750 * 1830; // standard sheet area
+                const currentWaste = areaTotal > 0 ? Math.max(0, 1 - (areaTotal / (Math.ceil(areaTotal / chapaDim) * chapaDim))) : 0;
+                const combinedArea = areaTotal + matchArea;
+                const combinedWaste = combinedArea > 0 ? Math.max(0, 1 - (combinedArea / (Math.ceil(combinedArea / chapaDim) * chapaDim))) : 0;
+                const economia = Math.max(0, Math.round((currentWaste - combinedWaste) * 100));
+
+                sugestoes.push({
+                    lote_id: outro.id,
+                    lote_nome: outro.nome,
+                    lote_status: outro.status,
+                    material_codes: matchMaterials,
+                    pecas_count: matchCount,
+                    economia_estimada_pct: economia,
+                });
+            }
+        }
+
+        // Sort by potential savings (desc), then by piece count (desc)
+        sugestoes.sort((a, b) => b.economia_estimada_pct - a.economia_estimada_pct || b.pecas_count - a.pecas_count);
+
+        res.json({ sugestoes });
+    } catch (err) {
+        console.error('Erro sugestao-agrupamento:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── Relatório de Bordas / Fitagem por lote ─────────────────────────
+router.get('/relatorio-bordas/:loteId', requireAuth, (req, res) => {
+    try {
+        const loteId = req.params.loteId;
+        const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ? ORDER BY id').all(loteId);
+        if (!pecas || pecas.length === 0) return res.json({ bordas: [] });
+
+        const bordaMap = {};
+
+        for (const p of pecas) {
+            const qty = p.quantidade || 1;
+            const comp = p.comprimento || 0;
+            const larg = p.largura || 0;
+
+            const edges = [
+                { lado: 'Frontal', tipo: p.borda_frontal, comprimento_mm: comp },
+                { lado: 'Traseira', tipo: p.borda_traseira, comprimento_mm: comp },
+                { lado: 'Direita', tipo: p.borda_dir, comprimento_mm: larg },
+                { lado: 'Esquerda', tipo: p.borda_esq, comprimento_mm: larg },
+            ];
+
+            for (const edge of edges) {
+                if (!edge.tipo || edge.tipo.trim() === '') continue;
+                const key = edge.tipo.trim();
+                if (!bordaMap[key]) {
+                    bordaMap[key] = { tipo: key, metros: 0, quantidade_pecas: 0, pecaIds: new Set(), detalhes: [] };
+                }
+                const metros = (edge.comprimento_mm / 1000) * qty;
+                bordaMap[key].metros += metros;
+                if (!bordaMap[key].pecaIds.has(p.id)) {
+                    bordaMap[key].pecaIds.add(p.id);
+                    bordaMap[key].quantidade_pecas++;
+                }
+                bordaMap[key].detalhes.push({
+                    peca_id: p.id,
+                    descricao: p.descricao || '',
+                    modulo: p.modulo_desc || '',
+                    lado: edge.lado,
+                    comprimento_mm: edge.comprimento_mm,
+                    metros: Math.round(metros * 1000) / 1000,
+                    quantidade: qty,
+                });
+            }
+        }
+
+        const bordas = Object.values(bordaMap).map(b => ({
+            tipo: b.tipo,
+            metros: Math.round(b.metros * 1000) / 1000,
+            quantidade_pecas: b.quantidade_pecas,
+            detalhes: b.detalhes,
+        })).sort((a, b) => b.metros - a.metros);
+
+        res.json({ bordas });
+    } catch (err) {
+        console.error('Erro relatorio-bordas:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── Dashboard Produtividade Operadores ─────────────────────────────────────
+router.get('/dashboard-produtividade', requireAuth, (req, res) => {
+    try {
+        const periodo = req.query.periodo || '30d';
+        const operadorFilter = req.query.operador || null;
+
+        const diasMap = { '7d': 7, '30d': 30, '90d': 90 };
+        const dias = diasMap[periodo] || 30;
+        const dataInicio = new Date(Date.now() - dias * 86400000).toISOString().slice(0, 10);
+
+        let where = `WHERE date(s.escaneado_em) >= date(?)`;
+        const params = [dataInicio];
+        if (operadorFilter) {
+            where += ` AND s.operador = ?`;
+            params.push(operadorFilter);
+        }
+
+        // Per-operator stats
+        const operadoresRaw = db.prepare(`
+            SELECT
+                s.operador AS nome,
+                COUNT(*) AS total_scans,
+                COUNT(DISTINCT date(s.escaneado_em)) AS dias_ativos
+            FROM cnc_expedicao_scans s
+            ${where}
+            GROUP BY s.operador
+            ORDER BY total_scans DESC
+        `).all(...params);
+
+        // Per-operator checkpoint breakdown
+        const checkpointBreakdown = db.prepare(`
+            SELECT
+                s.operador,
+                c.nome AS checkpoint_nome,
+                COUNT(*) AS qtd
+            FROM cnc_expedicao_scans s
+            LEFT JOIN cnc_expedicao_checkpoints c ON c.id = s.checkpoint_id
+            ${where}
+            GROUP BY s.operador, c.nome
+        `).all(...params);
+
+        const checkpointMap = {};
+        for (const row of checkpointBreakdown) {
+            if (!checkpointMap[row.operador]) checkpointMap[row.operador] = {};
+            checkpointMap[row.operador][row.checkpoint_nome || 'Desconhecido'] = row.qtd;
+        }
+
+        // Calculate pieces/hour and avg time between scans per operator
+        const operadores = operadoresRaw.map(op => {
+            const scansOp = db.prepare(`
+                SELECT escaneado_em FROM cnc_expedicao_scans s
+                ${where} AND s.operador = ?
+                ORDER BY s.escaneado_em ASC
+            `).all(...params, op.nome);
+
+            let tempoMedioEntreScansSeg = 0;
+            let horasAtivas = 0;
+            if (scansOp.length > 1) {
+                let totalGap = 0, gapCount = 0, activeSeconds = 0;
+                for (let i = 1; i < scansOp.length; i++) {
+                    const gap = (new Date(scansOp[i].escaneado_em) - new Date(scansOp[i - 1].escaneado_em)) / 1000;
+                    if (gap > 0 && gap < 600) {
+                        totalGap += gap;
+                        gapCount++;
+                        activeSeconds += gap;
+                    }
+                }
+                if (gapCount > 0) tempoMedioEntreScansSeg = Math.round(totalGap / gapCount);
+                horasAtivas = activeSeconds / 3600;
+            }
+
+            return {
+                nome: op.nome || 'Sem nome',
+                total_scans: op.total_scans,
+                pecas_por_hora: horasAtivas > 0 ? Math.round(op.total_scans / horasAtivas * 10) / 10 : 0,
+                tempo_medio_entre_scans_seg: tempoMedioEntreScansSeg,
+                checkpoints: checkpointMap[op.nome] || {},
+                dias_ativos: op.dias_ativos,
+            };
+        });
+
+        // Summary
+        const totalPecasProcessadas = operadores.reduce((s, o) => s + o.total_scans, 0);
+        const mediaPecasHora = operadores.length > 0
+            ? Math.round(operadores.reduce((s, o) => s + o.pecas_por_hora, 0) / operadores.length * 10) / 10
+            : 0;
+        const lotesConcluidos = db.prepare(`
+            SELECT COUNT(*) AS c FROM cnc_lotes
+            WHERE status = 'concluido' AND date(criado_em) >= date(?)
+        `).get(dataInicio)?.c || 0;
+
+        // Per-day breakdown
+        const porDia = db.prepare(`
+            SELECT date(s.escaneado_em) AS data, COUNT(*) AS total
+            FROM cnc_expedicao_scans s
+            ${where}
+            GROUP BY date(s.escaneado_em)
+            ORDER BY data ASC
+        `).all(...params);
+
+        res.json({
+            operadores,
+            resumo: {
+                total_pecas_processadas: totalPecasProcessadas,
+                media_pecas_hora: mediaPecasHora,
+                lotes_concluidos: lotesConcluidos,
+            },
+            por_dia: porDia,
+        });
+    } catch (err) {
+        console.error('Erro dashboard-produtividade:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// G-CODE HISTORY
+// ═══════════════════════════════════════════════════════
+
+// GET /gcode-historico/:loteId — list G-code generation history
+router.get('/gcode-historico/:loteId', requireAuth, (req, res) => {
+    try {
+        const rows = db.prepare(`
+            SELECT h.*, u.nome as user_nome FROM cnc_gcode_historico h
+            LEFT JOIN users u ON u.id = h.user_id
+            WHERE h.lote_id = ? ORDER BY h.criado_em DESC LIMIT 50
+        `).all(req.params.loteId);
+        res.json(rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════
+// CHAPA STATUS (multi-state)
+// ═══════════════════════════════════════════════════════
+
+// GET /chapa-status/:loteId — get all chapa statuses for a lote
+router.get('/chapa-status/:loteId', requireAuth, (req, res) => {
+    try {
+        const rows = db.prepare('SELECT * FROM cnc_chapa_status WHERE lote_id = ? ORDER BY chapa_idx').all(req.params.loteId);
+        res.json(rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /chapa-status/:loteId — update chapa status
+router.post('/chapa-status/:loteId', requireAuth, (req, res) => {
+    try {
+        const { chapa_idx, status, operador, observacao } = req.body;
+        const validStatus = ['pendente', 'em_corte', 'cortada', 'conferida'];
+        if (!validStatus.includes(status)) return res.status(400).json({ error: `Status inválido. Válidos: ${validStatus.join(', ')}` });
+
+        const now = new Date().toISOString();
+        const existing = db.prepare('SELECT * FROM cnc_chapa_status WHERE lote_id = ? AND chapa_idx = ?').get(req.params.loteId, chapa_idx);
+
+        if (existing) {
+            db.prepare(`UPDATE cnc_chapa_status SET status = ?, operador = COALESCE(?, operador), observacao = COALESCE(?, observacao),
+                inicio_em = CASE WHEN ? = 'em_corte' AND inicio_em IS NULL THEN ? ELSE inicio_em END,
+                fim_em = CASE WHEN ? IN ('cortada','conferida') THEN ? ELSE fim_em END,
+                atualizado_em = ? WHERE lote_id = ? AND chapa_idx = ?`
+            ).run(status, operador || null, observacao || null, status, now, status, now, now, req.params.loteId, chapa_idx);
+        } else {
+            db.prepare(`INSERT INTO cnc_chapa_status (lote_id, chapa_idx, status, operador, observacao, inicio_em, fim_em, atualizado_em) VALUES (?,?,?,?,?,?,?,?)`).run(
+                req.params.loteId, chapa_idx, status, operador || '', observacao || '',
+                status === 'em_corte' ? now : null,
+                ['cortada', 'conferida'].includes(status) ? now : null,
+                now
+            );
+        }
+
+        // Also mark pecas as cortadas when status = cortada (integrate with existing system)
+        if (status === 'cortada' || status === 'conferida') {
+            const lote = db.prepare('SELECT plano_json FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+            if (lote?.plano_json) {
+                try {
+                    const plano = JSON.parse(lote.plano_json);
+                    const chapa = plano.chapas?.[chapa_idx];
+                    if (chapa) {
+                        const pecaIds = chapa.pecas.map(p => p.pecaId).filter(Boolean);
+                        if (pecaIds.length > 0) {
+                            const placeholders = pecaIds.map(() => '?').join(',');
+                            db.prepare(`UPDATE cnc_pecas SET chapa_idx = ? WHERE id IN (${placeholders}) AND chapa_idx IS NULL`).run(chapa_idx, ...pecaIds);
+                        }
+                    }
+                } catch (_) {}
+            }
+        }
+
+        res.json({ ok: true, status });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════
+// MATERIAL REPORT (lista de compras)
+// ═══════════════════════════════════════════════════════
+
+// GET /relatorio-materiais/:loteId — shopping list for a lote
+router.get('/relatorio-materiais/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        if (!lote.plano_json) return res.status(400).json({ error: 'Lote sem plano otimizado' });
+
+        const plano = JSON.parse(lote.plano_json);
+        const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ?').all(lote.id);
+
+        // Aggregate by material
+        const materiaisMap = {};
+        for (const ch of (plano.chapas || [])) {
+            const key = ch.material_code || ch.material || 'desconhecido';
+            if (!materiaisMap[key]) {
+                materiaisMap[key] = {
+                    material: ch.material || key,
+                    material_code: ch.material_code || '',
+                    espessura: ch.espessura_real || ch.espessura || 18,
+                    dim_chapa: `${ch.comprimento} x ${ch.largura}`,
+                    chapas: 0,
+                    pecas: 0,
+                    area_total_m2: 0,
+                    area_util_m2: 0,
+                    preco_unitario: ch.preco || 0,
+                    custo_total: 0,
+                    aproveitamento_medio: 0,
+                    chapas_retalho: 0,
+                };
+            }
+            const m = materiaisMap[key];
+            m.chapas++;
+            m.pecas += ch.pecas.length;
+            const areaChapa = (ch.comprimento * ch.largura) / 1000000; // m²
+            m.area_total_m2 += areaChapa;
+            m.area_util_m2 += areaChapa * (ch.aproveitamento / 100);
+            m.aproveitamento_medio += ch.aproveitamento;
+            m.custo_total += ch.preco || 0;
+            if (ch.is_retalho) m.chapas_retalho++;
+        }
+
+        const materiais = Object.values(materiaisMap).map(m => ({
+            ...m,
+            area_total_m2: Math.round(m.area_total_m2 * 100) / 100,
+            area_util_m2: Math.round(m.area_util_m2 * 100) / 100,
+            aproveitamento_medio: Math.round(m.aproveitamento_medio / (m.chapas || 1) * 10) / 10,
+            custo_total: Math.round(m.custo_total * 100) / 100,
+        }));
+
+        // Bordas summary
+        const bordas = {};
+        for (const p of pecas) {
+            for (const lado of ['borda_frontal', 'borda_traseira', 'borda_dir', 'borda_esq']) {
+                const val = p[lado];
+                if (!val) continue;
+                if (!bordas[val]) bordas[val] = { tipo: val, metros: 0, pecas: 0 };
+                bordas[val].pecas += p.quantidade || 1;
+                const dim = lado.includes('frontal') || lado.includes('traseira') ? p.comprimento : p.largura;
+                bordas[val].metros += (dim / 1000) * (p.quantidade || 1);
+            }
+        }
+
+        const bordasList = Object.values(bordas).map(b => ({
+            ...b,
+            metros: Math.round(b.metros * 100) / 100,
+        }));
+
+        res.json({
+            materiais,
+            bordas: bordasList,
+            resumo: {
+                total_chapas: plano.chapas.length,
+                total_pecas: pecas.length,
+                total_materiais: materiais.length,
+                custo_total: materiais.reduce((s, m) => s + m.custo_total, 0),
+                area_total_m2: materiais.reduce((s, m) => s + m.area_total_m2, 0),
+            },
+        });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════
+// PIECE LABELS (etiquetas)
+// ═══════════════════════════════════════════════════════
+
+// GET /etiquetas/:loteId — generate label data for pieces
+router.get('/etiquetas/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ? ORDER BY modulo_id, id').all(lote.id);
+        let plano = null;
+        try { plano = JSON.parse(lote.plano_json || 'null'); } catch (_) {}
+
+        const labels = pecas.map((p, idx) => {
+            // Find which chapa this piece is on
+            let chapaInfo = null;
+            if (plano?.chapas) {
+                for (let ci = 0; ci < plano.chapas.length; ci++) {
+                    const ch = plano.chapas[ci];
+                    if (ch.pecas.some(pp => pp.pecaId === p.id)) {
+                        chapaInfo = { idx: ci + 1, material: ch.material };
+                        break;
+                    }
+                }
+            }
+
+            const bordas = [];
+            if (p.borda_frontal) bordas.push(`F:${p.borda_frontal}`);
+            if (p.borda_traseira) bordas.push(`T:${p.borda_traseira}`);
+            if (p.borda_dir) bordas.push(`D:${p.borda_dir}`);
+            if (p.borda_esq) bordas.push(`E:${p.borda_esq}`);
+
+            return {
+                id: p.id,
+                num: idx + 1,
+                descricao: p.descricao,
+                upmcode: p.upmcode || '',
+                modulo: p.modulo_desc || '',
+                ambiente: p.ambiente || p.modulo_desc || '',
+                material: p.material || '',
+                dimensoes: `${p.comprimento} x ${p.largura} x ${p.espessura}`,
+                bordas: bordas.join(' '),
+                quantidade: p.quantidade || 1,
+                chapa: chapaInfo,
+                lote_nome: lote.nome || '',
+                cliente: lote.cliente || '',
+                codigo_scan: p.persistent_id || p.upmcode || `P${p.id}`,
+            };
+        });
+
+        res.json({ labels, lote: { id: lote.id, nome: lote.nome, cliente: lote.cliente } });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════
+// REVIEW CHECKLIST (pre-corte)
+// ═══════════════════════════════════════════════════════
+
+// GET /review/:loteId — review checklist data
+router.get('/review/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ?').all(lote.id);
+        let plano = null;
+        try { plano = JSON.parse(lote.plano_json || 'null'); } catch (_) {}
+
+        const checks = [];
+
+        // 1. Plano exists
+        checks.push({ id: 'plano', label: 'Plano de corte otimizado', ok: !!plano, detail: plano ? `${plano.chapas.length} chapas` : 'Não otimizado' });
+
+        // 2. All pieces have material
+        const semMaterial = pecas.filter(p => !p.material && !p.material_code);
+        checks.push({ id: 'material', label: 'Todas as peças têm material definido', ok: semMaterial.length === 0, detail: semMaterial.length > 0 ? `${semMaterial.length} peça(s) sem material` : 'OK' });
+
+        // 3. Dimensions sanity
+        const dimEstranhas = pecas.filter(p => p.comprimento < 10 || p.largura < 10 || p.comprimento > 3000 || p.largura > 2000);
+        checks.push({ id: 'dimensoes', label: 'Dimensões dentro do esperado', ok: dimEstranhas.length === 0, detail: dimEstranhas.length > 0 ? `${dimEstranhas.length} peça(s) com dimensões atípicas` : 'OK' });
+
+        // 4. Bordas check
+        const comBordas = pecas.filter(p => p.borda_frontal || p.borda_traseira || p.borda_dir || p.borda_esq);
+        checks.push({ id: 'bordas', label: 'Fitas de borda conferidas', ok: true, detail: `${comBordas.length} peça(s) com bordas` });
+
+        // 5. Machine configured
+        const maquina = db.prepare('SELECT * FROM cnc_maquinas WHERE ativo = 1 LIMIT 1').get();
+        checks.push({ id: 'maquina', label: 'Máquina CNC cadastrada', ok: !!maquina, detail: maquina ? maquina.nome : 'Nenhuma máquina cadastrada' });
+
+        // 6. Tools available
+        if (maquina) {
+            const ferramentas = db.prepare('SELECT COUNT(*) as c FROM cnc_ferramentas WHERE maquina_id = ? AND ativo = 1').get(maquina.id);
+            checks.push({ id: 'ferramentas', label: 'Ferramentas no magazine', ok: ferramentas.c > 0, detail: `${ferramentas.c} ferramenta(s) ativas` });
+        }
+
+        // 7. Aproveitamento
+        if (plano) {
+            const aprovMedio = plano.chapas.reduce((s, c) => s + c.aproveitamento, 0) / plano.chapas.length;
+            checks.push({ id: 'aproveitamento', label: 'Aproveitamento aceitável (>60%)', ok: aprovMedio >= 60, detail: `${aprovMedio.toFixed(1)}% médio` });
+        }
+
+        // 8. Machining data
+        const comUsinagem = pecas.filter(p => p.machining_json && p.machining_json !== '{}');
+        checks.push({ id: 'usinagens', label: 'Dados de usinagem presentes', ok: true, detail: `${comUsinagem.length}/${pecas.length} peças com usinagens` });
+
+        // 9. Stock availability
+        const materiaisNeeded = {};
+        if (plano) {
+            for (const ch of plano.chapas) {
+                const key = ch.material_code || ch.material;
+                if (!materiaisNeeded[key]) materiaisNeeded[key] = { nome: ch.material, qtd: 0 };
+                materiaisNeeded[key].qtd++;
+            }
+        }
+        const estoque = db.prepare('SELECT * FROM cnc_materiais WHERE ativo = 1').all();
+        const estoqueMap = {};
+        for (const e of estoque) estoqueMap[e.codigo] = e;
+        const semEstoque = [];
+        for (const [code, info] of Object.entries(materiaisNeeded)) {
+            const mat = estoqueMap[code];
+            if (!mat || (mat.quantidade_estoque || 0) < info.qtd) {
+                semEstoque.push(`${info.nome}: precisa ${info.qtd}, tem ${mat?.quantidade_estoque || 0}`);
+            }
+        }
+        checks.push({ id: 'estoque', label: 'Material em estoque suficiente', ok: semEstoque.length === 0, detail: semEstoque.length > 0 ? semEstoque.join('; ') : 'OK' });
+
+        const allOk = checks.every(c => c.ok);
+        res.json({ checks, allOk, total: checks.length, passed: checks.filter(c => c.ok).length });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════
+// ENVIO DIRETO PARA MÁQUINA (FTP/Network Share)
+// ═══════════════════════════════════════════════════════
+
+// POST /enviar-gcode/:loteId/chapa/:chapaIdx — send G-code to machine via FTP
+router.post('/enviar-gcode/:loteId/chapa/:chapaIdx', requireAuth, async (req, res) => {
+    try {
+        const ctx = loadGcodeContext(req, req.params.loteId);
+        if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+
+        const chapaIdx = parseInt(req.params.chapaIdx);
+        if (isNaN(chapaIdx) || chapaIdx < 0 || chapaIdx >= ctx.plano.chapas.length) {
+            return res.status(400).json({ error: `Chapa ${chapaIdx} não existe` });
+        }
+
+        // Check machine send config
+        let maquina = ctx.maquina;
+        const assignment = db.prepare('SELECT maquina_id FROM cnc_machine_assignments WHERE lote_id = ? AND chapa_idx = ?').get(ctx.lote.id, chapaIdx);
+        if (assignment?.maquina_id) {
+            const am = db.prepare('SELECT * FROM cnc_maquinas WHERE id = ? AND ativo = 1').get(assignment.maquina_id);
+            if (am) maquina = am;
+        }
+
+        if (!maquina.envio_tipo || !maquina.envio_host) {
+            return res.status(400).json({ error: `Máquina "${maquina.nome}" não tem envio direto configurado. Configure em Configurações > Máquinas.` });
+        }
+
+        // Generate G-code
+        const chapa = ctx.plano.chapas[chapaIdx];
+        let toolMap = ctx.toolMap;
+        if (assignment?.maquina_id) {
+            const ferramentas = db.prepare('SELECT * FROM cnc_ferramentas WHERE maquina_id = ? AND ativo = 1').all(maquina.id);
+            toolMap = {};
+            for (const f of ferramentas) { if (f.tool_code) toolMap[f.tool_code] = f; }
+        }
+        const result = generateGcodeForChapa(chapa, chapaIdx, ctx.pecasDb, maquina, toolMap, ctx.usinagemTipos, ctx.cfg);
+        if (!result.gcode) return res.status(400).json({ error: 'G-code vazio' });
+
+        const nomeBase = `${ctx.lote.nome || 'Lote'}_${ctx.lote.cliente || ''}_Chapa${String(chapaIdx + 1).padStart(2, '0')}`;
+        const filename = nomeBase.replace(/[^a-zA-Z0-9_-]/g, '_') + ctx.extensao;
+
+        if (maquina.envio_tipo === 'ftp') {
+            // FTP send
+            try {
+                const net = await import('net');
+                const sock = new net.Socket();
+                await new Promise((resolve, reject) => {
+                    sock.connect(maquina.envio_porta || 21, maquina.envio_host, () => resolve());
+                    sock.on('error', reject);
+                    setTimeout(() => reject(new Error('Timeout FTP')), 5000);
+                });
+                sock.destroy();
+                // Note: Full FTP implementation would require an FTP client library
+                // For now, save to a network-accessible folder as fallback
+                const fs = await import('fs');
+                const path = await import('path');
+                const sendDir = path.join('/tmp/cnc-envios', maquina.nome.replace(/[^a-zA-Z0-9]/g, '_'));
+                fs.mkdirSync(sendDir, { recursive: true });
+                fs.writeFileSync(path.join(sendDir, filename), result.gcode);
+                res.json({ ok: true, method: 'ftp_fallback', path: path.join(sendDir, filename), filename, msg: `Arquivo salvo em ${sendDir}. Instale ftp-client para envio direto.` });
+            } catch (err) {
+                res.status(500).json({ error: `Erro de conexão FTP: ${err.message}` });
+            }
+        } else if (maquina.envio_tipo === 'pasta') {
+            // Direct folder write (network share / mounted volume)
+            try {
+                const fs = await import('fs');
+                const path = await import('path');
+                const destDir = maquina.envio_pasta || '/tmp/cnc-envios';
+                fs.mkdirSync(destDir, { recursive: true });
+                const destPath = path.join(destDir, filename);
+                fs.writeFileSync(destPath, result.gcode);
+                res.json({ ok: true, method: 'pasta', path: destPath, filename, msg: `Enviado para ${destPath}` });
+            } catch (err) {
+                res.status(500).json({ error: `Erro ao salvar: ${err.message}` });
+            }
+        } else {
+            res.status(400).json({ error: `Tipo de envio "${maquina.envio_tipo}" não suportado. Use "ftp" ou "pasta".` });
+        }
+    } catch (err) {
+        console.error('Erro envio G-code:', err);
         res.status(500).json({ error: err.message });
     }
 });

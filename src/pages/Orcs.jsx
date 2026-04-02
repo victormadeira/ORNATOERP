@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, Fragment } from 'react';
-import { Z, Ic, Modal, ConfirmModal, tagStyle, tagClass, PageHeader } from '../ui';
+import { Z, Ic, Modal, ConfirmModal, tagStyle, tagClass, PageHeader, EmptyState } from '../ui';
 import { R$, KCOLS } from '../engine';
 import api from '../api';
 import { Copy, Download, SortAsc, SortDesc, Filter, AlertTriangle, Calendar, Flame, Eye as EyeIcon, RefreshCw, Share2, Printer, CheckCircle, FileText as FileTextIcon, Link2, Type, ZoomIn, Star, MousePointer, DollarSign, Search, Zap, CheckCheck, Monitor, Smartphone, MapPin, ExternalLink } from 'lucide-react';
@@ -280,10 +280,10 @@ export default function Orcs({ orcs, nav, reload, notify }) {
         <div className={Z.pg}>
             {/* ─── Header ──────────────────────────────────── */}
             <PageHeader icon={FileTextIcon} title="Orçamentos" subtitle={`${orcs.length} propostas · portfólio total ${R$(orcs.reduce((s, o) => s + (o.valor_venda || 0), 0))}`}>
-                <button onClick={exportCSV} className={Z.btn2} title="Exportar CSV" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
-                    <Download size={14} /> CSV
+                <button onClick={exportCSV} className="btn-secondary btn-sm" title="Exportar CSV">
+                    <Download size={13} /> CSV
                 </button>
-                <button onClick={() => nav("novo", null)} className={Z.btn}>
+                <button onClick={() => nav("novo", null)} className="btn-primary">
                     <Ic.Plus /> Novo Orçamento
                 </button>
             </PageHeader>
@@ -380,16 +380,26 @@ export default function Orcs({ orcs, nav, reload, notify }) {
 
             {/* ─── Sumário pipeline ─────────────────────────── */}
             {filtered.length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 stagger-children">
                     {KCOLS.slice(0, 4).map(col => {
                         const colOrcs = filtered.filter(o => (o.kb_col || 'lead') === col.id);
                         if (!colOrcs.length) return null;
+                        const c = col.c || 'var(--text-muted)';
+                        const isActive = statusFilter === col.id;
                         return (
-                            <div key={col.id} className="glass-card p-3 flex flex-col gap-1 cursor-pointer hover:scale-[1.02] transition-transform"
-                                onClick={() => setStatusFilter(statusFilter === col.id ? '' : col.id)}>
-                                <div className="text-[10px] font-bold uppercase tracking-widest" style={{ color: col.c || 'var(--text-muted)' }}>{col.nm}</div>
-                                <div className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{colOrcs.length}</div>
-                                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{R$(colOrcs.reduce((s, o) => s + (o.valor_venda || 0), 0))}</div>
+                            <div key={col.id} className="glass-card hover-lift cursor-pointer"
+                                style={{
+                                    padding: '14px 16px',
+                                    borderLeft: `3px solid ${c}`,
+                                    position: 'relative', overflow: 'hidden',
+                                    outline: isActive ? `2px solid ${c}` : 'none',
+                                    outlineOffset: -1,
+                                }}
+                                onClick={() => setStatusFilter(isActive ? '' : col.id)}>
+                                <div style={{ position: 'absolute', top: 0, right: 0, width: 50, height: '100%', background: `linear-gradient(135deg, transparent, ${c}08)`, pointerEvents: 'none' }} />
+                                <div className="text-[10px] font-bold uppercase tracking-widest" style={{ color: c }}>{col.nm}</div>
+                                <div className="text-xl font-extrabold mt-1" style={{ color: 'var(--text-primary)' }}>{colOrcs.length}</div>
+                                <div className="text-[11px] font-medium mt-0.5" style={{ color: 'var(--text-muted)' }}>{R$(colOrcs.reduce((s, o) => s + (o.valor_venda || 0), 0))}</div>
                             </div>
                         );
                     })}
@@ -398,19 +408,21 @@ export default function Orcs({ orcs, nav, reload, notify }) {
 
             {/* ─── Lista ────────────────────────────────────── */}
             {orcs.length === 0 ? (
-                <div className={`${Z.card} flex flex-col items-center justify-center p-16`} style={{ color: 'var(--text-muted)' }}>
-                    <div className="rounded-full p-4 mb-4" style={{ background: 'var(--bg-hover)' }}>
-                        <Ic.File />
-                    </div>
-                    <p className="text-sm font-medium">Nenhum orçamento cadastrado</p>
-                    <p className="text-xs mt-1 opacity-70">Crie seu primeiro orçamento para começar a vender</p>
-                    <button onClick={() => nav("novo", null)} className={`${Z.btn} mt-4 text-xs`}>
-                        <Ic.Plus /> Criar Orçamento
-                    </button>
+                <div className="glass-card">
+                    <EmptyState
+                        icon={FileTextIcon}
+                        title="Nenhum orçamento cadastrado"
+                        description="Crie seu primeiro orçamento para começar a vender"
+                        action={{ label: 'Criar Orçamento', onClick: () => nav("novo", null) }}
+                    />
                 </div>
             ) : filtered.length === 0 ? (
-                <div className={`${Z.card} py-12 text-center`} style={{ color: 'var(--text-muted)' }}>
-                    <p className="text-sm">Nenhum resultado para "<strong>{search}</strong>"</p>
+                <div className="glass-card">
+                    <EmptyState
+                        icon={Search}
+                        title="Nenhum resultado encontrado"
+                        description={`Nenhum orçamento corresponde a "${search}"`}
+                    />
                 </div>
             ) : (
                 <div className={`${Z.card} !p-0 overflow-hidden`}>

@@ -106,6 +106,56 @@ export const COLORS = {
     muted:   '#94a3b8',
 };
 
+// ─── Status Unificado (usar em TODAS as páginas) ────
+export const STATUS_COLORS = {
+    // Genéricos
+    pendente:      { label: 'Pendente',      color: '#f59e0b', bg: '#fefce8', icon: 'clock' },
+    em_andamento:  { label: 'Em andamento',  color: '#3b82f6', bg: '#eff6ff', icon: 'play' },
+    concluido:     { label: 'Concluído',     color: '#22c55e', bg: '#f0fdf4', icon: 'check' },
+    concluida:     { label: 'Concluída',     color: '#22c55e', bg: '#f0fdf4', icon: 'check' },
+    atrasado:      { label: 'Atrasado',      color: '#ef4444', bg: '#fef2f2', icon: 'alert' },
+    atrasada:      { label: 'Atrasada',      color: '#ef4444', bg: '#fef2f2', icon: 'alert' },
+    suspenso:      { label: 'Suspenso',      color: '#94a3b8', bg: '#f8fafc', icon: 'pause' },
+    cancelado:     { label: 'Cancelado',     color: '#64748b', bg: '#f1f5f9', icon: 'x' },
+    nao_iniciado:  { label: 'Não iniciado',  color: '#94a3b8', bg: '#f8fafc', icon: 'circle' },
+
+    // CNC específicos
+    em_corte:      { label: 'Em corte',      color: '#8b5cf6', bg: '#f5f3ff', icon: 'scissors' },
+    cortada:       { label: 'Cortada',       color: '#22c55e', bg: '#f0fdf4', icon: 'check' },
+    conferida:     { label: 'Conferida',     color: '#10b981', bg: '#ecfdf5', icon: 'checkDouble' },
+
+    // Produção/Expedição
+    em_producao:   { label: 'Em produção',   color: '#3b82f6', bg: '#eff6ff', icon: 'factory' },
+    aguardando:    { label: 'Aguardando',    color: '#f59e0b', bg: '#fefce8', icon: 'clock' },
+    expedido:      { label: 'Expedido',      color: '#06b6d4', bg: '#ecfeff', icon: 'truck' },
+    entregue:      { label: 'Entregue',      color: '#22c55e', bg: '#f0fdf4', icon: 'check' },
+    instalando:    { label: 'Instalando',    color: '#8b5cf6', bg: '#f5f3ff', icon: 'wrench' },
+
+    // Financeiro
+    pago:          { label: 'Pago',          color: '#22c55e', bg: '#f0fdf4', icon: 'check' },
+    vencido:       { label: 'Vencido',       color: '#ef4444', bg: '#fef2f2', icon: 'alert' },
+    a_vencer:      { label: 'A vencer',      color: '#f59e0b', bg: '#fefce8', icon: 'clock' },
+};
+
+// Helper: buscar status com fallback
+export function getStatus(key) {
+    return STATUS_COLORS[key] || { label: key, color: '#94a3b8', bg: '#f8fafc', icon: 'circle' };
+}
+
+// ─── Escala de Espaçamento (múltiplos de 4) ─────────
+export const SPACE = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, '2xl': 24, '3xl': 32, '4xl': 48 };
+
+// ─── Escala Tipográfica ─────────────────────────────
+export const FONT = {
+    caption: '0.6875rem',   // 11px
+    small:   '0.75rem',     // 12px
+    body:    '0.8125rem',   // 13px
+    base:    '0.875rem',    // 14px
+    h3:      '1rem',        // 16px
+    h2:      '1.125rem',    // 18px
+    h1:      '1.375rem',    // 22px
+};
+
 // ─── Helpers de opacidade (padrao: 15% bg, 30% border) ──
 export const colorBg = (c) => `${c}15`;
 export const colorBorder = (c) => `${c}30`;

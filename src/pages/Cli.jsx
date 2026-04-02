@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Z, Ic, Modal, ConfirmModal, tagStyle, tagClass, PageHeader, TabBar } from '../ui';
+import { Z, Ic, Modal, ConfirmModal, tagStyle, tagClass, PageHeader, TabBar, EmptyState } from '../ui';
 import api from '../api';
 import { STATUS_PROJ, colorBg, colorBorder } from '../theme';
 import {
@@ -94,14 +94,16 @@ const NOTE_COLORS = [
 // ─── Metric Card ─────────────────────────────────
 function MetricCard({ icon, label, value, sub, color }) {
     return (
-        <div className="glass-card p-4 flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: colorBg(color), color }}>
+        <div className="glass-card hover-lift flex items-start gap-3"
+            style={{ padding: '14px 16px', borderLeft: `3px solid ${color}`, position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, right: 0, width: 50, height: '100%', background: `linear-gradient(135deg, transparent, ${color}06)`, pointerEvents: 'none' }} />
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: `${color}12`, color, boxShadow: `0 2px 8px ${color}15` }}>
                 {icon}
             </div>
             <div className="min-w-0">
-                <div className="text-xs font-medium mb-0.5" style={{ color: 'var(--text-muted)' }}>{label}</div>
-                <div className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{value}</div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: 'var(--text-muted)' }}>{label}</div>
+                <div className="text-lg font-extrabold" style={{ color: 'var(--text-primary)' }}>{value}</div>
                 {sub && <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{sub}</div>}
             </div>
         </div>
@@ -1009,8 +1011,8 @@ export default function Cli({ clis, reload, notify, nav }) {
                         <tbody className="divide-y divide-[var(--border)]">
                             {fl.length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" className="py-12 text-center text-[var(--text-muted)] text-sm">
-                                        Nenhum cliente encontrado
+                                    <td colSpan="6">
+                                        <EmptyState icon={User} title="Nenhum cliente encontrado" description="Tente ajustar os filtros de busca" />
                                     </td>
                                 </tr>
                             ) : flPaged.map(c => (

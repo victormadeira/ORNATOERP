@@ -3,8 +3,9 @@ import {
     Factory, Clock, PlayCircle, CheckCircle2, AlertTriangle, Search,
     ChevronDown, ChevronRight, BarChart3, Timer, Pause, Play, Square,
     Package, Filter, RefreshCw, Users, Calendar, ClipboardCheck,
-    GripVertical, Maximize2, Minimize2, Smartphone
+    GripVertical, Maximize2, Minimize2, Smartphone, Inbox
 } from 'lucide-react';
+import { PageHeader, Spinner, EmptyState, ProgressBar as PBar, ToolbarButton, ToolbarDivider } from '../ui';
 
 const ETAPAS = [
     { id: 'aguardando', label: 'Aguardando', color: '#94a3b8', icon: Clock },
@@ -47,74 +48,62 @@ function KanbanCard({ proj, onMoveNext, onMovePrev, tabletMode }) {
     const pct = proj.progresso_modulos || 0;
 
     // Urgência
-    let urgColor = '#22c55e', urgLabel = '';
+    let urgColor = '#22c55e', urgLabel = '', urgIcon = null;
     if (proj.data_entrega) {
         const diff = Math.ceil((new Date(proj.data_entrega + 'T12:00:00') - new Date()) / 86400000);
-        if (diff < 0) { urgColor = '#ef4444'; urgLabel = `${Math.abs(diff)}d atrasado`; }
-        else if (diff <= 5) { urgColor = '#f59e0b'; urgLabel = `${diff}d`; }
+        if (diff < 0) { urgColor = '#ef4444'; urgLabel = `${Math.abs(diff)}d atrasado`; urgIcon = AlertTriangle; }
+        else if (diff <= 5) { urgColor = '#f59e0b'; urgLabel = `${diff}d`; urgIcon = Clock; }
         else { urgLabel = `${diff}d`; }
     }
 
-    const fontSize = tabletMode ? 16 : 13;
-    const padding = tabletMode ? '14px 16px' : '10px 12px';
+    const isLate = urgColor === '#ef4444';
 
     return (
-        <div
-            style={{
-                background: 'var(--bg-card)', borderRadius: 10, padding,
-                border: '1px solid var(--border)',
-                borderLeft: `4px solid ${urgColor}`,
-                cursor: 'grab', transition: 'box-shadow 0.15s, transform 0.15s',
-                marginBottom: tabletMode ? 10 : 6,
-            }}
-            onMouseEnter={e => { e.currentTarget.style.boxShadow = 'var(--shadow-md)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-            onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateY(0)'; }}
-        >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6, marginBottom: 6 }}>
-                <div style={{ fontSize, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+        <div className="prod-card prod-card-accent" style={{
+            '--accent-color': urgColor,
+            marginBottom: tabletMode ? 10 : 6,
+            background: isLate ? `linear-gradient(135deg, var(--bg-card) 85%, ${urgColor}06 100%)` : undefined,
+        }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6, marginBottom: 4 }}>
+                <div style={{ fontSize: tabletMode ? 14 : 12.5, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                     {proj.nome}
                 </div>
                 {urgLabel && (
                     <span style={{
-                        fontSize: tabletMode ? 12 : 10, fontWeight: 700, color: urgColor, whiteSpace: 'nowrap',
-                        padding: '1px 6px', borderRadius: 4, background: `${urgColor}15`,
+                        fontSize: 9, fontWeight: 700, color: urgColor, whiteSpace: 'nowrap',
+                        padding: '2px 6px', borderRadius: 20, background: `${urgColor}12`,
+                        border: `1px solid ${urgColor}25`,
+                        display: 'flex', alignItems: 'center', gap: 3,
                     }}>
+                        {urgIcon && (() => { const I = urgIcon; return <I size={8} />; })()}
                         {urgLabel}
                     </span>
                 )}
             </div>
-            <div style={{ fontSize: tabletMode ? 13 : 11, color: 'var(--text-muted)', marginBottom: 6 }}>
-                {proj.cliente}
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Users size={10} style={{ opacity: 0.5 }} />
+                {proj.cliente || 'Sem cliente'}
             </div>
-            <ProgressBar value={pct} color={pct >= 100 ? '#22c55e' : pct >= 60 ? 'var(--primary)' : '#f59e0b'} h={tabletMode ? 8 : 5} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-                <span style={{ fontSize: tabletMode ? 12 : 10, color: 'var(--text-muted)' }}>
-                    {proj.modulos_concluidos || 0}/{proj.modulos_total || 0} mód
-                </span>
-                <div style={{ display: 'flex', gap: 4 }}>
-                    {onMovePrev && (
-                        <button onClick={(e) => { e.stopPropagation(); onMovePrev(); }}
-                            style={{
-                                width: tabletMode ? 32 : 22, height: tabletMode ? 32 : 22, borderRadius: 6,
-                                border: '1px solid var(--border)', background: 'var(--bg-card)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                cursor: 'pointer', color: 'var(--text-muted)', fontSize: tabletMode ? 14 : 11,
-                            }}
-                            title="Voltar etapa"
-                        >←</button>
-                    )}
-                    {onMoveNext && (
-                        <button onClick={(e) => { e.stopPropagation(); onMoveNext(); }}
-                            style={{
-                                width: tabletMode ? 32 : 22, height: tabletMode ? 32 : 22, borderRadius: 6,
-                                border: 'none', background: 'var(--primary)', color: '#fff',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                cursor: 'pointer', fontSize: tabletMode ? 14 : 11,
-                            }}
-                            title="Avançar etapa"
-                        >→</button>
-                    )}
+            <div style={{ marginBottom: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{proj.modulos_concluidos || 0}/{proj.modulos_total || 0} módulos</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: pct >= 100 ? '#22c55e' : 'var(--text-muted)' }}>{Math.round(pct)}%</span>
                 </div>
+                <PBar value={pct} height={tabletMode ? 5 : 4} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 3 }}>
+                {onMovePrev && (
+                    <button onClick={(e) => { e.stopPropagation(); onMovePrev(); }}
+                        className="btn-secondary" style={{ width: 24, height: 24, padding: 0, fontSize: 11, minHeight: 0, borderRadius: 6 }}
+                        title="Voltar etapa"
+                    >←</button>
+                )}
+                {onMoveNext && (
+                    <button onClick={(e) => { e.stopPropagation(); onMoveNext(); }}
+                        className="btn-primary" style={{ width: 24, height: 24, padding: 0, fontSize: 11, minHeight: 0, borderRadius: 6 }}
+                        title="Avançar etapa"
+                    >→</button>
+                )}
             </div>
         </div>
     );
@@ -126,58 +115,52 @@ function KanbanCard({ proj, onMoveNext, onMovePrev, tabletMode }) {
 function KanbanColumn({ etapa, projetos, onMove, tabletMode }) {
     const eInfo = ETAPA_MAP[etapa.id] || etapa;
     const count = projetos.length;
+    const I = eInfo.icon || Factory;
 
     return (
         <div style={{
             flex: tabletMode ? '0 0 280px' : '1 1 0',
-            minWidth: tabletMode ? 280 : 160,
+            minWidth: tabletMode ? 280 : 180,
             maxWidth: tabletMode ? 280 : 320,
             display: 'flex', flexDirection: 'column',
-            background: 'var(--bg-muted)', borderRadius: 12,
-            overflow: 'hidden',
+            background: 'var(--bg-muted)', borderRadius: 'var(--radius-lg)',
+            overflow: 'hidden', border: '1px solid var(--border)',
         }}>
             {/* Column Header */}
-            <div style={{
-                padding: tabletMode ? '12px 14px' : '8px 10px',
-                borderBottom: `3px solid ${eInfo.color}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                background: 'var(--bg-card)',
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div className="col-header" style={{ '--accent-color': eInfo.color }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{
-                        width: tabletMode ? 10 : 8, height: tabletMode ? 10 : 8,
-                        borderRadius: '50%', background: eInfo.color,
-                    }} />
-                    <span style={{
-                        fontSize: tabletMode ? 14 : 12, fontWeight: 700,
-                        color: 'var(--text-primary)',
+                        width: 24, height: 24, borderRadius: 6, flexShrink: 0,
+                        background: `${eInfo.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                        {eInfo.label}
-                    </span>
+                        <I size={12} style={{ color: eInfo.color }} />
+                    </div>
+                    <span className="col-header-title">{eInfo.label}</span>
                 </div>
-                <span style={{
-                    fontSize: tabletMode ? 13 : 11, fontWeight: 700,
-                    padding: '1px 8px', borderRadius: 10,
-                    background: count > 0 ? `${eInfo.color}20` : 'var(--bg-muted)',
-                    color: count > 0 ? eInfo.color : 'var(--text-muted)',
-                }}>
+                <span className="col-header-count" style={count > 0 ? { background: `${eInfo.color}15`, color: eInfo.color } : {}}>
                     {count}
                 </span>
             </div>
 
             {/* Column Body */}
             <div style={{
-                flex: 1, padding: tabletMode ? '10px 10px' : '6px 6px',
-                overflowY: 'auto', minHeight: 100,
+                flex: 1, padding: 6,
+                overflowY: 'auto', minHeight: 80,
                 scrollbarWidth: 'thin',
             }}>
                 {projetos.length === 0 ? (
                     <div style={{
-                        textAlign: 'center', padding: '20px 8px',
-                        color: 'var(--text-muted)', fontSize: tabletMode ? 13 : 11,
-                        opacity: 0.6,
+                        textAlign: 'center', padding: '28px 12px',
+                        color: 'var(--text-muted)',
                     }}>
-                        Nenhum projeto
+                        <div style={{
+                            width: 36, height: 36, borderRadius: 10, margin: '0 auto 8px',
+                            background: 'var(--bg-card)', border: '1px dashed var(--border-hover)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                            <Inbox size={16} style={{ opacity: 0.35 }} />
+                        </div>
+                        <div style={{ fontSize: 11, opacity: 0.5, fontWeight: 500 }}>Nenhum projeto</div>
                     </div>
                 ) : (
                     projetos.map(p => (
@@ -198,85 +181,84 @@ function KanbanColumn({ etapa, projetos, onMove, tabletMode }) {
 // ═══════════════════════════════════════════════════════════
 // List View — tabela compacta (alternativa ao Kanban)
 // ═══════════════════════════════════════════════════════════
-function ListView({ projetos, onMove, tabletMode }) {
+function ListView({ projetos, onMove }) {
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {/* Header */}
-            <div style={{
-                display: 'grid', gridTemplateColumns: '1fr 120px 120px 160px 80px 70px',
-                alignItems: 'center', gap: 12, padding: '6px 16px',
-                fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em',
-            }}>
-                <span>Projeto</span>
-                <span>Etapa</span>
-                <span>Prazo</span>
-                <span>Progresso</span>
-                <span style={{ textAlign: 'center' }}>Mód.</span>
-                <span style={{ textAlign: 'center' }}>Ação</span>
-            </div>
-            {projetos.map(p => {
-                const eInfo = ETAPA_MAP[p.etapa_atual] || { label: p.etapa_atual || 'Aguardando', color: '#94a3b8' };
-                const pct = p.progresso_modulos || 0;
-                let urgColor = '#22c55e', urgLabel = 'No prazo';
-                if (p.data_entrega) {
-                    const diff = Math.ceil((new Date(p.data_entrega + 'T12:00:00') - new Date()) / 86400000);
-                    if (diff < 0) { urgColor = '#ef4444'; urgLabel = `${Math.abs(diff)}d atrasado`; }
-                    else if (diff <= 5) { urgColor = '#f59e0b'; urgLabel = `${diff}d`; }
-                    else { urgLabel = `${diff}d`; }
-                } else { urgColor = '#94a3b8'; urgLabel = 'Sem prazo'; }
+        <div className="glass-card" style={{ overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }} className="table-stagger">
+                <thead>
+                    <tr>
+                        <th className="th-glass" style={{ textAlign: 'left' }}>Projeto</th>
+                        <th className="th-glass" style={{ textAlign: 'left' }}>Etapa</th>
+                        <th className="th-glass" style={{ textAlign: 'left' }}>Prazo</th>
+                        <th className="th-glass" style={{ textAlign: 'left', minWidth: 140 }}>Progresso</th>
+                        <th className="th-glass" style={{ textAlign: 'center' }}>Mód.</th>
+                        <th className="th-glass" style={{ textAlign: 'center', width: 80 }}>Ação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {projetos.map(p => {
+                        const eInfo = ETAPA_MAP[p.etapa_atual] || { label: p.etapa_atual || 'Aguardando', color: '#94a3b8' };
+                        const pct = p.progresso_modulos || 0;
+                        let urgColor = '#22c55e', urgLabel = 'No prazo';
+                        if (p.data_entrega) {
+                            const diff = Math.ceil((new Date(p.data_entrega + 'T12:00:00') - new Date()) / 86400000);
+                            if (diff < 0) { urgColor = '#ef4444'; urgLabel = `${Math.abs(diff)}d atrasado`; }
+                            else if (diff <= 5) { urgColor = '#f59e0b'; urgLabel = `${diff}d`; }
+                            else { urgLabel = `${diff}d`; }
+                        } else { urgColor = '#94a3b8'; urgLabel = 'Sem prazo'; }
 
-                const etapaIdx = ETAPAS.findIndex(e => e.id === p.etapa_atual);
+                        const etapaIdx = ETAPAS.findIndex(e => e.id === p.etapa_atual);
 
-                return (
-                    <div key={p.id} style={{
-                        display: 'grid', gridTemplateColumns: '1fr 120px 120px 160px 80px 70px',
-                        alignItems: 'center', gap: 12, padding: '10px 16px',
-                        background: 'var(--bg-card)', borderRadius: 10,
-                        border: '1px solid var(--border)',
-                    }}>
-                        <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {p.nome}
-                            </div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.cliente}</div>
-                        </div>
-                        <span style={{
-                            fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6,
-                            background: `${eInfo.color}18`, color: eInfo.color, whiteSpace: 'nowrap',
-                            display: 'inline-block', textAlign: 'center',
-                        }}>{eInfo.label}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: urgColor }} />
-                            <span style={{ fontSize: 11, color: urgColor, fontWeight: 600 }}>{urgLabel}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <ProgressBar value={pct} color={pct >= 100 ? '#22c55e' : 'var(--primary)'} />
-                            <span style={{ fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>{Math.round(pct)}%</span>
-                        </div>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
-                            {p.modulos_concluidos || 0}/{p.modulos_total || 0}
-                        </span>
-                        <div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
-                            {etapaIdx > 0 && (
-                                <button onClick={() => onMove(p.id, p.etapa_atual, 'prev')} style={miniBtn('var(--border)')}>←</button>
-                            )}
-                            {etapaIdx < ETAPAS.length - 1 && (
-                                <button onClick={() => onMove(p.id, p.etapa_atual, 'next')} style={miniBtn('var(--primary)', '#fff')}>→</button>
-                            )}
-                        </div>
-                    </div>
-                );
-            })}
+                        return (
+                            <tr key={p.id}>
+                                <td className="td-glass">
+                                    <div style={{ fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>
+                                        {p.nome}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.cliente}</div>
+                                </td>
+                                <td className="td-glass">
+                                    <span style={{
+                                        fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
+                                        background: `${eInfo.color}12`, color: eInfo.color, whiteSpace: 'nowrap',
+                                        border: `1px solid ${eInfo.color}25`,
+                                    }}>{eInfo.label}</span>
+                                </td>
+                                <td className="td-glass">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: urgColor, flexShrink: 0 }} />
+                                        <span style={{ fontSize: 12, color: urgColor, fontWeight: 600 }}>{urgLabel}</span>
+                                    </div>
+                                </td>
+                                <td className="td-glass">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <div style={{ flex: 1 }}><PBar value={pct} height={4} /></div>
+                                        <span style={{ fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{Math.round(pct)}%</span>
+                                    </div>
+                                </td>
+                                <td className="td-glass" style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
+                                    {p.modulos_concluidos || 0}/{p.modulos_total || 0}
+                                </td>
+                                <td className="td-glass" style={{ textAlign: 'center' }}>
+                                    <div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
+                                        {etapaIdx > 0 && (
+                                            <button onClick={() => onMove(p.id, p.etapa_atual, 'prev')}
+                                                className="btn-secondary" style={{ width: 26, height: 26, padding: 0, fontSize: 12, minHeight: 0 }}>←</button>
+                                        )}
+                                        {etapaIdx < ETAPAS.length - 1 && (
+                                            <button onClick={() => onMove(p.id, p.etapa_atual, 'next')}
+                                                className="btn-primary" style={{ width: 26, height: 26, padding: 0, fontSize: 12, minHeight: 0 }}>→</button>
+                                        )}
+                                    </div>
+                                </td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
         </div>
     );
 }
-
-const miniBtn = (bg, color) => ({
-    width: 24, height: 24, borderRadius: 6, border: 'none',
-    background: bg, color: color || 'var(--text-muted)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    cursor: 'pointer', fontSize: 12, fontWeight: 700,
-});
 
 // ═══════════════════════════════════════════════════════════
 // Main Component
@@ -373,79 +355,27 @@ export default function ProducaoFabrica({ notify, user }) {
         return projetos.filter(p => p.nome.toLowerCase().includes(q) || (p.cliente || '').toLowerCase().includes(q));
     }, [projetos, busca]);
 
-    if (loading) {
-        return (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 12, color: 'var(--text-muted)' }}>
-                <RefreshCw size={20} className="spin" /> Carregando...
-            </div>
-        );
-    }
+    if (loading) return <Spinner text="Carregando produção..." />;
 
     return (
-        <div style={{ padding: tabletMode ? '16px' : '24px 32px', maxWidth: view === 'list' ? 1200 : '100%', margin: '0 auto' }}>
+        <div className="page-enter" style={{ padding: '24px 32px', maxWidth: view === 'list' ? 1200 : '100%', margin: '0 auto' }}>
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <div style={{
-                        width: 44, height: 44, borderRadius: 12,
-                        background: 'var(--primary-gradient)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                        <Factory size={22} color="#fff" />
-                    </div>
-                    <div>
-                        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                            Acompanhamento
-                        </h1>
-                        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-                            Chão de fábrica — {view === 'kanban' ? 'visão Kanban' : 'visão lista'}
-                        </p>
-                    </div>
-                </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <PageHeader icon={Factory} title="Acompanhamento" subtitle={`Chão de fábrica — ${view === 'kanban' ? 'visão Kanban' : 'visão lista'}`}>
+                <div className="toolbar" style={{ border: 'none', padding: 0, background: 'none' }}>
                     {/* View toggle */}
-                    <div style={{
-                        display: 'flex', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden',
-                    }}>
-                        {[
-                            { id: 'kanban', label: 'Kanban', icon: BarChart3 },
-                            { id: 'list', label: 'Lista', icon: ClipboardCheck },
-                        ].map(v => (
-                            <button key={v.id} onClick={() => setView(v.id)} style={{
-                                display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px',
-                                border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                                background: view === v.id ? 'var(--primary)' : 'var(--bg-card)',
-                                color: view === v.id ? '#fff' : 'var(--text-muted)',
-                                transition: 'all 0.15s',
-                            }}>
-                                <v.icon size={14} /> {v.label}
-                            </button>
-                        ))}
+                    <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                        <ToolbarButton icon={BarChart3} label="Kanban" onClick={() => setView('kanban')} active={view === 'kanban'} />
+                        <ToolbarButton icon={ClipboardCheck} label="Lista" onClick={() => setView('list')} active={view === 'list'} />
                     </div>
-                    {/* Tablet mode */}
-                    <button onClick={() => setTabletMode(!tabletMode)} style={{
-                        display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px',
-                        borderRadius: 8, border: '1px solid var(--border)',
-                        background: tabletMode ? 'var(--primary)' : 'var(--bg-card)',
-                        color: tabletMode ? '#fff' : 'var(--text-muted)',
-                        cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                    }}>
-                        <Smartphone size={14} /> Tablet
-                    </button>
-                    <button onClick={load} style={{
-                        display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px',
-                        borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)',
-                        color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                    }}>
-                        <RefreshCw size={14} />
-                    </button>
+                    <ToolbarButton icon={Smartphone} label="Tablet" onClick={() => setTabletMode(!tabletMode)} active={tabletMode} />
+                    <ToolbarButton icon={RefreshCw} onClick={load} title="Atualizar" />
                 </div>
-            </div>
+            </PageHeader>
 
             {/* Stats strip */}
-            <div style={{
-                display: 'flex', gap: tabletMode ? 12 : 16, marginBottom: 16, overflowX: 'auto',
-                paddingBottom: 4,
+            <div className="stagger-children" style={{
+                display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                gap: 12, marginBottom: 16,
             }}>
                 {[
                     { label: 'Ativos', value: stats.ativos, color: 'var(--primary)', icon: Package },
@@ -453,16 +383,26 @@ export default function ProducaoFabrica({ notify, user }) {
                     { label: 'Atrasados', value: stats.atrasados, color: '#ef4444', icon: AlertTriangle },
                     { label: 'Módulos', value: `${stats.concluidos}/${stats.modulosTotal || 0}`, color: '#22c55e', icon: CheckCircle2 },
                 ].map(s => (
-                    <div key={s.label} style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        padding: tabletMode ? '12px 18px' : '8px 14px',
-                        background: 'var(--bg-card)', borderRadius: 10,
-                        border: '1px solid var(--border)', whiteSpace: 'nowrap', flex: '0 0 auto',
+                    <div key={s.label} className="glass-card hover-lift" style={{
+                        display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
+                        borderLeft: `3px solid ${s.color}`,
+                        position: 'relative', overflow: 'hidden',
                     }}>
-                        <s.icon size={tabletMode ? 20 : 16} style={{ color: s.color }} />
+                        <div style={{
+                            position: 'absolute', top: 0, right: 0, width: 60, height: '100%',
+                            background: `linear-gradient(135deg, transparent, ${s.color}08)`,
+                            pointerEvents: 'none',
+                        }} />
+                        <div style={{
+                            width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                            background: `${s.color}12`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            boxShadow: `0 2px 8px ${s.color}15`,
+                        }}>
+                            <s.icon size={17} style={{ color: s.color }} />
+                        </div>
                         <div>
-                            <div style={{ fontSize: tabletMode ? 11 : 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>{s.label}</div>
-                            <div style={{ fontSize: tabletMode ? 22 : 18, fontWeight: 800, color: 'var(--text-primary)' }}>{s.value}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.label}</div>
+                            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>{s.value}</div>
                         </div>
                     </div>
                 ))}
@@ -470,16 +410,13 @@ export default function ProducaoFabrica({ notify, user }) {
 
             {/* Search */}
             <div style={{ position: 'relative', marginBottom: 16, maxWidth: view === 'list' ? '100%' : 400 }}>
-                <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                 <input
                     value={busca}
                     onChange={e => setBusca(e.target.value)}
                     placeholder="Buscar projeto ou cliente..."
-                    style={{
-                        width: '100%', padding: '8px 12px 8px 36px', borderRadius: 8,
-                        border: '1px solid var(--border)', background: 'var(--bg-input)',
-                        color: 'var(--text-primary)', fontSize: 13, outline: 'none',
-                    }}
+                    className="input-glass"
+                    style={{ paddingLeft: 36 }}
                 />
             </div>
 
@@ -489,9 +426,7 @@ export default function ProducaoFabrica({ notify, user }) {
                     ref={scrollRef}
                     style={{
                         display: 'flex', gap: 10, overflowX: 'auto',
-                        paddingBottom: 16,
-                        scrollbarWidth: 'thin',
-                        minHeight: 400,
+                        paddingBottom: 16, scrollbarWidth: 'thin', minHeight: 400,
                     }}
                 >
                     {ETAPAS.map(etapa => (
@@ -506,15 +441,13 @@ export default function ProducaoFabrica({ notify, user }) {
                 </div>
             ) : (
                 filteredList.length === 0 ? (
-                    <div style={{
-                        textAlign: 'center', padding: 48, color: 'var(--text-muted)',
-                        background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)',
-                    }}>
-                        <Package size={40} style={{ marginBottom: 12, opacity: 0.5 }} />
-                        <div style={{ fontSize: 15, fontWeight: 600 }}>Nenhum projeto em produção</div>
-                    </div>
+                    <EmptyState
+                        icon={Package}
+                        title="Nenhum projeto em produção"
+                        description="Projetos aparecerão aqui quando forem movidos para a fase de produção."
+                    />
                 ) : (
-                    <ListView projetos={filteredList} onMove={handleMove} tabletMode={tabletMode} />
+                    <ListView projetos={filteredList} onMove={handleMove} />
                 )
             )}
         </div>

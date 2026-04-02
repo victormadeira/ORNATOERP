@@ -199,6 +199,35 @@ function SpinIcon({ size = 18 }) {
     );
 }
 
+// ─── Audio Feedback ─────────────────────────────────────────────────────────
+
+function playBeep(type = 'success') {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        if (type === 'success') {
+            osc.type = 'sine';
+            osc.frequency.value = 800;
+            gain.gain.value = 0.3;
+            osc.start();
+            osc.stop(ctx.currentTime + 0.15);
+        } else {
+            // error / duplicate
+            osc.type = 'square';
+            osc.frequency.value = 300;
+            gain.gain.value = 0.2;
+            osc.start();
+            osc.stop(ctx.currentTime + 0.3);
+        }
+    } catch (_) {
+        // AudioContext not available — silently ignore
+    }
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Expedicao() {
@@ -245,6 +274,24 @@ export default function Expedicao() {
 
     // Celebration
     const [celebrating, setCelebrating] = useState(false);
+
+    // Dashboard produtividade
+    const [showDashboard, setShowDashboard] = useState(false);
+    const [dashData, setDashData] = useState(null);
+    const [dashPeriodo, setDashPeriodo] = useState('30d');
+    const [dashLoading, setDashLoading] = useState(false);
+
+    const loadDashboard = useCallback((periodo) => {
+        setDashLoading(true);
+        api.get(`/cnc/dashboard-produtividade?periodo=${periodo}`)
+            .then(data => setDashData(data))
+            .catch(() => setDashData(null))
+            .finally(() => setDashLoading(false));
+    }, []);
+
+    useEffect(() => {
+        if (showDashboard) loadDashboard(dashPeriodo);
+    }, [showDashboard, dashPeriodo, loadDashboard]);
 
     // ── Load lotes on mount ──────────────────────────────────────────────────
 
@@ -327,6 +374,7 @@ export default function Expedicao() {
         if (!selectedLoteId) {
             setScanResult('error');
             setScanMessage('Selecione um lote antes de escanear.');
+            playBeep('error');
             clearTimeout(resultTimerRef.current);
             resultTimerRef.current = setTimeout(() => setScanResult(null), 3000);
             return;
@@ -354,6 +402,7 @@ export default function Expedicao() {
             setLastScan({ peca, plano, timestamp: Date.now() });
             setScanResult('success');
             setScanMessage(peca?.descricao || 'Peca registrada com sucesso!');
+            playBeep('success');
 
             setScanLog(prev => [{
                 peca_id: peca?.id,
@@ -383,6 +432,7 @@ export default function Expedicao() {
             const isDuplicate = /já.*scan|duplicado|already/i.test(msg);
             setScanResult(isDuplicate ? 'duplicate' : 'error');
             setScanMessage(msg);
+            playBeep('error');
             if (err.peca) setLastScan({ peca: err.peca, plano: null, timestamp: Date.now() });
             resultTimerRef.current = setTimeout(() => setScanResult(null), isDuplicate ? 4500 : 3500);
         } finally {
@@ -422,6 +472,7 @@ export default function Expedicao() {
 
             setScanResult('success');
             setScanMessage(`${count} peça(s) marcadas manualmente${skippedCount > 0 ? ` (${skippedCount} já registradas)` : ''}`);
+            playBeep('success');
             clearTimeout(resultTimerRef.current);
             resultTimerRef.current = setTimeout(() => setScanResult(null), 4000);
 
@@ -455,6 +506,7 @@ export default function Expedicao() {
         } catch (err) {
             setScanResult('error');
             setScanMessage(err.error || err.message || 'Erro ao marcar peças');
+            playBeep('error');
             clearTimeout(resultTimerRef.current);
             resultTimerRef.current = setTimeout(() => setScanResult(null), 3500);
         } finally {
@@ -483,11 +535,13 @@ export default function Expedicao() {
 
             setScanResult('success');
             setScanMessage('Peca desmarcada com sucesso');
+            playBeep('success');
             clearTimeout(resultTimerRef.current);
             resultTimerRef.current = setTimeout(() => setScanResult(null), 2500);
         } catch (err) {
             setScanResult('error');
             setScanMessage(err.error || 'Erro ao desmarcar');
+            playBeep('error');
             clearTimeout(resultTimerRef.current);
             resultTimerRef.current = setTimeout(() => setScanResult(null), 3000);
         }
@@ -655,8 +709,10 @@ export default function Expedicao() {
     // RENDER
     // ─────────────────────────────────────────────────────────────────────────
 
+    const [mobileTab, setMobileTab] = useState('scan'); // 'scan' | 'list'
+
     return (
-        <div style={{
+        <div className="exp-root" data-tab={mobileTab} style={{
             height: '100vh',
             background: 'var(--bg-body)',
             color: 'var(--text-primary)',
@@ -666,27 +722,29 @@ export default function Expedicao() {
         }}>
 
             {/* ═══ HEADER ═══ */}
-            <header style={{
+            <header className="exp-header" style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '10px 20px',
                 background: 'var(--bg-card)',
                 borderBottom: '1px solid var(--border)',
                 flexShrink: 0, zIndex: 10,
                 boxShadow: 'var(--shadow-sm)',
+                flexWrap: 'wrap',
             }}>
 
                 {/* Brand */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 6, flexShrink: 0 }}>
                     <div style={{
                         width: 36, height: 36, borderRadius: 10,
-                        background: 'linear-gradient(135deg, #1d4ed8, #7c3aed)',
+                        background: 'var(--primary-gradient)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 2px 8px var(--primary-ring)',
                     }}>
                         <Truck size={18} color="#fff" />
                     </div>
                     <div>
                         <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>Expedição</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Scanner + Marcação Manual</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.02em' }}>Scanner + Marcação Manual</div>
                     </div>
                 </div>
 
@@ -719,7 +777,7 @@ export default function Expedicao() {
                     {loteComboOpen && (
                         <div style={{
                             position: 'absolute', top: 'calc(100% + 6px)', left: 0,
-                            width: 340, maxHeight: 420, zIndex: 9999,
+                            width: Math.min(340, window.innerWidth - 24), maxHeight: 420, zIndex: 9999,
                             background: 'var(--bg-card)', border: '1px solid var(--border)',
                             borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
                             display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -987,13 +1045,58 @@ export default function Expedicao() {
                         <RefreshCw size={14} />
                     </button>
                 )}
+
+                {/* Dashboard produtividade button */}
+                <button
+                    onClick={() => setShowDashboard(true)}
+                    title="Dashboard de produtividade"
+                    style={{
+                        width: 32, height: 32, borderRadius: 8,
+                        background: showDashboard ? 'var(--primary)' : 'transparent',
+                        border: '1px solid var(--border)', color: showDashboard ? '#fff' : 'var(--text-muted)',
+                        cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                    }}
+                >
+                    <BarChart2 size={14} />
+                </button>
             </header>
 
+            {/* ═══ MOBILE TAB BAR ═══ */}
+            <div className="exp-mobile-tabs" style={{
+                display: 'none', /* shown via media query */
+                flexShrink: 0,
+                borderBottom: '1px solid var(--border)',
+                background: 'var(--bg-card)',
+            }}>
+                {[
+                    { id: 'scan', label: 'Scanner', icon: Scan },
+                    { id: 'list', label: `Peças (${filteredPecas.length})`, icon: Package },
+                ].map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setMobileTab(tab.id)}
+                        style={{
+                            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                            padding: '10px 0', fontSize: 13, fontWeight: 700,
+                            background: mobileTab === tab.id ? 'var(--primary-alpha)' : 'transparent',
+                            border: 'none', borderBottom: mobileTab === tab.id ? '2px solid var(--primary)' : '2px solid transparent',
+                            color: mobileTab === tab.id ? 'var(--primary)' : 'var(--text-muted)',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <tab.icon size={15} />
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
             {/* ═══ MAIN CONTENT ═══ */}
-            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+            <div className="exp-main" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
                 {/* ── LEFT — SCAN AREA (60%) ── */}
-                <div style={{
+                <div className="exp-scan-panel" style={{
                     flex: '0 0 60%', display: 'flex', flexDirection: 'column',
                     padding: '16px 16px 16px 20px', gap: 14, overflow: 'hidden',
                     borderRight: '1px solid var(--border)',
@@ -1238,7 +1341,7 @@ export default function Expedicao() {
                 </div>
 
                 {/* ── RIGHT — PROGRESS + PIECE LIST (40%) ── */}
-                <div style={{ flex: '0 0 40%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div className="exp-list-panel" style={{ flex: '0 0 40%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
                     {!selectedLoteId ? (
                         <div style={{
@@ -1695,6 +1798,221 @@ export default function Expedicao() {
                 </div>
             )}
 
+            {/* ═══ DASHBOARD PRODUTIVIDADE MODAL ═══ */}
+            {showDashboard && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 99999,
+                    background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 16,
+                }} onClick={() => setShowDashboard(false)}>
+                    <div onClick={e => e.stopPropagation()} style={{
+                        background: 'var(--bg-card)', borderRadius: 16,
+                        border: '1px solid var(--border)',
+                        boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
+                        width: '100%', maxWidth: 900, maxHeight: '90vh',
+                        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                    }}>
+                        {/* Header */}
+                        <div style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '16px 20px', borderBottom: '1px solid var(--border)',
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{
+                                    width: 32, height: 32, borderRadius: 8,
+                                    background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                    <BarChart2 size={16} color="#fff" />
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                                        Produtividade dos Operadores
+                                    </div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                        Desempenho por operador e checkpoint
+                                    </div>
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                {/* Period selector */}
+                                {['7d', '30d', '90d'].map(p => (
+                                    <button key={p} onClick={() => setDashPeriodo(p)} style={{
+                                        padding: '5px 12px', fontSize: 12, fontWeight: 600,
+                                        borderRadius: 6, border: '1px solid var(--border)',
+                                        background: dashPeriodo === p ? 'var(--primary)' : 'transparent',
+                                        color: dashPeriodo === p ? '#fff' : 'var(--text-muted)',
+                                        cursor: 'pointer',
+                                    }}>
+                                        {p === '7d' ? '7 dias' : p === '30d' ? '30 dias' : '90 dias'}
+                                    </button>
+                                ))}
+                                <button onClick={() => setShowDashboard(false)} style={{
+                                    width: 28, height: 28, borderRadius: 6,
+                                    background: 'transparent', border: 'none',
+                                    color: 'var(--text-muted)', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    marginLeft: 4,
+                                }}>
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
+                            {dashLoading ? (
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    padding: 60, color: 'var(--text-muted)', fontSize: 13,
+                                }}>Carregando...</div>
+                            ) : !dashData ? (
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    padding: 60, color: 'var(--text-muted)', fontSize: 13,
+                                }}>Sem dados disponíveis</div>
+                            ) : (
+                                <>
+                                    {/* Summary cards */}
+                                    <div style={{
+                                        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                                        gap: 12, marginBottom: 20,
+                                    }}>
+                                        {[
+                                            { label: 'Peças processadas', value: dashData.resumo?.total_pecas_processadas || 0, icon: Package, color: '#3b82f6' },
+                                            { label: 'Média peças/hora', value: dashData.resumo?.media_pecas_hora || 0, icon: Clock, color: '#22c55e' },
+                                            { label: 'Lotes concluídos', value: dashData.resumo?.lotes_concluidos || 0, icon: CheckCircle, color: '#8b5cf6' },
+                                            { label: 'Operadores ativos', value: dashData.operadores?.length || 0, icon: User, color: '#f59e0b' },
+                                        ].map((card, i) => (
+                                            <div key={i} style={{
+                                                padding: '14px 16px', borderRadius: 10,
+                                                background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                                                    <card.icon size={13} color={card.color} />
+                                                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>{card.label}</span>
+                                                </div>
+                                                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>{card.value}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Bar chart - pieces per day */}
+                                    {dashData.por_dia && dashData.por_dia.length > 0 && (
+                                        <div style={{
+                                            marginBottom: 20, padding: 16, borderRadius: 10,
+                                            background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                                        }}>
+                                            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 12 }}>
+                                                Peças por dia
+                                            </div>
+                                            <div style={{
+                                                display: 'flex', alignItems: 'flex-end', gap: 2,
+                                                height: 100, overflow: 'hidden',
+                                            }}>
+                                                {(() => {
+                                                    const maxVal = Math.max(...dashData.por_dia.map(d => d.total), 1);
+                                                    return dashData.por_dia.map((d, i) => (
+                                                        <div key={i} style={{
+                                                            flex: 1, display: 'flex', flexDirection: 'column',
+                                                            alignItems: 'center', gap: 2, minWidth: 0,
+                                                        }}>
+                                                            <div style={{
+                                                                fontSize: 9, color: 'var(--text-muted)', fontWeight: 600,
+                                                                opacity: d.total > 0 ? 1 : 0.4,
+                                                            }}>{d.total}</div>
+                                                            <div style={{
+                                                                width: '100%', maxWidth: 28, borderRadius: 3,
+                                                                background: 'linear-gradient(180deg, #6366f1, #8b5cf6)',
+                                                                height: `${Math.max(2, (d.total / maxVal) * 80)}px`,
+                                                                transition: 'height .3s',
+                                                            }} title={`${d.data}: ${d.total} peças`} />
+                                                            <div style={{
+                                                                fontSize: 8, color: 'var(--text-muted)',
+                                                                whiteSpace: 'nowrap', overflow: 'hidden',
+                                                                textOverflow: 'ellipsis', width: '100%', textAlign: 'center',
+                                                            }}>{d.data?.slice(5)}</div>
+                                                        </div>
+                                                    ));
+                                                })()}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Operator ranking table */}
+                                    <div style={{
+                                        borderRadius: 10, border: '1px solid var(--border)',
+                                        overflow: 'hidden',
+                                    }}>
+                                        <div style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: '40px 1fr 90px 90px 100px 60px',
+                                            padding: '10px 14px', fontSize: 11, fontWeight: 700,
+                                            color: 'var(--text-muted)', background: 'var(--bg-muted)',
+                                            borderBottom: '1px solid var(--border)',
+                                            textTransform: 'uppercase', letterSpacing: 0.3,
+                                        }}>
+                                            <span>#</span>
+                                            <span>Operador</span>
+                                            <span style={{ textAlign: 'right' }}>Total</span>
+                                            <span style={{ textAlign: 'right' }}>Peças/h</span>
+                                            <span style={{ textAlign: 'right' }}>Tempo médio</span>
+                                            <span style={{ textAlign: 'right' }}>Dias</span>
+                                        </div>
+                                        {(dashData.operadores || []).length === 0 && (
+                                            <div style={{
+                                                padding: 24, textAlign: 'center',
+                                                color: 'var(--text-muted)', fontSize: 13,
+                                            }}>Nenhum operador encontrado no período</div>
+                                        )}
+                                        {(dashData.operadores || []).map((op, idx) => (
+                                            <div key={idx} style={{
+                                                display: 'grid',
+                                                gridTemplateColumns: '40px 1fr 90px 90px 100px 60px',
+                                                padding: '10px 14px', fontSize: 13,
+                                                borderBottom: '1px solid var(--border)',
+                                                background: idx === 0 ? 'rgba(139,92,246,0.06)' : 'transparent',
+                                                alignItems: 'center',
+                                            }}>
+                                                <span style={{
+                                                    fontWeight: 800, fontSize: 14,
+                                                    color: idx === 0 ? '#f59e0b' : idx === 1 ? '#94a3b8' : idx === 2 ? '#cd7f32' : 'var(--text-muted)',
+                                                }}>
+                                                    {idx < 3 ? ['🥇', '🥈', '🥉'][idx] : `${idx + 1}`}
+                                                </span>
+                                                <div>
+                                                    <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{op.nome}</div>
+                                                    {op.checkpoints && Object.keys(op.checkpoints).length > 0 && (
+                                                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                                            {Object.entries(op.checkpoints).map(([cp, qtd]) => (
+                                                                <span key={cp}>{cp}: {qtd}</span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <span style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                                                    {op.total_scans}
+                                                </span>
+                                                <span style={{ textAlign: 'right', fontWeight: 600, color: '#22c55e', fontVariantNumeric: 'tabular-nums' }}>
+                                                    {op.pecas_por_hora}
+                                                </span>
+                                                <span style={{ textAlign: 'right', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                                                    {op.tempo_medio_entre_scans_seg > 0 ? `${op.tempo_medio_entre_scans_seg}s` : '-'}
+                                                </span>
+                                                <span style={{ textAlign: 'right', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                                                    {op.dias_ativos}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── Global Styles ── */}
             <style>{`
                 @keyframes spin {
@@ -1729,6 +2047,71 @@ export default function Expedicao() {
                 ::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 2px; }
                 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
                 select option { background: var(--bg-muted); color: var(--text-primary); }
+
+                /* ── Responsive: Tablet & Mobile ── */
+                @media (max-width: 1024px) {
+                    .exp-header {
+                        padding: 8px 12px !important;
+                        gap: 8px !important;
+                    }
+                    .exp-scan-panel {
+                        flex: 1 1 auto !important;
+                        padding: 12px !important;
+                        gap: 10px !important;
+                    }
+                    .exp-list-panel {
+                        flex: 1 1 auto !important;
+                    }
+                }
+
+                @media (max-width: 768px) {
+                    .exp-mobile-tabs {
+                        display: flex !important;
+                    }
+                    .exp-main {
+                        flex-direction: column !important;
+                    }
+                    .exp-scan-panel {
+                        flex: 1 1 auto !important;
+                        border-right: none !important;
+                        padding: 10px !important;
+                        overflow-y: auto !important;
+                    }
+                    .exp-list-panel {
+                        flex: 1 1 auto !important;
+                    }
+                    /* Tab-based visibility on mobile */
+                    .exp-root[data-tab="list"] .exp-scan-panel {
+                        display: none !important;
+                    }
+                    .exp-root[data-tab="scan"] .exp-list-panel {
+                        display: none !important;
+                    }
+                    .exp-header {
+                        padding: 8px 10px !important;
+                        gap: 6px !important;
+                    }
+                    /* Scan input: smaller on mobile */
+                    .exp-scan-panel input[type="text"] {
+                        font-size: 16px !important;
+                        padding: 14px 44px 14px 48px !important;
+                    }
+                    /* Piece rows: larger touch targets */
+                    .exp-list-panel [role="button"] {
+                        padding: 12px 12px !important;
+                        min-height: 48px;
+                    }
+                }
+
+                @media (max-width: 480px) {
+                    .exp-header > div:first-child {
+                        display: none !important;
+                    }
+                    .exp-scan-panel input[type="text"] {
+                        font-size: 14px !important;
+                        letter-spacing: 1px !important;
+                    }
+                }
             `}</style>
         </div>
     );

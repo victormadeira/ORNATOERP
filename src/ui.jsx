@@ -10,7 +10,7 @@ import {
     BarChart2, Calendar, ArrowRight, Briefcase, Printer, ClipboardList,
     Image, DollarSign, MessageSquare, HardHat, AlertTriangle, Wrench,
     BarChart3, ClipboardCheck, PauseCircle, PlayCircle, UserCheck, Warehouse,
-    MessageCircle, Sparkles, Bot, Scissors,
+    MessageCircle, Sparkles, Bot, Scissors, Play, Pause, XCircle, Circle,
     // Novos icones para menu agrupado e paginas
     Library, Cpu, FolderKanban, Wallet, ShieldCheck, Handshake,
     Factory, LineChart, Cog, Star, PieChart, FileSpreadsheet, Kanban,
@@ -176,17 +176,22 @@ export function TabBar({ tabs, active, onChange }) {
 // ─── EmptyState — estado vazio padronizado ────────────────
 export function EmptyState({ icon: Icon, title, description, action }) {
     return (
-        <div className="animate-fade-up" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: 12 }}>
+        <div className="animate-fade-up" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: 14 }}>
             {Icon && (
-                <div className="empty-state-icon">
-                    <Icon size={28} style={{ color: 'var(--text-muted)' }} />
+                <div style={{
+                    width: 56, height: 56, borderRadius: 16,
+                    background: 'var(--bg-muted)', border: '1px dashed var(--border-hover)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    marginBottom: 4,
+                }}>
+                    <Icon size={24} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
                 </div>
             )}
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-secondary)', margin: 0 }}>{title}</h3>
-            {description && <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, textAlign: 'center', maxWidth: 320 }}>{description}</p>}
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', margin: 0 }}>{title}</h3>
+            {description && <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: 0, textAlign: 'center', maxWidth: 300, lineHeight: 1.5 }}>{description}</p>}
             {action && (
-                <button onClick={action.onClick} className={Z.btn} style={{ marginTop: 8, fontSize: 13 }}>
-                    <Plus size={14} /> {action.label}
+                <button onClick={action.onClick} className="btn-primary btn-sm" style={{ marginTop: 4, fontSize: 12 }}>
+                    <Plus size={13} /> {action.label}
                 </button>
             )}
         </div>
@@ -459,23 +464,33 @@ export function KpiCard({ label, value, color, icon: Icon, sub, sparkData, accen
     const accentColor = accent || color || 'var(--primary)';
 
     return (
-        <div className="glass-card animate-fade-up hover-lift" style={{ padding: '18px 20px', position: 'relative', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div className="glass-card animate-fade-up hover-lift" style={{
+            padding: '18px 20px', position: 'relative', overflow: 'hidden',
+            borderLeft: `3px solid ${accentColor}`,
+        }}>
+            {/* Subtle gradient accent background */}
+            <div style={{
+                position: 'absolute', top: 0, right: 0, width: 80, height: '100%',
+                background: `linear-gradient(135deg, transparent 0%, ${accentColor}06 100%)`,
+                pointerEvents: 'none',
+            }} />
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10, position: 'relative' }}>
                 <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
                 {Icon && (
                     <div style={{
-                        width: 34, height: 34, borderRadius: 10,
-                        background: `${accentColor}12`,
+                        width: 36, height: 36, borderRadius: 10,
+                        background: `${accentColor}15`,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: `0 2px 8px ${accentColor}20`,
                     }}>
-                        <Icon size={16} style={{ color: accentColor }} />
+                        <Icon size={17} style={{ color: accentColor }} />
                     </div>
                 )}
             </div>
-            <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1, letterSpacing: '-0.02em' }}>
+            <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1, letterSpacing: '-0.02em', position: 'relative' }}>
                 {formatAnimated()}
             </div>
-            {sub && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>{sub}</div>}
+            {sub && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, position: 'relative' }}>{sub}</div>}
             {sparkData && sparkData.length > 1 && (
                 <div className="kpi-sparkline">
                     <Sparkline data={sparkData} color={accentColor} width={200} height={40} />
@@ -486,7 +501,8 @@ export function KpiCard({ label, value, color, icon: Icon, sub, sparkData, accen
 }
 
 // ─── SectionHeader — header padronizado para cards ──────
-export function SectionHeader({ icon: Icon, title, children }) {
+export function SectionHeader({ icon: Icon, title, accent, children }) {
+    const c = accent || 'var(--primary)';
     return (
         <div style={{
             padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -494,7 +510,15 @@ export function SectionHeader({ icon: Icon, title, children }) {
             background: 'linear-gradient(180deg, var(--bg-muted) 0%, transparent 100%)',
         }}>
             <span style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-primary)' }}>
-                {Icon && <Icon size={15} style={{ color: 'var(--primary)' }} />} {title}
+                {Icon && (
+                    <div style={{
+                        width: 28, height: 28, borderRadius: 8,
+                        background: `${c}12`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                        <Icon size={14} style={{ color: c }} />
+                    </div>
+                )}
+                {title}
             </span>
             {children}
         </div>
@@ -574,5 +598,252 @@ export function SkeletonCard() {
             <Skeleton width={140} height={28} className="mb-2" />
             <Skeleton width={80} height={12} />
         </div>
+    );
+}
+
+// ─── StatusBadge — badge de status unificado ───────────
+import { getStatus } from './theme';
+
+const STATUS_ICONS = {
+    clock: Clock, play: Play, check: CheckCircle2, checkDouble: CheckCircle2,
+    alert: AlertCircle, pause: Pause, x: XCircle, circle: Circle,
+    scissors: Scissors, factory: Factory, truck: Truck, wrench: Wrench,
+};
+
+export function StatusBadge({ status, size = 'sm', pulse }) {
+    const s = getStatus(status);
+    const sizes = {
+        xs: { fontSize: 9, padding: '1px 6px', iconSize: 8, gap: 2 },
+        sm: { fontSize: 10, padding: '2px 8px', iconSize: 10, gap: 3 },
+        md: { fontSize: 11, padding: '3px 10px', iconSize: 12, gap: 4 },
+        lg: { fontSize: 12, padding: '4px 12px', iconSize: 14, gap: 5 },
+    };
+    const sz = sizes[size] || sizes.sm;
+    const Icon = STATUS_ICONS[s.icon] || Circle;
+    return (
+        <span className={pulse ? 'badge-pulse' : ''} style={{
+            display: 'inline-flex', alignItems: 'center', gap: sz.gap,
+            fontSize: sz.fontSize, fontWeight: 600, whiteSpace: 'nowrap',
+            color: s.color, background: s.bg,
+            border: `1px solid ${s.color}25`,
+            padding: sz.padding, borderRadius: 20, lineHeight: 1.4,
+        }}>
+            <Icon size={sz.iconSize} />
+            {s.label}
+        </span>
+    );
+}
+
+// ─── StatusDot — dot colorido inline ───────────────────
+export function StatusDot({ status, size = 8 }) {
+    const s = getStatus(status);
+    return (
+        <span style={{
+            display: 'inline-block', width: size, height: size,
+            borderRadius: '50%', background: s.color, flexShrink: 0,
+        }} />
+    );
+}
+
+// ─── ToolbarGroup — grupo de botões com separador ──────
+export function ToolbarGroup({ children, label }) {
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, position: 'relative' }}>
+            {label && (
+                <span style={{
+                    position: 'absolute', top: -14, left: 0,
+                    fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
+                    letterSpacing: '0.05em', color: 'var(--text-muted)', whiteSpace: 'nowrap',
+                }}>{label}</span>
+            )}
+            {children}
+        </div>
+    );
+}
+
+export function ToolbarDivider() {
+    return <div style={{ width: 1, height: 24, background: 'var(--border)', margin: '0 4px', flexShrink: 0 }} />;
+}
+
+// ─── ToolbarButton — botão padronizado para toolbars ───
+export function ToolbarButton({ icon: Icon, label, onClick, active, variant = 'secondary', disabled, title: titleProp }) {
+    const base = {
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        padding: '6px 10px', borderRadius: 'var(--radius-md)',
+        fontSize: 12, fontWeight: 500, cursor: disabled ? 'not-allowed' : 'pointer',
+        border: '1px solid var(--border)', background: 'var(--bg-card)',
+        color: 'var(--text-secondary)', transition: 'all 0.15s',
+        opacity: disabled ? 0.5 : 1, whiteSpace: 'nowrap',
+        fontFamily: 'var(--font-sans)',
+    };
+    const variants = {
+        primary: { background: 'var(--primary)', color: '#fff', border: 'none', fontWeight: 600, boxShadow: '0 1px 3px var(--primary-ring)' },
+        danger: { color: 'var(--danger)', borderColor: 'rgba(220,38,38,0.2)' },
+        ghost: { border: 'none', background: 'transparent' },
+        active: { background: 'var(--primary-light)', color: 'var(--primary)', borderColor: 'var(--primary)', fontWeight: 600 },
+    };
+    const style = { ...base, ...(active ? variants.active : variants[variant] || {}) };
+    return (
+        <button onClick={disabled ? undefined : onClick} style={style} title={titleProp || label}
+            onMouseEnter={e => { if (!disabled && !active) { e.currentTarget.style.background = variant === 'primary' ? 'var(--primary-hover)' : 'var(--bg-hover)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; } }}
+            onMouseLeave={e => { if (!disabled && !active) { e.currentTarget.style.background = style.background; e.currentTarget.style.borderColor = style.borderColor || 'var(--border)'; } }}>
+            {Icon && <Icon size={14} />}
+            {label && <span className="hide-mobile">{label}</span>}
+        </button>
+    );
+}
+
+// ─── StepProgress — barra de progresso com steps ───────
+export function StepProgress({ steps, current, onStepClick }) {
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 0, overflowX: 'auto', padding: '4px 0' }}>
+            {steps.map((step, i) => {
+                const isDone = step.done;
+                const isActive = i === current;
+                const color = isDone ? '#22c55e' : isActive ? 'var(--primary)' : 'var(--text-muted)';
+                return (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                        <button
+                            onClick={() => onStepClick?.(i)}
+                            style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                width: 28, height: 28, borderRadius: '50%',
+                                border: `2px solid ${color}`,
+                                background: isDone ? '#22c55e' : isActive ? 'var(--primary)' : 'transparent',
+                                color: isDone || isActive ? '#fff' : color,
+                                fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                                transition: 'all 0.2s',
+                            }}
+                            title={step.label || `Step ${i + 1}`}
+                        >
+                            {isDone ? <CheckCircle2 size={14} /> : i + 1}
+                        </button>
+                        {i < steps.length - 1 && (
+                            <div style={{
+                                width: 20, height: 2,
+                                background: isDone ? '#22c55e' : 'var(--border)',
+                                transition: 'background 0.3s',
+                            }} />
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+// ─── DataTable — tabela padronizada com empty state ────
+export function DataTable({ columns, data, emptyIcon, emptyTitle, emptyDesc, onRowClick, stickyHeader = true }) {
+    if (!data || data.length === 0) {
+        return (
+            <EmptyState
+                icon={emptyIcon || Box}
+                title={emptyTitle || 'Nenhum dado encontrado'}
+                description={emptyDesc}
+            />
+        );
+    }
+    return (
+        <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }} className="table-stagger">
+                <thead>
+                    <tr>
+                        {columns.map((col, i) => (
+                            <th key={i} className="th-glass" style={{ textAlign: col.align || 'left', width: col.width, ...col.headerStyle }}>{col.label}</th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {data.map((row, ri) => (
+                        <tr key={row.id || ri}
+                            onClick={() => onRowClick?.(row, ri)}
+                            style={{ cursor: onRowClick ? 'pointer' : undefined }}
+                        >
+                            {columns.map((col, ci) => (
+                                <td key={ci} className="td-glass" style={{ textAlign: col.align || 'left', ...col.cellStyle }}>
+                                    {col.render ? col.render(row, ri) : row[col.key]}
+                                </td>
+                            ))}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+// ─── FilterChips — filtros como pills clicáveis ────────
+export function FilterChips({ options, value, onChange, multiple = false }) {
+    const isActive = (v) => multiple ? (value || []).includes(v) : value === v;
+    const toggle = (v) => {
+        if (multiple) {
+            const arr = value || [];
+            onChange(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]);
+        } else {
+            onChange(value === v ? null : v);
+        }
+    };
+    return (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {options.map(opt => {
+                const active = isActive(opt.value);
+                return (
+                    <button key={opt.value} onClick={() => toggle(opt.value)} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+                        cursor: 'pointer', transition: 'all 0.15s', border: '1px solid',
+                        background: active ? (opt.color ? `${opt.color}15` : 'var(--primary-light)') : 'var(--bg-card)',
+                        color: active ? (opt.color || 'var(--primary)') : 'var(--text-muted)',
+                        borderColor: active ? (opt.color ? `${opt.color}40` : 'var(--primary)') : 'var(--border)',
+                        fontFamily: 'var(--font-sans)',
+                    }}>
+                        {opt.dot && <span style={{ width: 6, height: 6, borderRadius: '50%', background: opt.color || 'var(--primary)' }} />}
+                        {opt.label}
+                        {opt.count != null && <span style={{ fontSize: 9, opacity: 0.7 }}>({opt.count})</span>}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
+// ─── ProgressBar — barra de progresso simples ──────────
+export function ProgressBar({ value = 0, max = 100, color, height = 6, showLabel, label }) {
+    const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+    const c = color || (pct >= 100 ? '#22c55e' : pct >= 60 ? 'var(--primary)' : pct >= 30 ? '#f59e0b' : '#ef4444');
+    return (
+        <div style={{ width: '100%' }}>
+            {(showLabel || label) && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                    <span>{label || ''}</span>
+                    <span style={{ fontWeight: 600 }}>{pct}%</span>
+                </div>
+            )}
+            <div style={{ width: '100%', height, borderRadius: height, background: 'var(--bg-muted)', overflow: 'hidden' }}>
+                <div style={{
+                    width: `${pct}%`, height: '100%', borderRadius: height,
+                    background: `linear-gradient(90deg, ${c}, ${c}cc)`,
+                    boxShadow: pct > 0 ? `0 0 6px ${c}30` : 'none',
+                    transition: 'width 0.6s cubic-bezier(0.4,0,0.2,1)',
+                }} />
+            </div>
+        </div>
+    );
+}
+
+// ─── RankBadge — badge de ranking (1°, 2°, 3°) ────────
+export function RankBadge({ rank }) {
+    const colors = { 1: '#f59e0b', 2: '#94a3b8', 3: '#cd7f32' };
+    const c = colors[rank];
+    if (!c) return <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>{rank}°</span>;
+    return (
+        <span style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 24, height: 24, borderRadius: '50%',
+            background: `${c}20`, color: c,
+            fontSize: 11, fontWeight: 800,
+        }}>
+            {rank}°
+        </span>
     );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import api from '../api';
-import { Ic, Z, Spinner } from '../ui';
+import { Ic, Z, Spinner, PageHeader, EmptyState, ProgressBar as PBarUI } from '../ui';
 import { Scissors, Printer, ArrowLeft, ChevronDown, ChevronUp, Search, RefreshCw, RotateCw, Settings, Eye, Package, Layers, BarChart3, AlertTriangle, CheckCircle2, ZoomIn, ZoomOut } from 'lucide-react';
 
 // Cores por ambiente
@@ -206,21 +206,17 @@ export default function PlanoCorte({ notify }) {
     return (
         <div className={Z.pg}>
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+            <PageHeader icon={Scissors} title="Plano de Corte" subtitle={
+                step === 'selecao' ? 'Selecione um orçamento para gerar o plano de corte otimizado'
+                : step === 'pecas' ? `ORC #${orcSelecionado?.numero} — ${orcSelecionado?.cliente_nome}`
+                : `ORC #${plano?.orcamento?.numero} — ${plano?.orcamento?.cliente_nome}`
+            }>
                 {step !== 'selecao' && (
-                    <button onClick={voltar} className={Z.btn2Sm} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <button onClick={voltar} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '6px 12px' }}>
                         <ArrowLeft size={14} /> Voltar
                     </button>
                 )}
-                <div>
-                    <h1 className={Z.h1} style={{ margin: 0 }}>Plano de Corte</h1>
-                    <p className={Z.sub} style={{ margin: 0 }}>
-                        {step === 'selecao' && 'Selecione um orçamento para gerar o plano de corte otimizado'}
-                        {step === 'pecas' && `ORC #${orcSelecionado?.numero} — ${orcSelecionado?.cliente_nome}`}
-                        {step === 'resultado' && `ORC #${plano?.orcamento?.numero} — ${plano?.orcamento?.cliente_nome}`}
-                    </p>
-                </div>
-            </div>
+            </PageHeader>
 
             {step === 'selecao' && <StepSelecao orcamentos={orcamentos} search={search} setSearch={setSearch} onSelect={selecionarOrc} loading={loading} />}
             {step === 'pecas' && <StepPecas pecasData={pecasData} loading={loading}
@@ -259,46 +255,43 @@ function StepSelecao({ orcamentos, search, setSearch, onSelect, loading }) {
                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{filtered.length} orçamentos</span>
             </div>
 
-            <div className={Z.card} style={{ padding: 0, overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }} className="table-stagger">
                     <thead>
-                        <tr style={{ background: 'var(--bg-hover)' }}>
-                            <th className={Z.th} style={{ padding: '8px 12px', fontSize: 11 }}>#</th>
-                            <th className={Z.th} style={{ padding: '8px 12px', fontSize: 11 }}>Cliente</th>
-                            <th className={Z.th} style={{ padding: '8px 12px', fontSize: 11 }}>Ambiente</th>
-                            <th className={Z.th} style={{ padding: '8px 12px', fontSize: 11 }}>Módulos</th>
-                            <th className={Z.th} style={{ padding: '8px 12px', fontSize: 11 }}>Status</th>
-                            <th className={Z.th} style={{ padding: '8px 12px', fontSize: 11 }}>Valor</th>
-                            <th className={Z.th} style={{ padding: '8px 12px', fontSize: 11 }}></th>
+                        <tr>
+                            <th className="th-glass">#</th>
+                            <th className="th-glass">Cliente</th>
+                            <th className="th-glass">Ambiente</th>
+                            <th className="th-glass" style={{ textAlign: 'center' }}>Módulos</th>
+                            <th className="th-glass">Status</th>
+                            <th className="th-glass">Valor</th>
+                            <th className="th-glass" style={{ width: 90 }}></th>
                         </tr>
                     </thead>
                     <tbody>
                         {filtered.map(o => {
                             const status = o.projeto_status || o.kb_col || '-';
                             return (
-                                <tr key={o.id} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
-                                    onClick={() => onSelect(o)}
-                                    onMouseOver={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                                    onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
-                                    <td style={{ padding: '8px 12px', fontSize: 12, fontWeight: 600, color: 'var(--primary)' }}>#{o.numero}</td>
-                                    <td style={{ padding: '8px 12px', fontSize: 12 }}>{o.cliente_nome}</td>
-                                    <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-muted)' }}>{o.ambiente || '-'}</td>
-                                    <td style={{ padding: '8px 12px', fontSize: 12, textAlign: 'center' }}>
-                                        <span style={{ background: 'var(--primary-light)', color: 'var(--primary)', padding: '2px 8px', borderRadius: 8, fontSize: 11, fontWeight: 600 }}>
+                                <tr key={o.id} onClick={() => onSelect(o)} style={{ cursor: 'pointer' }}>
+                                    <td className="td-glass" style={{ fontWeight: 600, color: 'var(--primary)' }}>#{o.numero}</td>
+                                    <td className="td-glass">{o.cliente_nome}</td>
+                                    <td className="td-glass" style={{ color: 'var(--text-muted)' }}>{o.ambiente || '-'}</td>
+                                    <td className="td-glass" style={{ textAlign: 'center' }}>
+                                        <span style={{ background: 'var(--primary-light)', color: 'var(--primary)', padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 600 }}>
                                             {o.n_ambientes} amb / {o.n_modulos} mód
                                         </span>
                                     </td>
-                                    <td style={{ padding: '8px 12px', fontSize: 11 }}>{status}</td>
-                                    <td style={{ padding: '8px 12px', fontSize: 12, fontWeight: 600 }}>{o.valor_venda ? R(o.valor_venda) : '-'}</td>
-                                    <td style={{ padding: '8px 12px' }}>
-                                        <button className={Z.btnSm} style={{ fontSize: 11, padding: '4px 12px' }}>Selecionar</button>
+                                    <td className="td-glass" style={{ fontSize: 12 }}>{status}</td>
+                                    <td className="td-glass" style={{ fontWeight: 600 }}>{o.valor_venda ? R(o.valor_venda) : '-'}</td>
+                                    <td className="td-glass">
+                                        <button className="btn-primary btn-sm" style={{ fontSize: 11, padding: '4px 12px' }}>Selecionar</button>
                                     </td>
                                 </tr>
                             );
                         })}
                         {filtered.length === 0 && (
-                            <tr><td colSpan={7} style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                                {loading ? 'Carregando...' : 'Nenhum orçamento com módulos encontrado'}
+                            <tr><td colSpan={7}>
+                                <EmptyState icon={Package} title={loading ? 'Carregando...' : 'Nenhum orçamento com módulos encontrado'} />
                             </td></tr>
                         )}
                     </tbody>

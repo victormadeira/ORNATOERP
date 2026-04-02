@@ -133,6 +133,7 @@ h1, h2, h3 { letter-spacing: -0.015em; }
 .glass-card:hover {
   box-shadow: var(--shadow-md);
   border-color: var(--border-hover);
+  transform: translateY(-1px);
 }
 
 .glass-panel {
@@ -625,6 +626,245 @@ tr:hover .td-glass {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
+
+/* ─── Toolbar ─── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  flex-wrap: wrap;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ─── Production card (kanban/CNC) ─── */
+.prod-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.prod-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(135deg, transparent 0%, var(--accent-color, var(--primary-alpha)) 100%);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  pointer-events: none;
+}
+
+.prod-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.prod-card:hover::after {
+  opacity: 0.3;
+}
+
+.prod-card-accent {
+  border-left: 3px solid var(--accent-color, var(--primary));
+}
+
+/* ─── Chip select (filtros) ─── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  transition: all var(--transition-fast);
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+
+.chip:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-hover);
+}
+
+.chip-active {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* ─── Column header (kanban) ─── */
+.col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: linear-gradient(180deg, var(--bg-muted) 0%, transparent 100%);
+  border-bottom: 2px solid var(--accent-color, var(--border));
+  position: relative;
+}
+
+.col-header-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.col-header-count {
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 10px;
+  min-width: 22px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ─── Section card with icon header ─── */
+.section-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--bg-muted) 0%, transparent 100%);
+}
+
+.section-card-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.section-card-header-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ─── Table improvements ─── */
+tr.tr-clickable { cursor: pointer; }
+tr.tr-clickable:hover .td-glass { background: var(--primary-alpha); }
+
+/* ─── Glass card with top accent ─── */
+.glass-card-accent {
+  position: relative;
+  overflow: hidden;
+}
+.glass-card-accent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent-color, var(--primary-gradient));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+/* ─── Step indicator ─── */
+.step-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  transition: all var(--transition-base);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.step-dot:hover {
+  transform: scale(1.1);
+}
+
+.step-line {
+  height: 2px;
+  width: 20px;
+  background: var(--border);
+  transition: background var(--transition-base);
+  flex-shrink: 0;
+}
+
+.step-line-done {
+  background: #22c55e;
+}
+
+/* ─── Alert banner ─── */
+.alert-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid;
+}
+
+.alert-banner-warning {
+  background: #fefce8;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.alert-banner-error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.alert-banner-info {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e40af;
+}
+
+.alert-banner-success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.dark .alert-banner-warning { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); color: #fbbf24; }
+.dark .alert-banner-error { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); color: #fca5a5; }
+.dark .alert-banner-info { background: rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.2); color: #93c5fd; }
+.dark .alert-banner-success { background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.2); color: #86efac; }
 
 /* ═══════════════════════════════════════════════════════════
    MOBILE BOTTOM NAV

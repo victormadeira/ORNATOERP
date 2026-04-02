@@ -1659,6 +1659,71 @@ const migrations = [
     UNIQUE(user_id, material_code_original, espessura_original)
   )`,
   "ALTER TABLE cnc_pecas ADD COLUMN biblioteca_id INTEGER REFERENCES biblioteca(id)",
+
+  // ═══ Remnant History / Traceability ═══
+  `CREATE TABLE IF NOT EXISTS cnc_retalho_historico (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    retalho_id TEXT,
+    lote_id INTEGER,
+    chapa_idx INTEGER,
+    largura REAL,
+    comprimento REAL,
+    material_code TEXT,
+    espessura REAL,
+    origem_lote_id INTEGER,
+    origem_chapa_idx INTEGER,
+    acao TEXT,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ═══ Remnant Photos ═══
+  `CREATE TABLE IF NOT EXISTS cnc_retalho_fotos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    retalho_id TEXT,
+    lote_id INTEGER,
+    chapa_idx INTEGER,
+    foto_path TEXT,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ═══ G-Code Generation History ═══
+  `CREATE TABLE IF NOT EXISTS cnc_gcode_historico (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lote_id INTEGER REFERENCES cnc_lotes(id) ON DELETE CASCADE,
+    chapa_idx INTEGER,
+    maquina_id INTEGER,
+    maquina_nome TEXT DEFAULT '',
+    filename TEXT DEFAULT '',
+    gcode_hash TEXT DEFAULT '',
+    total_operacoes INTEGER DEFAULT 0,
+    tempo_estimado_min REAL DEFAULT 0,
+    dist_corte_m REAL DEFAULT 0,
+    alertas_count INTEGER DEFAULT 0,
+    user_id INTEGER,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ═══ Machine Direct Send (FTP/SMB) ═══
+  "ALTER TABLE cnc_maquinas ADD COLUMN envio_tipo TEXT DEFAULT ''",
+  "ALTER TABLE cnc_maquinas ADD COLUMN envio_host TEXT DEFAULT ''",
+  "ALTER TABLE cnc_maquinas ADD COLUMN envio_porta INTEGER DEFAULT 21",
+  "ALTER TABLE cnc_maquinas ADD COLUMN envio_usuario TEXT DEFAULT ''",
+  "ALTER TABLE cnc_maquinas ADD COLUMN envio_senha TEXT DEFAULT ''",
+  "ALTER TABLE cnc_maquinas ADD COLUMN envio_pasta TEXT DEFAULT '/'",
+
+  // ═══ Chapa Production Status (multi-state) ═══
+  `CREATE TABLE IF NOT EXISTS cnc_chapa_status (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lote_id INTEGER REFERENCES cnc_lotes(id) ON DELETE CASCADE,
+    chapa_idx INTEGER NOT NULL,
+    status TEXT DEFAULT 'pendente',
+    operador TEXT DEFAULT '',
+    inicio_em DATETIME,
+    fim_em DATETIME,
+    observacao TEXT DEFAULT '',
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(lote_id, chapa_idx)
+  )`,
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
