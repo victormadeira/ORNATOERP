@@ -122,7 +122,7 @@ function TabFornecedores({ notify }) {
                                 <th className={Z.th}>Nome</th>
                                 <th className={Z.th}>CNPJ</th>
                                 <th className={Z.th}>Telefone</th>
-                                <th className={Z.th} style={{ display: 'none' }} className="hidden md:table-cell">Cidade/UF</th>
+                                <th className={Z.th} style={{ display: 'none' }}>Cidade/UF</th>
                                 <th className={Z.th}>Contato</th>
                                 <th className={Z.th} style={{ width: 80 }}></th>
                             </tr>
