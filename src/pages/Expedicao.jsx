@@ -1235,7 +1235,8 @@ export default function Expedicao() {
                                                 style={{
                                                     display: 'flex', alignItems: 'center',
                                                     justifyContent: 'space-between',
-                                                    padding: '6px 10px', borderRadius: 8, marginBottom: 4,
+                                                    padding: '8px 12px', borderRadius: 8, marginBottom: 4,
+                                                    WebkitTapHighlightColor: 'rgba(196,181,253,0.15)',
                                                     background: allDone
                                                         ? 'rgba(34,197,94,0.07)'
                                                         : 'var(--bg-muted)',
@@ -1281,11 +1282,15 @@ export default function Expedicao() {
                                                 return (
                                                     <div
                                                         key={p.id}
-                                                        onClick={() => { if (!isScanned) toggleSelect(p.id); }}
+                                                        role={isScanned ? undefined : 'button'}
+                                                        tabIndex={isScanned ? undefined : 0}
+                                                        onClick={(e) => { e.stopPropagation(); if (!isScanned) toggleSelect(p.id); }}
+                                                        onKeyDown={(e) => { if (!isScanned && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleSelect(p.id); } }}
                                                         style={{
                                                             display: 'flex', alignItems: 'center', gap: 9,
-                                                            padding: '7px 10px', borderRadius: 7, marginBottom: 2,
+                                                            padding: '10px 12px', borderRadius: 7, marginBottom: 2,
                                                             cursor: isScanned ? 'default' : 'pointer',
+                                                            WebkitTapHighlightColor: 'rgba(245,158,11,0.15)',
                                                             background: isLastScanned
                                                                 ? 'rgba(34,197,94,0.09)'
                                                                 : isSelected
