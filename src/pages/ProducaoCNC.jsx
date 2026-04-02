@@ -3074,13 +3074,14 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
             }
         } catch (err) {
             // Network/server error — show in modal too
+            const errMsg = err.error || err.message || 'Erro de rede ou servidor indisponível';
             setGcodePreview({
                 gcode: '', filename: '', stats: {}, chapaIdx,
                 contorno_tool: null, chapa: null,
-                alertas: [{ tipo: 'erro_critico', msg: `Erro de conexão: ${err.message}` }],
+                alertas: [{ tipo: 'erro_critico', msg: errMsg }],
                 ferramentas_faltando: [],
             });
-            notify('Erro ao gerar G-Code: ' + err.message, 'error');
+            notify('Erro ao gerar G-Code: ' + errMsg, 'error');
         } finally {
             setGcodeLoading(null);
         }
@@ -4987,7 +4988,16 @@ function GcodeSimCanvas({ gcode, chapa }) {
     // Renderizar canvas
     const renderCanvas = useCallback((moveLimit) => {
         const canvas = canvasRef.current;
-        if (!canvas || !gcode) return;
+        if (!canvas) return;
+        if (!gcode) {
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width, H = canvas.height;
+            ctx.clearRect(0, 0, W, H);
+            ctx.fillStyle = '#181825'; ctx.fillRect(0, 0, W, H);
+            ctx.fillStyle = '#6c7086'; ctx.font = '13px sans-serif';
+            ctx.fillText('G-Code não disponível — verifique os alertas acima', W / 2 - 180, H / 2);
+            return;
+        }
         const ctx = canvas.getContext('2d');
         const W = canvas.width, H = canvas.height;
         ctx.clearRect(0, 0, W, H);

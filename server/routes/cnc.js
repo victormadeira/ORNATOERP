@@ -2908,6 +2908,10 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 }
             }
 
+            const isHole = tipo.includes('hole') || tipo === 'transfer_hole';
+            const isCut = tipo.includes('saw') || tipo.includes('cut') || tipo === 'transfer_vertical_saw_cut';
+            const isPocket = tipo.includes('pocket') || tipo.includes('rebaixo');
+
             // 3) Determinar método de execução automático se não resolvido por estratégia
             if (resolvedMetodo === 'auto' && effectiveTool) {
                 const diam = Number(w.diameter || 0);
@@ -2956,10 +2960,6 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             if (reqWidth > 0 && effectiveTool && effectiveTool.diametro > reqWidth && !grooveMultiPass) {
                 alertas.push({ tipo: 'erro_critico', msg: `Fresa ${effectiveTool.nome} (Ø${effectiveTool.diametro}mm) > largura rasgo (${reqWidth}mm) na peça ${pDb.descricao}` });
             }
-
-            const isHole = tipo.includes('hole') || tipo === 'transfer_hole';
-            const isCut = tipo.includes('saw') || tipo.includes('cut') || tipo === 'transfer_vertical_saw_cut';
-            const isPocket = tipo.includes('pocket') || tipo.includes('rebaixo');
             const velCorte = effectiveTool?.velocidade_corte || velCorteMaq;
             const velEf = isPeq ? Math.round(velCorte * feedPct / 100) : velCorte;
 
@@ -4139,7 +4139,7 @@ router.post('/gcode/:loteId/chapa/:chapaIdx', requireAuth, async (req, res) => {
         res.json({ ok: true, ...result, extensao: ctx.extensao, filename, chapa_idx: chapaIdx });
     } catch (err) {
         console.error('Erro G-code chapa:', err);
-        res.status(500).json({ error: 'Erro ao gerar G-code' });
+        res.status(500).json({ error: `Erro ao gerar G-code: ${err.message || err}` });
     }
 });
 
