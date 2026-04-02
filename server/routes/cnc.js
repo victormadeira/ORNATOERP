@@ -285,6 +285,30 @@ router.post('/lotes/importar', requireAuth, (req, res) => {
         });
         insertMany(pecas);
 
+        // Auto-apply existing material mappings
+        try {
+            const uniqueMats = db.prepare(`
+                SELECT DISTINCT material_code, espessura FROM cnc_pecas
+                WHERE lote_id = ? AND material_code != ''
+            `).all(loteId);
+
+            for (const mat of uniqueMats) {
+                const mapping = db.prepare(`
+                    SELECT biblioteca_id FROM cnc_material_map
+                    WHERE user_id = ? AND material_code_original = ? AND espessura_original = ?
+                `).get(req.user.id, mat.material_code, mat.espessura);
+
+                if (mapping) {
+                    db.prepare(`
+                        UPDATE cnc_pecas SET biblioteca_id = ?
+                        WHERE lote_id = ? AND material_code = ? AND espessura = ?
+                    `).run(mapping.biblioteca_id, loteId, mat.material_code, mat.espessura);
+                }
+            }
+        } catch (mapErr) {
+            console.warn('Aviso: falha ao aplicar mapeamentos de material:', mapErr.message);
+        }
+
         res.json({
             id: Number(loteId),
             nome: loteNome,
@@ -7063,6 +7087,181 @@ router.get('/machining-templates/biblioteca', requireAuth, (req, res) => {
         res.json({ categorias, total });
     } catch (err) {
         console.error('Erro biblioteca templates:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// ══ Material Map: SketchUp material_code → Biblioteca ════════
+// ═══════════════════════════════════════════════════════════════
+
+// GET /material-map — list all mappings for user
+router.get('/material-map', requireAuth, (req, res) => {
+    try {
+        const rows = db.prepare(`
+            SELECT m.id, m.material_code_original, m.espessura_original, m.biblioteca_id,
+                   b.nome as biblioteca_nome, b.cod as biblioteca_cod,
+                   b.largura as chapa_comprimento, b.altura as chapa_largura,
+                   b.preco, b.espessura as biblioteca_espessura
+            FROM cnc_material_map m
+            LEFT JOIN biblioteca b ON b.id = m.biblioteca_id
+            WHERE m.user_id = ?
+            ORDER BY m.material_code_original, m.espessura_original
+        `).all(req.user.id);
+        res.json({ mappings: rows });
+    } catch (err) {
+        console.error('Erro material-map list:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /material-map — create/update a mapping
+router.post('/material-map', requireAuth, (req, res) => {
+    try {
+        const { material_code_original, espessura_original, biblioteca_id } = req.body;
+        if (!material_code_original || espessura_original == null || !biblioteca_id) {
+            return res.status(400).json({ error: 'material_code_original, espessura_original e biblioteca_id são obrigatórios' });
+        }
+        const bib = db.prepare('SELECT id, nome, espessura FROM biblioteca WHERE id = ?').get(biblioteca_id);
+        if (!bib) return res.status(404).json({ error: 'Material da biblioteca não encontrado' });
+
+        const espProj = parseFloat(espessura_original);
+        const espBib = parseFloat(bib.espessura);
+        if (Math.abs(espProj - espBib) > 0.5) {
+            return res.status(400).json({
+                error: `Espessura incompatível: projeto ${espProj} mm, material ${espBib} mm`
+            });
+        }
+
+        db.prepare(`
+            INSERT INTO cnc_material_map (user_id, material_code_original, espessura_original, biblioteca_id)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id, material_code_original, espessura_original)
+            DO UPDATE SET biblioteca_id = excluded.biblioteca_id, criado_em = CURRENT_TIMESTAMP
+        `).run(req.user.id, material_code_original, espProj, biblioteca_id);
+
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('Erro material-map save:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// DELETE /material-map/:id — delete a mapping
+router.delete('/material-map/:id', requireAuth, (req, res) => {
+    try {
+        const result = db.prepare('DELETE FROM cnc_material_map WHERE id = ? AND user_id = ?')
+            .run(req.params.id, req.user.id);
+        if (result.changes === 0) return res.status(404).json({ error: 'Mapeamento não encontrado' });
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('Erro material-map delete:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /material-map/auto-match?lote_id=X — auto-detect matches for a lote
+router.get('/material-map/auto-match', requireAuth, (req, res) => {
+    try {
+        const { lote_id } = req.query;
+        if (!lote_id) return res.status(400).json({ error: 'lote_id é obrigatório' });
+
+        // Get unique material_code + espessura combinations from the lote
+        const materiais = db.prepare(`
+            SELECT DISTINCT material_code, espessura
+            FROM cnc_pecas WHERE lote_id = ? AND material_code != ''
+        `).all(lote_id);
+
+        const result = [];
+        for (const mat of materiais) {
+            const entry = {
+                material_code: mat.material_code,
+                espessura: mat.espessura,
+                mapped: false,
+                mapping_id: null,
+                biblioteca_id: null,
+                biblioteca_nome: null,
+                sugestoes: []
+            };
+
+            // Check existing mapping
+            const existing = db.prepare(`
+                SELECT m.id, m.biblioteca_id, b.nome as biblioteca_nome
+                FROM cnc_material_map m
+                LEFT JOIN biblioteca b ON b.id = m.biblioteca_id
+                WHERE m.user_id = ? AND m.material_code_original = ? AND m.espessura_original = ?
+            `).get(req.user.id, mat.material_code, mat.espessura);
+
+            if (existing) {
+                entry.mapped = true;
+                entry.mapping_id = existing.id;
+                entry.biblioteca_id = existing.biblioteca_id;
+                entry.biblioteca_nome = existing.biblioteca_nome;
+            } else {
+                // Search biblioteca for suggestions: matching cod or similar name AND same thickness
+                const sugestoes = db.prepare(`
+                    SELECT id, cod, nome, espessura, largura as chapa_comprimento, altura as chapa_largura, preco
+                    FROM biblioteca
+                    WHERE tipo = 'material' AND ativo = 1
+                      AND ABS(espessura - ?) <= 0.5
+                      AND (cod = ? OR nome LIKE ? OR cod LIKE ?)
+                    LIMIT 10
+                `).all(mat.espessura, mat.material_code, `%${mat.material_code}%`, `%${mat.material_code}%`);
+                entry.sugestoes = sugestoes;
+            }
+
+            result.push(entry);
+        }
+
+        res.json({ materiais: result });
+    } catch (err) {
+        console.error('Erro material-map auto-match:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /lotes/:loteId/trocar-material — swap material for all pieces with a given material_code
+router.post('/lotes/:loteId/trocar-material', requireAuth, (req, res) => {
+    try {
+        const { loteId } = req.params;
+        const { material_code_atual, novo_biblioteca_id } = req.body;
+        if (!material_code_atual || !novo_biblioteca_id) {
+            return res.status(400).json({ error: 'material_code_atual e novo_biblioteca_id são obrigatórios' });
+        }
+
+        // Verify lote belongs to user
+        const lote = db.prepare('SELECT id, user_id FROM cnc_lotes WHERE id = ?').get(loteId);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        if (lote.user_id !== req.user.id) return res.status(403).json({ error: 'Acesso negado' });
+
+        // Get target material from biblioteca
+        const bib = db.prepare('SELECT id, nome, cod, espessura FROM biblioteca WHERE id = ?').get(novo_biblioteca_id);
+        if (!bib) return res.status(404).json({ error: 'Material da biblioteca não encontrado' });
+
+        // Get a sample piece to validate thickness
+        const sample = db.prepare('SELECT espessura FROM cnc_pecas WHERE lote_id = ? AND material_code = ? LIMIT 1')
+            .get(loteId, material_code_atual);
+        if (!sample) return res.status(404).json({ error: 'Nenhuma peça com esse material_code no lote' });
+
+        if (Math.abs(sample.espessura - bib.espessura) > 0.5) {
+            return res.status(400).json({
+                error: `Espessura incompatível: projeto ${sample.espessura} mm, material ${bib.espessura} mm`
+            });
+        }
+
+        // Update all matching pieces
+        const updateResult = db.prepare(`
+            UPDATE cnc_pecas
+            SET material = ?, material_code = ?, biblioteca_id = ?
+            WHERE lote_id = ? AND material_code = ?
+        `).run(bib.nome, bib.cod, bib.id, loteId, material_code_atual);
+
+        // Mark plano as outdated
+        db.prepare('UPDATE cnc_lotes SET plano_json = NULL WHERE id = ?').run(loteId);
+
+        res.json({ ok: true, pecas_atualizadas: updateResult.changes });
+    } catch (err) {
+        console.error('Erro trocar-material:', err);
         res.status(500).json({ error: err.message });
     }
 });

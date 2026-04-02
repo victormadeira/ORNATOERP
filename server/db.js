@@ -1648,6 +1648,17 @@ const migrations = [
     descricao TEXT DEFAULT '',
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
+  // ═══ CNC Material Map: SketchUp → Biblioteca ═══
+  `CREATE TABLE IF NOT EXISTS cnc_material_map (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    material_code_original TEXT NOT NULL,
+    espessura_original REAL NOT NULL,
+    biblioteca_id INTEGER NOT NULL,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, material_code_original, espessura_original)
+  )`,
+  "ALTER TABLE cnc_pecas ADD COLUMN biblioteca_id INTEGER REFERENCES biblioteca(id)",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

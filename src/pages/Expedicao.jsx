@@ -10,7 +10,7 @@ import PecaViewer3D from '../components/PecaViewer3D';
 import {
     Package, CheckCircle, AlertCircle, Scan, ChevronDown, User,
     Truck, BarChart2, Clock, X, RefreshCw, Award, Circle,
-    CheckSquare, Square, Hand, Filter, Search,
+    CheckSquare, Square, Hand, Filter, Search, Check,
 } from 'lucide-react';
 
 // ─── Constantes ─────────────────────────────────────────────────────────────
@@ -205,6 +205,10 @@ export default function Expedicao() {
     // Lotes & checkpoints
     const [lotes, setLotes] = useState([]);
     const [selectedLoteId, setSelectedLoteId] = useState('');
+    const [loteComboOpen, setLoteComboOpen] = useState(false);
+    const [loteSearchText, setLoteSearchText] = useState('');
+    const loteComboRef = useRef(null);
+    const loteSearchRef = useRef(null);
     const [checkpoints, setCheckpoints] = useState([]);
     const [activeCheckpoint, setActiveCheckpoint] = useState(
         () => localStorage.getItem(LS_CHECKPOINT) || CHECKPOINT_DEFAULT
@@ -528,6 +532,53 @@ export default function Expedicao() {
         loadLoteData(selectedLoteId);
     }, [selectedLoteId, loadLoteData]);
 
+    // ── Lote combobox: click-outside + filtered list ──────────────────────────
+
+    useEffect(() => {
+        if (!loteComboOpen) return;
+        const handler = (e) => {
+            if (loteComboRef.current && !loteComboRef.current.contains(e.target)) {
+                setLoteComboOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        document.addEventListener('touchstart', handler);
+        return () => {
+            document.removeEventListener('mousedown', handler);
+            document.removeEventListener('touchstart', handler);
+        };
+    }, [loteComboOpen]);
+
+    useEffect(() => {
+        if (loteComboOpen && loteSearchRef.current) {
+            setTimeout(() => loteSearchRef.current?.focus(), 50);
+        }
+        if (!loteComboOpen) setLoteSearchText('');
+    }, [loteComboOpen]);
+
+    const sortedFilteredLotes = useMemo(() => {
+        const q = loteSearchText.toLowerCase().trim();
+        let filtered = lotes;
+        if (q) {
+            filtered = lotes.filter(l =>
+                (l.nome || '').toLowerCase().includes(q) ||
+                (l.cliente || '').toLowerCase().includes(q) ||
+                (l.codigo || '').toLowerCase().includes(q) ||
+                String(l.id).includes(q)
+            );
+        }
+        // Sort: in-progress first, then unstarted, then complete
+        return [...filtered].sort((a, b) => {
+            const statusOrder = (s) => {
+                if (s === 'produzindo') return 0;
+                if (s === 'otimizado' || s === 'importado') return 1;
+                if (s === 'concluido' || s === 'finalizado') return 3;
+                return 2;
+            };
+            return statusOrder(a.status) - statusOrder(b.status);
+        });
+    }, [lotes, loteSearchText]);
+
     // ── Derived data ─────────────────────────────────────────────────────────
 
     const scannedIds = useMemo(() => new Set(scanLog.map(s => s.peca_id)), [scanLog]);
@@ -639,29 +690,197 @@ export default function Expedicao() {
                     </div>
                 </div>
 
-                {/* Lote selector */}
-                <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <select
-                        value={selectedLoteId}
-                        onChange={e => setSelectedLoteId(e.target.value)}
+                {/* Lote combobox */}
+                <div ref={loteComboRef} style={{ position: 'relative', flexShrink: 0 }}>
+                    {/* Trigger button */}
+                    <button
+                        onClick={() => setLoteComboOpen(v => !v)}
                         style={{
-                            padding: '7px 32px 7px 12px', fontSize: 13, fontWeight: 600,
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '7px 12px', fontSize: 13, fontWeight: 600,
                             background: 'var(--bg-muted)', border: '1px solid var(--border-hover)',
                             borderRadius: 8, color: 'var(--text-primary)', cursor: 'pointer',
-                            appearance: 'none', minWidth: 180, outline: 'none',
+                            minWidth: 200, outline: 'none', textAlign: 'left',
                         }}
                     >
-                        <option value="">— Selecionar lote —</option>
-                        {lotes.map(l => (
-                            <option key={l.id} value={l.id}>
-                                {l.nome || `Lote #${l.id}`}
-                            </option>
-                        ))}
-                    </select>
-                    <ChevronDown size={14} color="var(--text-muted)" style={{
-                        position: 'absolute', right: 10, top: '50%',
-                        transform: 'translateY(-50%)', pointerEvents: 'none',
-                    }} />
+                        <Package size={14} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {selectedLoteId
+                                ? (lotes.find(l => String(l.id) === String(selectedLoteId))?.nome || `Lote #${selectedLoteId}`)
+                                : 'Selecionar lote...'}
+                        </span>
+                        <ChevronDown size={14} color="var(--text-muted)" style={{
+                            flexShrink: 0, transition: 'transform .2s',
+                            transform: loteComboOpen ? 'rotate(180deg)' : 'rotate(0)',
+                        }} />
+                    </button>
+
+                    {/* Dropdown panel */}
+                    {loteComboOpen && (
+                        <div style={{
+                            position: 'absolute', top: 'calc(100% + 6px)', left: 0,
+                            width: 340, maxHeight: 420, zIndex: 9999,
+                            background: 'var(--bg-card)', border: '1px solid var(--border)',
+                            borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
+                            display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                        }}>
+                            {/* Search input */}
+                            <div style={{
+                                padding: '10px 12px', borderBottom: '1px solid var(--border)',
+                                display: 'flex', alignItems: 'center', gap: 8,
+                            }}>
+                                <Search size={14} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                                <input
+                                    ref={loteSearchRef}
+                                    type="text"
+                                    value={loteSearchText}
+                                    onChange={e => setLoteSearchText(e.target.value)}
+                                    placeholder="Buscar lote, cliente, código..."
+                                    style={{
+                                        flex: 1, border: 'none', outline: 'none',
+                                        background: 'transparent', color: 'var(--text-primary)',
+                                        fontSize: 13, fontWeight: 500,
+                                    }}
+                                />
+                                {loteSearchText && (
+                                    <button
+                                        onClick={() => setLoteSearchText('')}
+                                        style={{
+                                            background: 'none', border: 'none', cursor: 'pointer',
+                                            padding: 2, display: 'flex', color: 'var(--text-muted)',
+                                        }}
+                                    >
+                                        <X size={13} />
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Lote cards list */}
+                            <div style={{ overflowY: 'auto', flex: 1, padding: '6px' }}>
+                                {sortedFilteredLotes.length === 0 ? (
+                                    <div style={{
+                                        padding: '24px 16px', textAlign: 'center',
+                                        color: 'var(--text-muted)', fontSize: 13,
+                                    }}>
+                                        Nenhum lote encontrado
+                                    </div>
+                                ) : sortedFilteredLotes.map(l => {
+                                    const isSelected = String(l.id) === String(selectedLoteId);
+                                    const isComplete = l.status === 'concluido' || l.status === 'finalizado';
+                                    const isInProgress = l.status === 'produzindo';
+                                    const totalPecas = l.total_pecas || 0;
+
+                                    return (
+                                        <button
+                                            key={l.id}
+                                            onClick={() => {
+                                                setSelectedLoteId(String(l.id));
+                                                setLoteComboOpen(false);
+                                            }}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 10,
+                                                width: '100%', textAlign: 'left',
+                                                padding: '10px 12px', marginBottom: 2,
+                                                minHeight: 52,
+                                                background: isSelected ? 'var(--primary-alpha)' : 'transparent',
+                                                border: isSelected ? '1px solid var(--border-glow)' : '1px solid transparent',
+                                                borderRadius: 8, cursor: 'pointer',
+                                                opacity: isComplete ? 0.5 : 1,
+                                                transition: 'background .15s, border-color .15s',
+                                            }}
+                                            onMouseEnter={e => {
+                                                if (!isSelected) e.currentTarget.style.background = 'var(--bg-muted)';
+                                            }}
+                                            onMouseLeave={e => {
+                                                if (!isSelected) e.currentTarget.style.background = 'transparent';
+                                            }}
+                                        >
+                                            {/* Left: info */}
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{
+                                                    display: 'flex', alignItems: 'center', gap: 6,
+                                                    marginBottom: 3,
+                                                }}>
+                                                    <span style={{
+                                                        fontSize: 13, fontWeight: 700,
+                                                        color: 'var(--text-primary)',
+                                                        overflow: 'hidden', textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap',
+                                                    }}>
+                                                        {l.nome || `Lote #${l.id}`}
+                                                    </span>
+                                                    {isInProgress && (
+                                                        <span style={{
+                                                            fontSize: 9, fontWeight: 700,
+                                                            padding: '1px 6px', borderRadius: 10,
+                                                            background: 'rgba(34,197,94,0.15)',
+                                                            color: '#22c55e', textTransform: 'uppercase',
+                                                            letterSpacing: 0.3, flexShrink: 0,
+                                                        }}>
+                                                            Em produção
+                                                        </span>
+                                                    )}
+                                                    {isComplete && (
+                                                        <span style={{
+                                                            fontSize: 9, fontWeight: 700,
+                                                            padding: '1px 6px', borderRadius: 10,
+                                                            background: 'rgba(100,116,139,0.15)',
+                                                            color: 'var(--text-muted)', textTransform: 'uppercase',
+                                                            letterSpacing: 0.3, flexShrink: 0,
+                                                        }}>
+                                                            Concluído
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div style={{
+                                                    display: 'flex', alignItems: 'center', gap: 8,
+                                                    fontSize: 11, color: 'var(--text-muted)',
+                                                }}>
+                                                    {l.cliente && (
+                                                        <span style={{
+                                                            overflow: 'hidden', textOverflow: 'ellipsis',
+                                                            whiteSpace: 'nowrap', maxWidth: 130,
+                                                        }}>
+                                                            {l.cliente}
+                                                        </span>
+                                                    )}
+                                                    {l.criado_em && (
+                                                        <span style={{ flexShrink: 0, opacity: 0.7 }}>
+                                                            {new Date(l.criado_em).toLocaleDateString('pt-BR', {
+                                                                day: '2-digit', month: 'short',
+                                                            })}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Right: pieces badge + check */}
+                                            <div style={{
+                                                display: 'flex', alignItems: 'center', gap: 8,
+                                                flexShrink: 0,
+                                            }}>
+                                                {totalPecas > 0 && (
+                                                    <span style={{
+                                                        fontSize: 11, fontWeight: 700,
+                                                        padding: '2px 8px', borderRadius: 10,
+                                                        background: 'var(--bg-muted)',
+                                                        border: '1px solid var(--border)',
+                                                        color: 'var(--text-muted)',
+                                                        fontFamily: 'monospace',
+                                                    }}>
+                                                        {totalPecas} pç
+                                                    </span>
+                                                )}
+                                                {isSelected && (
+                                                    <Check size={15} color="var(--primary)" strokeWidth={3} />
+                                                )}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Checkpoint selector */}
