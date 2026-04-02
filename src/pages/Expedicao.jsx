@@ -1,7 +1,7 @@
 /**
- * Expedicao.jsx — Página de expedição com scanner para tablet.
+ * Expedicao.jsx — Página de expedição com scanner + marcação manual para tablet.
  * Interface full-screen otimizada para iPad/Android landscape.
- * Acesso autenticado via app interno.
+ * Suporta: scan por código de barras + seleção manual de peças (ripados, sem etiqueta).
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -10,6 +10,7 @@ import PecaViewer3D from '../components/PecaViewer3D';
 import {
     Package, CheckCircle, AlertCircle, Scan, ChevronDown, User,
     Truck, BarChart2, Clock, X, RefreshCw, Award, Circle,
+    CheckSquare, Square, Hand, Filter, Search,
 } from 'lucide-react';
 
 // ─── Constantes ─────────────────────────────────────────────────────────────
@@ -23,7 +24,6 @@ const LS_CHECKPOINT = 'expedicao_checkpoint';
 function MiniChapaMap({ plano, pecaId }) {
     if (!plano || !plano.chapas || plano.chapas.length === 0) return null;
 
-    // Encontrar a chapa que contém a peça
     let targetChapa = null;
     let targetPeca = null;
     for (const chapa of plano.chapas) {
@@ -68,13 +68,10 @@ function MiniChapaMap({ plano, pecaId }) {
                     display: 'block',
                 }}
             >
-                {/* Chapa background */}
                 <rect
                     x={offX} y={offY} width={drawW} height={drawH}
                     fill="var(--bg-muted)" stroke="var(--border-hover)" strokeWidth={1} rx={2}
                 />
-
-                {/* Todas as peças */}
                 {pecas.map((p, i) => {
                     const isTarget = p.id === pecaId || p.peca_id === pecaId;
                     const pw = Math.max(2, ((p.rotacionada
@@ -104,8 +101,6 @@ function MiniChapaMap({ plano, pecaId }) {
                         </g>
                     );
                 })}
-
-                {/* Borda pulsante da peça alvo */}
                 {targetPeca && (() => {
                     const pw = Math.max(2, ((targetPeca.rotacionada
                         ? (targetPeca.largura || targetPeca.w)
@@ -124,8 +119,6 @@ function MiniChapaMap({ plano, pecaId }) {
                         />
                     );
                 })()}
-
-                {/* Legenda */}
                 <text x={offX + drawW - 2} y={H_SVG - 3} textAnchor="end"
                     fill="var(--text-muted)" fontSize={8}>
                     {chapaW}×{chapaH} mm
@@ -224,18 +217,27 @@ export default function Expedicao() {
     // Scan state
     const [scanInput, setScanInput] = useState('');
     const [scanning, setScanning] = useState(false);
-    const [scanResult, setScanResult] = useState(null); // 'success' | 'error' | 'duplicate' | null
+    const [scanResult, setScanResult] = useState(null);
     const [scanMessage, setScanMessage] = useState('');
     const scanInputRef = useRef(null);
     const resultTimerRef = useRef(null);
 
     // Data
-    const [lastScan, setLastScan] = useState(null); // { peca, plano, timestamp }
+    const [lastScan, setLastScan] = useState(null);
     const [lotePecas, setLotePecas] = useState([]);
     const [loteInfo, setLoteInfo] = useState(null);
-    const [loteProgress, setLoteProgress] = useState({}); // { checkpoint_id: { total, scanned } }
+    const [loteProgress, setLoteProgress] = useState({});
     const [scanLog, setScanLog] = useState([]);
     const [loadingLote, setLoadingLote] = useState(false);
+
+    // Selection state
+    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [bulkMarking, setBulkMarking] = useState(false);
+
+    // Filters
+    const [filterModulo, setFilterModulo] = useState('__all__');
+    const [filterStatus, setFilterStatus] = useState('all'); // all | pending | done
+    const [searchText, setSearchText] = useState('');
 
     // Celebration
     const [celebrating, setCelebrating] = useState(false);
@@ -258,7 +260,6 @@ export default function Expedicao() {
             const list = Array.isArray(data) ? data : (data.checkpoints || []);
             setCheckpoints(list);
         }).catch(() => {
-            // Fallback com checkpoints padrão do processo
             setCheckpoints([
                 { id: 1, nome: 'Corte' },
                 { id: 2, nome: 'Fitagem' },
@@ -270,18 +271,22 @@ export default function Expedicao() {
 
     // ── Load lote data when selected ────────────────────────────────────────
 
-    useEffect(() => {
-        if (!selectedLoteId) return;
+    const loadLoteData = useCallback((loteId) => {
+        if (!loteId) return;
         setLoadingLote(true);
         setLotePecas([]);
         setLoteInfo(null);
         setLoteProgress({});
         setScanLog([]);
         setLastScan(null);
+        setSelectedIds(new Set());
+        setFilterModulo('__all__');
+        setFilterStatus('all');
+        setSearchText('');
 
         Promise.all([
-            api.get(`/cnc/lotes/${selectedLoteId}`),
-            api.get(`/cnc/expedicao/status/${selectedLoteId}`).catch(() => null),
+            api.get(`/cnc/lotes/${loteId}`),
+            api.get(`/cnc/expedicao/status/${loteId}`).catch(() => null),
         ]).then(([loteData, statusData]) => {
             setLoteInfo(loteData.lote || loteData);
             const pecas = loteData.pecas || loteData.lote?.pecas || [];
@@ -291,7 +296,9 @@ export default function Expedicao() {
                 setScanLog(statusData.scans || []);
             }
         }).catch(() => {}).finally(() => setLoadingLote(false));
-    }, [selectedLoteId]);
+    }, []);
+
+    useEffect(() => { loadLoteData(selectedLoteId); }, [selectedLoteId, loadLoteData]);
 
     // ── Persist preferences ──────────────────────────────────────────────────
 
@@ -333,6 +340,7 @@ export default function Expedicao() {
                 codigo,
                 checkpoint_id,
                 lote_id: parseInt(selectedLoteId),
+                metodo: 'scan',
                 ...(operador ? { operador } : {}),
             });
 
@@ -341,7 +349,7 @@ export default function Expedicao() {
 
             setLastScan({ peca, plano, timestamp: Date.now() });
             setScanResult('success');
-            setScanMessage(peca?.descricao || 'Peça registrada com sucesso!');
+            setScanMessage(peca?.descricao || 'Peca registrada com sucesso!');
 
             setScanLog(prev => [{
                 peca_id: peca?.id,
@@ -349,15 +357,14 @@ export default function Expedicao() {
                 descricao: peca?.descricao,
                 timestamp: new Date().toISOString(),
                 checkpoint: activeCheckpoint,
+                metodo: 'scan',
             }, ...prev]);
 
-            // Atualiza progress otimisticamente
             if (checkpoint_id !== null) {
                 setLoteProgress(prev => {
                     const cur = prev[checkpoint_id] || { scanned: 0, total: lotePecas.length };
                     const newScanned = cur.scanned + 1;
                     const newProg = { ...prev, [checkpoint_id]: { ...cur, scanned: newScanned } };
-                    // Verifica celebração após state update
                     if (cur.total > 0 && newScanned >= cur.total) {
                         setTimeout(() => { setCelebrating(true); setTimeout(() => setCelebrating(false), 5000); }, 700);
                     }
@@ -388,27 +395,161 @@ export default function Expedicao() {
         }
     }, [scanInput, handleScan]);
 
+    // ── Bulk manual mark ─────────────────────────────────────────────────────
+
+    const handleBulkMark = useCallback(async () => {
+        if (selectedIds.size === 0) return;
+
+        const cp = checkpoints.find(c => c.nome === activeCheckpoint);
+        if (!cp) return;
+
+        setBulkMarking(true);
+        try {
+            const data = await api.post('/cnc/expedicao/scan-bulk', {
+                peca_ids: Array.from(selectedIds),
+                checkpoint_id: cp.id,
+                operador: operador || null,
+                observacao: 'Marcação manual — conferência visual',
+                metodo: 'manual',
+            });
+
+            const count = data.registrados || 0;
+            const skippedCount = (data.skipped || []).length;
+
+            setScanResult('success');
+            setScanMessage(`${count} peça(s) marcadas manualmente${skippedCount > 0 ? ` (${skippedCount} já registradas)` : ''}`);
+            clearTimeout(resultTimerRef.current);
+            resultTimerRef.current = setTimeout(() => setScanResult(null), 4000);
+
+            // Add to scan log
+            for (const s of (data.scans || [])) {
+                const peca = lotePecas.find(p => p.id === s.peca_id);
+                setScanLog(prev => [{
+                    peca_id: s.peca_id,
+                    codigo: peca?.upmcode || String(s.peca_id),
+                    descricao: peca?.descricao || '',
+                    timestamp: new Date().toISOString(),
+                    checkpoint: activeCheckpoint,
+                    metodo: 'manual',
+                }, ...prev]);
+            }
+
+            // Update progress
+            if (count > 0) {
+                setLoteProgress(prev => {
+                    const cur = prev[cp.id] || { scanned: 0, total: lotePecas.length };
+                    const newScanned = cur.scanned + count;
+                    const newProg = { ...prev, [cp.id]: { ...cur, scanned: newScanned } };
+                    if (cur.total > 0 && newScanned >= cur.total) {
+                        setTimeout(() => { setCelebrating(true); setTimeout(() => setCelebrating(false), 5000); }, 700);
+                    }
+                    return newProg;
+                });
+            }
+
+            setSelectedIds(new Set());
+        } catch (err) {
+            setScanResult('error');
+            setScanMessage(err.error || err.message || 'Erro ao marcar peças');
+            clearTimeout(resultTimerRef.current);
+            resultTimerRef.current = setTimeout(() => setScanResult(null), 3500);
+        } finally {
+            setBulkMarking(false);
+        }
+    }, [selectedIds, checkpoints, activeCheckpoint, operador, lotePecas]);
+
+    // ── Selection helpers ────────────────────────────────────────────────────
+
+    const toggleSelect = useCallback((id) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    }, []);
+
+    const selectModulePecas = useCallback((modPecas, selectAll) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            for (const p of modPecas) {
+                if (selectAll) next.add(p.id);
+                else next.delete(p.id);
+            }
+            return next;
+        });
+    }, []);
+
+    const selectAllFiltered = useCallback((filteredPecas, selectAll) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            for (const p of filteredPecas) {
+                if (selectAll) next.add(p.id);
+                else next.delete(p.id);
+            }
+            return next;
+        });
+    }, []);
+
     // ── Reload lote ──────────────────────────────────────────────────────────
 
     const reloadLote = useCallback(() => {
-        const id = selectedLoteId;
-        setSelectedLoteId('');
-        setTimeout(() => setSelectedLoteId(id), 30);
-    }, [selectedLoteId]);
+        loadLoteData(selectedLoteId);
+    }, [selectedLoteId, loadLoteData]);
 
     // ── Derived data ─────────────────────────────────────────────────────────
 
+    const scannedIds = useMemo(() => new Set(scanLog.map(s => s.peca_id)), [scanLog]);
+
+    const scanMethodMap = useMemo(() => {
+        const map = {};
+        for (const s of scanLog) {
+            if (!map[s.peca_id]) map[s.peca_id] = s;
+        }
+        return map;
+    }, [scanLog]);
+
+    const modulos = useMemo(() => {
+        const set = new Set();
+        for (const p of lotePecas) {
+            set.add(p.modulo_desc || p.ambiente || 'Geral');
+        }
+        return Array.from(set).sort();
+    }, [lotePecas]);
+
+    const filteredPecas = useMemo(() => {
+        return lotePecas.filter(p => {
+            const mod = p.modulo_desc || p.ambiente || 'Geral';
+            if (filterModulo !== '__all__' && mod !== filterModulo) return false;
+            if (filterStatus === 'pending' && scannedIds.has(p.id)) return false;
+            if (filterStatus === 'done' && !scannedIds.has(p.id)) return false;
+            if (searchText) {
+                const q = searchText.toLowerCase();
+                const haystack = [p.descricao, p.upmcode, p.material_code, mod,
+                    `${p.comprimento}x${p.largura}`].filter(Boolean).join(' ').toLowerCase();
+                if (!haystack.includes(q)) return false;
+            }
+            return true;
+        });
+    }, [lotePecas, filterModulo, filterStatus, scannedIds, searchText]);
+
     const pecasPorModulo = useMemo(() => {
         const map = {};
-        for (const p of lotePecas) {
+        for (const p of filteredPecas) {
             const mod = p.modulo_desc || p.ambiente || 'Geral';
             if (!map[mod]) map[mod] = [];
             map[mod].push(p);
         }
         return map;
-    }, [lotePecas]);
+    }, [filteredPecas]);
 
-    const scannedIds = useMemo(() => new Set(scanLog.map(s => s.peca_id)), [scanLog]);
+    const pendingSelectedCount = useMemo(() => {
+        let count = 0;
+        for (const id of selectedIds) {
+            if (!scannedIds.has(id)) count++;
+        }
+        return count;
+    }, [selectedIds, scannedIds]);
 
     const cp = checkpoints.find(c => c.nome === activeCheckpoint);
     const cpProgress = cp
@@ -442,9 +583,7 @@ export default function Expedicao() {
             userSelect: 'none',
         }}>
 
-            {/* ╔══════════════════════════════════════════════════════╗
-                ║                      HEADER                         ║
-                ╚══════════════════════════════════════════════════════╝ */}
+            {/* ═══ HEADER ═══ */}
             <header style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '10px 20px',
@@ -465,7 +604,7 @@ export default function Expedicao() {
                     </div>
                     <div>
                         <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>Expedição</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Scanner de peças</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Scanner + Marcação Manual</div>
                     </div>
                 </div>
 
@@ -600,14 +739,10 @@ export default function Expedicao() {
                 )}
             </header>
 
-            {/* ╔══════════════════════════════════════════════════════╗
-                ║                   MAIN CONTENT                      ║
-                ╚══════════════════════════════════════════════════════╝ */}
+            {/* ═══ MAIN CONTENT ═══ */}
             <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-                {/* ┌──────────────────────────────────────────────────┐
-                    │          LEFT — SCAN AREA (60%)                  │
-                    └──────────────────────────────────────────────────┘ */}
+                {/* ── LEFT — SCAN AREA (60%) ── */}
                 <div style={{
                     flex: '0 0 60%', display: 'flex', flexDirection: 'column',
                     padding: '16px 16px 16px 20px', gap: 14, overflow: 'hidden',
@@ -628,7 +763,6 @@ export default function Expedicao() {
                                     : 'none',
                             animation: (scanResult === 'error' || scanResult === 'duplicate') ? 'shake .35s ease' : 'none',
                         }}>
-                            {/* Icon left */}
                             <div style={{
                                 position: 'absolute', left: 18, top: '50%',
                                 transform: 'translateY(-50%)',
@@ -654,7 +788,7 @@ export default function Expedicao() {
                                 value={scanInput}
                                 onChange={e => setScanInput(e.target.value)}
                                 onKeyDown={handleKeyDown}
-                                placeholder="Escanear peça..."
+                                placeholder="Escanear peca..."
                                 disabled={scanning}
                                 style={{
                                     width: '100%', padding: '18px 56px 18px 60px',
@@ -728,7 +862,6 @@ export default function Expedicao() {
                                     )}
                                 </div>
 
-                                {/* Mini chapa map */}
                                 {plano && <MiniChapaMap plano={plano} pecaId={peca.id} />}
                                 {!plano && peca.chapa_idx != null && peca.chapa_idx >= 0 && (
                                     <div style={{
@@ -746,10 +879,9 @@ export default function Expedicao() {
                             {/* Column B: piece details */}
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden', minWidth: 0 }}>
 
-                                {/* Name */}
                                 <div>
                                     <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.15, marginBottom: 3 }}>
-                                        {peca.descricao || peca.upmcode || 'Peça'}
+                                        {peca.descricao || peca.upmcode || 'Peca'}
                                     </div>
                                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                         {[peca.modulo_desc, peca.produto_final, peca.ambiente]
@@ -757,14 +889,12 @@ export default function Expedicao() {
                                     </div>
                                 </div>
 
-                                {/* Dimensions */}
                                 <div style={{ display: 'flex', gap: 7 }}>
                                     <DimBox label="Comp" value={peca.comprimento} color="#60a5fa" />
                                     <DimBox label="Larg" value={peca.largura} color="#34d399" />
                                     <DimBox label="Esp" value={peca.espessura} color="#fbbf24" />
                                 </div>
 
-                                {/* Tags */}
                                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                     {peca.material_code && (
                                         <Pill color="var(--primary)" label="Material" value={peca.material_code} />
@@ -777,7 +907,6 @@ export default function Expedicao() {
                                     )}
                                 </div>
 
-                                {/* Bordas */}
                                 <div>
                                     <div style={{
                                         fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
@@ -792,7 +921,6 @@ export default function Expedicao() {
                                         <BordaBadge label="Esq" value={peca.borda_esq} />
                                     </div>
 
-                                    {/* Borda cores */}
                                     {[peca.borda_cor_frontal, peca.borda_cor_traseira, peca.borda_cor_dir, peca.borda_cor_esq].some(Boolean) && (
                                         <div style={{ marginTop: 7, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                             {[
@@ -816,7 +944,6 @@ export default function Expedicao() {
                                     )}
                                 </div>
 
-                                {/* Scan timestamp */}
                                 {lastScan?.timestamp && (
                                     <div style={{
                                         display: 'flex', alignItems: 'center', gap: 5,
@@ -834,7 +961,6 @@ export default function Expedicao() {
                             </div>
                         </div>
                     ) : (
-                        /* Empty state */
                         <div style={{
                             flex: 1, display: 'flex', flexDirection: 'column',
                             alignItems: 'center', justifyContent: 'center', gap: 14,
@@ -851,9 +977,9 @@ export default function Expedicao() {
                                 <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>
                                     Pronto para escanear
                                 </div>
-                                <div style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 270 }}>
+                                <div style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 300 }}>
                                     {selectedLoteId
-                                        ? 'Aponte o leitor para a etiqueta ou digite o código acima.'
+                                        ? 'Aponte o leitor para a etiqueta, digite o código acima, ou selecione peças na lista para marcar manualmente.'
                                         : 'Selecione um lote no cabeçalho para começar.'}
                                 </div>
                             </div>
@@ -861,9 +987,7 @@ export default function Expedicao() {
                     )}
                 </div>
 
-                {/* ┌──────────────────────────────────────────────────┐
-                    │         RIGHT — PROGRESS PANEL (40%)             │
-                    └──────────────────────────────────────────────────┘ */}
+                {/* ── RIGHT — PROGRESS + PIECE LIST (40%) ── */}
                 <div style={{ flex: '0 0 40%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
                     {!selectedLoteId ? (
@@ -910,7 +1034,7 @@ export default function Expedicao() {
                                             {progressPct}%
                                         </div>
                                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
-                                            {cpProgress.scanned}/{cpProgress.total} peças
+                                            {cpProgress.scanned}/{cpProgress.total} pecas
                                         </div>
                                     </div>
                                 </div>
@@ -967,27 +1091,174 @@ export default function Expedicao() {
                                 </div>
                             </div>
 
+                            {/* ── Filter bar + bulk actions ── */}
+                            <div style={{
+                                padding: '10px 14px',
+                                background: 'var(--bg-card)',
+                                borderBottom: '1px solid var(--border)',
+                                display: 'flex', flexDirection: 'column', gap: 8,
+                                flexShrink: 0,
+                            }}>
+                                {/* Filters row */}
+                                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                    {/* Search */}
+                                    <div style={{ position: 'relative', flex: 1 }}>
+                                        <Search size={12} color="var(--text-muted)" style={{
+                                            position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)',
+                                        }} />
+                                        <input
+                                            value={searchText}
+                                            onChange={e => setSearchText(e.target.value)}
+                                            placeholder="Buscar peca..."
+                                            style={{
+                                                width: '100%', padding: '5px 8px 5px 26px', fontSize: 11,
+                                                background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                                                borderRadius: 6, color: 'var(--text-primary)', outline: 'none',
+                                                boxSizing: 'border-box',
+                                            }}
+                                        />
+                                    </div>
+
+                                    {/* Module filter */}
+                                    <select
+                                        value={filterModulo}
+                                        onChange={e => setFilterModulo(e.target.value)}
+                                        style={{
+                                            padding: '5px 8px', fontSize: 11, fontWeight: 600,
+                                            background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                                            borderRadius: 6, color: 'var(--text-primary)',
+                                            cursor: 'pointer', appearance: 'none', maxWidth: 130,
+                                        }}
+                                    >
+                                        <option value="__all__">Todos modulos</option>
+                                        {modulos.map(m => (
+                                            <option key={m} value={m}>{m}</option>
+                                        ))}
+                                    </select>
+
+                                    {/* Status filter */}
+                                    <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                                        {[
+                                            { v: 'all', l: 'Todos' },
+                                            { v: 'pending', l: 'Pendentes' },
+                                            { v: 'done', l: 'Feitos' },
+                                        ].map(f => (
+                                            <button
+                                                key={f.v}
+                                                onClick={() => setFilterStatus(f.v)}
+                                                style={{
+                                                    padding: '4px 9px', fontSize: 10, fontWeight: 600,
+                                                    border: 'none', cursor: 'pointer',
+                                                    background: filterStatus === f.v ? 'var(--primary)' : 'var(--bg-muted)',
+                                                    color: filterStatus === f.v ? '#fff' : 'var(--text-muted)',
+                                                }}
+                                            >
+                                                {f.l}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Bulk actions row */}
+                                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                    {/* Select all filtered */}
+                                    <button
+                                        onClick={() => {
+                                            const allFilteredIds = new Set(filteredPecas.filter(p => !scannedIds.has(p.id)).map(p => p.id));
+                                            const allSelected = [...allFilteredIds].every(id => selectedIds.has(id));
+                                            selectAllFiltered(filteredPecas.filter(p => !scannedIds.has(p.id)), !allSelected);
+                                        }}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 4,
+                                            padding: '4px 10px', fontSize: 10, fontWeight: 600,
+                                            background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                                            borderRadius: 6, color: 'var(--text-muted)', cursor: 'pointer',
+                                        }}
+                                    >
+                                        <CheckSquare size={12} />
+                                        Selecionar pendentes
+                                    </button>
+
+                                    {/* Clear selection */}
+                                    {selectedIds.size > 0 && (
+                                        <button
+                                            onClick={() => setSelectedIds(new Set())}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 4,
+                                                padding: '4px 10px', fontSize: 10, fontWeight: 600,
+                                                background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                                                borderRadius: 6, color: 'var(--text-muted)', cursor: 'pointer',
+                                            }}
+                                        >
+                                            <X size={12} />
+                                            Limpar ({selectedIds.size})
+                                        </button>
+                                    )}
+
+                                    <div style={{ flex: 1 }} />
+
+                                    {/* Bulk mark button */}
+                                    {pendingSelectedCount > 0 && (
+                                        <button
+                                            onClick={handleBulkMark}
+                                            disabled={bulkMarking}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 5,
+                                                padding: '6px 14px', fontSize: 11, fontWeight: 700,
+                                                background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                                border: 'none', borderRadius: 8,
+                                                color: '#fff', cursor: bulkMarking ? 'wait' : 'pointer',
+                                                boxShadow: '0 2px 8px rgba(245,158,11,0.3)',
+                                                opacity: bulkMarking ? 0.7 : 1,
+                                            }}
+                                        >
+                                            {bulkMarking ? <SpinIcon size={13} /> : <Hand size={13} />}
+                                            Marcar {pendingSelectedCount} peca(s)
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
                             {/* Piece list grouped by module */}
                             <div style={{ flex: 1, overflowY: 'auto', padding: '10px 14px 16px' }}>
                                 {Object.entries(pecasPorModulo).map(([modulo, pecas]) => {
                                     const modScanned = pecas.filter(p => scannedIds.has(p.id)).length;
                                     const allDone = modScanned === pecas.length && pecas.length > 0;
+                                    const pendingInMod = pecas.filter(p => !scannedIds.has(p.id));
+                                    const allModPendingSelected = pendingInMod.length > 0 &&
+                                        pendingInMod.every(p => selectedIds.has(p.id));
+
                                     return (
                                         <div key={modulo} style={{ marginBottom: 14 }}>
                                             {/* Module header */}
-                                            <div style={{
-                                                display: 'flex', alignItems: 'center',
-                                                justifyContent: 'space-between',
-                                                padding: '6px 10px', borderRadius: 8, marginBottom: 4,
-                                                background: allDone
-                                                    ? 'rgba(34,197,94,0.07)'
-                                                    : 'var(--bg-muted)',
-                                                border: `1px solid ${allDone ? 'rgba(34,197,94,0.2)' : 'var(--border)'}`,
-                                            }}>
+                                            <div
+                                                style={{
+                                                    display: 'flex', alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    padding: '6px 10px', borderRadius: 8, marginBottom: 4,
+                                                    background: allDone
+                                                        ? 'rgba(34,197,94,0.07)'
+                                                        : 'var(--bg-muted)',
+                                                    border: `1px solid ${allDone ? 'rgba(34,197,94,0.2)' : 'var(--border)'}`,
+                                                    cursor: pendingInMod.length > 0 ? 'pointer' : 'default',
+                                                }}
+                                                onClick={() => {
+                                                    if (pendingInMod.length > 0) {
+                                                        selectModulePecas(pendingInMod, !allModPendingSelected);
+                                                    }
+                                                }}
+                                                title={pendingInMod.length > 0 ? 'Clique para selecionar/deselecionar modulo' : ''}
+                                            >
                                                 <span style={{
                                                     fontSize: 12, fontWeight: 700,
                                                     color: allDone ? '#86efac' : '#c4b5fd',
+                                                    display: 'flex', alignItems: 'center', gap: 5,
                                                 }}>
+                                                    {!allDone && pendingInMod.length > 0 && (
+                                                        allModPendingSelected
+                                                            ? <CheckSquare size={13} color="#f59e0b" />
+                                                            : <Square size={13} color="var(--text-muted)" />
+                                                    )}
                                                     {modulo}
                                                 </span>
                                                 <span style={{
@@ -1003,30 +1274,47 @@ export default function Expedicao() {
                                             {pecas.map(p => {
                                                 const isScanned = scannedIds.has(p.id);
                                                 const isLastScanned = lastScan?.peca?.id === p.id;
-                                                const logEntry = scanLog.find(s => s.peca_id === p.id);
+                                                const isSelected = selectedIds.has(p.id);
+                                                const logEntry = scanMethodMap[p.id];
+                                                const isManual = logEntry?.metodo === 'manual';
 
                                                 return (
-                                                    <div key={p.id} style={{
-                                                        display: 'flex', alignItems: 'center', gap: 9,
-                                                        padding: '7px 10px', borderRadius: 7, marginBottom: 2,
-                                                        background: isLastScanned
-                                                            ? 'rgba(34,197,94,0.09)'
-                                                            : isScanned
-                                                                ? 'rgba(34,197,94,0.04)'
-                                                                : 'var(--bg-muted)',
-                                                        border: `1px solid ${
-                                                            isLastScanned ? 'rgba(34,197,94,0.3)'
-                                                            : isScanned ? 'rgba(34,197,94,0.12)'
-                                                            : 'var(--border)'
-                                                        }`,
-                                                        transition: 'all .35s ease',
-                                                    }}>
-                                                        {/* Status icon */}
-                                                        <div style={{ flexShrink: 0 }}>
-                                                            {isScanned
-                                                                ? <CheckCircle size={15} color="#22c55e" />
-                                                                : <Circle size={15} color="var(--border-hover)" />
-                                                            }
+                                                    <div
+                                                        key={p.id}
+                                                        onClick={() => { if (!isScanned) toggleSelect(p.id); }}
+                                                        style={{
+                                                            display: 'flex', alignItems: 'center', gap: 9,
+                                                            padding: '7px 10px', borderRadius: 7, marginBottom: 2,
+                                                            cursor: isScanned ? 'default' : 'pointer',
+                                                            background: isLastScanned
+                                                                ? 'rgba(34,197,94,0.09)'
+                                                                : isSelected
+                                                                    ? 'rgba(245,158,11,0.08)'
+                                                                    : isScanned
+                                                                        ? 'rgba(34,197,94,0.04)'
+                                                                        : 'var(--bg-muted)',
+                                                            border: `1px solid ${
+                                                                isLastScanned ? 'rgba(34,197,94,0.3)'
+                                                                : isSelected ? 'rgba(245,158,11,0.35)'
+                                                                : isScanned ? 'rgba(34,197,94,0.12)'
+                                                                : 'var(--border)'
+                                                            }`,
+                                                            transition: 'all .2s ease',
+                                                        }}
+                                                    >
+                                                        {/* Checkbox / Status icon */}
+                                                        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                                                            {isScanned ? (
+                                                                isManual ? (
+                                                                    <Hand size={15} color="#f59e0b" />
+                                                                ) : (
+                                                                    <CheckCircle size={15} color="#22c55e" />
+                                                                )
+                                                            ) : isSelected ? (
+                                                                <CheckSquare size={15} color="#f59e0b" />
+                                                            ) : (
+                                                                <Square size={15} color="var(--border-hover)" />
+                                                            )}
                                                         </div>
 
                                                         {/* Info */}
@@ -1039,7 +1327,7 @@ export default function Expedicao() {
                                                                 textOverflow: 'ellipsis',
                                                                 whiteSpace: 'nowrap',
                                                             }}>
-                                                                {p.descricao || p.upmcode || `Peça ${p.id}`}
+                                                                {p.descricao || p.upmcode || `Peca ${p.id}`}
                                                             </div>
                                                             <div style={{
                                                                 fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace',
@@ -1049,17 +1337,30 @@ export default function Expedicao() {
                                                             </div>
                                                         </div>
 
-                                                        {/* Timestamp */}
-                                                        {logEntry?.timestamp && (
-                                                            <div style={{
-                                                                fontSize: 10, color: '#6ee7b7',
-                                                                fontFamily: 'monospace', flexShrink: 0,
-                                                            }}>
-                                                                {new Date(logEntry.timestamp).toLocaleTimeString('pt-BR', {
-                                                                    hour: '2-digit', minute: '2-digit',
-                                                                })}
-                                                            </div>
-                                                        )}
+                                                        {/* Method badge + Timestamp */}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                                                            {isScanned && isManual && (
+                                                                <span style={{
+                                                                    fontSize: 9, fontWeight: 700, padding: '2px 6px',
+                                                                    borderRadius: 4,
+                                                                    background: 'rgba(245,158,11,0.15)',
+                                                                    color: '#fbbf24',
+                                                                    textTransform: 'uppercase', letterSpacing: 0.3,
+                                                                }}>
+                                                                    manual
+                                                                </span>
+                                                            )}
+                                                            {logEntry?.timestamp && (
+                                                                <div style={{
+                                                                    fontSize: 10, color: '#6ee7b7',
+                                                                    fontFamily: 'monospace',
+                                                                }}>
+                                                                    {new Date(logEntry.timestamp).toLocaleTimeString('pt-BR', {
+                                                                        hour: '2-digit', minute: '2-digit',
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 );
                                             })}
@@ -1067,12 +1368,21 @@ export default function Expedicao() {
                                     );
                                 })}
 
+                                {filteredPecas.length === 0 && lotePecas.length > 0 && (
+                                    <div style={{
+                                        textAlign: 'center', padding: '30px 20px',
+                                        color: 'var(--text-muted)', fontSize: 13,
+                                    }}>
+                                        Nenhuma peca encontrada com esses filtros.
+                                    </div>
+                                )}
+
                                 {lotePecas.length === 0 && (
                                     <div style={{
                                         textAlign: 'center', padding: '40px 20px',
                                         color: 'var(--text-muted)', fontSize: 13,
                                     }}>
-                                        Nenhuma peça encontrada neste lote.
+                                        Nenhuma peca encontrada neste lote.
                                     </div>
                                 )}
                             </div>
@@ -1081,9 +1391,7 @@ export default function Expedicao() {
                 </div>
             </div>
 
-            {/* ╔══════════════════════════════════════════════════════╗
-                ║               CELEBRATION OVERLAY                   ║
-                ╚══════════════════════════════════════════════════════╝ */}
+            {/* ═══ CELEBRATION OVERLAY ═══ */}
             {celebrating && (
                 <div style={{
                     position: 'fixed', inset: 0, zIndex: 200,
@@ -1107,7 +1415,7 @@ export default function Expedicao() {
                             Lote Completo!
                         </div>
                         <div style={{ fontSize: 16, color: 'var(--text-secondary)', marginBottom: 28 }}>
-                            Todas as {lotePecas.length} peças de "{loteInfo?.nome || 'lote'}" foram expedidas.
+                            Todas as {lotePecas.length} pecas de "{loteInfo?.nome || 'lote'}" foram expedidas.
                         </div>
                         <button
                             onClick={() => setCelebrating(false)}
@@ -1125,7 +1433,7 @@ export default function Expedicao() {
                 </div>
             )}
 
-            {/* ── Global Styles ────────────────────────────────────────── */}
+            {/* ── Global Styles ── */}
             <style>{`
                 @keyframes spin {
                     to { transform: rotate(360deg); }

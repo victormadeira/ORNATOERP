@@ -1487,11 +1487,14 @@ const migrations = [
     operador TEXT,
     estacao TEXT,
     observacao TEXT,
+    metodo TEXT DEFAULT 'scan',
     escaneado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (peca_id) REFERENCES cnc_pecas(id),
     FOREIGN KEY (lote_id) REFERENCES cnc_lotes(id),
     FOREIGN KEY (checkpoint_id) REFERENCES cnc_expedicao_checkpoints(id)
   )`,
+  // ═══ Expedicao: campo metodo (scan/manual) ═══
+  "ALTER TABLE cnc_expedicao_scans ADD COLUMN metodo TEXT DEFAULT 'scan'",
   // ═══ CNC Peças: cor da fita de borda por face ═══
   "ALTER TABLE cnc_pecas ADD COLUMN borda_cor_frontal TEXT",
   "ALTER TABLE cnc_pecas ADD COLUMN borda_cor_traseira TEXT",

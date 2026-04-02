@@ -4685,10 +4685,11 @@ router.post('/expedicao/scan', requireAuth, (req, res) => {
         const checkpoint = db.prepare('SELECT * FROM cnc_expedicao_checkpoints WHERE id = ?').get(checkpoint_id);
         if (!checkpoint) return res.status(404).json({ error: 'Checkpoint não encontrado' });
 
-        const r = db.prepare(`INSERT INTO cnc_expedicao_scans (peca_id, lote_id, checkpoint_id, operador, estacao, observacao)
-            VALUES (?, ?, ?, ?, ?, ?)`).run(
+        const metodo = req.body.metodo || 'scan';
+        const r = db.prepare(`INSERT INTO cnc_expedicao_scans (peca_id, lote_id, checkpoint_id, operador, estacao, observacao, metodo)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
             peca.id, peca.lote_id, checkpoint_id,
-            operador || null, estacao || null, observacao || null
+            operador || null, estacao || null, observacao || null, metodo
         );
 
         const scan = db.prepare('SELECT * FROM cnc_expedicao_scans WHERE id = ?').get(r.lastInsertRowid);
@@ -4746,6 +4747,89 @@ router.get('/expedicao/lote/:loteId/progresso', requireAuth, (req, res) => {
         res.json({ total_pecas: totalPecas, checkpoints: checkpointsComProgresso });
     } catch (err) {
         console.error('Erro ao buscar progresso expedição:', err);
+        res.status(500).json({ error: err.message || 'Erro interno' });
+    }
+});
+
+// ── Bulk manual mark — marca várias peças de uma vez ────────────────────
+router.post('/expedicao/scan-bulk', requireAuth, (req, res) => {
+    try {
+        const { peca_ids, checkpoint_id, operador, observacao, metodo } = req.body;
+
+        if (!checkpoint_id) return res.status(400).json({ error: 'checkpoint_id é obrigatório' });
+        if (!Array.isArray(peca_ids) || peca_ids.length === 0) {
+            return res.status(400).json({ error: 'peca_ids deve ser um array não vazio' });
+        }
+
+        const checkpoint = db.prepare('SELECT * FROM cnc_expedicao_checkpoints WHERE id = ?').get(checkpoint_id);
+        if (!checkpoint) return res.status(404).json({ error: 'Checkpoint não encontrado' });
+
+        const insertStmt = db.prepare(`INSERT INTO cnc_expedicao_scans (peca_id, lote_id, checkpoint_id, operador, estacao, observacao, metodo)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`);
+
+        const results = [];
+        const skipped = [];
+        const met = metodo || 'manual';
+
+        const runBulk = db.transaction(() => {
+            for (const pecaId of peca_ids) {
+                const peca = db.prepare('SELECT * FROM cnc_pecas WHERE id = ?').get(pecaId);
+                if (!peca) { skipped.push({ id: pecaId, reason: 'não encontrada' }); continue; }
+
+                // Skip if already scanned at this checkpoint
+                const existing = db.prepare(
+                    'SELECT id FROM cnc_expedicao_scans WHERE peca_id = ? AND checkpoint_id = ?'
+                ).get(pecaId, checkpoint_id);
+                if (existing) { skipped.push({ id: pecaId, reason: 'já registrada' }); continue; }
+
+                const r = insertStmt.run(peca.id, peca.lote_id, checkpoint_id, operador || null, null, observacao || null, met);
+                results.push({ id: r.lastInsertRowid, peca_id: peca.id });
+            }
+        });
+        runBulk();
+
+        res.json({ ok: true, registrados: results.length, skipped, scans: results });
+    } catch (err) {
+        console.error('Erro ao registrar scan bulk:', err);
+        res.status(500).json({ error: err.message || 'Erro ao registrar scan em lote' });
+    }
+});
+
+// ── Status endpoint (used by frontend) ──────────────────────────────────
+router.get('/expedicao/status/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        const checkpoints = db.prepare('SELECT * FROM cnc_expedicao_checkpoints WHERE ativo = 1 ORDER BY ordem ASC, id ASC').all();
+        const totalPecas = db.prepare('SELECT COUNT(*) as c FROM cnc_pecas WHERE lote_id = ?').get(lote.id).c;
+        const allScans = db.prepare('SELECT * FROM cnc_expedicao_scans WHERE lote_id = ? ORDER BY escaneado_em DESC').all(lote.id);
+
+        const progress = {};
+        for (const cp of checkpoints) {
+            const escaneadas = db.prepare(
+                'SELECT COUNT(DISTINCT peca_id) as c FROM cnc_expedicao_scans WHERE lote_id = ? AND checkpoint_id = ?'
+            ).get(lote.id, cp.id).c;
+            progress[cp.id] = { scanned: escaneadas, total: totalPecas };
+        }
+
+        // Return scans with peca info for the scan log
+        const scans = allScans.map(s => {
+            const peca = db.prepare('SELECT id, descricao, upmcode FROM cnc_pecas WHERE id = ?').get(s.peca_id);
+            const cp = checkpoints.find(c => c.id === s.checkpoint_id);
+            return {
+                peca_id: s.peca_id,
+                codigo: peca?.upmcode || String(s.peca_id),
+                descricao: peca?.descricao || '',
+                timestamp: s.escaneado_em,
+                checkpoint: cp?.nome || '',
+                metodo: s.metodo || 'scan',
+            };
+        });
+
+        res.json({ progress, scans });
+    } catch (err) {
+        console.error('Erro ao buscar status expedição:', err);
         res.status(500).json({ error: err.message || 'Erro interno' });
     }
 });
