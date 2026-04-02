@@ -21,7 +21,7 @@ git pull origin main
 
 # 2. Instalar dependencias Node
 echo "[2/5] npm install..."
-npm install --production
+npm install
 
 # 3. Instalar dependencias Python
 echo "[3/5] pip install..."
@@ -31,7 +31,7 @@ cd "$APP_DIR"
 
 # 4. Build frontend
 echo "[4/5] Build frontend..."
-npm run build
+npx vite build
 
 # 5. Garantir diretorio de logs
 mkdir -p "$LOG_DIR"
