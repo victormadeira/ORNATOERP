@@ -1334,12 +1334,12 @@ export default function Expedicao() {
                                                                 : isSelected
                                                                     ? 'rgba(245,158,11,0.08)'
                                                                     : isScanned
-                                                                        ? 'rgba(34,197,94,0.04)'
+                                                                        ? 'rgba(34,197,94,0.10)'
                                                                         : 'var(--bg-muted)',
                                                             border: `1px solid ${
                                                                 isLastScanned ? 'rgba(34,197,94,0.3)'
                                                                 : isSelected ? 'rgba(245,158,11,0.35)'
-                                                                : isScanned ? 'rgba(34,197,94,0.12)'
+                                                                : isScanned ? 'rgba(34,197,94,0.20)'
                                                                 : 'var(--border)'
                                                             }`,
                                                             transition: 'all .2s ease',
@@ -1365,7 +1365,7 @@ export default function Expedicao() {
                                                             <div style={{
                                                                 fontSize: 12,
                                                                 fontWeight: isScanned ? 600 : 400,
-                                                                color: isScanned ? '#d1fae5' : 'var(--text-primary)',
+                                                                color: isScanned ? '#22c55e' : 'var(--text-primary)',
                                                                 overflow: 'hidden',
                                                                 textOverflow: 'ellipsis',
                                                                 whiteSpace: 'nowrap',

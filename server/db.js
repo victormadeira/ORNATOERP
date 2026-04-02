@@ -1495,6 +1495,15 @@ const migrations = [
   )`,
   // ═══ Expedicao: campo metodo (scan/manual) ═══
   "ALTER TABLE cnc_expedicao_scans ADD COLUMN metodo TEXT DEFAULT 'scan'",
+  // ═══ Expedicao: Volumes / Pacotes ═══
+  `CREATE TABLE IF NOT EXISTS cnc_expedicao_volumes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lote_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    nome TEXT NOT NULL,
+    peca_ids TEXT NOT NULL,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
   // ═══ CNC Peças: cor da fita de borda por face ═══
   "ALTER TABLE cnc_pecas ADD COLUMN borda_cor_frontal TEXT",
   "ALTER TABLE cnc_pecas ADD COLUMN borda_cor_traseira TEXT",
@@ -1630,6 +1639,15 @@ const migrations = [
     UNIQUE(lote_id, chapa_idx)
   )`,
   "ALTER TABLE cnc_lotes ADD COLUMN modo_multi_maquina INTEGER DEFAULT 0",
+  `CREATE TABLE IF NOT EXISTS cnc_expedicao_fotos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lote_id INTEGER NOT NULL,
+    volume_id INTEGER,
+    user_id INTEGER NOT NULL,
+    filename TEXT NOT NULL,
+    descricao TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

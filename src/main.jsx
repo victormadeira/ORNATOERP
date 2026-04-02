@@ -11,6 +11,7 @@ import PropostaApresentacao from './pages/PropostaApresentacao';
 import AssinaturaPublic from './pages/AssinaturaPublic';
 import VerificacaoAssinatura from './pages/VerificacaoAssinatura';
 import ScanPeca3D from './pages/ScanPeca3D';
+import ProducaoCNCTV from './pages/ProducaoCNCTV';
 
 // Detectar acesso público via query params OU path
 const params = new URLSearchParams(window.location.search);
@@ -56,9 +57,14 @@ const pecaPublicId = (path.match(/^\/p\/(\d+)$/i) || [])[1] || null;
 // Landing page pública: /contato, /landing ou /landingpage
 const isLanding = ['/contato', '/landing', '/landingpage', '/landingpage/'].includes(path);
 
+// TV Corte CNC: /tv-corte
+const isTVCorte = path === '/tv-corte' || path === '/tv-corte/';
+
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
-        {pecaPublicId ? (
+        {isTVCorte ? (
+            <ProducaoCNCTV />
+        ) : pecaPublicId ? (
             <ScanPeca3D codigo={pecaPublicId} />
         ) : (scanCodigo || isScanPage) ? (
             <ScanPeca3D codigo={scanCodigo} />

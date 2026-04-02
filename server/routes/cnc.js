@@ -1,4 +1,8 @@
 import { Router } from 'express';
+import multer from 'multer';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { existsSync, mkdirSync, unlinkSync } from 'fs';
 import db from '../db.js';
 import { requireAuth } from '../auth.js';
 import {
@@ -16,6 +20,13 @@ import { seedTestData } from '../utils/seedTestData.js';
 import { seedTestCabinet } from '../utils/seedTestCabinet.js';
 
 const router = Router();
+
+// ─── Helper: notificação CNC ────────────────────────────────────────
+function notifyCNC(db, userId, tipo, titulo, mensagem, refId, refTipo) {
+    try {
+        db.prepare(`INSERT INTO notificacoes (tipo, titulo, mensagem, referencia_id, referencia_tipo, criado_por) VALUES (?,?,?,?,?,?)`).run(tipo, titulo, mensagem, refId, refTipo, userId);
+    } catch (_) {}
+}
 
 // ─── Gerar cortes de separação para retalhos (pós-processamento) ───
 // Para cada retalho, verifica se existe um corte horizontal ou vertical
@@ -1017,6 +1028,8 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
 
                 db.prepare(`UPDATE cnc_lotes SET status = 'otimizado', total_chapas = ?, aproveitamento = ?, plano_json = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?`)
                     .run(totalChapas, aprovMedio, JSON.stringify(plano), lote.id);
+
+                notifyCNC(db, req.user.id, 'cnc_otimizado', 'Plano otimizado', `Lote ${lote.id} otimizado: ${totalChapas} chapas, ${aprovMedio}% aproveitamento`, lote.id, 'cnc_lote');
 
                 return res.json({
                     ok: true,
@@ -4896,6 +4909,18 @@ router.post('/expedicao/marcar-chapa', requireAuth, (req, res) => {
         });
         runBulk();
 
+        // Notificação: chapa cortada
+        if (registered > 0) {
+            notifyCNC(db, req.user.id, 'cnc_chapa_cortada', 'Chapa cortada', `Chapa ${chapa_idx + 1} cortada — ${registered} peças registradas`, lote_id, 'cnc_lote');
+
+            // Verificar se TODAS as peças do lote já foram cortadas
+            const totalPecas = db.prepare('SELECT COUNT(*) as cnt FROM cnc_pecas WHERE lote_id = ?').get(lote_id).cnt;
+            const cortadas = db.prepare('SELECT COUNT(DISTINCT peca_id) as cnt FROM cnc_expedicao_scans WHERE lote_id = ? AND checkpoint_id = ?').get(lote_id, checkpoint.id).cnt;
+            if (cortadas >= totalPecas) {
+                notifyCNC(db, req.user.id, 'cnc_lote_completo', 'Lote completo', `Todas as ${totalPecas} peças do lote ${lote_id} foram cortadas`, lote_id, 'cnc_lote');
+            }
+        }
+
         res.json({ ok: true, registrados: registered, skipped, checkpoint_id: checkpoint.id });
     } catch (err) {
         console.error('Erro ao marcar chapa:', err);
@@ -6120,6 +6145,926 @@ router.get('/plugin/ping', (req, res) => {
         ts: new Date().toISOString(),
         features: ['import', 'status', 'custos', 'alertas', 'etiquetas', 'csv', 'gcode'],
     });
+});
+
+// ═══════════════════════════════════════════════════════
+// RELATÓRIO DE DESPERDÍCIO — por lote
+// ═══════════════════════════════════════════════════════
+
+router.get('/relatorio-desperdicio/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        if (!lote.plano_json) return res.status(400).json({ error: 'Lote sem plano de corte' });
+
+        let plano;
+        try { plano = JSON.parse(lote.plano_json); } catch { return res.status(400).json({ error: 'Plano inválido' }); }
+
+        const chapas = plano.chapas || [];
+        if (chapas.length === 0) return res.json({ por_material: [], resumo: { total_chapas: 0, total_pecas: 0, aproveitamento_medio: 0, custo_total: 0, custo_desperdicio_total: 0 } });
+
+        // Agrupar por material_code
+        const matMap = {};
+        let totalPecas = 0;
+
+        for (const ch of chapas) {
+            const code = ch.material_code || ch.material || 'DESCONHECIDO';
+            const nome = ch.material || ch.material_code || 'Desconhecido';
+            if (!matMap[code]) {
+                matMap[code] = {
+                    material_code: code,
+                    material: nome,
+                    chapas_usadas: 0,
+                    area_total_chapas: 0,
+                    area_pecas: 0,
+                    area_sobras_aproveitaveis: 0,
+                    area_desperdicio: 0,
+                    sum_aproveitamento: 0,
+                    count_aproveitamento: 0,
+                    custo_material: 0,
+                };
+            }
+            const m = matMap[code];
+            m.chapas_usadas++;
+
+            const areaChapa = (ch.comprimento || 0) * (ch.largura || 0);
+            m.area_total_chapas += areaChapa;
+
+            // Somar área das peças
+            const pecas = ch.pecas || [];
+            let areaPecas = 0;
+            for (const p of pecas) {
+                areaPecas += (p.w || 0) * (p.h || 0);
+                totalPecas++;
+            }
+            m.area_pecas += areaPecas;
+
+            // Somar área de sobras/retalhos aproveitáveis
+            const retalhos = ch.retalhos || [];
+            let areaSobras = 0;
+            for (const r of retalhos) {
+                areaSobras += (r.w || 0) * (r.h || 0);
+            }
+            m.area_sobras_aproveitaveis += areaSobras;
+
+            // Aproveitamento da chapa (já calculado no plano)
+            if (ch.aproveitamento > 0) {
+                m.sum_aproveitamento += ch.aproveitamento;
+                m.count_aproveitamento++;
+            }
+
+            // Custo
+            m.custo_material += (ch.preco || 0);
+        }
+
+        // Montar resultado por material
+        const porMaterial = Object.values(matMap).map(m => {
+            const desperdicio = Math.max(0, m.area_total_chapas - m.area_pecas - m.area_sobras_aproveitaveis);
+            const aprovPct = m.count_aproveitamento > 0
+                ? Math.round(m.sum_aproveitamento / m.count_aproveitamento * 10) / 10
+                : (m.area_total_chapas > 0 ? Math.round(m.area_pecas / m.area_total_chapas * 1000) / 10 : 0);
+            const custoDesperdicio = m.area_total_chapas > 0
+                ? Math.round(m.custo_material * (desperdicio / m.area_total_chapas) * 100) / 100
+                : 0;
+
+            return {
+                material_code: m.material_code,
+                material: m.material,
+                chapas_usadas: m.chapas_usadas,
+                area_total_chapas: Math.round(m.area_total_chapas),
+                area_pecas: Math.round(m.area_pecas),
+                area_sobras_aproveitaveis: Math.round(m.area_sobras_aproveitaveis),
+                area_desperdicio: Math.round(desperdicio),
+                aproveitamento_pct: aprovPct,
+                custo_material: Math.round(m.custo_material * 100) / 100,
+                custo_desperdicio: custoDesperdicio,
+            };
+        });
+
+        // Resumo geral
+        const totalChapas = porMaterial.reduce((s, m) => s + m.chapas_usadas, 0);
+        const custoTotal = porMaterial.reduce((s, m) => s + m.custo_material, 0);
+        const custoDesperdicioTotal = porMaterial.reduce((s, m) => s + m.custo_desperdicio, 0);
+        const sumAprov = porMaterial.reduce((s, m) => s + m.aproveitamento_pct * m.chapas_usadas, 0);
+        const aprovMedio = totalChapas > 0 ? Math.round(sumAprov / totalChapas * 10) / 10 : 0;
+
+        res.json({
+            por_material: porMaterial,
+            resumo: {
+                total_chapas: totalChapas,
+                total_pecas: totalPecas,
+                aproveitamento_medio: aprovMedio,
+                custo_total: Math.round(custoTotal * 100) / 100,
+                custo_desperdicio_total: Math.round(custoDesperdicioTotal * 100) / 100,
+            },
+        });
+    } catch (err) {
+        console.error('Erro relatório desperdício:', err);
+        res.status(500).json({ error: 'Erro ao gerar relatório de desperdício' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// RELATÓRIO DE DESPERDÍCIO — histórico (todos os lotes)
+// ═══════════════════════════════════════════════════════
+
+router.get('/relatorio-desperdicio-historico', requireAuth, (req, res) => {
+    try {
+        const lotes = db.prepare(`
+            SELECT id, nome, cliente, projeto, criado_em, plano_json, aproveitamento
+            FROM cnc_lotes
+            WHERE user_id = ? AND plano_json IS NOT NULL AND plano_json != ''
+            ORDER BY criado_em DESC
+        `).all(req.user.id);
+
+        const matMap = {};
+        let totalLotes = 0;
+
+        for (const l of lotes) {
+            let plano;
+            try { plano = JSON.parse(l.plano_json); } catch { continue; }
+            const chapas = plano.chapas || [];
+            if (chapas.length === 0) continue;
+            totalLotes++;
+
+            for (const ch of chapas) {
+                const code = ch.material_code || ch.material || 'DESCONHECIDO';
+                const nome = ch.material || ch.material_code || 'Desconhecido';
+                if (!matMap[code]) {
+                    matMap[code] = {
+                        material_code: code,
+                        material: nome,
+                        chapas_usadas: 0,
+                        area_total_chapas: 0,
+                        area_pecas: 0,
+                        area_sobras_aproveitaveis: 0,
+                        area_desperdicio: 0,
+                        sum_aproveitamento: 0,
+                        count_aproveitamento: 0,
+                        custo_material: 0,
+                        total_pecas: 0,
+                        lotes_count: new Set(),
+                    };
+                }
+                const m = matMap[code];
+                m.chapas_usadas++;
+                m.lotes_count.add(l.id);
+
+                const areaChapa = (ch.comprimento || 0) * (ch.largura || 0);
+                m.area_total_chapas += areaChapa;
+
+                const pecas = ch.pecas || [];
+                let areaPecas = 0;
+                for (const p of pecas) {
+                    areaPecas += (p.w || 0) * (p.h || 0);
+                    m.total_pecas++;
+                }
+                m.area_pecas += areaPecas;
+
+                const retalhos = ch.retalhos || [];
+                let areaSobras = 0;
+                for (const r of retalhos) {
+                    areaSobras += (r.w || 0) * (r.h || 0);
+                }
+                m.area_sobras_aproveitaveis += areaSobras;
+
+                if (ch.aproveitamento > 0) {
+                    m.sum_aproveitamento += ch.aproveitamento;
+                    m.count_aproveitamento++;
+                }
+                m.custo_material += (ch.preco || 0);
+            }
+        }
+
+        const porMaterial = Object.values(matMap).map(m => {
+            const desperdicio = Math.max(0, m.area_total_chapas - m.area_pecas - m.area_sobras_aproveitaveis);
+            const aprovPct = m.count_aproveitamento > 0
+                ? Math.round(m.sum_aproveitamento / m.count_aproveitamento * 10) / 10
+                : (m.area_total_chapas > 0 ? Math.round(m.area_pecas / m.area_total_chapas * 1000) / 10 : 0);
+            const custoDesperdicio = m.area_total_chapas > 0
+                ? Math.round(m.custo_material * (desperdicio / m.area_total_chapas) * 100) / 100
+                : 0;
+
+            return {
+                material_code: m.material_code,
+                material: m.material,
+                lotes_usados: m.lotes_count.size,
+                chapas_usadas: m.chapas_usadas,
+                total_pecas: m.total_pecas,
+                area_total_chapas: Math.round(m.area_total_chapas),
+                area_pecas: Math.round(m.area_pecas),
+                area_sobras_aproveitaveis: Math.round(m.area_sobras_aproveitaveis),
+                area_desperdicio: Math.round(desperdicio),
+                aproveitamento_pct: aprovPct,
+                custo_material: Math.round(m.custo_material * 100) / 100,
+                custo_desperdicio: custoDesperdicio,
+            };
+        });
+
+        porMaterial.sort((a, b) => b.chapas_usadas - a.chapas_usadas);
+
+        const totalChapas = porMaterial.reduce((s, m) => s + m.chapas_usadas, 0);
+        const totalPecas = porMaterial.reduce((s, m) => s + m.total_pecas, 0);
+        const custoTotal = porMaterial.reduce((s, m) => s + m.custo_material, 0);
+        const custoDesperdicioTotal = porMaterial.reduce((s, m) => s + m.custo_desperdicio, 0);
+        const sumAprov = porMaterial.reduce((s, m) => s + m.aproveitamento_pct * m.chapas_usadas, 0);
+        const aprovMedio = totalChapas > 0 ? Math.round(sumAprov / totalChapas * 10) / 10 : 0;
+
+        res.json({
+            por_material: porMaterial,
+            resumo: {
+                total_lotes: totalLotes,
+                total_chapas: totalChapas,
+                total_pecas: totalPecas,
+                aproveitamento_medio: aprovMedio,
+                custo_total: Math.round(custoTotal * 100) / 100,
+                custo_desperdicio_total: Math.round(custoDesperdicioTotal * 100) / 100,
+            },
+        });
+    } catch (err) {
+        console.error('Erro relatório desperdício histórico:', err);
+        res.status(500).json({ error: 'Erro ao gerar relatório histórico de desperdício' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// Validar usinagens (conflitos, sobreposições, bordas)
+// ═══════════════════════════════════════════════════════
+router.post('/validar-usinagens/:pecaId', requireAuth, (req, res) => {
+    try {
+        const peca = db.prepare(
+            'SELECT p.* FROM cnc_pecas p JOIN cnc_lotes l ON p.lote_id = l.id WHERE p.id = ? AND l.user_id = ?'
+        ).get(req.params.pecaId, req.user.id);
+        if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
+
+        let mach = {};
+        try { mach = peca.machining_json ? JSON.parse(peca.machining_json) : {}; } catch (_) {}
+
+        // Collect all workers
+        const workers = [];
+        if (mach.workers) {
+            const wArr = Array.isArray(mach.workers) ? mach.workers : Object.values(mach.workers);
+            for (const r of wArr) { if (r && typeof r === 'object') workers.push(r); }
+        }
+        for (const side of ['side_a', 'side_b']) {
+            const sd = mach[side];
+            if (!sd) continue;
+            const sArr = Array.isArray(sd) ? sd : Object.values(sd);
+            for (const r of sArr) { if (r && typeof r === 'object') workers.push(r); }
+        }
+
+        const comp = peca.comprimento || 0;
+        const larg = peca.largura || 0;
+        const esp = peca.espessura || 18;
+        const EDGE_MIN = 3; // mm
+
+        const warnings = [];
+
+        for (let i = 0; i < workers.length; i++) {
+            const w = workers[i];
+            const tipo = (w.type || w.category || '').toLowerCase();
+            const isHole = tipo.includes('hole');
+            const wx = w.x || 0;
+            const wy = w.y || 0;
+            const wDepth = w.depth || 0;
+            const wDiam = w.diameter || 0;
+            const face = (w.face || 'top').toLowerCase();
+            const isFaceTop = face === 'top' || face === 'side_a' || face === 'bottom' || face === 'side_b';
+
+            // 1. Missing diameter on holes
+            if (isHole && !wDiam) {
+                warnings.push({
+                    type: 'missing_diameter',
+                    severity: 'error',
+                    msg: `Furo ${i + 1}: diâmetro não definido`,
+                    workers: [i],
+                });
+            }
+
+            // 2. Depth exceeds thickness
+            if (wDepth > esp) {
+                warnings.push({
+                    type: 'depth_exceeded',
+                    severity: 'error',
+                    msg: `Furo ${i + 1}: profundidade ${wDepth}mm > espessura ${esp}mm`,
+                    workers: [i],
+                });
+            }
+
+            // 3. Edge proximity (only for top/bottom faces where x,y relate to comp/larg)
+            if (isFaceTop) {
+                const minX = wx - wDiam / 2;
+                const maxX = wx + wDiam / 2;
+                const minY = wy - wDiam / 2;
+                const maxY = wy + wDiam / 2;
+
+                if (minX < EDGE_MIN || minY < EDGE_MIN || (comp > 0 && maxX > comp - EDGE_MIN) || (larg > 0 && maxY > larg - EDGE_MIN)) {
+                    const edgeDist = Math.min(
+                        minX,
+                        minY,
+                        comp > 0 ? comp - maxX : Infinity,
+                        larg > 0 ? larg - maxY : Infinity,
+                    );
+                    warnings.push({
+                        type: 'edge_proximity',
+                        severity: 'warning',
+                        msg: `Furo ${i + 1} a ${Math.max(0, Math.round(edgeDist * 10) / 10)}mm da borda (mínimo ${EDGE_MIN}mm)`,
+                        workers: [i],
+                    });
+                }
+            }
+
+            // 4. Overlapping holes & 5. Duplicate positions
+            for (let j = i + 1; j < workers.length; j++) {
+                const w2 = workers[j];
+                const tipo2 = (w2.type || w2.category || '').toLowerCase();
+                const face2 = (w2.face || 'top').toLowerCase();
+                if (face !== face2) continue; // different faces don't conflict
+
+                const w2x = w2.x || 0;
+                const w2y = w2.y || 0;
+                const dist = Math.sqrt((wx - w2x) ** 2 + (wy - w2y) ** 2);
+
+                // Duplicate positions
+                if (dist < 0.01) {
+                    warnings.push({
+                        type: 'duplicate_position',
+                        severity: 'warning',
+                        msg: `Furos ${i + 1} e ${j + 1} na mesma posição (${wx}, ${wy})`,
+                        workers: [i, j],
+                    });
+                }
+
+                // Overlapping holes
+                if (isHole && tipo2.includes('hole') && wDiam > 0 && (w2.diameter || 0) > 0) {
+                    const minDist = wDiam / 2 + (w2.diameter || 0) / 2;
+                    if (dist < minDist) {
+                        warnings.push({
+                            type: 'overlap',
+                            severity: 'error',
+                            msg: `Furos ${i + 1} e ${j + 1} sobrepostos (distância ${Math.round(dist * 10) / 10}mm, mínimo ${Math.round(minDist * 10) / 10}mm)`,
+                            workers: [i, j],
+                        });
+                    }
+                }
+            }
+        }
+
+        res.json({ ok: true, warnings, total_workers: workers.length });
+    } catch (err) {
+        console.error('Erro ao validar usinagens:', err);
+        res.status(500).json({ error: 'Erro ao validar usinagens' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// Espelhar usinagens de uma peça para outra
+// ═══════════════════════════════════════════════════════
+router.post('/espelhar-usinagens', requireAuth, (req, res) => {
+    try {
+        const { peca_origem_id, peca_destino_id, eixo, merge } = req.body;
+        if (!peca_origem_id || !peca_destino_id || !eixo) {
+            return res.status(400).json({ error: 'Campos obrigatórios: peca_origem_id, peca_destino_id, eixo (x ou y)' });
+        }
+        if (eixo !== 'x' && eixo !== 'y') {
+            return res.status(400).json({ error: 'Eixo deve ser "x" ou "y"' });
+        }
+
+        const pecaOrigem = db.prepare(
+            'SELECT p.* FROM cnc_pecas p JOIN cnc_lotes l ON p.lote_id = l.id WHERE p.id = ? AND l.user_id = ?'
+        ).get(peca_origem_id, req.user.id);
+        if (!pecaOrigem) return res.status(404).json({ error: 'Peça de origem não encontrada' });
+
+        const pecaDestino = db.prepare(
+            'SELECT p.* FROM cnc_pecas p JOIN cnc_lotes l ON p.lote_id = l.id WHERE p.id = ? AND l.user_id = ?'
+        ).get(peca_destino_id, req.user.id);
+        if (!pecaDestino) return res.status(404).json({ error: 'Peça de destino não encontrada' });
+
+        let machOrigem = {};
+        try { machOrigem = pecaOrigem.machining_json ? JSON.parse(pecaOrigem.machining_json) : {}; } catch (_) {}
+
+        const comp = pecaDestino.comprimento || pecaOrigem.comprimento || 0;
+        const larg = pecaDestino.largura || pecaOrigem.largura || 0;
+
+        // Face swap map for mirroring side holes
+        const faceSwapX = { left: 'right', right: 'left' };
+        const faceSwapY = { front: 'back', back: 'front' };
+
+        function mirrorWorker(w) {
+            const mirrored = { ...w };
+            const face = (w.face || 'top').toLowerCase();
+
+            if (eixo === 'x') {
+                // Mirror along length: flip Y coordinates
+                mirrored.y = larg - (w.y || 0);
+                if (w.y2 != null) mirrored.y2 = larg - w.y2;
+                // Swap left/right faces
+                if (faceSwapX[face]) mirrored.face = faceSwapX[face];
+                // Mirror vertices if present
+                if (w.vertices) {
+                    mirrored.vertices = w.vertices.map(v =>
+                        Array.isArray(v) ? [v[0], larg - v[1]] : { ...v, y: larg - (v.y || 0) }
+                    );
+                }
+            } else {
+                // Mirror along width: flip X coordinates
+                mirrored.x = comp - (w.x || 0);
+                if (w.x2 != null) mirrored.x2 = comp - w.x2;
+                // Swap front/back faces
+                if (faceSwapY[face]) mirrored.face = faceSwapY[face];
+                // Mirror vertices if present
+                if (w.vertices) {
+                    mirrored.vertices = w.vertices.map(v =>
+                        Array.isArray(v) ? [comp - v[0], v[1]] : { ...v, x: comp - (v.x || 0) }
+                    );
+                }
+            }
+            return mirrored;
+        }
+
+        // Mirror all worker sections
+        const newMach = { ...machOrigem };
+
+        // Mirror main workers
+        if (machOrigem.workers) {
+            const wArr = Array.isArray(machOrigem.workers) ? machOrigem.workers : Object.values(machOrigem.workers);
+            newMach.workers = wArr.map(w => (w && typeof w === 'object') ? mirrorWorker(w) : w);
+        }
+
+        // Mirror side_a / side_b
+        for (const side of ['side_a', 'side_b']) {
+            if (machOrigem[side]) {
+                const sArr = Array.isArray(machOrigem[side]) ? machOrigem[side] : Object.values(machOrigem[side]);
+                newMach[side] = sArr.map(w => (w && typeof w === 'object') ? mirrorWorker(w) : w);
+            }
+        }
+
+        // Merge with existing or replace
+        let finalMach;
+        if (merge) {
+            let existingMach = {};
+            try { existingMach = pecaDestino.machining_json ? JSON.parse(pecaDestino.machining_json) : {}; } catch (_) {}
+            const existingWorkers = existingMach.workers ? (Array.isArray(existingMach.workers) ? existingMach.workers : Object.values(existingMach.workers)) : [];
+            const newWorkers = newMach.workers || [];
+            finalMach = { ...existingMach, ...newMach, workers: [...existingWorkers, ...newWorkers] };
+            // Merge side arrays too
+            for (const side of ['side_a', 'side_b']) {
+                if (newMach[side] || existingMach[side]) {
+                    const eArr = existingMach[side] ? (Array.isArray(existingMach[side]) ? existingMach[side] : Object.values(existingMach[side])) : [];
+                    const nArr = newMach[side] || [];
+                    finalMach[side] = [...eArr, ...nArr];
+                }
+            }
+        } else {
+            finalMach = newMach;
+        }
+
+        const machiningJson = JSON.stringify(finalMach);
+        db.prepare('UPDATE cnc_pecas SET machining_json = ? WHERE id = ?').run(machiningJson, pecaDestino.id);
+
+        res.json({ ok: true, machining_json: finalMach });
+    } catch (err) {
+        console.error('Erro ao espelhar usinagens:', err);
+        res.status(500).json({ error: 'Erro ao espelhar usinagens' });
+    }
+});
+
+// ─── Expedição: Checklist de Entrega por Módulo ────────────────────
+router.get('/expedicao/checklist/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        // Find the checkpoint to check scans against (prefer 'Expedição', else highest id)
+        let checkpoint = db.prepare("SELECT * FROM cnc_expedicao_checkpoints WHERE nome = 'Expedição' AND ativo = 1 LIMIT 1").get();
+        if (!checkpoint) {
+            checkpoint = db.prepare('SELECT * FROM cnc_expedicao_checkpoints WHERE ativo = 1 ORDER BY id DESC LIMIT 1').get();
+        }
+
+        const pecas = db.prepare('SELECT id, descricao, comprimento, largura, modulo_desc, modulo_id FROM cnc_pecas WHERE lote_id = ?').all(lote.id);
+
+        // Get all scans for this checkpoint+lote
+        const scannedSet = new Set();
+        if (checkpoint) {
+            const scans = db.prepare('SELECT DISTINCT peca_id FROM cnc_expedicao_scans WHERE lote_id = ? AND checkpoint_id = ?').all(lote.id, checkpoint.id);
+            for (const s of scans) scannedSet.add(s.peca_id);
+        }
+
+        // Group by modulo_desc
+        const moduloMap = {};
+        for (const p of pecas) {
+            const key = p.modulo_desc || 'Sem módulo';
+            if (!moduloMap[key]) {
+                moduloMap[key] = {
+                    modulo_desc: key,
+                    modulo_id: p.modulo_id || 0,
+                    total_pecas: 0,
+                    pecas_escaneadas: 0,
+                    completo: false,
+                    pecas: [],
+                };
+            }
+            const escaneada = scannedSet.has(p.id);
+            moduloMap[key].pecas.push({
+                id: p.id,
+                descricao: p.descricao,
+                comprimento: p.comprimento,
+                largura: p.largura,
+                escaneada,
+            });
+            moduloMap[key].total_pecas++;
+            if (escaneada) moduloMap[key].pecas_escaneadas++;
+        }
+
+        const modulos = Object.values(moduloMap);
+        let totalPecas = 0, totalEscaneadas = 0, modulosCompletos = 0;
+        for (const m of modulos) {
+            m.completo = m.total_pecas > 0 && m.pecas_escaneadas === m.total_pecas;
+            totalPecas += m.total_pecas;
+            totalEscaneadas += m.pecas_escaneadas;
+            if (m.completo) modulosCompletos++;
+        }
+
+        res.json({
+            modulos,
+            resumo: {
+                total_modulos: modulos.length,
+                modulos_completos: modulosCompletos,
+                total_pecas: totalPecas,
+                pecas_escaneadas: totalEscaneadas,
+                progresso_pct: totalPecas > 0 ? Math.round((totalEscaneadas / totalPecas) * 1000) / 10 : 0,
+            },
+        });
+    } catch (err) {
+        console.error('Erro checklist expedição:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── Expedição: Volumes / Pacotes ──────────────────────────────────
+router.post('/expedicao/volumes', requireAuth, (req, res) => {
+    try {
+        const { lote_id, volumes } = req.body;
+        if (!lote_id || !Array.isArray(volumes) || volumes.length === 0) {
+            return res.status(400).json({ error: 'lote_id e volumes são obrigatórios' });
+        }
+
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(lote_id, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        const insertStmt = db.prepare('INSERT INTO cnc_expedicao_volumes (lote_id, user_id, nome, peca_ids) VALUES (?, ?, ?, ?)');
+        const created = [];
+
+        const runBulk = db.transaction(() => {
+            for (const vol of volumes) {
+                if (!vol.nome || !Array.isArray(vol.peca_ids) || vol.peca_ids.length === 0) continue;
+                const r = insertStmt.run(lote_id, req.user.id, vol.nome, JSON.stringify(vol.peca_ids));
+                created.push({
+                    id: r.lastInsertRowid,
+                    lote_id,
+                    nome: vol.nome,
+                    peca_ids: vol.peca_ids,
+                });
+            }
+        });
+        runBulk();
+
+        res.json({ ok: true, volumes: created });
+    } catch (err) {
+        console.error('Erro criar volumes expedição:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/expedicao/volumes/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        const rows = db.prepare('SELECT * FROM cnc_expedicao_volumes WHERE lote_id = ? ORDER BY criado_em ASC').all(lote.id);
+        const volumes = rows.map(r => ({
+            ...r,
+            peca_ids: JSON.parse(r.peca_ids),
+        }));
+
+        res.json({ volumes });
+    } catch (err) {
+        console.error('Erro listar volumes expedição:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.delete('/expedicao/volumes/:volumeId', requireAuth, (req, res) => {
+    try {
+        const vol = db.prepare('SELECT * FROM cnc_expedicao_volumes WHERE id = ? AND user_id = ?').get(req.params.volumeId, req.user.id);
+        if (!vol) return res.status(404).json({ error: 'Volume não encontrado' });
+
+        db.prepare('DELETE FROM cnc_expedicao_volumes WHERE id = ?').run(vol.id);
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('Erro deletar volume expedição:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/expedicao/volumes/:volumeId/qr', requireAuth, (req, res) => {
+    try {
+        const vol = db.prepare('SELECT * FROM cnc_expedicao_volumes WHERE id = ? AND user_id = ?').get(req.params.volumeId, req.user.id);
+        if (!vol) return res.status(404).json({ error: 'Volume não encontrado' });
+
+        const pecaIds = JSON.parse(vol.peca_ids);
+        res.json({
+            qr_data: JSON.stringify({
+                v: vol.id,
+                l: vol.lote_id,
+                n: vol.nome,
+                p: pecaIds.length,
+            }),
+        });
+    } catch (err) {
+        console.error('Erro QR volume expedição:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── Fotos Expedição ────────────────────────────────────────────────
+const __cncFilename = fileURLToPath(import.meta.url);
+const __cncDirname = dirname(__cncFilename);
+const uploadDir = join(__cncDirname, '..', 'uploads', 'expedicao');
+if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
+
+const fotoStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadDir),
+    filename: (_req, file, cb) => {
+        const unique = Date.now() + '-' + Math.round(Math.random() * 1e6);
+        const ext = file.originalname.split('.').pop();
+        cb(null, `foto-${unique}.${ext}`);
+    },
+});
+const uploadFoto = multer({
+    storage: fotoStorage,
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+    fileFilter: (_req, file, cb) => {
+        if (/^image\/(jpeg|png|webp|heic|heif)$/i.test(file.mimetype)) cb(null, true);
+        else cb(new Error('Tipo de arquivo não permitido'));
+    },
+});
+
+router.post('/expedicao/fotos', requireAuth, uploadFoto.single('foto'), (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'Nenhuma foto enviada' });
+        const { lote_id, volume_id, descricao } = req.body;
+        if (!lote_id) return res.status(400).json({ error: 'lote_id obrigatório' });
+
+        const result = db.prepare(`
+            INSERT INTO cnc_expedicao_fotos (lote_id, volume_id, user_id, filename, descricao)
+            VALUES (?, ?, ?, ?, ?)
+        `).run(
+            Number(lote_id),
+            volume_id ? Number(volume_id) : null,
+            req.user.id,
+            req.file.filename,
+            descricao || ''
+        );
+
+        res.json({
+            id: result.lastInsertRowid,
+            filename: req.file.filename,
+            ok: true,
+        });
+    } catch (err) {
+        console.error('Erro upload foto expedição:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/expedicao/fotos/:loteId', requireAuth, (req, res) => {
+    try {
+        const rows = db.prepare(`
+            SELECT f.*, u.nome as user_nome
+            FROM cnc_expedicao_fotos f
+            LEFT JOIN users u ON u.id = f.user_id
+            WHERE f.lote_id = ?
+            ORDER BY f.criado_em DESC
+        `).all(Number(req.params.loteId));
+
+        res.json({ fotos: rows });
+    } catch (err) {
+        console.error('Erro listar fotos expedição:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.delete('/expedicao/fotos/:fotoId', requireAuth, (req, res) => {
+    try {
+        const foto = db.prepare('SELECT * FROM cnc_expedicao_fotos WHERE id = ?').get(Number(req.params.fotoId));
+        if (!foto) return res.status(404).json({ error: 'Foto não encontrada' });
+
+        // Remove file from disk
+        const filePath = join(uploadDir, foto.filename);
+        try { unlinkSync(filePath); } catch (_) { /* file may already be gone */ }
+
+        db.prepare('DELETE FROM cnc_expedicao_fotos WHERE id = ?').run(foto.id);
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('Erro deletar foto expedição:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── Feature: Smart Remnant Suggestions ──────────────────────────
+router.get('/retalhos/sugestoes', requireAuth, (req, res) => {
+    try {
+        const { material_code, espessura, pecas_json } = req.query;
+        if (!material_code) return res.status(400).json({ error: 'material_code é obrigatório' });
+
+        // Decode pieces list
+        let pecas = [];
+        if (pecas_json) {
+            try {
+                const decoded = Buffer.from(pecas_json, 'base64').toString('utf-8');
+                pecas = JSON.parse(decoded);
+            } catch { return res.status(400).json({ error: 'pecas_json inválido (deve ser JSON em base64)' }); }
+        }
+
+        // Query available remnants matching material and thickness
+        let sql = 'SELECT * FROM cnc_retalhos WHERE material_code = ? AND disponivel = 1';
+        const params = [material_code];
+        if (espessura) {
+            sql += ' AND espessura_real = ?';
+            params.push(parseFloat(espessura));
+        }
+        const retalhos = db.prepare(sql).all(...params);
+
+        const totalPecas = pecas.length;
+
+        const sugestoes = retalhos.map(r => {
+            const areaRetalho = r.comprimento * r.largura;
+
+            // Simple area-based fit: how many pieces fit by area
+            let pecasCabem = 0;
+            let areaPecasCabem = 0;
+            for (const p of pecas) {
+                const pw = p.comprimento || p.w || 0;
+                const ph = p.largura || p.h || 0;
+                const areaP = pw * ph;
+                // Check if piece physically fits in dimensions (either orientation)
+                const fits = (pw <= r.comprimento && ph <= r.largura) || (ph <= r.comprimento && pw <= r.largura);
+                if (fits && areaPecasCabem + areaP <= areaRetalho) {
+                    pecasCabem++;
+                    areaPecasCabem += areaP;
+                }
+            }
+
+            const aproveitamento = areaRetalho > 0 ? Math.round((areaPecasCabem / areaRetalho) * 1000) / 10 : 0;
+
+            return {
+                retalho_id: r.id,
+                nome: r.nome || `Retalho ${r.material_code} #${r.id}`,
+                comprimento: r.comprimento,
+                largura: r.largura,
+                area: areaRetalho,
+                area_pecas_cabem: areaPecasCabem,
+                aproveitamento_estimado: aproveitamento,
+                pecas_cabem: pecasCabem,
+                total_pecas: totalPecas,
+            };
+        });
+
+        // Sort by best fit (highest utilization) and return top 5
+        sugestoes.sort((a, b) => b.aproveitamento_estimado - a.aproveitamento_estimado);
+        res.json({ sugestoes: sugestoes.slice(0, 5) });
+    } catch (err) {
+        console.error('Erro sugestões retalhos:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── Feature: Material Alerts for Pending Lotes ──────────────────
+router.get('/alertas-material', requireAuth, (req, res) => {
+    try {
+        // Get all non-concluded lotes with a cutting plan
+        const lotes = db.prepare(
+            "SELECT id, nome, plano_json, status FROM cnc_lotes WHERE user_id = ? AND status != 'concluido' AND plano_json IS NOT NULL AND plano_json != ''"
+        ).all(req.user.id);
+
+        // Aggregate material needs from plano_json
+        const materialMap = {}; // keyed by material_code
+
+        for (const lote of lotes) {
+            let plano;
+            try { plano = JSON.parse(lote.plano_json); } catch { continue; }
+            if (!plano.chapas || !Array.isArray(plano.chapas)) continue;
+
+            for (const chapa of plano.chapas) {
+                const mc = chapa.material_code;
+                if (!mc) continue;
+                if (!materialMap[mc]) {
+                    materialMap[mc] = {
+                        material_code: mc,
+                        material: chapa.material || mc,
+                        chapas_necessarias: 0,
+                        area_total_mm2: 0,
+                        lotes_pendentes: [],
+                        retalhos_disponiveis: 0,
+                        estoque_chapas: 0,
+                    };
+                }
+                materialMap[mc].chapas_necessarias += 1;
+                materialMap[mc].area_total_mm2 += (chapa.comprimento || 0) * (chapa.largura || 0);
+                if (!materialMap[mc].lotes_pendentes.includes(lote.nome)) {
+                    materialMap[mc].lotes_pendentes.push(lote.nome);
+                }
+            }
+        }
+
+        // Cross-reference with available remnants
+        const retalhosCount = db.prepare(
+            'SELECT material_code, COUNT(*) as cnt FROM cnc_retalhos WHERE disponivel = 1 GROUP BY material_code'
+        ).all();
+        const retalhosMap = {};
+        for (const r of retalhosCount) retalhosMap[r.material_code] = r.cnt;
+
+        // Cross-reference with estoque via biblioteca (match by cod = material_code)
+        const estoqueRows = db.prepare(
+            "SELECT b.cod, b.nome, COALESCE(e.quantidade, 0) as quantidade FROM biblioteca b LEFT JOIN estoque e ON b.id = e.material_id WHERE b.tipo = 'material' AND b.ativo = 1"
+        ).all();
+        const estoqueMap = {};
+        for (const row of estoqueRows) {
+            if (row.cod) estoqueMap[row.cod] = (estoqueMap[row.cod] || 0) + row.quantidade;
+        }
+
+        // Build final alerts
+        const alertas = Object.values(materialMap).map(m => ({
+            ...m,
+            retalhos_disponiveis: retalhosMap[m.material_code] || 0,
+            estoque_chapas: estoqueMap[m.material_code] || 0,
+        }));
+
+        // Sort by most sheets needed
+        alertas.sort((a, b) => b.chapas_necessarias - a.chapas_necessarias);
+
+        res.json({ alertas });
+    } catch (err) {
+        console.error('Erro alertas material:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── Feature: Machining Template Library (grouped by categoria) ──
+router.get('/machining-templates/biblioteca', requireAuth, (req, res) => {
+    try {
+        const templates = db.prepare(
+            'SELECT * FROM cnc_machining_templates WHERE ativo = 1 ORDER BY uso_count DESC, nome'
+        ).all();
+
+        const categorias = {};
+        let total = 0;
+
+        for (const tpl of templates) {
+            total++;
+            const cat = tpl.categoria || 'Sem categoria';
+
+            // Parse machining_json for preview summary
+            let preview = { total_workers: 0, tipos: [], dimensoes_ref: '' };
+            try {
+                const mach = JSON.parse(tpl.machining_json || '{}');
+                const workers = mach.workers
+                    ? (Array.isArray(mach.workers) ? mach.workers : Object.values(mach.workers))
+                    : [];
+                preview.total_workers = workers.length;
+
+                // Count by type
+                const tipoCounts = {};
+                const dims = [];
+                for (const w of workers) {
+                    const tipo = w.type || w.tipo || 'unknown';
+                    tipoCounts[tipo] = (tipoCounts[tipo] || 0) + 1;
+                    // Collect reference dimensions
+                    if (w.diameter || w.diametro) dims.push(`${w.diameter || w.diametro}mm`);
+                    if (w.width && w.height) dims.push(`${w.width}x${w.height}`);
+                }
+                preview.tipos = Object.entries(tipoCounts).map(([t, c]) => `${t} x${c}`);
+                preview.dimensoes_ref = [...new Set(dims)].slice(0, 3).join(' + ');
+            } catch { /* ignore parse errors */ }
+
+            if (!categorias[cat]) categorias[cat] = [];
+            categorias[cat].push({
+                id: tpl.id,
+                nome: tpl.nome,
+                descricao: tpl.descricao || '',
+                categoria: cat,
+                espelhavel: tpl.espelhavel === 1,
+                uso_count: tpl.uso_count || 0,
+                preview,
+            });
+        }
+
+        res.json({ categorias, total });
+    } catch (err) {
+        console.error('Erro biblioteca templates:', err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 export default router;

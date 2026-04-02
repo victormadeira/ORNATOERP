@@ -139,6 +139,9 @@ const distPath = path.join(__dirname, '..', 'dist');
 // Servir arquivos estáticos do build (JS, CSS, imagens, etc.)
 app.use(express.static(distPath));
 
+// Servir uploads (fotos expedição etc.)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // SPA fallback: qualquer rota que não é /api → envia index.html
 // Isso permite que o React lide com rotas como /orcs, /cli, /cfg etc.
 app.get('*', (req, res) => {

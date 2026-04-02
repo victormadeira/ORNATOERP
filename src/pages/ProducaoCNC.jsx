@@ -740,6 +740,169 @@ function InfoCard({ label, value, highlight }) {
 }
 
 // ═══════════════════════════════════════════════════════
+// RELATÓRIO DE DESPERDÍCIO
+// ═══════════════════════════════════════════════════════
+function RelatorioDesperdicio({ loteId, notify }) {
+    const [open, setOpen] = useState(false);
+    const [data, setData] = useState(null);
+    const [historico, setHistorico] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [showHistorico, setShowHistorico] = useState(false);
+
+    const load = useCallback(() => {
+        if (!loteId) return;
+        setLoading(true);
+        api.get(`/cnc/relatorio-desperdicio/${loteId}`)
+            .then(setData)
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, [loteId]);
+
+    const loadHistorico = useCallback(() => {
+        api.get('/cnc/relatorio-desperdicio-historico')
+            .then(setHistorico)
+            .catch(() => {});
+    }, []);
+
+    useEffect(() => { if (open && !data) load(); }, [open, data, load]);
+    useEffect(() => { if (showHistorico && !historico) loadHistorico(); }, [showHistorico, historico, loadHistorico]);
+
+    const aprovColor = (pct) => pct >= 80 ? '#22c55e' : pct >= 60 ? '#f59e0b' : '#ef4444';
+
+    const fmt = (v) => typeof v === 'number' ? v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-';
+
+    const renderSummary = (resumo) => {
+        if (!resumo) return null;
+        const cards = [
+            { label: 'Total Chapas', value: resumo.total_chapas ?? '-', highlight: true },
+            { label: 'Total Peças', value: resumo.total_pecas ?? '-' },
+            { label: 'Aproveitamento Médio', value: resumo.aproveitamento_medio != null ? `${fmt(resumo.aproveitamento_medio)}%` : '-', color: aprovColor(resumo.aproveitamento_medio || 0) },
+            { label: 'Custo Total', value: resumo.custo_total != null ? `R$ ${fmt(resumo.custo_total)}` : '-' },
+            { label: 'Custo Desperdício', value: resumo.custo_desperdicio != null ? `R$ ${fmt(resumo.custo_desperdicio)}` : '-', color: '#ef4444' },
+        ];
+        return (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 16 }}>
+                {cards.map((c, i) => (
+                    <div key={i} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>{c.label}</div>
+                        <div style={{ fontSize: 14, fontWeight: c.highlight ? 700 : 600, color: c.color || (c.highlight ? 'var(--primary)' : 'var(--text-primary)') }}>
+                            {c.value}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
+    const renderMateriais = (materiais) => {
+        if (!materiais || materiais.length === 0) return <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: 8 }}>Nenhum material encontrado</div>;
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {materiais.map((m, i) => {
+                    const aprov = m.aproveitamento ?? 0;
+                    const aColor = aprovColor(aprov);
+                    const areaUsada = m.area_usada ?? 0;
+                    const areaDesperdicio = m.area_desperdicio ?? 0;
+                    const areaTotal = areaUsada + areaDesperdicio || 1;
+                    const pctUsada = (areaUsada / areaTotal) * 100;
+                    return (
+                        <div key={i} style={{ padding: '12px 14px', borderRadius: 8, background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                <div>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{m.material || 'Sem material'}</div>
+                                    {m.codigo && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{m.codigo}</div>}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.chapas ?? '-'} chapa{(m.chapas ?? 0) !== 1 ? 's' : ''}</span>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: aColor }}>{fmt(aprov)}%</span>
+                                </div>
+                            </div>
+                            {/* Usage bar */}
+                            <div style={{ height: 8, borderRadius: 4, background: '#ef444430', overflow: 'hidden', marginBottom: 6 }}>
+                                <div style={{ height: '100%', borderRadius: 4, background: aColor, width: `${pctUsada}%`, transition: 'width .3s' }} />
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
+                                <span>Usado: {fmt(areaUsada / 1e6)} m²</span>
+                                <span>Desperdício: {fmt(areaDesperdicio / 1e6)} m²</span>
+                            </div>
+                            {(m.custo_material != null || m.custo_desperdicio != null) && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                                    <span>Custo material: R$ {fmt(m.custo_material ?? 0)}</span>
+                                    <span style={{ color: '#ef4444' }}>Custo desp.: R$ {fmt(m.custo_desperdicio ?? 0)}</span>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
+    return (
+        <div className="glass-card" style={{ marginTop: 16, overflow: 'hidden' }}>
+            <button onClick={() => setOpen(!open)}
+                style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                    padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 13, fontWeight: 600, color: 'var(--text-primary)',
+                    borderBottom: open ? '1px solid var(--border)' : 'none',
+                }}>
+                <BarChart3 size={15} />
+                Relatório de Desperdício
+                <ChevronDown size={14} style={{ marginLeft: 'auto', transition: 'transform .2s', transform: open ? 'rotate(180deg)' : '' }} />
+            </button>
+
+            {open && (
+                <div style={{ padding: 16 }}>
+                    {loading ? (
+                        <Spinner text="Carregando relatório..." />
+                    ) : data ? (
+                        <>
+                            {renderSummary(data.resumo)}
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Por Material</div>
+                            {renderMateriais(data.por_material)}
+
+                            {/* Toggle histórico */}
+                            <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                                <button onClick={() => setShowHistorico(!showHistorico)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 6,
+                                        background: 'none', border: '1px solid var(--border)', borderRadius: 6,
+                                        padding: '6px 12px', cursor: 'pointer',
+                                        fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)',
+                                    }}>
+                                    <BarChart3 size={13} />
+                                    {showHistorico ? 'Ocultar Histórico Geral' : 'Ver Histórico Geral (todos os lotes)'}
+                                    <ChevronDown size={12} style={{ transition: 'transform .2s', transform: showHistorico ? 'rotate(180deg)' : '' }} />
+                                </button>
+
+                                {showHistorico && (
+                                    <div style={{ marginTop: 12 }}>
+                                        {!historico ? (
+                                            <Spinner text="Carregando histórico..." />
+                                        ) : (
+                                            <>
+                                                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Agregado — Todos os Lotes</div>
+                                                {renderSummary(historico.resumo)}
+                                                {renderMateriais(historico.por_material)}
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    ) : (
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: 16 }}>
+                            Nenhum dado disponível. Otimize o plano para gerar o relatório.
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════
 // ABA 2: PEÇAS
 // ═══════════════════════════════════════════════════════
 function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab }) {
@@ -1936,6 +2099,13 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
     const [view3dPeca, setView3dPeca] = useState(null); // piece object for 3D modal
     const [printLabelPeca, setPrintLabelPeca] = useState(null); // piece for label printing
 
+    // Keyboard shortcuts help panel
+    const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+
+    // Fullscreen for chapa visualization
+    const chapaVizContainerRef = useRef(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
     // Multi-Machine state
     const [multiMaqMode, setMultiMaqMode] = useState(false);
     const [maquinas, setMaquinas] = useState([]);
@@ -2694,13 +2864,89 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
     // Keyboard shortcuts
     useEffect(() => {
         const handler = (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); }
-            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); handleRedo(); }
-            if (e.key === 'Escape') setSelectedPieces([]);
+            // Ignore when typing in inputs
+            const tag = e.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+
+            // Ctrl+Z / Ctrl+Y — undo/redo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); return; }
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); handleRedo(); return; }
+
+            // Escape — clear selection
+            if (e.key === 'Escape') { setSelectedPieces([]); setShowShortcutsHelp(false); return; }
+
+            // Number keys 1-9 — select chapa by index
+            if (e.key >= '1' && e.key <= '9' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                const idx = Number(e.key) - 1;
+                if (plano && plano.chapas && idx < plano.chapas.length) {
+                    setSelectedChapa(idx);
+                }
+                return;
+            }
+
+            // Left/Right arrows — navigate chapas
+            if (e.key === 'ArrowLeft' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                setSelectedChapa(prev => Math.max(0, prev - 1));
+                return;
+            }
+            if (e.key === 'ArrowRight' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                if (plano && plano.chapas) setSelectedChapa(prev => Math.min(plano.chapas.length - 1, prev + 1));
+                return;
+            }
+
+            // R — rotate selected piece(s)
+            if (e.key === 'r' || e.key === 'R') {
+                if (selectedPieces.length > 0 && plano) {
+                    for (const pecaIdx of selectedPieces) {
+                        handleAdjust({ action: 'rotate', chapaIdx: selectedChapa, pecaIdx });
+                    }
+                }
+                return;
+            }
+
+            // Space — toggle marcar/desmarcar chapa cortada
+            if (e.key === ' ' || e.code === 'Space') {
+                e.preventDefault();
+                if (plano && plano.chapas[selectedChapa] && markingChapa === null) {
+                    const chapa = plano.chapas[selectedChapa];
+                    const pecaIds = chapa.pecas.map(p => p.pecaId).filter(Boolean);
+                    const allCut = pecaIds.length > 0 && pecaIds.every(id => cortadasSet.has(id));
+                    if (allCut) desmarcarChapaCortada(selectedChapa);
+                    else marcarChapaCortada(selectedChapa);
+                }
+                return;
+            }
+
+            // F — toggle fullscreen for chapa visualization
+            if (e.key === 'f' || e.key === 'F') {
+                if (chapaVizContainerRef.current) {
+                    if (!document.fullscreenElement) {
+                        chapaVizContainerRef.current.requestFullscreen?.().then(() => setIsFullscreen(true)).catch(() => {});
+                    } else {
+                        document.exitFullscreen?.().then(() => setIsFullscreen(false)).catch(() => {});
+                    }
+                }
+                return;
+            }
+
+            // ? — toggle shortcuts help
+            if (e.key === '?') {
+                setShowShortcutsHelp(prev => !prev);
+                return;
+            }
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
     });
+
+    // Listen for fullscreen exit via Esc (browser-native)
+    useEffect(() => {
+        const onFsChange = () => { if (!document.fullscreenElement) setIsFullscreen(false); };
+        document.addEventListener('fullscreenchange', onFsChange);
+        return () => document.removeEventListener('fullscreenchange', onFsChange);
+    }, []);
 
     // Reset selection when switching sheets
     useEffect(() => { setSelectedPieces([]); }, [selectedChapa]);
@@ -3231,7 +3477,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
 
                                 {/* RIGHT: Detail view + Transfer panel */}
                                 <div style={{ flex: 1, minWidth: 0, display: 'flex', gap: 0 }}>
-                                <div style={{ flex: 1, minWidth: 0 }}>
+                                <div ref={chapaVizContainerRef} style={{ flex: 1, minWidth: 0, position: 'relative', background: isFullscreen ? 'var(--bg-primary)' : undefined }}>
                                     {plano.chapas[selectedChapa] && (
                                         <ChapaViz
                                             chapa={plano.chapas[selectedChapa]}
@@ -3289,6 +3535,56 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                             setTab={setTab}
                                             validationConflicts={validationResult?.conflicts || []}
                                         />
+                                    )}
+
+                                    {/* Keyboard shortcuts "?" button */}
+                                    <button
+                                        onClick={() => setShowShortcutsHelp(prev => !prev)}
+                                        title="Atalhos de teclado (?)"
+                                        style={{
+                                            position: 'absolute', bottom: 12, right: 12, zIndex: 20,
+                                            width: 28, height: 28, borderRadius: '50%',
+                                            background: showShortcutsHelp ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.5)',
+                                            color: '#fff', border: '1px solid rgba(255,255,255,0.2)',
+                                            cursor: 'pointer', fontSize: 14, fontWeight: 700,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            transition: 'all .2s',
+                                        }}
+                                    >?</button>
+
+                                    {/* Keyboard shortcuts help panel */}
+                                    {showShortcutsHelp && (
+                                        <div style={{
+                                            position: 'absolute', bottom: 48, right: 12, zIndex: 25,
+                                            background: 'rgba(0,0,0,0.85)', color: '#fff',
+                                            borderRadius: 10, padding: '12px 16px',
+                                            fontSize: 11, lineHeight: 1.8, minWidth: 220,
+                                            backdropFilter: 'blur(8px)',
+                                            border: '1px solid rgba(255,255,255,0.1)',
+                                            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                                        }}>
+                                            <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6, color: '#93c5fd' }}>Atalhos de Teclado</div>
+                                            {[
+                                                ['1-9', 'Selecionar chapa'],
+                                                ['\u2190 \u2192', 'Chapa anterior / pr\u00f3xima'],
+                                                ['R', 'Rotacionar pe\u00e7a selecionada'],
+                                                ['Espa\u00e7o', 'Marcar/desmarcar chapa cortada'],
+                                                ['F', 'Tela cheia'],
+                                                ['Esc', 'Limpar sele\u00e7\u00e3o'],
+                                                ['Ctrl+Z', 'Desfazer'],
+                                                ['Ctrl+Y', 'Refazer'],
+                                                ['?', 'Mostrar/ocultar atalhos'],
+                                            ].map(([key, desc], i) => (
+                                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                                                    <kbd style={{
+                                                        background: 'rgba(255,255,255,0.15)', borderRadius: 4,
+                                                        padding: '1px 6px', fontSize: 10, fontFamily: 'monospace',
+                                                        fontWeight: 600, whiteSpace: 'nowrap',
+                                                    }}>{key}</kbd>
+                                                    <span style={{ color: 'rgba(255,255,255,0.8)' }}>{desc}</span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     )}
                                 </div>
 
@@ -3434,6 +3730,9 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                 })()}
                                 </div>
                             </div>
+
+                            {/* ═══ Relatório de Desperdício ═══ */}
+                            <RelatorioDesperdicio loteId={loteAtual?.id} notify={notify} />
                         </>
                     ) : (
                         <div className="glass-card p-8" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
