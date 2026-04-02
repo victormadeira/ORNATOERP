@@ -458,6 +458,37 @@ export default function Expedicao() {
         }
     }, [selectedIds, checkpoints, activeCheckpoint, operador, lotePecas]);
 
+    // ── Desmarcar peca ─────────────────────────────────────────────────────
+
+    const handleDesmarcar = useCallback(async (pecaId) => {
+        const cp = checkpoints.find(c => c.nome === activeCheckpoint);
+        if (!cp) return;
+
+        try {
+            await api.post('/cnc/expedicao/desmarcar', { peca_id: pecaId, checkpoint_id: cp.id });
+
+            // Remove from scan log
+            setScanLog(prev => prev.filter(s => s.peca_id !== pecaId));
+
+            // Update progress
+            setLoteProgress(prev => {
+                const cur = prev[cp.id];
+                if (!cur) return prev;
+                return { ...prev, [cp.id]: { ...cur, scanned: Math.max(0, cur.scanned - 1) } };
+            });
+
+            setScanResult('success');
+            setScanMessage('Peca desmarcada com sucesso');
+            clearTimeout(resultTimerRef.current);
+            resultTimerRef.current = setTimeout(() => setScanResult(null), 2500);
+        } catch (err) {
+            setScanResult('error');
+            setScanMessage(err.error || 'Erro ao desmarcar');
+            clearTimeout(resultTimerRef.current);
+            resultTimerRef.current = setTimeout(() => setScanResult(null), 3000);
+        }
+    }, [checkpoints, activeCheckpoint]);
+
     // ── Selection helpers ────────────────────────────────────────────────────
 
     const toggleSelect = useCallback((id) => {
@@ -1284,12 +1315,19 @@ export default function Expedicao() {
                                                         key={p.id}
                                                         role={isScanned ? undefined : 'button'}
                                                         tabIndex={isScanned ? undefined : 0}
-                                                        onClick={(e) => { e.stopPropagation(); if (!isScanned) toggleSelect(p.id); }}
-                                                        onKeyDown={(e) => { if (!isScanned && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleSelect(p.id); } }}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (isScanned) {
+                                                                if (confirm(`Desmarcar "${p.descricao || 'peca'}"?`)) handleDesmarcar(p.id);
+                                                            } else {
+                                                                toggleSelect(p.id);
+                                                            }
+                                                        }}
+                                                        onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (!isScanned) toggleSelect(p.id); } }}
                                                         style={{
                                                             display: 'flex', alignItems: 'center', gap: 9,
                                                             padding: '10px 12px', borderRadius: 7, marginBottom: 2,
-                                                            cursor: isScanned ? 'default' : 'pointer',
+                                                            cursor: 'pointer',
                                                             WebkitTapHighlightColor: 'rgba(245,158,11,0.15)',
                                                             background: isLastScanned
                                                                 ? 'rgba(34,197,94,0.09)'

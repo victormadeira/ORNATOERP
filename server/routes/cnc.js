@@ -4841,6 +4841,87 @@ router.delete('/expedicao/scan/:scanId', requireAuth, (req, res) => {
     res.json({ ok: true });
 });
 
+// ── Desmarcar peça por peca_id + checkpoint ─────────────────────────────
+router.post('/expedicao/desmarcar', requireAuth, (req, res) => {
+    try {
+        const { peca_id, checkpoint_id } = req.body || {};
+        if (!peca_id || !checkpoint_id) return res.status(400).json({ error: 'peca_id e checkpoint_id obrigatórios' });
+
+        const peca = db.prepare('SELECT p.* FROM cnc_pecas p JOIN cnc_lotes l ON p.lote_id = l.id WHERE p.id = ? AND l.user_id = ?').get(peca_id, req.user.id);
+        if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
+
+        const result = db.prepare('DELETE FROM cnc_expedicao_scans WHERE peca_id = ? AND checkpoint_id = ?').run(peca_id, checkpoint_id);
+        res.json({ ok: true, removed: result.changes });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── Marcar chapa inteira como cortada ────────────────────────────────────
+router.post('/expedicao/marcar-chapa', requireAuth, (req, res) => {
+    try {
+        const { lote_id, chapa_idx, peca_ids, operador } = req.body;
+
+        if (!lote_id || chapa_idx == null || !Array.isArray(peca_ids) || peca_ids.length === 0) {
+            return res.status(400).json({ error: 'lote_id, chapa_idx e peca_ids são obrigatórios' });
+        }
+
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(lote_id, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        // Find or create "Corte" checkpoint
+        let checkpoint = db.prepare("SELECT * FROM cnc_expedicao_checkpoints WHERE nome = 'Corte' LIMIT 1").get();
+        if (!checkpoint) {
+            const r = db.prepare("INSERT INTO cnc_expedicao_checkpoints (nome, ordem, cor, icone, ativo, obrigatorio, user_id) VALUES ('Corte', 0, '#3b82f6', 'scissors', 1, 1, ?)").run(req.user.id);
+            checkpoint = db.prepare('SELECT * FROM cnc_expedicao_checkpoints WHERE id = ?').get(r.lastInsertRowid);
+        }
+
+        const insertStmt = db.prepare(`INSERT INTO cnc_expedicao_scans (peca_id, lote_id, checkpoint_id, operador, observacao, metodo)
+            VALUES (?, ?, ?, ?, ?, 'chapa')`);
+
+        let registered = 0;
+        let skipped = 0;
+
+        const runBulk = db.transaction(() => {
+            for (const pecaId of peca_ids) {
+                const peca = db.prepare('SELECT * FROM cnc_pecas WHERE id = ? AND lote_id = ?').get(pecaId, lote_id);
+                if (!peca) { skipped++; continue; }
+
+                const existing = db.prepare('SELECT id FROM cnc_expedicao_scans WHERE peca_id = ? AND checkpoint_id = ?').get(pecaId, checkpoint.id);
+                if (existing) { skipped++; continue; }
+
+                insertStmt.run(peca.id, lote_id, checkpoint.id, operador || null, `Chapa ${chapa_idx + 1} cortada`);
+                registered++;
+            }
+        });
+        runBulk();
+
+        res.json({ ok: true, registrados: registered, skipped, checkpoint_id: checkpoint.id });
+    } catch (err) {
+        console.error('Erro ao marcar chapa:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── Status de corte por chapa (quais peças já foram cortadas) ───────────
+router.get('/expedicao/corte-status/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        const checkpoint = db.prepare("SELECT * FROM cnc_expedicao_checkpoints WHERE nome = 'Corte' LIMIT 1").get();
+        if (!checkpoint) return res.json({ cortadas: [] });
+
+        const cortadas = db.prepare(
+            'SELECT DISTINCT peca_id FROM cnc_expedicao_scans WHERE lote_id = ? AND checkpoint_id = ?'
+        ).all(lote.id, checkpoint.id).map(r => r.peca_id);
+
+        res.json({ cortadas, checkpoint_id: checkpoint.id });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── Config (otimizador apenas) ──────────────────────────────────
 router.get('/config', requireAuth, (req, res) => {
     const config = db.prepare('SELECT * FROM cnc_config WHERE id = 1').get();

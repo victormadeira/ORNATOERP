@@ -1909,6 +1909,10 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
     const [redoStack, setRedoStack] = useState([]);
     const [selectedPieces, setSelectedPieces] = useState([]); // pecaIdx list for active sheet
 
+    // Corte status (quais peças já foram cortadas)
+    const [cortadasSet, setCortadasSet] = useState(new Set());
+    const [markingChapa, setMarkingChapa] = useState(null); // chapaIdx being marked
+
     // Config overrides (loaded from cnc_config defaults)
     const [cfgLoaded, setCfgLoaded] = useState(false);
     const [espacoPecas, setEspacoPecas] = useState(7);
@@ -2069,6 +2073,47 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
     }, [loteAtual]);
 
     useEffect(() => { loadPlano(); }, [loadPlano]);
+
+    // Load corte status
+    const loadCorteStatus = useCallback(() => {
+        if (!loteAtual) { setCortadasSet(new Set()); return; }
+        api.get(`/cnc/expedicao/corte-status/${loteAtual.id}`).then(data => {
+            setCortadasSet(new Set(data.cortadas || []));
+        }).catch(() => setCortadasSet(new Set()));
+    }, [loteAtual]);
+    useEffect(() => { loadCorteStatus(); }, [loadCorteStatus]);
+
+    // Mark chapa as cut
+    const marcarChapaCortada = useCallback(async (chapaIdx) => {
+        if (!plano || !loteAtual) return;
+        const chapa = plano.chapas[chapaIdx];
+        if (!chapa) return;
+
+        const pecaIds = chapa.pecas.map(p => p.pecaId).filter(Boolean);
+        if (pecaIds.length === 0) { notify('Nenhuma peça com ID nesta chapa'); return; }
+
+        setMarkingChapa(chapaIdx);
+        try {
+            const data = await api.post('/cnc/expedicao/marcar-chapa', {
+                lote_id: loteAtual.id,
+                chapa_idx: chapaIdx,
+                peca_ids: pecaIds,
+            });
+            if (data.ok) {
+                notify(`Chapa ${chapaIdx + 1} marcada — ${data.registrados} peça(s) registradas${data.skipped > 0 ? ` (${data.skipped} já cortadas)` : ''}`);
+                setCortadasSet(prev => {
+                    const next = new Set(prev);
+                    for (const id of pecaIds) next.add(id);
+                    return next;
+                });
+            }
+        } catch (err) {
+            notify('Erro: ' + (err.error || err.message));
+        } finally {
+            setMarkingChapa(null);
+        }
+    }, [plano, loteAtual, notify]);
+
     const planoIdRef = useRef(null); // rastreia se é um plano NOVO ou atualização do mesmo
     useEffect(() => {
         const newId = plano ? `${plano.chapas?.length}_${plano.modo}_${plano.timestamp || ''}` : null;
@@ -3094,6 +3139,38 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                                         {machineAssignments[ci].maquina_nome}
                                                     </div>
                                                 )}
+                                                {/* Chapa cortada button */}
+                                                {(() => {
+                                                    const pecaIds = chapa.pecas.map(p => p.pecaId).filter(Boolean);
+                                                    const cortadas = pecaIds.filter(id => cortadasSet.has(id)).length;
+                                                    const allCut = pecaIds.length > 0 && cortadas === pecaIds.length;
+                                                    const someCut = cortadas > 0 && !allCut;
+                                                    return (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); if (!allCut) marcarChapaCortada(ci); }}
+                                                            disabled={markingChapa === ci || allCut}
+                                                            style={{
+                                                                marginTop: 5, width: '100%', padding: '4px 0', borderRadius: 5,
+                                                                fontSize: 10, fontWeight: 700, cursor: allCut ? 'default' : 'pointer',
+                                                                border: allCut ? '1px solid rgba(34,197,94,0.3)' : '1px solid var(--border)',
+                                                                background: allCut ? 'rgba(34,197,94,0.1)' : someCut ? 'rgba(245,158,11,0.08)' : 'var(--bg-card)',
+                                                                color: allCut ? '#22c55e' : someCut ? '#f59e0b' : 'var(--text-muted)',
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                                                                transition: 'all .2s',
+                                                            }}
+                                                        >
+                                                            {markingChapa === ci ? (
+                                                                <><Scissors size={10} style={{ animation: 'spin .7s linear infinite' }} /> Marcando...</>
+                                                            ) : allCut ? (
+                                                                <><CheckCircle2 size={10} /> Cortada</>
+                                                            ) : someCut ? (
+                                                                <><Scissors size={10} /> {cortadas}/{pecaIds.length} cortadas</>
+                                                            ) : (
+                                                                <><Scissors size={10} /> Marcar cortada</>
+                                                            )}
+                                                        </button>
+                                                    );
+                                                })()}
                                             </div>
                                             </Fragment>
                                         );
