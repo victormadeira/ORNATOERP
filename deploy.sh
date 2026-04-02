@@ -26,7 +26,7 @@ npm install --production
 # 3. Instalar dependencias Python
 echo "[3/5] pip install..."
 cd "$APP_DIR/cnc_optimizer"
-pip3 install -r requirements.txt -q 2>/dev/null || pip install -r requirements.txt -q
+python3 -m pip install -r requirements.txt -q 2>/dev/null || pip3 install -r requirements.txt -q 2>/dev/null || echo "  (pip não encontrado — pule se dependências já instaladas)"
 cd "$APP_DIR"
 
 # 4. Build frontend
