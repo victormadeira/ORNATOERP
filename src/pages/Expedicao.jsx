@@ -12,6 +12,7 @@ import {
     Truck, BarChart2, Clock, X, RefreshCw, Award, Circle,
     CheckSquare, Square, Hand, Filter, Search, Check,
 } from 'lucide-react';
+import { SearchableSelect } from '../ui';
 
 // ─── Constantes ─────────────────────────────────────────────────────────────
 
@@ -1473,21 +1474,15 @@ export default function Expedicao() {
                                     </div>
 
                                     {/* Module filter */}
-                                    <select
-                                        value={filterModulo}
-                                        onChange={e => setFilterModulo(e.target.value)}
-                                        style={{
-                                            padding: '5px 8px', fontSize: 11, fontWeight: 600,
-                                            background: 'var(--bg-muted)', border: '1px solid var(--border)',
-                                            borderRadius: 6, color: 'var(--text-primary)',
-                                            cursor: 'pointer', appearance: 'none', maxWidth: 130,
-                                        }}
-                                    >
-                                        <option value="__all__">Todos modulos</option>
-                                        {modulos.map(m => (
-                                            <option key={m} value={m}>{m}</option>
-                                        ))}
-                                    </select>
+                                    <SearchableSelect
+                                        value={filterModulo === '__all__' ? '' : filterModulo}
+                                        onChange={v => setFilterModulo(v || '__all__')}
+                                        options={modulos.map(m => ({ value: m, label: m }))}
+                                        emptyOption="Todos módulos"
+                                        placeholder="Buscar módulo..."
+                                        className="input-glass"
+                                        style={{ maxWidth: 160, minWidth: 120 }}
+                                    />
 
                                     {/* Status filter */}
                                     <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
