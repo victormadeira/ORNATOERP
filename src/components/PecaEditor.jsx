@@ -569,7 +569,7 @@ export default function PecaEditor({ peca, loteId, onSave, onClose, materiais = 
 
                                 {workers.length === 0 && (
                                     <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)', fontSize: 12, borderRadius: 8, border: '2px dashed var(--border)' }}>
-                                        <div style={{ fontSize: 24, marginBottom: 8 }}>🔧</div>
+                                        <div style={{ fontSize: 24, marginBottom: 8 }}>◈</div>
                                         Nenhuma usinagem. Use os presets acima ou clique em <strong>+ Adicionar</strong>.
                                     </div>
                                 )}

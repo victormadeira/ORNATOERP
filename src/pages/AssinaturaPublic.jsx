@@ -267,7 +267,7 @@ export default function AssinaturaPublic({ token }) {
                             <button onClick={() => { setSignatureImg(null); setStep(3); }} style={{ padding: '12px 20px', borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', fontSize: 13, cursor: 'pointer' }}>Refazer</button>
                             <button onClick={assinar} disabled={!aceite || submitting}
                                 style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: aceite ? '#22c55e' : '#d1d5db', color: '#fff', fontSize: 15, fontWeight: 700, cursor: aceite ? 'pointer' : 'not-allowed' }}>
-                                {submitting ? 'Assinando...' : '✍️ Assinar Documento'}
+                                {submitting ? 'Assinando...' : '✎ Assinar Documento'}
                             </button>
                         </div>
                     </div>

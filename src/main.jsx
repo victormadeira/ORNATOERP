@@ -13,8 +13,6 @@ import VerificacaoAssinatura from './pages/VerificacaoAssinatura';
 import ScanPeca3D from './pages/ScanPeca3D';
 import ProducaoCNCTV from './pages/ProducaoCNCTV';
 import ModoOperador from './pages/ModoOperador';
-import PluginDownload from './pages/PluginDownload';
-
 // Detectar acesso público via query params OU path
 const params = new URLSearchParams(window.location.search);
 const path = window.location.pathname;
@@ -65,14 +63,9 @@ const isTVCorte = path === '/tv-corte' || path === '/tv-corte/';
 // Modo Operador CNC: /operador-cnc
 const isOperadorCNC = path === '/operador-cnc' || path === '/operador-cnc/';
 
-// Download plugin: /download
-const isPluginDownload = path === '/download' || path === '/download/';
-
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
-        {isPluginDownload ? (
-            <PluginDownload />
-        ) : isOperadorCNC ? (
+        {isOperadorCNC ? (
             <ModoOperador onBack={() => window.history.back()} />
         ) : isTVCorte ? (
             <ProducaoCNCTV />

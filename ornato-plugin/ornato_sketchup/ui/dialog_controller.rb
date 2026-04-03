@@ -143,9 +143,16 @@ module Ornato
           begin
             uri = URI("#{api_url}/api/plugin/biblioteca/moveis")
             http = Net::HTTP.new(uri.host, uri.port)
+            http.use_ssl = (uri.scheme == 'https')
             http.open_timeout = 3
             http.read_timeout = 5
-            response = http.get(uri.request_uri)
+            req = Net::HTTP::Get.new(uri.request_uri)
+            add_auth_header(req)
+            response = http.request(req)
+            if response.code.to_i == 401
+              send_status('Sessao expirada — faca login novamente')
+              return load_local_biblioteca
+            end
             modules = JSON.parse(response.body, symbolize_names: true)
 
             cats = modules.map { |m| m[:categoria] }.compact.uniq.map { |c| { id: c, label: cat_label(c) } }
@@ -301,11 +308,12 @@ module Ornato
           config = Config.load
           api_url = config.dig(:api, :url) || 'http://localhost:3001'
           begin
-            uri = URI("#{api_url}/api/plugin/version")
+            uri = URI("#{api_url}/api/health")
             response = Net::HTTP.get_response(uri)
-            { connected: response.code.to_i == 200 }
+            token = Sketchup.read_default('Ornato', 'auth_token', '')
+            { connected: response.code.to_i == 200, authenticated: !token.to_s.empty? }
           rescue
-            { connected: false }
+            { connected: false, authenticated: false }
           end
         }
 
@@ -336,6 +344,63 @@ module Ornato
           rescue => e
             { ok: false, error: e.message }
           end
+        }
+
+        # ── Auth ────────────────────────────────────────
+        @commands['auth_login'] = ->(params) {
+          email = params[:email].to_s.strip
+          senha = params[:senha].to_s
+          return { ok: false, error: 'Email e senha obrigatorios' } if email.empty? || senha.empty?
+
+          config = Config.load
+          api_url = config.dig(:api, :url) || 'http://localhost:3001'
+
+          begin
+            uri = URI("#{api_url}/api/auth/login")
+            http = Net::HTTP.new(uri.host, uri.port)
+            http.use_ssl = (uri.scheme == 'https')
+            http.open_timeout = 5
+            http.read_timeout = 10
+
+            req = Net::HTTP::Post.new(uri.request_uri)
+            req['Content-Type'] = 'application/json'
+            req.body = { email: email, senha: senha }.to_json
+
+            response = http.request(req)
+            data = JSON.parse(response.body, symbolize_names: true)
+
+            if response.code.to_i == 200 && data[:token]
+              Sketchup.write_default('Ornato', 'auth_token', data[:token])
+              Sketchup.write_default('Ornato', 'auth_email', email)
+              Sketchup.write_default('Ornato', 'auth_user', (data[:user] || {}).to_json)
+              send_status("Login OK: #{email}")
+              { ok: true, email: email, user: data[:user] }
+            else
+              { ok: false, error: data[:error] || 'Credenciais invalidas' }
+            end
+          rescue => e
+            { ok: false, error: "Erro de conexao: #{e.message}" }
+          end
+        }
+
+        @commands['auth_status'] = ->(params) {
+          token = Sketchup.read_default('Ornato', 'auth_token', '')
+          email = Sketchup.read_default('Ornato', 'auth_email', '')
+          user_json = Sketchup.read_default('Ornato', 'auth_user', '{}')
+          user = begin; JSON.parse(user_json, symbolize_names: true); rescue; {}; end
+          if token.to_s.empty?
+            { logged_in: false }
+          else
+            { logged_in: true, email: email, user: user }
+          end
+        }
+
+        @commands['auth_logout'] = ->(params) {
+          Sketchup.write_default('Ornato', 'auth_token', '')
+          Sketchup.write_default('Ornato', 'auth_email', '')
+          Sketchup.write_default('Ornato', 'auth_user', '{}')
+          send_status('Sessao encerrada')
+          { ok: true }
         }
 
         # ── About ──────────────────────────────────────
@@ -376,6 +441,11 @@ module Ornato
 
       def b64_decode(str)
         Base64.decode64(str)
+      end
+
+      def add_auth_header(request)
+        token = Sketchup.read_default('Ornato', 'auth_token', '')
+        request['Authorization'] = "Bearer #{token}" unless token.to_s.empty?
       end
 
       def get_selected_ornato_module

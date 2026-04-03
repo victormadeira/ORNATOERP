@@ -1068,16 +1068,36 @@ hr { border: none; border-top: 1px solid var(--brand-border); margin: 16px 0; }
   </div>
   <div class="ornato-container">
     <div class="config-section">
-      <label class="section-title">API Ornato</label>
+      <label class="section-title">Servidor Ornato ERP</label>
       <div class="form-group">
         <label>URL do servidor</label>
         <input type="text" id="cfg_api_url" value="http://localhost:3001">
       </div>
-      <div class="form-group">
-        <label>Token (opcional)</label>
-        <input type="text" id="cfg_api_token" value="">
-      </div>
       <button class="btn btn-sm" onclick="OrnatoTabs.config.testApi()">Testar conexao</button>
+      <div id="cfg_api_test_result" style="margin-top:8px"></div>
+    </div>
+    <div class="config-section" id="cfg_auth_section">
+      <label class="section-title">Autenticacao</label>
+      <div id="cfg_auth_logged_out">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="cfg_auth_email" placeholder="seu@email.com">
+        </div>
+        <div class="form-group">
+          <label>Senha</label>
+          <input type="password" id="cfg_auth_senha" placeholder="Senha do ERP">
+        </div>
+        <div id="cfg_auth_error" style="color:#e74c3c;font-size:11px;margin-bottom:8px;display:none"></div>
+        <button class="btn btn-primary btn-sm" onclick="OrnatoTabs.config.login()" id="cfg_auth_login_btn">Entrar</button>
+      </div>
+      <div id="cfg_auth_logged_in" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg-hover);border-radius:6px;margin-bottom:8px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+          <span id="cfg_auth_user_email" style="font-size:12px;font-weight:600;color:var(--text-primary)"></span>
+          <span id="cfg_auth_user_role" class="tag tag-muted" style="font-size:10px;margin-left:auto"></span>
+        </div>
+        <button class="btn btn-sm btn-danger" onclick="OrnatoTabs.config.logout()">Sair</button>
+      </div>
     </div>
     <div class="config-section">
       <label class="section-title">Juncoes padrao</label>
@@ -1738,7 +1758,6 @@ OrnatoTabs.config = (function() {
     rubyCall('config_load', {}, function(data) {
       if (!data) return;
       setVal('cfg_api_url', (data.api && data.api.url) || 'http://localhost:3001');
-      setVal('cfg_api_token', (data.api && data.api.token) || '');
       setVal('cfg_joint', data.default_joint_type || 'minifix');
       setVal('cfg_hinge_cup', (data.hinge && data.hinge.cup_diameter) || 35);
       setVal('cfg_hinge_depth', (data.hinge && data.hinge.cup_depth) || 12.5);
@@ -1747,15 +1766,74 @@ OrnatoTabs.config = (function() {
       setCheck('cfg_auto_process', data.auto_process_on_export !== false);
       setCheck('cfg_show_preview', data.show_preview_before_export !== false);
     });
+    refreshAuthStatus();
+  }
+
+  function refreshAuthStatus() {
+    rubyCall('auth_status', {}, function(data) {
+      var loggedOut = document.getElementById('cfg_auth_logged_out');
+      var loggedIn = document.getElementById('cfg_auth_logged_in');
+      if (!loggedOut || !loggedIn) return;
+      if (data && data.logged_in) {
+        loggedOut.style.display = 'none';
+        loggedIn.style.display = 'block';
+        var emailEl = document.getElementById('cfg_auth_user_email');
+        var roleEl = document.getElementById('cfg_auth_user_role');
+        if (emailEl) emailEl.textContent = data.email || '';
+        if (roleEl) roleEl.textContent = (data.user && data.user.role) || '';
+      } else {
+        loggedOut.style.display = 'block';
+        loggedIn.style.display = 'none';
+      }
+    });
+  }
+
+  function login() {
+    var email = val('cfg_auth_email');
+    var senha = val('cfg_auth_senha');
+    var errEl = document.getElementById('cfg_auth_error');
+    var btn = document.getElementById('cfg_auth_login_btn');
+    if (!email || !senha) { if (errEl) { errEl.textContent = 'Preencha email e senha'; errEl.style.display = 'block'; } return; }
+    if (errEl) errEl.style.display = 'none';
+    if (btn) btn.textContent = 'Entrando...';
+    rubyCall('auth_login', { email: email, senha: senha }, function(data) {
+      if (btn) btn.textContent = 'Entrar';
+      if (data && data.ok) {
+        setVal('cfg_auth_senha', '');
+        refreshAuthStatus();
+        OrnatoDialog.setStatus('Login realizado: ' + email);
+      } else {
+        if (errEl) { errEl.textContent = (data && data.error) || 'Erro ao fazer login'; errEl.style.display = 'block'; }
+      }
+    });
+  }
+
+  function logout() {
+    rubyCall('auth_logout', {}, function() {
+      refreshAuthStatus();
+      OrnatoDialog.setStatus('Sessao encerrada');
+    });
   }
 
   function save() {
-    rubyCall('config_save', { api: { url: val('cfg_api_url'), token: val('cfg_api_token') }, default_joint_type: val('cfg_joint'), hinge: { cup_diameter: numVal('cfg_hinge_cup'), cup_depth: numVal('cfg_hinge_depth') }, minifix: { body_diameter: numVal('cfg_minifix_diam'), body_depth: numVal('cfg_minifix_depth') }, auto_process_on_export: checked('cfg_auto_process'), show_preview_before_export: checked('cfg_show_preview') }, function() { OrnatoDialog.setStatus('Configuracoes salvas'); });
+    rubyCall('config_save', { api: { url: val('cfg_api_url') }, default_joint_type: val('cfg_joint'), hinge: { cup_diameter: numVal('cfg_hinge_cup'), cup_depth: numVal('cfg_hinge_depth') }, minifix: { body_diameter: numVal('cfg_minifix_diam'), body_depth: numVal('cfg_minifix_depth') }, auto_process_on_export: checked('cfg_auto_process'), show_preview_before_export: checked('cfg_show_preview') }, function() { OrnatoDialog.setStatus('Configuracoes salvas'); });
   }
 
-  function testApi() { OrnatoDialog.setStatus('Testando conexao...'); rubyCall('config_test_api', { url: val('cfg_api_url') }, function(data) { OrnatoDialog.setStatus(data && data.ok ? 'Conexao OK!' : 'Falha na conexao'); }); }
+  function testApi() {
+    OrnatoDialog.setStatus('Testando conexao...');
+    rubyCall('config_test_api', { url: val('cfg_api_url') }, function(data) {
+      var result = document.getElementById('cfg_api_test_result');
+      if (data && data.ok) {
+        OrnatoDialog.setStatus('Conexao OK!');
+        if (result) result.innerHTML = '<span class="tag tag-success">Servidor acessivel</span>';
+      } else {
+        OrnatoDialog.setStatus('Falha na conexao');
+        if (result) result.innerHTML = '<span class="tag tag-danger">Sem conexao: ' + esc((data && data.error) || 'timeout') + '</span>';
+      }
+    });
+  }
   function reset() { rubyCall('config_reset', {}, function() { onShow(); OrnatoDialog.setStatus('Configuracoes resetadas'); }); }
-  return { init: init, onShow: onShow, save: save, testApi: testApi, reset: reset };
+  return { init: init, onShow: onShow, save: save, testApi: testApi, reset: reset, login: login, logout: logout };
 })();
 
 // ── SOBRE ───────────────────────────────────────────────

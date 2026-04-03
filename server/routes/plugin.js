@@ -1,12 +1,13 @@
 // ═══════════════════════════════════════════════════════
 // Plugin Routes — Download, versão e auto-update
-// Endpoints públicos (sem auth) para o plugin SketchUp
+// Protegido com auth — plugin SketchUp autentica via JWT
 // ═══════════════════════════════════════════════════════
 
 import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { requireAuth } from '../auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,8 +35,8 @@ function getVersionInfo() {
 }
 
 // ─── GET /api/plugin/latest ─────────────────────────────
-// Retorna info da versão mais recente (público)
-router.get('/latest', (req, res) => {
+// Retorna info da versão mais recente
+router.get('/latest', requireAuth, (req, res) => {
     const info = getVersionInfo();
     const host = req.get('host');
     const protocol = req.protocol;
@@ -63,7 +64,7 @@ router.get('/latest', (req, res) => {
 
 // ─── GET /api/plugin/download/:filename ─────────────────
 // Serve o arquivo .rbz para download
-router.get('/download/:filename', (req, res) => {
+router.get('/download/:filename', requireAuth, (req, res) => {
     const filename = req.params.filename;
     // Segurança: só permite .rbz e sem path traversal
     if (!filename.endsWith('.rbz') || filename.includes('..') || filename.includes('/')) {
@@ -87,7 +88,7 @@ router.get('/download/:filename', (req, res) => {
 
 // ─── POST /api/plugin/register ──────────────────────────
 // Registra instalação do plugin (analytics)
-router.post('/register', (req, res) => {
+router.post('/register', requireAuth, (req, res) => {
     const { version, sketchup_version, os, user_id } = req.body;
     try {
         const logFile = path.join(PLUGINS_DIR, 'installs.log');
@@ -99,7 +100,7 @@ router.post('/register', (req, res) => {
 
 // ─── GET /api/plugin/check-update ───────────────────────
 // Verifica se há atualização (chamado pelo plugin)
-router.get('/check-update', (req, res) => {
+router.get('/check-update', requireAuth, (req, res) => {
     const { current_version } = req.query;
     const info = getVersionInfo();
 
@@ -172,7 +173,7 @@ function listModules(category) {
 }
 
 // GET /api/plugin/biblioteca — índice de todas as categorias
-router.get('/biblioteca', (req, res) => {
+router.get('/biblioteca', requireAuth, (req, res) => {
     const result = {};
     for (const cat of CATEGORIAS_MOVEIS) {
         const mods = listModules(cat);
@@ -194,7 +195,7 @@ router.get('/biblioteca', (req, res) => {
 });
 
 // GET /api/plugin/biblioteca/moveis — lista todos os módulos (todas as categorias)
-router.get('/biblioteca/moveis', (req, res) => {
+router.get('/biblioteca/moveis', requireAuth, (req, res) => {
     const { categoria, search } = req.query;
     let all = [];
     const cats = categoria ? [categoria] : CATEGORIAS_MOVEIS;
@@ -213,7 +214,7 @@ router.get('/biblioteca/moveis', (req, res) => {
 });
 
 // GET /api/plugin/biblioteca/moveis/:id — detalhes completos de um módulo
-router.get('/biblioteca/moveis/:id', (req, res) => {
+router.get('/biblioteca/moveis/:id', requireAuth, (req, res) => {
     const { id } = req.params;
     if (id.includes('..') || id.includes('/')) return res.status(400).json({ error: 'ID inválido' });
 
@@ -228,7 +229,7 @@ router.get('/biblioteca/moveis/:id', (req, res) => {
 });
 
 // GET /api/plugin/biblioteca/ferragens — lista ferragens
-router.get('/biblioteca/ferragens', (req, res) => {
+router.get('/biblioteca/ferragens', requireAuth, (req, res) => {
     const ferragensDir = path.join(BIBLIOTECA_DIR, 'ferragens');
     if (!fs.existsSync(ferragensDir)) return res.json([]);
 

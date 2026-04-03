@@ -33,6 +33,7 @@ const Compras = lazy(() => import('./pages/Compras'));
 const GestaoAvancada = lazy(() => import('./pages/GestaoAvancada'));
 const ProducaoTV = lazy(() => import('./pages/ProducaoTV'));
 const Produtividade = lazy(() => import('./pages/Produtividade'));
+const PluginDownload = lazy(() => import('./pages/PluginDownload'));
 
 // ── Skeleton Fallback ──────────────────────────────────────────
 const LazyFallback = () => (
@@ -110,7 +111,7 @@ class ErrorBoundary extends Component {
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
     // ── Roteamento com History API ──────────────────────────────────────────
-    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade'];
+    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download'];
     const [pg, setPg] = useState(() => {
         const rawPath = window.location.pathname.replace(/^\/+/, '');
         const parts = rawPath.split('/');
@@ -448,6 +449,7 @@ export default function App() {
         ]},
         { id: 'sistema', label: 'Sistema', icon: Ic.Cog, items: [
             { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
+            { id: "plugin_download", lb: "Plugin SketchUp", ic: Ic.Plug },
             { id: "cfg", lb: "Configurações", ic: Ic.Gear },
             ...(isAdmin ? [{ id: "users", lb: "Usuários", ic: Ic.Users }] : []),
         ]},
@@ -475,6 +477,7 @@ export default function App() {
         { id: "gestao", lb: "Gestão Avançada", ic: Ic.BarChart },
         { id: "relatorios", lb: "Relatórios", ic: Ic.PieChart },
         { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
+        { id: "plugin_download", lb: "Plugin SketchUp", ic: Ic.Plug },
         { id: "cfg", lb: "Configurações", ic: Ic.Gear },
         ...(isAdmin ? [{ id: "users", lb: "Usuários", ic: Ic.Users }] : []),
     ].filter(p => canSee(p.id));
@@ -528,6 +531,7 @@ export default function App() {
             case "gestao": return <GestaoAvancada notify={notify} />;
             case "producao_tv": return <ProducaoTV />;
             case "produtividade": return <Produtividade notify={notify} />;
+            case "plugin_download": return <PluginDownload notify={notify} />;
             default: return <Dash nav={nav} notify={notify} />;
         }
     };

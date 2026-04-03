@@ -38,14 +38,20 @@ module Ornato
 
     # ── Verificar atualizações ─────────────────────────
     def self.check_for_updates(silent: true)
-      api_url = Ornato::Config.get(:api_url, 'http://localhost:3001')
+      config = Ornato::Config.load
+      api_url = config.dig(:api, :url) || 'http://localhost:3001'
       uri = URI("#{api_url}/api/plugin/check-update?current_version=#{PLUGIN_VERSION}")
+
+      token = Sketchup.read_default('Ornato', 'auth_token', '')
+      return if token.to_s.empty? # Sem login, sem update check
 
       response = nil
       Net::HTTP.start(uri.host, uri.port,
                       open_timeout: 5, read_timeout: 8,
                       use_ssl: uri.scheme == 'https') do |http|
-        response = http.get(uri.request_uri)
+        req = Net::HTTP::Get.new(uri.request_uri)
+        req['Authorization'] = "Bearer #{token}"
+        response = http.request(req)
       end
 
       return unless response&.code == '200'
@@ -135,10 +141,13 @@ module Ornato
       raise 'Muitos redirecionamentos' if redirect_limit <= 0
 
       uri = URI(url_str)
+      token = Sketchup.read_default('Ornato', 'auth_token', '')
       response = Net::HTTP.start(uri.host, uri.port,
                                  open_timeout: 10, read_timeout: 60,
                                  use_ssl: uri.scheme == 'https') do |http|
-        http.get(uri.request_uri)
+        req = Net::HTTP::Get.new(uri.request_uri)
+        req['Authorization'] = "Bearer #{token}" unless token.to_s.empty?
+        http.request(req)
       end
 
       case response.code.to_i

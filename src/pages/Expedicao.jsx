@@ -1974,7 +1974,7 @@ export default function Expedicao() {
                                                     fontWeight: 800, fontSize: 14,
                                                     color: idx === 0 ? '#f59e0b' : idx === 1 ? '#94a3b8' : idx === 2 ? '#cd7f32' : 'var(--text-muted)',
                                                 }}>
-                                                    {idx < 3 ? ['🥇', '🥈', '🥉'][idx] : `${idx + 1}`}
+                                                    {idx < 3 ? ['1°', '2°', '3°'][idx] : `${idx + 1}`}
                                                 </span>
                                                 <div>
                                                     <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{op.nome}</div>

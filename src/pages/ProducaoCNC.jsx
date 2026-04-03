@@ -1702,7 +1702,7 @@ function MachiningTemplateLibrary({ notify, onClose, onApply, applyMode, pecaTar
         } catch (err) { notify('Erro: ' + (err.error || err.message), 'error'); }
     };
 
-    const catIcons = { 'Dobradiça': '🔩', 'Minifix': '⚙️', 'Puxador': '🚪', 'Corrediça': '📏', 'Geral': '🔧' };
+    const catIcons = { 'Dobradiça': '⌀', 'Minifix': '⊕', 'Puxador': '◧', 'Corrediça': '◫', 'Geral': '◈' };
 
     return (
         <Modal title={applyMode ? `Aplicar Template em "${pecaTarget?.descricao || 'Peça'}"` : 'Biblioteca de Usinagens'} close={onClose} w={700}>
@@ -1742,7 +1742,7 @@ function MachiningTemplateLibrary({ notify, onClose, onApply, applyMode, pecaTar
                             >
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                                     <div style={{ fontSize: 13, fontWeight: 700 }}>{t.nome}</div>
-                                    <span style={{ fontSize: 16 }}>{catIcons[t.categoria] || '🔧'}</span>
+                                    <span style={{ fontSize: 16 }}>{catIcons[t.categoria] || '◈'}</span>
                                 </div>
                                 <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t.descricao || ''}</div>
                                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 10, marginBottom: 6 }}>
@@ -6368,7 +6368,7 @@ function GcodeSimCanvas({ gcode, chapa }) {
             let hy = hudY + 14;
             if (tool) {
                 ctx.fillStyle = '#f9e2af'; ctx.font = 'bold 10px sans-serif';
-                ctx.fillText(`🔧 ${tool}`, 10, hy); hy += 16;
+                ctx.fillText(`[${tool}]`, 10, hy); hy += 16;
             }
             if (op) {
                 ctx.fillStyle = cat.color; ctx.font = 'bold 10px sans-serif';
@@ -6471,11 +6471,11 @@ function GcodeSimCanvas({ gcode, chapa }) {
                 {!playing ? (
                     <button onClick={handlePlay} style={btnAct} title="Play (simular)">▶</button>
                 ) : (
-                    <button onClick={handlePause} style={btnAct} title="Pausar">⏸</button>
+                    <button onClick={handlePause} style={btnAct} title="Pausar">‖</button>
                 )}
-                <button onClick={handleStop} style={btnSt} title="Parar e voltar ao estático">⏹</button>
-                <button onClick={() => handleStep(-1)} style={btnSt} title="Voltar 1 move">⏮</button>
-                <button onClick={() => handleStep(1)} style={btnSt} title="Avançar 1 move">⏭</button>
+                <button onClick={handleStop} style={btnSt} title="Parar e voltar ao estático">■</button>
+                <button onClick={() => handleStep(-1)} style={btnSt} title="Voltar 1 move">«</button>
+                <button onClick={() => handleStep(1)} style={btnSt} title="Avançar 1 move">»</button>
                 <input type="range" min={0} max={Math.max(0, allMoves.length - 1)} value={curMove < 0 ? 0 : curMove}
                     onChange={handleSlider}
                     style={{ flex: 1, height: 4, accentColor: '#fab387', cursor: 'pointer' }} />
@@ -6509,7 +6509,7 @@ function GcodeSimCanvas({ gcode, chapa }) {
                     );
                 })}
                 {foundOps.length === 0 && <span style={{ fontSize: 10, color: '#6c7086' }}>Sem operações identificadas</span>}
-                {activeTool && <span style={{ marginLeft: 'auto', fontSize: 10, color: '#f9e2af', fontWeight: 600 }}>🔧 {activeTool}</span>}
+                {activeTool && <span style={{ marginLeft: 'auto', fontSize: 10, color: '#f9e2af', fontWeight: 600 }}>◈ {activeTool}</span>}
             </div>
         </div>
     );
@@ -9167,7 +9167,7 @@ function TabMateriais({ notify }) {
         </div>
     );
 
-    const MELAMINA_LABELS = { ambos: '✅ Ambos os lados', face_a: '🔼 Só Face A', face_b: '🔽 Só Face B', cru: '⬜ Cru (sem melamina)' };
+    const MELAMINA_LABELS = { ambos: '● Ambos os lados', face_a: '▲ Só Face A', face_b: '▼ Só Face B', cru: '□ Cru (sem melamina)' };
     const VEIO_LABELS = { sem_veio: 'Sem veio', horizontal: 'Horizontal →', vertical: 'Vertical ↓' };
 
     return (
@@ -9175,7 +9175,7 @@ function TabMateriais({ notify }) {
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
                 <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, flex: 1 }}>
-                    📦 Cadastro de Materiais <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)' }}>({materiais.length})</span>
+                    Cadastro de Materiais <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)' }}>({materiais.length})</span>
                 </h3>
                 <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar material..."
                     className={Z.inp} style={{ width: 220, fontSize: 12 }} />
@@ -9278,16 +9278,16 @@ function TabMateriais({ notify }) {
                                     { v: 'vertical', l: 'Vertical ↓' },
                                 ]} />
                                 <EF label="Melamina" field="melamina" opts={[
-                                    { v: 'ambos', l: '✅ Ambos os lados' },
-                                    { v: 'face_a', l: '🔼 Apenas Face A (topo)' },
-                                    { v: 'face_b', l: '🔽 Apenas Face B (fundo)' },
-                                    { v: 'cru', l: '⬜ Cru (sem melamina)' },
+                                    { v: 'ambos', l: '● Ambos os lados' },
+                                    { v: 'face_a', l: '▲ Apenas Face A (topo)' },
+                                    { v: 'face_b', l: '▼ Apenas Face B (fundo)' },
+                                    { v: 'cru', l: '□ Cru (sem melamina)' },
                                 ]} />
                                 <EF label="Cor / Acabamento" field="cor" />
                                 <EF label="Rotação" field="permitir_rotacao" opts={[
-                                    { v: -1, l: '🔄 Automático (segue veio)' },
-                                    { v: 1, l: '✅ Sempre permitir' },
-                                    { v: 0, l: '🚫 Nunca permitir' },
+                                    { v: -1, l: '↺ Automático (segue veio)' },
+                                    { v: 1, l: '✓ Sempre permitir' },
+                                    { v: 0, l: '✗ Nunca permitir' },
                                 ]} />
                             </div>
                             <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -9411,7 +9411,7 @@ function TabUsinagens({ lotes, loteAtual, setLoteAtual, notify }) {
                     {faceCNC && (
                         <div className="glass-card" style={{ padding: 16, marginBottom: 16 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                                <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>🧠 Algoritmo de Face CNC</h4>
+                                <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>◈ Algoritmo de Face CNC</h4>
                                 <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4,
                                     background: faceCNC.melamina === 'ambos' ? '#dcfce7' : '#fef3c7',
                                     color: faceCNC.melamina === 'ambos' ? '#166534' : '#92400e',

@@ -15,7 +15,7 @@ import {
     Library, Cpu, FolderKanban, Wallet, ShieldCheck, Handshake,
     Factory, LineChart, Cog, Star, PieChart, FileSpreadsheet, Kanban,
     InboxIcon, PackageSearch, LayoutGrid, PenTool, Truck, ClipboardList as ClipList,
-    Monitor, ShoppingCart
+    Monitor, ShoppingCart, Plug
 } from 'lucide-react';
 
 export const Ic = {
@@ -96,6 +96,7 @@ export const Ic = {
     Monitor: () => <Monitor size={18} />,
     ShoppingCart: () => <ShoppingCart size={18} />,
     ClipList: () => <ClipList size={18} />,
+    Plug: () => <Plug size={18} />,
 };
 
 export const Z = {

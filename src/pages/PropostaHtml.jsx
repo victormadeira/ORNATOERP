@@ -1067,7 +1067,7 @@ export function buildPropostaHtml({
         <div class="footer-brand">${empresaNome}</div>
         <div>${empresaContato.length > 0 ? `${empresaContato.join(' · ')}` : ''}</div>
         ${empresa?.instagram ? `<div class="footer-social">
-            <span style="margin-right:4px">📷</span> @${empresa.instagram.replace(/^@/, '')}
+            <span style="margin-right:4px">◎</span> @${empresa.instagram.replace(/^@/, '')}
         </div>` : ''}
     </div>
 
