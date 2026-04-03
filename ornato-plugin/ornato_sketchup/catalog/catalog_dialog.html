@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ornato - Catalogo de Ferragens</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    background: #0f1219;
+    color: #e0e6ff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ─── Header ───────────────────────────────── */
+  .header {
+    background: #141926;
+    padding: 14px 20px;
+    border-bottom: 1px solid #2a3042;
+  }
+  .header-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .search-box {
+    width: 100%;
+    padding: 8px 12px 8px 34px;
+    background: #0f1219;
+    border: 1px solid #2a3042;
+    border-radius: 6px;
+    color: #e0e6ff;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-box:focus { border-color: #1379F0; }
+  .search-wrapper {
+    position: relative;
+  }
+  .search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6b7a99;
+    font-size: 14px;
+    pointer-events: none;
+  }
+
+  /* ─── Category tabs ────────────────────────── */
+  .tabs {
+    display: flex;
+    background: #141926;
+    border-bottom: 1px solid #2a3042;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tabs::-webkit-scrollbar { height: 0; }
+  .tab {
+    padding: 10px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #6b7a99;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: all 0.2s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+  }
+  .tab:hover { color: #e0e6ff; }
+  .tab.active { color: #1379F0; border-bottom-color: #1379F0; }
+
+  /* ─── Card list ────────────────────────────── */
+  .cards-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 20px 100px;
+  }
+  .cards-container::-webkit-scrollbar { width: 6px; }
+  .cards-container::-webkit-scrollbar-track { background: transparent; }
+  .cards-container::-webkit-scrollbar-thumb {
+    background: #2a3042;
+    border-radius: 3px;
+  }
+
+  .hw-card {
+    background: #171d2b;
+    border: 1px solid #2a3042;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    transition: all 0.15s;
+  }
+  .hw-card:hover {
+    border-color: #4a5568;
+    background: #1c2333;
+  }
+  .hw-card.is-default {
+    border-color: #1379F0;
+    background: rgba(19, 121, 240, 0.06);
+  }
+
+  .hw-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .hw-brand {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #6b7a99;
+  }
+  .hw-model {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e0e6ff;
+    margin-top: 2px;
+  }
+  .hw-desc {
+    font-size: 11px;
+    color: #8b99b5;
+    margin-top: 4px;
+    line-height: 1.3;
+  }
+
+  .hw-specs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .spec-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    background: #232b3d;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #8b99b5;
+    white-space: nowrap;
+  }
+  .spec-pill.highlight {
+    background: rgba(19, 121, 240, 0.15);
+    color: #6db3f8;
+  }
+
+  .hw-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    justify-content: flex-end;
+  }
+
+  .btn-default {
+    padding: 5px 14px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid #2a3042;
+    background: transparent;
+    color: #8b99b5;
+  }
+  .btn-default:hover {
+    border-color: #1379F0;
+    color: #1379F0;
+  }
+  .btn-default.active {
+    background: #1379F0;
+    border-color: #1379F0;
+    color: #fff;
+    cursor: default;
+  }
+
+  .default-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    background: rgba(19, 121, 240, 0.15);
+    border: 1px solid rgba(19, 121, 240, 0.3);
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #1379F0;
+  }
+
+  /* ─── Defaults summary ─────────────────────── */
+  .defaults-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 12px 20px;
+    background: #141926;
+    border-top: 1px solid #2a3042;
+  }
+  .defaults-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6b7a99;
+    margin-bottom: 8px;
+  }
+  .defaults-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .default-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: #1c2333;
+    border: 1px solid #2a3042;
+    border-radius: 5px;
+    font-size: 11px;
+    color: #e0e6ff;
+  }
+  .default-item .cat-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #6b7a99;
+  }
+
+  .no-results {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6b7a99;
+    font-size: 13px;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .hw-card { animation: fadeIn 0.15s ease-out; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">Catalogo de Ferragens</div>
+  <div class="search-wrapper">
+    <span class="search-icon">&#128269;</span>
+    <input type="text" class="search-box" id="searchInput" placeholder="Buscar ferragem..." oninput="onSearch()">
+  </div>
+</div>
+
+<div class="tabs" id="categoryTabs">
+  <button class="tab active" data-cat="hinge" onclick="setCategory('hinge')">Dobradicas</button>
+  <button class="tab" data-cat="minifix" onclick="setCategory('minifix')">Minifix</button>
+  <button class="tab" data-cat="slide" onclick="setCategory('slide')">Corredicas</button>
+  <button class="tab" data-cat="handle" onclick="setCategory('handle')">Puxadores</button>
+  <button class="tab" data-cat="dowel" onclick="setCategory('dowel')">Cavilhas</button>
+</div>
+
+<div class="cards-container" id="cardsContainer"></div>
+
+<div class="defaults-bar" id="defaultsBar">
+  <div class="defaults-title">Padroes selecionados</div>
+  <div class="defaults-list" id="defaultsList"></div>
+</div>
+
+<script>
+  // ─── State ──────────────────────────────────
+  var catalogData = { hinges: [], minifix: [], slides: [], handles: [], dowels: [], defaults: {} };
+  var currentCategory = 'hinge';
+  var searchQuery = '';
+  var userDefaults = {};
+
+  var categoryMap = {
+    hinge: 'hinges',
+    minifix: 'minifix',
+    slide: 'slides',
+    handle: 'handles',
+    dowel: 'dowels'
+  };
+  var categoryLabels = {
+    hinge: 'Dobradica',
+    minifix: 'Minifix',
+    slide: 'Corredica',
+    handle: 'Puxador',
+    dowel: 'Cavilha'
+  };
+
+  // ─── SketchUp data injection ────────────────
+  function setCatalogData(data) {
+    try {
+      catalogData = typeof data === 'string' ? JSON.parse(data) : data;
+    } catch(e) {
+      catalogData = { hinges: [], minifix: [], slides: [], handles: [], dowels: [], defaults: {} };
+    }
+    userDefaults = catalogData.defaults || {};
+    renderAll();
+  }
+
+  // ─── Rendering ──────────────────────────────
+  function renderAll() {
+    renderCards();
+    renderDefaults();
+  }
+
+  function setCategory(cat) {
+    currentCategory = cat;
+    var tabs = document.querySelectorAll('.tab');
+    tabs.forEach(function(t) {
+      t.classList.toggle('active', t.getAttribute('data-cat') === cat);
+    });
+    renderCards();
+  }
+
+  function onSearch() {
+    searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+    renderCards();
+  }
+
+  function renderCards() {
+    var key = categoryMap[currentCategory];
+    var items = catalogData[key] || [];
+
+    if (searchQuery) {
+      items = items.filter(function(item) {
+        return item.brand.toLowerCase().indexOf(searchQuery) >= 0 ||
+               item.model.toLowerCase().indexOf(searchQuery) >= 0 ||
+               (item.description || '').toLowerCase().indexOf(searchQuery) >= 0;
+      });
+    }
+
+    if (items.length === 0) {
+      document.getElementById('cardsContainer').innerHTML =
+        '<div class="no-results">Nenhuma ferragem encontrada.</div>';
+      return;
+    }
+
+    var html = '';
+    items.forEach(function(item) {
+      var isDefault = userDefaults[currentCategory] === item.id;
+      html += renderCard(item, isDefault);
+    });
+
+    document.getElementById('cardsContainer').innerHTML = html;
+  }
+
+  function renderCard(item, isDefault) {
+    var specs = item.specs || {};
+    var pills = buildSpecPills(item.category, specs);
+
+    var cardClass = 'hw-card' + (isDefault ? ' is-default' : '');
+
+    var h = '<div class="' + cardClass + '">';
+    h += '<div class="hw-card-top">';
+    h += '<div>';
+    h += '<div class="hw-brand">' + esc(item.brand) + '</div>';
+    h += '<div class="hw-model">' + esc(item.model) + '</div>';
+    h += '<div class="hw-desc">' + esc(item.description || '') + '</div>';
+    h += '</div>';
+    if (isDefault) {
+      h += '<span class="default-tag">Padrao</span>';
+    }
+    h += '</div>';
+
+    h += '<div class="hw-specs">';
+    pills.forEach(function(pill) {
+      h += '<span class="spec-pill' + (pill.highlight ? ' highlight' : '') + '">' + esc(pill.text) + '</span>';
+    });
+    h += '</div>';
+
+    h += '<div class="hw-card-actions">';
+    if (isDefault) {
+      h += '<button class="btn-default active">Padrao atual</button>';
+    } else {
+      h += '<button class="btn-default" onclick="setAsDefault(\'' + item.id + '\')">Usar como padrao</button>';
+    }
+    h += '</div>';
+    h += '</div>';
+    return h;
+  }
+
+  function buildSpecPills(category, specs) {
+    var pills = [];
+    switch(category) {
+      case 'hinge':
+        if (specs.cup_diameter) pills.push({ text: '\u00D8' + specs.cup_diameter + 'mm', highlight: true });
+        if (specs.angle) pills.push({ text: specs.angle + '\u00B0', highlight: true });
+        if (specs.cup_depth) pills.push({ text: 'prof. ' + specs.cup_depth + 'mm' });
+        if (specs.edge_offset) pills.push({ text: 'offset ' + specs.edge_offset + 'mm' });
+        if (specs.pilot_spacing) pills.push({ text: 'furos aux. ' + specs.pilot_spacing + 'mm' });
+        break;
+      case 'minifix':
+        if (specs.body_diameter) pills.push({ text: '\u00D8' + specs.body_diameter + 'mm', highlight: true });
+        if (specs.body_depth) pills.push({ text: 'prof. ' + specs.body_depth + 'mm' });
+        if (specs.bolt_diameter) pills.push({ text: 'parafuso \u00D8' + specs.bolt_diameter + 'mm' });
+        if (specs.bolt_depth) pills.push({ text: 'comp. ' + specs.bolt_depth + 'mm' });
+        break;
+      case 'slide':
+        if (specs.length) pills.push({ text: specs.length + 'mm', highlight: true });
+        if (specs.load_capacity) pills.push({ text: specs.load_capacity + 'kg' });
+        if (specs.full_extension) pills.push({ text: 'extracao total', highlight: true });
+        if (specs.soft_close) pills.push({ text: 'soft-close' });
+        if (specs.fixing_positions) pills.push({ text: specs.fixing_positions.length + ' fixacoes' });
+        break;
+      case 'handle':
+        if (specs.hole_spacing) pills.push({ text: specs.hole_spacing + 'mm entre-furos', highlight: true });
+        if (specs.hole_diameter) pills.push({ text: '\u00D8' + specs.hole_diameter + 'mm' });
+        break;
+      case 'dowel':
+        if (specs.diameter) pills.push({ text: '\u00D8' + specs.diameter + 'mm', highlight: true });
+        if (specs.length) pills.push({ text: specs.length + 'mm comp.', highlight: true });
+        if (specs.hole_depth) pills.push({ text: 'prof. ' + specs.hole_depth + 'mm' });
+        break;
+    }
+    return pills;
+  }
+
+  // ─── Defaults ───────────────────────────────
+  function setAsDefault(itemId) {
+    userDefaults[currentCategory] = itemId;
+    renderCards();
+    renderDefaults();
+
+    // Notify SketchUp
+    try {
+      window.location = 'skp:set_default@' + currentCategory + '|' + itemId;
+    } catch(e) {
+      try { sketchup.set_default(currentCategory, itemId); } catch(e2) {}
+    }
+  }
+
+  function renderDefaults() {
+    var html = '';
+    Object.keys(categoryLabels).forEach(function(cat) {
+      var defId = userDefaults[cat];
+      if (!defId) return;
+
+      var key = categoryMap[cat];
+      var items = catalogData[key] || [];
+      var item = items.find(function(i) { return i.id === defId; });
+      if (!item) return;
+
+      html += '<div class="default-item">';
+      html += '<span class="cat-label">' + categoryLabels[cat] + '</span>';
+      html += esc(item.brand) + ' ' + esc(item.model);
+      html += '</div>';
+    });
+
+    if (!html) {
+      html = '<div class="default-item"><span class="cat-label">Nenhum</span>Usando padroes genericos</div>';
+    }
+
+    document.getElementById('defaultsList').innerHTML = html;
+  }
+
+  // ─── Helpers ────────────────────────────────
+  function esc(str) {
+    if (!str) return '';
+    return str.toString()
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ─── Demo data for standalone testing ───────
+  // Uncomment to test outside SketchUp:
+  // setCatalogData({
+  //   hinges: [
+  //     {id:'blum_clip_top_110', brand:'Blum', model:'CLIP top 110\u00B0', category:'hinge',
+  //      specs:{cup_diameter:35, cup_depth:11.5, angle:110, edge_offset:22.5, pilot_spacing:24},
+  //      description:'Dobradica Blum CLIP top 110\u00B0 com amortecedor integrado'},
+  //   ],
+  //   minifix: [], slides: [], handles: [], dowels: [],
+  //   defaults: { hinge: 'blum_clip_top_110' }
+  // });
+</script>
+</body>
+</html>

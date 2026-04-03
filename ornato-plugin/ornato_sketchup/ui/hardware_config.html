@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ornato - Configuracao de Ferragens</title>
+<style>
+  :root {
+    --bg-deepest: #0c0e14;
+    --bg-card: #111420;
+    --bg-elevated: #1a1e2e;
+    --border: rgba(255,255,255,0.06);
+    --border-hover: rgba(255,255,255,0.12);
+    --text-primary: #e8ecf4;
+    --text-secondary: #8892a8;
+    --text-muted: #555d70;
+    --accent: #1379F0;
+    --accent-hover: #0ea5e9;
+    --accent-subtle: rgba(19,121,240,0.08);
+    --accent-ring: rgba(19,121,240,0.3);
+    --success: #22c55e;
+    --success-subtle: rgba(34,197,94,0.1);
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --error-subtle: rgba(239,68,68,0.1);
+    --purple: #8b5cf6;
+    --purple-subtle: rgba(139,92,246,0.08);
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-pill: 20px;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--bg-deepest); color: var(--text-primary); min-height: 100vh; font-size: 13px; -webkit-font-smoothing: antialiased; }
+
+  /* Header */
+  .header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 100; }
+  .logo-icon { width: 28px; height: 28px; background: linear-gradient(135deg, var(--purple) 0%, #a78bfa 100%); border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .logo-icon svg { width: 16px; height: 16px; fill: #fff; }
+  .header-title { font-size: 14px; font-weight: 600; color: var(--text-primary); flex: 1; }
+
+  /* Tab bar */
+  .tab-bar { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 0 12px; display: flex; gap: 4px; overflow-x: auto; position: sticky; top: 52px; z-index: 99; }
+  .tab-bar::-webkit-scrollbar { height: 0; }
+  .tab-pill { padding: 7px 14px; font-size: 11px; font-weight: 600; color: var(--text-muted); cursor: pointer; border: 1px solid transparent; background: transparent; border-radius: var(--radius-pill); white-space: nowrap; transition: all 0.15s var(--ease); font-family: var(--font); display: flex; align-items: center; gap: 6px; margin: 6px 0; }
+  .tab-pill:hover { color: var(--text-secondary); background: var(--bg-elevated); }
+  .tab-pill.active { color: #fff; background: var(--purple); border-color: var(--purple); }
+  .tab-pill svg { width: 14px; height: 14px; }
+
+  /* Content */
+  .content { padding: 16px 16px 80px; }
+  .tab-panel { display: none; animation: fadeIn 0.2s var(--ease); }
+  .tab-panel.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Section header */
+  .section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; margin-top: 20px; }
+  .section-header:first-child { margin-top: 0; }
+  .section-bar { width: 3px; height: 16px; border-radius: 2px; background: var(--purple); }
+  .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-secondary); }
+
+  /* Diagram area */
+  .diagram-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; margin-bottom: 16px; display: flex; align-items: center; justify-content: center; min-height: 140px; }
+  .diagram-card svg { max-width: 100%; height: auto; }
+
+  /* Params grid */
+  .params-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+  .param-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; transition: all 0.15s var(--ease); }
+  .param-card:hover { border-color: var(--border-hover); }
+  .param-card:focus-within { border-color: var(--purple); box-shadow: 0 0 0 2px rgba(139,92,246,0.15); }
+  .param-label { font-size: 10px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; letter-spacing: 0.3px; }
+  .param-unit { font-size: 9px; color: var(--text-muted); font-family: var(--mono); background: var(--bg-elevated); padding: 1px 5px; border-radius: 3px; }
+  .param-input { width: 100%; background: var(--bg-deepest); border: 1px solid var(--border); border-radius: 4px; padding: 7px 8px; color: var(--text-primary); font-size: 13px; font-family: var(--mono); outline: none; transition: all 0.15s var(--ease); }
+  .param-input:focus { border-color: var(--purple); }
+  .param-select { width: 100%; background: var(--bg-deepest); border: 1px solid var(--border); border-radius: 4px; padding: 7px 8px; color: var(--text-primary); font-size: 12px; font-family: var(--font); outline: none; -webkit-appearance: none; cursor: pointer; transition: all 0.15s var(--ease); }
+  .param-select:focus { border-color: var(--purple); }
+  .param-hint { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+
+  /* Footer */
+  .footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-card); border-top: 1px solid var(--border); padding: 10px 16px; display: flex; justify-content: flex-end; gap: 8px; z-index: 100; }
+  .btn { padding: 8px 16px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: all 0.15s var(--ease); font-family: var(--font); }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary { background: var(--purple); color: #fff; border-color: var(--purple); }
+  .btn-primary:hover { background: #7c3aed; }
+  .btn-ghost { background: transparent; color: var(--text-secondary); border-color: var(--border); }
+  .btn-ghost:hover { border-color: var(--purple); color: var(--purple); background: var(--purple-subtle); }
+
+  /* Toast */
+  .toast { position: fixed; top: 16px; right: 16px; padding: 10px 16px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; z-index: 1000; transform: translateX(120%); transition: transform 0.3s var(--ease); }
+  .toast.show { transform: translateX(0); }
+  .toast.success { background: var(--success-subtle); border: 1px solid rgba(34,197,94,0.2); color: var(--success); }
+  .toast.error { background: var(--error-subtle); border: 1px solid rgba(239,68,68,0.2); color: var(--error); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo-icon">
+    <svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" fill="#fff"/></svg>
+  </div>
+  <span class="header-title">Configuracao de Ferragens</span>
+</div>
+
+<div class="tab-bar" id="tabBar">
+  <button class="tab-pill active" data-tab="dobradica">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+    Dobradica
+  </button>
+  <button class="tab-pill" data-tab="sistema32">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+    Sistema 32
+  </button>
+  <button class="tab-pill" data-tab="minifix">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="6"/><line x1="12" y1="6" x2="12" y2="18"/><line x1="6" y1="12" x2="18" y2="12"/></svg>
+    Minifix
+  </button>
+  <button class="tab-pill" data-tab="cavilha">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="10" y="2" width="4" height="20" rx="2"/></svg>
+    Cavilha
+  </button>
+  <button class="tab-pill" data-tab="puxador">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18h12M8 18V6a4 4 0 018 0v12"/></svg>
+    Puxador
+  </button>
+  <button class="tab-pill" data-tab="corredica">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h20M6 8h12v8H6z"/></svg>
+    Corredica
+  </button>
+  <button class="tab-pill" data-tab="fundo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    Fundo
+  </button>
+  <button class="tab-pill" data-tab="prateleira">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="5" y1="3" x2="5" y2="21"/><line x1="19" y1="3" x2="19" y2="21"/></svg>
+    Prateleira
+  </button>
+</div>
+
+<div class="content">
+  <!-- DOBRADICA -->
+  <div class="tab-panel active" id="panel-dobradica">
+    <div class="diagram-card">
+      <svg width="280" height="120" viewBox="0 0 280 120">
+        <!-- Door panel edge -->
+        <rect x="10" y="10" width="60" height="100" rx="3" fill="#1a1e2e" stroke="#555d70" stroke-width="1"/>
+        <text x="40" y="65" text-anchor="middle" fill="#555d70" font-size="9" font-family="Inter,sans-serif">PORTA</text>
+        <!-- Cup hole 35mm -->
+        <circle cx="40" cy="50" r="17" fill="rgba(139,92,246,0.15)" stroke="#8b5cf6" stroke-width="1.5"/>
+        <text x="40" y="53" text-anchor="middle" fill="#8b5cf6" font-size="8" font-weight="600" font-family="Inter,sans-serif">35</text>
+        <!-- Pilot holes -->
+        <circle cx="24" cy="50" r="2.5" fill="rgba(14,165,233,0.3)" stroke="#0ea5e9" stroke-width="1"/>
+        <circle cx="56" cy="50" r="2.5" fill="rgba(14,165,233,0.3)" stroke="#0ea5e9" stroke-width="1"/>
+        <!-- Dimension: dist_borda -->
+        <line x1="70" y1="10" x2="70" y2="33" stroke="#f59e0b" stroke-width="0.5" stroke-dasharray="2"/>
+        <line x1="70" y1="50" x2="70" y2="50" stroke="#f59e0b" stroke-width="0.5"/>
+        <text x="80" y="25" fill="#f59e0b" font-size="8" font-family="Inter,sans-serif">dist_borda</text>
+        <!-- Dimension: base dist furos -->
+        <line x1="24" y1="80" x2="56" y2="80" stroke="#22c55e" stroke-width="0.5"/>
+        <line x1="24" y1="55" x2="24" y2="83" stroke="#22c55e" stroke-width="0.5" stroke-dasharray="2"/>
+        <line x1="56" y1="55" x2="56" y2="83" stroke="#22c55e" stroke-width="0.5" stroke-dasharray="2"/>
+        <text x="40" y="90" text-anchor="middle" fill="#22c55e" font-size="8" font-family="Inter,sans-serif">32mm</text>
+        <!-- Side panel -->
+        <rect x="130" y="10" width="20" height="100" rx="2" fill="#1a1e2e" stroke="#555d70" stroke-width="1"/>
+        <text x="140" y="65" text-anchor="middle" fill="#555d70" font-size="7" font-family="Inter,sans-serif" transform="rotate(-90 140 65)">LATERAL</text>
+        <!-- Base holes on lateral -->
+        <circle cx="140" cy="40" r="2.5" fill="rgba(14,165,233,0.3)" stroke="#0ea5e9" stroke-width="1"/>
+        <circle cx="140" cy="72" r="2.5" fill="rgba(14,165,233,0.3)" stroke="#0ea5e9" stroke-width="1"/>
+        <!-- 32mm dimension -->
+        <line x1="155" y1="40" x2="155" y2="72" stroke="#22c55e" stroke-width="0.5"/>
+        <line x1="150" y1="40" x2="160" y2="40" stroke="#22c55e" stroke-width="0.5"/>
+        <line x1="150" y1="72" x2="160" y2="72" stroke="#22c55e" stroke-width="0.5"/>
+        <text x="170" y="59" fill="#22c55e" font-size="8" font-family="Inter,sans-serif">32mm</text>
+        <!-- Legend -->
+        <circle cx="210" cy="30" r="4" fill="rgba(139,92,246,0.2)" stroke="#8b5cf6" stroke-width="1"/>
+        <text x="220" y="33" fill="#8892a8" font-size="8" font-family="Inter,sans-serif">Copo (35mm)</text>
+        <circle cx="210" cy="50" r="3" fill="rgba(14,165,233,0.2)" stroke="#0ea5e9" stroke-width="1"/>
+        <text x="220" y="53" fill="#8892a8" font-size="8" font-family="Inter,sans-serif">Piloto (5mm)</text>
+      </svg>
+    </div>
+    <div class="section-header"><div class="section-bar"></div><div class="section-title">Copo</div></div>
+    <div class="params-grid">
+      <div class="param-card"><div class="param-label">Diametro <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="dobradica.copo_diametro" value="35" step="0.5"></div>
+      <div class="param-card"><div class="param-label">Profundidade <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="dobradica.copo_profundidade" value="12" step="0.5"></div>
+      <div class="param-card"><div class="param-label">Dist. borda <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="dobradica.dist_borda" value="5" step="0.5"></div>
+    </div>
+    <div class="section-header"><div class="section-bar"></div><div class="section-title">Base (Parafusos)</div></div>
+    <div class="params-grid">
+      <div class="param-card"><div class="param-label">Furo diametro <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="dobradica.base_furo_diam" value="5" step="0.1"></div>
+      <div class="param-card"><div class="param-label">Furo profundidade <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="dobradica.base_furo_prof" value="11" step="0.5"></div>
+      <div class="param-card"><div class="param-label">Dist. entre furos <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="dobradica.base_dist_furos" value="32" step="1"></div>
+    </div>
+  </div>
+
+  <!-- SISTEMA 32 -->
+  <div class="tab-panel" id="panel-sistema32">
+    <div class="diagram-card">
+      <svg width="280" height="130" viewBox="0 0 280 130">
+        <!-- Lateral panel -->
+        <rect x="30" y="5" width="20" height="120" rx="2" fill="#1a1e2e" stroke="#555d70" stroke-width="1"/>
+        <text x="40" y="65" text-anchor="middle" fill="#555d70" font-size="7" font-family="Inter,sans-serif" transform="rotate(-90 40 65)">LATERAL</text>
+        <!-- System 32 holes -->
+        <circle cx="40" cy="20" r="2.5" fill="rgba(139,92,246,0.2)" stroke="#8b5cf6" stroke-width="1"/>
+        <circle cx="40" cy="36" r="2.5" fill="rgba(139,92,246,0.2)" stroke="#8b5cf6" stroke-width="1"/>
+        <circle cx="40" cy="52" r="2.5" fill="rgba(139,92,246,0.2)" stroke="#8b5cf6" stroke-width="1"/>
+        <circle cx="40" cy="68" r="2.5" fill="rgba(139,92,246,0.2)" stroke="#8b5cf6" stroke-width="1"/>
+        <circle cx="40" cy="84" r="2.5" fill="rgba(139,92,246,0.2)" stroke="#8b5cf6" stroke-width="1"/>
+        <circle cx="40" cy="100" r="2.5" fill="rgba(139,92,246,0.2)" stroke="#8b5cf6" stroke-width="1"/>
+        <circle cx="40" cy="116" r="2.5" fill="rgba(139,92,246,0.2)" stroke="#8b5cf6" stroke-width="1"/>
+        <!-- 32mm spacing lines -->
+        <line x1="55" y1="20" x2="55" y2="52" stroke="#22c55e" stroke-width="0.5"/>
+        <line x1="52" y1="20" x2="58" y2="20" stroke="#22c55e" stroke-width="0.5"/>
+        <line x1="52" y1="52" x2="58" y2="52" stroke="#22c55e" stroke-width="0.5"/>
+        <text x="62" y="39" fill="#22c55e" font-size="8" font-family="Inter,sans-serif">32</text>
+        <text x="62" y="47" fill="#22c55e" font-size="7" font-family="Inter,sans-serif">mm</text>
+        <!-- dist_frente -->
+        <line x1="30" y1="2" x2="40" y2="2" stroke="#f59e0b" stroke-width="0.5" stroke-dasharray="2"/>
+        <text x="90" y="15" fill="#f59e0b" font-size="8" font-family="Inter,sans-serif">dist_frente: 37mm</text>
+        <!-- Legend -->
+        <rect x="120" y="40" width="140" height="60" rx="6" fill="var(--bg-card)" stroke="var(--border)" stroke-width="0.5"/>
+        <circle cx="135" cy="58" r="3" fill="rgba(139,92,246,0.2)" stroke="#8b5cf6" stroke-width="1"/>
+        <text x="145" y="61" fill="#8892a8" font-size="8" font-family="Inter,sans-serif">Furo D5mm P11mm</text>
+        <line x1="132" y1="78" x2="138" y2="78" stroke="#22c55e" stroke-width="1"/>
+        <text x="145" y="81" fill="#8892a8" font-size="8" font-family="Inter,sans-serif">Passo 32mm</text>
+      </svg>
+    </div>
+    <div class="section-header"><div class="section-bar"></div><div class="section-title">Furos Laterais</div></div>
+    <div class="params-grid">
+      <div class="param-card"><div class="param-label">Diametro <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="sistema32.diametro" value="5" step="0.1"></div>
+      <div class="param-card"><div class="param-label">Profundidade <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="sistema32.profundidade" value="11" step="0.5"></div>
+      <div class="param-card"><div class="param-label">Dist. da frente <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="sistema32.dist_frente" value="37" step="1"></div>
+      <div class="param-card"><div class="param-label">Dist. do fundo <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="sistema32.dist_fundo" value="37" step="1"></div>
+      <div class="param-card"><div class="param-label">Passo <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="sistema32.passo" value="32" step="1"></div>
+      <div class="param-card"><div class="param-label">Primeiro furo <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="sistema32.primeiro_furo" value="37" step="1"></div>
+    </div>
+  </div>
+
+  <!-- MINIFIX -->
+  <div class="tab-panel" id="panel-minifix">
+    <div class="diagram-card">
+      <svg width="280" height="120" viewBox="0 0 280 120">
+        <!-- Lateral panel -->
+        <rect x="20" y="10" width="18" height="100" rx="2" fill="#1a1e2e" stroke="#555d70" stroke-width="1"/>
+        <text x="29" y="65" text-anchor="middle" fill="#555d70" font-size="7" font-family="Inter,sans-serif" transform="rotate(-90 29 65)">LATERAL</text>
+        <!-- Minifix body hole (face) -->
+        <circle cx="29" cy="40" r="7.5" fill="rgba(139,92,246,0.15)" stroke="#8b5cf6" stroke-width="1.5"/>
+        <text x="29" y="43" text-anchor="middle" fill="#8b5cf6" font-size="7" font-weight="600" font-family="Inter,sans-serif">15</text>
+        <!-- Base/tampo panel -->
+        <rect x="38" y="35" width="100" height="14" rx="2" fill="#1a1e2e" stroke="#555d70" stroke-width="1"/>
+        <text x="88" y="45" text-anchor="middle" fill="#555d70" font-size="7" font-family="Inter,sans-serif">BASE / TAMPO</text>
+        <!-- Pin hole (topo) -->
+        <line x1="50" y1="35" x2="50" y2="60" stroke="#0ea5e9" stroke-width="1.5" stroke-dasharray="3"/>
+        <circle cx="50" cy="42" r="4" fill="rgba(14,165,233,0.2)" stroke="#0ea5e9" stroke-width="1"/>
+        <text x="50" y="44" text-anchor="middle" fill="#0ea5e9" font-size="6" font-weight="600" font-family="Inter,sans-serif">8</text>
+        <!-- Dimensions -->
+        <text x="55" y="70" fill="#f59e0b" font-size="8" font-family="Inter,sans-serif">D8mm x P34mm</text>
+        <!-- Legend -->
+        <rect x="160" y="20" width="105" height="70" rx="6" fill="var(--bg-card)" stroke="var(--border)" stroke-width="0.5"/>
+        <circle cx="175" cy="40" r="4" fill="rgba(139,92,246,0.2)" stroke="#8b5cf6" stroke-width="1"/>
+        <text x="185" y="43" fill="#8892a8" font-size="8" font-family="Inter,sans-serif">Corpo D15mm</text>
+        <circle cx="175" cy="60" r="3" fill="rgba(14,165,233,0.2)" stroke="#0ea5e9" stroke-width="1"/>
+        <text x="185" y="63" fill="#8892a8" font-size="8" font-family="Inter,sans-serif">Parafuso D8mm</text>
+      </svg>
+    </div>
+    <div class="section-header"><div class="section-bar"></div><div class="section-title">Corpo (lateral)</div></div>
+    <div class="params-grid">
+      <div class="param-card"><div class="param-label">Furo diametro <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="minifix.corpo_diam" value="15" step="0.5"></div>
+      <div class="param-card"><div class="param-label">Furo profundidade <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="minifix.corpo_prof" value="12.5" step="0.5"></div>
+    </div>
+    <div class="section-header"><div class="section-bar"></div><div class="section-title">Parafuso (base/tampo)</div></div>
+    <div class="params-grid">
+      <div class="param-card"><div class="param-label">Furo diametro <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="minifix.parafuso_diam" value="8" step="0.5"></div>
+      <div class="param-card"><div class="param-label">Furo profundidade <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="minifix.parafuso_prof" value="34" step="0.5"></div>
+      <div class="param-card"><div class="param-label">Dist. da borda <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="minifix.dist_borda" value="50" step="1"></div>
+    </div>
+  </div>
+
+  <!-- CAVILHA -->
+  <div class="tab-panel" id="panel-cavilha">
+    <div class="diagram-card">
+      <svg width="280" height="100" viewBox="0 0 280 100">
+        <!-- Two panels joined -->
+        <rect x="20" y="20" width="100" height="16" rx="2" fill="#1a1e2e" stroke="#555d70" stroke-width="1"/>
+        <rect x="20" y="54" width="100" height="16" rx="2" fill="#1a1e2e" stroke="#555d70" stroke-width="1"/>
+        <!-- Dowels -->
+        <rect x="48" y="34" width="6" height="22" rx="3" fill="rgba(139,92,246,0.3)" stroke="#8b5cf6" stroke-width="1"/>
+        <rect x="78" y="34" width="6" height="22" rx="3" fill="rgba(139,92,246,0.3)" stroke="#8b5cf6" stroke-width="1"/>
+        <!-- Dimensions -->
+        <line x1="51" y1="78" x2="81" y2="78" stroke="#22c55e" stroke-width="0.5"/>
+        <line x1="51" y1="73" x2="51" y2="82" stroke="#22c55e" stroke-width="0.5"/>
+        <line x1="81" y1="73" x2="81" y2="82" stroke="#22c55e" stroke-width="0.5"/>
+        <text x="66" y="90" text-anchor="middle" fill="#22c55e" font-size="8" font-family="Inter,sans-serif">espacamento</text>
+        <!-- Legend -->
+        <rect x="160" y="20" width="100" height="50" rx="6" fill="var(--bg-card)" stroke="var(--border)" stroke-width="0.5"/>
+        <rect x="172" y="36" width="4" height="12" rx="2" fill="rgba(139,92,246,0.3)" stroke="#8b5cf6" stroke-width="0.5"/>
+        <text x="182" y="45" fill="#8892a8" font-size="8" font-family="Inter,sans-serif">Cavilha D8mm</text>
+      </svg>
+    </div>
+    <div class="section-header"><div class="section-bar"></div><div class="section-title">Parametros</div></div>
+    <div class="params-grid">
+      <div class="param-card"><div class="param-label">Diametro <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="cavilha.diametro" value="8" step="0.5"></div>
+      <div class="param-card"><div class="param-label">Profundidade <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="cavilha.profundidade" value="16" step="0.5"></div>
+      <div class="param-card"><div class="param-label">Dist. da borda <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="cavilha.dist_borda" value="50" step="1"></div>
+      <div class="param-card"><div class="param-label">Espacamento <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="cavilha.espacamento" value="128" step="1"></div>
+    </div>
+  </div>
+
+  <!-- PUXADOR -->
+  <div class="tab-panel" id="panel-puxador">
+    <div class="diagram-card">
+      <svg width="280" height="110" viewBox="0 0 280 110">
+        <!-- Door front -->
+        <rect x="30" y="10" width="80" height="90" rx="3" fill="#1a1e2e" stroke="#555d70" stroke-width="1"/>
+        <text x="70" y="80" text-anchor="middle" fill="#555d70" font-size="8" font-family="Inter,sans-serif">FRENTE</text>
+        <!-- Handle holes -->
+        <circle cx="55" cy="50" r="3" fill="rgba(14,165,233,0.3)" stroke="#0ea5e9" stroke-width="1"/>
+        <circle cx="87" cy="50" r="3" fill="rgba(14,165,233,0.3)" stroke="#0ea5e9" stroke-width="1"/>
+        <!-- Handle bar -->
+        <line x1="55" y1="50" x2="87" y2="50" stroke="#0ea5e9" stroke-width="0.5" stroke-dasharray="3"/>
+        <!-- Entre-furos dimension -->
+        <line x1="55" y1="62" x2="87" y2="62" stroke="#22c55e" stroke-width="0.5"/>
+        <line x1="55" y1="58" x2="55" y2="66" stroke="#22c55e" stroke-width="0.5"/>
+        <line x1="87" y1="58" x2="87" y2="66" stroke="#22c55e" stroke-width="0.5"/>
+        <text x="71" y="72" text-anchor="middle" fill="#22c55e" font-size="7" font-family="Inter,sans-serif">entre-furos</text>
+        <!-- Legend -->
+        <rect x="150" y="25" width="110" height="55" rx="6" fill="var(--bg-card)" stroke="var(--border)" stroke-width="0.5"/>
+        <circle cx="165" cy="43" r="3" fill="rgba(14,165,233,0.2)" stroke="#0ea5e9" stroke-width="1"/>
+        <text x="175" y="46" fill="#8892a8" font-size="8" font-family="Inter,sans-serif">Furo passante</text>
+        <line x1="162" y1="60" x2="168" y2="60" stroke="#22c55e" stroke-width="1"/>
+        <text x="175" y="63" fill="#8892a8" font-size="8" font-family="Inter,sans-serif">Entre-furos</text>
+      </svg>
+    </div>
+    <div class="section-header"><div class="section-bar"></div><div class="section-title">Parametros</div></div>
+    <div class="params-grid">
+      <div class="param-card"><div class="param-label">Furo diametro <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="puxador.furo_diam" value="5" step="0.5"></div>
+      <div class="param-card"><div class="param-label">Entre-furos <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="puxador.entre_furos" value="128" step="1"></div>
+      <div class="param-card">
+        <div class="param-label">Tipo</div>
+        <select class="param-select" data-key="puxador.tipo">
+          <option value="handle">Alcas (2 furos)</option>
+          <option value="knob">Pomo (1 furo)</option>
+          <option value="profile">Perfil (cava)</option>
+        </select>
+      </div>
+      <div class="param-card">
+        <div class="param-label">Posicao vertical <span class="param-unit">mm</span></div>
+        <input class="param-input" type="number" data-key="puxador.pos_vertical" value="0" step="1">
+        <div class="param-hint">0 = centro</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CORREDICA -->
+  <div class="tab-panel" id="panel-corredica">
+    <div class="diagram-card">
+      <svg width="280" height="100" viewBox="0 0 280 100">
+        <!-- Cabinet side view -->
+        <rect x="20" y="10" width="16" height="80" rx="2" fill="#1a1e2e" stroke="#555d70" stroke-width="1"/>
+        <rect x="100" y="10" width="16" height="80" rx="2" fill="#1a1e2e" stroke="#555d70" stroke-width="1"/>
+        <!-- Slide rail -->
+        <rect x="36" y="45" width="64" height="4" rx="1" fill="rgba(14,165,233,0.3)" stroke="#0ea5e9" stroke-width="1"/>
+        <!-- Mounting holes -->
+        <circle cx="45" cy="47" r="2" fill="#0ea5e9"/>
+        <circle cx="60" cy="47" r="2" fill="#0ea5e9"/>
+        <circle cx="90" cy="47" r="2" fill="#0ea5e9"/>
+        <!-- Legend -->
+        <rect x="155" y="20" width="110" height="55" rx="6" fill="var(--bg-card)" stroke="var(--border)" stroke-width="0.5"/>
+        <rect x="167" y="38" width="14" height="3" rx="1" fill="rgba(14,165,233,0.3)" stroke="#0ea5e9" stroke-width="0.5"/>
+        <text x="187" y="43" fill="#8892a8" font-size="8" font-family="Inter,sans-serif">Trilho</text>
+        <circle cx="174" cy="58" r="2" fill="#0ea5e9"/>
+        <text x="187" y="61" fill="#8892a8" font-size="8" font-family="Inter,sans-serif">Fixacao</text>
+      </svg>
+    </div>
+    <div class="section-header"><div class="section-bar"></div><div class="section-title">Parametros</div></div>
+    <div class="params-grid">
+      <div class="param-card">
+        <div class="param-label">Tipo</div>
+        <select class="param-select" data-key="corredica.tipo">
+          <option value="metalica">Metalica</option>
+          <option value="telescopica">Telescopica</option>
+          <option value="oculta">Oculta (undermount)</option>
+        </select>
+      </div>
+      <div class="param-card"><div class="param-label">Furo diametro <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="corredica.furo_diam" value="5" step="0.5"></div>
+      <div class="param-card"><div class="param-label">Dist. do fundo <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="corredica.dist_fundo" value="37" step="1"></div>
+      <div class="param-card"><div class="param-label">Offset Y <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="corredica.offset_y" value="0" step="1"></div>
+    </div>
+  </div>
+
+  <!-- FUNDO -->
+  <div class="tab-panel" id="panel-fundo">
+    <div class="diagram-card">
+      <svg width="280" height="100" viewBox="0 0 280 100">
+        <!-- Cabinet cross-section -->
+        <rect x="20" y="10" width="100" height="80" rx="2" fill="none" stroke="#555d70" stroke-width="1"/>
+        <!-- Bottom groove -->
+        <rect x="20" y="78" width="100" height="4" rx="1" fill="rgba(245,158,11,0.2)" stroke="#f59e0b" stroke-width="1"/>
+        <!-- Channel detail -->
+        <rect x="24" y="72" width="3" height="8" fill="#f59e0b" opacity="0.4"/>
+        <rect x="113" y="72" width="3" height="8" fill="#f59e0b" opacity="0.4"/>
+        <!-- Dimensions -->
+        <line x1="30" y1="95" x2="30" y2="78" stroke="#22c55e" stroke-width="0.5" stroke-dasharray="2"/>
+        <text x="45" y="97" fill="#22c55e" font-size="7" font-family="Inter,sans-serif">dist_borda</text>
+        <!-- Legend -->
+        <rect x="155" y="20" width="110" height="55" rx="6" fill="var(--bg-card)" stroke="var(--border)" stroke-width="0.5"/>
+        <rect x="167" y="38" width="14" height="3" rx="1" fill="rgba(245,158,11,0.3)" stroke="#f59e0b" stroke-width="0.5"/>
+        <text x="187" y="43" fill="#8892a8" font-size="8" font-family="Inter,sans-serif">Canal (rebaixo)</text>
+        <rect x="167" y="55" width="14" height="2" rx="1" fill="#555d70"/>
+        <text x="187" y="60" fill="#8892a8" font-size="8" font-family="Inter,sans-serif">Fundo 3mm</text>
+      </svg>
+    </div>
+    <div class="section-header"><div class="section-bar"></div><div class="section-title">Parametros</div></div>
+    <div class="params-grid">
+      <div class="param-card">
+        <div class="param-label">Tipo de encaixe</div>
+        <select class="param-select" data-key="fundo.tipo">
+          <option value="canal">Canal (rebaixo)</option>
+          <option value="sobreposto">Sobreposto</option>
+        </select>
+      </div>
+      <div class="param-card"><div class="param-label">Espessura fundo <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="fundo.espessura" value="3" step="0.5"></div>
+      <div class="param-card"><div class="param-label">Largura canal <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="fundo.largura_canal" value="4" step="0.5"></div>
+      <div class="param-card"><div class="param-label">Prof. canal <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="fundo.prof_canal" value="8" step="0.5"></div>
+      <div class="param-card"><div class="param-label">Dist. da borda <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="fundo.dist_borda" value="10" step="1"></div>
+    </div>
+  </div>
+
+  <!-- PRATELEIRA -->
+  <div class="tab-panel" id="panel-prateleira">
+    <div class="diagram-card">
+      <svg width="280" height="100" viewBox="0 0 280 100">
+        <!-- Cabinet sides -->
+        <rect x="20" y="5" width="14" height="90" rx="2" fill="#1a1e2e" stroke="#555d70" stroke-width="1"/>
+        <rect x="106" y="5" width="14" height="90" rx="2" fill="#1a1e2e" stroke="#555d70" stroke-width="1"/>
+        <!-- Shelf -->
+        <rect x="34" y="45" width="72" height="6" rx="1" fill="#1a1e2e" stroke="#555d70" stroke-width="1"/>
+        <!-- Support holes -->
+        <circle cx="27" cy="48" r="2.5" fill="rgba(139,92,246,0.3)" stroke="#8b5cf6" stroke-width="1"/>
+        <circle cx="113" cy="48" r="2.5" fill="rgba(139,92,246,0.3)" stroke="#8b5cf6" stroke-width="1"/>
+        <!-- Pins -->
+        <rect x="30" y="46" width="4" height="4" rx="1" fill="#8b5cf6" opacity="0.5"/>
+        <rect x="106" y="46" width="4" height="4" rx="1" fill="#8b5cf6" opacity="0.5"/>
+        <!-- Dimensions -->
+        <text x="70" y="75" text-anchor="middle" fill="#8892a8" font-size="8" font-family="Inter,sans-serif">PRATELEIRA</text>
+        <!-- Legend -->
+        <rect x="155" y="20" width="110" height="50" rx="6" fill="var(--bg-card)" stroke="var(--border)" stroke-width="0.5"/>
+        <circle cx="170" cy="40" r="3" fill="rgba(139,92,246,0.3)" stroke="#8b5cf6" stroke-width="1"/>
+        <text x="180" y="43" fill="#8892a8" font-size="8" font-family="Inter,sans-serif">Furo suporte</text>
+      </svg>
+    </div>
+    <div class="section-header"><div class="section-bar"></div><div class="section-title">Parametros</div></div>
+    <div class="params-grid">
+      <div class="param-card">
+        <div class="param-label">Tipo de suporte</div>
+        <select class="param-select" data-key="prateleira.tipo_suporte">
+          <option value="pino">Pino metalico</option>
+          <option value="suporte_L">Suporte L</option>
+          <option value="minifix">Minifix</option>
+        </select>
+      </div>
+      <div class="param-card"><div class="param-label">Furo diametro <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="prateleira.furo_diam" value="5" step="0.5"></div>
+      <div class="param-card"><div class="param-label">Furo profundidade <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="prateleira.furo_prof" value="11" step="0.5"></div>
+      <div class="param-card"><div class="param-label">Dist. frente <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="prateleira.dist_frente" value="37" step="1"></div>
+      <div class="param-card"><div class="param-label">Dist. fundo <span class="param-unit">mm</span></div><input class="param-input" type="number" data-key="prateleira.dist_fundo" value="37" step="1"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div class="footer">
+  <button class="btn btn-ghost" onclick="resetConfig()">Resetar Padrao</button>
+  <button class="btn btn-ghost" onclick="applySelection()">Aplicar a Selecao</button>
+  <button class="btn btn-primary" onclick="saveConfig()">Salvar</button>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  /* Tab switching */
+  var tabPills = document.querySelectorAll('.tab-pill');
+  tabPills.forEach(function(pill) {
+    pill.addEventListener('click', function() {
+      tabPills.forEach(function(p) { p.classList.remove('active'); });
+      pill.classList.add('active');
+      document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+      document.getElementById('panel-' + pill.dataset.tab).classList.add('active');
+    });
+  });
+
+  /* Collect all config values */
+  function collectConfig() {
+    var config = {};
+    document.querySelectorAll('[data-key]').forEach(function(el) {
+      var keys = el.dataset.key.split('.');
+      var val;
+      if (el.type === 'number') val = parseFloat(el.value) || 0;
+      else if (el.type === 'checkbox') val = el.checked;
+      else val = el.value;
+      if (!config[keys[0]]) config[keys[0]] = {};
+      config[keys[0]][keys[1]] = val;
+    });
+    return config;
+  }
+
+  function applyConfig(config) {
+    document.querySelectorAll('[data-key]').forEach(function(el) {
+      var keys = el.dataset.key.split('.');
+      if (config[keys[0]] && config[keys[0]][keys[1]] !== undefined) {
+        var val = config[keys[0]][keys[1]];
+        if (el.type === 'checkbox') el.checked = !!val;
+        else el.value = val;
+      }
+    });
+  }
+
+  var defaultConfig = null;
+
+  function saveConfig() {
+    var config = collectConfig();
+    try { sketchup.save_config(JSON.stringify(config)); showToast('Configuracao salva', 'success'); }
+    catch(e) { showToast('Erro ao salvar', 'error'); }
+  }
+
+  function resetConfig() {
+    if (defaultConfig) applyConfig(defaultConfig);
+    else document.querySelectorAll('[data-key]').forEach(function(el) { el.value = el.defaultValue; });
+    showToast('Valores resetados', 'success');
+  }
+
+  function applySelection() {
+    var config = collectConfig();
+    try { sketchup.apply_config_to_selection(JSON.stringify(config)); showToast('Aplicado a selecao', 'success'); }
+    catch(e) { showToast('Callback nao disponivel', 'error'); }
+  }
+
+  window.loadConfig = function(data) {
+    var cfg = typeof data === 'string' ? JSON.parse(data) : data;
+    if (!defaultConfig) defaultConfig = JSON.parse(JSON.stringify(cfg));
+    applyConfig(cfg);
+  };
+
+  function showToast(msg, type) {
+    var t = document.getElementById('toast');
+    t.className = 'toast ' + (type || 'success');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function() { t.classList.remove('show'); }, 2500);
+  }
+</script>
+</body>
+</html>

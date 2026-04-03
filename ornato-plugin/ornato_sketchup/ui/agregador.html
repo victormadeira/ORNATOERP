@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Agregador de Componentes - Ornato</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0c0e14; --bg2: #141821; --bg3: #1a1f2e; --border: #2a3040;
+    --text: #e4e8f0; --dim: #8892a4; --accent: #C9A96E; --accent2: #dfc08a;
+    --danger: #e74c3c; --success: #2ecc71; --r: 8px;
+  }
+  body { font-family: 'Inter',-apple-system,sans-serif; background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5; }
+
+  .header { padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg2); position: sticky; top: 0; z-index: 100; }
+  .header-top { display: flex; align-items: center; gap: 10px; }
+  .header .logo { width: 28px; height: 28px; background: var(--accent); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--bg); font-size: 14px; }
+  .header h1 { font-size: 14px; font-weight: 600; }
+  .target-info { margin-top: 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r); padding: 8px 12px; }
+  .target-name { font-weight: 600; color: var(--accent); font-size: 13px; }
+  .target-dims { font-size: 11px; color: var(--dim); margin-top: 2px; }
+  .no-target { padding: 32px 16px; text-align: center; color: var(--dim); }
+  .no-target .icon { font-size: 40px; opacity: 0.3; margin-bottom: 8px; }
+
+  .section { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+
+  .comp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .comp-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 10px 8px; text-align: center; cursor: pointer; transition: all 0.15s; }
+  .comp-card:hover { border-color: var(--accent); background: #1a1510; }
+  .comp-card .icon { font-size: 24px; margin-bottom: 4px; }
+  .comp-card .name { font-size: 11px; font-weight: 600; }
+  .comp-card .desc { font-size: 9px; color: var(--dim); margin-top: 2px; }
+
+  /* Config panel */
+  .config-panel { display: none; }
+  .config-panel.visible { display: block; }
+  .config-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .config-header .back { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 16px; }
+  .config-header .back:hover { color: var(--text); }
+  .config-header h2 { font-size: 14px; font-weight: 600; }
+
+  .form-group { margin-bottom: 8px; }
+  .form-group label { display: block; font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+  .form-group input, .form-group select { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r); padding: 7px 10px; color: var(--text); font-size: 13px; outline: none; }
+  .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+  .form-row { display: flex; gap: 8px; }
+
+  .checkbox-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+  .checkbox-row input[type=checkbox] { accent-color: var(--accent); }
+
+  .btn { padding: 9px 16px; border-radius: var(--r); border: none; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn:hover { opacity: 0.85; }
+  .btn-accent { background: var(--accent); color: var(--bg); }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--dim); }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-block { width: 100%; }
+  .btn-sm { padding: 5px 10px; font-size: 11px; }
+
+  /* Slots list */
+  .slot-item { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 8px 12px; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; }
+  .slot-item .info { display: flex; align-items: center; gap: 8px; }
+  .slot-item .slot-icon { font-size: 16px; }
+  .slot-item .slot-name { font-weight: 600; font-size: 12px; }
+  .slot-item .slot-detail { font-size: 10px; color: var(--dim); }
+  .slot-actions { display: flex; gap: 4px; }
+  .slot-actions button { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 12px; padding: 2px 4px; }
+  .slot-actions button:hover { color: var(--text); }
+  .slot-actions .del:hover { color: var(--danger); }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div class="logo">O</div>
+    <h1>Agregador</h1>
+  </div>
+  <div class="target-info" id="targetInfo" style="display:none">
+    <div class="target-name" id="targetName">—</div>
+    <div class="target-dims" id="targetDims">—</div>
+  </div>
+</div>
+
+<div id="noTarget" class="no-target">
+  <div class="icon">📦</div>
+  <div>Selecione um módulo Ornato no<br>modelo para agregar componentes.</div>
+</div>
+
+<!-- Main view: component categories -->
+<div id="mainView" style="display:none">
+
+  <!-- Current slots -->
+  <div class="section">
+    <div class="section-title">📋 Componentes neste módulo <span id="slotCount" style="margin-left:auto;color:var(--accent);font-size:11px;">0</span></div>
+    <div id="slotList"></div>
+    <div id="emptySlots" style="text-align:center;padding:12px;color:var(--dim);font-size:12px;">Nenhum componente agregado ainda.</div>
+  </div>
+
+  <!-- Add components -->
+  <div class="section">
+    <div class="section-title">🚪 Fechamentos</div>
+    <div class="comp-grid">
+      <div class="comp-card" onclick="showConfig('porta_2_abrir')"><div class="icon">🚪</div><div class="name">2 Portas</div><div class="desc">Par abrir</div></div>
+      <div class="comp-card" onclick="showConfig('porta_1_abrir')"><div class="icon">🚪</div><div class="name">1 Porta</div><div class="desc">Abrir E/D</div></div>
+      <div class="comp-card" onclick="showConfig('porta_basculante')"><div class="icon">🔼</div><div class="name">Basculante</div><div class="desc">Abre p/ cima</div></div>
+      <div class="comp-card" onclick="showConfig('porta_correr')"><div class="icon">↔️</div><div class="name">Correr</div><div class="desc">Deslizante</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">🗄️ Gavetas</div>
+    <div class="comp-grid">
+      <div class="comp-card" onclick="showConfig('gaveta_unica')"><div class="icon">🗄️</div><div class="name">1 Gaveta</div><div class="desc">Inteira</div></div>
+      <div class="comp-card" onclick="showConfig('gavetas_2')"><div class="icon">🗄️</div><div class="name">2 Gavetas</div><div class="desc">Iguais</div></div>
+      <div class="comp-card" onclick="showConfig('gavetas_3')"><div class="icon">🗄️</div><div class="name">3 Gavetas</div><div class="desc">Iguais</div></div>
+      <div class="comp-card" onclick="showConfig('gavetas_4')"><div class="icon">🗄️</div><div class="name">4 Gavetas</div><div class="desc">Iguais</div></div>
+      <div class="comp-card" onclick="showConfig('gavetas_custom')"><div class="icon">📐</div><div class="name">Custom</div><div class="desc">Alturas livres</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📋 Internos</div>
+    <div class="comp-grid">
+      <div class="comp-card" onclick="showConfig('prateleira')"><div class="icon">📋</div><div class="name">Prateleira</div><div class="desc">Fixa/Regulável</div></div>
+      <div class="comp-card" onclick="showConfig('divisoria')"><div class="icon">📐</div><div class="name">Divisória</div><div class="desc">Vertical</div></div>
+      <div class="comp-card" onclick="showConfig('cabideiro')"><div class="icon">👗</div><div class="name">Cabideiro</div><div class="desc">Varão</div></div>
+      <div class="comp-card" onclick="showConfig('sapateira')"><div class="icon">👟</div><div class="name">Sapateira</div><div class="desc">Inclinada</div></div>
+      <div class="comp-card" onclick="showConfig('espelho')"><div class="icon">🪞</div><div class="name">Espelho</div><div class="desc">Interno</div></div>
+      <div class="comp-card" onclick="showConfig('iluminacao')"><div class="icon">💡</div><div class="name">LED</div><div class="desc">Fita interna</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">🔧 Especiais</div>
+    <div class="comp-grid">
+      <div class="comp-card" onclick="showConfig('lixeira')"><div class="icon">🗑️</div><div class="name">Lixeira</div><div class="desc">Embutida</div></div>
+      <div class="comp-card" onclick="showConfig('tabua_passar')"><div class="icon">👔</div><div class="name">Tábua</div><div class="desc">De passar</div></div>
+      <div class="comp-card" onclick="showConfig('cesto_aramado')"><div class="icon">🧺</div><div class="name">Cesto</div><div class="desc">Aramado</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Config panel (one component at a time) -->
+<div class="config-panel" id="configPanel">
+  <div class="section">
+    <div class="config-header">
+      <button class="back" onclick="hideConfig()">←</button>
+      <h2 id="configTitle">Configurar</h2>
+    </div>
+    <div id="configForm"></div>
+    <div style="margin-top: 12px;">
+      <button class="btn btn-accent btn-block" onclick="addComponent()">+ Agregar ao Módulo</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  var targetModule = null;  // dados do módulo selecionado
+  var currentSlots = [];    // componentes já agregados
+  var configType = null;    // tipo sendo configurado
+
+  // ═══ Component Definitions ═══
+  var COMPONENTS = {
+    porta_2_abrir: {
+      label: '2 Portas de Abrir', slot: 'fechamento', icon: '🚪',
+      fields: [
+        { key: 'lado_dobradica', label: 'Dobradiça em', type: 'select', default: 'ambos', options: [['ambos','Ambos lados'],['esquerda','Esquerda'],['direita','Direita']] },
+        { key: 'tipo_dobradica', label: 'Tipo Dobradiça', type: 'select', default: '110_clip', options: [['110_clip','110° Clip'],['165_total','165° Total'],['blumotion','Blumotion'],['push_open','Push Open']] },
+        { key: 'tipo_puxador', label: 'Puxador', type: 'select', default: '128mm', options: [['128mm','128mm'],['160mm','160mm'],['192mm','192mm'],['256mm','256mm'],['perfil_gola','Perfil Gola'],['sem','Sem puxador']] },
+        { key: 'folga', label: 'Folga (mm)', type: 'number', default: 2, min: 1, max: 4 },
+      ]
+    },
+    porta_1_abrir: {
+      label: '1 Porta de Abrir', slot: 'fechamento', icon: '🚪',
+      fields: [
+        { key: 'lado', label: 'Abre para', type: 'select', default: 'esquerda', options: [['esquerda','Esquerda'],['direita','Direita']] },
+        { key: 'tipo_dobradica', label: 'Tipo Dobradiça', type: 'select', default: '110_clip', options: [['110_clip','110° Clip'],['165_total','165° Total'],['blumotion','Blumotion'],['push_open','Push Open']] },
+        { key: 'tipo_puxador', label: 'Puxador', type: 'select', default: '128mm', options: [['128mm','128mm'],['160mm','160mm'],['perfil_gola','Perfil Gola'],['sem','Sem puxador']] },
+        { key: 'folga', label: 'Folga (mm)', type: 'number', default: 2 },
+      ]
+    },
+    porta_basculante: {
+      label: 'Porta Basculante', slot: 'fechamento', icon: '🔼',
+      fields: [
+        { key: 'pistao', label: 'Pistão', type: 'select', default: 'gas_80N', options: [['gas_80N','Gás 80N'],['gas_100N','Gás 100N'],['aventos_HF','Aventos HF'],['aventos_HL','Aventos HL'],['aventos_HS','Aventos HS']] },
+        { key: 'tipo_puxador', label: 'Puxador', type: 'select', default: 'perfil_gola', options: [['perfil_gola','Perfil Gola'],['128mm','128mm'],['sem','Sem']] },
+      ]
+    },
+    porta_correr: {
+      label: 'Porta de Correr', slot: 'fechamento', icon: '↔️',
+      fields: [
+        { key: 'n_folhas', label: 'Folhas', type: 'select', default: '2', options: [['2','2 folhas'],['3','3 folhas']] },
+        { key: 'trilho', label: 'Trilho', type: 'select', default: 'inferior', options: [['inferior','Inferior'],['superior','Superior'],['embutido','Embutido']] },
+        { key: 'tipo_puxador', label: 'Puxador', type: 'select', default: 'concha', options: [['concha','Concha'],['perfil','Perfil'],['sem','Sem']] },
+      ]
+    },
+    gaveta_unica: {
+      label: '1 Gaveta', slot: 'gaveta', icon: '🗄️',
+      fields: [
+        { key: 'alt_frente', label: 'Altura Frente (mm)', type: 'number', default: 180 },
+        { key: 'corredica', label: 'Corrediça', type: 'select', default: 'telescopica', options: [['metalica','Metálica Simples'],['telescopica','Telescópica'],['soft_close','Soft-Close'],['push_open','Push Open'],['tandembox','Tandembox']] },
+        { key: 'tipo_puxador', label: 'Puxador', type: 'select', default: '128mm', options: [['128mm','128mm'],['160mm','160mm'],['perfil_gola','Perfil Gola'],['sem','Sem']] },
+      ]
+    },
+    gavetas_2: { label: '2 Gavetas Iguais', slot: 'gaveta', icon: '🗄️', fields: [
+      { key: 'corredica', label: 'Corrediça', type: 'select', default: 'telescopica', options: [['metalica','Metálica'],['telescopica','Telescópica'],['soft_close','Soft-Close'],['push_open','Push Open']] },
+      { key: 'tipo_puxador', label: 'Puxador', type: 'select', default: '128mm', options: [['128mm','128mm'],['160mm','160mm'],['perfil_gola','Perfil Gola']] },
+    ]},
+    gavetas_3: { label: '3 Gavetas Iguais', slot: 'gaveta', icon: '🗄️', fields: [
+      { key: 'corredica', label: 'Corrediça', type: 'select', default: 'soft_close', options: [['metalica','Metálica'],['telescopica','Telescópica'],['soft_close','Soft-Close'],['push_open','Push Open']] },
+      { key: 'tipo_puxador', label: 'Puxador', type: 'select', default: '128mm', options: [['128mm','128mm'],['160mm','160mm'],['perfil_gola','Perfil Gola']] },
+    ]},
+    gavetas_4: { label: '4 Gavetas Iguais', slot: 'gaveta', icon: '🗄️', fields: [
+      { key: 'corredica', label: 'Corrediça', type: 'select', default: 'soft_close', options: [['metalica','Metálica'],['telescopica','Telescópica'],['soft_close','Soft-Close']] },
+      { key: 'tipo_puxador', label: 'Puxador', type: 'select', default: '128mm', options: [['128mm','128mm'],['160mm','160mm']] },
+    ]},
+    gavetas_custom: { label: 'Gavetas Customizadas', slot: 'gaveta', icon: '📐', fields: [
+      { key: 'quantidade', label: 'Quantidade', type: 'number', default: 3, min: 1, max: 8 },
+      { key: 'divisao', label: 'Divisão', type: 'select', default: 'igual', options: [['igual','Iguais'],['progressiva','Progressiva (menor→maior)'],['manual','Manual']] },
+      { key: 'corredica', label: 'Corrediça', type: 'select', default: 'soft_close', options: [['metalica','Metálica'],['telescopica','Telescópica'],['soft_close','Soft-Close']] },
+    ]},
+    prateleira: { label: 'Prateleira', slot: 'interno', icon: '📋', fields: [
+      { key: 'quantidade', label: 'Quantidade', type: 'number', default: 1, min: 1, max: 6 },
+      { key: 'tipo', label: 'Tipo', type: 'select', default: 'regulavel', options: [['fixa','Fixa'],['regulavel','Regulável (System32)']] },
+      { key: 'recuo', label: 'Recuo frontal (mm)', type: 'number', default: 20 },
+    ]},
+    divisoria: { label: 'Divisória Vertical', slot: 'interno', icon: '📐', fields: [
+      { key: 'posicao', label: 'Posição', type: 'select', default: 'centro', options: [['centro','Centro'],['terco_esq','1/3 Esquerda'],['terco_dir','1/3 Direita'],['manual','Manual (mm)']] },
+      { key: 'posicao_mm', label: 'Posição X (mm)', type: 'number', default: 0 },
+      { key: 'system32', label: 'Com System32', type: 'checkbox', default: false },
+    ]},
+    cabideiro: { label: 'Cabideiro', slot: 'interno', icon: '👗', fields: [
+      { key: 'tipo', label: 'Tipo', type: 'select', default: 'fixo', options: [['fixo','Fixo (varão)'],['extensivel','Extensível'],['pantografo','Pantógrafo']] },
+      { key: 'diametro', label: 'Diâmetro tubo (mm)', type: 'number', default: 25 },
+      { key: 'altura_fixacao', label: 'Altura fixação (mm)', type: 'number', default: 0 },
+    ]},
+    sapateira: { label: 'Sapateira', slot: 'interno', icon: '👟', fields: [
+      { key: 'niveis', label: 'Níveis', type: 'number', default: 3, min: 1, max: 8 },
+      { key: 'angulo', label: 'Ângulo (graus)', type: 'number', default: 20 },
+      { key: 'tipo', label: 'Tipo', type: 'select', default: 'fixa', options: [['fixa','Fixa'],['basculante','Basculante']] },
+    ]},
+    espelho: { label: 'Espelho', slot: 'interno', icon: '🪞', fields: [
+      { key: 'posicao', label: 'Posição', type: 'select', default: 'porta_interna', options: [['porta_interna','Dentro da porta'],['lateral','Na lateral'],['fundo','No fundo']] },
+    ]},
+    iluminacao: { label: 'LED Interna', slot: 'interno', icon: '💡', fields: [
+      { key: 'posicao', label: 'Posição', type: 'select', default: 'superior', options: [['superior','Superior'],['inferior','Inferior'],['lateral','Lateral']] },
+      { key: 'sensor', label: 'Sensor', type: 'select', default: 'porta', options: [['porta','Ao abrir porta'],['toque','Toque'],['sempre','Sempre ligada']] },
+    ]},
+    lixeira: { label: 'Lixeira Embutida', slot: 'especial', icon: '🗑️', fields: [
+      { key: 'tipo', label: 'Tipo', type: 'select', default: 'simples', options: [['simples','Simples'],['dupla','Dupla (reciclagem)'],['tripla','Tripla']] },
+    ]},
+    tabua_passar: { label: 'Tábua de Passar', slot: 'especial', icon: '👔', fields: [
+      { key: 'tipo', label: 'Montagem', type: 'select', default: 'deslizante', options: [['deslizante','Deslizante'],['rebativel','Rebatível']] },
+    ]},
+    cesto_aramado: { label: 'Cesto Aramado', slot: 'especial', icon: '🧺', fields: [
+      { key: 'quantidade', label: 'Quantidade', type: 'number', default: 2, min: 1, max: 5 },
+      { key: 'corredica', label: 'Corrediça', type: 'select', default: 'telescopica', options: [['telescopica','Telescópica'],['soft_close','Soft-Close']] },
+    ]},
+  };
+
+  // ═══ Target Module (set from Ruby) ═══
+  window.setTarget = function(data) {
+    try {
+      targetModule = typeof data === 'string' ? JSON.parse(data) : data;
+      document.getElementById('noTarget').style.display = 'none';
+      document.getElementById('mainView').style.display = 'block';
+      document.getElementById('targetInfo').style.display = 'block';
+      document.getElementById('targetName').textContent = targetModule.nome || 'Módulo';
+      var p = targetModule.params || targetModule;
+      document.getElementById('targetDims').textContent =
+        (p.largura||0) + ' × ' + (p.altura||0) + ' × ' + (p.profundidade||0) + 'mm' +
+        ' — Interno: ' + (p.interna_w||0).toFixed(0) + ' × ' + (p.interna_h||0).toFixed(0) + ' × ' + (p.interna_d||0).toFixed(0);
+      currentSlots = targetModule.slots || [];
+      renderSlots();
+    } catch(e) { console.log('setTarget error', e); }
+  };
+
+  // ═══ Render Slots ═══
+  function renderSlots() {
+    var list = document.getElementById('slotList');
+    var empty = document.getElementById('emptySlots');
+    document.getElementById('slotCount').textContent = currentSlots.length;
+
+    if (currentSlots.length === 0) {
+      list.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+
+    list.innerHTML = currentSlots.map(function(s, i) {
+      var def = COMPONENTS[s.type] || { icon: '📦', label: s.type };
+      return '<div class="slot-item">' +
+        '<div class="info">' +
+          '<span class="slot-icon">' + def.icon + '</span>' +
+          '<div><div class="slot-name">' + def.label + '</div>' +
+          '<div class="slot-detail">' + Object.entries(s.config||{}).map(function(e) { return e[0]+':'+e[1]; }).join(' · ') + '</div></div>' +
+        '</div>' +
+        '<div class="slot-actions">' +
+          '<button onclick="swapSlot(' + i + ')" title="Trocar">🔄</button>' +
+          '<button class="del" onclick="removeSlot(' + i + ')" title="Remover">🗑</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function removeSlot(i) {
+    var slot = currentSlots[i];
+    currentSlots.splice(i, 1);
+    renderSlots();
+    if (typeof sketchup !== 'undefined') {
+      sketchup.remove_component(JSON.stringify({ index: i, type: slot.type }));
+    }
+  }
+
+  function swapSlot(i) {
+    var slot = currentSlots[i];
+    if (typeof sketchup !== 'undefined') {
+      sketchup.swap_component(JSON.stringify({ index: i, type: slot.type }));
+    }
+  }
+
+  // ═══ Show Config ═══
+  function showConfig(type) {
+    configType = type;
+    var def = COMPONENTS[type];
+    if (!def) return;
+
+    document.getElementById('mainView').style.display = 'none';
+    document.getElementById('configPanel').classList.add('visible');
+    document.getElementById('configTitle').textContent = def.label;
+
+    var form = document.getElementById('configForm');
+    form.innerHTML = '';
+
+    (def.fields || []).forEach(function(f) {
+      var group = document.createElement('div');
+      group.className = 'form-group';
+
+      if (f.type === 'checkbox') {
+        group.innerHTML = '<div class="checkbox-row"><input type="checkbox" id="cf_' + f.key + '" ' + (f.default ? 'checked' : '') + '><label for="cf_' + f.key + '">' + f.label + '</label></div>';
+      } else if (f.type === 'select') {
+        var opts = (f.options||[]).map(function(o) {
+          var v = Array.isArray(o) ? o[0] : o;
+          var l = Array.isArray(o) ? o[1] : o;
+          return '<option value="' + v + '"' + (v == f.default ? ' selected' : '') + '>' + l + '</option>';
+        }).join('');
+        group.innerHTML = '<label>' + f.label + '</label><select id="cf_' + f.key + '">' + opts + '</select>';
+      } else {
+        var min = f.min !== undefined ? ' min="' + f.min + '"' : '';
+        var max = f.max !== undefined ? ' max="' + f.max + '"' : '';
+        group.innerHTML = '<label>' + f.label + '</label><input type="number" id="cf_' + f.key + '" value="' + f.default + '"' + min + max + '>';
+      }
+
+      form.appendChild(group);
+    });
+  }
+
+  function hideConfig() {
+    configType = null;
+    document.getElementById('configPanel').classList.remove('visible');
+    document.getElementById('mainView').style.display = 'block';
+  }
+
+  // ═══ Add Component ═══
+  function addComponent() {
+    if (!configType) return;
+    var def = COMPONENTS[configType];
+    var config = {};
+
+    (def.fields || []).forEach(function(f) {
+      var el = document.getElementById('cf_' + f.key);
+      if (!el) return;
+      if (f.type === 'checkbox') config[f.key] = el.checked;
+      else if (f.type === 'number') config[f.key] = parseFloat(el.value) || f.default;
+      else config[f.key] = el.value;
+    });
+
+    var slot = { type: configType, slot: def.slot, config: config };
+    currentSlots.push(slot);
+    renderSlots();
+
+    if (typeof sketchup !== 'undefined') {
+      sketchup.add_component(JSON.stringify(slot));
+    } else {
+      console.log('add_component', slot);
+    }
+
+    hideConfig();
+  }
+
+  // Init
+  window.addEventListener('load', function() {
+    if (typeof sketchup !== 'undefined') sketchup.ready();
+  });
+</script>
+</body>
+</html>

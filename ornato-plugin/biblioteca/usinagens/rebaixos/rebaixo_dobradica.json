@@ -1,0 +1,27 @@
+{
+  "id": "rebaixo_dobradica",
+  "nome": "Rebaixo Raso para Base da Dobradica",
+  "categoria": "rebaixo",
+  "descricao": "Pocket raso 35x12mm, profundidade 2mm, para assentar a base da dobradica na lateral.",
+
+  "operacao": {
+    "tipo": "pocket",
+    "ferramenta": "fresa_6mm",
+    "largura": 35,
+    "comprimento": 12,
+    "profundidade": 2,
+    "lado": "a",
+    "forma": "retangular",
+    "posicao": { "x": "{offset_borda}", "y": "{pos_y}" },
+    "parametros": {
+      "offset_borda": { "default": 22.5, "min": 20, "max": 25 },
+      "pos_y": { "default": 100, "min": 80, "max": 150 }
+    }
+  },
+
+  "aplicacao": {
+    "pecas": ["lateral_esq", "lateral_dir"],
+    "condicao_manual": true,
+    "descricao": "Usado quando a base da dobradica precisa ficar nivelada com a lateral"
+  }
+}

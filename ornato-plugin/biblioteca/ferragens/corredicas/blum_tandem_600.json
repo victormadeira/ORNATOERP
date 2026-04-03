@@ -1,0 +1,71 @@
+{
+  "id": "blum_tandem_600",
+  "nome": "Blum TANDEM 600mm",
+  "marca": "Blum",
+  "modelo": "TANDEM 600 Blumotion",
+  "categoria": "corredica",
+  "tipo": "oculta",
+  "extensao": "total",
+  "comprimento": 600,
+  "amortecedor": true,
+  "sistema_amortecimento": "Blumotion",
+  "capacidade_kg": 30,
+
+  "especificacoes": {
+    "comprimento_trilho": 600,
+    "furos_fixacao": [
+      { "diametro": 4, "profundidade": 10, "posicao_y": 37 },
+      { "diametro": 4, "profundidade": 10, "posicao_y": 200 },
+      { "diametro": 4, "profundidade": 10, "posicao_y": 400 },
+      { "diametro": 4, "profundidade": 10, "posicao_y": 600 }
+    ],
+    "quantidade_furos": 4,
+    "distancia_lateral": 37,
+    "folga_lateral": 12.5,
+    "altura_trilho": 11
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 37 }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 200 }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 400 }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 600 }
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "BLUM-560H6000B",
+    "preco_unitario": 110.00,
+    "unidade": "par",
+    "fornecedor": "Blum Brasil"
+  }
+}

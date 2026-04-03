@@ -1,0 +1,84 @@
+{
+  "id": "cabeceira",
+  "nome": "Painel Cabeceira",
+  "descricao": "Painel decorativo de cabeceira com prateleira e nicho opcional.",
+  "categoria": "dormitorio",
+  "tags": ["cabeceira", "painel", "decorativo", "nicho", "dormitorio"],
+  "icone": "painel",
+
+  "parametros": {
+    "largura":          { "default": 1600, "min": 1400, "max": 2000, "step": 100, "unidade": "mm" },
+    "altura":           { "default": 1200, "min": 1200, "max": 1200, "step": 50,  "unidade": "mm" },
+    "profundidade":     { "default": 40,   "min": 40,   "max": 40,   "step": 10,  "unidade": "mm" },
+    "espessura":        { "default": 18,   "min": 15,   "max": 25,   "step": 0.5, "unidade": "mm" },
+    "com_prateleira":   { "default": true },
+    "largura_prateleira": { "default": 250, "min": 150, "max": 350, "step": 50, "unidade": "mm" },
+    "com_nicho":        { "default": true },
+    "largura_nicho":    { "default": 400, "min": 300, "max": 600, "step": 50, "unidade": "mm" },
+    "altura_nicho":     { "default": 200, "min": 150, "max": 300, "step": 50, "unidade": "mm" },
+    "tipo_juncao":      { "default": "cavilha", "opcoes": ["minifix", "cavilha", "parafuso"] }
+  },
+
+  "pecas": [
+    {
+      "nome": "Painel Principal",
+      "role": "traseira",
+      "largura": "{largura}",
+      "altura": "{altura}",
+      "espessura": "{espessura}",
+      "posicao": { "x": 0, "y": 0, "z": 0 },
+      "bordas": { "frontal": true, "traseira": false, "dir": true, "esq": true },
+      "notas": "Painel principal da cabeceira fixado na parede"
+    },
+    {
+      "nome": "Prateleira",
+      "role": "prateleira",
+      "largura": "{largura}",
+      "altura": "{largura_prateleira}",
+      "espessura": "{espessura}",
+      "condicao": "{com_prateleira}",
+      "posicao": { "x": 0, "y": 0, "z": "{altura} / 2" },
+      "bordas": { "frontal": true, "traseira": false, "dir": true, "esq": true },
+      "notas": "Prateleira horizontal na metade da altura"
+    },
+    {
+      "nome": "Lateral Nicho Esq",
+      "role": "divisoria",
+      "largura": "{altura_nicho}",
+      "altura": "{largura_prateleira}",
+      "espessura": "{espessura}",
+      "condicao": "{com_nicho}",
+      "posicao": { "x": "{largura} / 2 - {largura_nicho} / 2 - {espessura}", "y": 0, "z": "{altura} / 2 + {espessura}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Lateral Nicho Dir",
+      "role": "divisoria",
+      "largura": "{altura_nicho}",
+      "altura": "{largura_prateleira}",
+      "espessura": "{espessura}",
+      "condicao": "{com_nicho}",
+      "posicao": { "x": "{largura} / 2 + {largura_nicho} / 2", "y": 0, "z": "{altura} / 2 + {espessura}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Topo Nicho",
+      "role": "prateleira",
+      "largura": "{largura_nicho}",
+      "altura": "{largura_prateleira}",
+      "espessura": "{espessura}",
+      "condicao": "{com_nicho}",
+      "posicao": { "x": "{largura} / 2 - {largura_nicho} / 2", "y": 0, "z": "{altura} / 2 + {altura_nicho} + {espessura}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    }
+  ],
+
+  "ferragens_auto": [
+    { "regra": "cavilha", "juncao": "traseira × prateleira", "condicao": "{tipo_juncao} == 'cavilha' && {com_prateleira}" },
+    { "regra": "cavilha", "juncao": "traseira × divisoria", "condicao": "{tipo_juncao} == 'cavilha' && {com_nicho}" },
+    { "regra": "minifix", "juncao": "traseira × prateleira", "condicao": "{tipo_juncao} == 'minifix' && {com_prateleira}" },
+    { "regra": "parafuso", "juncao": "traseira × prateleira", "condicao": "{tipo_juncao} == 'parafuso' && {com_prateleira}" }
+  ],
+
+  "notas": "Painel de cabeceira fixado na parede. Profundidade minima (40mm) pois e essencialmente um painel. Prateleira e nicho sao opcionais."
+}

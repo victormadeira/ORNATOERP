@@ -1,0 +1,54 @@
+{
+  "id": "suporte_cabideiro",
+  "nome": "Suporte para Barra de Cabideiro",
+  "marca": "Generico",
+  "modelo": "Suporte cabideiro oval/redondo",
+  "categoria": "suporte",
+  "tipo": "cabideiro",
+
+  "especificacoes": {
+    "furo_barra": { "diametro": 25, "profundidade": 15, "formato": "oval_ou_redondo" },
+    "furos_fixacao": { "diametro": 4, "profundidade": 12, "quantidade": 2, "distancia_centro_barra": 20 },
+    "diametro_barra_compativel": [25, 30],
+    "posicao_padrao": { "y_do_topo": 50 }
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_25mm",
+        "diametro": 25,
+        "profundidade": 15,
+        "lado": "a",
+        "posicao": { "x": "{profundidade} / 2", "y": 50 },
+        "descricao": "Furo para encaixe da barra de cabideiro"
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 12,
+        "lado": "a",
+        "posicao": { "x": "{profundidade} / 2 - 20", "y": 50 },
+        "descricao": "Furo fixacao suporte cabideiro"
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 12,
+        "lado": "a",
+        "posicao": { "x": "{profundidade} / 2 + 20", "y": 50 },
+        "descricao": "Furo fixacao suporte cabideiro"
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "SUP-CAB-25",
+    "preco_unitario": 5.80,
+    "unidade": "par",
+    "fornecedor": "Diversos"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "id": "puxador_perfil_gola",
+  "nome": "Puxador Perfil Gola (embutido)",
+  "marca": "Generico",
+  "modelo": "Perfil tipo gola aluminio",
+  "categoria": "puxador",
+  "tipo": "perfil_gola",
+  "entre_furos": null,
+
+  "especificacoes": {
+    "canal": { "largura": 20, "profundidade": 10 },
+    "material_perfil": "aluminio",
+    "posicao": "borda_superior",
+    "sem_furos": true,
+    "comprimento": "{largura_porta}",
+    "descricao": "Perfil embutido na borda superior da porta. Canal fresado na borda."
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "canal",
+        "ferramenta": "fresa_6mm",
+        "largura": 20,
+        "profundidade": 10,
+        "lado": "borda_superior",
+        "percurso": "borda_completa",
+        "descricao": "Canal para encaixe do perfil gola na borda superior"
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "PUX-GOLA-AL",
+    "preco_unitario": 35.00,
+    "unidade": "metro",
+    "fornecedor": "Diversos"
+  }
+}

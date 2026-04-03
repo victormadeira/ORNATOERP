@@ -1,0 +1,62 @@
+{
+  "id": "blum_tandem_300",
+  "nome": "Blum TANDEM 300mm",
+  "marca": "Blum",
+  "modelo": "TANDEM 300 Blumotion",
+  "categoria": "corredica",
+  "tipo": "oculta",
+  "extensao": "total",
+  "comprimento": 300,
+  "amortecedor": true,
+  "sistema_amortecimento": "Blumotion",
+  "capacidade_kg": 30,
+
+  "especificacoes": {
+    "comprimento_trilho": 300,
+    "furos_fixacao": [
+      { "diametro": 4, "profundidade": 10, "posicao_y": 37 },
+      { "diametro": 4, "profundidade": 10, "posicao_y": 175 },
+      { "diametro": 4, "profundidade": 10, "posicao_y": 300 }
+    ],
+    "quantidade_furos": 3,
+    "distancia_lateral": 37,
+    "folga_lateral": 12.5,
+    "altura_trilho": 11
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 37 }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 175 }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 300 }
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "BLUM-560H3000B",
+    "preco_unitario": 72.00,
+    "unidade": "par",
+    "fornecedor": "Blum Brasil"
+  }
+}

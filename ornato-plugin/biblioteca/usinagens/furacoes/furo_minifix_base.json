@@ -1,0 +1,37 @@
+{
+  "id": "furo_minifix_base",
+  "nome": "Furacao Minifix Base (corpo + pino, side_a)",
+  "categoria": "furacao",
+  "descricao": "Furo corpo 15mm + furo pino 8mm na face da peca base/topo/prateleira",
+
+  "operacao": {
+    "tipo": "grupo_furos",
+    "furos": [
+      {
+        "nome": "corpo",
+        "ferramenta": "broca_15mm",
+        "diametro": 15,
+        "profundidade": 12.5,
+        "lado": "a",
+        "posicao": { "x": "{dist_borda}", "y": 9.5 }
+      },
+      {
+        "nome": "pino",
+        "ferramenta": "broca_8mm",
+        "diametro": 8,
+        "profundidade": 11,
+        "lado": "a",
+        "posicao": { "x": "{dist_borda}", "y": 0 },
+        "descricao": "Furo pino centralizado dentro do corpo minifix"
+      }
+    ],
+    "parametros": {
+      "dist_borda": { "default": 34, "min": 30, "max": 40 }
+    }
+  },
+
+  "aplicacao": {
+    "pecas": ["base", "topo", "prateleira", "divisoria"],
+    "regra": "minifix"
+  }
+}

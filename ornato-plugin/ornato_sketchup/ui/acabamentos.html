@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Acabamentos - Ornato</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0c0e14; --bg2: #141821; --bg3: #1a1f2e; --border: #2a3040;
+    --text: #e4e8f0; --dim: #8892a4; --accent: #C9A96E; --danger: #e74c3c; --success: #2ecc71; --r: 8px;
+  }
+  body { font-family: 'Inter',-apple-system,sans-serif; background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5; }
+  .header { padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg2); display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 100; }
+  .header .logo { width: 28px; height: 28px; background: var(--accent); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--bg); font-size: 14px; }
+  .header h1 { font-size: 14px; font-weight: 600; }
+
+  .tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--bg2); }
+  .tab { flex: 1; padding: 10px; text-align: center; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--dim); border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .section { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin-bottom: 8px; }
+
+  .scope-bar { display: flex; gap: 6px; padding: 8px 16px; background: var(--bg2); border-bottom: 1px solid var(--border); }
+  .scope-btn { flex: 1; padding: 6px; text-align: center; font-size: 11px; border-radius: var(--r); cursor: pointer; border: 1px solid var(--border); background: var(--bg3); color: var(--dim); }
+  .scope-btn.active { background: rgba(201,169,110,0.1); border-color: var(--accent); color: var(--accent); }
+
+  .form-group { margin-bottom: 10px; }
+  .form-group label { display: block; font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+  .form-group select, .form-group input { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r); padding: 8px 10px; color: var(--text); font-size: 13px; outline: none; }
+  .form-group select:focus, .form-group input:focus { border-color: var(--accent); }
+
+  /* Material chips */
+  .chip-grid { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .chip { padding: 5px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; border: 1px solid var(--border); background: var(--bg2); color: var(--dim); transition: all 0.15s; display: flex; align-items: center; gap: 6px; }
+  .chip:hover { border-color: var(--accent); }
+  .chip.selected { border-color: var(--accent); background: rgba(201,169,110,0.1); color: var(--accent); }
+  .chip-swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; }
+
+  /* Edge banding visual */
+  .edge-visual { display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .edge-box { position: relative; width: 120px; height: 80px; background: var(--bg3); border: 2px solid var(--border); border-radius: 4px; }
+  .edge-label { position: absolute; font-size: 9px; color: var(--dim); cursor: pointer; padding: 2px 4px; border-radius: 3px; transition: all 0.15s; }
+  .edge-label:hover { color: var(--text); }
+  .edge-label.active { color: var(--accent); background: rgba(201,169,110,0.15); }
+  .edge-top { top: -16px; left: 50%; transform: translateX(-50%); }
+  .edge-bottom { bottom: -16px; left: 50%; transform: translateX(-50%); }
+  .edge-left { left: -40px; top: 50%; transform: translateY(-50%); }
+  .edge-right { right: -40px; top: 50%; transform: translateY(-50%); }
+  .edge-box .side { position: absolute; background: var(--accent); }
+  .edge-box .side-top { top: -2px; left: 0; right: 0; height: 2px; display: none; }
+  .edge-box .side-bottom { bottom: -2px; left: 0; right: 0; height: 2px; display: none; }
+  .edge-box .side-left { left: -2px; top: 0; bottom: 0; width: 2px; display: none; }
+  .edge-box .side-right { right: -2px; top: 0; bottom: 0; width: 2px; display: none; }
+
+  .piece-list-compact { display: flex; flex-direction: column; gap: 3px; max-height: 200px; overflow-y: auto; }
+  .piece-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; transition: border-color 0.15s; }
+  .piece-row:hover { border-color: var(--accent); }
+  .piece-row.selected { border-color: var(--accent); background: #1a1510; }
+  .piece-row .name { font-size: 12px; font-weight: 600; flex: 1; }
+  .piece-row .mat { font-size: 10px; color: var(--dim); }
+  .piece-row .borda-icons { display: flex; gap: 2px; }
+  .piece-row .borda-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .borda-on { background: var(--accent); }
+  .borda-off { background: var(--border); }
+
+  .rule-option { display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; }
+  .rule-option input[type=radio] { accent-color: var(--accent); }
+  .rule-option label { font-size: 12px; cursor: pointer; }
+
+  .footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; position: sticky; bottom: 0; background: var(--bg); }
+  .btn { padding: 9px 16px; border-radius: var(--r); border: none; font-size: 13px; font-weight: 600; cursor: pointer; flex: 1; }
+  .btn:hover { opacity: 0.85; }
+  .btn-accent { background: var(--accent); color: var(--bg); }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--dim); }
+
+  .tab-content { display: none; }
+  .tab-content.visible { display: block; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">O</div>
+  <h1>Acabamentos</h1>
+</div>
+
+<!-- Scope -->
+<div class="scope-bar">
+  <div class="scope-btn active" id="scopeSelection" onclick="setScope('selection')">Seleção</div>
+  <div class="scope-btn" id="scopeModule" onclick="setScope('module')">Todo Módulo</div>
+  <div class="scope-btn" id="scopeProject" onclick="setScope('project')">Projeto</div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('material')">Material</div>
+  <div class="tab" onclick="switchTab('borda')">Fita de Borda</div>
+  <div class="tab" onclick="switchTab('pecas')">Por Peça</div>
+</div>
+
+<!-- Tab: Material -->
+<div class="tab-content visible" id="tab-material">
+  <div class="section">
+    <div class="section-title">Chapa / Painel</div>
+    <div class="form-group">
+      <label>Material</label>
+      <select id="matSelect" onchange="selectMaterial(this.value)">
+        <optgroup label="MDF">
+          <option value="MDF_18_BRANCO">MDF 18mm Branco TX</option>
+          <option value="MDF_15_BRANCO">MDF 15mm Branco TX</option>
+          <option value="MDF_18_CRU">MDF 18mm Cru</option>
+          <option value="MDF_18_PRETO">MDF 18mm Preto</option>
+          <option value="MDF_9_CRU">MDF 9mm Cru</option>
+          <option value="MDF_6_CRU">MDF 6mm Cru</option>
+          <option value="MDF_3_CRU">MDF 3mm Cru (fundo)</option>
+        </optgroup>
+        <optgroup label="BP (Melamínico)">
+          <option value="BP_18_BRANCO">BP 18mm Branco</option>
+          <option value="BP_18_CARVALHO">BP 18mm Carvalho</option>
+          <option value="BP_18_NOGAL">BP 18mm Nogal</option>
+          <option value="BP_18_PRETO">BP 18mm Preto</option>
+          <option value="BP_18_CINZA">BP 18mm Cinza</option>
+          <option value="BP_18_FREIJO">BP 18mm Freijó</option>
+          <option value="BP_18_ROVERE">BP 18mm Rovere</option>
+          <option value="BP_18_CANELA">BP 18mm Canela</option>
+          <option value="BP_15_BRANCO">BP 15mm Branco</option>
+          <option value="BP_15_CARVALHO">BP 15mm Carvalho</option>
+        </optgroup>
+        <optgroup label="MDP">
+          <option value="MDP_18_BRANCO">MDP 18mm Branco</option>
+          <option value="MDP_15_BRANCO">MDP 15mm Branco</option>
+        </optgroup>
+        <optgroup label="Compensado">
+          <option value="COMP_18_NAVAL">Compensado 18mm Naval</option>
+          <option value="COMP_15_PINUS">Compensado 15mm Pinus</option>
+        </optgroup>
+      </select>
+    </div>
+
+    <div class="section-title" style="margin-top: 8px;">Recentes</div>
+    <div class="chip-grid" id="recentMats">
+      <div class="chip selected" onclick="quickMat('MDF_18_BRANCO')">
+        <span class="chip-swatch" style="background:#f5f5f5;"></span> MDF 18 Branco
+      </div>
+      <div class="chip" onclick="quickMat('BP_18_CARVALHO')">
+        <span class="chip-swatch" style="background:#8B7355;"></span> BP Carvalho
+      </div>
+      <div class="chip" onclick="quickMat('BP_18_PRETO')">
+        <span class="chip-swatch" style="background:#1a1a1a;"></span> BP Preto
+      </div>
+      <div class="chip" onclick="quickMat('MDF_3_CRU')">
+        <span class="chip-swatch" style="background:#c8b89a;"></span> MDF 3mm
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Regra de Material Automática</div>
+    <div class="rule-option">
+      <input type="radio" name="matRule" id="matRule1" value="manual" checked>
+      <label for="matRule1">Manual — aplico em cada peça</label>
+    </div>
+    <div class="rule-option">
+      <input type="radio" name="matRule" id="matRule2" value="auto_fundo">
+      <label for="matRule2">Fundo = MDF 3mm, resto = selecionado</label>
+    </div>
+    <div class="rule-option">
+      <input type="radio" name="matRule" id="matRule3" value="auto_porta">
+      <label for="matRule3">Portas = BP Carvalho, caixa = BP Branco</label>
+    </div>
+  </div>
+</div>
+
+<!-- Tab: Borda -->
+<div class="tab-content" id="tab-borda">
+  <div class="section">
+    <div class="section-title">Fita de Borda Padrão</div>
+    <div class="form-group">
+      <label>Tipo</label>
+      <select id="bordaSelect">
+        <option value="PP_1_BRANCO">PP 1mm Branco</option>
+        <option value="PP_04_BRANCO">PP 0.4mm Branco</option>
+        <option value="PP_1_CARVALHO">PP 1mm Carvalho</option>
+        <option value="PP_04_CARVALHO">PP 0.4mm Carvalho</option>
+        <option value="PP_1_PRETO">PP 1mm Preto</option>
+        <option value="PP_1_CINZA">PP 1mm Cinza</option>
+        <option value="PP_1_NOGAL">PP 1mm Nogal</option>
+        <option value="PP_1_FREIJO">PP 1mm Freijó</option>
+        <option value="ABS_2_BRANCO">ABS 2mm Branco</option>
+        <option value="ABS_2_CARVALHO">ABS 2mm Carvalho</option>
+        <option value="ABS_045_BRANCO">ABS 0.45mm Branco</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Visualização</div>
+    <div class="edge-visual">
+      <div class="edge-box" id="edgeBox">
+        <div class="side side-top" id="sideTop"></div>
+        <div class="side side-bottom" id="sideBottom"></div>
+        <div class="side side-left" id="sideLeft"></div>
+        <div class="side side-right" id="sideRight"></div>
+        <span class="edge-label edge-top active" id="lblTop" onclick="toggleEdge('top')">Frontal ✓</span>
+        <span class="edge-label edge-bottom" id="lblBottom" onclick="toggleEdge('bottom')">Traseira</span>
+        <span class="edge-label edge-left" id="lblLeft" onclick="toggleEdge('left')">Esq</span>
+        <span class="edge-label edge-right" id="lblRight" onclick="toggleEdge('right')">Dir</span>
+      </div>
+    </div>
+    <div style="text-align:center;font-size:10px;color:var(--dim);margin-top:4px;">Clique nas bordas para ativar/desativar</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Regra Rápida de Bordas</div>
+    <div class="rule-option">
+      <input type="radio" name="bordaRule" id="bordaRule1" value="visiveis" checked>
+      <label for="bordaRule1">Só bordas visíveis (automático por role)</label>
+    </div>
+    <div class="rule-option">
+      <input type="radio" name="bordaRule" id="bordaRule2" value="todas">
+      <label for="bordaRule2">Borda em todas as faces</label>
+    </div>
+    <div class="rule-option">
+      <input type="radio" name="bordaRule" id="bordaRule3" value="manual">
+      <label for="bordaRule3">Manual (defino por peça)</label>
+    </div>
+    <div style="margin-top:8px;font-size:10px;color:var(--dim);line-height:1.5;">
+      <strong>Regra "visíveis":</strong> Laterais = frontal. Portas = todas. Base/tampo = frontal. Traseira = nenhuma. Rodapé = frontal.
+    </div>
+  </div>
+</div>
+
+<!-- Tab: Por Peça -->
+<div class="tab-content" id="tab-pecas">
+  <div class="section">
+    <div class="section-title">Peças do Módulo</div>
+    <div class="piece-list-compact" id="pieceListFinish">
+      <div style="text-align:center;padding:20px;color:var(--dim);">Selecione um módulo para ver as peças.</div>
+    </div>
+  </div>
+
+  <div class="section" id="pieceDetailSection" style="display:none">
+    <div class="section-title" id="pieceDetailTitle">Lateral Esquerda</div>
+    <div class="form-group">
+      <label>Material desta peça</label>
+      <select id="pieceMatSelect">
+        <option value="">— Usar material do módulo —</option>
+        <option value="MDF_18_BRANCO">MDF 18mm Branco TX</option>
+        <option value="MDF_3_CRU">MDF 3mm Cru</option>
+        <option value="BP_18_BRANCO">BP 18mm Branco</option>
+        <option value="BP_18_CARVALHO">BP 18mm Carvalho</option>
+        <option value="BP_18_PRETO">BP 18mm Preto</option>
+      </select>
+    </div>
+    <div class="section-title" style="margin-top:8px;">Bordas desta peça</div>
+    <div style="display:flex;gap:10px;">
+      <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" id="ppBordaF" style="accent-color:var(--accent);" checked> Frontal
+      </label>
+      <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" id="ppBordaT" style="accent-color:var(--accent);"> Traseira
+      </label>
+      <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" id="ppBordaD" style="accent-color:var(--accent);"> Direita
+      </label>
+      <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" id="ppBordaE" style="accent-color:var(--accent);"> Esquerda
+      </label>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div class="footer">
+  <button class="btn btn-outline" onclick="resetFinishes()">Resetar</button>
+  <button class="btn btn-accent" onclick="applyFinishes()">Aplicar Acabamento</button>
+</div>
+
+<script>
+  var currentScope = 'selection';
+  var currentTab = 'material';
+  var edges = { top: true, bottom: false, left: false, right: false };
+  var modulepieces = [];
+  var selectedPieceIdx = -1;
+
+  // ═══ Scope ═══
+  function setScope(scope) {
+    currentScope = scope;
+    document.querySelectorAll('.scope-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.getElementById('scope' + scope.charAt(0).toUpperCase() + scope.slice(1)).classList.add('active');
+  }
+
+  // ═══ Tabs ═══
+  function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('visible'); });
+    event.target.classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('visible');
+  }
+
+  // ═══ Edge toggle ═══
+  function toggleEdge(side) {
+    edges[side] = !edges[side];
+    updateEdgeVisual();
+  }
+
+  function updateEdgeVisual() {
+    var map = { top: ['sideTop','lblTop','Frontal'], bottom: ['sideBottom','lblBottom','Traseira'], left: ['sideLeft','lblLeft','Esq'], right: ['sideRight','lblRight','Dir'] };
+    Object.entries(map).forEach(function(e) {
+      var side = e[0], ids = e[1];
+      var active = edges[side];
+      document.getElementById(ids[0]).style.display = active ? 'block' : 'none';
+      var lbl = document.getElementById(ids[1]);
+      lbl.className = 'edge-label edge-' + side + (active ? ' active' : '');
+      lbl.textContent = ids[2] + (active ? ' ✓' : '');
+    });
+  }
+
+  function selectMaterial(val) {
+    document.querySelectorAll('#recentMats .chip').forEach(function(c) { c.classList.remove('selected'); });
+  }
+
+  function quickMat(code) {
+    document.getElementById('matSelect').value = code;
+    document.querySelectorAll('#recentMats .chip').forEach(function(c) { c.classList.remove('selected'); });
+    event.target.closest('.chip').classList.add('selected');
+  }
+
+  // ═══ Set pieces from Ruby ═══
+  window.setPieces = function(data) {
+    try {
+      modulepieces = typeof data === 'string' ? JSON.parse(data) : data;
+      renderPieceList();
+    } catch(e) { console.log('setPieces error', e); }
+  };
+
+  function renderPieceList() {
+    var list = document.getElementById('pieceListFinish');
+    if (!modulepieces || modulepieces.length === 0) {
+      list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--dim);">Nenhuma peça encontrada.</div>';
+      return;
+    }
+
+    list.innerHTML = modulepieces.map(function(p, i) {
+      var bordas = p.bordas || {};
+      return '<div class="piece-row' + (i === selectedPieceIdx ? ' selected' : '') + '" onclick="selectPiece(' + i + ')">' +
+        '<div class="name">' + (p.nome || p.name || 'Peça ' + (i+1)) + '</div>' +
+        '<div class="mat">' + (p.material || '—') + '</div>' +
+        '<div class="borda-icons">' +
+          '<span class="borda-dot ' + (bordas.frontal ? 'borda-on' : 'borda-off') + '" title="F"></span>' +
+          '<span class="borda-dot ' + (bordas.traseira ? 'borda-on' : 'borda-off') + '" title="T"></span>' +
+          '<span class="borda-dot ' + (bordas.dir ? 'borda-on' : 'borda-off') + '" title="D"></span>' +
+          '<span class="borda-dot ' + (bordas.esq ? 'borda-on' : 'borda-off') + '" title="E"></span>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function selectPiece(i) {
+    selectedPieceIdx = i;
+    renderPieceList();
+    var p = modulepieces[i];
+    document.getElementById('pieceDetailSection').style.display = 'block';
+    document.getElementById('pieceDetailTitle').textContent = p.nome || p.name || 'Peça';
+    document.getElementById('pieceMatSelect').value = p.material || '';
+    var b = p.bordas || {};
+    document.getElementById('ppBordaF').checked = !!b.frontal;
+    document.getElementById('ppBordaT').checked = !!b.traseira;
+    document.getElementById('ppBordaD').checked = !!b.dir;
+    document.getElementById('ppBordaE').checked = !!b.esq;
+  }
+
+  // ═══ Apply ═══
+  function applyFinishes() {
+    var matRule = document.querySelector('input[name=matRule]:checked')?.value || 'manual';
+    var bordaRule = document.querySelector('input[name=bordaRule]:checked')?.value || 'visiveis';
+
+    var finishData = {
+      scope: currentScope,
+      material: document.getElementById('matSelect').value,
+      material_rule: matRule,
+      borda: document.getElementById('bordaSelect').value,
+      borda_rule: bordaRule,
+      borda_lados: edges,
+      piece_overrides: selectedPieceIdx >= 0 ? [{
+        index: selectedPieceIdx,
+        material: document.getElementById('pieceMatSelect').value || null,
+        bordas: {
+          frontal: document.getElementById('ppBordaF').checked,
+          traseira: document.getElementById('ppBordaT').checked,
+          dir: document.getElementById('ppBordaD').checked,
+          esq: document.getElementById('ppBordaE').checked,
+        }
+      }] : [],
+    };
+
+    if (typeof sketchup !== 'undefined') {
+      sketchup.apply_finishes(JSON.stringify(finishData));
+    } else {
+      console.log('apply_finishes', finishData);
+      alert('Acabamentos aplicados (debug):\n' + JSON.stringify(finishData, null, 2));
+    }
+  }
+
+  function resetFinishes() {
+    if (typeof sketchup !== 'undefined') {
+      sketchup.reset_finishes();
+    }
+  }
+
+  // Init
+  updateEdgeVisual();
+
+  window.addEventListener('load', function() {
+    if (typeof sketchup !== 'undefined') sketchup.ready();
+  });
+</script>
+</body>
+</html>

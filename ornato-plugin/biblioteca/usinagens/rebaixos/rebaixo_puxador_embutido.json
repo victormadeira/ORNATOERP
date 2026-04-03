@@ -1,0 +1,25 @@
+{
+  "id": "rebaixo_puxador_embutido",
+  "nome": "Rebaixo para Puxador Embutido (Gola)",
+  "categoria": "rebaixo",
+  "descricao": "Rebaixo retangular 20x10mm na borda para encaixe de perfil tipo gola.",
+
+  "operacao": {
+    "tipo": "pocket",
+    "ferramenta": "fresa_6mm",
+    "largura": 20,
+    "profundidade": 10,
+    "lado": "borda_superior",
+    "forma": "retangular",
+    "percurso": "borda_completa",
+    "parametros": {
+      "largura": { "default": 20, "min": 15, "max": 30 },
+      "profundidade": { "default": 10, "min": 8, "max": 15 }
+    }
+  },
+
+  "aplicacao": {
+    "pecas": ["porta", "frente_gaveta"],
+    "condicao": "{tipo_puxador} == 'gola'"
+  }
+}

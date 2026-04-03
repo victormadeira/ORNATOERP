@@ -422,6 +422,8 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
   const [showNomeModal, setShowNomeModal] = useState(false);
   const [collapsedGrupos, setCollapsedGrupos] = useState({});
   const [rightTab, setRightTab] = useState('config'); // 'config' | 'elementos'
+  const [autoComplete, setAutoComplete] = useState({ show: false, filter: '', cursorStart: 0, highlightIdx: 0 });
+  const textoInputRef = useRef(null);
 
   const svgRef = useRef(null);
   const canvasContainerRef = useRef(null);
@@ -429,6 +431,22 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
   const canvasH = template?.altura || 70;
 
   const selEl = useMemo(() => selecionado ? elementos.find(e => e.id === selecionado) : null, [selecionado, elementos]);
+
+  // ─── Autocomplete para variáveis {{...}} ─────────
+  const acFiltered = useMemo(() => {
+    if (!autoComplete.show) return [];
+    const f = autoComplete.filter.toLowerCase();
+    return VARIAVEIS.filter(v => !f || v.key.toLowerCase().includes(f) || v.label.toLowerCase().includes(f));
+  }, [autoComplete.show, autoComplete.filter]);
+
+  const acGrouped = useMemo(() => {
+    const grupos = [];
+    const seen = new Set();
+    for (const v of acFiltered) {
+      if (!seen.has(v.grupo)) { seen.add(v.grupo); grupos.push(v.grupo); }
+    }
+    return grupos.map(g => ({ grupo: g, items: acFiltered.filter(v => v.grupo === g) }));
+  }, [acFiltered]);
 
   // ─── Auto-zoom to fit canvas ────────────────────
   const autoZoom = useCallback(() => {
@@ -523,6 +541,61 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
       return next;
     });
   }, [pushHistory]);
+
+  // ─── Autocomplete handlers (após updateEl) ───────
+  const handleTextoChange = useCallback((e) => {
+    const val = e.target.value;
+    const cursor = e.target.selectionStart;
+    updateEl(selEl?.id, { texto: val });
+
+    // Detect {{ before cursor without closing }}
+    const before = val.slice(0, cursor);
+    const lastOpen = before.lastIndexOf('{{');
+    const lastClose = before.lastIndexOf('}}');
+    if (lastOpen !== -1 && lastOpen > lastClose) {
+      const partial = before.slice(lastOpen + 2);
+      if (!/\s/.test(partial) && partial.length <= 30) {
+        setAutoComplete({ show: true, filter: partial, cursorStart: lastOpen, highlightIdx: 0 });
+        return;
+      }
+    }
+    setAutoComplete(ac => ac.show ? { show: false, filter: '', cursorStart: 0, highlightIdx: 0 } : ac);
+  }, [selEl?.id, updateEl]);
+
+  const acSelectVar = useCallback((varKey) => {
+    if (!selEl || !textoInputRef.current) return;
+    const input = textoInputRef.current;
+    const val = input.value;
+    const start = autoComplete.cursorStart;
+    const cursor = input.selectionStart;
+    const replacement = `{{${varKey}}}`;
+    const newVal = val.slice(0, start) + replacement + val.slice(cursor);
+    updateEl(selEl.id, { texto: newVal });
+    setAutoComplete({ show: false, filter: '', cursorStart: 0, highlightIdx: 0 });
+    // Restore focus and cursor position
+    requestAnimationFrame(() => {
+      input.focus();
+      const pos = start + replacement.length;
+      input.setSelectionRange(pos, pos);
+    });
+  }, [selEl, autoComplete.cursorStart, updateEl]);
+
+  const handleTextoKeyDown = useCallback((e) => {
+    if (!autoComplete.show || acFiltered.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setAutoComplete(ac => ({ ...ac, highlightIdx: Math.min(ac.highlightIdx + 1, acFiltered.length - 1) }));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setAutoComplete(ac => ({ ...ac, highlightIdx: Math.max(ac.highlightIdx - 1, 0) }));
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      acSelectVar(acFiltered[autoComplete.highlightIdx]?.key);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setAutoComplete({ show: false, filter: '', cursorStart: 0, highlightIdx: 0 });
+    }
+  }, [autoComplete.show, autoComplete.highlightIdx, acFiltered, acSelectVar]);
 
   const deleteEl = useCallback((id) => {
     setElementos(prev => {
@@ -1167,15 +1240,50 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                       </optgroup>
                     ))}
                   </select>
-                  <div>
+                  <div style={{ position: 'relative' }}>
                     <LBL>Conteúdo</LBL>
                     <input
+                      ref={textoInputRef}
                       type="text" value={selEl.texto || ''}
-                      onChange={e => updateEl(selEl.id, { texto: e.target.value })}
+                      onChange={handleTextoChange}
+                      onKeyDown={handleTextoKeyDown}
+                      onBlur={() => setTimeout(() => setAutoComplete(ac => ac.show ? { show: false, filter: '', cursorStart: 0, highlightIdx: 0 } : ac), 150)}
                       className={Z.inp}
                       style={{ fontSize: 11, padding: '4px 6px', width: '100%', marginTop: 2 }}
                       placeholder="Texto ou {{variavel}}"
                     />
+                    {autoComplete.show && acFiltered.length > 0 && (
+                      <div style={{
+                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000,
+                        background: '#1e1e2e', border: '1px solid #444', borderRadius: 6,
+                        maxHeight: 220, overflowY: 'auto', marginTop: 2,
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                      }}>
+                        {acGrouped.map(g => (
+                          <div key={g.grupo}>
+                            <div style={{ padding: '4px 8px', fontSize: 9, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: '1px solid #333' }}>
+                              {g.grupo}
+                            </div>
+                            {g.items.map(v => {
+                              const idx = acFiltered.indexOf(v);
+                              return (
+                                <div key={v.key}
+                                  onMouseDown={e => { e.preventDefault(); acSelectVar(v.key); }}
+                                  style={{
+                                    padding: '5px 10px', cursor: 'pointer', fontSize: 11,
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    background: idx === autoComplete.highlightIdx ? '#334' : 'transparent',
+                                    color: idx === autoComplete.highlightIdx ? '#fff' : '#ccc',
+                                  }}>
+                                  <span><strong style={{ color: '#7cb3ff' }}>{`{{${v.key}}}`}</strong></span>
+                                  <span style={{ fontSize: 10, color: '#888', marginLeft: 8 }}>{v.label}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <Divider />

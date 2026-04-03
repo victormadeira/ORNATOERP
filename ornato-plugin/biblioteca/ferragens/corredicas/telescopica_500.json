@@ -1,0 +1,71 @@
+{
+  "id": "telescopica_500",
+  "nome": "Telescopica Simples 500mm",
+  "marca": "Generico",
+  "modelo": "Telescopica 500mm",
+  "categoria": "corredica",
+  "tipo": "telescopica",
+  "extensao": "total",
+  "comprimento": 500,
+  "amortecedor": false,
+  "capacidade_kg": 25,
+
+  "especificacoes": {
+    "comprimento_trilho": 500,
+    "furos_fixacao": [
+      { "diametro": 4, "profundidade": 10, "posicao_y": 20 },
+      { "diametro": 4, "profundidade": 10, "posicao_y": 175 },
+      { "diametro": 4, "profundidade": 10, "posicao_y": 340 },
+      { "diametro": 4, "profundidade": 10, "posicao_y": 480 }
+    ],
+    "quantidade_furos": 4,
+    "distancia_lateral": 37,
+    "folga_lateral": 12.5,
+    "altura_trilho": 45,
+    "largura_trilho": 12.7
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 20 }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 175 }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 340 }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 480 }
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "TEL-500",
+    "preco_unitario": 24.00,
+    "unidade": "par",
+    "fornecedor": "Diversos"
+  }
+}

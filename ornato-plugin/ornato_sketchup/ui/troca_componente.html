@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Trocar Componente - Ornato</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0c0e14; --bg2: #141821; --bg3: #1a1f2e; --border: #2a3040;
+    --text: #e4e8f0; --dim: #8892a4; --accent: #C9A96E; --danger: #e74c3c; --success: #2ecc71; --r: 8px;
+  }
+  body { font-family: 'Inter',-apple-system,sans-serif; background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5; }
+  .header { padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg2); display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 100; }
+  .header .logo { width: 28px; height: 28px; background: var(--accent); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--bg); font-size: 14px; }
+  .header h1 { font-size: 14px; font-weight: 600; }
+
+  .current-info { margin: 12px 16px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 12px 14px; }
+  .current-label { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+  .current-name { font-weight: 600; color: var(--accent); font-size: 15px; }
+  .current-detail { font-size: 11px; color: var(--dim); margin-top: 4px; }
+
+  .section { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin-bottom: 8px; }
+
+  .swap-group { margin-bottom: 12px; }
+  .swap-group-title { font-size: 11px; font-weight: 600; color: var(--text); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+
+  .option-grid { display: flex; flex-direction: column; gap: 4px; }
+  .option-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 10px 12px; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 10px; }
+  .option-card:hover { border-color: var(--accent); }
+  .option-card.selected { border-color: var(--accent); background: #1a1510; }
+  .option-radio { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .option-card.selected .option-radio { border-color: var(--accent); }
+  .option-card.selected .option-radio::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .option-info { flex: 1; }
+  .option-name { font-weight: 600; font-size: 12px; }
+  .option-desc { font-size: 10px; color: var(--dim); margin-top: 1px; }
+  .option-badge { font-size: 9px; padding: 2px 6px; border-radius: 3px; background: var(--bg3); color: var(--dim); border: 1px solid var(--border); }
+  .option-badge.current { background: rgba(201,169,110,0.1); color: var(--accent); border-color: rgba(201,169,110,0.3); }
+
+  .no-selection { padding: 40px 16px; text-align: center; color: var(--dim); }
+  .no-selection .icon { font-size: 40px; opacity: 0.3; margin-bottom: 8px; }
+
+  .footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; position: sticky; bottom: 0; background: var(--bg); }
+  .btn { padding: 9px 16px; border-radius: var(--r); border: none; font-size: 13px; font-weight: 600; cursor: pointer; flex: 1; }
+  .btn:hover { opacity: 0.85; }
+  .btn-accent { background: var(--accent); color: var(--bg); }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--dim); }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">O</div>
+  <h1>Trocar Componente</h1>
+</div>
+
+<div id="noSelection" class="no-selection">
+  <div class="icon">🔄</div>
+  <div>Selecione um componente agregado<br>no módulo para trocar.</div>
+</div>
+
+<div id="mainContent" style="display:none">
+  <div class="current-info">
+    <div class="current-label">Componente atual</div>
+    <div class="current-name" id="currentName">—</div>
+    <div class="current-detail" id="currentDetail">—</div>
+  </div>
+
+  <div id="swapSections"></div>
+
+  <div class="footer">
+    <button class="btn btn-outline" onclick="cancel()">Cancelar</button>
+    <button class="btn btn-accent" onclick="applySwap()">Aplicar Troca</button>
+  </div>
+</div>
+
+<script>
+  var componentData = null;
+  var selections = {};
+
+  // ═══ Swap Options by component type ═══
+  var SWAP_OPTIONS = {
+    fechamento: [
+      {
+        group: '🚪 Tipo de Fechamento', key: 'tipo_fechamento',
+        options: [
+          { id: 'porta_2_abrir', name: '2 Portas de Abrir', desc: 'Par com dobradiças' },
+          { id: 'porta_1_abrir_e', name: '1 Porta Esquerda', desc: 'Abre para esquerda' },
+          { id: 'porta_1_abrir_d', name: '1 Porta Direita', desc: 'Abre para direita' },
+          { id: 'porta_basculante', name: 'Basculante', desc: 'Abre para cima com pistão' },
+          { id: 'porta_correr_2', name: '2 Portas de Correr', desc: 'Deslizante em trilho' },
+          { id: 'porta_correr_3', name: '3 Portas de Correr', desc: 'Deslizante tripla' },
+          { id: 'sem_porta', name: 'Remover Porta', desc: 'Módulo aberto' },
+        ]
+      },
+      {
+        group: '🔩 Dobradiça', key: 'tipo_dobradica',
+        options: [
+          { id: 'reta_110', name: 'Reta 110°', desc: 'Porta sobreposta padrão' },
+          { id: 'clip_110', name: 'Clip 110°', desc: 'Montagem rápida' },
+          { id: 'total_165', name: '165° Abertura Total', desc: 'Abertura máxima' },
+          { id: 'blumotion', name: 'Blumotion', desc: 'Soft-close integrado' },
+          { id: 'push_open', name: 'Push Open', desc: 'Abre ao empurrar' },
+          { id: 'meia_esquadria', name: 'Meia Esquadria', desc: 'Para portas sobrepostas parcial' },
+        ]
+      },
+      {
+        group: '🖐️ Puxador', key: 'tipo_puxador',
+        options: [
+          { id: 'pux_128', name: '128mm', desc: 'Padrão residencial' },
+          { id: 'pux_160', name: '160mm', desc: 'Intermediário' },
+          { id: 'pux_192', name: '192mm', desc: 'Grande' },
+          { id: 'pux_256', name: '256mm', desc: 'Extra grande' },
+          { id: 'pux_gola', name: 'Perfil Gola', desc: 'Puxador embutido no topo' },
+          { id: 'pux_cava', name: 'Cava Inferior', desc: 'Recorte na parte inferior' },
+          { id: 'sem_puxador', name: 'Sem Puxador', desc: 'Push-open ou cava lateral' },
+        ]
+      },
+    ],
+    gaveta: [
+      {
+        group: '🗄️ Quantidade de Gavetas', key: 'quantidade',
+        options: [
+          { id: 'gv_1', name: '1 Gaveta', desc: 'Gaveta única' },
+          { id: 'gv_2', name: '2 Gavetas', desc: 'Iguais' },
+          { id: 'gv_3', name: '3 Gavetas', desc: 'Iguais' },
+          { id: 'gv_4', name: '4 Gavetas', desc: 'Iguais' },
+          { id: 'gv_5', name: '5 Gavetas', desc: 'Iguais (gaveteiro alto)' },
+          { id: 'gv_prog', name: 'Progressivas', desc: 'Menor em cima, maior embaixo' },
+        ]
+      },
+      {
+        group: '🛤️ Corrediça', key: 'corredica',
+        options: [
+          { id: 'cor_metalica', name: 'Metálica Simples', desc: 'Econômica, 25kg' },
+          { id: 'cor_telescopica', name: 'Telescópica', desc: 'Abertura total, 35kg' },
+          { id: 'cor_soft', name: 'Soft-Close', desc: 'Fechamento suave, 40kg' },
+          { id: 'cor_push', name: 'Push Open', desc: 'Abre ao empurrar' },
+          { id: 'cor_tandembox', name: 'Tandembox', desc: 'Blum premium, 65kg' },
+          { id: 'cor_legrabox', name: 'Legrabox', desc: 'Blum design, cristal' },
+        ]
+      },
+      {
+        group: '🖐️ Puxador', key: 'tipo_puxador',
+        options: [
+          { id: 'pux_128', name: '128mm', desc: 'Padrão' },
+          { id: 'pux_160', name: '160mm', desc: 'Intermediário' },
+          { id: 'pux_gola', name: 'Perfil Gola', desc: 'Embutido no topo' },
+          { id: 'pux_cava', name: 'Cava', desc: 'Recorte frontal' },
+          { id: 'sem_puxador', name: 'Sem', desc: 'Push-open' },
+        ]
+      },
+    ],
+    interno: [
+      {
+        group: '📋 Tipo de Prateleira', key: 'tipo_prateleira',
+        options: [
+          { id: 'prat_regulavel', name: 'Regulável', desc: 'Com System32' },
+          { id: 'prat_fixa', name: 'Fixa', desc: 'Cavilha ou minifix' },
+          { id: 'prat_vidro', name: 'Vidro', desc: 'Temperado 6mm' },
+          { id: 'prat_inclinada', name: 'Inclinada', desc: 'Para livros/sapatos' },
+        ]
+      },
+    ],
+  };
+
+  // ═══ Set component data from Ruby ═══
+  window.setComponent = function(data) {
+    try {
+      componentData = typeof data === 'string' ? JSON.parse(data) : data;
+      document.getElementById('noSelection').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+
+      var compDef = componentData;
+      document.getElementById('currentName').textContent = compDef.label || compDef.type || 'Componente';
+      var details = [];
+      if (compDef.config) {
+        Object.entries(compDef.config).forEach(function(e) { details.push(e[0] + ': ' + e[1]); });
+      }
+      document.getElementById('currentDetail').textContent = details.join(' · ') || 'Sem configuração';
+
+      renderSwapOptions(compDef.slot || 'fechamento', compDef.config || {});
+    } catch(e) { console.log('setComponent error', e); }
+  };
+
+  // ═══ Render swap sections ═══
+  function renderSwapOptions(slot, currentConfig) {
+    var groups = SWAP_OPTIONS[slot] || SWAP_OPTIONS.fechamento;
+    selections = {};
+
+    var html = groups.map(function(g) {
+      return '<div class="section"><div class="swap-group">' +
+        '<div class="swap-group-title">' + g.group + '</div>' +
+        '<div class="option-grid">' +
+        g.options.map(function(o) {
+          var isCurrent = currentConfig[g.key] === o.id;
+          if (isCurrent) selections[g.key] = o.id;
+          return '<div class="option-card' + (isCurrent ? ' selected' : '') + '" onclick="selectOption(\'' + g.key + '\',\'' + o.id + '\',this)">' +
+            '<div class="option-radio"></div>' +
+            '<div class="option-info"><div class="option-name">' + o.name + '</div><div class="option-desc">' + o.desc + '</div></div>' +
+            (isCurrent ? '<span class="option-badge current">atual</span>' : '') +
+          '</div>';
+        }).join('') +
+        '</div></div></div>';
+    }).join('');
+
+    document.getElementById('swapSections').innerHTML = html;
+  }
+
+  // ═══ Select option ═══
+  window.selectOption = function(key, id, el) {
+    selections[key] = id;
+    // Update UI
+    var parent = el.parentElement;
+    parent.querySelectorAll('.option-card').forEach(function(c) { c.classList.remove('selected'); });
+    el.classList.add('selected');
+  };
+
+  // ═══ Apply swap ═══
+  function applySwap() {
+    if (!componentData) return;
+    var swapData = {
+      component: componentData,
+      newConfig: selections,
+    };
+
+    if (typeof sketchup !== 'undefined') {
+      sketchup.apply_swap(JSON.stringify(swapData));
+    } else {
+      console.log('apply_swap', swapData);
+      alert('Troca aplicada (debug):\n' + JSON.stringify(selections, null, 2));
+    }
+  }
+
+  function cancel() {
+    if (typeof sketchup !== 'undefined') {
+      sketchup.close_swap();
+    }
+  }
+
+  window.addEventListener('load', function() {
+    if (typeof sketchup !== 'undefined') sketchup.ready();
+  });
+</script>
+</body>
+</html>

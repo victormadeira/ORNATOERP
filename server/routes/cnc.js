@@ -688,7 +688,23 @@ router.post('/machine-assignments/:loteId/auto', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════════
 
 router.get('/lotes', requireAuth, (req, res) => {
-    const lotes = db.prepare('SELECT * FROM cnc_lotes WHERE user_id = ? ORDER BY criado_em DESC').all(req.user.id);
+    const { page, limit, status, search } = req.query;
+    let sql = 'SELECT * FROM cnc_lotes WHERE user_id = ?';
+    const params = [req.user.id];
+    if (status) { sql += ' AND status = ?'; params.push(status); }
+    if (search) { sql += ' AND (nome LIKE ? OR id = ?)'; params.push(`%${search}%`, search); }
+    sql += ' ORDER BY criado_em DESC';
+    // Paginação opcional (#24)
+    if (page && limit) {
+        const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as total');
+        const { total } = db.prepare(countSql).get(...params);
+        const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
+        sql += ' LIMIT ? OFFSET ?';
+        params.push(Number(limit), offset);
+        const lotes = db.prepare(sql).all(...params);
+        return res.json({ lotes, total, page: Number(page), limit: Number(limit), pages: Math.ceil(total / Number(limit)) });
+    }
+    const lotes = db.prepare(sql).all(...params);
     res.json(lotes);
 });
 
@@ -920,16 +936,47 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                         .all(chapa.material_code || group.material_code, chapa.espessura_real || group.espessura)
                     : [];
 
+                // Calcular tool_signature por peça para agrupamento inteligente
+                const usinagemTipos = db.prepare('SELECT * FROM cnc_usinagem_tipos WHERE user_id = ?').all(req.user.id);
+                const usinagemMap = {};
+                for (const u of usinagemTipos) usinagemMap[u.codigo || u.nome] = u;
+
                 // Enviar para Python
                 const pyResult = await callPython('optimize', {
-                    pieces: group.pieces.map(p => ({
-                        id: p.id, persistent_id: p.persistent_id || '',
-                        comprimento: p.comprimento, largura: p.largura,
-                        quantidade: p.quantidade, material_code: p.material_code,
-                        espessura: group.espessura,
-                        allow_rotate: chapaVeio !== 'sem_veio' ? false : (permitirRotacao != null ? permitirRotacao : true),
-                        lote_id: lote.id, descricao: p.descricao || '',
-                    })),
+                    pieces: group.pieces.map(p => {
+                        // Extrair assinatura de ferramentas necessárias
+                        let toolSig = '';
+                        try {
+                            const mach = JSON.parse(p.machining_json || '{}');
+                            const tools = new Set();
+                            for (const face of Object.values(mach)) {
+                                if (!Array.isArray(face)) continue;
+                                for (const op of face) {
+                                    const tipo = usinagemMap[op.tipo || op.type];
+                                    if (tipo?.tool_code) tools.add(tipo.tool_code);
+                                }
+                            }
+                            toolSig = [...tools].sort().join(',');
+                        } catch (_) {}
+                        // Extrair contorno irregular se existir
+                        let contour = null;
+                        try {
+                            const mach = JSON.parse(p.machining_json || '{}');
+                            if (mach.contour && Array.isArray(mach.contour) && mach.contour.length >= 3) {
+                                contour = mach.contour;
+                            }
+                        } catch (_) {}
+                        return {
+                            id: p.id, persistent_id: p.persistent_id || '',
+                            comprimento: p.comprimento, largura: p.largura,
+                            quantidade: p.quantidade, material_code: p.material_code,
+                            espessura: group.espessura,
+                            allow_rotate: chapaVeio !== 'sem_veio' ? false : (permitirRotacao != null ? permitirRotacao : true),
+                            lote_id: lote.id, descricao: p.descricao || '',
+                            tool_signature: toolSig,
+                            contour, // Para nesting de formas irregulares (L, T, U shapes)
+                        };
+                    }),
                     sheets: [{
                         id: chapa.id || 0, nome: chapa.nome || '',
                         material_code: chapa.material_code || group.material_code,
@@ -971,6 +1018,8 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                         idx: chapaIdx,
                         material: chapa.nome || '',
                         material_code: chapa.material_code || group.material_code,
+                        espessura_real: chapa.espessura_real || group.espessura,
+                        espessura_nominal: chapa.espessura_nominal || group.espessura,
                         comprimento: chapa.comprimento, largura: chapa.largura,
                         refilo, kerf,
                         preco: chapa.preco || 0,
@@ -1032,6 +1081,79 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                     ocupacao_media: pyResult.aproveitamento,
                     kerf, veio: chapaVeio, retalhos_usados: 0,
                 };
+            }
+
+            // ═══ Otimização multi-chapa global: tentar eliminar chapas sub-utilizadas ═══
+            if (plano.chapas.length > 1) {
+                // Ordenar chapas por aproveitamento (menor primeiro = candidata a eliminação)
+                const chapasByUtil = plano.chapas.map((c, i) => ({ idx: i, util: c.aproveitamento || 0, pecas: c.pecas.length }))
+                    .sort((a, b) => a.util - b.util);
+
+                // Tentar mover peças da chapa menos utilizada para outras
+                for (const candidate of chapasByUtil) {
+                    if (candidate.util > 60 || plano.chapas.length <= 1) break; // Não mexer em chapas acima de 60%
+                    const srcChapa = plano.chapas[candidate.idx];
+                    if (!srcChapa || !srcChapa.pecas?.length) continue;
+
+                    let allMoved = true;
+                    for (const peca of srcChapa.pecas) {
+                        let moved = false;
+                        // Tentar encaixar em cada outra chapa
+                        for (let ti = 0; ti < plano.chapas.length; ti++) {
+                            if (ti === candidate.idx) continue;
+                            const targetChapa = plano.chapas[ti];
+                            if (!targetChapa) continue;
+                            const ref = targetChapa.refilo || 0;
+                            const usableW = targetChapa.comprimento - 2 * ref;
+                            const usableH = targetChapa.largura - 2 * ref;
+                            const spacing = Number(config.espaco_pecas || 7);
+
+                            // Verificar se cabe em algum espaço livre (simples AABB check)
+                            const pw = peca.w, ph = peca.h;
+                            let placed = false;
+                            // Tentar posicionar usando scan-line simples
+                            for (let testY = 0; testY <= usableH - ph && !placed; testY += spacing) {
+                                for (let testX = 0; testX <= usableW - pw && !placed; testX += spacing) {
+                                    let collision = false;
+                                    for (const existing of targetChapa.pecas) {
+                                        if (testX < existing.x + existing.w + spacing &&
+                                            testX + pw + spacing > existing.x &&
+                                            testY < existing.y + existing.h + spacing &&
+                                            testY + ph + spacing > existing.y) {
+                                            collision = true;
+                                            // Saltar para depois da peça existente
+                                            testX = existing.x + existing.w + spacing - spacing;
+                                            break;
+                                        }
+                                    }
+                                    if (!collision) {
+                                        // Encaixa! Mover peça
+                                        targetChapa.pecas.push({ ...peca, x: testX, y: testY });
+                                        placed = true;
+                                        moved = true;
+                                    }
+                                }
+                            }
+                            if (placed) break;
+                        }
+                        if (!moved) { allMoved = false; break; }
+                    }
+
+                    if (allMoved) {
+                        // Remover chapa vazia
+                        plano.chapas.splice(candidate.idx, 1);
+                        // Recalcular aproveitamento das chapas afetadas
+                        for (const ch of plano.chapas) {
+                            const ref = ch.refilo || 0;
+                            const usableArea = (ch.comprimento - 2 * ref) * (ch.largura - 2 * ref);
+                            const pecasArea = ch.pecas.reduce((s, p) => s + p.w * p.h, 0);
+                            ch.aproveitamento = usableArea > 0 ? Math.round(pecasArea / usableArea * 10000) / 100 : 0;
+                        }
+                        // Re-index chapas
+                        for (let i = 0; i < plano.chapas.length; i++) plano.chapas[i].idx = i;
+                        break; // Só tentar eliminar uma chapa por vez
+                    }
+                }
             }
 
             // Se Python processou tudo com sucesso
@@ -1261,7 +1383,9 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                         const chapaIdx = globalChapaIdx++;
                         const chapaInfo = {
                             idx: chapaIdx, material: `RETALHO: ${ret.nome}`,
-                            material_code: group.material_code, comprimento: retW, largura: retH,
+                            material_code: group.material_code,
+                            espessura_real: ret.espessura_real || group.espessura,
+                            comprimento: retW, largura: retH,
                             refilo: 0, preco: 0, veio: chapaVeio,
                             aproveitamento: Math.round(bin.occupancy() * 100) / 100,
                             is_retalho: true, retalho_id: ret.id, pecas: [], retalhos: [],
@@ -1464,6 +1588,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                 const chapaInfo = {
                     idx: chapaIdx, material: chapa.nome,
                     material_code: chapa.material_code || group.material_code,
+                    espessura_real: chapa.espessura_real || group.espessura,
                     comprimento: chapa.comprimento, largura: chapa.largura,
                     refilo, kerf, preco: chapa.preco || 0, veio: chapaVeio,
                     aproveitamento: Math.round(bin.occupancy() * 100) / 100,
@@ -2657,7 +2782,7 @@ function transformRotated(wx, wy, compOriginal) {
 // ═══════════════════════════════════════════════════════
 // FUNÇÃO PRINCIPAL: Gerar G-code para UMA chapa
 // ═══════════════════════════════════════════════════════
-function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usinagemTipos, cfg) {
+function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usinagemTipos, cfg, opOverrides = {}, opOverridesPeca = {}) {
     // --- Config da máquina ---
     const header = maquina.gcode_header || '%\nG90 G54 G17';
     const footer = maquina.gcode_footer || 'G0 Z200.000\nM5\nM30\n%';
@@ -2716,7 +2841,13 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
     const alertas = [];
     const missingTools = new Set();
     const missingToolDetails = []; // { tool_code, peca, operacao }
-    const espChapa = chapa.espessura_real || 18.5;
+    // Espessura real da chapa — resolve do plano, ou busca no DB pelo material_code, ou fallback
+    let espChapa = chapa.espessura_real;
+    if (!espChapa && chapa.material_code) {
+        const chapaDb = db.prepare('SELECT espessura_real FROM cnc_chapas WHERE material_code = ? AND ativo = 1 LIMIT 1').get(chapa.material_code);
+        if (chapaDb) espChapa = chapaDb.espessura_real;
+    }
+    if (!espChapa) espChapa = 18.5;
 
     // ─── Segurança: proteção da mesa de sacrifício ───
     const margemMesa = maquina.margem_mesa_sacrificio ?? 0.5;
@@ -2739,6 +2870,32 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
     // Z rápido: altura intermediária para G0 entre operações próximas (minimizar air cutting)
     function zRapid() { return zOrigin === 'mesa' ? espChapa + zAproxRapida : zAproxRapida; }
 
+    // ─── Transformação de eixos X/Y ───
+    // Padrão: X da máquina = largura (menor), Y da máquina = comprimento (maior)
+    // No sistema interno: x = comprimento, y = largura
+    // Então por padrão trocamos: X_maq = y_sys (largura), Y_maq = x_sys (comprimento)
+    // Se trocar_eixos_xy = 1, desativa a troca (X_maq = x_sys, Y_maq = y_sys)
+    const swapOff = maquina.trocar_eixos_xy === 1; // "trocar" = desativar o swap padrão
+    const invertX = maquina.eixo_x_invertido === 1;
+    const invertY = maquina.eixo_y_invertido === 1;
+    const sheetW = chapa.comprimento || (maquina.x_max || 2800);
+    const sheetH = chapa.largura || (maquina.y_max || 1900);
+    // Transform: swap by default (unless trocar_eixos_xy toggled off)
+    function mapXY(x, y) {
+        // Default: X_maq = y (largura), Y_maq = x (comprimento)
+        let ox = swapOff ? x : y;
+        let oy = swapOff ? y : x;
+        const maxOx = swapOff ? sheetW : sheetH;
+        const maxOy = swapOff ? sheetH : sheetW;
+        if (invertX) ox = maxOx - ox;
+        if (invertY) oy = maxOy - oy;
+        return [ox, oy];
+    }
+    // XY pair formatted: returns "X... Y..." string
+    function XY(x, y) { const [ox, oy] = mapXY(x, y); return 'X' + fmt(ox) + ' Y' + fmt(oy); }
+    // I/J arc offsets — relative, so only swap (no invert)
+    function IJ(i, j) { return 'I' + fmt(swapOff ? i : j) + ' J' + fmt(swapOff ? j : i); }
+
     // ─── Emissão com N-codes opcionais ───
     const L = [];
     let nLine = 0;
@@ -2751,12 +2908,13 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
         }
     }
 
-    // --- Ferramenta de contorno ---
+    // --- Ferramenta de contorno (prioridade: config > fresa_compressao > fresa_reta > fresa genérica) ---
     let contTool = cfg.contorno_tool_code ? toolMap[cfg.contorno_tool_code] : null;
     if (!contTool) {
-        contTool = Object.values(toolMap).find(t =>
-            t.tipo_corte === 'fresa_compressao' || t.tipo_corte === 'fresa_reta' || t.tipo === 'fresa'
-        );
+        const allTools = Object.values(toolMap);
+        contTool = allTools.find(t => t.tipo_corte === 'fresa_compressao')
+            || allTools.find(t => t.tipo_corte === 'fresa_reta')
+            || allTools.find(t => t.tipo === 'fresa');
     }
     if (!contTool) {
         alertas.push({ tipo: 'aviso', msg: 'Nenhuma fresa de contorno no magazine. Contornos não serão gerados.' });
@@ -2814,11 +2972,37 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             if (tipo.includes('rebaixo') && !exportRebaixos) continue;
             if (tipo.includes('pocket') && !exportUsinagens) continue;
 
-            if (tc && !toolMap[tc]) {
-                missingTools.add(tc);
-                missingToolDetails.push({ tool_code: tc, peca: pDb.descricao, operacao: tipo || w.type || 'desconhecida' });
+            // ─── Overrides de operação ───
+            const diam = Number(w.diameter || 0);
+            const diamKey = diam > 0 ? Math.round(diam * 10) / 10 : 0;
+            const opKey = `${tipo || 'unknown'}__d${diamKey}__${tc}`;
+            const groupOv = opOverrides[opKey];
+            const pecaOv = opOverridesPeca[`${opKey}__${pp.pecaId}`];
+
+            // Check se desativado (peça override > grupo override)
+            if (pecaOv && pecaOv.ativo === 0) continue;
+            if (!pecaOv && groupOv && groupOv.ativo === 0) continue;
+
+            // Aplicar overrides de diâmetro e profundidade
+            const ovDiam = pecaOv?.diametro_override ?? groupOv?.diametro_override ?? null;
+            const ovDepth = pecaOv?.profundidade_override ?? groupOv?.profundidade_override ?? null;
+            const ovMetodo = groupOv?.metodo || '';
+            const ovFerramentaId = groupOv?.ferramenta_id || null;
+            const ovRpm = groupOv?.rpm_override ?? null;
+            const ovFeed = groupOv?.feed_override ?? null;
+
+            // Se tem override de ferramenta, usar ela
+            let effectiveToolCode = tc;
+            if (ovFerramentaId) {
+                const ovTool = Object.values(toolMap).find(t => t.id === ovFerramentaId);
+                if (ovTool && ovTool.tool_code) effectiveToolCode = ovTool.tool_code;
             }
-            const tool = toolMap[tc] || null;
+
+            if (effectiveToolCode && !toolMap[effectiveToolCode]) {
+                missingTools.add(effectiveToolCode);
+                missingToolDetails.push({ tool_code: effectiveToolCode, peca: pDb.descricao, operacao: tipo || w.type || 'desconhecida' });
+            }
+            const tool = toolMap[effectiveToolCode] || toolMap[tc] || null;
             const usiTipo = mapWorkerToTipo(w, usinagemTipos);
 
             // Coords locais
@@ -2912,14 +3096,19 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const isCut = tipo.includes('saw') || tipo.includes('cut') || tipo === 'transfer_vertical_saw_cut';
             const isPocket = tipo.includes('pocket') || tipo.includes('rebaixo');
 
-            // 3) Determinar método de execução automático se não resolvido por estratégia
+            // 3) Override de método (se configurado no painel de ferramentas)
+            if (ovMetodo && ovMetodo !== '' && ovMetodo !== 'desativado') {
+                resolvedMetodo = ovMetodo;
+            }
+
+            // 4) Determinar método de execução automático se não resolvido
             if (resolvedMetodo === 'auto' && effectiveTool) {
-                const diam = Number(w.diameter || 0);
+                const effDiam = ovDiam ?? Number(w.diameter || 0);
                 const toolD = effectiveTool.diametro || 0;
-                if (isHole && diam > 0 && Math.abs(toolD - diam) < 1) {
-                    resolvedMetodo = 'drill'; // broca do diâmetro exato = furo direto
-                } else if (isHole && diam > 0 && toolD < diam) {
-                    resolvedMetodo = 'helical'; // fresa menor que o furo = helicoidal/circular
+                if (isHole && effDiam > 0 && Math.abs(toolD - effDiam) < 1) {
+                    resolvedMetodo = 'drill';
+                } else if (isHole && effDiam > 0 && toolD < effDiam) {
+                    resolvedMetodo = 'helical';
                 } else if (isPocket) {
                     resolvedMetodo = 'pocket_zigzag';
                 } else if (isCut) {
@@ -2930,7 +3119,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             }
 
             const profExtra = effectiveTool?.profundidade_extra ?? profExtraMaq;
-            let depthTotal = Number(w.depth ?? 5) + profExtra;
+            const baseDepth = ovDepth ?? Number(w.depth ?? 5);
+            let depthTotal = baseDepth + profExtra;
             depthTotal = clampDepth(depthTotal, `${pDb.descricao} - ${tipo || 'operacao'}`);
             const doc = effectiveTool?.doc || null;
             const passes = calcularPassadas(depthTotal, doc);
@@ -2960,8 +3150,10 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             if (reqWidth > 0 && effectiveTool && effectiveTool.diametro > reqWidth && !grooveMultiPass) {
                 alertas.push({ tipo: 'erro_critico', msg: `Fresa ${effectiveTool.nome} (Ø${effectiveTool.diametro}mm) > largura rasgo (${reqWidth}mm) na peça ${pDb.descricao}` });
             }
-            const velCorte = effectiveTool?.velocidade_corte || velCorteMaq;
+            const velCorte = ovFeed ?? effectiveTool?.velocidade_corte ?? velCorteMaq;
             const velEf = isPeq ? Math.round(velCorte * feedPct / 100) : velCorte;
+            const effRpm = ovRpm ?? effectiveTool?.rpm ?? rpmDef;
+            const effHoleDiam = ovDiam ?? Number(w.diameter || 0);
 
             allOps.push({
                 pecaId: pp.pecaId, pecaDesc: pDb.descricao, moduloDesc: pDb.modulo_desc,
@@ -2969,9 +3161,9 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 opType: isHole ? 'hole' : isCut ? 'groove' : isPocket ? 'pocket' : 'generic',
                 fase: usiTipo.fase === 'contorno' ? 1 : 0,
                 prioridade: usiTipo.prioridade, tipoNome: usiTipo.nome,
-                toolCode: effectiveTool?.tool_code || tc,
+                toolCode: effectiveTool?.tool_code || effectiveToolCode || tc,
                 toolCodigo: effectiveTool?.codigo || '', toolNome: effectiveTool?.nome || tc,
-                toolRpm: effectiveTool?.rpm || rpmDef, toolDiam: effectiveTool?.diametro || 0,
+                toolRpm: effRpm, toolDiam: effectiveTool?.diametro || 0,
                 depthTotal, passes, velCorte: velEf,
                 pocketW: w.width || w.w || 0, pocketH: w.height || w.h || 0,
                 classificacao: cls, areaCm2, isPequena: isPeq,
@@ -2979,7 +3171,9 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 // Tool-agnostic multi-pass
                 grooveMultiPass, grooveOffsets, grooveWidth: reqWidth, toolAdapted,
                 // Estratégia resolvida
-                resolvedMetodo, holeDiameter: Number(w.diameter || 0),
+                resolvedMetodo, holeDiameter: effHoleDiam,
+                // Overrides aplicados (para referência)
+                hasOverride: !!(groupOv || pecaOv),
             });
         }
 
@@ -2987,7 +3181,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
         if (contTool) {
             const cR = contTool.diametro / 2;
             const profExtra = contTool.profundidade_extra ?? profExtraMaq;
-            const depthTotal = clampDepth(esp + profExtra, `${pDb.descricao} - contorno`);
+            const depthTotal = clampDepth(espChapa + profExtra, `${pDb.descricao} - contorno`);
             const needsOnion = useOnion && areaCm2 < onionAreaMax;
             const depthCont = needsOnion ? depthTotal - onionEsp : depthTotal;
             const doc = contTool.doc || null;
@@ -3085,12 +3279,17 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
     }
 
     // ═══ CONTORNOS DE SOBRAS aproveitáveis ═══
+    // Otimização: lados que tocam a borda da chapa NÃO são cortados (já são borda natural)
     if (contTool && chapa.retalhos) {
         const sobraMinW = cfg.sobra_min_largura || 300;
         const sobraMinH = cfg.sobra_min_comprimento || 600;
+        const usableW = (chapa.comprimento || 2750) - 2 * refilo;
+        const usableH = (chapa.largura || 1850) - 2 * refilo;
+        const edgeTol = 1; // tolerância para detecção de borda (mm)
 
         for (const ret of chapa.retalhos) {
             const isSobra = Math.max(ret.w, ret.h) >= sobraMinH && Math.min(ret.w, ret.h) >= sobraMinW;
+            console.log(`[SOBRA-DEBUG] ret: x=${ret.x} y=${ret.y} w=${ret.w} h=${ret.h} isSobra=${isSobra} usableW=${usableW} usableH=${usableH}`);
             if (!isSobra) continue;
 
             const cR = contTool.diametro / 2;
@@ -3102,14 +3301,70 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const sx2 = refilo + ret.x + ret.w + cR, sy2 = refilo + ret.y + ret.h + cR;
             const sTipo = usinagemTipos.find(t => t.codigo === 'contorno_sobra') || { prioridade: 9, fase: 'contorno' };
 
+            // ─── Detectar lados na borda da chapa ───
+            const onLeft   = ret.x <= edgeTol;
+            const onBottom = ret.y <= edgeTol;
+            const onRight  = ret.x + ret.w >= usableW - edgeTol;
+            const onTop    = ret.y + ret.h >= usableH - edgeTol;
+            console.log(`[SOBRA-DEBUG] edges: L=${onLeft} B=${onBottom} R=${onRight} T=${onTop} | ret.x+w=${ret.x+ret.w} vs usableW=${usableW} | ret.y+h=${ret.y+ret.h} vs usableH=${usableH}`);
+            const edgesSkipped = [onBottom, onRight, onTop, onLeft].filter(Boolean).length;
+
+            // Se todos os 4 lados estão na borda, não precisa cortar nada
+            if (edgesSkipped >= 4) continue;
+
+            // Cantos do retângulo: BL, BR, TR, TL
+            const BL = { x: sx1, y: sy1 }, BR = { x: sx2, y: sy1 };
+            const TR = { x: sx2, y: sy2 }, TL = { x: sx1, y: sy2 };
+            const corners = [BL, BR, TR, TL];
+            // Lados: bottom(BL→BR), right(BR→TR), top(TR→TL), left(TL→BL)
+            const sideActive = [!onBottom, !onRight, !onTop, !onLeft];
+
+            let contornoSegments;
+            let isOpenPath = false;
+            if (edgesSkipped === 0) {
+                // Todos os lados internos — retângulo fechado completo
+                contornoSegments = [[BL, BR, TR, TL, BL]];
+            } else {
+                // Construir segmentos contínuos apenas dos lados internos
+                isOpenPath = true;
+                contornoSegments = [];
+                const startIdx = sideActive.findIndex(a => !a);
+                let current = null;
+                for (let i = 0; i < 4; i++) {
+                    const idx = (startIdx + 1 + i) % 4;
+                    if (sideActive[idx]) {
+                        if (!current) current = [corners[idx]];
+                        current.push(corners[(idx + 1) % 4]);
+                    } else {
+                        if (current) { contornoSegments.push(current); current = null; }
+                    }
+                }
+                if (current) contornoSegments.push(current);
+            }
+
+            // Se nenhum segmento gerado (todos na borda), pular
+            console.log(`[SOBRA-DEBUG] sideActive=[${sideActive}] isOpenPath=${isOpenPath} segments=${contornoSegments.length} edgesSkipped=${edgesSkipped}`);
+            for (let si = 0; si < contornoSegments.length; si++) {
+                console.log(`[SOBRA-DEBUG]   seg[${si}]: ${contornoSegments[si].map(p => `(${p.x.toFixed(1)},${p.y.toFixed(1)})`).join(' → ')}`);
+            }
+            if (!contornoSegments.length) continue;
+
+            const edgeInfo = [];
+            if (onLeft) edgeInfo.push('E');
+            if (onRight) edgeInfo.push('D');
+            if (onBottom) edgeInfo.push('Inf');
+            if (onTop) edgeInfo.push('Sup');
+            const edgeDesc = edgesSkipped > 0 ? ` [borda: ${edgeInfo.join('+')}]` : '';
+
             allOps.push({
-                pecaId: null, pecaDesc: `Sobra ${Math.round(ret.w)}x${Math.round(ret.h)}`, moduloDesc: '',
+                pecaId: null, pecaDesc: `Sobra ${Math.round(ret.w)}x${Math.round(ret.h)}${edgeDesc}`, moduloDesc: '',
                 absX: sx1, absY: sy1, absX2: sx2, absY2: sy2,
                 opType: 'contorno_sobra', fase: 2, prioridade: sTipo.prioridade, clsOrder: 9, tipoNome: 'Contorno Sobra',
                 toolCode: contTool.tool_code, toolCodigo: contTool.codigo, toolNome: contTool.nome,
                 toolRpm: contTool.rpm || rpmDef, toolDiam: contTool.diametro,
                 depthTotal, depthCont: depthTotal, passes, velCorte: contTool.velocidade_corte || velCorteMaq,
-                contornoPath: [{ x: sx1, y: sy1 }, { x: sx2, y: sy1 }, { x: sx2, y: sy2 }, { x: sx1, y: sy2 }],
+                contornoPath: [BL, BR, TR, TL], // path completo para visualização SVG
+                contornoSegments, isOpenPath, edgesSkipped,
                 classificacao: 'normal', areaCm2: (ret.w * ret.h) / 100, isPequena: false,
                 isContorno: true, needsOnionSkin: false,
             });
@@ -3155,15 +3410,29 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             (otimizarTrocas && allOps[i].toolCode !== allOps[gs].toolCode);
         if (newGrp && i > gs) {
             const grp = allOps.slice(gs, i);
-            // Para contornos com ordenação por tamanho, manter a ordem de tamanho
-            // mas aplicar proximity DENTRO de cada sub-grupo de tamanho similar
             if (grp[0]?.isContorno && ordenarContornos === 'menor_primeiro') {
-                // Manter a ordem de vacuum risk index (já ordenada pelo sort principal)
-                // NÃO aplicar proximity — a ordem de risco é mais importante que minimizar G0
-                sortedOps.push(...grp);
+                // TSP dentro de buckets de vacuum risk — preserva segurança + otimiza path
+                const bucketSize = 0.15; // agrupar ops com risk index similar
+                const buckets = [];
+                let curBucket = [grp[0]];
+                for (let k = 1; k < grp.length; k++) {
+                    const riskDiff = Math.abs((grp[k].vacuumRiskIndex ?? 0) - (grp[k - 1].vacuumRiskIndex ?? 0));
+                    if (riskDiff <= bucketSize) { curBucket.push(grp[k]); }
+                    else { buckets.push(curBucket); curBucket = [grp[k]]; }
+                }
+                buckets.push(curBucket);
+                for (const bkt of buckets) sortedOps.push(...orderByProximity(bkt));
             } else if (grp[0]?.isContorno && ordenarContornos === 'maior_primeiro') {
-                // Manter a ordem de área descendente
-                sortedOps.push(...grp);
+                // Mesma lógica de buckets por área
+                const buckets = [];
+                let curBucket = [grp[0]];
+                for (let k = 1; k < grp.length; k++) {
+                    const areaDiff = Math.abs((grp[k].areaCm2 ?? 0) - (grp[k - 1].areaCm2 ?? 0));
+                    if (areaDiff <= 50) { curBucket.push(grp[k]); } // 50cm² tolerance
+                    else { buckets.push(curBucket); curBucket = [grp[k]]; }
+                }
+                buckets.push(curBucket);
+                for (const bkt of buckets) sortedOps.push(...orderByProximity(bkt));
             } else {
                 sortedOps.push(...orderByProximity(grp));
             }
@@ -3260,7 +3529,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)}`);
 
                 // Posicionar
-                emit(`G0 X${fmt(startX)} Y${fmt(startY)}`);
+                emit(`G0 ${XY(startX, startY)}`);
                 emit(`G0 Z${fmt(zApproach())}`);
 
                 // Mergulho (rampa se habilitado e primeiro segmento é longo o bastante)
@@ -3275,8 +3544,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                         const rampX = startX + dx * rampFrac;
                         const rampY = startY + dy * rampFrac;
                         L.push(`${cmt}   Rampa ${fmt(rampLen)}mm ao longo primeiro segmento`);
-                        emit(`G1 X${fmt(rampX)} Y${fmt(rampY)} Z${fmt(zTarget)} F${velMergulho}`);
-                        emit(`G1 X${fmt(startX)} Y${fmt(startY)} F${op.velCorte}`);
+                        emit(`G1 ${XY(rampX, rampY)} Z${fmt(zTarget)} F${velMergulho}`);
+                        emit(`G1 ${XY(startX, startY)} F${op.velCorte}`);
                         curX = startX; curY = startY;
                     } else {
                         emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
@@ -3295,10 +3564,10 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                         const I = (oX + seg.cx) - curX;
                         const J = (oY + seg.cy) - curY;
                         const cmd = seg.dir === 'cw' ? 'G2' : 'G3';
-                        emit(`${cmd} X${fmt(targetX)} Y${fmt(targetY)} I${fmt(I)} J${fmt(J)} F${op.velCorte}`);
+                        emit(`${cmd} ${XY(targetX, targetY)} ${IJ(I, J)} F${op.velCorte}`);
                     } else {
                         // Linha reta (G1)
-                        emit(`G1 X${fmt(targetX)} Y${fmt(targetY)} F${op.velCorte}`);
+                        emit(`G1 ${XY(targetX, targetY)} F${op.velCorte}`);
                     }
                     curX = targetX;
                     curY = targetY;
@@ -3333,7 +3602,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     const helixR = cutR * (rampaDiamPct / 100);
                     const depthPerRev = Math.min(op.toolDiam * 0.3, 3);
 
-                    emit(`G0 X${fmt(cx + helixR)} Y${fmt(cy)}`);
+                    emit(`G0 ${XY(cx + helixR, cy)}`);
                     emit(`G0 Z${fmt(zApproach())}`);
 
                     let curZ = zApproach();
@@ -3342,17 +3611,17 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 
                     while (curZ > finalZ + 0.01) {
                         const nextZ1 = Math.max(finalZ, curZ - halfRevDepth);
-                        emit(`G2 X${fmt(cx - helixR)} Y${fmt(cy)} I${fmt(-helixR)} J0 Z${fmt(nextZ1)} F${velRampa}`);
+                        emit(`G2 ${XY(cx - helixR, cy)} ${IJ(-helixR, 0)} Z${fmt(nextZ1)} F${velRampa}`);
                         curZ = nextZ1;
                         if (curZ <= finalZ + 0.01) break;
                         const nextZ2 = Math.max(finalZ, curZ - halfRevDepth);
-                        emit(`G2 X${fmt(cx + helixR)} Y${fmt(cy)} I${fmt(helixR)} J0 Z${fmt(nextZ2)} F${velRampa}`);
+                        emit(`G2 ${XY(cx + helixR, cy)} ${IJ(helixR, 0)} Z${fmt(nextZ2)} F${velRampa}`);
                         curZ = nextZ2;
                     }
 
                     // Expandir para raio de corte real se diferente do raio de hélice
                     if (Math.abs(cutR - helixR) > 0.05) {
-                        emit(`G1 X${fmt(cx + cutR)} Y${fmt(cy)} F${op.velCorte}`);
+                        emit(`G1 ${XY(cx + cutR, cy)} F${op.velCorte}`);
                     }
                 } else {
                     // ═══ Entrada convencional (plunge por passada) ═══
@@ -3362,13 +3631,13 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 
                         // Desbaste com offset
                         const desbR = circularPassesAcab > 0 && circularOffsetDesb > 0 ? cutR - circularOffsetDesb : cutR;
-                        emit(`G0 X${fmt(cx + desbR)} Y${fmt(cy)}`);
+                        emit(`G0 ${XY(cx + desbR, cy)}`);
                         emit(`G0 Z${fmt(zApproach())}`);
                         emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
-                        emit(`G2 X${fmt(cx + desbR)} Y${fmt(cy)} I${fmt(-desbR)} J0 F${op.velCorte}`);
+                        emit(`G2 ${XY(cx + desbR, cy)} ${IJ(-desbR, 0)} F${op.velCorte}`);
                     }
                     // Posicionar para acabamento
-                    emit(`G1 X${fmt(cx + cutR)} Y${fmt(cy)} F${op.velCorte}`);
+                    emit(`G1 ${XY(cx + cutR, cy)} F${op.velCorte}`);
                 }
 
                 // Passes de acabamento no raio exato
@@ -3376,13 +3645,13 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     const velAcab = Math.round(op.velCorte * velAcabPct);
                     for (let ac = 0; ac < circularPassesAcab; ac++) {
                         L.push(`${cmt}   Acabamento circular ${ac + 1}/${circularPassesAcab} vel=${velAcab}`);
-                        emit(`G2 X${fmt(cx + cutR)} Y${fmt(cy)} I${fmt(-cutR)} J0 F${velAcab}`);
+                        emit(`G2 ${XY(cx + cutR, cy)} ${IJ(-cutR, 0)} F${velAcab}`);
                     }
                 }
                 emit(`G0 Z${fmt(zSafe())}`);
             } else {
                 // Plunge simples (furo pequeno)
-                emit(`G0 X${fmt(cx)} Y${fmt(cy)}`);
+                emit(`G0 ${XY(cx, cy)}`);
                 emit(`G0 Z${fmt(zApproach())}`);
                 for (let pi = 0; pi < op.passes.length; pi++) {
                     const zTarget = zCut(op.passes[pi]);
@@ -3409,7 +3678,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     const zTarget = zCut(op.passes[pi]);
                     if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)}`);
 
-                    emit(`G0 X${fmt(startX)} Y${fmt(startY)}`);
+                    emit(`G0 ${XY(startX, startY)}`);
                     emit(`G0 Z${fmt(zApproach())}`);
                     emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
                     curX = startX; curY = startY;
@@ -3422,15 +3691,55 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                             const I = (oX + seg.cx) - curX;
                             const J = (oY + seg.cy) - curY;
                             const cmd = seg.dir === 'cw' ? 'G2' : 'G3';
-                            emit(`${cmd} X${fmt(targetX)} Y${fmt(targetY)} I${fmt(I)} J${fmt(J)} F${op.velCorte}`);
+                            emit(`${cmd} ${XY(targetX, targetY)} ${IJ(I, J)} F${op.velCorte}`);
                         } else {
-                            emit(`G1 X${fmt(targetX)} Y${fmt(targetY)} F${op.velCorte}`);
+                            emit(`G1 ${XY(targetX, targetY)} F${op.velCorte}`);
                         }
                         curX = targetX;
                         curY = targetY;
                     }
                 }
                 emit(`G0 Z${fmt(zSafe())}`);
+            }
+            L.push('');
+
+        // ─── CONTORNO SOBRA COM BORDAS (open path — lados na borda da chapa são omitidos) ───
+        } else if (op.isContorno && op.isOpenPath && op.contornoSegments) {
+            const segs = op.contornoSegments;
+            L.push(`${cmt} Contorno Sobra (parcial): ${op.pecaDesc}`);
+            L.push(`${cmt}   ${segs.length} segmento(s) | ${4 - (op.edgesSkipped || 0)} lados internos | Passadas: ${op.passes.length} | Prof: ${fmt(op.depthTotal)}mm`);
+
+            for (const seg of segs) {
+                if (seg.length < 2) continue;
+                for (let pi = 0; pi < op.passes.length; pi++) {
+                    const pd = op.passes[pi];
+                    const zTarget = zCut(pd);
+                    if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)}`);
+
+                    // Posicionar no início do segmento
+                    emit(`G0 ${XY(seg[0].x, seg[0].y)}`);
+                    emit(`G0 Z${fmt(zApproach())}`);
+
+                    // Mergulho (rampa ao longo da primeira aresta se possível)
+                    const firstEdgeLen = Math.sqrt((seg[1].x - seg[0].x) ** 2 + (seg[1].y - seg[0].y) ** 2);
+                    const rampLen = Math.min(firstEdgeLen * 0.4, 50);
+                    if (useRampa && rampLen > 5) {
+                        const dx = seg[1].x - seg[0].x, dy = seg[1].y - seg[0].y;
+                        const frac = Math.min(rampLen / firstEdgeLen, 0.9);
+                        L.push(`${cmt}   Rampa ${fmt(rampLen)}mm ao longo aresta`);
+                        emit(`G1 ${XY(seg[0].x + dx * frac, seg[0].y + dy * frac)} Z${fmt(zTarget)} F${velMergulho}`);
+                        emit(`G1 ${XY(seg[0].x, seg[0].y)} F${op.velCorte}`);
+                    } else {
+                        emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
+                    }
+
+                    // Cortar ao longo dos pontos do segmento
+                    for (let j = 1; j < seg.length; j++) {
+                        emit(`G1 ${XY(seg[j].x, seg[j].y)} F${op.velCorte}`);
+                    }
+
+                    emit(`G0 Z${fmt(zSafe())}`);
+                }
             }
             L.push('');
 
@@ -3476,11 +3785,11 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 if (usarLeadIn && leadR > 1) {
                     // ─── COM LEAD-IN ───
                     // 1. Posicionar no ponto de lead-in (fora do contorno)
-                    emit(`G0 X${fmt(entryX)} Y${fmt(entryY)}`);
+                    emit(`G0 ${XY(entryX, entryY)}`);
                     emit(`G0 Z${fmt(zApproach())}`);
 
                     // 2. Entrar no contorno (lead-in) na altura de approach
-                    emit(`G1 X${fmt(contX)} Y${fmt(contY)} F${op.velCorte}`);
+                    emit(`G1 ${XY(contX, contY)} F${op.velCorte}`);
 
                     // 3. Descer: rampa ao longo da primeira aresta OU plunge no ponto de entrada
                     if (useRampa && rampLen > 5) {
@@ -3492,9 +3801,9 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                         const rampX = contX + dx * rampFrac;
                         const rampY = contY + dy * rampFrac;
                         L.push(`${cmt}   Rampa ${fmt(rampLen)}mm ao longo aresta, ${rampaAngulo}deg`);
-                        emit(`G1 X${fmt(rampX)} Y${fmt(rampY)} Z${fmt(zTarget)} F${velMergulho}`);
+                        emit(`G1 ${XY(rampX, rampY)} Z${fmt(zTarget)} F${velMergulho}`);
                         // Voltar ao ponto de entrada do contorno na profundidade de corte
-                        emit(`G1 X${fmt(contX)} Y${fmt(contY)} F${op.velCorte}`);
+                        emit(`G1 ${XY(contX, contY)} F${op.velCorte}`);
                     } else {
                         // Plunge no ponto de entrada (fora da peça, marca aceitável)
                         emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
@@ -3504,25 +3813,25 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     // Climb milling (concordante) com spindle CW = CCW no contorno externo (p0→p3→p2→p1)
                     // Conventional (convencional) = CW no contorno externo (p0→p1→p2→p3)
                     if (dirCorte === 'climb') {
-                        emit(`G1 X${fmt(p0.x)} Y${fmt(p0.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p3.x)} Y${fmt(p3.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p1.x)} Y${fmt(p1.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(contX)} Y${fmt(contY)} F${op.velCorte}`);
+                        emit(`G1 ${XY(p0.x, p0.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(p3.x, p3.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(p2.x, p2.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(p1.x, p1.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(contX, contY)} F${op.velCorte}`);
                     } else {
-                        emit(`G1 X${fmt(p1.x)} Y${fmt(p1.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p3.x)} Y${fmt(p3.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p0.x)} Y${fmt(p0.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(contX)} Y${fmt(contY)} F${op.velCorte}`);
+                        emit(`G1 ${XY(p1.x, p1.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(p2.x, p2.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(p3.x, p3.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(p0.x, p0.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(contX, contY)} F${op.velCorte}`);
                     }
 
                     // 5. Lead-out: sair do contorno
-                    emit(`G1 X${fmt(entryX)} Y${fmt(entryY)} F${op.velCorte}`);
+                    emit(`G1 ${XY(entryX, entryY)} F${op.velCorte}`);
 
                 } else {
                     // ─── SEM LEAD-IN: entrada direta no P0 ───
-                    emit(`G0 X${fmt(p0.x)} Y${fmt(p0.y)}`);
+                    emit(`G0 ${XY(p0.x, p0.y)}`);
                     emit(`G0 Z${fmt(zApproach())}`);
 
                     if (useRampa && rampLen > 5) {
@@ -3534,23 +3843,23 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                         const rampX = p0.x + dx * rampFrac;
                         const rampY = p0.y + dy * rampFrac;
                         L.push(`${cmt}   Rampa ${fmt(rampLen)}mm, ${rampaAngulo}deg`);
-                        emit(`G1 X${fmt(rampX)} Y${fmt(rampY)} Z${fmt(zTarget)} F${velMergulho}`);
-                        emit(`G1 X${fmt(p0.x)} Y${fmt(p0.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(rampX, rampY)} Z${fmt(zTarget)} F${velMergulho}`);
+                        emit(`G1 ${XY(p0.x, p0.y)} F${op.velCorte}`);
                     } else {
                         emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
                     }
 
                     // Direção do contorno: climb=CCW (p0→p3→p2→p1), conv=CW (p0→p1→p2→p3)
                     if (dirCorte === 'climb') {
-                        emit(`G1 X${fmt(p3.x)} Y${fmt(p3.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p1.x)} Y${fmt(p1.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p0.x)} Y${fmt(p0.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(p3.x, p3.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(p2.x, p2.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(p1.x, p1.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(p0.x, p0.y)} F${op.velCorte}`);
                     } else {
-                        emit(`G1 X${fmt(p1.x)} Y${fmt(p1.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p3.x)} Y${fmt(p3.y)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(p0.x)} Y${fmt(p0.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(p1.x, p1.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(p2.x, p2.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(p3.x, p3.y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(p0.x, p0.y)} F${op.velCorte}`);
                     }
                 }
 
@@ -3579,7 +3888,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     const helixR = cutR * (rampaDiamPct / 100);
                     const depthPerRev = Math.min(op.toolDiam * 0.3, 3); // max 3mm por revolução
 
-                    emit(`G0 X${fmt(op.absX + helixR)} Y${fmt(op.absY)}`);
+                    emit(`G0 ${XY(op.absX + helixR, op.absY)}`);
                     emit(`G0 Z${fmt(zApproach())}`);
 
                     // Descida helicoidal em arcos G2 com Z decrescente
@@ -3591,12 +3900,12 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     while (curZ > finalZ + 0.01) {
                         // Meio arco 1 (180°): ponto oposto
                         const nextZ1 = Math.max(finalZ, curZ - halfRevDepth);
-                        emit(`G2 X${fmt(op.absX - helixR)} Y${fmt(op.absY)} I${fmt(-helixR)} J0 Z${fmt(nextZ1)} F${velRampa}`);
+                        emit(`G2 ${XY(op.absX - helixR, op.absY)} ${IJ(-helixR, 0)} Z${fmt(nextZ1)} F${velRampa}`);
                         curZ = nextZ1;
                         if (curZ <= finalZ + 0.01) break;
                         // Meio arco 2 (180°): volta ao início
                         const nextZ2 = Math.max(finalZ, curZ - halfRevDepth);
-                        emit(`G2 X${fmt(op.absX + helixR)} Y${fmt(op.absY)} I${fmt(helixR)} J0 Z${fmt(nextZ2)} F${velRampa}`);
+                        emit(`G2 ${XY(op.absX + helixR, op.absY)} ${IJ(helixR, 0)} Z${fmt(nextZ2)} F${velRampa}`);
                         curZ = nextZ2;
                     }
 
@@ -3604,11 +3913,11 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     if (circularPassesAcab > 0) {
                         // Expandir para raio de corte real
                         if (Math.abs(cutR - helixR) > 0.05) {
-                            emit(`G1 X${fmt(op.absX + cutR)} Y${fmt(op.absY)} F${op.velCorte}`);
+                            emit(`G1 ${XY(op.absX + cutR, op.absY)} F${op.velCorte}`);
                         }
                         for (let ac = 0; ac < circularPassesAcab; ac++) {
                             L.push(`${cmt}   Acabamento circular ${ac + 1}/${circularPassesAcab}`);
-                            emit(`G2 X${fmt(op.absX + cutR)} Y${fmt(op.absY)} I${fmt(-cutR)} J0 F${Math.round(op.velCorte * velAcabPct)}`);
+                            emit(`G2 ${XY(op.absX + cutR, op.absY)} ${IJ(-cutR, 0)} F${Math.round(op.velCorte * velAcabPct)}`);
                         }
                     }
                     emit(`G0 Z${fmt(zSafe())}`);
@@ -3623,16 +3932,16 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                         // Desbaste (com offset se acabamento ativo)
                         const desbR = circularPassesAcab > 0 && circularOffsetDesb > 0 ? cutR - circularOffsetDesb : cutR;
 
-                        emit(`G0 X${fmt(op.absX + desbR)} Y${fmt(op.absY)}`);
+                        emit(`G0 ${XY(op.absX + desbR, op.absY)}`);
                         emit(`G0 Z${fmt(zApproach())}`);
                         emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
-                        emit(`G2 X${fmt(op.absX + desbR)} Y${fmt(op.absY)} I${fmt(-desbR)} J0 F${op.velCorte}`);
+                        emit(`G2 ${XY(op.absX + desbR, op.absY)} ${IJ(-desbR, 0)} F${op.velCorte}`);
 
                         // Passes de acabamento no raio exato
                         if (circularPassesAcab > 0 && circularOffsetDesb > 0) {
-                            emit(`G1 X${fmt(op.absX + cutR)} Y${fmt(op.absY)} F${op.velCorte}`);
+                            emit(`G1 ${XY(op.absX + cutR, op.absY)} F${op.velCorte}`);
                             for (let ac = 0; ac < circularPassesAcab; ac++) {
-                                emit(`G2 X${fmt(op.absX + cutR)} Y${fmt(op.absY)} I${fmt(-cutR)} J0 F${Math.round(op.velCorte * velAcabPct)}`);
+                                emit(`G2 ${XY(op.absX + cutR, op.absY)} ${IJ(-cutR, 0)} F${Math.round(op.velCorte * velAcabPct)}`);
                             }
                         }
                     }
@@ -3640,8 +3949,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 }
             } else {
                 // ═══ FURO DIRETO (plunge) — broca do diâmetro exato ═══
-                L.push(`${cmt} Furo: ${op.pecaDesc} X${fmt(op.absX)} Y${fmt(op.absY)} Prof=${fmt(op.depthTotal)}`);
-                emit(`G0 X${fmt(op.absX)} Y${fmt(op.absY)}`);
+                L.push(`${cmt} Furo: ${op.pecaDesc} ${XY(op.absX, op.absY)} Prof=${fmt(op.depthTotal)}`);
+                emit(`G0 ${XY(op.absX, op.absY)}`);
                 emit(`G0 Z${fmt(zApproach())}`);
                 for (let pi = 0; pi < op.passes.length; pi++) {
                     if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length}`);
@@ -3683,7 +3992,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             if (op.grooveMultiPass) {
                 L.push(`${cmt} Rasgo MULTI-PASS: ${op.pecaDesc} Larg=${op.grooveWidth}mm Fresa=D${op.toolDiam}mm (${gOffsets.length} passadas laterais)`);
             } else {
-                L.push(`${cmt} Rasgo: ${op.pecaDesc} X${fmt(sx1)} Y${fmt(sy1)} -> X${fmt(ex1)} Y${fmt(ey1)} Prof=${fmt(op.depthTotal)} L=${fmt(grooveLen)}`);
+                L.push(`${cmt} Rasgo: ${op.pecaDesc} ${XY(sx1, sy1)} -> ${XY(ex1, ey1)} Prof=${fmt(op.depthTotal)} L=${fmt(grooveLen)}`);
             }
             if (op.toolAdapted) L.push(`${cmt}   FERRAMENTA ADAPTADA: usando ${op.toolNome} (D${op.toolDiam}mm)`);
 
@@ -3710,7 +4019,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 
                     if (gOffsets.length > 1) L.push(`${cmt}   Lateral ${li + 1}/${gOffsets.length} offset=${fmt(off)}mm`);
 
-                    emit(`G0 X${fmt(sx)} Y${fmt(sy)}`);
+                    emit(`G0 ${XY(sx, sy)}`);
                     emit(`G0 Z${fmt(zApproach())}`);
 
                     if (useRampa && grooveLen > 10) {
@@ -3718,13 +4027,13 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                         const ratio = rampLen / grooveLen;
                         const rampEndX = sx + (ex - sx) * ratio;
                         const rampEndY = sy + (ey - sy) * ratio;
-                        emit(`G1 X${fmt(rampEndX)} Y${fmt(rampEndY)} Z${fmt(zTarget)} F${velRampa}`);
-                        emit(`G1 X${fmt(sx)} Y${fmt(sy)} F${op.velCorte}`);
+                        emit(`G1 ${XY(rampEndX, rampEndY)} Z${fmt(zTarget)} F${velRampa}`);
+                        emit(`G1 ${XY(sx, sy)} F${op.velCorte}`);
                     } else {
                         emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
                     }
 
-                    emit(`G1 X${fmt(ex)} Y${fmt(ey)} F${op.velCorte}`);
+                    emit(`G1 ${XY(ex, ey)} F${op.velCorte}`);
 
                     // Retração entre passadas laterais: approach (mínimo)
                     if (li < gOffsets.length - 1) {
@@ -3748,7 +4057,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const toolDiam = op.toolDiam || 8;
             const toolR = toolDiam / 2;
             const stepOver = toolDiam * stepoverPct;
-            L.push(`${cmt} Pocket: ${op.pecaDesc} X${fmt(op.absX)} Y${fmt(op.absY)} ${pw}x${ph} Prof=${fmt(op.depthTotal)} Stepover=${Math.round(stepoverPct * 100)}%`);
+            L.push(`${cmt} Pocket: ${op.pecaDesc} ${XY(op.absX, op.absY)} ${pw}x${ph} Prof=${fmt(op.depthTotal)} Stepover=${Math.round(stepoverPct * 100)}%`);
 
             for (let pi = 0; pi < op.passes.length; pi++) {
                 const pd = op.passes[pi];
@@ -3768,18 +4077,18 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                                       pocketDirecao === 'y' ? false :
                                       pw >= ph; // 'auto': eixo mais longo
 
-                    emit(`G0 X${fmt(iStartX)} Y${fmt(iStartY)}`);
+                    emit(`G0 ${XY(iStartX, iStartY)}`);
                     emit(`G0 Z${fmt(zApproach())}`);
 
                     if (useRampa) {
                         const rampAxis = zigAlongX ? iEndX - iStartX : iEndY - iStartY;
                         const rampLen = Math.min(Math.abs(rampAxis) * 0.3, 20);
                         if (zigAlongX) {
-                            emit(`G1 X${fmt(iStartX + rampLen)} Y${fmt(iStartY)} Z${fmt(zTarget)} F${velRampa}`);
+                            emit(`G1 ${XY(iStartX + rampLen, iStartY)} Z${fmt(zTarget)} F${velRampa}`);
                         } else {
-                            emit(`G1 X${fmt(iStartX)} Y${fmt(iStartY + rampLen)} Z${fmt(zTarget)} F${velRampa}`);
+                            emit(`G1 ${XY(iStartX, iStartY + rampLen)} Z${fmt(zTarget)} F${velRampa}`);
                         }
-                        emit(`G1 X${fmt(iStartX)} Y${fmt(iStartY)} F${op.velCorte}`);
+                        emit(`G1 ${XY(iStartX, iStartY)} F${op.velCorte}`);
                     } else {
                         emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
                     }
@@ -3791,10 +4100,10 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                         let cy = iStartY, dir = 1;
                         while (cy <= iEndY + 0.01) {
                             const tx = dir === 1 ? iEndX : iStartX;
-                            emit(`G1 X${fmt(tx)} Y${fmt(cy)} F${op.velCorte}`);
+                            emit(`G1 ${XY(tx, cy)} F${op.velCorte}`);
                             cy += stepOver;
                             if (cy <= iEndY + 0.01) {
-                                emit(`G1 X${fmt(tx)} Y${fmt(Math.min(cy, iEndY))} F${op.velCorte}`);
+                                emit(`G1 ${XY(tx, Math.min(cy, iEndY))} F${op.velCorte}`);
                             }
                             dir *= -1;
                         }
@@ -3803,10 +4112,10 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                         let cx = iStartX, dir = 1;
                         while (cx <= iEndX + 0.01) {
                             const ty = dir === 1 ? iEndY : iStartY;
-                            emit(`G1 X${fmt(cx)} Y${fmt(ty)} F${op.velCorte}`);
+                            emit(`G1 ${XY(cx, ty)} F${op.velCorte}`);
                             cx += stepOver;
                             if (cx <= iEndX + 0.01) {
-                                emit(`G1 X${fmt(Math.min(cx, iEndX))} Y${fmt(ty)} F${op.velCorte}`);
+                                emit(`G1 ${XY(Math.min(cx, iEndX), ty)} F${op.velCorte}`);
                             }
                             dir *= -1;
                         }
@@ -3816,28 +4125,28 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     if (pocketAcabamento) {
                         const velAcab = Math.round(op.velCorte * velAcabPct);
                         L.push(`${cmt}   Acabamento perimetro (offset=${fmt(pocketAcabOffset)}mm, vel=${velAcab}mm/min)`);
-                        emit(`G1 X${fmt(ox + toolR)} Y${fmt(oy + toolR)} F${op.velCorte}`);
-                        emit(`G1 X${fmt(ox + pw - toolR)} Y${fmt(oy + toolR)} F${velAcab}`);
-                        emit(`G1 X${fmt(ox + pw - toolR)} Y${fmt(oy + ph - toolR)} F${velAcab}`);
-                        emit(`G1 X${fmt(ox + toolR)} Y${fmt(oy + ph - toolR)} F${velAcab}`);
-                        emit(`G1 X${fmt(ox + toolR)} Y${fmt(oy + toolR)} F${velAcab}`);
+                        emit(`G1 ${XY(ox + toolR, oy + toolR)} F${op.velCorte}`);
+                        emit(`G1 ${XY(ox + pw - toolR, oy + toolR)} F${velAcab}`);
+                        emit(`G1 ${XY(ox + pw - toolR, oy + ph - toolR)} F${velAcab}`);
+                        emit(`G1 ${XY(ox + toolR, oy + ph - toolR)} F${velAcab}`);
+                        emit(`G1 ${XY(ox + toolR, oy + toolR)} F${velAcab}`);
                     }
 
                     emit(`G0 Z${fmt(zSafe())}`);
                 } else if (pw > 0 && ph > 0) {
                     // Pocket pequeno: perímetro simples
-                    emit(`G0 X${fmt(op.absX)} Y${fmt(op.absY)}`);
+                    emit(`G0 ${XY(op.absX, op.absY)}`);
                     emit(`G0 Z${fmt(zApproach())}`);
                     emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
                     const px2 = Number(op.absX) + pw, py2 = Number(op.absY) + ph;
-                    emit(`G1 X${fmt(px2)} Y${fmt(op.absY)} F${op.velCorte}`);
-                    emit(`G1 X${fmt(px2)} Y${fmt(py2)} F${op.velCorte}`);
-                    emit(`G1 X${fmt(op.absX)} Y${fmt(py2)} F${op.velCorte}`);
-                    emit(`G1 X${fmt(op.absX)} Y${fmt(op.absY)} F${op.velCorte}`);
+                    emit(`G1 ${XY(px2, op.absY)} F${op.velCorte}`);
+                    emit(`G1 ${XY(px2, py2)} F${op.velCorte}`);
+                    emit(`G1 ${XY(op.absX, py2)} F${op.velCorte}`);
+                    emit(`G1 ${XY(op.absX, op.absY)} F${op.velCorte}`);
                     emit(`G0 Z${fmt(zSafe())}`);
                 } else {
                     // Plunge simples (sem dimensão de pocket)
-                    emit(`G0 X${fmt(op.absX)} Y${fmt(op.absY)}`);
+                    emit(`G0 ${XY(op.absX, op.absY)}`);
                     emit(`G0 Z${fmt(zApproach())}`);
                     emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
                     emit(`G0 Z${fmt(zSafe())}`);
@@ -3846,8 +4155,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             L.push('');
 
         } else {
-            L.push(`${cmt} Op: ${op.tipoNome} ${op.pecaDesc} X${fmt(op.absX)} Y${fmt(op.absY)}`);
-            emit(`G0 X${fmt(op.absX)} Y${fmt(op.absY)}`);
+            L.push(`${cmt} Op: ${op.tipoNome} ${op.pecaDesc} ${XY(op.absX, op.absY)}`);
+            emit(`G0 ${XY(op.absX, op.absY)}`);
             emit(`G0 Z${fmt(zApproach())}`);
             emit(`G1 Z${fmt(zCut(op.depthTotal))} F${velMergulho}`);
             emit(`G0 Z${fmt(zSafe())}`);
@@ -3890,22 +4199,22 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 const p0 = path[0], p1 = path[1], p2 = path[2], p3 = path[3];
 
                 // Para breakthrough, entrada direta (pele fina, sem necessidade de rampa complexa)
-                emit(`G0 X${fmt(p0.x)} Y${fmt(p0.y)}`);
+                emit(`G0 ${XY(p0.x, p0.y)}`);
                 emit(`G0 Z${fmt(zApproach())}`);
                 emit(`G1 Z${fmt(zCut(dFull))} F${Math.min(velMergulho, os.velFinal)}`);
                 L.push(`${cmt}   vel. reduzida (breakthrough ${onionEsp}mm)`);
 
                 // Climb=CCW (p0→p3→p2→p1), Conv=CW (p0→p1→p2→p3)
                 if (dirCorte === 'climb') {
-                    emit(`G1 X${fmt(p3.x)} Y${fmt(p3.y)} F${os.velFinal}`);
-                    emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${os.velFinal}`);
-                    emit(`G1 X${fmt(p1.x)} Y${fmt(p1.y)} F${os.velFinal}`);
-                    emit(`G1 X${fmt(p0.x)} Y${fmt(p0.y)} F${os.velFinal}`);
+                    emit(`G1 ${XY(p3.x, p3.y)} F${os.velFinal}`);
+                    emit(`G1 ${XY(p2.x, p2.y)} F${os.velFinal}`);
+                    emit(`G1 ${XY(p1.x, p1.y)} F${os.velFinal}`);
+                    emit(`G1 ${XY(p0.x, p0.y)} F${os.velFinal}`);
                 } else {
-                    emit(`G1 X${fmt(p1.x)} Y${fmt(p1.y)} F${os.velFinal}`);
-                    emit(`G1 X${fmt(p2.x)} Y${fmt(p2.y)} F${os.velFinal}`);
-                    emit(`G1 X${fmt(p3.x)} Y${fmt(p3.y)} F${os.velFinal}`);
-                    emit(`G1 X${fmt(p0.x)} Y${fmt(p0.y)} F${os.velFinal}`);
+                    emit(`G1 ${XY(p1.x, p1.y)} F${os.velFinal}`);
+                    emit(`G1 ${XY(p2.x, p2.y)} F${os.velFinal}`);
+                    emit(`G1 ${XY(p3.x, p3.y)} F${os.velFinal}`);
+                    emit(`G1 ${XY(p0.x, p0.y)} F${os.velFinal}`);
                 }
                 emit(`G0 Z${fmt(zRapid())}`);
                 L.push('');
@@ -4078,7 +4387,17 @@ function loadGcodeContext(req, loteId) {
 
     const extensao = maquina.extensao_arquivo || '.nc';
 
-    return { lote, plano, maquina, toolMap, usinagemTipos, pecasDb, cfg, extensao };
+    // Carregar overrides de operações
+    let opOverrides = {};
+    let opOverridesPeca = {};
+    try {
+        const ovRows = db.prepare('SELECT * FROM cnc_operacao_overrides WHERE lote_id = ?').all(lote.id);
+        for (const o of ovRows) opOverrides[o.op_key] = o;
+        const ovPecaRows = db.prepare('SELECT * FROM cnc_operacao_overrides_peca WHERE lote_id = ?').all(lote.id);
+        for (const o of ovPecaRows) opOverridesPeca[`${o.op_key}__${o.peca_id}`] = o;
+    } catch (_) { /* tabelas podem não existir ainda */ }
+
+    return { lote, plano, maquina, toolMap, usinagemTipos, pecasDb, cfg, extensao, opOverrides, opOverridesPeca };
 }
 
 // POST /gcode/:loteId/chapa/:chapaIdx — G-code de UMA chapa
@@ -4108,7 +4427,7 @@ router.post('/gcode/:loteId/chapa/:chapaIdx', requireAuth, async (req, res) => {
             }
         }
 
-        const result = generateGcodeForChapa(chapa, chapaIdx, ctx.pecasDb, maquina, toolMap, ctx.usinagemTipos, ctx.cfg);
+        const result = generateGcodeForChapa(chapa, chapaIdx, ctx.pecasDb, maquina, toolMap, ctx.usinagemTipos, ctx.cfg, ctx.opOverrides || {}, ctx.opOverridesPeca || {});
 
         if (result.ferramentas_faltando.length > 0) {
             return res.json({
@@ -4136,10 +4455,67 @@ router.post('/gcode/:loteId/chapa/:chapaIdx', requireAuth, async (req, res) => {
             );
         } catch (_) { /* non-critical */ }
 
+        // #35 — Push notification: broadcast G-code completion via WebSocket
+        const broadcast = req.app.locals.wsBroadcast;
+        if (broadcast) broadcast('gcode_complete', { lote_id: ctx.lote.id, chapa_idx: chapaIdx, message: `Chapa ${chapaIdx+1} pronta` });
+
         res.json({ ok: true, ...result, extensao: ctx.extensao, filename, chapa_idx: chapaIdx });
     } catch (err) {
         console.error('Erro G-code chapa:', err);
         res.status(500).json({ error: `Erro ao gerar G-code: ${err.message || err}` });
+    }
+});
+
+// POST /gcode/:loteId/chapa/:chapaIdx/peca/:pecaIdx — G-code de peça avulsa
+router.post('/gcode/:loteId/chapa/:chapaIdx/peca/:pecaIdx', requireAuth, async (req, res) => {
+    try {
+        const ctx = loadGcodeContext(req, req.params.loteId);
+        if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+
+        const chapaIdx = parseInt(req.params.chapaIdx);
+        const pecaIdx = parseInt(req.params.pecaIdx);
+        if (isNaN(chapaIdx) || chapaIdx < 0 || chapaIdx >= ctx.plano.chapas.length) {
+            return res.status(400).json({ error: `Chapa ${chapaIdx} não existe.` });
+        }
+        const chapaOrig = ctx.plano.chapas[chapaIdx];
+        if (isNaN(pecaIdx) || pecaIdx < 0 || pecaIdx >= chapaOrig.pecas.length) {
+            return res.status(400).json({ error: `Peça ${pecaIdx} não existe na chapa ${chapaIdx}.` });
+        }
+
+        // Create virtual chapa with single piece — preserve original position
+        const singlePiece = chapaOrig.pecas[pecaIdx];
+        const virtualChapa = {
+            ...chapaOrig,
+            pecas: [singlePiece],
+        };
+
+        let maquina = ctx.maquina;
+        let toolMap = ctx.toolMap;
+        const assignment = db.prepare('SELECT maquina_id FROM cnc_machine_assignments WHERE lote_id = ? AND chapa_idx = ?').get(ctx.lote.id, chapaIdx);
+        if (assignment && assignment.maquina_id) {
+            const assignedMachine = db.prepare('SELECT * FROM cnc_maquinas WHERE id = ? AND ativo = 1').get(assignment.maquina_id);
+            if (assignedMachine) {
+                maquina = assignedMachine;
+                const ferramentas = db.prepare('SELECT * FROM cnc_ferramentas WHERE maquina_id = ? AND ativo = 1').all(assignedMachine.id);
+                toolMap = {};
+                for (const f of ferramentas) { if (f.tool_code) toolMap[f.tool_code] = f; }
+            }
+        }
+
+        const result = generateGcodeForChapa(virtualChapa, chapaIdx, ctx.pecasDb, maquina, toolMap, ctx.usinagemTipos, ctx.cfg, ctx.opOverrides || {}, ctx.opOverridesPeca || {});
+
+        if (result.ferramentas_faltando.length > 0) {
+            return res.json({ ok: false, ...result, extensao: ctx.extensao, error: `Ferramentas faltando: ${result.ferramentas_faltando.join(', ')}` });
+        }
+
+        const pecaDesc = singlePiece.nome || singlePiece.descricao || `Peca${pecaIdx + 1}`;
+        const nomeBase = `${ctx.lote.nome || 'Lote'}_Chapa${chapaIdx + 1}_${pecaDesc}`;
+        const filename = nomeBase.replace(/[^a-zA-Z0-9_-]/g, '_') + ctx.extensao;
+
+        res.json({ ok: true, ...result, extensao: ctx.extensao, filename, chapa_idx: chapaIdx, peca_idx: pecaIdx });
+    } catch (err) {
+        console.error('Erro G-code peça avulsa:', err);
+        res.status(500).json({ error: `Erro ao gerar G-code da peça: ${err.message || err}` });
     }
 });
 
@@ -4399,7 +4775,7 @@ router.post('/maquinas', requireAuth, (req, res) => {
     const r = db.prepare(`INSERT INTO cnc_maquinas (user_id, nome, fabricante, modelo, tipo_pos, extensao_arquivo,
         x_max, y_max, z_max, gcode_header, gcode_footer,
         z_seguro, vel_vazio, vel_corte, vel_aproximacao, rpm_padrao, profundidade_extra,
-        coordenada_zero, eixo_x_invertido, eixo_y_invertido,
+        coordenada_zero, trocar_eixos_xy, eixo_x_invertido, eixo_y_invertido,
         exportar_lado_a, exportar_lado_b, exportar_furos, exportar_rebaixos, exportar_usinagens,
         usar_ponto_decimal, casas_decimais, comentario_prefixo, troca_ferramenta_cmd, spindle_on_cmd, spindle_off_cmd,
         usar_onion_skin, onion_skin_espessura, onion_skin_area_max, usar_tabs, tab_largura, tab_altura, tab_qtd, tab_area_max,
@@ -4409,14 +4785,14 @@ router.post('/maquinas', requireAuth, (req, res) => {
         rampa_tipo, vel_rampa, rampa_diametro_pct, stepover_pct, pocket_acabamento, pocket_acabamento_offset, pocket_direcao,
         compensar_raio_canal, compensacao_tipo, circular_passes_acabamento, circular_offset_desbaste, vel_acabamento_pct,
         margem_mesa_sacrificio, g0_com_feed,
-        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(req.user.id, m.nome, m.fabricante || '', m.modelo || '', m.tipo_pos || 'generic', m.extensao_arquivo || '.nc',
             m.x_max || 2800, m.y_max || 1900, m.z_max || 200,
             m.gcode_header || '%\nG90 G54 G17',
             m.gcode_footer || 'G0 Z200.000\nM5\nM30\n%',
             m.z_seguro || 30, m.vel_vazio || 20000, m.vel_corte || 4000, m.vel_aproximacao || 8000,
             m.rpm_padrao || 12000, m.profundidade_extra || 0.20,
-            m.coordenada_zero || 'canto_esq_inf', m.eixo_x_invertido || 0, m.eixo_y_invertido || 0,
+            m.coordenada_zero || 'canto_esq_inf', m.trocar_eixos_xy || 0, m.eixo_x_invertido || 0, m.eixo_y_invertido || 0,
             m.exportar_lado_a ?? 1, m.exportar_lado_b ?? 1, m.exportar_furos ?? 1, m.exportar_rebaixos ?? 1, m.exportar_usinagens ?? 1,
             m.usar_ponto_decimal ?? 1, m.casas_decimais || 3, m.comentario_prefixo || ';',
             m.troca_ferramenta_cmd || 'M6', m.spindle_on_cmd || 'M3', m.spindle_off_cmd || 'M5',
@@ -4446,7 +4822,7 @@ router.put('/maquinas/:id', requireAuth, (req, res) => {
     db.prepare(`UPDATE cnc_maquinas SET nome=?, fabricante=?, modelo=?, tipo_pos=?, extensao_arquivo=?,
         x_max=?, y_max=?, z_max=?, gcode_header=?, gcode_footer=?,
         z_seguro=?, vel_vazio=?, vel_corte=?, vel_aproximacao=?, rpm_padrao=?, profundidade_extra=?,
-        coordenada_zero=?, eixo_x_invertido=?, eixo_y_invertido=?,
+        coordenada_zero=?, trocar_eixos_xy=?, eixo_x_invertido=?, eixo_y_invertido=?,
         exportar_lado_a=?, exportar_lado_b=?, exportar_furos=?, exportar_rebaixos=?, exportar_usinagens=?,
         usar_ponto_decimal=?, casas_decimais=?, comentario_prefixo=?, troca_ferramenta_cmd=?, spindle_on_cmd=?, spindle_off_cmd=?,
         usar_onion_skin=?, onion_skin_espessura=?, onion_skin_area_max=?,
@@ -4462,7 +4838,7 @@ router.put('/maquinas/:id', requireAuth, (req, res) => {
         .run(m.nome, m.fabricante, m.modelo, m.tipo_pos, m.extensao_arquivo,
             m.x_max, m.y_max, m.z_max, m.gcode_header, m.gcode_footer,
             m.z_seguro, m.vel_vazio, m.vel_corte, m.vel_aproximacao, m.rpm_padrao, m.profundidade_extra,
-            m.coordenada_zero, m.eixo_x_invertido, m.eixo_y_invertido,
+            m.coordenada_zero, m.trocar_eixos_xy || 0, m.eixo_x_invertido, m.eixo_y_invertido,
             m.exportar_lado_a, m.exportar_lado_b, m.exportar_furos, m.exportar_rebaixos, m.exportar_usinagens,
             m.usar_ponto_decimal, m.casas_decimais, m.comentario_prefixo, m.troca_ferramenta_cmd, m.spindle_on_cmd, m.spindle_off_cmd,
             m.usar_onion_skin ?? 1, m.onion_skin_espessura ?? 0.5, m.onion_skin_area_max ?? 500,
@@ -4495,7 +4871,7 @@ router.post('/maquinas/:id/duplicar', requireAuth, (req, res) => {
     const r = db.prepare(`INSERT INTO cnc_maquinas (user_id, nome, fabricante, modelo, tipo_pos, extensao_arquivo,
         x_max, y_max, z_max, gcode_header, gcode_footer,
         z_seguro, vel_vazio, vel_corte, vel_aproximacao, rpm_padrao, profundidade_extra,
-        coordenada_zero, eixo_x_invertido, eixo_y_invertido,
+        coordenada_zero, trocar_eixos_xy, eixo_x_invertido, eixo_y_invertido,
         exportar_lado_a, exportar_lado_b, exportar_furos, exportar_rebaixos, exportar_usinagens,
         usar_ponto_decimal, casas_decimais, comentario_prefixo, troca_ferramenta_cmd, spindle_on_cmd, spindle_off_cmd,
         usar_onion_skin, onion_skin_espessura, onion_skin_area_max, usar_tabs, tab_largura, tab_altura, tab_qtd, tab_area_max,
@@ -4505,11 +4881,11 @@ router.post('/maquinas/:id/duplicar', requireAuth, (req, res) => {
         rampa_tipo, vel_rampa, rampa_diametro_pct, stepover_pct, pocket_acabamento, pocket_acabamento_offset, pocket_direcao,
         compensar_raio_canal, compensacao_tipo, circular_passes_acabamento, circular_offset_desbaste, vel_acabamento_pct,
         margem_mesa_sacrificio, g0_com_feed,
-        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`)
+        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`)
         .run(req.user.id, `${original.nome} (cópia)`, original.fabricante, original.modelo, original.tipo_pos, original.extensao_arquivo,
             original.x_max, original.y_max, original.z_max, original.gcode_header, original.gcode_footer,
             original.z_seguro, original.vel_vazio, original.vel_corte, original.vel_aproximacao, original.rpm_padrao, original.profundidade_extra,
-            original.coordenada_zero, original.eixo_x_invertido, original.eixo_y_invertido,
+            original.coordenada_zero, original.trocar_eixos_xy || 0, original.eixo_x_invertido, original.eixo_y_invertido,
             original.exportar_lado_a, original.exportar_lado_b, original.exportar_furos, original.exportar_rebaixos, original.exportar_usinagens,
             original.usar_ponto_decimal, original.casas_decimais, original.comentario_prefixo, original.troca_ferramenta_cmd, original.spindle_on_cmd, original.spindle_off_cmd,
             original.usar_onion_skin, original.onion_skin_espessura, original.onion_skin_area_max,
@@ -7904,6 +8280,19 @@ router.get('/etiquetas/:loteId', requireAuth, (req, res) => {
                 lote_nome: lote.nome || '',
                 cliente: lote.cliente || '',
                 codigo_scan: p.persistent_id || p.upmcode || `P${p.id}`,
+                // QR rastreabilidade ponta a ponta
+                qr_data: JSON.stringify({
+                    t: 'peca',
+                    lid: lote.id,
+                    pid: p.id,
+                    cod: p.persistent_id || p.upmcode || `P${p.id}`,
+                    lote: lote.nome,
+                    cli: lote.cliente,
+                    mod: p.modulo_desc || '',
+                    desc: (p.descricao || '').slice(0, 40),
+                    dim: `${p.comprimento}x${p.largura}x${p.espessura}`,
+                    ch: chapaInfo?.idx || 0,
+                }),
             };
         });
 
@@ -8023,7 +8412,7 @@ router.post('/enviar-gcode/:loteId/chapa/:chapaIdx', requireAuth, async (req, re
             toolMap = {};
             for (const f of ferramentas) { if (f.tool_code) toolMap[f.tool_code] = f; }
         }
-        const result = generateGcodeForChapa(chapa, chapaIdx, ctx.pecasDb, maquina, toolMap, ctx.usinagemTipos, ctx.cfg);
+        const result = generateGcodeForChapa(chapa, chapaIdx, ctx.pecasDb, maquina, toolMap, ctx.usinagemTipos, ctx.cfg, ctx.opOverrides || {}, ctx.opOverridesPeca || {});
         if (!result.gcode) return res.status(400).json({ error: 'G-code vazio' });
 
         const nomeBase = `${ctx.lote.nome || 'Lote'}_${ctx.lote.cliente || ''}_Chapa${String(chapaIdx + 1).padStart(2, '0')}`;
@@ -8071,6 +8460,1588 @@ router.post('/enviar-gcode/:loteId/chapa/:chapaIdx', requireAuth, async (req, re
         console.error('Erro envio G-code:', err);
         res.status(500).json({ error: err.message });
     }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// PAINEL DE FERRAMENTAS — Scan de operações + Overrides avançados
+// ═══════════════════════════════════════════════════════════════════
+
+// Scan: escaneia o plano de corte e retorna operações agrupadas
+router.get('/lotes/:loteId/operacoes-scan', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        if (!lote.plano_json) return res.status(400).json({ error: 'Lote sem plano de corte' });
+
+        let plano;
+        try { plano = JSON.parse(lote.plano_json); } catch { return res.status(400).json({ error: 'Plano inválido' }); }
+
+        // Coletar todas as peças do plano
+        const allPecaIds = new Set();
+        for (const ch of plano.chapas || []) {
+            for (const p of ch.pecas || []) { if (p.pecaId) allPecaIds.add(p.pecaId); }
+        }
+        let pecasDb = [];
+        if (allPecaIds.size > 0) {
+            const ids = [...allPecaIds];
+            pecasDb = db.prepare(`SELECT * FROM cnc_pecas WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids);
+        }
+        const pecasMap = {};
+        for (const p of pecasDb) pecasMap[p.id] = p;
+
+        // Máquina ativa
+        const maquina = db.prepare('SELECT * FROM cnc_maquinas WHERE padrao = 1 AND ativo = 1 LIMIT 1').get()
+            || db.prepare('SELECT * FROM cnc_maquinas WHERE ativo = 1 LIMIT 1').get();
+        const ferramentas = maquina
+            ? db.prepare('SELECT * FROM cnc_ferramentas WHERE maquina_id = ? AND ativo = 1').all(maquina.id)
+            : [];
+        const toolMap = {};
+        for (const f of ferramentas) { if (f.tool_code) toolMap[f.tool_code] = f; }
+
+        // Agrupar operações por op_key (tipo + diâmetro + tool_code)
+        const groups = {}; // op_key -> { tipo, diametro, tool_code, count, pecas: [{id, desc, count, workers}] }
+
+        for (const ch of plano.chapas || []) {
+            for (const pp of ch.pecas || []) {
+                const pDb = pecasMap[pp.pecaId];
+                if (!pDb) continue;
+
+                let mach = {};
+                try { mach = JSON.parse(pDb.machining_json || '{}'); } catch {}
+                const workers = [];
+                if (mach.workers) {
+                    const wArr = Array.isArray(mach.workers) ? mach.workers : Object.values(mach.workers);
+                    for (let wi = 0; wi < wArr.length; wi++) {
+                        if (wArr[wi] && typeof wArr[wi] === 'object') workers.push({ ...wArr[wi], _idx: wi });
+                    }
+                }
+
+                for (const w of workers) {
+                    const tipo = (w.type || w.category || '').toLowerCase();
+                    const diam = Number(w.diameter || 0);
+                    const depth = Number(w.depth || 0);
+                    const tc = w.tool_code || w.tool || '';
+                    // op_key: agrupa por tipo + diâmetro (arredondado) + tool_code
+                    const diamKey = diam > 0 ? Math.round(diam * 10) / 10 : 0;
+                    const opKey = `${tipo || 'unknown'}__d${diamKey}__${tc}`;
+
+                    if (!groups[opKey]) {
+                        // Classificar tipo amigável
+                        let tipoLabel = 'Operação';
+                        let categoria = 'generic';
+                        if (/hole/i.test(tipo)) { tipoLabel = 'Furo'; categoria = 'hole'; }
+                        else if (/pocket|rebaixo/i.test(tipo)) { tipoLabel = 'Rebaixo/Pocket'; categoria = 'pocket'; }
+                        else if (/saw|cut/i.test(tipo)) { tipoLabel = 'Rasgo/Canal'; categoria = 'groove'; }
+                        else if (/slot/i.test(tipo)) { tipoLabel = 'Rasgo'; categoria = 'groove'; }
+
+                        // Métodos disponíveis por categoria
+                        let metodos = ['desativado'];
+                        if (categoria === 'hole') metodos = ['drill', 'helical', 'circular', 'desativado'];
+                        else if (categoria === 'pocket') metodos = ['pocket_zigzag', 'pocket_espiral', 'helical', 'desativado'];
+                        else if (categoria === 'groove') metodos = ['groove', 'multi_pass', 'desativado'];
+                        else metodos = ['drill', 'helical', 'desativado'];
+
+                        const tool = toolMap[tc] || null;
+
+                        groups[opKey] = {
+                            op_key: opKey,
+                            tipo_raw: tipo,
+                            tipo_label: tipoLabel,
+                            categoria,
+                            diametro: diamKey,
+                            profundidade_tipica: depth,
+                            tool_code: tc,
+                            tool: tool ? { id: tool.id, codigo: tool.codigo, nome: tool.nome, diametro: tool.diametro, tipo_corte: tool.tipo_corte } : null,
+                            metodos_disponiveis: metodos,
+                            count: 0,
+                            pecas: {},
+                        };
+                    }
+
+                    groups[opKey].count++;
+                    // Acumular por peça
+                    const pk = `${pDb.id}`;
+                    if (!groups[opKey].pecas[pk]) {
+                        groups[opKey].pecas[pk] = {
+                            peca_id: pDb.id,
+                            descricao: pDb.descricao || pDb.persistent_id || `Peça ${pDb.id}`,
+                            modulo: pDb.modulo_desc || '',
+                            count: 0,
+                            profundidades: [],
+                        };
+                    }
+                    groups[opKey].pecas[pk].count++;
+                    if (depth > 0) groups[opKey].pecas[pk].profundidades.push(depth);
+                }
+            }
+        }
+
+        // Converter pecas de map para array e calcular profundidade média
+        const result = Object.values(groups).map(g => {
+            const pecasArr = Object.values(g.pecas);
+            const allDepths = pecasArr.flatMap(p => p.profundidades);
+            const profMedia = allDepths.length > 0 ? Math.round(allDepths.reduce((a, b) => a + b, 0) / allDepths.length * 10) / 10 : 0;
+            const profMax = allDepths.length > 0 ? Math.max(...allDepths) : 0;
+            return {
+                ...g,
+                pecas: pecasArr,
+                total_pecas: pecasArr.length,
+                profundidade_media: profMedia,
+                profundidade_max: profMax,
+            };
+        });
+
+        // Ordenar: furos primeiro, depois pockets, depois rasgos, depois genérico
+        const catOrder = { hole: 0, pocket: 1, groove: 2, generic: 3 };
+        result.sort((a, b) => (catOrder[a.categoria] ?? 9) - (catOrder[b.categoria] ?? 9) || b.count - a.count);
+
+        // Carregar overrides existentes
+        const overrides = db.prepare('SELECT * FROM cnc_operacao_overrides WHERE lote_id = ?').all(lote.id);
+        const overridesMap = {};
+        for (const o of overrides) overridesMap[o.op_key] = o;
+
+        const overridesPeca = db.prepare('SELECT * FROM cnc_operacao_overrides_peca WHERE lote_id = ?').all(lote.id);
+        const overridesPecaMap = {};
+        for (const o of overridesPeca) {
+            const k = `${o.op_key}__${o.peca_id}`;
+            overridesPecaMap[k] = o;
+        }
+
+        // Ferramentas compatíveis por categoria
+        const ferramentasCompativeis = {};
+        for (const g of result) {
+            const compat = ferramentas.filter(f => {
+                if (g.categoria === 'hole') {
+                    // Para furos: brocas do diâmetro exato OU fresas menores (para helical/circular)
+                    return (f.tipo_corte === 'broca' && Math.abs(f.diametro - g.diametro) < 1)
+                        || (f.tipo_corte !== 'broca' && f.tipo !== 'broca' && f.diametro < g.diametro);
+                }
+                if (g.categoria === 'pocket') return f.tipo === 'fresa' || f.tipo_corte?.includes('fresa');
+                if (g.categoria === 'groove') return true; // serra ou fresa
+                return true;
+            }).map(f => ({ id: f.id, codigo: f.codigo, nome: f.nome, diametro: f.diametro, tipo_corte: f.tipo_corte, tool_code: f.tool_code }));
+            ferramentasCompativeis[g.op_key] = compat;
+        }
+
+        res.json({
+            operacoes: result,
+            overrides: overridesMap,
+            overrides_peca: overridesPecaMap,
+            ferramentas_compativeis: ferramentasCompativeis,
+            maquina: maquina ? { id: maquina.id, nome: maquina.nome } : null,
+            total_operacoes: result.reduce((s, g) => s + g.count, 0),
+            total_grupos: result.length,
+        });
+    } catch (err) {
+        console.error('Erro scan operacoes:', err);
+        res.status(500).json({ error: `Erro ao escanear operações: ${err.message}` });
+    }
+});
+
+// Salvar override de grupo (op_key)
+router.post('/lotes/:loteId/operacoes-override', requireAuth, (req, res) => {
+    try {
+        const { op_key, ativo, metodo, ferramenta_id, diametro_override, profundidade_override, rpm_override, feed_override, stepover_override, passes_acabamento_override, notas } = req.body;
+        if (!op_key) return res.status(400).json({ error: 'op_key obrigatório' });
+
+        db.prepare(`INSERT OR REPLACE INTO cnc_operacao_overrides
+            (lote_id, op_key, ativo, metodo, ferramenta_id, diametro_override, profundidade_override, rpm_override, feed_override, stepover_override, passes_acabamento_override, notas, atualizado_em)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`)
+            .run(req.params.loteId, op_key, ativo ?? 1, metodo || '', ferramenta_id || null,
+                diametro_override ?? null, profundidade_override ?? null, rpm_override ?? null,
+                feed_override ?? null, stepover_override ?? null, passes_acabamento_override ?? null, notas || '');
+
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Salvar override individual por peça
+router.post('/lotes/:loteId/operacoes-override-peca', requireAuth, (req, res) => {
+    try {
+        const { op_key, peca_id, ativo, profundidade_override, diametro_override, notas } = req.body;
+        if (!op_key || !peca_id) return res.status(400).json({ error: 'op_key e peca_id obrigatórios' });
+
+        db.prepare(`INSERT OR REPLACE INTO cnc_operacao_overrides_peca
+            (lote_id, op_key, peca_id, ativo, profundidade_override, diametro_override, notas, atualizado_em)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`)
+            .run(req.params.loteId, op_key, peca_id, ativo ?? 1, profundidade_override ?? null, diametro_override ?? null, notas || '');
+
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Bulk save overrides
+router.post('/lotes/:loteId/operacoes-overrides-bulk', requireAuth, (req, res) => {
+    try {
+        const { overrides, overrides_peca } = req.body;
+        const tx = db.transaction(() => {
+            if (Array.isArray(overrides)) {
+                const stmt = db.prepare(`INSERT OR REPLACE INTO cnc_operacao_overrides
+                    (lote_id, op_key, ativo, metodo, ferramenta_id, diametro_override, profundidade_override, rpm_override, feed_override, stepover_override, passes_acabamento_override, notas, atualizado_em)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`);
+                for (const o of overrides) {
+                    stmt.run(req.params.loteId, o.op_key, o.ativo ?? 1, o.metodo || '', o.ferramenta_id || null,
+                        o.diametro_override ?? null, o.profundidade_override ?? null, o.rpm_override ?? null,
+                        o.feed_override ?? null, o.stepover_override ?? null, o.passes_acabamento_override ?? null, o.notas || '');
+                }
+            }
+            if (Array.isArray(overrides_peca)) {
+                const stmt2 = db.prepare(`INSERT OR REPLACE INTO cnc_operacao_overrides_peca
+                    (lote_id, op_key, peca_id, ativo, profundidade_override, diametro_override, notas, atualizado_em)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`);
+                for (const o of overrides_peca) {
+                    stmt2.run(req.params.loteId, o.op_key, o.peca_id, o.ativo ?? 1, o.profundidade_override ?? null, o.diametro_override ?? null, o.notas || '');
+                }
+            }
+        });
+        tx();
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Deletar todos os overrides de um lote
+router.delete('/lotes/:loteId/operacoes-overrides', requireAuth, (req, res) => {
+    db.prepare('DELETE FROM cnc_operacao_overrides WHERE lote_id = ?').run(req.params.loteId);
+    db.prepare('DELETE FROM cnc_operacao_overrides_peca WHERE lote_id = ?').run(req.params.loteId);
+    res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 10: Conferência pós-corte
+// ═══════════════════════════════════════════════════════
+
+// GET conferência de um lote
+router.get('/conferencia/:loteId', requireAuth, (req, res) => {
+    const rows = db.prepare('SELECT * FROM cnc_conferencia WHERE lote_id = ? ORDER BY chapa_idx, peca_idx').all(req.params.loteId);
+    res.json(rows);
+});
+
+// POST/PUT conferência de uma peça
+router.post('/conferencia/:loteId', requireAuth, (req, res) => {
+    const { chapa_idx, peca_idx, peca_desc, status, defeito_tipo, defeito_obs, conferente } = req.body;
+    db.prepare(`INSERT INTO cnc_conferencia (lote_id, chapa_idx, peca_idx, peca_desc, status, defeito_tipo, defeito_obs, conferente, conferido_em)
+        VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+        ON CONFLICT(lote_id, chapa_idx, peca_idx) DO UPDATE SET
+        status=excluded.status, defeito_tipo=excluded.defeito_tipo, defeito_obs=excluded.defeito_obs,
+        conferente=excluded.conferente, conferido_em=CURRENT_TIMESTAMP`)
+        .run(req.params.loteId, chapa_idx, peca_idx, peca_desc || '', status || 'ok', defeito_tipo || '', defeito_obs || '', conferente || '');
+    // WebSocket broadcast (#23)
+    const broadcast = req.app.locals.wsBroadcast;
+    if (broadcast) broadcast('conferencia_update', { lote_id: Number(req.params.loteId), chapa_idx, peca_idx, status: status || 'ok' });
+    res.json({ ok: true });
+});
+
+// POST conferir chapa inteira como OK
+router.post('/conferencia/:loteId/chapa/:chapaIdx/ok', requireAuth, (req, res) => {
+    const { pecas, conferente } = req.body; // pecas: [{peca_idx, peca_desc}]
+    const stmt = db.prepare(`INSERT INTO cnc_conferencia (lote_id, chapa_idx, peca_idx, peca_desc, status, conferente, conferido_em)
+        VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)
+        ON CONFLICT(lote_id, chapa_idx, peca_idx) DO UPDATE SET status='ok', conferente=excluded.conferente, conferido_em=CURRENT_TIMESTAMP`);
+    const tx = db.transaction(() => {
+        for (const p of (pecas || [])) {
+            stmt.run(req.params.loteId, req.params.chapaIdx, p.peca_idx, p.peca_desc || '', 'ok', conferente || '');
+        }
+    });
+    tx();
+    res.json({ ok: true });
+});
+
+// GET resumo conferência por lote
+router.get('/conferencia/:loteId/resumo', requireAuth, (req, res) => {
+    const total = db.prepare('SELECT COUNT(*) as n FROM cnc_conferencia WHERE lote_id = ?').get(req.params.loteId)?.n || 0;
+    const ok = db.prepare("SELECT COUNT(*) as n FROM cnc_conferencia WHERE lote_id = ? AND status = 'ok'").get(req.params.loteId)?.n || 0;
+    const defeito = db.prepare("SELECT COUNT(*) as n FROM cnc_conferencia WHERE lote_id = ? AND status = 'defeito'").get(req.params.loteId)?.n || 0;
+    const pendente = db.prepare("SELECT COUNT(*) as n FROM cnc_conferencia WHERE lote_id = ? AND status = 'pendente'").get(req.params.loteId)?.n || 0;
+    res.json({ total, ok, defeito, pendente });
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 11: Fila de Produção
+// ═══════════════════════════════════════════════════════
+
+// GET fila de produção
+router.get('/fila-producao', requireAuth, (req, res) => {
+    const rows = db.prepare(`
+        SELECT f.*, l.nome as lote_nome, l.cliente as lote_cliente, l.status as lote_status,
+               m.nome as maquina_nome
+        FROM cnc_fila_producao f
+        LEFT JOIN cnc_lotes l ON f.lote_id = l.id
+        LEFT JOIN cnc_maquinas m ON f.maquina_id = m.id
+        WHERE f.status != 'concluido' OR f.fim_em > datetime('now', '-24 hours')
+        ORDER BY f.prioridade DESC, f.ordem ASC, f.criado_em ASC
+    `).all();
+    res.json(rows);
+});
+
+// POST adicionar chapa à fila
+router.post('/fila-producao', requireAuth, (req, res) => {
+    const { lote_id, chapa_idx, prioridade, maquina_id } = req.body;
+    const maxOrdem = db.prepare('SELECT MAX(ordem) as m FROM cnc_fila_producao').get()?.m || 0;
+    db.prepare(`INSERT INTO cnc_fila_producao (lote_id, chapa_idx, prioridade, maquina_id, ordem)
+        VALUES (?,?,?,?,?) ON CONFLICT(lote_id, chapa_idx) DO UPDATE SET
+        prioridade=excluded.prioridade, maquina_id=excluded.maquina_id`)
+        .run(lote_id, chapa_idx, prioridade || 0, maquina_id || null, maxOrdem + 1);
+    res.json({ ok: true });
+});
+
+// PUT atualizar status na fila
+router.put('/fila-producao/:id', requireAuth, (req, res) => {
+    const { status, operador, prioridade, ordem } = req.body;
+    const item = db.prepare('SELECT * FROM cnc_fila_producao WHERE id = ?').get(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Item não encontrado' });
+    if (status === 'em_producao' && !item.inicio_em) {
+        db.prepare('UPDATE cnc_fila_producao SET status=?, operador=?, inicio_em=CURRENT_TIMESTAMP WHERE id=?')
+            .run(status, operador || '', req.params.id);
+    } else if (status === 'concluido') {
+        db.prepare('UPDATE cnc_fila_producao SET status=?, fim_em=CURRENT_TIMESTAMP WHERE id=?')
+            .run(status, req.params.id);
+    } else {
+        const sets = [];
+        const vals = [];
+        if (status !== undefined) { sets.push('status=?'); vals.push(status); }
+        if (operador !== undefined) { sets.push('operador=?'); vals.push(operador); }
+        if (prioridade !== undefined) { sets.push('prioridade=?'); vals.push(prioridade); }
+        if (ordem !== undefined) { sets.push('ordem=?'); vals.push(ordem); }
+        if (sets.length) {
+            vals.push(req.params.id);
+            db.prepare(`UPDATE cnc_fila_producao SET ${sets.join(',')} WHERE id=?`).run(...vals);
+        }
+    }
+    // WebSocket broadcast (#23)
+    const broadcast = req.app.locals.wsBroadcast;
+    if (broadcast) broadcast('fila_update', { id: Number(req.params.id), status: status || item.status });
+    res.json({ ok: true });
+});
+
+// DELETE remover da fila
+router.delete('/fila-producao/:id', requireAuth, (req, res) => {
+    db.prepare('DELETE FROM cnc_fila_producao WHERE id = ?').run(req.params.id);
+    const broadcast = req.app.locals.wsBroadcast;
+    if (broadcast) broadcast('fila_remove', { id: Number(req.params.id) });
+    res.json({ ok: true });
+});
+
+// POST adicionar todas chapas de um lote à fila
+router.post('/fila-producao/lote/:loteId', requireAuth, (req, res) => {
+    const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ?').get(req.params.loteId);
+    if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+    let plano;
+    try { plano = JSON.parse(lote.plano_json || '{}'); } catch { return res.status(400).json({ error: 'Plano inválido' }); }
+    if (!plano.chapas?.length) return res.status(400).json({ error: 'Sem chapas no plano' });
+    const maxOrdem = db.prepare('SELECT MAX(ordem) as m FROM cnc_fila_producao').get()?.m || 0;
+    const stmt = db.prepare(`INSERT INTO cnc_fila_producao (lote_id, chapa_idx, prioridade, ordem)
+        VALUES (?,?,?,?) ON CONFLICT(lote_id, chapa_idx) DO NOTHING`);
+    const tx = db.transaction(() => {
+        for (let i = 0; i < plano.chapas.length; i++) {
+            stmt.run(req.params.loteId, i, req.body.prioridade || 0, maxOrdem + i + 1);
+        }
+    });
+    tx();
+    res.json({ ok: true, added: plano.chapas.length });
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 12: Controle de Estoque de Chapas
+// ═══════════════════════════════════════════════════════
+
+// GET estoque de chapas
+router.get('/estoque-chapas', requireAuth, (req, res) => {
+    const rows = db.prepare('SELECT * FROM cnc_chapas WHERE ativo = 1 ORDER BY nome').all();
+    res.json(rows);
+});
+
+// PUT atualizar estoque de uma chapa
+router.put('/estoque-chapas/:id', requireAuth, (req, res) => {
+    const { estoque_qtd, estoque_minimo, custo_unitario } = req.body;
+    const sets = [];
+    const vals = [];
+    if (estoque_qtd !== undefined) { sets.push('estoque_qtd=?'); vals.push(estoque_qtd); }
+    if (estoque_minimo !== undefined) { sets.push('estoque_minimo=?'); vals.push(estoque_minimo); }
+    if (custo_unitario !== undefined) { sets.push('custo_unitario=?'); vals.push(custo_unitario); }
+    if (sets.length) {
+        vals.push(req.params.id);
+        db.prepare(`UPDATE cnc_chapas SET ${sets.join(',')} WHERE id=?`).run(...vals);
+    }
+    res.json({ ok: true });
+});
+
+// POST movimentação de estoque
+router.post('/estoque-chapas/:id/movimentacao', requireAuth, (req, res) => {
+    const { tipo, quantidade, lote_id, motivo } = req.body;
+    if (!tipo || !quantidade) return res.status(400).json({ error: 'tipo e quantidade obrigatórios' });
+    const chapa = db.prepare('SELECT * FROM cnc_chapas WHERE id = ?').get(req.params.id);
+    if (!chapa) return res.status(404).json({ error: 'Chapa não encontrada' });
+    const delta = tipo === 'entrada' ? Math.abs(quantidade) : -Math.abs(quantidade);
+    db.prepare('INSERT INTO cnc_estoque_mov (chapa_id, tipo, quantidade, lote_id, motivo, user_id) VALUES (?,?,?,?,?,?)')
+        .run(req.params.id, tipo, quantidade, lote_id || null, motivo || '', req.user.id);
+    db.prepare('UPDATE cnc_chapas SET estoque_qtd = MAX(0, estoque_qtd + ?) WHERE id = ?').run(delta, req.params.id);
+    res.json({ ok: true, novo_estoque: Math.max(0, (chapa.estoque_qtd || 0) + delta) });
+});
+
+// GET movimentações de estoque
+router.get('/estoque-chapas/:id/movimentacoes', requireAuth, (req, res) => {
+    const rows = db.prepare('SELECT * FROM cnc_estoque_mov WHERE chapa_id = ? ORDER BY criado_em DESC LIMIT 50').all(req.params.id);
+    res.json(rows);
+});
+
+// GET alertas de estoque baixo
+router.get('/estoque-alertas', requireAuth, (req, res) => {
+    const rows = db.prepare('SELECT * FROM cnc_chapas WHERE ativo = 1 AND estoque_minimo > 0 AND estoque_qtd <= estoque_minimo ORDER BY nome').all();
+    res.json(rows);
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 13: Custeio Automático por Peça
+// ═══════════════════════════════════════════════════════
+
+// POST calcular custeio para um lote
+router.post('/custeio/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ?').get(req.params.loteId);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        let plano;
+        try { plano = JSON.parse(lote.plano_json || '{}'); } catch { return res.status(400).json({ error: 'Plano inválido' }); }
+        if (!plano.chapas?.length) return res.status(400).json({ error: 'Sem chapas' });
+
+        // Buscar custo da chapa de referência
+        const materialCode = plano.chapas[0]?.material || '';
+        const chapaRef = materialCode ? db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(materialCode) : null;
+        const custoChapa = chapaRef?.custo_unitario || chapaRef?.preco || 0;
+        const areaChapa = (chapaRef?.comprimento || 2750) * (chapaRef?.largura || 1850) / 1e6; // m²
+        const custoM2 = areaChapa > 0 ? custoChapa / areaChapa : 0;
+
+        // Custo máquina (R$/min) — configurável, default R$2/min
+        const custoMaqMin = req.body.custo_maquina_min || 2.0;
+        // Custo borda (R$/m) — default R$3/m
+        const custoBordaM = req.body.custo_borda_m || 3.0;
+
+        const pecasDb = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ?').all(req.params.loteId);
+        const pecasMap = {};
+        for (const p of pecasDb) pecasMap[p.id] = p;
+
+        const resultados = [];
+        const stmtIns = db.prepare(`INSERT INTO cnc_custeio_peca (lote_id, peca_id, peca_desc, custo_material, custo_maquina, custo_borda, custo_total, area_m2, tempo_min, calculado_em)
+            VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`);
+
+        // Limpar custeio anterior
+        db.prepare('DELETE FROM cnc_custeio_peca WHERE lote_id = ?').run(req.params.loteId);
+
+        for (const chapa of plano.chapas) {
+            for (const peca of (chapa.pecas || [])) {
+                const dbp = pecasMap[peca.pecaId];
+                const w = peca.w || 0, h = peca.h || 0;
+                const areaM2 = (w * h) / 1e6;
+                const custoMat = custoM2 * areaM2;
+
+                // Tempo máquina estimado: 3s base + 1s por usinagem
+                let nOps = 0;
+                if (dbp) {
+                    try {
+                        const mach = JSON.parse(dbp.machining_json || '{}');
+                        for (const face of Object.values(mach)) { if (Array.isArray(face)) nOps += face.length; }
+                    } catch (_) {}
+                }
+                const tempoMin = (3 + nOps) / 60;
+                const custoMaq = custoMaqMin * tempoMin;
+
+                // Borda: somar perímetros com borda aplicada
+                let perimBorda = 0;
+                if (dbp) {
+                    try {
+                        const bordas = JSON.parse(dbp.bordas_json || '{}');
+                        for (const [face, b] of Object.entries(bordas)) {
+                            if (b && b !== 'nenhuma' && b !== 'sem_borda') {
+                                if (face === 'frente' || face === 'fundo') perimBorda += w;
+                                else if (face === 'esquerda' || face === 'direita') perimBorda += h;
+                            }
+                        }
+                    } catch (_) {}
+                }
+                const custoBorda = (perimBorda / 1000) * custoBordaM;
+                const custoTotal = custoMat + custoMaq + custoBorda;
+
+                const r = {
+                    peca_id: peca.pecaId,
+                    peca_desc: peca.desc || dbp?.descricao || '',
+                    custo_material: Math.round(custoMat * 100) / 100,
+                    custo_maquina: Math.round(custoMaq * 100) / 100,
+                    custo_borda: Math.round(custoBorda * 100) / 100,
+                    custo_total: Math.round(custoTotal * 100) / 100,
+                    area_m2: Math.round(areaM2 * 10000) / 10000,
+                    tempo_min: Math.round(tempoMin * 100) / 100,
+                };
+                resultados.push(r);
+                stmtIns.run(req.params.loteId, r.peca_id, r.peca_desc, r.custo_material, r.custo_maquina, r.custo_borda, r.custo_total, r.area_m2, r.tempo_min);
+            }
+        }
+
+        const totalMat = resultados.reduce((s, r) => s + r.custo_material, 0);
+        const totalMaq = resultados.reduce((s, r) => s + r.custo_maquina, 0);
+        const totalBorda = resultados.reduce((s, r) => s + r.custo_borda, 0);
+        const totalGeral = resultados.reduce((s, r) => s + r.custo_total, 0);
+
+        res.json({
+            ok: true,
+            pecas: resultados,
+            totais: {
+                material: Math.round(totalMat * 100) / 100,
+                maquina: Math.round(totalMaq * 100) / 100,
+                borda: Math.round(totalBorda * 100) / 100,
+                total: Math.round(totalGeral * 100) / 100,
+            },
+            params: { custo_m2: Math.round(custoM2 * 100) / 100, custo_maquina_min: custoMaqMin, custo_borda_m: custoBordaM },
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET custeio salvo
+router.get('/custeio/:loteId', requireAuth, (req, res) => {
+    const rows = db.prepare('SELECT * FROM cnc_custeio_peca WHERE lote_id = ? ORDER BY peca_desc').all(req.params.loteId);
+    const totalMat = rows.reduce((s, r) => s + r.custo_material, 0);
+    const totalMaq = rows.reduce((s, r) => s + r.custo_maquina, 0);
+    const totalBorda = rows.reduce((s, r) => s + r.custo_borda, 0);
+    const totalGeral = rows.reduce((s, r) => s + r.custo_total, 0);
+    res.json({
+        pecas: rows,
+        totais: {
+            material: Math.round(totalMat * 100) / 100,
+            maquina: Math.round(totalMaq * 100) / 100,
+            borda: Math.round(totalBorda * 100) / 100,
+            total: Math.round(totalGeral * 100) / 100,
+        },
+    });
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 14: Comparação de Versões do Plano
+// ═══════════════════════════════════════════════════════
+
+// GET versões de um lote (usa gcode_historico + plano versionado)
+router.get('/versoes/:loteId', requireAuth, (req, res) => {
+    // Histórico de otimizações
+    const historico = db.prepare(`SELECT id, criado_em, total_operacoes, tempo_estimado_min, dist_corte_m, filename
+        FROM cnc_gcode_historico WHERE lote_id = ? ORDER BY criado_em DESC LIMIT 20`).all(req.params.loteId);
+    // Lote atual
+    const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ?').get(req.params.loteId);
+    let plano = {};
+    try { plano = JSON.parse(lote?.plano_json || '{}'); } catch {}
+    const resumoAtual = {
+        chapas: plano.chapas?.length || 0,
+        pecas: plano.chapas?.reduce((s, c) => s + (c.pecas?.length || 0), 0) || 0,
+        aproveitamento: plano.chapas?.length ? Math.round(plano.chapas.reduce((s, c) => s + (c.utilizacao || 0), 0) / plano.chapas.length * 10) / 10 : 0,
+        sobras: plano.chapas?.reduce((s, c) => s + (c.retalhos?.length || 0), 0) || 0,
+    };
+    res.json({ historico, resumoAtual });
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 15: G-Code Batch — gerar todas chapas de uma vez
+// ═══════════════════════════════════════════════════════
+
+router.post('/gcode-batch/:loteId', requireAuth, async (req, res) => {
+    try {
+        const ctx = loadGcodeContext(req, req.params.loteId);
+        if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+        if (!ctx.plano?.chapas?.length) return res.status(400).json({ error: 'Sem chapas no plano' });
+
+        const results = [];
+        const errors = [];
+
+        for (let chapaIdx = 0; chapaIdx < ctx.plano.chapas.length; chapaIdx++) {
+            try {
+                const chapa = ctx.plano.chapas[chapaIdx];
+                let maquina = ctx.maquina;
+                let toolMap = ctx.toolMap;
+                const assignment = db.prepare('SELECT maquina_id FROM cnc_machine_assignments WHERE lote_id = ? AND chapa_idx = ?').get(ctx.lote.id, chapaIdx);
+                if (assignment?.maquina_id) {
+                    const am = db.prepare('SELECT * FROM cnc_maquinas WHERE id = ? AND ativo = 1').get(assignment.maquina_id);
+                    if (am) {
+                        maquina = am;
+                        const ferramentas = db.prepare('SELECT * FROM cnc_ferramentas WHERE maquina_id = ? AND ativo = 1').all(am.id);
+                        toolMap = {};
+                        for (const f of ferramentas) { if (f.tool_code) toolMap[f.tool_code] = f; }
+                    }
+                }
+
+                const result = generateGcodeForChapa(chapa, chapaIdx, ctx.pecasDb, maquina, toolMap, ctx.usinagemTipos, ctx.cfg, ctx.opOverrides || {}, ctx.opOverridesPeca || {});
+
+                if (result.ferramentas_faltando?.length > 0) {
+                    errors.push({ chapaIdx, error: `Ferramentas faltando: ${result.ferramentas_faltando.join(', ')}` });
+                    continue;
+                }
+
+                if (result.tool_wear) updateToolWear(ctx.toolMap, result.tool_wear, ctx.lote.id);
+
+                const nomeBase = `${ctx.lote.nome || 'Lote'}_${ctx.lote.cliente || ''}_Chapa${String(chapaIdx + 1).padStart(2, '0')}`;
+                const filename = nomeBase.replace(/[^a-zA-Z0-9_-]/g, '_') + ctx.extensao;
+
+                results.push({ chapaIdx, gcode: result.gcode, filename, stats: result.stats, alertas: result.alertas || [] });
+            } catch (err) {
+                errors.push({ chapaIdx, error: err.message });
+            }
+        }
+
+        res.json({
+            ok: true,
+            total: ctx.plano.chapas.length,
+            gerados: results.length,
+            erros: errors.length,
+            results,
+            errors,
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 16: Exportação SVG do plano de corte
+// ═══════════════════════════════════════════════════════
+
+router.get('/export/:loteId/svg/:chapaIdx', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        let plano;
+        try { plano = JSON.parse(lote.plano_json || '{}'); } catch { return res.status(400).json({ error: 'Plano inválido' }); }
+        const chapaIdx = parseInt(req.params.chapaIdx);
+        if (isNaN(chapaIdx) || !plano.chapas?.[chapaIdx]) return res.status(400).json({ error: 'Chapa não encontrada' });
+
+        const chapa = plano.chapas[chapaIdx];
+        const ref = chapa.refilo || 0;
+        const W = chapa.comprimento, H = chapa.largura;
+
+        let svg = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+        svg += `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}mm" height="${H}mm">\n`;
+        svg += `  <rect x="0" y="0" width="${W}" height="${H}" fill="#f5f0e8" stroke="#333" stroke-width="2"/>\n`;
+
+        // Refilo
+        if (ref > 0) {
+            svg += `  <rect x="${ref}" y="${ref}" width="${W - 2 * ref}" height="${H - 2 * ref}" fill="none" stroke="#c44" stroke-width="0.5" stroke-dasharray="4,2"/>\n`;
+        }
+
+        // Peças
+        for (const p of chapa.pecas) {
+            const px = p.x + ref, py = p.y + ref;
+            if (p.contour && p.contour.length >= 3) {
+                const pts = p.contour.map(v => `${px + (v.x / p.w) * p.w},${py + (v.y / p.h) * p.h}`).join(' ');
+                svg += `  <polygon points="${pts}" fill="#d4e6f1" stroke="#2980b9" stroke-width="1"/>\n`;
+            } else {
+                svg += `  <rect x="${px}" y="${py}" width="${p.w}" height="${p.h}" fill="#d4e6f1" stroke="#2980b9" stroke-width="1"/>\n`;
+            }
+            // Label
+            const fontSize = Math.min(p.w, p.h) > 100 ? 10 : 6;
+            svg += `  <text x="${px + p.w / 2}" y="${py + p.h / 2}" text-anchor="middle" dominant-baseline="central" font-size="${fontSize}" font-family="Arial" fill="#333">${(p.desc || '').slice(0, 20)}</text>\n`;
+            svg += `  <text x="${px + p.w / 2}" y="${py + p.h / 2 + fontSize + 2}" text-anchor="middle" font-size="${Math.max(5, fontSize - 2)}" font-family="monospace" fill="#666">${p.w}×${p.h}</text>\n`;
+        }
+
+        // Retalhos
+        for (const r of (chapa.retalhos || [])) {
+            svg += `  <rect x="${r.x + ref}" y="${r.y + ref}" width="${r.w}" height="${r.h}" fill="#e8f5e9" stroke="#4caf50" stroke-width="0.5" stroke-dasharray="3,2"/>\n`;
+        }
+
+        svg += `</svg>`;
+
+        res.set('Content-Type', 'image/svg+xml');
+        res.set('Content-Disposition', `attachment; filename="chapa_${chapaIdx + 1}.svg"`);
+        res.send(svg);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══ Exportação PDF do plano (HTML para impressão) ═══
+router.get('/export/:loteId/pdf-plano', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        let plano;
+        try { plano = JSON.parse(lote.plano_json || '{}'); } catch { return res.status(400).json({ error: 'Plano inválido' }); }
+        if (!plano.chapas?.length) return res.status(400).json({ error: 'Sem chapas' });
+
+        const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ?').all(lote.id);
+        const pecasMap = {};
+        for (const p of pecas) pecasMap[p.id] = p;
+
+        let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Plano de Corte — ${lote.nome}</title>
+        <style>
+            * { box-sizing: border-box; margin: 0; }
+            body { font-family: Arial, sans-serif; font-size: 11px; }
+            .page { page-break-after: always; padding: 10mm; }
+            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 12px; }
+            .header h1 { font-size: 16px; }
+            .header .meta { font-size: 10px; color: #666; text-align: right; }
+            .chapa-svg { border: 1px solid #ccc; margin: 8px 0; display: block; }
+            table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 10px; }
+            th, td { border: 1px solid #ddd; padding: 3px 6px; text-align: left; }
+            th { background: #f5f5f5; font-weight: 700; }
+            .stats { display: flex; gap: 16px; margin: 8px 0; font-size: 10px; }
+            .stats span { padding: 4px 8px; background: #f5f5f5; border-radius: 4px; }
+            @media print { .no-print { display: none; } .page { padding: 5mm; } }
+        </style></head><body>
+        <div class="no-print" style="padding:10px;background:#eee">
+            <button onclick="window.print()" style="padding:8px 20px;font-size:14px;cursor:pointer;background:#1379F0;color:#fff;border:none;border-radius:6px">Imprimir / Salvar PDF</button>
+            <span style="margin-left:12px;font-size:12px;color:#666">${plano.chapas.length} chapas · ${lote.nome}</span>
+        </div>`;
+
+        for (let ci = 0; ci < plano.chapas.length; ci++) {
+            const ch = plano.chapas[ci];
+            const ref = ch.refilo || 0;
+            const W = ch.comprimento, H = ch.largura;
+            const scale = Math.min(700 / W, 400 / H);
+            const svgW = W * scale, svgH = H * scale;
+
+            html += `<div class="page">
+                <div class="header">
+                    <h1>Chapa ${ci + 1} / ${plano.chapas.length}</h1>
+                    <div class="meta">
+                        <div><b>${lote.nome}</b> · ${lote.cliente || ''}</div>
+                        <div>${ch.material || ch.material_code || ''} · ${W}×${H}mm</div>
+                        <div>Aproveitamento: <b>${(ch.aproveitamento || 0).toFixed(1)}%</b></div>
+                    </div>
+                </div>
+                <div class="stats">
+                    <span>Peças: <b>${ch.pecas.length}</b></span>
+                    <span>Material: <b>${ch.material_code || ch.material || '-'}</b></span>
+                    <span>Sobras: <b>${(ch.retalhos || []).length}</b></span>
+                </div>
+                <svg class="chapa-svg" width="${svgW + 4}" height="${svgH + 4}" viewBox="-2 -2 ${W + 4} ${H + 4}">
+                    <rect x="0" y="0" width="${W}" height="${H}" fill="#fafaf5" stroke="#333" stroke-width="2"/>`;
+            if (ref > 0) html += `<rect x="${ref}" y="${ref}" width="${W - 2 * ref}" height="${H - 2 * ref}" fill="none" stroke="#c44" stroke-width="0.5" stroke-dasharray="4,2"/>`;
+
+            for (const p of ch.pecas) {
+                const px = p.x + ref, py = p.y + ref;
+                html += `<rect x="${px}" y="${py}" width="${p.w}" height="${p.h}" fill="#d4e6f1" stroke="#2980b9" stroke-width="1"/>`;
+                if (Math.min(p.w, p.h) > 60) {
+                    html += `<text x="${px + p.w / 2}" y="${py + p.h / 2}" text-anchor="middle" dominant-baseline="central" font-size="${Math.min(12, p.w / 8)}" font-family="Arial" fill="#333">${(p.desc || '').slice(0, 18)}</text>`;
+                }
+            }
+            for (const r of (ch.retalhos || [])) {
+                html += `<rect x="${r.x + ref}" y="${r.y + ref}" width="${r.w}" height="${r.h}" fill="#e8f5e9" stroke="#4caf50" stroke-width="0.5" stroke-dasharray="3,2"/>`;
+            }
+            html += `</svg>
+                <table>
+                    <thead><tr><th>#</th><th>Descrição</th><th>Dimensões</th><th>Material</th><th>Módulo</th><th>Pos. X,Y</th></tr></thead>
+                    <tbody>`;
+            ch.pecas.forEach((p, pi) => {
+                const dbp = pecasMap[p.pecaId];
+                html += `<tr><td>${pi + 1}</td><td>${p.desc || dbp?.descricao || '-'}</td><td>${p.w}×${p.h}mm</td><td>${p.material || ''}</td><td>${dbp?.modulo_desc || ''}</td><td>${Math.round(p.x)}, ${Math.round(p.y)}</td></tr>`;
+            });
+            html += `</tbody></table></div>`;
+        }
+
+        html += `</body></html>`;
+        res.set('Content-Type', 'text/html');
+        res.send(html);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 17: Predição de troca de ferramenta
+// ═══════════════════════════════════════════════════════
+
+router.get('/ferramentas/:id/predicao', requireAuth, (req, res) => {
+    const tool = db.prepare('SELECT * FROM cnc_ferramentas WHERE id = ?').get(req.params.id);
+    if (!tool) return res.status(404).json({ error: 'Ferramenta não encontrada' });
+
+    const wearLogs = db.prepare('SELECT * FROM cnc_tool_wear_log WHERE ferramenta_id = ? ORDER BY criado_em DESC LIMIT 50').all(tool.id);
+    const totalMetros = tool.metros_acumulados || 0;
+    const vidaMaxMetros = (tool.ciclo_vida_horas || 100) * 60 * (tool.velocidade_corte || 4) / 1000; // horas * 60min * vel(m/min) / 1000
+    const vidaRestantePct = vidaMaxMetros > 0 ? Math.max(0, 100 - (totalMetros / vidaMaxMetros * 100)) : 100;
+
+    // Calcular taxa de desgaste recente (últimos 10 registros)
+    const recentLogs = wearLogs.slice(0, 10);
+    let taxaMetrosPorDia = 0;
+    if (recentLogs.length >= 2) {
+        const first = new Date(recentLogs[recentLogs.length - 1].criado_em);
+        const last = new Date(recentLogs[0].criado_em);
+        const dias = Math.max(1, (last - first) / (1000 * 60 * 60 * 24));
+        const metrosRecentes = recentLogs.reduce((s, l) => s + (l.metros_lineares || 0), 0);
+        taxaMetrosPorDia = metrosRecentes / dias;
+    }
+
+    const metrosRestantes = Math.max(0, vidaMaxMetros - totalMetros);
+    const diasRestantes = taxaMetrosPorDia > 0 ? Math.round(metrosRestantes / taxaMetrosPorDia) : null;
+    const dataEstimadaTroca = diasRestantes ? new Date(Date.now() + diasRestantes * 24 * 60 * 60 * 1000).toISOString() : null;
+
+    // Alerta
+    let alerta = 'ok';
+    if (vidaRestantePct < 10) alerta = 'critico';
+    else if (vidaRestantePct < 25) alerta = 'atencao';
+    else if (vidaRestantePct < 50) alerta = 'medio';
+
+    res.json({
+        ferramenta: { id: tool.id, nome: tool.nome, codigo: tool.tool_code },
+        metros_acumulados: Math.round(totalMetros * 100) / 100,
+        vida_max_metros: Math.round(vidaMaxMetros),
+        vida_restante_pct: Math.round(vidaRestantePct * 10) / 10,
+        taxa_metros_dia: Math.round(taxaMetrosPorDia * 100) / 100,
+        dias_restantes: diasRestantes,
+        data_estimada_troca: dataEstimadaTroca,
+        alerta,
+        historico_recente: recentLogs.slice(0, 5).map(l => ({
+            metros: l.metros_lineares, operacoes: l.num_operacoes, data: l.criado_em,
+        })),
+    });
+});
+
+// GET predição de todas ferramentas de uma máquina
+router.get('/ferramentas/predicao-all/:maquinaId', requireAuth, (req, res) => {
+    const tools = db.prepare('SELECT * FROM cnc_ferramentas WHERE maquina_id = ? AND ativo = 1').all(req.params.maquinaId);
+    const results = tools.map(tool => {
+        const totalMetros = tool.metros_acumulados || 0;
+        const vidaMaxMetros = (tool.ciclo_vida_horas || 100) * 60 * (tool.velocidade_corte || 4) / 1000;
+        const vidaRestantePct = vidaMaxMetros > 0 ? Math.max(0, 100 - (totalMetros / vidaMaxMetros * 100)) : 100;
+        let alerta = 'ok';
+        if (vidaRestantePct < 10) alerta = 'critico';
+        else if (vidaRestantePct < 25) alerta = 'atencao';
+        else if (vidaRestantePct < 50) alerta = 'medio';
+        return {
+            id: tool.id, nome: tool.nome, tool_code: tool.tool_code,
+            metros_acumulados: Math.round(totalMetros * 100) / 100,
+            vida_restante_pct: Math.round(vidaRestantePct * 10) / 10,
+            alerta,
+        };
+    });
+    res.json(results);
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 18: Manutenção programada de ferramentas
+// ═══════════════════════════════════════════════════════
+
+router.get('/tool-manutencao', requireAuth, (req, res) => {
+    const rows = db.prepare(`
+        SELECT m.*, f.nome as ferramenta_nome, f.tool_code
+        FROM cnc_tool_manutencao m
+        LEFT JOIN cnc_ferramentas f ON m.ferramenta_id = f.id
+        WHERE m.status != 'concluido' OR m.concluido_em > datetime('now', '-7 days')
+        ORDER BY m.agendado_para ASC
+    `).all();
+    res.json(rows);
+});
+
+router.post('/tool-manutencao', requireAuth, (req, res) => {
+    const { ferramenta_id, tipo, descricao, agendado_para } = req.body;
+    db.prepare('INSERT INTO cnc_tool_manutencao (ferramenta_id, tipo, descricao, agendado_para, user_id) VALUES (?,?,?,?,?)')
+        .run(ferramenta_id, tipo || 'afiacao', descricao || '', agendado_para || null, req.user.id);
+    res.json({ ok: true });
+});
+
+router.put('/tool-manutencao/:id', requireAuth, (req, res) => {
+    const { status, notas } = req.body;
+    if (status === 'concluido') {
+        db.prepare('UPDATE cnc_tool_manutencao SET status=?, notas=?, concluido_em=CURRENT_TIMESTAMP WHERE id=?')
+            .run(status, notas || '', req.params.id);
+        // Reset desgaste da ferramenta se for troca/afiação
+        const man = db.prepare('SELECT * FROM cnc_tool_manutencao WHERE id = ?').get(req.params.id);
+        if (man && (man.tipo === 'troca' || man.tipo === 'afiacao')) {
+            db.prepare('UPDATE cnc_ferramentas SET metros_acumulados = 0, horas_uso = 0 WHERE id = ?').run(man.ferramenta_id);
+        }
+    } else {
+        db.prepare('UPDATE cnc_tool_manutencao SET status=?, notas=? WHERE id=?').run(status || 'agendado', notas || '', req.params.id);
+    }
+    res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 19: Auditoria de consumo de material
+// ═══════════════════════════════════════════════════════
+
+router.post('/material-consumo/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ?').get(req.params.loteId);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        let plano;
+        try { plano = JSON.parse(lote.plano_json || '{}'); } catch { return res.status(400).json({ error: 'Plano inválido' }); }
+
+        db.prepare('DELETE FROM cnc_material_consumo WHERE lote_id = ?').run(lote.id);
+
+        const registros = [];
+        for (let ci = 0; ci < (plano.chapas || []).length; ci++) {
+            const ch = plano.chapas[ci];
+            const ref = ch.refilo || 0;
+            const areaTotal = (ch.comprimento * ch.largura) / 1e6; // m²
+            const areaUsada = ch.pecas.reduce((s, p) => s + (p.w * p.h), 0) / 1e6;
+            const areaSobra = (ch.retalhos || []).reduce((s, r) => s + (r.w * r.h), 0) / 1e6;
+            const areaRefugo = areaTotal - areaUsada - areaSobra;
+            const aprov = areaTotal > 0 ? (areaUsada / areaTotal * 100) : 0;
+
+            const chapaRef = ch.material_code ? db.prepare('SELECT id FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(ch.material_code) : null;
+
+            db.prepare('INSERT INTO cnc_material_consumo (chapa_id, lote_id, chapa_idx, material_code, area_total_m2, area_usada_m2, area_sobra_m2, area_refugo_m2, aproveitamento, user_id) VALUES (?,?,?,?,?,?,?,?,?,?)')
+                .run(chapaRef?.id || null, lote.id, ci, ch.material_code || '', Math.round(areaTotal * 1e4) / 1e4, Math.round(areaUsada * 1e4) / 1e4, Math.round(areaSobra * 1e4) / 1e4, Math.round(areaRefugo * 1e4) / 1e4, Math.round(aprov * 10) / 10, req.user.id);
+
+            registros.push({ chapa_idx: ci, material_code: ch.material_code, area_total_m2: areaTotal, area_usada_m2: areaUsada, aproveitamento: aprov });
+
+            // Auto-debitar estoque
+            if (chapaRef?.id) {
+                db.prepare('UPDATE cnc_chapas SET estoque_qtd = MAX(0, estoque_qtd - 1) WHERE id = ?').run(chapaRef.id);
+            }
+        }
+
+        res.json({ ok: true, registros });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/material-consumo/:loteId', requireAuth, (req, res) => {
+    const rows = db.prepare('SELECT * FROM cnc_material_consumo WHERE lote_id = ? ORDER BY chapa_idx').all(req.params.loteId);
+    res.json(rows);
+});
+
+router.get('/material-consumo-historico', requireAuth, (req, res) => {
+    const days = parseInt(req.query.days) || 30;
+    const rows = db.prepare(`
+        SELECT material_code, date(criado_em) as data,
+            SUM(area_total_m2) as total_m2, SUM(area_usada_m2) as usada_m2,
+            SUM(area_refugo_m2) as refugo_m2, AVG(aproveitamento) as aprov_medio,
+            COUNT(*) as chapas
+        FROM cnc_material_consumo
+        WHERE criado_em > datetime('now', '-' || ? || ' days')
+        GROUP BY material_code, date(criado_em)
+        ORDER BY data DESC
+    `).all(days);
+    res.json(rows);
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 20: Reserva de material no estoque
+// ═══════════════════════════════════════════════════════
+
+router.post('/reservar-material/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ?').get(req.params.loteId);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        let plano;
+        try { plano = JSON.parse(lote.plano_json || '{}'); } catch { return res.status(400).json({ error: 'Plano inválido' }); }
+
+        // Agrupar chapas por material
+        const materialCount = {};
+        for (const ch of (plano.chapas || [])) {
+            const mc = ch.material_code || 'default';
+            materialCount[mc] = (materialCount[mc] || 0) + 1;
+        }
+
+        const reservas = [];
+        const expiraEm = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24h
+
+        for (const [mc, qtd] of Object.entries(materialCount)) {
+            const chapa = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(mc);
+            if (!chapa) continue;
+
+            // Verificar estoque disponível (descontando reservas existentes)
+            const reservado = db.prepare("SELECT COALESCE(SUM(quantidade),0) as total FROM cnc_reserva_material WHERE chapa_id = ? AND status = 'reservado' AND expira_em > datetime('now')").get(chapa.id)?.total || 0;
+            const disponivel = (chapa.estoque_qtd || 0) - reservado;
+
+            if (disponivel < qtd) {
+                reservas.push({ material: mc, necessario: qtd, disponivel, reservado: 0, alerta: `Estoque insuficiente: precisa ${qtd}, disponível ${disponivel}` });
+                continue;
+            }
+
+            db.prepare(`INSERT INTO cnc_reserva_material (chapa_id, lote_id, quantidade, expira_em, user_id) VALUES (?,?,?,?,?)
+                ON CONFLICT(chapa_id, lote_id) DO UPDATE SET quantidade=?, expira_em=?, status='reservado'`)
+                .run(chapa.id, lote.id, qtd, expiraEm, req.user.id, qtd, expiraEm);
+
+            reservas.push({ material: mc, necessario: qtd, disponivel, reservado: qtd });
+        }
+
+        res.json({ ok: true, reservas, expira_em: expiraEm });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/reservar-material/:loteId', requireAuth, (req, res) => {
+    db.prepare("UPDATE cnc_reserva_material SET status = 'liberado' WHERE lote_id = ?").run(req.params.loteId);
+    res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 21: Backup automático
+// ═══════════════════════════════════════════════════════
+
+router.post('/backup', requireAuth, (req, res) => {
+    try {
+        const fs = require('fs');
+        const backupDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'backups');
+        if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+
+        const ts = new Date().toISOString().replace(/[:.]/g, '-');
+        const backupFile = path.join(backupDir, `ornato_cnc_${ts}.db`);
+
+        db.backup(backupFile).then(() => {
+            const stats = fs.statSync(backupFile);
+            db.prepare('INSERT INTO cnc_backups (tipo, arquivo, tamanho_bytes, user_id) VALUES (?,?,?,?)')
+                .run(req.body.tipo || 'manual', backupFile, stats.size, req.user.id);
+            res.json({ ok: true, arquivo: backupFile, tamanho: stats.size });
+        }).catch(err => res.status(500).json({ error: err.message }));
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/backups', requireAuth, (req, res) => {
+    const rows = db.prepare('SELECT * FROM cnc_backups ORDER BY criado_em DESC LIMIT 20').all();
+    res.json(rows);
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 22: Performance de máquina
+// ═══════════════════════════════════════════════════════
+
+router.post('/maquina-performance', requireAuth, (req, res) => {
+    const { maquina_id, lote_id, chapas_cortadas, pecas_cortadas, tempo_corte_min, tempo_ocioso_min, trocas_ferramenta, defeitos } = req.body;
+    db.prepare(`INSERT INTO cnc_maquina_performance (maquina_id, lote_id, chapas_cortadas, pecas_cortadas, tempo_corte_min, tempo_ocioso_min, trocas_ferramenta, defeitos)
+        VALUES (?,?,?,?,?,?,?,?)`).run(maquina_id, lote_id || null, chapas_cortadas || 0, pecas_cortadas || 0, tempo_corte_min || 0, tempo_ocioso_min || 0, trocas_ferramenta || 0, defeitos || 0);
+    res.json({ ok: true });
+});
+
+router.get('/maquina-performance/:maquinaId', requireAuth, (req, res) => {
+    const days = parseInt(req.query.days) || 30;
+    const rows = db.prepare(`
+        SELECT data_registro, SUM(chapas_cortadas) as chapas, SUM(pecas_cortadas) as pecas,
+            SUM(tempo_corte_min) as tempo_corte, SUM(tempo_ocioso_min) as tempo_ocioso,
+            SUM(trocas_ferramenta) as trocas, SUM(defeitos) as defeitos
+        FROM cnc_maquina_performance
+        WHERE maquina_id = ? AND data_registro > date('now', '-' || ? || ' days')
+        GROUP BY data_registro ORDER BY data_registro DESC
+    `).all(req.params.maquinaId, days);
+
+    // Totais
+    const totais = {
+        chapas: rows.reduce((s, r) => s + r.chapas, 0),
+        pecas: rows.reduce((s, r) => s + r.pecas, 0),
+        tempo_corte: Math.round(rows.reduce((s, r) => s + r.tempo_corte, 0) * 10) / 10,
+        tempo_ocioso: Math.round(rows.reduce((s, r) => s + r.tempo_ocioso, 0) * 10) / 10,
+        trocas: rows.reduce((s, r) => s + r.trocas, 0),
+        defeitos: rows.reduce((s, r) => s + r.defeitos, 0),
+    };
+    totais.eficiencia = (totais.tempo_corte + totais.tempo_ocioso) > 0
+        ? Math.round(totais.tempo_corte / (totais.tempo_corte + totais.tempo_ocioso) * 1000) / 10 : 0;
+    totais.pecas_por_hora = totais.tempo_corte > 0 ? Math.round(totais.pecas / (totais.tempo_corte / 60) * 10) / 10 : 0;
+
+    res.json({ diario: rows, totais });
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 23: Integração com Financeiro
+// ═══════════════════════════════════════════════════════
+
+router.get('/integracao-financeiro/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ?').get(req.params.loteId);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        // Custeio
+        const custeio = db.prepare('SELECT * FROM cnc_custeio_peca WHERE lote_id = ?').all(lote.id);
+        const custoMaterial = custeio.reduce((s, c) => s + c.custo_material, 0);
+        const custoMaquina = custeio.reduce((s, c) => s + c.custo_maquina, 0);
+        const custoBorda = custeio.reduce((s, c) => s + c.custo_borda, 0);
+
+        // Consumo material
+        const consumo = db.prepare('SELECT SUM(area_total_m2) as total, SUM(area_usada_m2) as usada, SUM(area_refugo_m2) as refugo FROM cnc_material_consumo WHERE lote_id = ?').get(lote.id);
+
+        // Performance
+        const perf = db.prepare('SELECT SUM(tempo_corte_min) as tempo_corte, SUM(trocas_ferramenta) as trocas FROM cnc_maquina_performance WHERE lote_id = ?').get(lote.id);
+
+        res.json({
+            lote: { id: lote.id, nome: lote.nome, cliente: lote.cliente, status: lote.status },
+            custos: {
+                material: Math.round(custoMaterial * 100) / 100,
+                maquina: Math.round(custoMaquina * 100) / 100,
+                borda: Math.round(custoBorda * 100) / 100,
+                total: Math.round((custoMaterial + custoMaquina + custoBorda) * 100) / 100,
+            },
+            consumo: {
+                area_total_m2: consumo?.total || 0,
+                area_usada_m2: consumo?.usada || 0,
+                area_refugo_m2: consumo?.refugo || 0,
+                desperdicio_pct: consumo?.total ? Math.round((consumo.refugo || 0) / consumo.total * 1000) / 10 : 0,
+            },
+            producao: {
+                tempo_corte_min: perf?.tempo_corte || 0,
+                trocas_ferramenta: perf?.trocas || 0,
+            },
+        });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 24: Preview etiquetas PDF
+// ═══════════════════════════════════════════════════════
+
+router.get('/etiquetas/:loteId/preview-pdf', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ? ORDER BY modulo_id, id').all(lote.id);
+        let plano = null;
+        try { plano = JSON.parse(lote.plano_json || 'null'); } catch {}
+
+        const limit = parseInt(req.query.limit) || 10;
+        const previewPecas = pecas.slice(0, limit);
+
+        const labels = previewPecas.map((p, idx) => {
+            let chapaInfo = null;
+            if (plano?.chapas) {
+                for (let ci = 0; ci < plano.chapas.length; ci++) {
+                    if (plano.chapas[ci].pecas.some(pp => pp.pecaId === p.id)) {
+                        chapaInfo = { idx: ci + 1 };
+                        break;
+                    }
+                }
+            }
+            const bordas = [];
+            if (p.borda_frontal) bordas.push(`F:${p.borda_frontal}`);
+            if (p.borda_traseira) bordas.push(`T:${p.borda_traseira}`);
+            if (p.borda_dir) bordas.push(`D:${p.borda_dir}`);
+            if (p.borda_esq) bordas.push(`E:${p.borda_esq}`);
+            return {
+                descricao: p.descricao, dimensoes: `${p.comprimento}×${p.largura}×${p.espessura}`,
+                material: p.material || '', modulo: p.modulo_desc || '', bordas: bordas.join(' '),
+                chapa: chapaInfo?.idx || '-', cliente: lote.cliente || '',
+                codigo: p.persistent_id || p.upmcode || `P${p.id}`,
+            };
+        });
+
+        res.json({ labels, total: pecas.length, preview_count: labels.length, lote: { nome: lote.nome, cliente: lote.cliente } });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════
+// GRUPO 25: Improvements #36-#42
+// ═══════════════════════════════════════════════════════
+
+// #36 — Optimization Comparison
+router.post('/plano/:loteId/comparar', requireAuth, (req, res) => {
+    const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+    if (!lote || !lote.plano_json) return res.status(400).json({ error: 'Sem plano' });
+    const plano = JSON.parse(lote.plano_json);
+    const chapas = plano.chapas || [];
+    const stats = {
+        total_chapas: chapas.length,
+        total_pecas: chapas.reduce((s, c) => s + (c.pecas?.length || 0), 0),
+        aproveitamento_medio: chapas.length > 0 ? chapas.reduce((s, c) => s + (c.aproveitamento || 0), 0) / chapas.length : 0,
+        area_total_m2: chapas.reduce((s, c) => s + ((c.w || 0) * (c.h || 0)) / 1e6, 0),
+        area_usada_m2: chapas.reduce((s, c) => s + (c.pecas || []).reduce((ps, p) => ps + (p.w * p.h) / 1e6, 0), 0),
+        sobras: chapas.flatMap((c, ci) => (c.sobras || []).map(s => ({ chapa: ci, w: s.w, h: s.h }))),
+        por_chapa: chapas.map((c, i) => ({
+            idx: i, material: c.material, w: c.w, h: c.h,
+            pecas: c.pecas?.length || 0,
+            aproveitamento: c.aproveitamento || 0,
+        })),
+    };
+    res.json(stats);
+});
+
+// #38 — Photo Upload for pieces (via QR scan)
+router.post('/pecas/:pecaId/foto', requireAuth, (req, res) => {
+    const { foto_base64, tipo } = req.body; // tipo: 'cortada', 'conferida', 'montada'
+    if (!foto_base64) return res.status(400).json({ error: 'foto_base64 obrigatório' });
+    const peca = db.prepare('SELECT * FROM cnc_pecas WHERE id = ?').get(req.params.pecaId);
+    if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
+    // Store in fotos_json column (array of {tipo, data, timestamp})
+    let fotos = [];
+    try { fotos = JSON.parse(peca.fotos_json || '[]'); } catch {}
+    fotos.push({ tipo: tipo || 'geral', data: foto_base64.substring(0, 200000), timestamp: new Date().toISOString() });
+    db.prepare('UPDATE cnc_pecas SET fotos_json = ? WHERE id = ?').run(JSON.stringify(fotos), req.params.pecaId);
+    res.json({ ok: true, total_fotos: fotos.length });
+});
+
+router.get('/pecas/:pecaId/fotos', requireAuth, (req, res) => {
+    const peca = db.prepare('SELECT fotos_json FROM cnc_pecas WHERE id = ?').get(req.params.pecaId);
+    if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
+    res.json(JSON.parse(peca.fotos_json || '[]'));
+});
+
+// #39 — Waste Dashboard (historical)
+router.get('/dashboard/desperdicio', requireAuth, (req, res) => {
+    const { meses } = req.query; // default 6
+    const months = Number(meses) || 6;
+    const lotes = db.prepare(`
+        SELECT l.*, l.plano_json FROM cnc_lotes l
+        WHERE l.user_id = ? AND l.plano_json IS NOT NULL
+        AND l.criado_em > datetime('now', '-' || ? || ' months')
+        ORDER BY l.criado_em DESC
+    `).all(req.user.id, months);
+
+    const byMonth = {};
+    const byMaterial = {};
+
+    for (const lote of lotes) {
+        try {
+            const plano = JSON.parse(lote.plano_json);
+            const month = lote.criado_em?.substring(0, 7) || 'unknown';
+            if (!byMonth[month]) byMonth[month] = { area_total: 0, area_usada: 0, chapas: 0, pecas: 0 };
+
+            for (const ch of (plano.chapas || [])) {
+                const areaChapa = (ch.w || 0) * (ch.h || 0) / 1e6;
+                const areaUsada = (ch.pecas || []).reduce((s, p) => s + (p.w * p.h) / 1e6, 0);
+                const mat = ch.material || 'Desconhecido';
+
+                byMonth[month].area_total += areaChapa;
+                byMonth[month].area_usada += areaUsada;
+                byMonth[month].chapas++;
+                byMonth[month].pecas += ch.pecas?.length || 0;
+
+                if (!byMaterial[mat]) byMaterial[mat] = { area_total: 0, area_usada: 0, chapas: 0 };
+                byMaterial[mat].area_total += areaChapa;
+                byMaterial[mat].area_usada += areaUsada;
+                byMaterial[mat].chapas++;
+            }
+        } catch {}
+    }
+
+    // Calculate waste percentages
+    for (const k of Object.keys(byMonth)) {
+        byMonth[k].desperdicio_pct = byMonth[k].area_total > 0
+            ? ((1 - byMonth[k].area_usada / byMonth[k].area_total) * 100) : 0;
+    }
+    for (const k of Object.keys(byMaterial)) {
+        byMaterial[k].desperdicio_pct = byMaterial[k].area_total > 0
+            ? ((1 - byMaterial[k].area_usada / byMaterial[k].area_total) * 100) : 0;
+    }
+
+    res.json({ por_mes: byMonth, por_material: byMaterial, total_lotes: lotes.length });
+});
+
+// #40 — Cross-project grouping suggestion
+router.get('/sugestao-agrupamento', requireAuth, (req, res) => {
+    // Find pending lotes with similar materials that could be combined
+    const lotes = db.prepare(`
+        SELECT l.id, l.nome, l.status FROM cnc_lotes l
+        WHERE l.user_id = ? AND l.status IN ('importado', 'otimizado')
+        ORDER BY l.criado_em DESC LIMIT 20
+    `).all(req.user.id);
+
+    const materialMap = {};
+    for (const lote of lotes) {
+        const pecas = db.prepare('SELECT material_code, COUNT(*) as qty, SUM(comprimento*largura) as area FROM cnc_pecas WHERE lote_id = ? GROUP BY material_code').all(lote.id);
+        for (const p of pecas) {
+            if (!p.material_code) continue;
+            if (!materialMap[p.material_code]) materialMap[p.material_code] = [];
+            materialMap[p.material_code].push({ lote_id: lote.id, lote_nome: lote.nome, qty: p.qty, area_mm2: p.area });
+        }
+    }
+
+    // Find materials shared across 2+ lotes
+    const suggestions = [];
+    for (const [mat, entries] of Object.entries(materialMap)) {
+        if (entries.length >= 2) {
+            const totalPecas = entries.reduce((s, e) => s + e.qty, 0);
+            const totalArea = entries.reduce((s, e) => s + (e.area_mm2 || 0), 0) / 1e6;
+            suggestions.push({
+                material: mat,
+                lotes: entries,
+                total_pecas: totalPecas,
+                total_area_m2: totalArea,
+                economia_estimada: `${(totalArea * 0.05).toFixed(2)} m²`, // ~5% savings estimate
+            });
+        }
+    }
+
+    res.json({ suggestions: suggestions.sort((a, b) => b.total_pecas - a.total_pecas) });
+});
+
+// #41 — Cutting time prediction (ML-like)
+router.get('/predicao-tempo', requireAuth, (req, res) => {
+    // Use historical data to predict cutting time
+    const history = db.prepare(`
+        SELECT p.lote_id, COUNT(*) as n_pecas,
+            SUM(p.comprimento * p.largura) as total_area,
+            AVG(p.espessura) as avg_esp
+        FROM cnc_pecas p
+        JOIN cnc_maquina_performance mp ON mp.lote_id = p.lote_id
+        GROUP BY p.lote_id
+    `).all();
+
+    // Simple linear regression: time = a * n_pecas + b * total_area + c
+    // For now return average stats
+    const perfLogs = db.prepare('SELECT * FROM cnc_maquina_performance ORDER BY created_at DESC LIMIT 100').all();
+    const avgTimePerPeca = perfLogs.length > 0 ? perfLogs.reduce((s, l) => s + (l.tempo_min || 0), 0) / Math.max(1, perfLogs.reduce((s, l) => s + (l.pecas_cortadas || 1), 0)) : 2.5;
+
+    res.json({
+        avg_min_per_peca: avgTimePerPeca,
+        total_registros: perfLogs.length,
+        confianca: perfLogs.length > 20 ? 'alta' : perfLogs.length > 5 ? 'media' : 'baixa',
+        modelo: 'linear_simples'
+    });
+});
+
+// #42 — Smart remnant alerts
+router.get('/retalhos-aproveitaveis', requireAuth, (req, res) => {
+    // Find remnants from completed lotes that could fit pending pieces
+    const lotesComPlano = db.prepare(`
+        SELECT id, plano_json FROM cnc_lotes
+        WHERE user_id = ? AND plano_json IS NOT NULL AND status IN ('otimizado', 'concluido')
+        ORDER BY criado_em DESC LIMIT 10
+    `).all(req.user.id);
+
+    const remnants = [];
+    for (const lote of lotesComPlano) {
+        try {
+            const plano = JSON.parse(lote.plano_json);
+            for (const ch of (plano.chapas || [])) {
+                for (const s of (ch.sobras || [])) {
+                    if (s.w >= 200 && s.h >= 200) { // Min 200x200mm
+                        remnants.push({ lote_id: lote.id, material: ch.material, w: s.w, h: s.h, area_m2: (s.w * s.h) / 1e6 });
+                    }
+                }
+            }
+        } catch {}
+    }
+
+    // Find pending pieces that could fit in remnants
+    const pendingPecas = db.prepare(`
+        SELECT p.* FROM cnc_pecas p
+        JOIN cnc_lotes l ON l.id = p.lote_id
+        WHERE l.user_id = ? AND l.status = 'importado'
+    `).all(req.user.id);
+
+    const matches = [];
+    for (const rem of remnants) {
+        const fits = pendingPecas.filter(p =>
+            p.material_code === rem.material &&
+            ((p.comprimento <= rem.w && p.largura <= rem.h) || (p.comprimento <= rem.h && p.largura <= rem.w))
+        );
+        if (fits.length > 0) {
+            matches.push({ retalho: rem, pecas_que_cabem: fits.length, pecas: fits.slice(0, 5).map(f => ({ id: f.id, desc: f.descricao, dims: `${f.comprimento}x${f.largura}` })) });
+        }
+    }
+
+    res.json({ total_retalhos: remnants.length, matches: matches.sort((a, b) => b.pecas_que_cabem - a.pecas_que_cabem), remnants: remnants.slice(0, 20) });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// #44 — IMPORT PROMOB/POLYBOARD (XML + CSV)
+// ═══════════════════════════════════════════════════════════════════
+
+router.post('/lotes/importar-promob', requireAuth, (req, res) => {
+    try {
+        const { xmlContent, nome } = req.body;
+        if (!xmlContent) return res.status(400).json({ error: 'xmlContent obrigatório' });
+
+        const pieces = [];
+        let currentModule = 'Módulo 1';
+        const lines = xmlContent.split('\n');
+        let inPiece = false;
+        let pieceData = {};
+
+        for (const line of lines) {
+            const moduleName = line.match(/Module.*?name="([^"]+)"/i)?.[1]
+                || line.match(/<Ambiente.*?nome="([^"]+)"/i)?.[1]
+                || line.match(/<Modulo.*?descricao="([^"]+)"/i)?.[1];
+            if (moduleName) currentModule = moduleName;
+
+            if (/<(Piece|Peca|Part)\b/i.test(line)) {
+                inPiece = true;
+                pieceData = { modulo: currentModule };
+            }
+
+            if (inPiece) {
+                const desc = line.match(/(?:description|descricao|nome)="([^"]+)"/i)?.[1];
+                const comp = line.match(/(?:length|comprimento|largura_final)="([^"]+)"/i)?.[1];
+                const larg = line.match(/(?:width|largura|altura_final)="([^"]+)"/i)?.[1];
+                const esp = line.match(/(?:thickness|espessura)="([^"]+)"/i)?.[1];
+                const mat = line.match(/(?:material|material_code)="([^"]+)"/i)?.[1];
+                const qty = line.match(/(?:quantity|quantidade|qtd)="([^"]+)"/i)?.[1];
+                const edge1 = line.match(/(?:edge1|borda1|fita_comp1)="([^"]+)"/i)?.[1];
+                const edge2 = line.match(/(?:edge2|borda2|fita_comp2)="([^"]+)"/i)?.[1];
+                const edge3 = line.match(/(?:edge3|borda3|fita_larg1)="([^"]+)"/i)?.[1];
+                const edge4 = line.match(/(?:edge4|borda4|fita_larg2)="([^"]+)"/i)?.[1];
+                if (desc) pieceData.descricao = desc;
+                if (comp) pieceData.comprimento = parseFloat(comp);
+                if (larg) pieceData.largura = parseFloat(larg);
+                if (esp) pieceData.espessura = parseFloat(esp);
+                if (mat) pieceData.material = mat;
+                if (qty) pieceData.quantidade = parseInt(qty) || 1;
+                if (edge1) pieceData.borda_frontal = edge1;
+                if (edge2) pieceData.borda_traseira = edge2;
+                if (edge3) pieceData.borda_dir = edge3;
+                if (edge4) pieceData.borda_esq = edge4;
+            }
+
+            if (inPiece && /<\/(Piece|Peca|Part)>/i.test(line)) {
+                inPiece = false;
+                if (pieceData.comprimento && pieceData.largura) {
+                    pieces.push({ ...pieceData, quantidade: pieceData.quantidade || 1 });
+                }
+            }
+        }
+
+        // Fallback CSV (Polyboard exports CSV with ;)
+        if (pieces.length === 0 && xmlContent.includes(';')) {
+            const csvLines = xmlContent.split('\n').filter(l => l.trim());
+            if (csvLines.length > 1) {
+                const header = csvLines[0].toLowerCase().split(';');
+                for (let i = 1; i < csvLines.length; i++) {
+                    const cols = csvLines[i].split(';');
+                    if (cols.length >= 4) {
+                        const findCol = (names) => { for (const n of names) { const idx = header.indexOf(n); if (idx >= 0) return cols[idx]; } return ''; };
+                        pieces.push({
+                            descricao: findCol(['descricao', 'description', 'peca', 'nome']) || `Peça ${i}`,
+                            comprimento: parseFloat(findCol(['comprimento', 'comp', 'length', 'c'])) || 0,
+                            largura: parseFloat(findCol(['largura', 'larg', 'width', 'l'])) || 0,
+                            espessura: parseFloat(findCol(['espessura', 'esp', 'thickness', 'e'])) || 18,
+                            material: findCol(['material', 'mat', 'chapa']) || '',
+                            quantidade: parseInt(findCol(['quantidade', 'qtd', 'qty'])) || 1,
+                            modulo: findCol(['modulo', 'module', 'ambiente']) || 'Módulo 1',
+                        });
+                    }
+                }
+            }
+        }
+
+        if (pieces.length === 0) return res.status(400).json({ error: 'Nenhuma peça encontrada. Formatos: Promob XML, Polyboard XML, CSV com ponto-e-vírgula.' });
+
+        const loteNome = nome || `Import Promob ${new Date().toISOString().split('T')[0]}`;
+        const r = db.prepare('INSERT INTO cnc_lotes (nome, user_id, status, origem, criado_em) VALUES (?,?,?,?,CURRENT_TIMESTAMP)')
+            .run(loteNome, req.user.id, 'importado', 'promob');
+        const loteId = r.lastInsertRowid;
+
+        const stmt = db.prepare(`INSERT INTO cnc_pecas (lote_id, descricao, modulo_desc, comprimento, largura, espessura, material, material_code, quantidade, borda_frontal, borda_traseira, borda_dir, borda_esq, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`);
+        const tx = db.transaction(() => {
+            for (const p of pieces) {
+                for (let q = 0; q < (p.quantidade || 1); q++) {
+                    stmt.run(loteId, p.descricao || '', p.modulo || '', p.comprimento || 0, p.largura || 0, p.espessura || 18, p.material || '', p.material || '', 1, p.borda_frontal || '', p.borda_traseira || '', p.borda_dir || '', p.borda_esq || '');
+                }
+            }
+        });
+        tx();
+
+        const totalPecas = db.prepare('SELECT COUNT(*) as c FROM cnc_pecas WHERE lote_id = ?').get(loteId).c;
+        res.json({ ok: true, id: loteId, total_pecas: totalPecas, nome: loteNome });
+    } catch (err) {
+        res.status(500).json({ error: err.message || 'Erro ao importar' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// #45 — API PÚBLICA + WEBHOOKS
+// ═══════════════════════════════════════════════════════════════════
+
+router.get('/api-publica/lote/:loteId/status', (req, res) => {
+    const { token } = req.query;
+    const cfg = db.prepare("SELECT value FROM config WHERE key = 'api_token'").get();
+    if (!cfg || cfg.value !== token) return res.status(401).json({ error: 'Token inválido' });
+    const lote = db.prepare('SELECT id, nome, status, criado_em FROM cnc_lotes WHERE id = ?').get(req.params.loteId);
+    if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+    const pecas = db.prepare('SELECT COUNT(*) as total FROM cnc_pecas WHERE lote_id = ?').get(lote.id);
+    const conferidas = db.prepare("SELECT COUNT(*) as c FROM cnc_conferencia WHERE lote_id = ? AND status = 'ok'").get(lote.id);
+    res.json({ lote: { ...lote, total_pecas: pecas.total, conferidas: conferidas?.c || 0 } });
+});
+
+router.post('/webhooks', requireAuth, (req, res) => {
+    const { url, eventos } = req.body;
+    if (!url) return res.status(400).json({ error: 'url obrigatório' });
+    db.prepare('INSERT INTO cnc_webhooks (user_id, url, eventos, ativo, criado_em) VALUES (?,?,?,1,CURRENT_TIMESTAMP)')
+        .run(req.user.id, url, JSON.stringify(eventos || ['*']));
+    res.json({ ok: true });
+});
+
+router.get('/webhooks', requireAuth, (req, res) => {
+    const hooks = db.prepare('SELECT * FROM cnc_webhooks WHERE user_id = ?').all(req.user.id);
+    res.json(hooks);
+});
+
+router.delete('/webhooks/:id', requireAuth, (req, res) => {
+    db.prepare('DELETE FROM cnc_webhooks WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
+    res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// #46 — RELATÓRIO CLIENTE (produção por módulo)
+// ═══════════════════════════════════════════════════════════════════
+
+router.get('/relatorio-cliente/:loteId', requireAuth, (req, res) => {
+    const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+    if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+    const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ? ORDER BY modulo_desc, descricao').all(lote.id);
+    const conferencia = db.prepare('SELECT * FROM cnc_conferencia WHERE lote_id = ?').all(lote.id);
+
+    const modulos = {};
+    for (const p of pecas) {
+        const mod = p.modulo_desc || 'Geral';
+        if (!modulos[mod]) modulos[mod] = { pecas: [], conferidas: 0, total: 0 };
+        modulos[mod].pecas.push(p);
+        modulos[mod].total++;
+        if (conferencia.find(c => c.peca_idx === p.id && c.status === 'ok')) modulos[mod].conferidas++;
+    }
+
+    res.json({
+        lote: { id: lote.id, nome: lote.nome, status: lote.status, criado_em: lote.criado_em },
+        modulos: Object.entries(modulos).map(([nome, data]) => ({
+            nome, ...data, progresso_pct: data.total > 0 ? (data.conferidas / data.total * 100) : 0,
+        })),
+        total_pecas: pecas.length,
+        total_conferidas: conferencia.filter(c => c.status === 'ok').length,
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// #47 — GUIA DE MONTAGEM (passo a passo por módulo)
+// ═══════════════════════════════════════════════════════════════════
+
+router.get('/guia-montagem/:loteId/:moduloDesc', requireAuth, (req, res) => {
+    const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ? AND modulo_desc = ? ORDER BY descricao')
+        .all(req.params.loteId, decodeURIComponent(req.params.moduloDesc));
+
+    const orderRules = [
+        { pattern: /base|fundo.*inferior/i, order: 1, step: 'Posicionar a base na bancada' },
+        { pattern: /lateral/i, order: 2, step: 'Fixar as laterais na base (minifix ou cavilha)' },
+        { pattern: /divisor|divisoria/i, order: 3, step: 'Instalar divisórias internas' },
+        { pattern: /prateleira|shelf/i, order: 4, step: 'Encaixar prateleiras' },
+        { pattern: /traseira|fundo(?!.*inferior)/i, order: 5, step: 'Fixar a traseira (encaixe ou parafuso)' },
+        { pattern: /tampo|topo/i, order: 6, step: 'Posicionar o tampo' },
+        { pattern: /porta|door/i, order: 7, step: 'Instalar portas com dobradiças' },
+        { pattern: /frente.*gaveta|drawer/i, order: 8, step: 'Montar e encaixar gavetas' },
+    ];
+
+    const steps = pecas.map(p => {
+        const rule = orderRules.find(r => r.pattern.test(p.descricao || ''));
+        const mach = (() => { try { const m = JSON.parse(p.machining_json || '{}'); return Array.isArray(m) ? m : m.workers ? Object.values(m.workers) : []; } catch { return []; } })();
+        const holes35 = mach.filter(w => w.diameter >= 34 && w.diameter <= 36).length;
+        const holes15 = mach.filter(w => w.diameter >= 14 && w.diameter <= 16).length;
+        const holes8 = mach.filter(w => w.diameter >= 7 && w.diameter <= 9 && w.depth <= 20).length;
+        const grooves = mach.filter(w => /groove|saw|canal/i.test(w.category || '')).length;
+
+        return {
+            peca_id: p.id, descricao: p.descricao,
+            dimensoes: `${p.comprimento}x${p.largura}x${p.espessura}`,
+            material: p.material, ordem: rule ? rule.order : 9,
+            instrucao: rule ? rule.step : 'Instalar conforme projeto',
+            ferragens: {
+                dobradicas: Math.floor(holes35 / 3),
+                minifix: holes15,
+                cavilhas: Math.max(0, holes8 - holes15),
+                canais: grooves,
+            },
+            bordas: [p.borda_frontal, p.borda_traseira, p.borda_dir, p.borda_esq].filter(b => b && b !== '-').length,
+        };
+    }).sort((a, b) => a.ordem - b.ordem);
+
+    res.json({ modulo: decodeURIComponent(req.params.moduloDesc), steps, total_pecas: pecas.length });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// #48 — RASTREIO DE ENTREGA (GPS + status)
+// ═══════════════════════════════════════════════════════════════════
+
+router.post('/rastreio-entrega', requireAuth, (req, res) => {
+    const { volume_id, lote_id, tipo, lat, lng, observacao, motorista } = req.body;
+    db.prepare(`INSERT INTO cnc_rastreio_entrega (volume_id, lote_id, tipo, lat, lng, observacao, motorista, created_at) VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`)
+        .run(volume_id || null, lote_id || null, tipo || 'em_transito', lat || null, lng || null, observacao || '', motorista || '');
+    const broadcast = req.app.locals.wsBroadcast;
+    if (broadcast) broadcast('entrega_update', { volume_id, lote_id, tipo });
+    res.json({ ok: true });
+});
+
+router.get('/rastreio-entrega/:loteId', requireAuth, (req, res) => {
+    const events = db.prepare('SELECT * FROM cnc_rastreio_entrega WHERE lote_id = ? ORDER BY created_at DESC').all(req.params.loteId);
+    res.json(events);
 });
 
 export default router;

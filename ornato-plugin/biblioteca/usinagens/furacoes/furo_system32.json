@@ -1,0 +1,32 @@
+{
+  "id": "furo_system32",
+  "nome": "Fileira System32 (5mm a cada 32mm)",
+  "categoria": "furacao",
+  "descricao": "Fileira vertical de furos 5x12mm com passo de 32mm para prateleiras regulaveis",
+
+  "operacao": {
+    "tipo": "serie_furos",
+    "ferramenta": "broca_5mm",
+    "diametro": 5,
+    "profundidade": 12,
+    "lado": "a",
+    "serie": {
+      "eixo": "y",
+      "passo": 32,
+      "inicio": "{margem_inferior}",
+      "fim": "{altura} - {margem_superior}",
+      "distancia_frontal": 37,
+      "distancia_traseira": 37,
+      "fileiras": 2
+    },
+    "parametros": {
+      "margem_inferior": { "default": 70, "min": 50, "max": 150 },
+      "margem_superior": { "default": 50, "min": 30, "max": 100 }
+    }
+  },
+
+  "aplicacao": {
+    "pecas": ["lateral_esq", "lateral_dir"],
+    "regra": "system32"
+  }
+}

@@ -1144,7 +1144,7 @@ function newMaquinaDefaults() {
         gcode_header: '%\nG90 G54 G17', gcode_footer: 'G0 Z200.000\nM5\nM30\n%',
         z_seguro: 30, vel_vazio: 20000, vel_corte: 4000, vel_aproximacao: 8000,
         rpm_padrao: 12000, profundidade_extra: 0.20,
-        coordenada_zero: 'canto_esq_inf', eixo_x_invertido: 0, eixo_y_invertido: 0,
+        coordenada_zero: 'canto_esq_inf', trocar_eixos_xy: 0, eixo_x_invertido: 0, eixo_y_invertido: 0,
         z_origin: 'mesa', z_aproximacao: 2.0, direcao_corte: 'climb',
         usar_n_codes: 1, n_code_incremento: 10, dwell_spindle: 1.0,
         usar_rampa: 1, rampa_angulo: 3.0, vel_mergulho: 1500,
@@ -1231,7 +1231,11 @@ function MaquinaModalInline({ data, onSave, onClose }) {
                             Máquina Padrão
                         </label>
                     </div>
-                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <label style={{ fontSize: 12, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <input type="checkbox" checked={f.trocar_eixos_xy === 1} onChange={e => upd('trocar_eixos_xy', e.target.checked ? 1 : 0)} />
+                            X = comprimento
+                        </label>
                         <label style={{ fontSize: 12, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                             <input type="checkbox" checked={f.eixo_x_invertido === 1} onChange={e => upd('eixo_x_invertido', e.target.checked ? 1 : 0)} />
                             X invertido

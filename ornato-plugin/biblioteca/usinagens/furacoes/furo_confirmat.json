@@ -1,0 +1,47 @@
+{
+  "id": "furo_confirmat",
+  "nome": "Furacao Confirmat (5mm passante + 7mm escareado)",
+  "categoria": "furacao",
+  "descricao": "Furo passante 5mm na peca principal + escareado 7mm. Furo piloto 5mm na borda da peca conectada.",
+
+  "operacao": {
+    "tipo": "grupo_furos",
+    "furos": [
+      {
+        "nome": "passante",
+        "ferramenta": "broca_5mm",
+        "diametro": 5,
+        "profundidade": "{espessura}",
+        "lado": "a",
+        "passante": true,
+        "posicao": { "x": "{dist_borda}", "y": "{pos_y}" }
+      },
+      {
+        "nome": "escareado",
+        "ferramenta": "broca_7mm",
+        "diametro": 7,
+        "profundidade": 5,
+        "lado": "a",
+        "posicao": { "x": "{dist_borda}", "y": "{pos_y}" },
+        "descricao": "Escareado na face oposta ao lado visivel"
+      },
+      {
+        "nome": "piloto_borda",
+        "ferramenta": "broca_5mm",
+        "diametro": 5,
+        "profundidade": 40,
+        "lado": "b",
+        "posicao": { "x": "{dist_borda}", "y": "centro_espessura" },
+        "descricao": "Furo piloto na borda da peca conectada"
+      }
+    ],
+    "parametros": {
+      "dist_borda": { "default": 30, "min": 25, "max": 50 }
+    }
+  },
+
+  "aplicacao": {
+    "pecas": ["lateral_esq", "lateral_dir", "base", "topo"],
+    "regra": "confirmat"
+  }
+}

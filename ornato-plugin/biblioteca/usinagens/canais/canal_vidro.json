@@ -1,0 +1,26 @@
+{
+  "id": "canal_vidro",
+  "nome": "Canal para Vidro/Espelho",
+  "categoria": "canal",
+  "descricao": "Canal 6x6mm para encaixe de vidro ou espelho. Fresado no perimetro interno da moldura.",
+
+  "operacao": {
+    "tipo": "canal",
+    "ferramenta": "fresa_6mm",
+    "largura": 6,
+    "profundidade": 6,
+    "lado": "a",
+    "percurso": "perimetro_interno",
+    "offset_borda": 10,
+    "parametros": {
+      "largura": { "default": 6, "min": 4, "max": 10 },
+      "profundidade": { "default": 6, "min": 4, "max": 10 },
+      "offset_borda": { "default": 10, "min": 5, "max": 20 }
+    }
+  },
+
+  "aplicacao": {
+    "pecas": ["porta"],
+    "condicao_manual": true
+  }
+}

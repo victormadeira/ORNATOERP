@@ -1,0 +1,47 @@
+{
+  "id": "puxador_192mm",
+  "nome": "Puxador Entre-Furos 192mm",
+  "marca": "Generico",
+  "modelo": "Puxador 192mm",
+  "categoria": "puxador",
+  "tipo": "alca",
+  "entre_furos": 192,
+
+  "especificacoes": {
+    "entre_furos": 192,
+    "furos": { "diametro": 5, "tipo": "passante", "quantidade": 2 },
+    "parafuso": { "diametro": 4, "comprimento": 25 },
+    "posicao_padrao": {
+      "porta_abrir": { "x": "centro", "y": 100, "referencia": "borda_superior_ou_inferior" },
+      "gaveta": { "x": "centro", "y": "centro" }
+    }
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo_passante",
+        "ferramenta": "broca_5mm",
+        "diametro": 5,
+        "profundidade": "{espessura}",
+        "lado": "a",
+        "posicao": { "x": "{centro_x} - 96", "y": "{pos_y}" }
+      },
+      {
+        "tipo": "furo_passante",
+        "ferramenta": "broca_5mm",
+        "diametro": 5,
+        "profundidade": "{espessura}",
+        "lado": "a",
+        "posicao": { "x": "{centro_x} + 96", "y": "{pos_y}" }
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "PUX-192",
+    "preco_unitario": 12.50,
+    "unidade": "un",
+    "fornecedor": "Diversos"
+  }
+}

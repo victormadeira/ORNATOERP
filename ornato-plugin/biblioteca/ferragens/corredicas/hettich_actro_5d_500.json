@@ -1,0 +1,72 @@
+{
+  "id": "hettich_actro_5d_500",
+  "nome": "Hettich Actro 5D 500mm",
+  "marca": "Hettich",
+  "modelo": "Actro 5D 500 Silent System",
+  "categoria": "corredica",
+  "tipo": "oculta",
+  "extensao": "total",
+  "comprimento": 500,
+  "amortecedor": true,
+  "sistema_amortecimento": "Silent System",
+  "capacidade_kg": 40,
+
+  "especificacoes": {
+    "comprimento_trilho": 500,
+    "furos_fixacao": [
+      { "diametro": 4, "profundidade": 10, "posicao_y": 37 },
+      { "diametro": 4, "profundidade": 10, "posicao_y": 200 },
+      { "diametro": 4, "profundidade": 10, "posicao_y": 350 },
+      { "diametro": 4, "profundidade": 10, "posicao_y": 500 }
+    ],
+    "quantidade_furos": 4,
+    "distancia_lateral": 37,
+    "folga_lateral": 12.5,
+    "altura_trilho": 13,
+    "ajuste_3d": true
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 37 }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 200 }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 350 }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 500 }
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "HTT-9257003",
+    "preco_unitario": 120.00,
+    "unidade": "par",
+    "fornecedor": "Hettich Brasil"
+  }
+}

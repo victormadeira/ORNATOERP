@@ -1,0 +1,147 @@
+{
+  "id": "armario_lavanderia",
+  "nome": "Armario Lavanderia",
+  "descricao": "Armario sobre maquina de lavar. Abertura inferior para maquina. Portas e prateleiras acima.",
+  "categoria": "area_servico",
+  "tags": ["lavanderia", "maquina", "armario", "area_servico"],
+  "icone": "torre",
+
+  "parametros": {
+    "largura":            { "default": 700,  "min": 700,  "max": 700,  "step": 50, "unidade": "mm" },
+    "altura":             { "default": 2200, "min": 2200, "max": 2200, "step": 50, "unidade": "mm" },
+    "profundidade":       { "default": 650,  "min": 650,  "max": 650,  "step": 10, "unidade": "mm" },
+    "espessura":          { "default": 18,   "min": 15,   "max": 25,   "step": 0.5, "unidade": "mm" },
+    "altura_abertura_maquina": { "default": 900, "min": 800, "max": 1050, "step": 50, "unidade": "mm" },
+    "n_prateleiras":      { "default": 2,    "min": 1,    "max": 3,    "step": 1 },
+    "tipo_porta":         { "default": "2_abrir", "opcoes": ["1_abrir_e", "1_abrir_d", "2_abrir"] },
+    "tipo_juncao":        { "default": "minifix", "opcoes": ["minifix", "cavilha", "confirmat"] },
+    "com_fundo":          { "default": true },
+    "puxador":            { "default": "modelo_128mm" }
+  },
+
+  "pecas": [
+    {
+      "nome": "Lateral Esquerda",
+      "role": "lateral_esq",
+      "largura": "{altura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": 0, "y": 0, "z": 0 },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Lateral Direita",
+      "role": "lateral_dir",
+      "largura": "{altura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": 0 },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Topo",
+      "role": "topo",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {espessura}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Prateleira Divisoria",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_abertura_maquina}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false },
+      "notas": "Separa abertura da maquina do armario superior"
+    },
+    {
+      "nome": "Prateleira Interna 1",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "condicao": "{n_prateleiras} >= 1",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_abertura_maquina} + ({altura} - {altura_abertura_maquina}) / ({n_prateleiras} + 1)" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Prateleira Interna 2",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "condicao": "{n_prateleiras} >= 2",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_abertura_maquina} + 2 * ({altura} - {altura_abertura_maquina}) / ({n_prateleiras} + 1)" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Prateleira Interna 3",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "condicao": "{n_prateleiras} >= 3",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_abertura_maquina} + 3 * ({altura} - {altura_abertura_maquina}) / ({n_prateleiras} + 1)" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Traseira Superior",
+      "role": "traseira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{altura} - {altura_abertura_maquina} - 2 * {espessura}",
+      "espessura": 3,
+      "condicao": "{com_fundo}",
+      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{altura_abertura_maquina} + {espessura}" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Porta Esquerda",
+      "role": "porta",
+      "largura": "{altura} - {altura_abertura_maquina} - 2 * {espessura} - 2",
+      "altura": "({largura} - 2 * {espessura}) / 2 - 2",
+      "espessura": "{espessura}",
+      "condicao": "{tipo_porta} == '2_abrir'",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_abertura_maquina} + {espessura} + 1" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+    },
+    {
+      "nome": "Porta Direita",
+      "role": "porta",
+      "largura": "{altura} - {altura_abertura_maquina} - 2 * {espessura} - 2",
+      "altura": "({largura} - 2 * {espessura}) / 2 - 2",
+      "espessura": "{espessura}",
+      "condicao": "{tipo_porta} == '2_abrir'",
+      "posicao": { "x": "{largura} / 2 + 1", "y": 0, "z": "{altura_abertura_maquina} + {espessura} + 1" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+    },
+    {
+      "nome": "Porta Unica",
+      "role": "porta",
+      "largura": "{altura} - {altura_abertura_maquina} - 2 * {espessura} - 2",
+      "altura": "{largura} - 2 * {espessura} - 4",
+      "espessura": "{espessura}",
+      "condicao": "{tipo_porta} == '1_abrir_e' || {tipo_porta} == '1_abrir_d'",
+      "posicao": { "x": "{espessura} + 2", "y": 0, "z": "{altura_abertura_maquina} + {espessura} + 1" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+    }
+  ],
+
+  "ferragens_auto": [
+    { "regra": "minifix", "juncao": "lateral_esq × topo", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × topo", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_esq × prateleira", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × prateleira", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "cavilha", "juncao": "lateral_esq × topo", "condicao": "{tipo_juncao} == 'cavilha'" },
+    { "regra": "cavilha", "juncao": "lateral_dir × topo", "condicao": "{tipo_juncao} == 'cavilha'" },
+    { "regra": "dobradica", "peca": "lateral_esq", "condicao": "{tipo_porta} != 'sem'" },
+    { "regra": "dobradica", "peca": "lateral_dir", "condicao": "{tipo_porta} == '2_abrir'" },
+    { "regra": "rebaixo_fundo", "pecas": ["lateral_esq", "lateral_dir", "prateleira", "topo"], "condicao": "{com_fundo}" },
+    { "regra": "puxador", "peca": "porta", "condicao": "true" },
+    { "regra": "system32", "pecas": ["lateral_esq", "lateral_dir"], "condicao": "{n_prateleiras} > 0" }
+  ],
+
+  "notas": "Abertura inferior sem base nem fundo para encaixar a maquina de lavar. Laterais vao do chao ao topo. Portas e prateleiras somente na parte superior."
+}

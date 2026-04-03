@@ -1,0 +1,46 @@
+{
+  "id": "suporte_prateleira_5mm",
+  "nome": "Pino Prateleira 5mm (System32)",
+  "marca": "Generico",
+  "modelo": "Pino metalico 5mm",
+  "categoria": "suporte",
+  "tipo": "pino_prateleira",
+
+  "especificacoes": {
+    "diametro_pino": 5,
+    "comprimento_pino": 16,
+    "furo": { "diametro": 5, "profundidade": 12 },
+    "sistema": "system32",
+    "passo": 32,
+    "distancia_frontal": 37,
+    "distancia_traseira": 37,
+    "quantidade_por_prateleira": 4,
+    "descricao": "Furos System32 nas laterais para suporte de prateleira regulavel"
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_5mm",
+        "diametro": 5,
+        "profundidade": 12,
+        "lado": "a",
+        "repetir": {
+          "eixo": "y",
+          "passo": 32,
+          "inicio": "{distancia_base}",
+          "fim": "{altura} - {distancia_topo}"
+        },
+        "posicao": { "x": 37, "y": "serie" }
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "SUP-PINO-5",
+    "preco_unitario": 0.30,
+    "unidade": "un",
+    "fornecedor": "Diversos"
+  }
+}

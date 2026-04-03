@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ornato - Mapeamento de Materiais</title>
+<style>
+  :root {
+    --bg-deepest: #0c0e14;
+    --bg-card: #111420;
+    --bg-elevated: #1a1e2e;
+    --border: rgba(255,255,255,0.06);
+    --border-hover: rgba(255,255,255,0.12);
+    --text-primary: #e8ecf4;
+    --text-secondary: #8892a8;
+    --text-muted: #555d70;
+    --accent: #1379F0;
+    --accent-hover: #0ea5e9;
+    --accent-subtle: rgba(19,121,240,0.08);
+    --accent-ring: rgba(19,121,240,0.3);
+    --success: #22c55e;
+    --success-subtle: rgba(34,197,94,0.1);
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --error-subtle: rgba(239,68,68,0.1);
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-pill: 20px;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--bg-deepest); color: var(--text-primary); min-height: 100vh; font-size: 13px; -webkit-font-smoothing: antialiased; }
+
+  /* Header */
+  .header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .logo { display: flex; align-items: center; gap: 6px; }
+  .logo-icon { width: 28px; height: 28px; background: linear-gradient(135deg, var(--accent) 0%, #0ea5e9 100%); border-radius: 7px; display: flex; align-items: center; justify-content: center; }
+  .logo-icon svg { width: 16px; height: 16px; fill: #fff; }
+  .header-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .count-badge { font-size: 11px; font-weight: 600; color: var(--accent); background: var(--accent-subtle); border: 1px solid rgba(19,121,240,0.15); padding: 2px 10px; border-radius: var(--radius-pill); font-family: var(--mono); }
+
+  .content { padding: 16px 16px 80px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* Section header */
+  .section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .section-bar { width: 3px; height: 16px; border-radius: 2px; background: var(--accent); }
+  .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-secondary); }
+
+  /* Add mapping form */
+  .add-form { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; display: flex; gap: 8px; align-items: flex-end; }
+  .form-group { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+  .form-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
+  .form-input { background: var(--bg-deepest); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; color: var(--text-primary); font-size: 13px; font-family: var(--font); outline: none; transition: all 0.15s var(--ease); width: 100%; }
+  .form-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-ring); }
+  .form-input::placeholder { color: var(--text-muted); }
+  .arrow-sep { display: flex; align-items: center; padding-bottom: 2px; }
+  .arrow-sep svg { width: 18px; height: 18px; color: var(--accent); }
+  .btn { padding: 8px 16px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: all 0.15s var(--ease); font-family: var(--font); white-space: nowrap; }
+  .btn:active { transform: scale(0.98); }
+  .btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-ring); }
+  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-ghost { background: transparent; color: var(--text-secondary); border-color: var(--border); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
+  .btn-danger { background: transparent; color: var(--error); border-color: rgba(239,68,68,0.2); }
+  .btn-danger:hover { background: var(--error-subtle); }
+
+  /* Scan button */
+  .scan-bar { display: flex; align-items: center; justify-content: space-between; }
+  .scan-btn { padding: 6px 14px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 600; cursor: pointer; border: 1px dashed var(--border); background: transparent; color: var(--text-secondary); transition: all 0.15s var(--ease); font-family: var(--font); display: flex; align-items: center; gap: 6px; }
+  .scan-btn:hover { border-color: var(--accent); color: var(--accent); border-style: solid; }
+  .scan-btn svg { width: 14px; height: 14px; }
+
+  /* Mapping cards */
+  .mappings-list { display: flex; flex-direction: column; gap: 6px; }
+  .mapping-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; display: flex; align-items: center; gap: 12px; transition: all 0.15s var(--ease); }
+  .mapping-card:hover { border-color: var(--border-hover); background: rgba(17,20,32,0.8); }
+  .mapping-card.editing { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-ring); }
+  .mat-swatch { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0; }
+  .mat-name { flex: 1; font-size: 13px; color: var(--text-primary); }
+  .mat-arrow { color: var(--text-muted); flex-shrink: 0; }
+  .mat-arrow svg { width: 14px; height: 14px; }
+  .mat-code { font-family: var(--mono); font-size: 12px; color: var(--accent); background: var(--accent-subtle); padding: 3px 10px; border-radius: var(--radius-pill); flex-shrink: 0; border: 1px solid rgba(19,121,240,0.1); }
+  .mat-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
+  .mapping-card:hover .mat-actions { opacity: 1; }
+  .icon-btn { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s var(--ease); }
+  .icon-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
+  .icon-btn.danger:hover { border-color: var(--error); color: var(--error); background: var(--error-subtle); }
+  .icon-btn svg { width: 14px; height: 14px; }
+
+  /* Edit inline */
+  .edit-input { background: var(--bg-deepest); border: 1px solid var(--accent); border-radius: 4px; padding: 4px 8px; color: var(--text-primary); font-size: 13px; font-family: var(--font); outline: none; width: 100%; }
+
+  /* Empty state */
+  .empty-state { padding: 40px 20px; text-align: center; }
+  .empty-icon { width: 40px; height: 40px; margin: 0 auto 12px; color: var(--text-muted); opacity: 0.3; }
+  .empty-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+  .empty-desc { font-size: 12px; color: var(--text-muted); }
+
+  /* Footer */
+  .footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-card); border-top: 1px solid var(--border); padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; z-index: 100; }
+  .footer-left { font-size: 11px; color: var(--text-muted); }
+
+  /* Toast */
+  .toast { position: fixed; top: 16px; right: 16px; padding: 10px 16px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; z-index: 1000; transform: translateX(120%); transition: transform 0.3s var(--ease); display: flex; align-items: center; gap: 8px; }
+  .toast.show { transform: translateX(0); }
+  .toast.success { background: var(--success-subtle); border: 1px solid rgba(34,197,94,0.2); color: var(--success); }
+  .toast.error { background: var(--error-subtle); border: 1px solid rgba(239,68,68,0.2); color: var(--error); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="#fff"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="#fff" stroke-width="2" fill="none"/></svg>
+      </div>
+      <span class="header-title">Mapeamento de Materiais</span>
+    </div>
+  </div>
+  <span class="count-badge" id="mappingCount">0</span>
+</div>
+
+<div class="content">
+  <!-- Add mapping form -->
+  <div>
+    <div class="section-header">
+      <div class="section-bar"></div>
+      <div class="section-title">Novo Mapeamento</div>
+    </div>
+    <div class="add-form">
+      <div class="form-group">
+        <span class="form-label">Material SketchUp</span>
+        <input type="text" class="form-input" id="inputSketchup" placeholder="Ex: MDF Branco 18mm">
+      </div>
+      <div class="arrow-sep">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </div>
+      <div class="form-group">
+        <span class="form-label">Codigo Ornato</span>
+        <input type="text" class="form-input" id="inputOrnato" placeholder="Ex: MDF-BR-18">
+      </div>
+      <button class="btn btn-primary" onclick="addMapping()" style="margin-bottom:1px;">Adicionar</button>
+    </div>
+  </div>
+
+  <!-- Scan + Mapping List -->
+  <div>
+    <div class="scan-bar">
+      <div class="section-header" style="margin-bottom:0;">
+        <div class="section-bar" style="background: var(--warning);"></div>
+        <div class="section-title">Mapeamentos</div>
+      </div>
+      <button class="scan-btn" onclick="scanModel()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v-1a2 2 0 012-2h3m14 0h1a2 2 0 012 2v3M21 20v1a2 2 0 01-2 2h-3M4 21H3a2 2 0 01-2-2v-3"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+        Escanear Modelo
+      </button>
+    </div>
+    <div style="margin-top: 10px;">
+      <div class="mappings-list" id="mappingsList">
+        <div class="empty-state" id="emptyState">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/><path d="M12 22V12M2 7l10 5 10-5"/></svg>
+          <div class="empty-title">Nenhum mapeamento cadastrado</div>
+          <div class="empty-desc">Adicione materiais manualmente ou escaneie o modelo</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Footer -->
+<div class="footer">
+  <span class="footer-left" id="footerInfo">Pronto</span>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-ghost" onclick="resetMappings()">Resetar</button>
+    <button class="btn btn-primary" onclick="saveMappings()">Salvar Tudo</button>
+  </div>
+</div>
+
+<script>
+  var mappings = [];
+  var editingIdx = -1;
+
+  var SWATCH_COLORS = ['#ef4444','#f59e0b','#22c55e','#0ea5e9','#8b5cf6','#ec4899','#f97316','#14b8a6','#6366f1','#a855f7'];
+
+  function getSwatchColor(name) {
+    var hash = 0;
+    for (var i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+    return SWATCH_COLORS[Math.abs(hash) % SWATCH_COLORS.length];
+  }
+
+  function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  function render() {
+    document.getElementById('mappingCount').textContent = mappings.length;
+
+    var container = document.getElementById('mappingsList');
+    if (mappings.length === 0) {
+      container.innerHTML = '<div class="empty-state"><svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/><path d="M12 22V12M2 7l10 5 10-5"/></svg><div class="empty-title">Nenhum mapeamento cadastrado</div><div class="empty-desc">Adicione materiais manualmente ou escaneie o modelo</div></div>';
+      return;
+    }
+
+    var html = '';
+    mappings.forEach(function(m, i) {
+      var color = getSwatchColor(m.sketchup);
+      if (editingIdx === i) {
+        html += '<div class="mapping-card editing">' +
+          '<div class="mat-swatch" style="background:' + color + ';"></div>' +
+          '<input class="edit-input" id="editSk" value="' + escHtml(m.sketchup) + '" style="flex:1;">' +
+          '<div class="mat-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>' +
+          '<input class="edit-input" id="editOr" value="' + escHtml(m.ornato) + '" style="flex:1;">' +
+          '<button class="icon-btn" onclick="confirmEdit(' + i + ')" title="Confirmar"><svg viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg></button>' +
+          '<button class="icon-btn" onclick="cancelEdit()" title="Cancelar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>' +
+        '</div>';
+      } else {
+        html += '<div class="mapping-card">' +
+          '<div class="mat-swatch" style="background:' + color + ';"></div>' +
+          '<span class="mat-name">' + escHtml(m.sketchup) + '</span>' +
+          '<div class="mat-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>' +
+          '<span class="mat-code">' + escHtml(m.ornato) + '</span>' +
+          '<div class="mat-actions">' +
+            '<button class="icon-btn" onclick="startEdit(' + i + ')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>' +
+            '<button class="icon-btn danger" onclick="deleteMapping(' + i + ')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>' +
+          '</div>' +
+        '</div>';
+      }
+    });
+    container.innerHTML = html;
+  }
+
+  function addMapping() {
+    var sk = document.getElementById('inputSketchup').value.trim();
+    var or_ = document.getElementById('inputOrnato').value.trim();
+    if (!sk || !or_) return;
+    mappings.push({ sketchup: sk, ornato: or_ });
+    document.getElementById('inputSketchup').value = '';
+    document.getElementById('inputOrnato').value = '';
+    document.getElementById('inputSketchup').focus();
+    render();
+    showToast('Mapeamento adicionado', 'success');
+  }
+
+  function startEdit(idx) { editingIdx = idx; render(); setTimeout(function(){ var el = document.getElementById('editSk'); if(el) el.focus(); }, 50); }
+  function cancelEdit() { editingIdx = -1; render(); }
+  function confirmEdit(idx) {
+    var sk = document.getElementById('editSk').value.trim();
+    var or_ = document.getElementById('editOr').value.trim();
+    if (sk && or_) { mappings[idx] = { sketchup: sk, ornato: or_ }; showToast('Mapeamento atualizado', 'success'); }
+    editingIdx = -1;
+    render();
+  }
+
+  function deleteMapping(idx) {
+    mappings.splice(idx, 1);
+    editingIdx = -1;
+    render();
+    showToast('Mapeamento removido', 'success');
+  }
+
+  function resetMappings() { mappings = []; editingIdx = -1; render(); }
+
+  function saveMappings() {
+    try { sketchup.save_mappings(JSON.stringify(mappings)); showToast('Mapeamentos salvos', 'success'); }
+    catch(e) { showToast('Erro ao salvar', 'error'); }
+  }
+
+  function scanModel() {
+    try { sketchup.scan_materials(); showToast('Escaneando modelo...', 'success'); }
+    catch(e) { showToast('Callback scan nao disponivel', 'error'); }
+  }
+
+  window.loadMappings = function(data) {
+    var arr = typeof data === 'string' ? JSON.parse(data) : data;
+    mappings = arr || [];
+    editingIdx = -1;
+    render();
+  };
+
+  function showToast(msg, type) {
+    var t = document.getElementById('toast');
+    t.className = 'toast ' + (type || 'success');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function() { t.classList.remove('show'); }, 2500);
+  }
+
+  document.getElementById('inputOrnato').addEventListener('keydown', function(e) { if (e.key === 'Enter') addMapping(); });
+  document.getElementById('inputSketchup').addEventListener('keydown', function(e) { if (e.key === 'Enter') document.getElementById('inputOrnato').focus(); });
+
+  render();
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+{
+  "id": "rebaixo_fundo_colado",
+  "nome": "Rebaixo (Pocket) para Fundo Colado",
+  "categoria": "rebaixo",
+  "descricao": "Pocket retangular na face traseira para fundo colado. Profundidade = espessura_fundo + 0.5mm.",
+
+  "operacao": {
+    "tipo": "pocket",
+    "ferramenta": "fresa_6mm",
+    "profundidade": "{espessura_fundo} + 0.5",
+    "lado": "a",
+    "forma": "retangular",
+    "margem_borda": 10,
+    "percurso": "area_completa_menos_margem",
+    "parametros": {
+      "espessura_fundo": { "default": 3, "opcoes": [3, 6] },
+      "margem_borda": { "default": 10, "min": 8, "max": 15 }
+    }
+  },
+
+  "aplicacao": {
+    "pecas": ["lateral_esq", "lateral_dir", "base", "topo"],
+    "regra": "rebaixo_fundo",
+    "condicao": "{com_fundo} && {tipo_fundo} == 'colado'"
+  }
+}

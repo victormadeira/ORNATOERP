@@ -489,6 +489,7 @@ db.exec(`
     profundidade_extra REAL DEFAULT 0.20,
     -- Coordenadas
     coordenada_zero TEXT DEFAULT 'canto_esq_inf',
+    trocar_eixos_xy INTEGER DEFAULT 0,
     eixo_x_invertido INTEGER DEFAULT 0,
     eixo_y_invertido INTEGER DEFAULT 0,
     -- Exportações
@@ -1711,6 +1712,38 @@ const migrations = [
   "ALTER TABLE cnc_maquinas ADD COLUMN envio_senha TEXT DEFAULT ''",
   "ALTER TABLE cnc_maquinas ADD COLUMN envio_pasta TEXT DEFAULT '/'",
 
+  // ═══ Overrides de operações CNC (painel de ferramentas) ═══
+  `CREATE TABLE IF NOT EXISTS cnc_operacao_overrides (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lote_id INTEGER NOT NULL REFERENCES cnc_lotes(id) ON DELETE CASCADE,
+    op_key TEXT NOT NULL,
+    ativo INTEGER DEFAULT 1,
+    metodo TEXT DEFAULT '',
+    ferramenta_id INTEGER DEFAULT NULL,
+    diametro_override REAL DEFAULT NULL,
+    profundidade_override REAL DEFAULT NULL,
+    rpm_override INTEGER DEFAULT NULL,
+    feed_override REAL DEFAULT NULL,
+    stepover_override REAL DEFAULT NULL,
+    passes_acabamento_override INTEGER DEFAULT NULL,
+    notas TEXT DEFAULT '',
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(lote_id, op_key)
+  )`,
+  // Override individual por peça dentro de um grupo
+  `CREATE TABLE IF NOT EXISTS cnc_operacao_overrides_peca (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lote_id INTEGER NOT NULL REFERENCES cnc_lotes(id) ON DELETE CASCADE,
+    op_key TEXT NOT NULL,
+    peca_id INTEGER NOT NULL,
+    ativo INTEGER DEFAULT 1,
+    profundidade_override REAL DEFAULT NULL,
+    diametro_override REAL DEFAULT NULL,
+    notas TEXT DEFAULT '',
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(lote_id, op_key, peca_id)
+  )`,
+
   // ═══ Chapa Production Status (multi-state) ═══
   `CREATE TABLE IF NOT EXISTS cnc_chapa_status (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1723,6 +1756,168 @@ const migrations = [
     observacao TEXT DEFAULT '',
     atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(lote_id, chapa_idx)
+  )`,
+
+  // ═══ Conferência pós-corte (checklist por chapa) ═══
+  `CREATE TABLE IF NOT EXISTS cnc_conferencia (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lote_id INTEGER REFERENCES cnc_lotes(id) ON DELETE CASCADE,
+    chapa_idx INTEGER NOT NULL,
+    peca_idx INTEGER NOT NULL,
+    peca_desc TEXT DEFAULT '',
+    status TEXT DEFAULT 'pendente',
+    defeito_tipo TEXT DEFAULT '',
+    defeito_obs TEXT DEFAULT '',
+    conferente TEXT DEFAULT '',
+    conferido_em DATETIME,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(lote_id, chapa_idx, peca_idx)
+  )`,
+
+  // ═══ Fila de produção CNC ═══
+  `CREATE TABLE IF NOT EXISTS cnc_fila_producao (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lote_id INTEGER REFERENCES cnc_lotes(id) ON DELETE CASCADE,
+    chapa_idx INTEGER NOT NULL,
+    prioridade INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'aguardando',
+    maquina_id INTEGER REFERENCES cnc_maquinas(id),
+    operador TEXT DEFAULT '',
+    inicio_em DATETIME,
+    fim_em DATETIME,
+    ordem INTEGER DEFAULT 0,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(lote_id, chapa_idx)
+  )`,
+
+  // ═══ Estoque de chapas — movimentações ═══
+  `CREATE TABLE IF NOT EXISTS cnc_estoque_mov (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chapa_id INTEGER REFERENCES cnc_chapas(id),
+    tipo TEXT NOT NULL,
+    quantidade INTEGER DEFAULT 0,
+    lote_id INTEGER,
+    motivo TEXT DEFAULT '',
+    user_id INTEGER REFERENCES users(id),
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ═══ Estoque de chapas — saldo ═══
+  `ALTER TABLE cnc_chapas ADD COLUMN estoque_qtd INTEGER DEFAULT 0`,
+  `ALTER TABLE cnc_chapas ADD COLUMN estoque_minimo INTEGER DEFAULT 0`,
+  `ALTER TABLE cnc_chapas ADD COLUMN custo_unitario REAL DEFAULT 0`,
+
+  // ═══ Custeio por peça (cache do último cálculo) ═══
+  `CREATE TABLE IF NOT EXISTS cnc_custeio_peca (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lote_id INTEGER REFERENCES cnc_lotes(id) ON DELETE CASCADE,
+    peca_id INTEGER,
+    peca_desc TEXT DEFAULT '',
+    custo_material REAL DEFAULT 0,
+    custo_maquina REAL DEFAULT 0,
+    custo_borda REAL DEFAULT 0,
+    custo_total REAL DEFAULT 0,
+    area_m2 REAL DEFAULT 0,
+    tempo_min REAL DEFAULT 0,
+    calculado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ═══ #20 Manutenção programada de ferramentas ═══
+  `CREATE TABLE IF NOT EXISTS cnc_tool_manutencao (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ferramenta_id INTEGER REFERENCES cnc_ferramentas(id) ON DELETE CASCADE,
+    tipo TEXT DEFAULT 'afiacao',
+    descricao TEXT DEFAULT '',
+    agendado_para DATETIME,
+    concluido_em DATETIME,
+    status TEXT DEFAULT 'agendado',
+    notas TEXT DEFAULT '',
+    user_id INTEGER REFERENCES users(id),
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `ALTER TABLE cnc_ferramentas ADD COLUMN ciclo_vida_horas REAL DEFAULT 100`,
+  `ALTER TABLE cnc_ferramentas ADD COLUMN custo_unitario REAL DEFAULT 0`,
+  `ALTER TABLE cnc_ferramentas ADD COLUMN horas_uso REAL DEFAULT 0`,
+
+  // ═══ #25 Auditoria de consumo de material ═══
+  `CREATE TABLE IF NOT EXISTS cnc_material_consumo (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chapa_id INTEGER REFERENCES cnc_chapas(id),
+    lote_id INTEGER REFERENCES cnc_lotes(id),
+    chapa_idx INTEGER DEFAULT 0,
+    material_code TEXT DEFAULT '',
+    area_total_m2 REAL DEFAULT 0,
+    area_usada_m2 REAL DEFAULT 0,
+    area_sobra_m2 REAL DEFAULT 0,
+    area_refugo_m2 REAL DEFAULT 0,
+    aproveitamento REAL DEFAULT 0,
+    user_id INTEGER REFERENCES users(id),
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ═══ #29 Reserva de material no estoque ═══
+  `CREATE TABLE IF NOT EXISTS cnc_reserva_material (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chapa_id INTEGER REFERENCES cnc_chapas(id),
+    lote_id INTEGER REFERENCES cnc_lotes(id),
+    quantidade INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'reservado',
+    expira_em DATETIME,
+    user_id INTEGER REFERENCES users(id),
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(chapa_id, lote_id)
+  )`,
+
+  // ═══ #28 Backup automático metadata ═══
+  `CREATE TABLE IF NOT EXISTS cnc_backups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT DEFAULT 'manual',
+    arquivo TEXT DEFAULT '',
+    tamanho_bytes INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'ok',
+    user_id INTEGER,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ═══ #31 Performance de máquina ═══
+  `CREATE TABLE IF NOT EXISTS cnc_maquina_performance (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    maquina_id INTEGER REFERENCES cnc_maquinas(id),
+    lote_id INTEGER REFERENCES cnc_lotes(id),
+    chapas_cortadas INTEGER DEFAULT 0,
+    pecas_cortadas INTEGER DEFAULT 0,
+    tempo_corte_min REAL DEFAULT 0,
+    tempo_ocioso_min REAL DEFAULT 0,
+    trocas_ferramenta INTEGER DEFAULT 0,
+    defeitos INTEGER DEFAULT 0,
+    data_registro DATE DEFAULT (date('now')),
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ═══ #38 Fotos vinculadas a peças (QR scan) ═══
+  "ALTER TABLE cnc_pecas ADD COLUMN fotos_json TEXT DEFAULT '[]'",
+
+  // ═══ #45 Webhooks ═══
+  `CREATE TABLE IF NOT EXISTS cnc_webhooks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    url TEXT,
+    eventos TEXT,
+    ativo INTEGER DEFAULT 1,
+    criado_em TEXT
+  )`,
+
+  // ═══ #48 Rastreio entrega ═══
+  `CREATE TABLE IF NOT EXISTS cnc_rastreio_entrega (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    volume_id INTEGER,
+    lote_id INTEGER,
+    tipo TEXT,
+    lat REAL,
+    lng REAL,
+    observacao TEXT,
+    motorista TEXT,
+    created_at TEXT
   )`,
 ];
 for (const sql of migrations) {

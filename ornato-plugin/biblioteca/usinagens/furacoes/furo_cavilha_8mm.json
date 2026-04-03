@@ -1,0 +1,23 @@
+{
+  "id": "furo_cavilha_8mm",
+  "nome": "Furo Cavilha 8x15mm",
+  "categoria": "furacao",
+  "descricao": "Furo para cavilha 8mm, profundidade 15mm. Aplica em ambas as pecas da juncao.",
+
+  "operacao": {
+    "tipo": "furo",
+    "ferramenta": "broca_8mm",
+    "diametro": 8,
+    "profundidade": 15,
+    "posicao": { "x": "{dist_borda}", "y": "centro_espessura" },
+    "parametros": {
+      "dist_borda": { "default": 30, "min": 25, "max": 40 }
+    },
+    "nota": "Aplica na borda (side_b) de uma peca e na face (side_a) da outra"
+  },
+
+  "aplicacao": {
+    "pecas": ["lateral_esq", "lateral_dir", "base", "topo", "prateleira"],
+    "regra": "cavilha"
+  }
+}

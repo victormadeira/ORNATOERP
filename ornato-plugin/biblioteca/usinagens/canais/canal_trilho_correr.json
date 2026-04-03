@@ -1,0 +1,25 @@
+{
+  "id": "canal_trilho_correr",
+  "nome": "Canal para Trilho de Porta de Correr",
+  "categoria": "canal",
+  "descricao": "Canal 15x12mm para trilho de porta de correr. Fresado no topo e na base do modulo.",
+
+  "operacao": {
+    "tipo": "canal",
+    "ferramenta": "fresa_6mm",
+    "largura": 15,
+    "profundidade": 12,
+    "lado": "a",
+    "percurso": "horizontal_completo",
+    "multiplas_passadas": true,
+    "parametros": {
+      "largura": { "default": 15, "min": 12, "max": 20 },
+      "profundidade": { "default": 12, "min": 8, "max": 15 }
+    }
+  },
+
+  "aplicacao": {
+    "pecas": ["topo", "base"],
+    "condicao": "{tipo_porta} == 'correr'"
+  }
+}

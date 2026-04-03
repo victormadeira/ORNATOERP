@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ornato CNC</title>
+<style>
+  :root {
+    --bg-deepest: #0c0e14;
+    --bg-card: #111420;
+    --bg-elevated: #1a1e2e;
+    --border: rgba(255,255,255,0.06);
+    --border-hover: rgba(255,255,255,0.12);
+    --text-primary: #e8ecf4;
+    --text-secondary: #8892a8;
+    --text-muted: #555d70;
+    --accent: #1379F0;
+    --accent-hover: #0ea5e9;
+    --accent-pressed: #0369a1;
+    --accent-subtle: rgba(19,121,240,0.08);
+    --accent-ring: rgba(19,121,240,0.3);
+    --success: #22c55e;
+    --success-subtle: rgba(34,197,94,0.1);
+    --warning: #f59e0b;
+    --warning-subtle: rgba(245,158,11,0.1);
+    --error: #ef4444;
+    --error-subtle: rgba(239,68,68,0.1);
+    --purple: #8b5cf6;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-pill: 20px;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--bg-deepest); color: var(--text-primary); min-height: 100vh; overflow-x: hidden; font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+
+  /* Header */
+  .header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px); }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .logo { display: flex; align-items: center; gap: 6px; }
+  .logo-icon { width: 28px; height: 28px; background: linear-gradient(135deg, var(--accent) 0%, #0ea5e9 100%); border-radius: 7px; display: flex; align-items: center; justify-content: center; }
+  .logo-icon svg { width: 16px; height: 16px; fill: #fff; }
+  .logo-text { font-size: 15px; font-weight: 700; letter-spacing: 0.5px; color: var(--text-primary); }
+  .logo-text span { font-weight: 400; color: var(--text-secondary); margin-left: 2px; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .version-badge { font-size: 10px; font-weight: 600; color: var(--text-muted); background: var(--bg-elevated); border: 1px solid var(--border); padding: 2px 8px; border-radius: var(--radius-pill); letter-spacing: 0.3px; font-family: var(--mono); }
+  .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 6px rgba(34,197,94,0.4); transition: all 0.3s var(--ease); }
+  .conn-dot.disconnected { background: var(--error); box-shadow: 0 0 6px rgba(239,68,68,0.4); }
+
+  /* Content */
+  .content { padding: 16px 16px 80px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* Workflow Steps */
+  .workflow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .step-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px 14px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; transition: all 0.15s var(--ease); position: relative; overflow: hidden; cursor: default; }
+  .step-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--text-muted); opacity: 0.2; transition: all 0.2s var(--ease); }
+  .step-card.active::before { background: var(--accent); opacity: 1; }
+  .step-card.done::before { background: var(--success); opacity: 1; }
+  .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--bg-elevated); border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--text-muted); transition: all 0.2s var(--ease); }
+  .step-card.active .step-num { background: var(--accent-subtle); border-color: var(--accent); color: var(--accent); }
+  .step-card.done .step-num { background: var(--success-subtle); border-color: var(--success); color: var(--success); }
+  .step-card.done .step-num-text { display: none; }
+  .step-card.done .step-check { display: block; }
+  .step-check { display: none; width: 14px; height: 14px; }
+  .step-icon { width: 36px; height: 36px; color: var(--text-muted); transition: color 0.2s var(--ease); }
+  .step-card.active .step-icon { color: var(--accent); }
+  .step-card.done .step-icon { color: var(--success); }
+  .step-title { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-secondary); }
+  .step-subtitle { font-size: 11px; color: var(--text-muted); line-height: 1.3; }
+  .step-btn { width: 100%; padding: 7px 10px; border-radius: var(--radius-sm); font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text-secondary); transition: all 0.15s var(--ease); margin-top: auto; font-family: var(--font); }
+  .step-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
+  .step-btn:active { transform: scale(0.98); }
+  .step-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-ring); }
+  .step-card.active .step-btn { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .step-card.active .step-btn:hover { background: var(--accent-hover); }
+
+  /* Section header */
+  .section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .section-bar { width: 3px; height: 16px; border-radius: 2px; background: var(--accent); }
+  .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-secondary); }
+
+  /* Stats Grid */
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 10px; text-align: center; transition: all 0.15s var(--ease); }
+  .stat-card:hover { border-color: var(--border-hover); }
+  .stat-icon { width: 20px; height: 20px; margin: 0 auto 6px; color: var(--text-muted); }
+  .stat-value { font-size: 24px; font-weight: 800; color: var(--text-primary); line-height: 1; font-family: var(--mono); letter-spacing: -0.5px; }
+  .stat-label { font-size: 10px; font-weight: 500; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* Summary container - hidden by default */
+  .summary-section { display: none; }
+  .summary-section.visible { display: block; }
+
+  /* Quick Actions */
+  .quick-actions { display: flex; gap: 8px; }
+  .qa-btn { flex: 1; padding: 8px; border-radius: var(--radius-sm); font-size: 11px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); transition: all 0.15s var(--ease); display: flex; align-items: center; justify-content: center; gap: 6px; font-family: var(--font); }
+  .qa-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
+  .qa-btn:active { transform: scale(0.98); }
+  .qa-btn svg { width: 14px; height: 14px; }
+
+  /* Activity Log */
+  .log-container { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; max-height: 160px; overflow-y: auto; }
+  .log-container::-webkit-scrollbar { width: 4px; }
+  .log-container::-webkit-scrollbar-track { background: transparent; }
+  .log-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .log-empty { padding: 24px; text-align: center; color: var(--text-muted); font-size: 12px; }
+  .log-empty svg { width: 24px; height: 24px; margin: 0 auto 8px; display: block; opacity: 0.4; }
+  .log-item { padding: 8px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 12px; transition: background 0.1s; }
+  .log-item:last-child { border-bottom: none; }
+  .log-item:hover { background: rgba(255,255,255,0.02); }
+  .log-time { font-family: var(--mono); font-size: 10px; color: var(--text-muted); white-space: nowrap; min-width: 52px; }
+  .log-msg { color: var(--text-secondary); flex: 1; }
+  .log-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex-shrink: 0; opacity: 0.5; }
+
+  /* Toast */
+  .toast { position: fixed; top: 16px; right: 16px; padding: 10px 16px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; z-index: 1000; transform: translateX(120%); transition: transform 0.3s var(--ease); display: flex; align-items: center; gap: 8px; }
+  .toast.show { transform: translateX(0); }
+  .toast.success { background: var(--success-subtle); border: 1px solid rgba(34,197,94,0.2); color: var(--success); }
+  .toast.error { background: var(--error-subtle); border: 1px solid rgba(239,68,68,0.2); color: var(--error); }
+
+  /* Status bar */
+  .status-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-card); border-top: 1px solid var(--border); padding: 6px 16px; font-size: 10px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; z-index: 100; }
+  .status-left { display: flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.18l7.12 3.56L12 11.3 4.88 7.74 12 4.18zM4 8.82l7 3.5v7.86l-7-3.5V8.82zm9 11.36v-7.86l7-3.5v7.86l-7 3.5z"/></svg>
+      </div>
+      <div class="logo-text">ORNATO<span>CNC</span></div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="version-badge">v0.1.0</span>
+    <div class="conn-dot" id="connDot" title="Conectado ao SketchUp"></div>
+  </div>
+</div>
+
+<div class="content">
+  <!-- Workflow Steps -->
+  <div class="workflow">
+    <div class="step-card active" id="step1">
+      <div class="step-num">
+        <span class="step-num-text">1</span>
+        <svg class="step-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg>
+      <div class="step-title">Modelo</div>
+      <div class="step-subtitle">Analise e detecte pecas</div>
+      <button class="step-btn" onclick="doAnalyze()">Analisar Modelo</button>
+    </div>
+    <div class="step-card" id="step2">
+      <div class="step-num">
+        <span class="step-num-text">2</span>
+        <svg class="step-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+      <div class="step-title">Ferragens</div>
+      <div class="step-subtitle">Gere furacoes automaticas</div>
+      <button class="step-btn" onclick="doProcess()">Processar</button>
+    </div>
+    <div class="step-card" id="step3">
+      <div class="step-num">
+        <span class="step-num-text">3</span>
+        <svg class="step-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      <div class="step-title">Exportar</div>
+      <div class="step-subtitle">Envie para o Ornato ERP</div>
+      <button class="step-btn" onclick="doExport()">Exportar JSON</button>
+    </div>
+  </div>
+
+  <!-- Model Summary (appears after analysis) -->
+  <div class="summary-section" id="summarySection">
+    <div class="section-header">
+      <div class="section-bar"></div>
+      <div class="section-title">Resumo do Modelo</div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <div class="stat-value" id="modulesCount">0</div>
+        <div class="stat-label">Modulos</div>
+      </div>
+      <div class="stat-card">
+        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+        <div class="stat-value" id="piecesCount">0</div>
+        <div class="stat-label">Pecas</div>
+      </div>
+      <div class="stat-card">
+        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        <div class="stat-value" id="materialsCount">0</div>
+        <div class="stat-label">Materiais</div>
+      </div>
+      <div class="stat-card">
+        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
+        <div class="stat-value" id="jointsCount">0</div>
+        <div class="stat-label">Juncoes</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div>
+    <div class="section-header">
+      <div class="section-bar" style="background: var(--purple);"></div>
+      <div class="section-title">Acoes Rapidas</div>
+    </div>
+    <div class="quick-actions">
+      <button class="qa-btn" onclick="openMaterials()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        Materiais
+      </button>
+      <button class="qa-btn" onclick="openHardware()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+        Ferragens
+      </button>
+      <button class="qa-btn" onclick="openPreview()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        Preview
+      </button>
+    </div>
+  </div>
+
+  <!-- Activity Log -->
+  <div>
+    <div class="section-header">
+      <div class="section-bar" style="background: var(--text-muted);"></div>
+      <div class="section-title">Atividade</div>
+    </div>
+    <div class="log-container" id="logContainer">
+      <div class="log-empty" id="logEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Nenhuma atividade registrada
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast notification -->
+<div class="toast" id="toast"></div>
+
+<!-- Status bar -->
+<div class="status-bar">
+  <div class="status-left">
+    <div class="conn-dot" id="connDot2" style="width:5px;height:5px;"></div>
+    <span>Conectado ao SketchUp</span>
+  </div>
+  <span id="statusTimestamp">--</span>
+</div>
+
+<script>
+  /* --- Callbacks to SketchUp --- */
+  function doAnalyze() { try { sketchup.analyze(); } catch(e) { addLog('Callback analyze nao disponivel'); } }
+  function doProcess() { try { sketchup.process(); } catch(e) { addLog('Callback process nao disponivel'); } }
+  function doExport() { try { sketchup.export_json(); } catch(e) { addLog('Callback export_json nao disponivel'); } }
+  function openMaterials() { try { sketchup.open_materials(); } catch(e) {} }
+  function openHardware() { try { sketchup.open_hardware(); } catch(e) {} }
+  function openPreview() { try { sketchup.open_preview(); } catch(e) {} }
+
+  /* --- Data callbacks from Ruby --- */
+  window.updateSummary = function(data) {
+    var d = typeof data === 'string' ? JSON.parse(data) : data;
+    document.getElementById('summarySection').classList.add('visible');
+    document.getElementById('modulesCount').textContent = d.modules || 0;
+    document.getElementById('piecesCount').textContent = d.pieces || 0;
+    document.getElementById('materialsCount').textContent = d.materials ? (Array.isArray(d.materials) ? d.materials.length : d.materials) : 0;
+    document.getElementById('jointsCount').textContent = d.joints || 0;
+    document.getElementById('statusTimestamp').textContent = new Date().toLocaleTimeString('pt-BR');
+    addLog('Modelo analisado: ' + (d.pieces || 0) + ' pecas detectadas');
+  };
+
+  window.setStep = function(stepNum, status) {
+    for (var i = 1; i <= 3; i++) {
+      var el = document.getElementById('step' + i);
+      el.classList.remove('active', 'done');
+      if (i < stepNum) el.classList.add('done');
+      else if (i === stepNum) el.classList.add(status === 'done' ? 'done' : 'active');
+    }
+  };
+
+  var logItems = [];
+  window.addLog = function(message) {
+    var time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    logItems.unshift({ time: time, msg: message });
+    if (logItems.length > 5) logItems = logItems.slice(0, 5);
+    renderLog();
+  };
+
+  function renderLog() {
+    var c = document.getElementById('logContainer');
+    if (logItems.length === 0) { c.innerHTML = document.getElementById('logEmpty') ? document.getElementById('logEmpty').outerHTML : ''; return; }
+    var html = '';
+    logItems.forEach(function(item) {
+      html += '<div class="log-item"><div class="log-dot"></div><span class="log-time">' + item.time + '</span><span class="log-msg">' + escHtml(item.msg) + '</span></div>';
+    });
+    c.innerHTML = html;
+  }
+
+  function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  /* Toast */
+  window.showToast = function(msg, type) {
+    var t = document.getElementById('toast');
+    t.className = 'toast ' + (type || 'success');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function() { t.classList.remove('show'); }, 3000);
+  };
+</script>
+</body>
+</html>

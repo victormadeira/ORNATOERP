@@ -1,0 +1,45 @@
+{
+  "id": "furo_dobradica_35mm",
+  "nome": "Furacao Dobradica 35mm (cup + 2 piloto)",
+  "categoria": "furacao",
+  "descricao": "Padrao de furacao para dobradica caneco 35mm: furo principal + 2 furos piloto",
+
+  "operacao": {
+    "tipo": "grupo_furos",
+    "furos": [
+      {
+        "nome": "cup",
+        "ferramenta": "broca_35mm",
+        "diametro": 35,
+        "profundidade": 12,
+        "lado": "a",
+        "posicao": { "x": "{offset_borda}", "y": "{pos_y}" }
+      },
+      {
+        "nome": "piloto_1",
+        "ferramenta": "broca_2.5mm",
+        "diametro": 2.5,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": "{offset_borda}", "y": "{pos_y} - 24" }
+      },
+      {
+        "nome": "piloto_2",
+        "ferramenta": "broca_2.5mm",
+        "diametro": 2.5,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": "{offset_borda}", "y": "{pos_y} + 24" }
+      }
+    ],
+    "parametros": {
+      "offset_borda": { "default": 22.5, "min": 20, "max": 25 },
+      "pos_y": { "default": 100, "min": 80, "max": 150 }
+    }
+  },
+
+  "aplicacao": {
+    "pecas": ["lateral_esq", "lateral_dir", "porta"],
+    "regra": "dobradica"
+  }
+}

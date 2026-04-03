@@ -1,0 +1,27 @@
+{
+  "id": "furo_passante_generico",
+  "nome": "Furo Passante Generico (configuravel)",
+  "categoria": "furacao",
+  "descricao": "Furo passante com diametro e posicao configuraveis pelo usuario",
+
+  "operacao": {
+    "tipo": "furo",
+    "ferramenta": "broca_{diametro}mm",
+    "diametro": "{diametro}",
+    "profundidade": "{espessura}",
+    "lado": "{lado}",
+    "passante": true,
+    "posicao": { "x": "{pos_x}", "y": "{pos_y}" },
+    "parametros": {
+      "diametro": { "default": 8, "min": 2, "max": 35 },
+      "pos_x": { "default": "centro", "min": 10 },
+      "pos_y": { "default": "centro", "min": 10 },
+      "lado": { "default": "a", "opcoes": ["a", "b"] }
+    }
+  },
+
+  "aplicacao": {
+    "pecas": ["*"],
+    "condicao_manual": true
+  }
+}

@@ -34,6 +34,7 @@ import assinaturasRoutes from './routes/assinaturas.js';
 import comprasRoutes from './routes/compras.js';
 import producaoAvRoutes from './routes/producao-avancada.js';
 import gestaoAvRoutes from './routes/gestao-avancada.js';
+import pluginRoutes from './routes/plugin.js';
 
 // Inicializa DB (efeito colateral — cria tabelas e seed)
 import './db.js';
@@ -127,6 +128,7 @@ app.use('/api/assinaturas', assinaturasRoutes);
 app.use('/api/compras', comprasRoutes);
 app.use('/api/producao-av', producaoAvRoutes);
 app.use('/api/gestao', gestaoAvRoutes);
+app.use('/api/plugin', pluginRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
@@ -170,12 +172,34 @@ app.use((err, req, res, next) => {
     });
 });
 
-app.listen(PORT, () => {
+// ═══ WebSocket Server (real-time updates) ═══
+import { WebSocketServer } from 'ws';
+
+const server = app.listen(PORT, () => {
     console.log(`\n═══════════════════════════════════════════`);
     console.log(`  MARCENARIA ERP — API Server`);
     console.log(`  http://localhost:${PORT}`);
+    console.log(`  WebSocket: ws://localhost:${PORT}/ws`);
     console.log(`═══════════════════════════════════════════\n`);
 
     // Iniciar automações de follow-up
     iniciarAutomacoes();
 });
+
+const wss = new WebSocketServer({ server, path: '/ws' });
+const wsClients = new Set();
+
+wss.on('connection', (ws) => {
+    wsClients.add(ws);
+    ws.on('close', () => wsClients.delete(ws));
+    ws.on('error', () => wsClients.delete(ws));
+    ws.send(JSON.stringify({ type: 'connected', ts: new Date().toISOString() }));
+});
+
+// Broadcast helper — importável por outros módulos via app.locals
+app.locals.wsBroadcast = (type, data) => {
+    const msg = JSON.stringify({ type, data, ts: new Date().toISOString() });
+    for (const ws of wsClients) {
+        if (ws.readyState === 1) ws.send(msg);
+    }
+};

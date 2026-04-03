@@ -1,0 +1,84 @@
+{
+  "id": "basculante_hettich_lift_advanced",
+  "nome": "Hettich Lift Advanced (Basculante)",
+  "marca": "Hettich",
+  "modelo": "Lift Advanced HS",
+  "categoria": "dobradica",
+  "angulo": 107,
+  "tipo": "basculante",
+  "subtipo": "pistao_gas",
+  "amortecedor": true,
+  "sistema_amortecimento": "Silent System",
+
+  "especificacoes": {
+    "furacao_lateral": {
+      "furos": [
+        { "diametro": 5, "profundidade": 12, "x": 37, "y": 20 },
+        { "diametro": 5, "profundidade": 12, "x": 37, "y": 52 },
+        { "diametro": 5, "profundidade": 12, "x": 37, "y": 84 }
+      ]
+    },
+    "furacao_porta": {
+      "furo_principal": { "diametro": 35, "profundidade": 11.5, "offset_borda": 22.5 },
+      "furos_piloto": { "diametro": 2.5, "profundidade": 10, "distancia_centro": 24, "quantidade": 2 }
+    },
+    "distancia_topo": 37,
+    "peso_porta_max_kg": 14,
+    "largura_porta_min": 200,
+    "largura_porta_max": 600,
+    "regra_quantidade": {
+      "ate_600mm": 2,
+      "ate_1200mm": 2,
+      "ate_1800mm": 2,
+      "acima": 2
+    }
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_5mm",
+        "diametro": 5,
+        "profundidade": 12,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 20 },
+        "peca": "lateral"
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_5mm",
+        "diametro": 5,
+        "profundidade": 12,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 52 },
+        "peca": "lateral"
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_5mm",
+        "diametro": 5,
+        "profundidade": 12,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 84 },
+        "peca": "lateral"
+      },
+      {
+        "tipo": "furo_passante",
+        "ferramenta": "broca_35mm",
+        "diametro": 35,
+        "profundidade": 11.5,
+        "lado": "a",
+        "posicao": { "x": 22.5, "y": 0 },
+        "peca": "porta"
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "HTT-0077318",
+    "preco_unitario": 145.00,
+    "unidade": "par",
+    "fornecedor": "Hettich Brasil"
+  }
+}

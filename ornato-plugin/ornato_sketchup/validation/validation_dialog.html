@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ornato - Validacao do Modelo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    background: #0f1219;
+    color: #e0e6ff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ─── Header ───────────────────────────────── */
+  .header {
+    background: #141926;
+    padding: 16px 20px;
+    border-bottom: 1px solid #2a3042;
+  }
+  .header-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .summary-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .summary-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .summary-badge.errors {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+  .summary-badge.warnings {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+  }
+  .summary-badge.info {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+  }
+  .summary-badge.clean {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+  .summary-icon {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+  }
+  .summary-badge.errors .summary-icon { background: #ef4444; color: #fff; }
+  .summary-badge.warnings .summary-icon { background: #f59e0b; color: #fff; }
+  .summary-badge.info .summary-icon { background: #3b82f6; color: #fff; }
+  .summary-badge.clean .summary-icon { background: #22c55e; color: #fff; }
+
+  /* ─── Filter pills ─────────────────────────── */
+  .filters {
+    display: flex;
+    gap: 8px;
+    padding: 12px 20px;
+    background: #141926;
+    border-bottom: 1px solid #2a3042;
+    flex-wrap: wrap;
+  }
+  .filter-pill {
+    padding: 5px 14px;
+    border-radius: 16px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid #2a3042;
+    background: transparent;
+    color: #6b7a99;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .filter-pill:hover {
+    border-color: #4a5568;
+    color: #e0e6ff;
+  }
+  .filter-pill.active {
+    background: #1379F0;
+    border-color: #1379F0;
+    color: #fff;
+  }
+  .filter-pill .count {
+    display: inline-block;
+    margin-left: 4px;
+    background: rgba(255,255,255,0.2);
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 10px;
+  }
+
+  /* ─── Issue list ───────────────────────────── */
+  .issues-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 20px 100px;
+  }
+  .issues-container::-webkit-scrollbar { width: 6px; }
+  .issues-container::-webkit-scrollbar-track { background: transparent; }
+  .issues-container::-webkit-scrollbar-thumb {
+    background: #2a3042;
+    border-radius: 3px;
+  }
+
+  .issue-card {
+    background: #171d2b;
+    border: 1px solid #2a3042;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .issue-card:hover {
+    border-color: #4a5568;
+    background: #1c2333;
+  }
+  .issue-card.severity-error {
+    border-left: 3px solid #ef4444;
+  }
+  .issue-card.severity-warning {
+    border-left: 3px solid #f59e0b;
+  }
+  .issue-card.severity-info {
+    border-left: 3px solid #3b82f6;
+  }
+
+  .issue-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .issue-severity-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .severity-error .issue-severity-icon {
+    background: #ef4444;
+    color: #fff;
+  }
+  .severity-warning .issue-severity-icon {
+    background: #f59e0b;
+    color: #fff;
+    border-radius: 2px;
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+    width: 18px;
+    height: 16px;
+  }
+  .severity-info .issue-severity-icon {
+    background: #3b82f6;
+    color: #fff;
+  }
+
+  .issue-body { flex: 1; min-width: 0; }
+  .issue-message {
+    font-size: 13px;
+    line-height: 1.4;
+    color: #e0e6ff;
+    margin-bottom: 4px;
+  }
+  .issue-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .issue-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+  .issue-badge.code {
+    background: #232b3d;
+    color: #8b99b5;
+  }
+  .issue-badge.piece {
+    background: rgba(19, 121, 240, 0.15);
+    color: #6db3f8;
+    cursor: pointer;
+  }
+  .issue-badge.piece:hover {
+    background: rgba(19, 121, 240, 0.3);
+  }
+  .issue-badge.module {
+    background: rgba(139, 92, 246, 0.15);
+    color: #a78bfa;
+  }
+  .issue-suggestion {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: #1a2235;
+    border-radius: 6px;
+    font-size: 11px;
+    color: #8b99b5;
+    line-height: 1.4;
+    display: none;
+  }
+  .issue-suggestion::before {
+    content: 'Sugestao: ';
+    font-weight: 600;
+    color: #6db3f8;
+  }
+  .issue-card.expanded .issue-suggestion {
+    display: block;
+  }
+
+  .no-issues {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6b7a99;
+  }
+  .no-issues-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  /* ─── Bottom bar ───────────────────────────── */
+  .bottom-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 14px 20px;
+    background: #141926;
+    border-top: 1px solid #2a3042;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .bottom-status {
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .bottom-status.has-errors { color: #ef4444; }
+  .bottom-status.has-warnings { color: #f59e0b; }
+  .bottom-status.is-clean { color: #22c55e; }
+
+  .btn-export {
+    padding: 8px 24px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .btn-export.disabled {
+    background: #2a3042;
+    color: #6b7a99;
+    cursor: not-allowed;
+  }
+  .btn-export.warning {
+    background: #f59e0b;
+    color: #0f1219;
+  }
+  .btn-export.warning:hover {
+    background: #d97706;
+  }
+  .btn-export.success {
+    background: #22c55e;
+    color: #0f1219;
+  }
+  .btn-export.success:hover {
+    background: #16a34a;
+  }
+
+  .btn-revalidate {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid #2a3042;
+    background: transparent;
+    color: #8b99b5;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-revalidate:hover {
+    border-color: #4a5568;
+    color: #e0e6ff;
+  }
+
+  /* ─── Animations ───────────────────────────── */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .issue-card {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  /* ─── Loading ──────────────────────────────── */
+  .loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    gap: 16px;
+    color: #6b7a99;
+  }
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid #2a3042;
+    border-top-color: #1379F0;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">Validacao do Modelo</div>
+  <div class="summary-row" id="summaryRow">
+    <div class="loading" id="loadingIndicator">
+      <div class="spinner"></div>
+      <span>Validando modelo...</span>
+    </div>
+  </div>
+</div>
+
+<div class="filters" id="filtersBar" style="display:none;">
+  <button class="filter-pill active" data-filter="all" onclick="setFilter('all')">
+    Todos <span class="count" id="countAll">0</span>
+  </button>
+  <button class="filter-pill" data-filter="error" onclick="setFilter('error')">
+    Erros <span class="count" id="countErrors">0</span>
+  </button>
+  <button class="filter-pill" data-filter="warning" onclick="setFilter('warning')">
+    Avisos <span class="count" id="countWarnings">0</span>
+  </button>
+  <button class="filter-pill" data-filter="info" onclick="setFilter('info')">
+    Info <span class="count" id="countInfo">0</span>
+  </button>
+</div>
+
+<div class="issues-container" id="issuesList"></div>
+
+<div class="bottom-bar" id="bottomBar" style="display:none;">
+  <div>
+    <div class="bottom-status" id="bottomStatus"></div>
+  </div>
+  <div style="display:flex; gap:8px;">
+    <button class="btn-revalidate" onclick="revalidate()">Revalidar</button>
+    <button class="btn-export" id="btnExport" onclick="doExport()">Exportar JSON</button>
+  </div>
+</div>
+
+<script>
+  // ─── State ──────────────────────────────────
+  var issues = [];
+  var currentFilter = 'all';
+
+  // ─── SketchUp callbacks ─────────────────────
+  // Receive validation results from Ruby
+  function setValidationResults(data) {
+    try {
+      issues = typeof data === 'string' ? JSON.parse(data) : data;
+    } catch(e) {
+      issues = [];
+    }
+    renderAll();
+  }
+
+  function renderAll() {
+    renderSummary();
+    renderFilters();
+    renderIssues();
+    renderBottomBar();
+
+    document.getElementById('loadingIndicator').style.display = 'none';
+    document.getElementById('filtersBar').style.display = 'flex';
+    document.getElementById('bottomBar').style.display = 'flex';
+  }
+
+  // ─── Summary ────────────────────────────────
+  function renderSummary() {
+    var errors = issues.filter(function(i){ return i.severity === 'error'; }).length;
+    var warnings = issues.filter(function(i){ return i.severity === 'warning'; }).length;
+    var info = issues.filter(function(i){ return i.severity === 'info'; }).length;
+
+    var html = '';
+
+    if (errors > 0) {
+      html += '<div class="summary-badge errors"><span class="summary-icon">!</span>' + errors + ' erro' + (errors > 1 ? 's' : '') + '</div>';
+    }
+    if (warnings > 0) {
+      html += '<div class="summary-badge warnings"><span class="summary-icon">!</span>' + warnings + ' aviso' + (warnings > 1 ? 's' : '') + '</div>';
+    }
+    if (info > 0) {
+      html += '<div class="summary-badge info"><span class="summary-icon">i</span>' + info + ' info</div>';
+    }
+    if (errors === 0 && warnings === 0) {
+      html += '<div class="summary-badge clean"><span class="summary-icon">&#10003;</span>Modelo validado</div>';
+    }
+
+    document.getElementById('summaryRow').innerHTML = html;
+  }
+
+  // ─── Filters ────────────────────────────────
+  function renderFilters() {
+    var errors = issues.filter(function(i){ return i.severity === 'error'; }).length;
+    var warnings = issues.filter(function(i){ return i.severity === 'warning'; }).length;
+    var info = issues.filter(function(i){ return i.severity === 'info'; }).length;
+
+    document.getElementById('countAll').textContent = issues.length;
+    document.getElementById('countErrors').textContent = errors;
+    document.getElementById('countWarnings').textContent = warnings;
+    document.getElementById('countInfo').textContent = info;
+  }
+
+  function setFilter(filter) {
+    currentFilter = filter;
+
+    var pills = document.querySelectorAll('.filter-pill');
+    pills.forEach(function(pill) {
+      pill.classList.toggle('active', pill.getAttribute('data-filter') === filter);
+    });
+
+    renderIssues();
+  }
+
+  // ─── Issue list ─────────────────────────────
+  function renderIssues() {
+    var filtered = issues;
+    if (currentFilter !== 'all') {
+      filtered = issues.filter(function(i){ return i.severity === currentFilter; });
+    }
+
+    if (filtered.length === 0) {
+      var emptyMsg = currentFilter === 'all'
+        ? 'Nenhum problema encontrado!'
+        : 'Nenhum item nesta categoria.';
+      document.getElementById('issuesList').innerHTML =
+        '<div class="no-issues">' +
+        '<span class="no-issues-icon">&#10003;</span>' +
+        emptyMsg +
+        '</div>';
+      return;
+    }
+
+    var html = '';
+    filtered.forEach(function(issue, idx) {
+      var severityClass = 'severity-' + issue.severity;
+      var iconText = issue.severity === 'error' ? '!' : (issue.severity === 'warning' ? '!' : 'i');
+
+      html += '<div class="issue-card ' + severityClass + '" onclick="toggleCard(this)" data-idx="' + idx + '">';
+      html += '<div class="issue-top">';
+      html += '<div class="issue-severity-icon">' + iconText + '</div>';
+      html += '<div class="issue-body">';
+      html += '<div class="issue-message">' + escapeHtml(issue.message) + '</div>';
+      html += '<div class="issue-meta">';
+      html += '<span class="issue-badge code">' + (issue.code || '') + '</span>';
+
+      if (issue.piece_id) {
+        html += '<span class="issue-badge piece" onclick="event.stopPropagation(); selectPiece(\'' + escapeAttr(issue.piece_id) + '\')">';
+        html += '&#9654; ' + escapeHtml(issue.piece_id.toString().substring(0, 24));
+        html += '</span>';
+      }
+      if (issue.module_name) {
+        html += '<span class="issue-badge module">' + escapeHtml(issue.module_name) + '</span>';
+      }
+
+      html += '</div>'; // meta
+      if (issue.suggestion) {
+        html += '<div class="issue-suggestion">' + escapeHtml(issue.suggestion) + '</div>';
+      }
+      html += '</div>'; // body
+      html += '</div>'; // top
+      html += '</div>'; // card
+    });
+
+    document.getElementById('issuesList').innerHTML = html;
+  }
+
+  function toggleCard(el) {
+    el.classList.toggle('expanded');
+  }
+
+  // ─── Bottom bar ─────────────────────────────
+  function renderBottomBar() {
+    var errors = issues.filter(function(i){ return i.severity === 'error'; }).length;
+    var warnings = issues.filter(function(i){ return i.severity === 'warning'; }).length;
+
+    var statusEl = document.getElementById('bottomStatus');
+    var btnEl = document.getElementById('btnExport');
+
+    if (errors > 0) {
+      statusEl.className = 'bottom-status has-errors';
+      statusEl.textContent = 'Corrija os erros antes de exportar';
+      btnEl.className = 'btn-export disabled';
+      btnEl.textContent = 'Exportar JSON';
+    } else if (warnings > 0) {
+      statusEl.className = 'bottom-status has-warnings';
+      statusEl.textContent = 'Exportar mesmo assim?';
+      btnEl.className = 'btn-export warning';
+      btnEl.textContent = 'Exportar com avisos';
+    } else {
+      statusEl.className = 'bottom-status is-clean';
+      statusEl.textContent = 'Modelo validado!';
+      btnEl.className = 'btn-export success';
+      btnEl.textContent = 'Exportar JSON';
+    }
+  }
+
+  // ─── Actions ────────────────────────────────
+  function selectPiece(pieceId) {
+    try {
+      window.location = 'skp:select_piece@' + pieceId;
+    } catch(e) {
+      // fallback for older SketchUp versions
+      try {
+        sketchup.select_piece(pieceId);
+      } catch(e2) {}
+    }
+  }
+
+  function revalidate() {
+    document.getElementById('loadingIndicator').style.display = 'flex';
+    document.getElementById('summaryRow').innerHTML = '';
+    document.getElementById('summaryRow').appendChild(document.getElementById('loadingIndicator'));
+    document.getElementById('filtersBar').style.display = 'none';
+    document.getElementById('issuesList').innerHTML = '';
+    document.getElementById('bottomBar').style.display = 'none';
+
+    try {
+      window.location = 'skp:revalidate@';
+    } catch(e) {
+      try { sketchup.revalidate(); } catch(e2) {}
+    }
+  }
+
+  function doExport() {
+    var errors = issues.filter(function(i){ return i.severity === 'error'; }).length;
+    if (errors > 0) return;
+
+    try {
+      window.location = 'skp:export_json@';
+    } catch(e) {
+      try { sketchup.export_json(); } catch(e2) {}
+    }
+  }
+
+  // ─── Helpers ────────────────────────────────
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.toString()
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+  function escapeAttr(str) {
+    if (!str) return '';
+    return str.toString().replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  }
+
+  // ─── Demo data for testing outside SketchUp ──
+  // Uncomment for standalone testing:
+  // setValidationResults([
+  //   {severity:'error', code:'MAT_UNMAPPED', message:'Material "MDF 18mm" nao mapeado.', piece_id:null, module_name:null, suggestion:'Configure o mapeamento.'},
+  //   {severity:'warning', code:'HOLE_EDGE', message:'Furo a 5mm da borda.', piece_id:'piece_123', module_name:'Balcao', suggestion:'Afaste o furo.'},
+  //   {severity:'info', code:'STATS_PIECES', message:'Total: 24 pecas, 18 com usinagem.', piece_id:null, module_name:null, suggestion:null},
+  // ]);
+</script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+{
+  "id": "suporte_prateleira_invisivel",
+  "nome": "Suporte Prateleira Invisivel",
+  "marca": "Generico",
+  "modelo": "Hidden shelf bracket 10x60mm",
+  "categoria": "suporte",
+  "tipo": "invisivel",
+
+  "especificacoes": {
+    "pino": { "diametro": 10, "comprimento": 60 },
+    "furo_parede": { "diametro": 10, "profundidade": 40 },
+    "furo_prateleira": { "diametro": 10, "profundidade": 60 },
+    "distancia_entre": 200,
+    "capacidade_kg": 15,
+    "quantidade_por_prateleira": {
+      "ate_600mm": 2,
+      "ate_1000mm": 3,
+      "acima": 4
+    }
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_10mm",
+        "diametro": 10,
+        "profundidade": 60,
+        "lado": "b",
+        "descricao": "Furo na borda da prateleira para pino invisivel",
+        "posicao": { "x": "{dist}", "y": "centro_espessura" }
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "SUP-INVIS-10",
+    "preco_unitario": 4.50,
+    "unidade": "un",
+    "fornecedor": "Diversos"
+  }
+}

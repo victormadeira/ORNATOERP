@@ -1,0 +1,24 @@
+{
+  "id": "furo_minifix_lateral",
+  "nome": "Furacao Minifix Lateral (side_b)",
+  "categoria": "furacao",
+  "descricao": "Furo passante na borda da peca lateral para parafuso minifix",
+
+  "operacao": {
+    "tipo": "furo",
+    "ferramenta": "broca_8mm",
+    "diametro": 8,
+    "profundidade": "{espessura}",
+    "lado": "b",
+    "passante": true,
+    "posicao": { "x": "{dist_borda}", "y": "centro_espessura" },
+    "parametros": {
+      "dist_borda": { "default": 34, "min": 30, "max": 40 }
+    }
+  },
+
+  "aplicacao": {
+    "pecas": ["lateral_esq", "lateral_dir"],
+    "regra": "minifix"
+  }
+}

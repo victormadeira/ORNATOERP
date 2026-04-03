@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ornato - Exportar para ERP</title>
+<style>
+  :root {
+    --bg-deepest: #0c0e14;
+    --bg-card: #111420;
+    --bg-elevated: #1a1e2e;
+    --border: rgba(255,255,255,0.06);
+    --border-hover: rgba(255,255,255,0.12);
+    --text-primary: #e8ecf4;
+    --text-secondary: #8892a8;
+    --text-muted: #555d70;
+    --accent: #1379F0;
+    --accent-hover: #0ea5e9;
+    --accent-subtle: rgba(19,121,240,0.08);
+    --accent-ring: rgba(19,121,240,0.3);
+    --success: #22c55e;
+    --success-subtle: rgba(34,197,94,0.08);
+    --warning: #f59e0b;
+    --warning-subtle: rgba(245,158,11,0.08);
+    --error: #ef4444;
+    --error-subtle: rgba(239,68,68,0.08);
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-pill: 20px;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--bg-deepest); color: var(--text-primary); min-height: 100vh; font-size: 13px; -webkit-font-smoothing: antialiased; }
+
+  /* Header */
+  .header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 100; }
+  .logo-icon { width: 28px; height: 28px; background: linear-gradient(135deg, var(--accent) 0%, #0ea5e9 100%); border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .logo-icon svg { width: 16px; height: 16px; fill: #fff; }
+  .header-title { font-size: 14px; font-weight: 600; color: var(--text-primary); flex: 1; }
+  .status-pill { font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: var(--radius-pill); display: flex; align-items: center; gap: 5px; }
+  .status-pill.ready { background: var(--success-subtle); color: var(--success); border: 1px solid rgba(34,197,94,0.15); }
+  .status-pill.warnings { background: var(--warning-subtle); color: var(--warning); border: 1px solid rgba(245,158,11,0.15); }
+  .status-pill.errors { background: var(--error-subtle); color: var(--error); border: 1px solid rgba(239,68,68,0.15); }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  .content { padding: 16px 16px 100px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* Section header */
+  .section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .section-bar { width: 3px; height: 16px; border-radius: 2px; background: var(--accent); }
+  .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-secondary); flex: 1; }
+
+  /* Validation cards */
+  .validation-card { border-radius: var(--radius-md); padding: 14px 16px; display: flex; align-items: flex-start; gap: 10px; }
+  .validation-card.success { background: var(--success-subtle); border: 1px solid rgba(34,197,94,0.12); }
+  .validation-card.warning { background: var(--warning-subtle); border: 1px solid rgba(245,158,11,0.12); }
+  .validation-card.error { background: var(--error-subtle); border: 1px solid rgba(239,68,68,0.12); }
+  .val-icon { width: 20px; height: 20px; flex-shrink: 0; margin-top: 1px; }
+  .val-icon.success { color: var(--success); }
+  .val-icon.warning { color: var(--warning); }
+  .val-icon.error { color: var(--error); }
+  .val-content { flex: 1; }
+  .val-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .validation-card.success .val-title { color: var(--success); }
+  .validation-card.warning .val-title { color: var(--warning); }
+  .validation-card.error .val-title { color: var(--error); }
+  .val-list { list-style: none; display: flex; flex-direction: column; gap: 3px; }
+  .val-list li { font-size: 12px; color: var(--text-secondary); padding: 2px 0; cursor: pointer; transition: color 0.1s; display: flex; align-items: center; gap: 6px; }
+  .val-list li:hover { color: var(--text-primary); }
+  .val-list li::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.4; flex-shrink: 0; }
+
+  /* Summary stats */
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .summary-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 10px; text-align: center; }
+  .summary-label { font-size: 10px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
+  .summary-value { font-size: 20px; font-weight: 800; color: var(--text-primary); font-family: var(--mono); letter-spacing: -0.5px; }
+  .summary-detail { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+
+  /* Module list */
+  .module-list { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+  .select-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .select-links { display: flex; gap: 10px; }
+  .select-link { font-size: 11px; color: var(--accent); cursor: pointer; background: none; border: none; padding: 0; font-family: var(--font); transition: color 0.1s; }
+  .select-link:hover { color: var(--accent-hover); }
+
+  .module-row { display: flex; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  .module-row:last-child { border-bottom: none; }
+  .module-row:hover { background: rgba(255,255,255,0.015); }
+  .module-check { margin-right: 12px; accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; }
+  .module-info { flex: 1; min-width: 0; }
+  .module-name { font-size: 13px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .module-meta { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .module-stats { display: flex; gap: 12px; font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+  .module-stats span { white-space: nowrap; }
+  .module-stats strong { color: var(--text-secondary); font-weight: 600; font-family: var(--mono); }
+  .module-expand { width: 24px; height: 24px; border: none; background: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; margin-left: 8px; border-radius: 4px; }
+  .module-expand:hover { color: var(--text-secondary); background: var(--bg-elevated); }
+  .module-expand.open { transform: rotate(90deg); }
+  .module-expand svg { width: 14px; height: 14px; }
+
+  .module-pieces { display: none; background: var(--bg-deepest); border-top: 1px solid var(--border); }
+  .module-pieces.open { display: block; }
+  .piece-row { padding: 6px 14px 6px 42px; font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.02); }
+  .piece-row:last-child { border-bottom: none; }
+  .piece-name { color: var(--text-secondary); }
+  .piece-dims { font-family: var(--mono); font-size: 10px; }
+
+  /* Export options */
+  .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .option-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+  .option-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); margin-bottom: 6px; }
+  .option-select { width: 100%; background: var(--bg-deepest); border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; color: var(--text-primary); font-size: 12px; font-family: var(--font); outline: none; -webkit-appearance: none; cursor: pointer; transition: border-color 0.15s; }
+  .option-select:focus { border-color: var(--accent); }
+  .conn-status { font-size: 11px; color: var(--text-muted); margin-top: 6px; display: flex; align-items: center; gap: 5px; }
+  .conn-dot { width: 5px; height: 5px; border-radius: 50%; }
+  .conn-dot.ok { background: var(--success); box-shadow: 0 0 4px rgba(34,197,94,0.3); }
+  .conn-dot.fail { background: var(--error); box-shadow: 0 0 4px rgba(239,68,68,0.3); }
+
+  /* Empty state */
+  .empty-state { padding: 40px 20px; text-align: center; }
+  .empty-icon { width: 40px; height: 40px; margin: 0 auto 12px; color: var(--text-muted); opacity: 0.25; }
+  .empty-title { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+
+  /* Footer */
+  .footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-card); border-top: 1px solid var(--border); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; z-index: 100; }
+  .footer-info { font-size: 11px; color: var(--text-muted); }
+  .export-btn { padding: 10px 28px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.15s var(--ease); font-family: var(--font); background: linear-gradient(135deg, var(--accent) 0%, #0ea5e9 100%); color: #fff; letter-spacing: 0.3px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+  .export-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(19,121,240,0.3); }
+  .export-btn:active { transform: translateY(0); }
+  .export-btn:disabled { background: var(--bg-elevated); color: var(--text-muted); cursor: not-allowed; transform: none; box-shadow: none; }
+  .export-btn svg { width: 16px; height: 16px; }
+  .export-btn.loading { pointer-events: none; opacity: 0.8; }
+
+  /* Spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; display: none; }
+  .export-btn.loading .spinner { display: block; }
+  .export-btn.loading .btn-icon { display: none; }
+
+  /* Toast */
+  .toast { position: fixed; top: 16px; right: 16px; padding: 10px 16px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; z-index: 1000; transform: translateX(120%); transition: transform 0.3s var(--ease); display: flex; align-items: center; gap: 8px; }
+  .toast.show { transform: translateX(0); }
+  .toast.success { background: var(--success-subtle); border: 1px solid rgba(34,197,94,0.2); color: var(--success); }
+  .toast.error { background: var(--error-subtle); border: 1px solid rgba(239,68,68,0.2); color: var(--error); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo-icon">
+    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="#fff" stroke-width="2" fill="none"/></svg>
+  </div>
+  <span class="header-title">Exportar para Ornato ERP</span>
+  <div class="status-pill ready" id="statusPill">
+    <div class="status-dot"></div>
+    <span id="statusText">Pronto</span>
+  </div>
+</div>
+
+<div class="content">
+  <!-- Validation -->
+  <div id="validationSection">
+    <div class="validation-card success" id="valCard">
+      <svg class="val-icon success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+      <div class="val-content">
+        <div class="val-title" id="valTitle">Aguardando dados</div>
+        <ul class="val-list" id="valList"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Project summary -->
+  <div>
+    <div class="section-header">
+      <div class="section-bar"></div>
+      <div class="section-title">Resumo do Projeto</div>
+    </div>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="summary-label">Cliente</div>
+        <div class="summary-value" id="clientName" style="font-size:13px;font-weight:600;">--</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Pecas</div>
+        <div class="summary-value" id="totalPieces">0</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Operacoes</div>
+        <div class="summary-value" id="totalOps">0</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Materiais</div>
+        <div class="summary-value" id="totalMaterials">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Module list -->
+  <div>
+    <div class="select-bar">
+      <div class="section-header" style="margin-bottom:0;">
+        <div class="section-bar" style="background: var(--accent);"></div>
+        <div class="section-title">Modulos</div>
+      </div>
+      <div class="select-links">
+        <button class="select-link" onclick="selectAll(true)">Selecionar tudo</button>
+        <button class="select-link" onclick="selectAll(false)">Desmarcar tudo</button>
+      </div>
+    </div>
+    <div class="module-list" id="modulesContainer">
+      <div class="empty-state" id="modulesEmpty">
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <div class="empty-title">Nenhum dado carregado</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export options -->
+  <div>
+    <div class="section-header">
+      <div class="section-bar" style="background: var(--text-muted);"></div>
+      <div class="section-title">Opcoes de Exportacao</div>
+    </div>
+    <div class="options-grid">
+      <div class="option-card">
+        <div class="option-label">Formato</div>
+        <select class="option-select" id="formatSelect">
+          <option value="json">JSON</option>
+          <option value="csv">CSV</option>
+          <option value="both">JSON + CSV</option>
+        </select>
+      </div>
+      <div class="option-card">
+        <div class="option-label">Destino</div>
+        <select class="option-select" id="destSelect" onchange="onDestChange()">
+          <option value="file">Arquivo Local</option>
+          <option value="api">Ornato ERP (API)</option>
+        </select>
+        <div class="conn-status" id="connStatus" style="display:none;">
+          <div class="conn-dot" id="apiConnDot"></div>
+          <span id="apiConnText">Verificando...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Footer -->
+<div class="footer">
+  <span class="footer-info" id="selectionInfo">0 modulos selecionados</span>
+  <button class="export-btn" id="exportBtn" onclick="doExport()" disabled>
+    <div class="spinner"></div>
+    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+    EXPORTAR PARA ORNATO
+  </button>
+</div>
+
+<script>
+  var previewData = null;
+  var selectedModules = {};
+  var expandedModules = {};
+
+  function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function render() {
+    if (!previewData || !previewData.modules) return;
+
+    document.getElementById('clientName').textContent = previewData.client || '--';
+
+    /* Validation */
+    updateValidation();
+
+    /* Modules */
+    var mc = document.getElementById('modulesContainer');
+    var html = '';
+    previewData.modules.forEach(function(m, idx) {
+      var checked = selectedModules[m.id] !== false;
+      var expanded = expandedModules[m.id] === true;
+      html += '<div class="module-row">' +
+        '<input type="checkbox" class="module-check" data-id="' + m.id + '" ' +
+        (checked ? 'checked' : '') + ' onchange="toggleModule(\'' + m.id + '\', this.checked)">' +
+        '<div class="module-info">' +
+          '<div class="module-name">' + escHtml(m.name) + '</div>' +
+          (m.description ? '<div class="module-meta">' + escHtml(m.description) + '</div>' : '') +
+        '</div>' +
+        '<div class="module-stats">' +
+          '<span><strong>' + (m.pieces || 0) + '</strong> pecas</span>' +
+          '<span><strong>' + (m.operations || 0) + '</strong> ops</span>' +
+        '</div>' +
+        '<button class="module-expand' + (expanded ? ' open' : '') + '" onclick="toggleExpand(\'' + m.id + '\',' + idx + ')">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>' +
+        '</button>' +
+      '</div>';
+      /* Pieces sub-list */
+      html += '<div class="module-pieces' + (expanded ? ' open' : '') + '" id="pieces-' + m.id + '">';
+      if (m.piece_list && m.piece_list.length > 0) {
+        m.piece_list.forEach(function(p) {
+          html += '<div class="piece-row"><span class="piece-name">' + escHtml(p.name || p.id) + '</span><span class="piece-dims">' + (p.width || 0) + ' x ' + (p.depth || 0) + ' x ' + (p.height || 0) + '</span></div>';
+        });
+      } else {
+        html += '<div class="piece-row" style="justify-content:center;color:var(--text-muted);">Detalhes nao disponiveis</div>';
+      }
+      html += '</div>';
+    });
+    mc.innerHTML = html;
+
+    updateSummary();
+  }
+
+  function updateValidation() {
+    var vc = document.getElementById('valCard');
+    var vt = document.getElementById('valTitle');
+    var vl = document.getElementById('valList');
+    var sp = document.getElementById('statusPill');
+    var st = document.getElementById('statusText');
+
+    var errors = previewData.errors || [];
+    var warnings = previewData.warnings || [];
+
+    if (errors.length > 0) {
+      vc.className = 'validation-card error';
+      vc.querySelector('.val-icon').className = 'val-icon error';
+      vc.querySelector('.val-icon').innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
+      vt.textContent = errors.length + ' erro' + (errors.length > 1 ? 's' : '') + ' encontrado' + (errors.length > 1 ? 's' : '');
+      vl.innerHTML = errors.map(function(e) { return '<li onclick="selectPiece(\'' + (e.piece_id || '') + '\')">' + escHtml(e.message || e) + '</li>'; }).join('');
+      sp.className = 'status-pill errors'; st.textContent = 'Erros';
+    } else if (warnings.length > 0) {
+      vc.className = 'validation-card warning';
+      vc.querySelector('.val-icon').className = 'val-icon warning';
+      vt.textContent = warnings.length + ' aviso' + (warnings.length > 1 ? 's' : '');
+      vl.innerHTML = warnings.map(function(w) { return '<li>' + escHtml(typeof w === 'string' ? w : w.message || w) + '</li>'; }).join('');
+      sp.className = 'status-pill warnings'; st.textContent = 'Avisos';
+    } else {
+      vc.className = 'validation-card success';
+      vc.querySelector('.val-icon').className = 'val-icon success';
+      vt.textContent = 'Modelo validado — pronto para exportar';
+      vl.innerHTML = '';
+      sp.className = 'status-pill ready'; st.textContent = 'Pronto';
+    }
+  }
+
+  function updateSummary() {
+    if (!previewData) return;
+    var selMods = 0, selPieces = 0, selOps = 0;
+    var materialsSet = {};
+
+    previewData.modules.forEach(function(m) {
+      if (selectedModules[m.id] === false) return;
+      selMods++;
+      selPieces += m.pieces || 0;
+      selOps += m.operations || 0;
+      if (m.materials) m.materials.forEach(function(mat) { materialsSet[mat] = true; });
+    });
+
+    document.getElementById('totalPieces').textContent = selPieces;
+    document.getElementById('totalOps').textContent = selOps;
+    document.getElementById('totalMaterials').textContent = Object.keys(materialsSet).length;
+    document.getElementById('selectionInfo').textContent = selMods + ' modulo' + (selMods !== 1 ? 's' : '') + ' selecionado' + (selMods !== 1 ? 's' : '');
+    document.getElementById('exportBtn').disabled = selMods === 0;
+  }
+
+  function toggleModule(id, checked) { selectedModules[id] = checked; updateSummary(); }
+
+  function toggleExpand(id, idx) {
+    expandedModules[id] = !expandedModules[id];
+    var el = document.getElementById('pieces-' + id);
+    var btn = el ? el.previousElementSibling.querySelector('.module-expand') : null;
+    if (el) el.classList.toggle('open', expandedModules[id]);
+    if (btn) btn.classList.toggle('open', expandedModules[id]);
+  }
+
+  function selectAll(state) {
+    if (!previewData) return;
+    previewData.modules.forEach(function(m) { selectedModules[m.id] = state; });
+    render();
+  }
+
+  function selectPiece(pieceId) {
+    if (!pieceId) return;
+    try { sketchup.select_piece(pieceId); } catch(e) {}
+  }
+
+  function onDestChange() {
+    var dest = document.getElementById('destSelect').value;
+    var cs = document.getElementById('connStatus');
+    if (dest === 'api') {
+      cs.style.display = 'flex';
+      try { sketchup.check_api_connection(); } catch(e) {
+        document.getElementById('apiConnDot').className = 'conn-dot fail';
+        document.getElementById('apiConnText').textContent = 'Nao conectado';
+      }
+    } else {
+      cs.style.display = 'none';
+    }
+  }
+
+  function doExport() {
+    var ids = [];
+    if (previewData && previewData.modules) {
+      previewData.modules.forEach(function(m) { if (selectedModules[m.id] !== false) ids.push(m.id); });
+    }
+    var format = document.getElementById('formatSelect').value;
+    var dest = document.getElementById('destSelect').value;
+    var btn = document.getElementById('exportBtn');
+    btn.classList.add('loading');
+
+    try {
+      sketchup.do_export(JSON.stringify({ modules: ids, format: format, destination: dest }));
+    } catch(e) {
+      showToast('Callback do_export nao disponivel', 'error');
+      btn.classList.remove('loading');
+    }
+  }
+
+  /* --- Data callbacks from Ruby --- */
+  window.loadPreview = function(data) {
+    previewData = typeof data === 'string' ? JSON.parse(data) : data;
+    selectedModules = {};
+    expandedModules = {};
+    if (previewData.modules) {
+      previewData.modules.forEach(function(m) { selectedModules[m.id] = true; });
+    }
+    render();
+  };
+
+  window.exportComplete = function(data) {
+    var d = typeof data === 'string' ? JSON.parse(data) : data;
+    document.getElementById('exportBtn').classList.remove('loading');
+    if (d && d.success) {
+      showToast('Exportacao concluida com sucesso!', 'success');
+    } else {
+      showToast('Erro na exportacao: ' + (d && d.error ? d.error : 'desconhecido'), 'error');
+    }
+  };
+
+  window.setApiStatus = function(connected, url) {
+    var dot = document.getElementById('apiConnDot');
+    var text = document.getElementById('apiConnText');
+    dot.className = 'conn-dot ' + (connected ? 'ok' : 'fail');
+    text.textContent = connected ? 'Conectado' + (url ? ' — ' + url : '') : 'Nao conectado';
+  };
+
+  function showToast(msg, type) {
+    var t = document.getElementById('toast');
+    t.className = 'toast ' + (type || 'success');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function() { t.classList.remove('show'); }, 3000);
+  }
+</script>
+</body>
+</html>

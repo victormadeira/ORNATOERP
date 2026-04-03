@@ -1,0 +1,158 @@
+{
+  "id": "balcao_cooktop",
+  "nome": "Balcao Cooktop",
+  "descricao": "Armario base para cooktop embutido. Sem tampo. 1 gaveta superior + 1 porta inferior.",
+  "categoria": "cozinha",
+  "tags": ["base", "cooktop", "gaveta", "porta", "cozinha"],
+  "icone": "armario_base",
+
+  "parametros": {
+    "largura":       { "default": 800, "min": 600, "max": 900,  "step": 50, "unidade": "mm" },
+    "altura":        { "default": 850, "min": 850, "max": 850,  "step": 50, "unidade": "mm" },
+    "profundidade":  { "default": 580, "min": 580, "max": 580,  "step": 10, "unidade": "mm" },
+    "espessura":     { "default": 18,  "min": 15,  "max": 25,   "step": 0.5, "unidade": "mm" },
+    "altura_gaveta": { "default": 180, "min": 120, "max": 250,  "step": 10, "unidade": "mm" },
+    "tipo_juncao":   { "default": "minifix", "opcoes": ["minifix", "cavilha", "confirmat"] },
+    "com_fundo":     { "default": true },
+    "com_rodape":    { "default": true, "altura_rodape": 100 },
+    "puxador":       { "default": "modelo_160mm" }
+  },
+
+  "pecas": [
+    {
+      "nome": "Lateral Esquerda",
+      "role": "lateral_esq",
+      "largura": "{altura} - {altura_rodape}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": 0, "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Lateral Direita",
+      "role": "lateral_dir",
+      "largura": "{altura} - {altura_rodape}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Base",
+      "role": "base",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Divisoria Horizontal",
+      "role": "divisoria",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {altura_gaveta} - {espessura}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false },
+      "notas": "Divisoria horizontal separando gaveta de porta"
+    },
+    {
+      "nome": "Travessa Superior Frontal",
+      "role": "travessa",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": 80,
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - 80" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Traseira",
+      "role": "traseira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{altura} - {altura_rodape} - {espessura}",
+      "espessura": 3,
+      "condicao": "{com_fundo}",
+      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{altura_rodape} + {espessura}" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Frente Gaveta",
+      "role": "frente_gaveta",
+      "largura": "{altura_gaveta} - 2",
+      "altura": "{largura} - 2 * {espessura} - 4",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura} + 2", "y": 0, "z": "{altura} - {altura_gaveta}" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+    },
+    {
+      "nome": "Lateral Gaveta Esq",
+      "role": "lateral_gaveta",
+      "largura": "{altura_gaveta} - 40",
+      "altura": "{profundidade} - 80",
+      "espessura": 15,
+      "posicao": { "x": "{espessura} + 3", "y": 18, "z": "{altura} - {altura_gaveta} + 20" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Lateral Gaveta Dir",
+      "role": "lateral_gaveta",
+      "largura": "{altura_gaveta} - 40",
+      "altura": "{profundidade} - 80",
+      "espessura": 15,
+      "posicao": { "x": "{largura} - {espessura} - 18", "y": 18, "z": "{altura} - {altura_gaveta} + 20" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Fundo Gaveta",
+      "role": "fundo_gaveta",
+      "largura": "{largura} - 2 * {espessura} - 42",
+      "altura": "{profundidade} - 80",
+      "espessura": 3,
+      "posicao": { "x": "{espessura} + 21", "y": 18, "z": "{altura} - {altura_gaveta} + 20" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Traseira Gaveta",
+      "role": "traseira_gaveta",
+      "largura": "{altura_gaveta} - 55",
+      "altura": "{largura} - 2 * {espessura} - 42",
+      "espessura": 15,
+      "posicao": { "x": "{espessura} + 21", "y": "{profundidade} - 77", "z": "{altura} - {altura_gaveta} + 20" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Porta",
+      "role": "porta",
+      "largura": "{altura} - {altura_rodape} - {altura_gaveta} - {espessura} - 4",
+      "altura": "{largura} - 2 * {espessura} - 4",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura} + 2", "y": 0, "z": "{altura_rodape} + 1" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+    },
+    {
+      "nome": "Rodape",
+      "role": "rodape",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{altura_rodape}",
+      "espessura": "{espessura}",
+      "condicao": "{com_rodape}",
+      "posicao": { "x": "{espessura}", "y": 50, "z": 0 },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    }
+  ],
+
+  "ferragens_auto": [
+    { "regra": "minifix", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_esq × divisoria", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × divisoria", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "cavilha", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'cavilha'" },
+    { "regra": "cavilha", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'cavilha'" },
+    { "regra": "dobradica", "peca": "lateral_esq", "condicao": "true" },
+    { "regra": "corredica", "peca": "lateral_esq", "condicao": "true" },
+    { "regra": "corredica", "peca": "lateral_dir", "condicao": "true" },
+    { "regra": "rebaixo_fundo", "pecas": ["lateral_esq", "lateral_dir", "base"], "condicao": "{com_fundo}" },
+    { "regra": "puxador", "peca": "porta", "condicao": "true" },
+    { "regra": "puxador", "peca": "frente_gaveta", "condicao": "true" }
+  ]
+}

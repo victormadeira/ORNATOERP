@@ -1,0 +1,101 @@
+{
+  "id": "torre_geladeira",
+  "nome": "Torre Geladeira",
+  "descricao": "Torre para geladeira embutida. Abertura grande sem portas para geladeira. Armario pequeno em cima.",
+  "categoria": "cozinha",
+  "tags": ["torre", "geladeira", "embutido", "cozinha"],
+  "icone": "torre",
+
+  "parametros": {
+    "largura":            { "default": 700,  "min": 700,  "max": 700,  "step": 50, "unidade": "mm" },
+    "altura":             { "default": 2200, "min": 2200, "max": 2200, "step": 50, "unidade": "mm" },
+    "profundidade":       { "default": 600,  "min": 600,  "max": 600,  "step": 10, "unidade": "mm" },
+    "espessura":          { "default": 18,   "min": 15,   "max": 25,   "step": 0.5, "unidade": "mm" },
+    "altura_abertura_geladeira": { "default": 1750, "min": 1600, "max": 1900, "step": 50, "unidade": "mm" },
+    "tipo_juncao":        { "default": "minifix", "opcoes": ["minifix", "cavilha", "confirmat"] },
+    "com_fundo_superior": { "default": true },
+    "puxador":            { "default": "modelo_128mm" }
+  },
+
+  "pecas": [
+    {
+      "nome": "Lateral Esquerda",
+      "role": "lateral_esq",
+      "largura": "{altura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": 0, "y": 0, "z": 0 },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Lateral Direita",
+      "role": "lateral_dir",
+      "largura": "{altura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": 0 },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Topo",
+      "role": "topo",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {espessura}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Prateleira Divisoria",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_abertura_geladeira}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false },
+      "notas": "Separa abertura da geladeira do armario superior"
+    },
+    {
+      "nome": "Prateleira Armario Superior",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_abertura_geladeira} + ({altura} - {altura_abertura_geladeira}) / 2" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Traseira Superior",
+      "role": "traseira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{altura} - {altura_abertura_geladeira} - 2 * {espessura}",
+      "espessura": 3,
+      "condicao": "{com_fundo_superior}",
+      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{altura_abertura_geladeira} + {espessura}" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Porta Armario Superior",
+      "role": "porta",
+      "largura": "{altura} - {altura_abertura_geladeira} - 2 * {espessura} - 4",
+      "altura": "{largura} - 2 * {espessura} - 4",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura} + 2", "y": 0, "z": "{altura_abertura_geladeira} + {espessura} + 2" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+    }
+  ],
+
+  "ferragens_auto": [
+    { "regra": "minifix", "juncao": "lateral_esq × topo", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × topo", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_esq × prateleira", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × prateleira", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "cavilha", "juncao": "lateral_esq × topo", "condicao": "{tipo_juncao} == 'cavilha'" },
+    { "regra": "cavilha", "juncao": "lateral_dir × topo", "condicao": "{tipo_juncao} == 'cavilha'" },
+    { "regra": "dobradica", "peca": "lateral_esq", "condicao": "true" },
+    { "regra": "rebaixo_fundo", "pecas": ["lateral_esq", "lateral_dir", "prateleira", "topo"], "condicao": "{com_fundo_superior}" },
+    { "regra": "puxador", "peca": "porta", "condicao": "true" }
+  ],
+
+  "notas": "Abertura inferior para geladeira nao tem portas nem fundo. Somente o armario superior tem porta e fundo."
+}

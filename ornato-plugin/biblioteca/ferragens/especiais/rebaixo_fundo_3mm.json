@@ -1,0 +1,39 @@
+{
+  "id": "rebaixo_fundo_3mm",
+  "nome": "Rebaixo/Canal para Fundo 3mm",
+  "marca": "N/A",
+  "modelo": "Canal 4x8mm",
+  "categoria": "especial",
+  "tipo": "canal_fundo",
+
+  "especificacoes": {
+    "canal": { "largura": 4, "profundidade": 8 },
+    "espessura_fundo": 3,
+    "folga": 1,
+    "offset_borda_traseira": 10,
+    "percurso": "tres_lados",
+    "descricao": "Canal para encaixe de fundo 3mm (MDF ou HDF). Fresado nas laterais e na base."
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "canal",
+        "ferramenta": "fresa_4mm",
+        "largura": 4,
+        "profundidade": 8,
+        "lado": "a",
+        "offset_borda": 10,
+        "percurso": "borda_traseira",
+        "descricao": "Canal para encaixe do fundo 3mm"
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": null,
+    "preco_unitario": 0,
+    "unidade": "operacao",
+    "fornecedor": null
+  }
+}

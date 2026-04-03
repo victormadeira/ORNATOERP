@@ -1,0 +1,47 @@
+{
+  "id": "puxador_96mm",
+  "nome": "Puxador Entre-Furos 96mm",
+  "marca": "Generico",
+  "modelo": "Puxador 96mm",
+  "categoria": "puxador",
+  "tipo": "alca",
+  "entre_furos": 96,
+
+  "especificacoes": {
+    "entre_furos": 96,
+    "furos": { "diametro": 5, "tipo": "passante", "quantidade": 2 },
+    "parafuso": { "diametro": 4, "comprimento": 25 },
+    "posicao_padrao": {
+      "porta_abrir": { "x": "centro", "y": 100, "referencia": "borda_superior_ou_inferior" },
+      "gaveta": { "x": "centro", "y": "centro" }
+    }
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo_passante",
+        "ferramenta": "broca_5mm",
+        "diametro": 5,
+        "profundidade": "{espessura}",
+        "lado": "a",
+        "posicao": { "x": "{centro_x} - 48", "y": "{pos_y}" }
+      },
+      {
+        "tipo": "furo_passante",
+        "ferramenta": "broca_5mm",
+        "diametro": 5,
+        "profundidade": "{espessura}",
+        "lado": "a",
+        "posicao": { "x": "{centro_x} + 48", "y": "{pos_y}" }
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "PUX-096",
+    "preco_unitario": 8.50,
+    "unidade": "un",
+    "fornecedor": "Diversos"
+  }
+}

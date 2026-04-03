@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Biblioteca de Modulos - Ornato</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0c0e14;
+      --bg-card: #141821;
+      --bg-input: #1a1f2e;
+      --border: #2a3040;
+      --text: #e4e8f0;
+      --text-dim: #8892a4;
+      --accent: #1379F0;
+      --accent-hover: #2589ff;
+      --accent-dim: rgba(19,121,240,0.15);
+      --danger: #e74c3c;
+      --success: #2ecc71;
+      --radius: 8px;
+    }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ── */
+    .header {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 100;
+    }
+    .header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header h1 svg { flex-shrink: 0; }
+
+    /* ── Search ── */
+    .search-bar {
+      position: relative;
+    }
+    .search-bar input {
+      width: 100%;
+      padding: 8px 12px 8px 34px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-bar input:focus { border-color: var(--accent); }
+    .search-bar input::placeholder { color: var(--text-dim); }
+    .search-bar svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+    }
+
+    /* ── Module Grid ── */
+    .module-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      padding: 14px 20px;
+    }
+    .module-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    .module-card:hover {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+      transform: translateY(-1px);
+    }
+    .module-card.active {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .module-card .icon {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .module-card .icon svg {
+      width: 40px;
+      height: 40px;
+      color: var(--accent);
+    }
+    .module-card .name {
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .module-card .desc {
+      font-size: 10px;
+      color: var(--text-dim);
+      line-height: 1.3;
+    }
+
+    /* ── Config Panel ── */
+    .config-panel {
+      display: none;
+      padding: 0 20px 20px;
+    }
+    .config-panel.visible { display: block; }
+
+    .config-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 0 10px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+    .config-header h2 {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .btn-back {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-back:hover { color: var(--text); }
+
+    /* ── Form ── */
+    .form-group {
+      margin-bottom: 12px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 7px 10px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+    }
+    .form-group input:focus,
+    .form-group select:focus { border-color: var(--accent); }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .form-row-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+    }
+
+    .form-group input[type="checkbox"] {
+      width: auto;
+      margin-right: 6px;
+      accent-color: var(--accent);
+    }
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .form-section {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin: 16px 0 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Preview SVG ── */
+    .preview-box {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-bottom: 14px;
+      text-align: center;
+      min-height: 100px;
+    }
+    .preview-box svg {
+      max-width: 100%;
+      max-height: 120px;
+    }
+
+    /* ── Buttons ── */
+    .btn-create {
+      width: 100%;
+      padding: 10px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 8px;
+    }
+    .btn-create:hover { background: var(--accent-hover); }
+    .btn-create:active { transform: scale(0.98); }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ Header ═══ -->
+  <div class="header">
+    <h1>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="3" y1="12" x2="9" y2="12"/></svg>
+      Biblioteca de Modulos
+    </h1>
+    <div class="search-bar">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="searchInput" placeholder="Buscar modulo..." oninput="filterModules()">
+    </div>
+  </div>
+
+  <!-- ═══ Module Grid ═══ -->
+  <div class="module-grid" id="moduleGrid"></div>
+
+  <!-- ═══ Config Panel ═══ -->
+  <div class="config-panel" id="configPanel">
+    <div class="config-header">
+      <h2 id="configTitle">Configurar</h2>
+      <button class="btn-back" onclick="showGrid()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        Voltar
+      </button>
+    </div>
+
+    <div class="preview-box" id="previewBox"></div>
+
+    <form id="configForm" onsubmit="return false;"></form>
+
+    <button class="btn-create" id="btnCreate" onclick="createModule()">Criar Modulo</button>
+  </div>
+
+<script>
+  // ═══════════════════════════════════════════
+  // Module definitions with SVG icons & forms
+  // ═══════════════════════════════════════════
+
+  const MODULE_DEFS = {
+    armario_base: {
+      label: 'Armario Base',
+      desc: 'Inferior sob bancada',
+      icon: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="8" width="40" height="36" rx="1"/><line x1="24" y1="8" x2="24" y2="44"/><circle cx="20" cy="26" r="1.5" fill="currentColor"/><circle cx="28" cy="26" r="1.5" fill="currentColor"/><rect x="4" y="4" width="40" height="4" rx="1" fill="currentColor" opacity="0.3"/></svg>`,
+      fields: [
+        { key: 'largura', label: 'Largura (mm)', type: 'number', default: 600, row: 'dims' },
+        { key: 'altura', label: 'Altura (mm)', type: 'number', default: 720, row: 'dims' },
+        { key: 'profundidade', label: 'Profundidade (mm)', type: 'number', default: 560, row: 'dims' },
+        { key: 'espessura', label: 'Espessura (mm)', type: 'number', default: 18 },
+        { key: 'n_prateleiras', label: 'Prateleiras', type: 'number', default: 1, min: 0, max: 3 },
+        { key: 'tipo_porta', label: 'Tipo Porta', type: 'select', default: '2_abrir', options: [['2_abrir','2 Portas'],['1_abrir_l','1 Porta (esq)'],['1_abrir_r','1 Porta (dir)'],['correr','Correr'],['sem','Sem Porta']] },
+        { key: 'puxador_espacamento', label: 'Puxador (mm)', type: 'number', default: 128 },
+        { key: 'material', label: 'Material', type: 'select', default: 'MDF_18_BRANCO', options: 'materials' },
+        { key: 'tipo_juncao', label: 'Juncao', type: 'select', default: 'minifix', options: [['minifix','Minifix'],['cavilha','Cavilha']] },
+        { key: 'com_fundo', label: 'Com fundo', type: 'checkbox', default: true },
+      ]
+    },
+    armario_aereo: {
+      label: 'Armario Aereo',
+      desc: 'Suspenso de parede',
+      icon: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="40" height="28" rx="1"/><line x1="24" y1="4" x2="24" y2="32"/><circle cx="20" cy="18" r="1.5" fill="currentColor"/><circle cx="28" cy="18" r="1.5" fill="currentColor"/><line x1="10" y1="36" x2="10" y2="44" stroke-dasharray="3 2"/><line x1="38" y1="36" x2="38" y2="44" stroke-dasharray="3 2"/></svg>`,
+      fields: [
+        { key: 'largura', label: 'Largura (mm)', type: 'number', default: 600, row: 'dims' },
+        { key: 'altura', label: 'Altura (mm)', type: 'number', default: 700, row: 'dims' },
+        { key: 'profundidade', label: 'Profundidade (mm)', type: 'number', default: 340, row: 'dims' },
+        { key: 'espessura', label: 'Espessura (mm)', type: 'number', default: 18 },
+        { key: 'n_prateleiras', label: 'Prateleiras', type: 'number', default: 1, min: 0, max: 4 },
+        { key: 'tipo_porta', label: 'Tipo Porta', type: 'select', default: 'basculante', options: [['basculante','Basculante'],['2_abrir','2 Portas'],['1_abrir_l','1 Porta (esq)'],['1_abrir_r','1 Porta (dir)'],['sem','Sem Porta']] },
+        { key: 'material', label: 'Material', type: 'select', default: 'MDF_18_BRANCO', options: 'materials' },
+        { key: 'tipo_juncao', label: 'Juncao', type: 'select', default: 'minifix', options: [['minifix','Minifix'],['cavilha','Cavilha']] },
+        { key: 'com_fundo', label: 'Com fundo', type: 'checkbox', default: true },
+      ]
+    },
+    armario_torre: {
+      label: 'Armario Torre',
+      desc: 'Torre forno/geladeira',
+      icon: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="10" y="2" width="28" height="44" rx="1"/><line x1="10" y1="16" x2="38" y2="16"/><line x1="10" y1="32" x2="38" y2="32"/><rect x="14" y="18" width="20" height="12" rx="1" stroke-dasharray="3 2"/><circle cx="24" cy="9" r="1.5" fill="currentColor"/><circle cx="24" cy="38" r="1.5" fill="currentColor"/></svg>`,
+      fields: [
+        { key: 'largura', label: 'Largura (mm)', type: 'number', default: 600, row: 'dims' },
+        { key: 'altura', label: 'Altura (mm)', type: 'number', default: 2100, row: 'dims' },
+        { key: 'profundidade', label: 'Profundidade (mm)', type: 'number', default: 560, row: 'dims' },
+        { key: 'abertura_altura', label: 'Abertura (mm)', type: 'number', default: 600 },
+        { key: 'abertura_posicao', label: 'Posicao Abertura', type: 'select', default: 'meio', options: [['meio','Meio'],['baixo','Baixo'],['cima','Cima']] },
+        { key: 'n_prateleiras_acima', label: 'Prat. Acima', type: 'number', default: 1, min: 0, max: 4 },
+        { key: 'n_prateleiras_abaixo', label: 'Prat. Abaixo', type: 'number', default: 1, min: 0, max: 4 },
+        { key: 'material', label: 'Material', type: 'select', default: 'MDF_18_BRANCO', options: 'materials' },
+        { key: 'tipo_juncao', label: 'Juncao', type: 'select', default: 'minifix', options: [['minifix','Minifix'],['cavilha','Cavilha']] },
+        { key: 'com_fundo', label: 'Com fundo', type: 'checkbox', default: true },
+      ]
+    },
+    gaveteiro: {
+      label: 'Gaveteiro',
+      desc: 'Modulo com gavetas',
+      icon: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="40" height="40" rx="1"/><line x1="4" y1="14" x2="44" y2="14"/><line x1="4" y1="24" x2="44" y2="24"/><line x1="4" y1="34" x2="44" y2="34"/><line x1="20" y1="7" x2="28" y2="7" stroke-width="2"/><line x1="20" y1="17" x2="28" y2="17" stroke-width="2"/><line x1="20" y1="27" x2="28" y2="27" stroke-width="2"/><line x1="20" y1="37" x2="28" y2="37" stroke-width="2"/></svg>`,
+      fields: [
+        { key: 'largura', label: 'Largura (mm)', type: 'number', default: 600, row: 'dims' },
+        { key: 'altura', label: 'Altura (mm)', type: 'number', default: 720, row: 'dims' },
+        { key: 'profundidade', label: 'Profundidade (mm)', type: 'number', default: 560, row: 'dims' },
+        { key: 'n_gavetas', label: 'Gavetas', type: 'number', default: 3, min: 1, max: 6 },
+        { key: 'corredica_modelo', label: 'Corredica', type: 'select', default: '450mm', options: [['350mm','350mm'],['400mm','400mm'],['450mm','450mm'],['500mm','500mm'],['550mm','550mm'],['600mm','600mm']] },
+        { key: 'puxador_espacamento', label: 'Puxador (mm)', type: 'number', default: 128 },
+        { key: 'material', label: 'Material', type: 'select', default: 'MDF_18_BRANCO', options: 'materials' },
+        { key: 'tipo_juncao', label: 'Juncao', type: 'select', default: 'minifix', options: [['minifix','Minifix'],['cavilha','Cavilha']] },
+        { key: 'com_fundo', label: 'Com fundo', type: 'checkbox', default: true },
+      ]
+    },
+    nicho: {
+      label: 'Nicho',
+      desc: 'Estante aberta',
+      icon: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6" y="4" width="36" height="40" rx="1"/><line x1="6" y1="17" x2="42" y2="17"/><line x1="6" y1="30" x2="42" y2="30"/></svg>`,
+      fields: [
+        { key: 'largura', label: 'Largura (mm)', type: 'number', default: 600, row: 'dims' },
+        { key: 'altura', label: 'Altura (mm)', type: 'number', default: 720, row: 'dims' },
+        { key: 'profundidade', label: 'Profundidade (mm)', type: 'number', default: 340, row: 'dims' },
+        { key: 'n_prateleiras', label: 'Prateleiras', type: 'number', default: 2, min: 0, max: 8 },
+        { key: 'com_topo', label: 'Com topo', type: 'checkbox', default: true },
+        { key: 'com_fundo', label: 'Com fundo', type: 'checkbox', default: true },
+        { key: 'material', label: 'Material', type: 'select', default: 'MDF_18_BRANCO', options: 'materials' },
+      ]
+    },
+    porta_abrir: {
+      label: 'Porta de Abrir',
+      desc: 'Porta com dobradicas',
+      icon: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="8" y="4" width="24" height="40" rx="1"/><circle cx="28" cy="24" r="2" fill="currentColor"/><line x1="8" y1="12" x2="8" y2="14" stroke-width="3"/><line x1="8" y1="34" x2="8" y2="36" stroke-width="3"/><path d="M32 4 L42 10 L42 38 L32 44" stroke-dasharray="3 2" opacity="0.4"/></svg>`,
+      fields: [
+        { key: 'largura', label: 'Largura (mm)', type: 'number', default: 450, row: 'dims' },
+        { key: 'altura', label: 'Altura (mm)', type: 'number', default: 700, row: 'dims' },
+        { key: 'espessura', label: 'Espessura (mm)', type: 'number', default: 18 },
+        { key: 'lado', label: 'Lado Dobradica', type: 'select', default: 'esquerda', options: [['esquerda','Esquerda'],['direita','Direita']] },
+        { key: 'puxador_espacamento', label: 'Puxador (mm)', type: 'number', default: 128 },
+        { key: 'material', label: 'Material', type: 'select', default: 'MDF_18_BRANCO', options: 'materials' },
+      ]
+    },
+    porta_correr: {
+      label: 'Porta de Correr',
+      desc: 'Par de portas deslizantes',
+      icon: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="6" width="20" height="36" rx="1"/><rect x="24" y="6" width="20" height="36" rx="1"/><line x1="4" y1="4" x2="44" y2="4" stroke-width="2"/><line x1="4" y1="44" x2="44" y2="44" stroke-width="2"/><path d="M18 6 L30 6" stroke-width="2" stroke="currentColor" opacity="0.4"/></svg>`,
+      fields: [
+        { key: 'largura', label: 'Largura (mm)', type: 'number', default: 800, row: 'dims' },
+        { key: 'altura', label: 'Altura (mm)', type: 'number', default: 700, row: 'dims' },
+        { key: 'espessura', label: 'Espessura (mm)', type: 'number', default: 18 },
+        { key: 'material', label: 'Material', type: 'select', default: 'MDF_18_BRANCO', options: 'materials' },
+      ]
+    },
+    gaveta: {
+      label: 'Gaveta',
+      desc: 'Caixa de gaveta avulsa',
+      icon: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 14 L6 38 L42 38 L42 14"/><line x1="6" y1="14" x2="42" y2="14" stroke-width="2"/><line x1="18" y1="10" x2="30" y2="10" stroke-width="2.5"/><path d="M10 18 L10 34 L38 34 L38 18" stroke-dasharray="3 2" opacity="0.5"/></svg>`,
+      fields: [
+        { key: 'largura', label: 'Largura (mm)', type: 'number', default: 500, row: 'dims' },
+        { key: 'altura', label: 'Altura Caixa (mm)', type: 'number', default: 150, row: 'dims' },
+        { key: 'profundidade', label: 'Profundidade (mm)', type: 'number', default: 450, row: 'dims' },
+        { key: 'frente_altura', label: 'Frente Altura (mm)', type: 'number', default: 180 },
+        { key: 'corredica', label: 'Corredica', type: 'select', default: '450mm', options: [['350mm','350mm'],['400mm','400mm'],['450mm','450mm'],['500mm','500mm'],['550mm','550mm'],['600mm','600mm']] },
+        { key: 'material', label: 'Material', type: 'select', default: 'MDF_18_BRANCO', options: 'materials' },
+      ]
+    },
+    prateleira: {
+      label: 'Prateleira',
+      desc: 'Prateleira avulsa',
+      icon: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="20" width="40" height="4" rx="1" fill="currentColor" opacity="0.3"/><rect x="4" y="20" width="40" height="4" rx="1"/><line x1="8" y1="24" x2="8" y2="40" stroke-dasharray="3 2"/><line x1="40" y1="24" x2="40" y2="40" stroke-dasharray="3 2"/></svg>`,
+      fields: [
+        { key: 'largura', label: 'Largura (mm)', type: 'number', default: 564, row: 'dims' },
+        { key: 'profundidade', label: 'Profundidade (mm)', type: 'number', default: 540, row: 'dims' },
+        { key: 'espessura', label: 'Espessura (mm)', type: 'number', default: 18 },
+        { key: 'tipo', label: 'Tipo', type: 'select', default: 'regulavel', options: [['fixa','Fixa'],['regulavel','Regulavel']] },
+        { key: 'material', label: 'Material', type: 'select', default: 'MDF_18_BRANCO', options: 'materials' },
+      ]
+    },
+    sapateira: {
+      label: 'Sapateira',
+      desc: 'Suporte inclinado p/ sapatos',
+      icon: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6" y="4" width="36" height="40" rx="1"/><line x1="10" y1="14" x2="34" y2="11" stroke-width="2"/><line x1="10" y1="24" x2="34" y2="21" stroke-width="2"/><line x1="10" y1="34" x2="34" y2="31" stroke-width="2"/></svg>`,
+      fields: [
+        { key: 'largura', label: 'Largura (mm)', type: 'number', default: 600, row: 'dims' },
+        { key: 'altura', label: 'Altura (mm)', type: 'number', default: 720, row: 'dims' },
+        { key: 'profundidade', label: 'Profundidade (mm)', type: 'number', default: 340, row: 'dims' },
+        { key: 'n_niveis', label: 'Niveis', type: 'number', default: 4, min: 1, max: 8 },
+        { key: 'angulo', label: 'Angulo (graus)', type: 'number', default: 20, min: 15, max: 30 },
+        { key: 'material', label: 'Material', type: 'select', default: 'MDF_18_BRANCO', options: 'materials' },
+        { key: 'com_fundo', label: 'Com fundo', type: 'checkbox', default: true },
+      ]
+    },
+    cabideiro: {
+      label: 'Cabideiro',
+      desc: 'Varao de cabide',
+      icon: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="8" y1="20" x2="40" y2="20" stroke-width="3"/><rect x="6" y="14" width="6" height="12" rx="1"/><rect x="36" y="14" width="6" height="12" rx="1"/><path d="M18 20 L18 32 L16 34 M24 20 L24 32 L22 34 M30 20 L30 32 L28 34" opacity="0.4"/></svg>`,
+      fields: [
+        { key: 'largura', label: 'Largura (mm)', type: 'number', default: 564 },
+        { key: 'altura_fixacao', label: 'Altura Fixacao (mm)', type: 'number', default: 1600 },
+        { key: 'diametro_tubo', label: 'Diametro Tubo (mm)', type: 'number', default: 25 },
+        { key: 'material', label: 'Material Suporte', type: 'select', default: 'MDF_18_BRANCO', options: 'materials' },
+      ]
+    },
+    tamponamento: {
+      label: 'Tamponamento',
+      desc: 'Painel lateral acabamento',
+      icon: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="16" y="4" width="6" height="40" rx="1" fill="currentColor" opacity="0.2"/><rect x="16" y="4" width="6" height="40" rx="1"/><line x1="26" y1="8" x2="40" y2="8" stroke-dasharray="3 2" opacity="0.4"/><line x1="26" y1="24" x2="40" y2="24" stroke-dasharray="3 2" opacity="0.4"/><line x1="26" y1="40" x2="40" y2="40" stroke-dasharray="3 2" opacity="0.4"/></svg>`,
+      fields: [
+        { key: 'altura', label: 'Altura (mm)', type: 'number', default: 720, row: 'dims' },
+        { key: 'profundidade', label: 'Profundidade (mm)', type: 'number', default: 560, row: 'dims' },
+        { key: 'espessura', label: 'Espessura (mm)', type: 'number', default: 18 },
+        { key: 'material', label: 'Material', type: 'select', default: 'MDF_18_BRANCO', options: 'materials' },
+      ]
+    },
+    rodape: {
+      label: 'Rodape',
+      desc: 'Saia / rodape frontal',
+      icon: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="30" width="40" height="10" rx="1" fill="currentColor" opacity="0.2"/><rect x="4" y="30" width="40" height="10" rx="1"/><line x1="4" y1="28" x2="44" y2="28" stroke-dasharray="3 2" opacity="0.4"/><line x1="12" y1="40" x2="12" y2="44"/><line x1="36" y1="40" x2="36" y2="44"/></svg>`,
+      fields: [
+        { key: 'largura', label: 'Largura (mm)', type: 'number', default: 600 },
+        { key: 'altura', label: 'Altura (mm)', type: 'number', default: 100, min: 50, max: 200 },
+        { key: 'espessura', label: 'Espessura (mm)', type: 'number', default: 18 },
+        { key: 'recuo_frontal', label: 'Recuo Frontal (mm)', type: 'number', default: 30 },
+        { key: 'com_laterais', label: 'Com laterais', type: 'checkbox', default: true },
+        { key: 'material', label: 'Material', type: 'select', default: 'MDF_18_BRANCO', options: 'materials' },
+      ]
+    },
+    coluna_canto: {
+      label: 'Coluna de Canto',
+      desc: 'Modulo de canto (L/diagonal)',
+      icon: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4 L4 44 L24 44 L24 24 L44 24 L44 4 Z" fill="currentColor" opacity="0.1"/><path d="M4 4 L4 44 L24 44 L24 24 L44 24 L44 4 Z"/></svg>`,
+      fields: [
+        { key: 'largura_a', label: 'Lado A (mm)', type: 'number', default: 600, row: 'dims' },
+        { key: 'largura_b', label: 'Lado B (mm)', type: 'number', default: 600, row: 'dims' },
+        { key: 'altura', label: 'Altura (mm)', type: 'number', default: 720 },
+        { key: 'profundidade', label: 'Profundidade (mm)', type: 'number', default: 560 },
+        { key: 'tipo', label: 'Formato', type: 'select', default: 'L', options: [['L','L'],['diagonal','Diagonal']] },
+        { key: 'n_prateleiras', label: 'Prateleiras', type: 'number', default: 1, min: 0, max: 3 },
+        { key: 'material', label: 'Material', type: 'select', default: 'MDF_18_BRANCO', options: 'materials' },
+        { key: 'tipo_juncao', label: 'Juncao', type: 'select', default: 'minifix', options: [['minifix','Minifix'],['cavilha','Cavilha']] },
+        { key: 'com_fundo', label: 'Com fundo', type: 'checkbox', default: true },
+      ]
+    },
+    divisoria: {
+      label: 'Divisoria',
+      desc: 'Divisor vertical interno',
+      icon: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="21" y="4" width="6" height="40" rx="1" fill="currentColor" opacity="0.2"/><rect x="21" y="4" width="6" height="40" rx="1"/><line x1="4" y1="4" x2="4" y2="44" stroke-dasharray="3 2" opacity="0.3"/><line x1="44" y1="4" x2="44" y2="44" stroke-dasharray="3 2" opacity="0.3"/><line x1="4" y1="44" x2="44" y2="44" stroke-dasharray="3 2" opacity="0.3"/></svg>`,
+      fields: [
+        { key: 'altura', label: 'Altura (mm)', type: 'number', default: 684, row: 'dims' },
+        { key: 'profundidade', label: 'Profundidade (mm)', type: 'number', default: 540, row: 'dims' },
+        { key: 'espessura', label: 'Espessura (mm)', type: 'number', default: 18 },
+        { key: 'posicao_x', label: 'Posicao X (mm)', type: 'number', default: 300 },
+        { key: 'com_system32', label: 'System 32', type: 'checkbox', default: false },
+        { key: 'material', label: 'Material', type: 'select', default: 'MDF_18_BRANCO', options: 'materials' },
+      ]
+    },
+  };
+
+  const MATERIALS = [
+    ['MDF_18_BRANCO', 'MDF 18mm Branco'],
+    ['MDF_15_BRANCO', 'MDF 15mm Branco'],
+    ['MDF_18_CRU', 'MDF 18mm Cru'],
+    ['MDF_18_PRETO', 'MDF 18mm Preto'],
+    ['BP_18_BRANCO', 'BP 18mm Branco'],
+    ['BP_18_CARVALHO', 'BP 18mm Carvalho'],
+    ['BP_18_NOGAL', 'BP 18mm Nogal'],
+    ['BP_18_PRETO', 'BP 18mm Preto'],
+    ['BP_18_CINZA', 'BP 18mm Cinza'],
+    ['MDP_15', 'MDP 15mm'],
+    ['MDP_18', 'MDP 18mm'],
+  ];
+
+  let selectedType = null;
+
+  // ═══ Render Grid ═══
+  function renderGrid() {
+    const grid = document.getElementById('moduleGrid');
+    grid.innerHTML = '';
+
+    if (currentTab === 'api') {
+      renderApiGrid(grid);
+      return;
+    }
+
+    const q = document.getElementById('searchInput')?.value.toLowerCase() || '';
+    Object.entries(MODULE_DEFS).forEach(([type, def]) => {
+      if (q && !(def.label + ' ' + def.desc).toLowerCase().includes(q)) return;
+      const card = document.createElement('div');
+      card.className = 'module-card';
+      card.dataset.type = type;
+      card.dataset.search = `${def.label} ${def.desc}`.toLowerCase();
+      card.innerHTML = `
+        <div class="icon">${def.icon}</div>
+        <div class="name">${def.label}</div>
+        <div class="desc">${def.desc}</div>
+      `;
+      card.onclick = () => showConfig(type);
+      grid.appendChild(card);
+    });
+  }
+
+  // ═══ Filter ═══
+  function filterModules() {
+    renderGrid();
+  }
+
+  // ═══ Show Config ═══
+  function showConfig(type) {
+    selectedType = type;
+    const def = MODULE_DEFS[type];
+
+    document.getElementById('moduleGrid').style.display = 'none';
+    document.getElementById('configPanel').classList.add('visible');
+    document.getElementById('configTitle', def.label);
+    document.getElementById('configTitle').textContent = 'Configurar ' + def.label;
+
+    // Preview
+    document.getElementById('previewBox').innerHTML = def.icon.replace('width="40" height="40"', 'width="80" height="80"');
+
+    // Build form
+    const form = document.getElementById('configForm');
+    form.innerHTML = '';
+
+    let currentRow = null;
+    let currentRowDiv = null;
+
+    def.fields.forEach(f => {
+      const group = document.createElement('div');
+      group.className = 'form-group';
+
+      if (f.type === 'checkbox') {
+        group.innerHTML = `
+          <label class="checkbox-label">
+            <input type="checkbox" id="f_${f.key}" ${f.default ? 'checked' : ''}>
+            ${f.label}
+          </label>
+        `;
+      } else if (f.type === 'select') {
+        let opts = '';
+        const options = f.options === 'materials' ? MATERIALS : f.options;
+        options.forEach(o => {
+          const val = Array.isArray(o) ? o[0] : o;
+          const label = Array.isArray(o) ? o[1] : o;
+          opts += `<option value="${val}" ${val === f.default ? 'selected' : ''}>${label}</option>`;
+        });
+        group.innerHTML = `<label>${f.label}</label><select id="f_${f.key}">${opts}</select>`;
+      } else {
+        const minAttr = f.min !== undefined ? ` min="${f.min}"` : '';
+        const maxAttr = f.max !== undefined ? ` max="${f.max}"` : '';
+        group.innerHTML = `<label>${f.label}</label><input type="${f.type}" id="f_${f.key}" value="${f.default}"${minAttr}${maxAttr}>`;
+      }
+
+      // Row grouping for dimension fields
+      if (f.row) {
+        if (currentRow !== f.row) {
+          currentRow = f.row;
+          currentRowDiv = document.createElement('div');
+          currentRowDiv.className = 'form-row-3';
+          form.appendChild(currentRowDiv);
+        }
+        currentRowDiv.appendChild(group);
+      } else {
+        currentRow = null;
+        currentRowDiv = null;
+        form.appendChild(group);
+      }
+    });
+  }
+
+  // ═══ Show Grid ═══
+  function showGrid() {
+    selectedType = null;
+    document.getElementById('moduleGrid').style.display = 'grid';
+    document.getElementById('configPanel').classList.remove('visible');
+  }
+
+  // ═══ Create Module ═══
+  function createModule() {
+    if (!selectedType) return;
+
+    const form = document.getElementById('configForm');
+    const params = {};
+    let rubyType = selectedType;
+
+    // API module — collect params from dynamic form
+    if (form.dataset.apiModule) {
+      const meta = JSON.parse(form.dataset.apiModule);
+      rubyType = meta.tipo_ruby || selectedType;
+
+      form.querySelectorAll('[id^="f_"]').forEach(el => {
+        const key = el.id.slice(2);
+        if (el.type === 'checkbox') params[key] = el.checked;
+        else if (el.type === 'number') params[key] = parseFloat(el.value) || 0;
+        else params[key] = el.value;
+      });
+    } else {
+      // Local module — collect params from MODULE_DEFS fields
+      const def = MODULE_DEFS[selectedType];
+      if (!def) return;
+      def.fields.forEach(f => {
+        const el = document.getElementById('f_' + f.key);
+        if (!el) return;
+        if (f.type === 'checkbox') params[f.key] = el.checked;
+        else if (f.type === 'number') params[f.key] = parseFloat(el.value) || f.default;
+        else params[f.key] = el.value;
+      });
+    }
+
+    // Call SketchUp Ruby
+    if (window.sketchup) {
+      window.sketchup.create_module(rubyType, JSON.stringify(params));
+    } else {
+      console.log('create_module', rubyType, params);
+      alert('Modulo criado (modo debug): ' + rubyType + '\n' + JSON.stringify(params, null, 2));
+    }
+  }
+
+  // ═══ API: Fetch biblioteca from server ═══════════════
+  let apiBaseUrl = null;
+  let apiModules = null;  // módulos carregados da API
+  let currentTab = 'local'; // 'local' | 'api'
+
+  window.initFromApi = function(apiUrl) {
+    apiBaseUrl = apiUrl;
+    // Adicionar tab "Servidor" no header
+    const header = document.querySelector('.header');
+    const tabsDiv = document.createElement('div');
+    tabsDiv.id = 'libraryTabs';
+    tabsDiv.style.cssText = 'display:flex;gap:8px;margin-top:10px;';
+    tabsDiv.innerHTML = `
+      <button id="tabLocal" onclick="switchTab('local')" style="flex:1;padding:6px;background:var(--accent-dim);border:1px solid var(--accent);border-radius:6px;color:var(--accent);font-size:12px;cursor:pointer;font-weight:600;">Padrão</button>
+      <button id="tabApi" onclick="switchTab('api')" style="flex:1;padding:6px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-dim);font-size:12px;cursor:pointer;">Servidor</button>
+    `;
+    header.appendChild(tabsDiv);
+    // Carregar dados da API em background
+    fetchApiModules();
+  };
+
+  window.switchTab = function(tab) {
+    currentTab = tab;
+    document.getElementById('tabLocal').style.background = tab === 'local' ? 'var(--accent-dim)' : 'var(--bg-input)';
+    document.getElementById('tabLocal').style.borderColor = tab === 'local' ? 'var(--accent)' : 'var(--border)';
+    document.getElementById('tabLocal').style.color = tab === 'local' ? 'var(--accent)' : 'var(--text-dim)';
+    document.getElementById('tabApi').style.background = tab === 'api' ? 'var(--accent-dim)' : 'var(--bg-input)';
+    document.getElementById('tabApi').style.borderColor = tab === 'api' ? 'var(--accent)' : 'var(--border)';
+    document.getElementById('tabApi').style.color = tab === 'api' ? 'var(--accent)' : 'var(--text-dim)';
+    showGrid();
+    renderGrid();
+  };
+
+  function fetchApiModules() {
+    if (!apiBaseUrl) return;
+    fetch(apiBaseUrl + '/api/plugin/biblioteca/moveis')
+      .then(r => r.json())
+      .then(data => {
+        apiModules = data;
+        if (currentTab === 'api') renderGrid();
+      })
+      .catch(err => console.log('Ornato: biblioteca API indisponivel', err));
+  }
+
+  // ═══ Render Grid (suporta local e API) ═══════════════
+  function renderApiGrid(grid) {
+    if (!apiModules) {
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--text-dim);">Carregando biblioteca do servidor...</div>';
+      if (!apiModules) fetchApiModules();
+      return;
+    }
+    if (apiModules.length === 0) {
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--text-dim);">Nenhum módulo disponível no servidor.</div>';
+      return;
+    }
+    const q = document.getElementById('searchInput')?.value.toLowerCase() || '';
+    const modules = q ? apiModules.filter(m => (m.nome + ' ' + m.descricao + ' ' + (m.tags||[]).join(' ')).toLowerCase().includes(q)) : apiModules;
+
+    modules.forEach(mod => {
+      const card = document.createElement('div');
+      card.className = 'module-card';
+      card.dataset.type = mod.id;
+      card.dataset.search = (mod.nome + ' ' + mod.descricao).toLowerCase();
+      const catIcon = {cozinha:'🍳',dormitorio:'🛏️',banheiro:'🚿',escritorio:'💼',closet:'👗',area_servico:'🧺',comercial:'🏪'}[mod.categoria] || '📦';
+      card.innerHTML = `
+        <div class="icon" style="font-size:32px;margin-bottom:8px;">${catIcon}</div>
+        <div class="name">${mod.nome}</div>
+        <div class="desc">${mod.descricao || ''}</div>
+        <div style="margin-top:6px;font-size:10px;color:var(--text-dim);opacity:0.7;">${mod.categoria || ''}</div>
+      `;
+      card.onclick = () => showApiConfig(mod);
+      grid.appendChild(card);
+    });
+  }
+
+  // ═══ Show Config from API module ═════════════════════
+  function showApiConfig(mod) {
+    selectedType = mod.id;
+
+    document.getElementById('moduleGrid').style.display = 'none';
+    document.getElementById('configPanel').classList.add('visible');
+    document.getElementById('configTitle').textContent = 'Configurar ' + mod.nome;
+
+    const catIcon = {cozinha:'🍳',dormitorio:'🛏️',banheiro:'🚿',escritorio:'💼',closet:'👗',area_servico:'🧺',comercial:'🏪'}[mod.categoria] || '📦';
+    document.getElementById('previewBox').innerHTML = `<div style="font-size:64px;line-height:1">${catIcon}</div>`;
+
+    const form = document.getElementById('configForm');
+    form.innerHTML = '';
+
+    if (!mod.parametros) return;
+
+    // Tag para saber que é módulo de API
+    form.dataset.apiModule = JSON.stringify({ id: mod.id, tipo_ruby: mod.tipo_ruby });
+
+    Object.entries(mod.parametros).forEach(([key, spec]) => {
+      const group = document.createElement('div');
+      group.className = 'form-group';
+
+      if (typeof spec.default === 'boolean' || (spec.default === undefined && spec.opcoes === undefined && typeof spec === 'boolean')) {
+        group.innerHTML = `<label class="checkbox-label"><input type="checkbox" id="f_${key}" ${spec.default !== false ? 'checked' : ''}> ${key}</label>`;
+      } else if (spec.opcoes) {
+        const opts = spec.opcoes.map(o => `<option value="${o}" ${o == spec.default ? 'selected' : ''}>${o.replace(/_/g,' ')}</option>`).join('');
+        group.innerHTML = `<label>${key}${spec.unidade ? ' ('+spec.unidade+')' : ''}</label><select id="f_${key}">${opts}</select>`;
+      } else {
+        const minAttr = spec.min !== undefined ? ` min="${spec.min}"` : '';
+        const maxAttr = spec.max !== undefined ? ` max="${spec.max}"` : '';
+        const stepAttr = spec.step !== undefined ? ` step="${spec.step}"` : '';
+        group.innerHTML = `<label>${key}${spec.unidade ? ' ('+spec.unidade+')' : ''}</label><input type="number" id="f_${key}" value="${spec.default || 0}"${minAttr}${maxAttr}${stepAttr}>`;
+      }
+
+      form.appendChild(group);
+    });
+  }
+
+  // ═══ SketchUp callback for module types (from Ruby) ═══
+  window.setModuleTypes = function(types) {
+    console.log('Module types received:', types);
+  };
+
+  // ═══ Init ═══
+  renderGrid();
+
+  // Notificar Ruby que o dialog carregou
+  window.addEventListener('load', function() {
+    if (typeof sketchup !== 'undefined') sketchup.ready();
+  });
+</script>
+</body>
+</html>

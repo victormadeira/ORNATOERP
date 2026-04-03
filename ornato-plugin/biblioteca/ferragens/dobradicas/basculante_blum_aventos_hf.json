@@ -1,0 +1,84 @@
+{
+  "id": "basculante_blum_aventos_hf",
+  "nome": "Blum AVENTOS HF (Basculante Bi-Fold)",
+  "marca": "Blum",
+  "modelo": "AVENTOS HF",
+  "categoria": "dobradica",
+  "angulo": 107,
+  "tipo": "basculante",
+  "subtipo": "bi-fold",
+  "amortecedor": true,
+  "sistema_amortecimento": "Blumotion",
+
+  "especificacoes": {
+    "furacao_lateral": {
+      "furos": [
+        { "diametro": 5, "profundidade": 12, "x": 37, "y": 21 },
+        { "diametro": 5, "profundidade": 12, "x": 37, "y": 53 },
+        { "diametro": 5, "profundidade": 12, "x": 37, "y": 85 }
+      ]
+    },
+    "furacao_porta": {
+      "furo_principal": { "diametro": 35, "profundidade": 11.5, "offset_borda": 22.5 },
+      "furos_piloto": { "diametro": 2.5, "profundidade": 10, "distancia_centro": 24, "quantidade": 2 }
+    },
+    "distancia_topo": 37,
+    "peso_porta_max_kg": 18,
+    "largura_porta_min": 200,
+    "largura_porta_max": 600,
+    "regra_quantidade": {
+      "ate_600mm": 2,
+      "ate_1200mm": 2,
+      "ate_1800mm": 2,
+      "acima": 2
+    }
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_5mm",
+        "diametro": 5,
+        "profundidade": 12,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 21 },
+        "peca": "lateral"
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_5mm",
+        "diametro": 5,
+        "profundidade": 12,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 53 },
+        "peca": "lateral"
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_5mm",
+        "diametro": 5,
+        "profundidade": 12,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 85 },
+        "peca": "lateral"
+      },
+      {
+        "tipo": "furo_passante",
+        "ferramenta": "broca_35mm",
+        "diametro": 35,
+        "profundidade": 11.5,
+        "lado": "a",
+        "posicao": { "x": 22.5, "y": 0 },
+        "peca": "porta"
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "BLUM-20F2200",
+    "preco_unitario": 185.00,
+    "unidade": "par",
+    "fornecedor": "Blum Brasil"
+  }
+}

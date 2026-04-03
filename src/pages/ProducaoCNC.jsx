@@ -2,12 +2,16 @@ import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'rea
 import api from '../api';
 import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar } from '../ui';
 import { colorBg, colorBorder, getStatus, STATUS_COLORS as GLOBAL_STATUS } from '../theme';
-import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send } from 'lucide-react';
+import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send, Circle, Square, Minus, Check } from 'lucide-react';
 import EditorEtiquetas, { EtiquetaSVG } from '../components/EditorEtiquetas';
 import PecaViewer3D from '../components/PecaViewer3D';
 import PecaEditor from '../components/PecaEditor';
 import ToolpathSimulator, { parseGcodeToMoves } from '../components/ToolpathSimulator';
-// GcodeSim3D removido — simulador 2D com cores por operação é suficiente
+import GcodeSimWrapper from '../components/GcodeSimWrapper';
+import SlidePanel from '../components/SlidePanel';
+import ToolbarDropdown from '../components/ToolbarDropdown';
+import { Search as SearchIcon, Grid, List, LayoutGrid, Tv } from 'lucide-react';
+import useWebSocket from '../hooks/useWebSocket';
 
 // Nível 1 — sempre visível
 const TABS_MAIN = [
@@ -44,6 +48,26 @@ export default function ProducaoCNC({ notify }) {
     const [materialAlertsDismissed, setMaterialAlertsDismissed] = useState(false);
     const [sugestoes, setSugestoes] = useState([]);
     const [sugestoesOpen, setSugestoesOpen] = useState(false);
+
+    // WebSocket real-time (#23) + Push Notifications (#35)
+    const { connected: wsConnected } = useWebSocket(useCallback((msg) => {
+        if (msg.type === 'fila_update' || msg.type === 'fila_remove') {
+            if (showFila) loadFila?.();
+        }
+        if (msg.type === 'conferencia_update') {
+            if (showConferencia) loadConferencia?.();
+        }
+        if (msg.type === 'gcode_complete' && msg.data?.message) {
+            notify?.(msg.data.message, 'success');
+            // Browser push notification (#35)
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('Ornato CNC', { body: msg.data.message, icon: '/favicon.ico' });
+            }
+        }
+        if (msg.type === 'entrega_update' && msg.data) {
+            notify?.(`Entrega: ${msg.data.tipo} — Lote #${msg.data.lote_id}`, 'success');
+        }
+    }, []));
 
     const loadLotes = useCallback(() => {
         api.get('/cnc/lotes').then(setLotes).catch(e => notify(e.error || 'Erro ao carregar lotes'));
@@ -2243,6 +2267,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
     const [pecasMap, setPecasMap] = useState({});
     const [showConfig, setShowConfig] = useState(true);
     const [selectedChapa, setSelectedChapa] = useState(0);
+    const [chapaViewMode, setChapaViewMode] = useState('list'); // 'list' | 'grid'
     const [zoomLevel, setZoomLevel] = useState(1);
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
@@ -2340,6 +2365,371 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
         } catch (err) { notify(err.error || 'Erro'); }
     };
 
+    // ═══ Conferência pós-corte ═══
+    const [conferencia, setConferencia] = useState([]);
+    const [showConferencia, setShowConferencia] = useState(false);
+    const loadConferencia = async () => {
+        if (!loteAtual) return;
+        try {
+            const data = await api.get(`/cnc/conferencia/${loteAtual.id}`);
+            setConferencia(data);
+            setShowConferencia(true);
+        } catch (err) { notify(err.error || 'Erro ao carregar conferência'); }
+    };
+    const conferirPeca = async (chapaIdx, pecaIdx, pecaDesc, status, defeitoTipo, defeitoObs) => {
+        try {
+            await api.post(`/cnc/conferencia/${loteAtual.id}`, {
+                chapa_idx: chapaIdx, peca_idx: pecaIdx, peca_desc: pecaDesc,
+                status, defeito_tipo: defeitoTipo || '', defeito_obs: defeitoObs || '',
+                conferente: '',
+            });
+            setConferencia(prev => {
+                const idx = prev.findIndex(c => c.chapa_idx === chapaIdx && c.peca_idx === pecaIdx);
+                const newItem = { chapa_idx: chapaIdx, peca_idx: pecaIdx, peca_desc: pecaDesc, status, defeito_tipo: defeitoTipo || '', defeito_obs: defeitoObs || '' };
+                if (idx >= 0) { const n = [...prev]; n[idx] = { ...n[idx], ...newItem }; return n; }
+                return [...prev, newItem];
+            });
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+    const conferirChapaOk = async (chapaIdx) => {
+        if (!plano?.chapas[chapaIdx]) return;
+        const pecas = plano.chapas[chapaIdx].pecas.map((p, pi) => ({ peca_idx: pi, peca_desc: p.desc || '' }));
+        try {
+            await api.post(`/cnc/conferencia/${loteAtual.id}/chapa/${chapaIdx}/ok`, { pecas });
+            loadConferencia();
+            notify(`Chapa ${chapaIdx + 1} conferida OK`, 'success');
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+
+    // ═══ Fila de Produção ═══
+    const [filaProducao, setFilaProducao] = useState([]);
+    const [showFila, setShowFila] = useState(false);
+    const loadFila = async () => {
+        try {
+            const data = await api.get('/cnc/fila-producao');
+            setFilaProducao(data);
+            setShowFila(true);
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+    const enviarParaFila = async () => {
+        if (!loteAtual) return;
+        try {
+            const r = await api.post(`/cnc/fila-producao/lote/${loteAtual.id}`, {});
+            notify(`${r.added} chapas adicionadas à fila`, 'success');
+            loadFila();
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+    const atualizarFila = async (id, updates) => {
+        try {
+            await api.put(`/cnc/fila-producao/${id}`, updates);
+            loadFila();
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+
+    // ═══ Custeio Automático ═══
+    const [custeioData, setCusteioData] = useState(null);
+    const [showCusteio, setShowCusteio] = useState(false);
+    const [custeioLoading, setCusteioLoading] = useState(false);
+    const calcularCusteio = async () => {
+        if (!loteAtual) return;
+        setCusteioLoading(true);
+        try {
+            const data = await api.post(`/cnc/custeio/${loteAtual.id}`, {});
+            setCusteioData(data);
+            setShowCusteio(true);
+        } catch (err) { notify(err.error || 'Erro ao calcular custeio'); }
+        finally { setCusteioLoading(false); }
+    };
+
+    // ═══ Estoque de Chapas ═══
+    const [estoqueChapas, setEstoqueChapas] = useState([]);
+    const [showEstoque, setShowEstoque] = useState(false);
+    const [estoqueAlertas, setEstoqueAlertas] = useState([]);
+    const loadEstoque = async () => {
+        try {
+            const [chapas, alertas] = await Promise.all([
+                api.get('/cnc/estoque-chapas'),
+                api.get('/cnc/estoque-alertas'),
+            ]);
+            setEstoqueChapas(chapas);
+            setEstoqueAlertas(alertas);
+            setShowEstoque(true);
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+    const movimentarEstoque = async (chapaId, tipo, qtd, motivo) => {
+        try {
+            const r = await api.post(`/cnc/estoque-chapas/${chapaId}/movimentacao`, { tipo, quantidade: qtd, motivo, lote_id: loteAtual?.id });
+            notify(`Estoque atualizado: ${r.novo_estoque} un.`, 'success');
+            loadEstoque();
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+
+    // ═══ Batch G-Code (#18) ═══
+    const [batchGcodeLoading, setBatchGcodeLoading] = useState(false);
+    const handleBatchGcode = async () => {
+        if (!loteAtual) return;
+        setBatchGcodeLoading(true);
+        try {
+            const data = await api.post(`/cnc/gcode-batch/${loteAtual.id}`, {
+                maquina_id: maquinaGcode || null,
+            });
+            if (data.files) {
+                notify(`${data.files.length} arquivos G-Code gerados`, 'success');
+                if (data.combined) {
+                    const blob = new Blob([data.combined], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a'); a.href = url;
+                    a.download = `gcode_lote_${loteAtual.id}_batch.nc`;
+                    a.click(); URL.revokeObjectURL(url);
+                }
+            }
+        } catch (err) { notify(err.error || 'Erro ao gerar G-Code em lote'); }
+        finally { setBatchGcodeLoading(false); }
+    };
+
+    // ═══ SVG Export (#21) ═══
+    const handleExportSVG = async () => {
+        if (!loteAtual) return;
+        try {
+            const data = await api.get(`/cnc/export-svg/${loteAtual.id}`);
+            if (data.svgs) {
+                data.svgs.forEach((svg, i) => {
+                    const blob = new Blob([svg.svg], { type: 'image/svg+xml' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a'); a.href = url;
+                    a.download = `plano_chapa_${i + 1}.svg`;
+                    a.click(); URL.revokeObjectURL(url);
+                });
+                notify(`${data.svgs.length} SVG(s) exportados`, 'success');
+            }
+        } catch (err) { notify(err.error || 'Erro ao exportar SVG'); }
+    };
+
+    // ═══ PDF Export (#17) ═══
+    const handleExportPDF = async () => {
+        if (!loteAtual || !plano) return;
+        const win = window.open('', '_blank');
+        const chapasHtml = plano.chapas.map((ch, ci) => {
+            const totalPecas = ch.pecas?.length || 0;
+            const aprovPct = ch.aproveitamento ? (ch.aproveitamento * 100).toFixed(1) : '-';
+            const pecasRows = (ch.pecas || []).map((p, pi) => `
+                <tr><td>${pi + 1}</td><td>${p.desc || '-'}</td><td>${Math.round(p.w)}×${Math.round(p.h)}</td><td>${p.rotacionada ? 'Sim' : '-'}</td></tr>
+            `).join('');
+            return `
+                <div class="chapa-section">
+                    <h3>Chapa ${ci + 1} — ${ch.material || 'Material'} (${ch.w}×${ch.h}mm)</h3>
+                    <div class="stats">
+                        <span>Peças: ${totalPecas}</span>
+                        <span>Aproveitamento: ${aprovPct}%</span>
+                    </div>
+                    <table><thead><tr><th>#</th><th>Peça</th><th>Dimensões</th><th>Rot.</th></tr></thead>
+                    <tbody>${pecasRows}</tbody></table>
+                </div>`;
+        }).join('');
+        win.document.write(`<!DOCTYPE html><html><head><title>Plano de Corte — Lote ${loteAtual.nome || loteAtual.id}</title>
+        <style>
+            body{font-family:Inter,sans-serif;padding:30px;color:#1a1a2e}
+            h2{color:#1379F0;border-bottom:2px solid #1379F0;padding-bottom:8px}
+            .chapa-section{margin:20px 0;padding:16px;border:1px solid #ddd;border-radius:8px}
+            h3{margin:0 0 8px;color:#333}
+            .stats{display:flex;gap:20px;font-size:13px;color:#666;margin-bottom:12px}
+            table{width:100%;border-collapse:collapse;font-size:12px}
+            th,td{padding:6px 10px;border:1px solid #e0e0e0;text-align:left}
+            th{background:#f0f4ff;font-weight:600}
+            @media print{body{padding:10px}.chapa-section{break-inside:avoid}}
+        </style></head><body>
+        <h2>Plano de Corte — ${loteAtual.nome || 'Lote ' + loteAtual.id}</h2>
+        <p style="color:#666;font-size:12px">${new Date().toLocaleDateString('pt-BR')} · ${plano.chapas?.length || 0} chapas · ${plano.chapas?.reduce((s, c) => s + (c.pecas?.length || 0), 0) || 0} peças</p>
+        ${chapasHtml}
+        <script>setTimeout(()=>window.print(),500)</script></body></html>`);
+        win.document.close();
+    };
+
+    // ═══ Tool Prediction (#20) ═══
+    const [toolPrediction, setToolPrediction] = useState(null);
+    const [showToolPrediction, setShowToolPrediction] = useState(false);
+    const loadToolPrediction = async () => {
+        try {
+            const data = await api.get('/cnc/tool-prediction');
+            setToolPrediction(data);
+            setShowToolPrediction(true);
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+
+    // ═══ Tool Maintenance (#27) ═══
+    const [toolMaintenance, setToolMaintenance] = useState([]);
+    const [showToolMaint, setShowToolMaint] = useState(false);
+    const loadToolMaintenance = async () => {
+        try {
+            const data = await api.get('/cnc/tool-manutencao');
+            setToolMaintenance(data);
+            setShowToolMaint(true);
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+
+    // ═══ Material Audit (#25) ═══
+    const [materialAudit, setMaterialAudit] = useState([]);
+    const [showMaterialAudit, setShowMaterialAudit] = useState(false);
+    const loadMaterialAudit = async () => {
+        if (!loteAtual) return;
+        try {
+            const data = await api.get(`/cnc/material-consumo/${loteAtual.id}`);
+            setMaterialAudit(data);
+            setShowMaterialAudit(true);
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+
+    // ═══ Material Reservation (#29) ═══
+    const [reservations, setReservations] = useState([]);
+    const [showReservations, setShowReservations] = useState(false);
+    const loadReservations = async () => {
+        try {
+            const data = await api.get(`/cnc/reserva-material${loteAtual ? '?lote_id=' + loteAtual.id : ''}`);
+            setReservations(data);
+            setShowReservations(true);
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+    const criarReserva = async (chapaId, qtd) => {
+        if (!loteAtual) return;
+        try {
+            await api.post('/cnc/reserva-material', { lote_id: loteAtual.id, chapa_id: chapaId, quantidade: qtd });
+            notify('Reserva criada', 'success');
+            loadReservations();
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+
+    // ═══ Backup (#28) ═══
+    const [backups, setBackups] = useState([]);
+    const [showBackups, setShowBackups] = useState(false);
+    const loadBackups = async () => {
+        try {
+            const data = await api.get('/cnc/backups');
+            setBackups(data);
+            setShowBackups(true);
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+    const criarBackup = async () => {
+        try {
+            const r = await api.post('/cnc/backups', {});
+            notify(`Backup criado: ${r.filename}`, 'success');
+            loadBackups();
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+
+    // ═══ Machine Performance (#31) ═══
+    const [machinePerf, setMachinePerf] = useState(null);
+    const [showMachinePerf, setShowMachinePerf] = useState(false);
+    const loadMachinePerf = async () => {
+        try {
+            const data = await api.get('/cnc/maquina-performance');
+            setMachinePerf(data);
+            setShowMachinePerf(true);
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+
+    // ═══ Financeiro Integration (#22) ═══
+    const handleFinanceiroSync = async () => {
+        if (!loteAtual) return;
+        try {
+            const r = await api.post(`/cnc/financeiro-sync/${loteAtual.id}`, {});
+            notify(`Sincronizado: ${r.total_items} itens → R$${r.total_valor?.toFixed(2) || '0.00'}`, 'success');
+        } catch (err) { notify(err.error || 'Erro ao sincronizar financeiro'); }
+    };
+
+    // ═══ Label Preview (#26) ═══
+    const [labelPreviewData, setLabelPreviewData] = useState(null);
+    const [showLabelPreview, setShowLabelPreview] = useState(false);
+    const loadLabelPreview = async () => {
+        if (!loteAtual) return;
+        try {
+            const data = await api.get(`/cnc/label-preview/${loteAtual.id}`);
+            setLabelPreviewData(data);
+            setShowLabelPreview(true);
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+
+    // ═══ Optimization Comparison (#36) ═══
+    const [comparisonData, setComparisonData] = useState(null);
+    const [showComparison, setShowComparison] = useState(false);
+    const loadComparison = async () => {
+        if (!loteAtual) return;
+        try {
+            const data = await api.post(`/cnc/plano/${loteAtual.id}/comparar`, {});
+            setComparisonData(data);
+            setShowComparison(true);
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+
+    // ═══ Waste Dashboard (#39) ═══
+    const [wasteData, setWasteData] = useState(null);
+    const [showWaste, setShowWaste] = useState(false);
+    const loadWasteDashboard = async () => {
+        try {
+            const data = await api.get('/cnc/dashboard/desperdicio?meses=6');
+            setWasteData(data);
+            setShowWaste(true);
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+
+    // ═══ Grouping Suggestion (#40) ═══
+    const [groupingSuggestions, setGroupingSuggestions] = useState([]);
+    const [showGrouping, setShowGrouping] = useState(false);
+    const loadGroupingSuggestions = async () => {
+        try {
+            const data = await api.get('/cnc/sugestao-agrupamento');
+            setGroupingSuggestions(data.suggestions || []);
+            setShowGrouping(true);
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+
+    // ═══ Smart Remnants (#42) ═══
+    const [remnantsData, setRemnantsData] = useState(null);
+    const [showRemnants, setShowRemnants] = useState(false);
+    const loadRemnants = async () => {
+        try {
+            const data = await api.get('/cnc/retalhos-aproveitaveis');
+            setRemnantsData(data);
+            setShowRemnants(true);
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+
+    // ═══ Client Report (#46) ═══
+    const handleClientReport = async () => {
+        if (!loteAtual) return;
+        try {
+            const data = await api.get(`/cnc/relatorio-cliente/${loteAtual.id}`);
+            const win = window.open('', '_blank');
+            const modulosHtml = data.modulos.map(m => `
+                <div style="margin:16px 0;padding:16px;border:1px solid #ddd;border-radius:8px">
+                    <h3 style="margin:0 0 8px">${m.nome}</h3>
+                    <div style="display:flex;gap:20px;font-size:13px;color:#666">
+                        <span>Peças: ${m.total}</span>
+                        <span>Conferidas: ${m.conferidas}</span>
+                        <span>Progresso: ${m.progresso_pct.toFixed(0)}%</span>
+                    </div>
+                    <div style="height:6px;background:#eee;border-radius:3px;margin-top:8px;overflow:hidden">
+                        <div style="height:100%;width:${m.progresso_pct}%;background:#22c55e;border-radius:3px"></div>
+                    </div>
+                </div>`).join('');
+            win.document.write(`<!DOCTYPE html><html><head><title>Relatório — ${data.lote.nome}</title>
+            <style>body{font-family:Inter,sans-serif;padding:30px;color:#1a1a2e}h2{color:#1379F0}
+            @media print{body{padding:10px}}</style></head><body>
+            <h2>Relatório de Produção — ${data.lote.nome}</h2>
+            <p style="color:#666">${new Date().toLocaleDateString('pt-BR')} · ${data.total_pecas} peças · ${data.total_conferidas} conferidas</p>
+            ${modulosHtml}
+            <script>setTimeout(()=>window.print(),500)</script></body></html>`);
+            win.document.close();
+        } catch (err) { notify(err.error || 'Erro'); }
+    };
+
+    // ═══ Push Notifications (#35) ═══
+    const requestNotifPermission = useCallback(() => {
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    }, []);
+    useEffect(() => { requestNotifPermission(); }, [requestNotifPermission]);
+
     // ═══ Piece Labels ═══
     const [showLabels, setShowLabels] = useState(false);
     const printLabels = async () => {
@@ -2349,7 +2739,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
             const win = window.open('', '_blank');
             const labelsHtml = data.labels.map(l => `
                 <div class="label">
-                    <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(l.codigo_scan)}" width="70" height="70"/></div>
+                    <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(l.qr_data || l.codigo_scan)}" width="70" height="70"/></div>
                     <div class="info">
                         <div class="desc">${l.descricao || l.upmcode}</div>
                         <div class="mod">${l.modulo || ''}</div>
@@ -2472,8 +2862,15 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
         return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     };
 
-    const getEstimatedTime = useCallback((chapa) => {
-        // Same logic as printFolhaProducao estTime
+    // Cache de stats reais do G-code por chapa (preenchido após gerar G-code)
+    const [chapaRealStats, setChapaRealStats] = useState({}); // { chapaIdx: { tempo_estimado_min, dist_corte_m, ... } }
+
+    const getEstimatedTime = useCallback((chapa, chapaIdx) => {
+        // Se temos stats reais do G-code, usar elas
+        if (chapaIdx !== undefined && chapaRealStats[chapaIdx]?.tempo_estimado_min) {
+            return chapaRealStats[chapaIdx].tempo_estimado_min;
+        }
+        // Fallback: estimativa heurística
         const nPecas = chapa.pecas?.length || 0;
         let totalOps = 0;
         for (const p of (chapa.pecas || [])) {
@@ -2487,7 +2884,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
             }
         }
         return Math.round((nPecas * 3 + totalOps * 1) / 60 * 10) / 10; // minutes
-    }, [pecasMap]);
+    }, [pecasMap, chapaRealStats]);
 
     // Fullscreen for chapa visualization
     const chapaVizContainerRef = useRef(null);
@@ -3022,14 +3419,59 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
     // ═══ Gerar G-Code por chapa ═══
     const [gcodeLoading, setGcodeLoading] = useState(null); // chapaIdx sendo gerado
     const [gcodePreview, setGcodePreview] = useState(null); // { gcode, filename, stats, alertas, chapaIdx, contorno_tool, ferramentas_faltando }
+    const [inlineSimData, setInlineSimData] = useState(null); // { gcode, chapa } for inline simulator in Plano de Corte
+    const [toolPanel, setToolPanel] = useState(null);
+    const [toolPanelOpen, setToolPanelOpen] = useState(false);
+    const [toolPanelLoading, setToolPanelLoading] = useState(false);
+    const [toolPanelDirty, setToolPanelDirty] = useState(false);
+    // Máquina selecionada para geração de G-code (global, pode ser overridden por assignment de chapa)
+    const [maquinaGcode, setMaquinaGcode] = useState('');
+    const selectedMachineArea = useMemo(() => {
+        if (!maquinaGcode) return null;
+        const m = maquinas.find(m => m.id === Number(maquinaGcode));
+        return m ? { x_max: m.x_max || 2800, y_max: m.y_max || 1900, nome: m.nome } : null;
+    }, [maquinaGcode, maquinas]);
+
     const handleGerarGcode = async (chapaIdx) => {
         if (!loteAtual) return;
         setGcodeLoading(chapaIdx);
         try {
-            const r = await api.post(`/cnc/gcode/${loteAtual.id}/chapa/${chapaIdx}`, {});
+            // Prioridade: assignment da chapa > seleção global > padrão do servidor
+            const assignedMaq = machineAssignments[chapaIdx]?.maquina_id;
+            const maqId = assignedMaq || (maquinaGcode ? Number(maquinaGcode) : undefined);
+            const body = maqId ? { maquina_id: maqId } : {};
+            const r = await api.post(`/cnc/gcode/${loteAtual.id}/chapa/${chapaIdx}`, body);
             if (r.ok) {
                 // Pegar dados da chapa do plano para o simulador 2D
                 const chapaInfo = plano?.chapas?.[chapaIdx] || null;
+                const chapaSimData = chapaInfo ? (() => {
+                        // Máquina padrão: X=largura, Y=comprimento (eixos trocados)
+                        // Se trocar_eixos_xy=1, mantém original (X=comprimento, Y=largura)
+                        const maqUsada = maquinas.find(m => m.id === maqId) || maquinas.find(m => m.padrao) || {};
+                        const swapOff = maqUsada.trocar_eixos_xy === 1;
+                        const cw = swapOff ? chapaInfo.comprimento : chapaInfo.largura;
+                        const cl = swapOff ? chapaInfo.largura : chapaInfo.comprimento;
+                        return {
+                            comprimento: cw,
+                            largura: cl,
+                            refilo: chapaInfo.refilo ?? 10,
+                            espessura: chapaInfo.espessura_real || chapaInfo.espessura || 18.5,
+                            material_code: chapaInfo.material_code || '',
+                            pecas: (chapaInfo.pecas || []).map(p => ({
+                                x: swapOff ? p.x : p.y, y: swapOff ? p.y : p.x,
+                                w: swapOff ? p.w : p.h, h: swapOff ? p.h : p.w,
+                                nome: p.nome,
+                            })),
+                            retalhos: (chapaInfo.retalhos || []).map(r => ({
+                                x: swapOff ? r.x : r.y, y: swapOff ? r.y : r.x,
+                                w: swapOff ? r.w : r.h, h: swapOff ? r.h : r.w,
+                            })),
+                        };
+                    })() : null;
+                // Cache real stats from G-code generation
+                if (r.stats) setChapaRealStats(prev => ({ ...prev, [chapaIdx]: r.stats }));
+                // Store inline sim data for Plano de Corte view
+                setInlineSimData(chapaSimData ? { gcode: r.gcode, chapa: chapaSimData, chapaIdx } : null);
                 setGcodePreview({
                     gcode: r.gcode,
                     filename: r.filename || `chapa_${chapaIdx + 1}.nc`,
@@ -3037,15 +3479,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                     alertas: r.alertas || [],
                     chapaIdx,
                     contorno_tool: r.contorno_tool || null,
-                    chapa: chapaInfo ? {
-                        comprimento: chapaInfo.comprimento,
-                        largura: chapaInfo.largura,
-                        refilo: chapaInfo.refilo ?? 10,
-                        espessura: chapaInfo.espessura_real || chapaInfo.espessura || 18.5,
-                        material_code: chapaInfo.material_code || '',
-                        pecas: (chapaInfo.pecas || []).map(p => ({ x: p.x, y: p.y, w: p.w, h: p.h, nome: p.nome })),
-                        retalhos: chapaInfo.retalhos || [],
-                    } : null,
+                    chapa: chapaSimData,
                 });
             } else if (r.ferramentas_faltando?.length > 0) {
                 // Mostrar detalhes de ferramentas faltantes no preview modal (sem G-code)
@@ -3084,6 +3518,57 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
             notify('Erro ao gerar G-Code: ' + errMsg, 'error');
         } finally {
             setGcodeLoading(null);
+        }
+    };
+
+    // G-code de peça avulsa
+    const handleGerarGcodePeca = async (chapaIdx, pecaIdx) => {
+        if (!loteAtual) return;
+        setGcodeLoading(chapaIdx);
+        try {
+            const assignedMaq = machineAssignments[chapaIdx]?.maquina_id;
+            const maqId = assignedMaq || (maquinaGcode ? Number(maquinaGcode) : undefined);
+            const body = maqId ? { maquina_id: maqId } : {};
+            const r = await api.post(`/cnc/gcode/${loteAtual.id}/chapa/${chapaIdx}/peca/${pecaIdx}`, body);
+            if (r.ok) {
+                setGcodePreview({
+                    gcode: r.gcode,
+                    filename: r.filename || `peca_${pecaIdx + 1}.nc`,
+                    stats: r.stats || {},
+                    alertas: r.alertas || [],
+                    chapaIdx,
+                    contorno_tool: r.contorno_tool || null,
+                    chapa: null, // single piece doesn't need full chapa sim
+                });
+                notify(`G-Code gerado para peça ${pecaIdx + 1}`);
+            } else {
+                setGcodePreview({
+                    gcode: '', filename: '', stats: r.stats || {}, chapaIdx,
+                    contorno_tool: null, chapa: null,
+                    alertas: [{ tipo: 'erro_critico', msg: r.error || 'Erro' }, ...(r.alertas || [])],
+                    ferramentas_faltando: r.ferramentas_faltando || [],
+                });
+                notify(r.error || 'Erro ao gerar G-Code da peça', 'error');
+            }
+        } catch (err) {
+            notify('Erro: ' + (err.error || err.message), 'error');
+        } finally {
+            setGcodeLoading(null);
+        }
+    };
+
+    const handleOpenToolPanel = async () => {
+        if (!loteAtual) return;
+        setToolPanelLoading(true);
+        try {
+            const r = await api.get(`/cnc/lotes/${loteAtual.id}/operacoes-scan`);
+            setToolPanel(r);
+            setToolPanelOpen(true);
+            setToolPanelDirty(false);
+        } catch (err) {
+            notify(err.error || 'Erro ao escanear operações', 'error');
+        } finally {
+            setToolPanelLoading(false);
         }
     };
 
@@ -3353,6 +3838,34 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                 return;
             }
 
+            // G — gerar G-code da chapa selecionada
+            if ((e.key === 'g' || e.key === 'G') && !e.ctrlKey && !e.metaKey) {
+                if (plano && plano.chapas[selectedChapa]) {
+                    handleGerarGcode(selectedChapa);
+                }
+                return;
+            }
+
+            // E — ir para etiquetas
+            if ((e.key === 'e' || e.key === 'E') && !e.ctrlKey && !e.metaKey) {
+                setTab('gcode');
+                return;
+            }
+
+            // P — imprimir folha de produção
+            if ((e.key === 'p' || e.key === 'P') && !e.ctrlKey && !e.metaKey) {
+                if (plano && plano.chapas[selectedChapa]) {
+                    printFolhaProducao(plano.chapas[selectedChapa], selectedChapa, pecasMap, loteAtual, getModColor, kerf, refilo, plano.chapas.length);
+                }
+                return;
+            }
+
+            // D — ir para dashboard
+            if ((e.key === 'd' || e.key === 'D') && !e.ctrlKey && !e.metaKey) {
+                setTab('dashboard');
+                return;
+            }
+
             // ? — toggle shortcuts help
             if (e.key === '?') {
                 setShowShortcutsHelp(prev => !prev);
@@ -3379,185 +3892,106 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                 <Spinner text="Carregando plano..." />
             ) : (
                 <>
-                    {/* CONFIG PANEL */}
-                    <div className="glass-card" style={{ marginBottom: 16, overflow: 'hidden' }}>
-                        <button onClick={() => setShowConfig(!showConfig)}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                                padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer',
-                                fontSize: 13, fontWeight: 600, color: 'var(--text-primary)',
-                                borderBottom: showConfig ? '1px solid var(--border)' : 'none',
-                            }}>
-                            <Settings size={15} />
-                            Configurar Otimizador
-                            <ChevronDown size={14} style={{ marginLeft: 'auto', transition: 'transform .2s', transform: showConfig ? 'rotate(180deg)' : '' }} />
-                        </button>
-
-                        {showConfig && (
-                            <div style={{ padding: '16px' }}>
-                                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 16, alignItems: 'flex-end' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                        <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Modo</label>
-                                        <select value={modo} onChange={e => setModo(e.target.value)}
-                                            className={Z.inp} style={{ width: 200, fontSize: 12, padding: '5px 8px' }}>
-                                            <option value="guilhotina">Guilhotina (esquadrejadeira)</option>
-                                            <option value="maxrects">MaxRects (CNC livre)</option>
-                                            <option value="shelf">Shelf (faixas horizontais)</option>
-                                        </select>
-                                        {modo === 'guilhotina' && <p style={{ fontSize: 10, color: '#d97706', margin: '2px 0 0' }}>Cortes de ponta a ponta — aproveitamento típico 5-15% menor que CNC livre</p>}
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                        <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Direção de corte</label>
-                                        <select value={direcaoCorte} onChange={e => setDirecaoCorte(e.target.value)}
-                                            className={Z.inp} style={{ width: 190, fontSize: 12, padding: '5px 8px' }}>
-                                            <option value="misto">Misto (livre)</option>
-                                            <option value="horizontal">Horizontal (sobras compridas)</option>
-                                            <option value="vertical">Vertical (sobras largas)</option>
-                                        </select>
-                                    </div>
-                                    {cfgInput('Espaçamento (mm)', espacoPecas, setEspacoPecas, { min: 0, max: 30, step: 0.5 })}
-                                    {cfgInput('Refilo (mm)', refilo, setRefilo, { min: 0, max: 50 })}
-                                    {(modo === 'guilhotina' || modo === 'shelf') && cfgInput('Kerf serra (mm)', kerf, setKerf, { min: 1, max: 10, step: 0.5 })}
-                                    {/* Iterações R&R: otimizado automaticamente */}
-                                </div>
-
-                                <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
-                                    {cfgToggle('Permitir rotação 90°', permitirRotacao, setPermitirRotacao, 'Automático: sem veio → permite rotação se melhorar o aproveitamento. Com veio → nunca rotaciona.')}
-                                    {cfgToggle('Usar retalhos', usarRetalhos, setUsarRetalhos)}
-                                    {cfgToggle('Gerar sobras', considerarSobra, setConsiderarSobra)}
-                                </div>
-
-                                {considerarSobra && (
-                                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end',
-                                        padding: '10px 14px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                                        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', alignSelf: 'center' }}>
-                                            Sobra mínima:
-                                        </span>
-                                        {cfgInput('Largura (mm)', sobraMinW, setSobraMinW, { min: 50, max: 1000 })}
-                                        {cfgInput('Comprimento (mm)', sobraMinH, setSobraMinH, { min: 50, max: 2000 })}
-                                    </div>
-                                )}
-
-                                {/* Classificação de peças */}
-                                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end', marginTop: 12,
-                                    padding: '10px 14px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                                    <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', alignSelf: 'center' }}>
-                                        Classificação de peças:
-                                    </span>
-                                    {cfgInput('Pequena < (mm)', limiarPequena, setLimiarPequena, { min: 100, max: 800, step: 50 })}
-                                    {cfgInput('Super pequena < (mm)', limiarSuperPequena, setLimiarSuperPequena, { min: 50, max: 400, step: 25 })}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                        <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Colorir por</label>
-                                        <select value={colorMode} onChange={e => setColorMode(e.target.value)}
-                                            className={Z.inp} style={{ width: 180, fontSize: 12, padding: '5px 8px' }}>
-                                            <option value="modulo">Módulo</option>
-                                            <option value="classificacao">Classificação (tamanho)</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                    {/* Config info bar — parâmetros vêm de Configurações > Parâmetros Otimizador */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, padding: '8px 14px',
+                        background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 11, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                        <Settings size={13} />
+                        <span><b>{modo === 'guilhotina' ? 'Guilhotina' : modo === 'maxrects' ? 'MaxRects' : 'Shelf'}</b></span>
+                        <span>Espaço: {espacoPecas}mm</span>
+                        <span>Refilo: {refilo}mm</span>
+                        {(modo === 'guilhotina' || modo === 'shelf') && <span>Kerf: {kerf}mm</span>}
+                        {permitirRotacao && <span>Rotação 90°</span>}
+                        {usarRetalhos && <span>Retalhos</span>}
+                        {considerarSobra && <span>Sobras ≥{sobraMinW}×{sobraMinH}mm</span>}
+                        <span>Dir: {direcaoCorte}</span>
                     </div>
 
-                    {/* OPTIMIZE BUTTON */}
-                    <div style={{ marginBottom: 16, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {/* TOOLBAR — grouped into dropdowns */}
+                    <div style={{ marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {/* Primary action */}
                         <button onClick={otimizar} disabled={otimizando} className={Z.btn}
-                            style={{ padding: '12px 28px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}>
-                            {otimizando ? <><RotateCw size={16} className="animate-spin" /> Otimizando...</> : <><Scissors size={16} /> Otimizar Corte</>}
+                            style={{ padding: '10px 24px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}>
+                            {otimizando ? <><RotateCw size={15} className="animate-spin" /> Otimizando...</> : <><Scissors size={15} /> Otimizar</>}
                         </button>
-                        {plano && plano.chapas?.length > 0 && (
-                            <button onClick={() => printPlano(plano, pecasMap, loteAtual, getModColor)} className={Z.btn2}
-                                style={{ padding: '10px 20px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <Printer size={14} /> Imprimir / PDF
-                            </button>
-                        )}
-                        {plano && plano.chapas?.length > 0 && (
-                            <button onClick={loadCustos} disabled={custosLoading} className={Z.btn2}
-                                style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <DollarSign size={14} /> {custosLoading ? 'Calculando...' : 'Custos'}
-                            </button>
-                        )}
-                        {plano && plano.chapas?.length > 0 && (
-                            <button onClick={loadBordas} disabled={bordasLoading} className={Z.btn2}
-                                style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <PenTool size={14} /> {bordasLoading ? 'Carregando...' : 'Rel. Bordas'}
-                            </button>
-                        )}
-                        {plano && plano.chapas?.length > 0 && (
-                            <button onClick={loadMaterialReport} className={Z.btn2}
-                                style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <Package size={14} /> Lista Material
-                            </button>
-                        )}
-                        {plano && plano.chapas?.length > 0 && (
-                            <button onClick={loadReview} className={Z.btn2}
-                                style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, color: reviewData?.allOk === false ? '#ef4444' : undefined }}>
-                                <ClipboardCheck size={14} /> Review
-                            </button>
-                        )}
-                        {plano && plano.chapas?.length > 0 && (
-                            <button onClick={printLabels} className={Z.btn2}
-                                style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <TagIcon size={14} /> Etiquetas
-                            </button>
-                        )}
-                        {plano && plano.chapas?.length > 0 && (
-                            <button onClick={loadGcodeHistory} className={Z.btn2}
-                                style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <History size={14} /> G-Code Log
-                            </button>
-                        )}
-                        {plano && plano.chapas?.length > 0 && (
-                            <div style={{ position: 'relative' }}>
-                                <button onClick={() => setShowExportMenu(!showExportMenu)} className={Z.btn2}
-                                    style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <FileDown size={14} /> Exportar <ChevronDown size={12} />
-                                </button>
-                                {showExportMenu && (
-                                    <div style={{
-                                        position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 50,
-                                        background: 'var(--bg-card)', border: '1px solid var(--border)',
-                                        borderRadius: 8, boxShadow: 'var(--shadow-lg)', minWidth: 160, padding: '4px 0',
-                                    }}>
-                                        {[
-                                            { id: 'csv', lb: 'CSV (Excel)', ic: FileText },
-                                            { id: 'json', lb: 'JSON', ic: FileDown },
-                                            { id: 'resumo', lb: 'Resumo HTML', ic: Printer },
-                                        ].map(opt => (
-                                            <div key={opt.id} onClick={() => handleExport(opt.id)}
-                                                style={{ padding: '8px 14px', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8, transition: 'background .1s' }}
-                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
-                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                                <opt.ic size={13} style={{ color: 'var(--text-muted)' }} /> {opt.lb}
-                                            </div>
+
+                        {plano && plano.chapas?.length > 0 && (<>
+                            {/* Arquivo dropdown */}
+                            <ToolbarDropdown label="Arquivo" icon={FileText} items={[
+                                { id: 'print', label: 'Imprimir / PDF', icon: Printer, onClick: () => printPlano(plano, pecasMap, loteAtual, getModColor) },
+                                { divider: true },
+                                { id: 'csv', label: 'Exportar CSV (Excel)', icon: FileText, onClick: () => handleExport('csv') },
+                                { id: 'json', label: 'Exportar JSON', icon: FileDown, onClick: () => handleExport('json') },
+                                { id: 'resumo', label: 'Exportar Resumo HTML', icon: Printer, onClick: () => handleExport('resumo') },
+                                { id: 'pdf', label: 'Exportar PDF Plano', icon: FileText, onClick: handleExportPDF },
+                                { id: 'svg', label: 'Exportar SVG', icon: FileDown, onClick: handleExportSVG },
+                                { id: 'batchgcode', label: batchGcodeLoading ? 'Gerando...' : 'G-Code em Lote', icon: Cpu, onClick: handleBatchGcode, disabled: batchGcodeLoading },
+                                { divider: true },
+                                { id: 'dup', label: 'Duplicar Plano', icon: Copy, onClick: async () => {
+                                    try {
+                                        const r = await api.post(`/cnc/plano/${loteAtual.id}/duplicar`);
+                                        if (r.ok) notify('Plano duplicado como nova versão (v' + r.version_id + ')');
+                                        else notify(r.error || 'Erro ao duplicar plano');
+                                    } catch (err) { notify('Erro ao duplicar plano: ' + (err.error || err.message)); }
+                                }},
+                                { id: 'hist', label: 'Histórico de Versões', icon: Clock, onClick: loadVersions, disabled: versionsLoading },
+                            ]} />
+
+                            {/* Relatórios dropdown */}
+                            <ToolbarDropdown label="Relatórios" icon={BarChart3} items={[
+                                { id: 'custos', label: custosLoading ? 'Calculando...' : 'Custos', icon: DollarSign, onClick: loadCustos, disabled: custosLoading },
+                                { id: 'bordas', label: bordasLoading ? 'Carregando...' : 'Rel. Bordas', icon: PenTool, onClick: loadBordas, disabled: bordasLoading },
+                                { id: 'material', label: 'Lista Material', icon: Package, onClick: loadMaterialReport },
+                                { id: 'review', label: 'Review', icon: ClipboardCheck, onClick: loadReview, danger: reviewData?.allOk === false },
+                                { divider: true },
+                                { id: 'glog', label: 'G-Code Log', icon: History, onClick: loadGcodeHistory },
+                                { divider: true },
+                                { id: 'perf', label: 'Performance Máquina', icon: Monitor, onClick: loadMachinePerf },
+                                { id: 'audit', label: 'Auditoria Material', icon: ClipboardCheck, onClick: loadMaterialAudit },
+                                { id: 'financ', label: 'Sincronizar Financeiro', icon: DollarSign, onClick: handleFinanceiroSync },
+                                { divider: true },
+                                { id: 'comparar', label: 'Comparar Otimização', icon: GitCompare, onClick: loadComparison },
+                                { id: 'desperdicio', label: 'Dashboard Desperdício', icon: BarChart3, onClick: loadWasteDashboard },
+                                { id: 'agrupamento', label: 'Sugestão Agrupamento', icon: Layers, onClick: loadGroupingSuggestions },
+                                { id: 'retalhos', label: 'Retalhos Aproveitáveis', icon: Scissors, onClick: loadRemnants },
+                                { id: 'relcliente', label: 'Relatório Cliente', icon: FileText, onClick: handleClientReport },
+                            ]} />
+
+                            {/* Ferramentas dropdown */}
+                            <ToolbarDropdown label="Ferramentas" icon={Wrench} items={[
+                                { id: 'etiq', label: 'Etiquetas', icon: TagIcon, onClick: printLabels },
+                                { id: 'toolpanel', label: toolPanelLoading ? 'Escaneando...' : 'Painel Ferramentas', icon: Wrench, onClick: handleOpenToolPanel, disabled: toolPanelLoading },
+                                { id: 'validar', label: validating ? 'Validando...' : 'Validar Usinagens', icon: ShieldAlert, onClick: validarUsinagens, disabled: validating,
+                                    danger: validationResult?.conflicts?.length > 0 },
+                                { divider: true },
+                                { id: 'conferencia', label: 'Conferência Pós-Corte', icon: ClipboardCheck, onClick: loadConferencia },
+                                { id: 'fila', label: 'Fila de Produção', icon: Send, onClick: loadFila },
+                                { id: 'custeio', label: custeioLoading ? 'Calculando...' : 'Custeio por Peça', icon: DollarSign, onClick: calcularCusteio, disabled: custeioLoading },
+                                { id: 'estoque', label: 'Estoque Chapas', icon: Package, onClick: loadEstoque },
+                                { divider: true },
+                                { id: 'toolpred', label: 'Predição Ferramentas', icon: Clock, onClick: loadToolPrediction },
+                                { id: 'toolmaint', label: 'Manutenção Programada', icon: Settings, onClick: loadToolMaintenance },
+                                { id: 'reserva', label: 'Reserva Material', icon: Lock, onClick: loadReservations },
+                                { id: 'labelpreview', label: 'Preview Etiquetas', icon: TagIcon, onClick: loadLabelPreview },
+                                { id: 'backup', label: 'Backup', icon: Server, onClick: loadBackups },
+                                { divider: true },
+                                { id: 'operador', label: 'Modo Operador (TV)', icon: Tv, onClick: () => window.open('/operador-cnc', '_blank') },
+                            ]} />
+
+                            {/* Machine selector */}
+                            {maquinas.length > 0 && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'var(--bg-muted)', borderRadius: 6, border: '1px solid var(--border)' }}>
+                                    <Monitor size={13} style={{ color: 'var(--text-muted)' }} />
+                                    <select value={maquinaGcode} onChange={e => setMaquinaGcode(e.target.value)}
+                                        className={Z.inp} style={{ fontSize: 11, padding: '5px 8px', minWidth: 160, border: 'none', background: 'transparent' }}>
+                                        <option value="">Máquina padrão</option>
+                                        {maquinas.filter(m => m.ativo).map(m => (
+                                            <option key={m.id} value={m.id}>{m.nome} ({m.total_ferramentas} ferr.)</option>
                                         ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        {plano && plano.chapas?.length > 0 && (
-                            <button onClick={async () => {
-                                try {
-                                    const r = await api.post(`/cnc/plano/${loteAtual.id}/duplicar`);
-                                    if (r.ok) {
-                                        notify('Plano duplicado como nova versão (v' + r.version_id + ')');
-                                    } else {
-                                        notify(r.error || 'Erro ao duplicar plano');
-                                    }
-                                } catch (err) {
-                                    notify('Erro ao duplicar plano: ' + (err.error || err.message));
-                                }
-                            }} className={Z.btn2}
-                                style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <Copy size={14} /> Duplicar Plano
-                            </button>
-                        )}
-                        {plano && plano.chapas?.length > 0 && (
-                            <button onClick={loadVersions} disabled={versionsLoading} className={Z.btn2}
-                                style={{ padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <Clock size={14} /> Histórico
-                            </button>
-                        )}
+                                    </select>
+                                </div>
+                            )}
+                        </>)}
+
                         {loteAtual.status === 'otimizado' && (
                             <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 600 }}>
                                 <CheckCircle2 size={14} style={{ display: 'inline', verticalAlign: -2, marginRight: 4 }} />
@@ -3569,7 +4003,8 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                 Testando {modo === 'guilhotina' ? 'guilhotina' : modo === 'shelf' ? 'shelf' : 'MaxRects'} · Todos os algoritmos · Otimizando...
                             </span>
                         )}
-                        {/* Action buttons for manual adjustments */}
+
+                        {/* Edit actions — right aligned */}
                         {plano && plano.chapas?.length > 0 && (
                             <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', alignItems: 'center' }}>
                                 <button onClick={handleUndo} disabled={undoStack.length === 0} className={Z.btn2}
@@ -3580,7 +4015,6 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                     title="Refazer (Ctrl+Y)" style={{ padding: '6px 8px', fontSize: 11, opacity: redoStack.length === 0 ? 0.4 : 1 }}>
                                     <Redo2 size={14} />
                                 </button>
-                                {/* Pending changes badge */}
                                 {pendingChanges > 0 && (
                                     <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: colorBg('#f59e0b'), color: '#f59e0b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
                                         title={`${pendingChanges} alteração(ões) salvas automaticamente`}>
@@ -3604,17 +4038,6 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                 }} className={Z.btn2}
                                     title="Adicionar chapa" style={{ padding: '6px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <Plus size={13} /> Chapa
-                                </button>
-                                <span style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
-                                <button onClick={validarUsinagens} disabled={validating} className={Z.btn2}
-                                    title="Validar usinagens (profundidade, sobreposicao, ferramentas)"
-                                    style={{ padding: '6px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, color: validationResult?.conflicts?.length > 0 ? '#ef4444' : undefined }}>
-                                    <ShieldAlert size={13} /> {validating ? 'Validando...' : 'Validar'}
-                                    {validationResult?.conflicts?.length > 0 && (
-                                        <span style={{ background: '#ef4444', color: '#fff', borderRadius: 8, padding: '0 5px', fontSize: 9, fontWeight: 700, marginLeft: 2 }}>
-                                            {validationResult.conflicts.length}
-                                        </span>
-                                    )}
                                 </button>
                             </div>
                         )}
@@ -3801,8 +4224,90 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                 </div>
                             )}
 
-                            {/* ═══ LAYOUT LADO A LADO: Thumbnails + Detalhe ═══ */}
-                            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                            {/* View mode toggle */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                    {plano.chapas.length} chapa{plano.chapas.length !== 1 ? 's' : ''}
+                                </span>
+                                <span style={{ flex: 1 }} />
+                                <div style={{ display: 'flex', gap: 2, padding: 2, borderRadius: 6, background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                    <button onClick={() => setChapaViewMode('list')} title="Lista"
+                                        style={{ padding: '4px 8px', borderRadius: 4, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
+                                            background: chapaViewMode === 'list' ? 'var(--bg-card)' : 'transparent',
+                                            color: chapaViewMode === 'list' ? 'var(--primary)' : 'var(--text-muted)',
+                                            boxShadow: chapaViewMode === 'list' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                        }}><List size={13} /></button>
+                                    <button onClick={() => setChapaViewMode('grid')} title="Grade"
+                                        style={{ padding: '4px 8px', borderRadius: 4, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
+                                            background: chapaViewMode === 'grid' ? 'var(--bg-card)' : 'transparent',
+                                            color: chapaViewMode === 'grid' ? 'var(--primary)' : 'var(--text-muted)',
+                                            boxShadow: chapaViewMode === 'grid' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                        }}><LayoutGrid size={13} /></button>
+                                </div>
+                            </div>
+
+                            {/* ═══ GRID VIEW ═══ */}
+                            {chapaViewMode === 'grid' && (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginBottom: 16 }}>
+                                    {plano.chapas.map((chapa, ci) => {
+                                        const isActive = ci === selectedChapa;
+                                        const gridScale = Math.min(180 / chapa.comprimento, 100 / chapa.largura);
+                                        const gW = chapa.comprimento * gridScale;
+                                        const gH = chapa.largura * gridScale;
+                                        const aprov = chapa.aproveitamento || 0;
+                                        const aprovColor = aprov >= 80 ? '#22c55e' : aprov >= 60 ? '#f59e0b' : '#ef4444';
+                                        return (
+                                            <div key={ci} onClick={() => { setSelectedChapa(ci); setChapaViewMode('list'); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
+                                                style={{
+                                                    padding: 10, borderRadius: 10, cursor: 'pointer', transition: 'all .15s',
+                                                    background: isActive ? 'var(--primary-bg, rgba(230,126,34,0.08))' : 'var(--bg-card)',
+                                                    border: `2px solid ${isActive ? 'var(--primary)' : 'var(--border)'}`,
+                                                    boxShadow: isActive ? '0 0 0 1px var(--primary)' : '0 1px 4px rgba(0,0,0,0.06)',
+                                                    position: 'relative', overflow: 'hidden',
+                                                }}>
+                                                {/* Utilization overlay bar at top */}
+                                                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'var(--bg-muted)' }}>
+                                                    <div style={{ height: '100%', width: `${Math.min(100, aprov)}%`, background: aprovColor, transition: 'width .3s' }} />
+                                                </div>
+                                                {/* Mini SVG */}
+                                                <svg width={gW} height={gH} viewBox={`0 0 ${chapa.comprimento} ${chapa.largura}`}
+                                                    style={{ display: 'block', margin: '6px auto 8px', background: 'var(--bg-body)', borderRadius: 3, border: '1px solid var(--border)' }}>
+                                                    {chapa.pecas.map((p, pi) => {
+                                                        const ref = chapa.refilo || 0;
+                                                        const col = getModColor(p.pecaId, p);
+                                                        if (p.contour && p.contour.length >= 3) {
+                                                            const pts = p.contour.map(v => `${p.x + ref + (v.x / p.w) * p.w},${p.y + ref + (v.y / p.h) * p.h}`).join(' ');
+                                                            return <polygon key={pi} points={pts} fill={`${col}30`} stroke={col} strokeWidth={Math.max(1, 2 / gridScale)} />;
+                                                        }
+                                                        return <rect key={pi} x={p.x + ref} y={p.y + ref} width={p.w} height={p.h}
+                                                            fill={`${col}30`} stroke={col} strokeWidth={Math.max(1, 2 / gridScale)} />;
+                                                    })}
+                                                    {(chapa.retalhos || []).map((r, ri) => (
+                                                        <rect key={`s${ri}`} x={r.x + (chapa.refilo || 0)} y={r.y + (chapa.refilo || 0)}
+                                                            width={r.w} height={r.h}
+                                                            fill="none" stroke="#9ca3af" strokeWidth={Math.max(1, 2 / gridScale)} strokeDasharray="6 3" opacity={0.5} />
+                                                    ))}
+                                                </svg>
+                                                {/* Info row */}
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                    <span style={{ fontSize: 12, fontWeight: 700 }}>
+                                                        Chapa {ci + 1}
+                                                        {chapa.is_retalho && <span style={{ fontSize: 8, padding: '1px 4px', borderRadius: 3, background: colorBg('#06b6d4'), color: '#06b6d4', fontWeight: 700, marginLeft: 4 }}>RET</span>}
+                                                    </span>
+                                                    <span style={{ fontSize: 11, fontWeight: 700, color: aprovColor }}>{aprov.toFixed(0)}%</span>
+                                                </div>
+                                                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>
+                                                    {chapa.pecas.length} pç · {chapa.comprimento}×{chapa.largura}mm
+                                                    {chapa.locked && <Lock size={9} style={{ display: 'inline', verticalAlign: -1, marginLeft: 4, color: '#3b82f6' }} />}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* ═══ LIST VIEW: LAYOUT LADO A LADO: Thumbnails + Detalhe ═══ */}
+                            {chapaViewMode === 'list' && <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
 
                                 {/* LEFT: Thumbnail list — agrupado por material/espessura */}
                                 <div style={{ width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 'calc(100vh - 300px)', overflowY: 'auto', paddingRight: 4 }}>
@@ -3918,15 +4423,21 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                                 )}
                                                 {/* Tempo estimado */}
                                                 {(() => {
-                                                    const estMin = getEstimatedTime(chapa);
+                                                    const realSt = chapaRealStats[ci];
+                                                    const estMin = getEstimatedTime(chapa, ci);
                                                     if (!estMin || estMin <= 0) return null;
+                                                    const isReal = !!realSt?.tempo_estimado_min;
                                                     return (
                                                         <div style={{
                                                             marginTop: 4, display: 'flex', alignItems: 'center', gap: 4,
-                                                            fontSize: 9, fontFamily: 'monospace', color: 'var(--text-muted)',
+                                                            fontSize: 9, fontFamily: 'monospace',
+                                                            color: isReal ? '#22c55e' : 'var(--text-muted)',
                                                         }}>
                                                             <Clock size={9} />
-                                                            <span>~{estMin}m est.</span>
+                                                            <span>{isReal ? '' : '~'}{estMin}min{isReal ? '' : ' est.'}</span>
+                                                            {isReal && realSt.dist_corte_m > 0 && (
+                                                                <span style={{ color: 'var(--text-muted)' }}>({realSt.dist_corte_m}m corte)</span>
+                                                            )}
                                                         </div>
                                                     );
                                                 })()}
@@ -4010,6 +4521,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                             classColors={classColors}
                                             classLabels={classLabels}
                                             onGerarGcode={handleGerarGcode}
+                                            onGerarGcodePeca={handleGerarGcodePeca}
                                             gcodeLoading={gcodeLoading}
                                             onView3D={(piece) => setView3dPeca(piece)}
                                             onPrintLabel={(chapaIdx) => {
@@ -4041,11 +4553,12 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                             }}
                                             setTab={setTab}
                                             validationConflicts={validationResult?.conflicts || []}
+                                            machineArea={selectedMachineArea}
                                             timerInfo={null && {
                                                 elapsed: getTimerElapsed(selectedChapa),
                                                 running: chapaTimers[getTimerKey(selectedChapa)]?.running || false,
                                                 hasTimer: !!chapaTimers[getTimerKey(selectedChapa)],
-                                                estMin: getEstimatedTime(plano.chapas[selectedChapa]),
+                                                estMin: getEstimatedTime(plano.chapas[selectedChapa], selectedChapa),
                                                 formatTimer,
                                                 onStart: () => startTimer(selectedChapa),
                                                 onStop: () => stopTimer(selectedChapa),
@@ -4085,6 +4598,10 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                                 ['1-9', 'Selecionar chapa'],
                                                 ['\u2190 \u2192', 'Chapa anterior / pr\u00f3xima'],
                                                 ['R', 'Rotacionar pe\u00e7a selecionada'],
+                                                ['G', 'Gerar G-Code da chapa'],
+                                                ['E', 'Ir para G-Code/Etiquetas'],
+                                                ['P', 'Imprimir folha de produ\u00e7\u00e3o'],
+                                                ['D', 'Ir para Dashboard'],
                                                 ['Espa\u00e7o', 'Marcar/desmarcar chapa cortada'],
                                                 ['F', 'Tela cheia'],
                                                 ['Esc', 'Limpar sele\u00e7\u00e3o'],
@@ -4104,6 +4621,30 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                         </div>
                                     )}
                                 </div>
+
+                                {/* ═══ SIMULADOR INLINE ═══ */}
+                                {inlineSimData && inlineSimData.chapaIdx === selectedChapa && (
+                                    <div style={{
+                                        position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 30,
+                                        height: 280, background: 'var(--bg-card)', borderTop: '2px solid var(--primary)',
+                                        display: 'flex', flexDirection: 'column',
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                                            <span style={{ fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <Play size={12} /> Simulador CNC — Chapa {selectedChapa + 1}
+                                            </span>
+                                            <button onClick={() => setInlineSimData(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                        <div style={{ flex: 1, minHeight: 0 }}>
+                                            <GcodeSimWrapper
+                                                gcode={inlineSimData.gcode}
+                                                chapa={inlineSimData.chapa}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* ═══ PAINEL DE TRANSFERÊNCIA (inline à direita da chapa) ═══ */}
                                 {transferArea.length > 0 && plano && (() => {
@@ -4246,7 +4787,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                     );
                                 })()}
                                 </div>
-                            </div>
+                            </div>}
 
                             {/* ═══ Relatório de Desperdício ═══ */}
                             <RelatorioDesperdicio loteId={loteAtual?.id} notify={notify} />
@@ -4259,6 +4800,16 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                         </div>
                     )}
                 </>
+            )}
+
+            {/* ═══ Modal Painel de Ferramentas ═══ */}
+            {toolPanelOpen && toolPanel && (
+                <ToolPanelModal
+                    data={toolPanel}
+                    loteId={loteAtual?.id}
+                    onClose={() => setToolPanelOpen(false)}
+                    onSave={() => { setToolPanelOpen(false); setToolPanelDirty(false); notify('Configurações salvas!', 'success'); }}
+                />
             )}
 
             {/* ═══ Modal Preview G-Code ═══ */}
@@ -4583,151 +5134,111 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
             />
 
             {/* ══ Modal 3D flutuante ══ */}
-            {view3dPeca && (
-                <div style={{
-                    position: 'fixed', inset: 0, zIndex: 9999,
-                    background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }} onClick={() => setView3dPeca(null)}>
-                    <div style={{
-                        background: 'var(--bg-card)', borderRadius: 14, border: '1px solid var(--border)',
-                        boxShadow: 'var(--shadow-xl)', maxWidth: 700, width: '90vw', overflow: 'hidden',
-                    }} onClick={e => e.stopPropagation()}>
-                        {/* Header */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
-                            <div>
-                                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{view3dPeca.descricao}</div>
-                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                                    {view3dPeca.comprimento} × {view3dPeca.largura} × {view3dPeca.espessura} mm · {view3dPeca.material_code}
-                                </div>
-                            </div>
-                            <button onClick={() => setView3dPeca(null)} style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', display: 'flex' }}>
-                                <X size={16} style={{ color: 'var(--text-muted)' }} />
-                            </button>
-                        </div>
-                        {/* 3D Viewer */}
-                        <div style={{ display: 'flex', justifyContent: 'center', padding: 16, background: '#1a1a2e' }}>
-                            <PecaViewer3D peca={view3dPeca} width={Math.min(640, window.innerWidth - 80)} height={400} />
-                        </div>
-                        {/* Info bar */}
-                        <div style={{ display: 'flex', gap: 12, padding: '12px 20px', borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
-                            {view3dPeca.borda_frontal && (
-                                <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
-                                    Frontal: {view3dPeca.borda_cor_frontal || view3dPeca.borda_frontal}
-                                </span>
-                            )}
-                            {view3dPeca.borda_traseira && (
-                                <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
-                                    Traseira: {view3dPeca.borda_cor_traseira || view3dPeca.borda_traseira}
-                                </span>
-                            )}
-                            {view3dPeca.borda_esq && (
-                                <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
-                                    Esquerda: {view3dPeca.borda_cor_esq || view3dPeca.borda_esq}
-                                </span>
-                            )}
-                            {view3dPeca.borda_dir && (
-                                <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
-                                    Direita: {view3dPeca.borda_cor_dir || view3dPeca.borda_dir}
-                                </span>
-                            )}
-                            {(() => {
-                                const ops = (() => { try { const d = typeof view3dPeca.machining_json === 'string' ? JSON.parse(view3dPeca.machining_json) : view3dPeca.machining_json; return d?.workers || []; } catch { return []; } })();
-                                return ops.length > 0 && (
-                                    <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: '#e11d4815', color: '#e11d48', fontWeight: 600 }}>
-                                        {ops.length} usinagem{ops.length > 1 ? 'ns' : ''}
-                                    </span>
-                                );
-                            })()}
-                        </div>
+            {/* ══ 3D Viewer SlidePanel ══ */}
+            <SlidePanel isOpen={!!view3dPeca} onClose={() => setView3dPeca(null)} title={view3dPeca?.descricao || 'Visualização 3D'} width={560}>
+                {view3dPeca && (<>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
+                        {view3dPeca.comprimento} × {view3dPeca.largura} × {view3dPeca.espessura} mm · {view3dPeca.material_code}
                     </div>
-                </div>
-            )}
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: 12, background: '#1a1a2e', borderRadius: 10, marginBottom: 16 }}>
+                        <PecaViewer3D peca={view3dPeca} width={Math.min(500, window.innerWidth - 120)} height={380} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {view3dPeca.borda_frontal && (
+                            <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
+                                Frontal: {view3dPeca.borda_cor_frontal || view3dPeca.borda_frontal}
+                            </span>
+                        )}
+                        {view3dPeca.borda_traseira && (
+                            <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
+                                Traseira: {view3dPeca.borda_cor_traseira || view3dPeca.borda_traseira}
+                            </span>
+                        )}
+                        {view3dPeca.borda_esq && (
+                            <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
+                                Esquerda: {view3dPeca.borda_cor_esq || view3dPeca.borda_esq}
+                            </span>
+                        )}
+                        {view3dPeca.borda_dir && (
+                            <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
+                                Direita: {view3dPeca.borda_cor_dir || view3dPeca.borda_dir}
+                            </span>
+                        )}
+                        {(() => {
+                            const ops = (() => { try { const d = typeof view3dPeca.machining_json === 'string' ? JSON.parse(view3dPeca.machining_json) : view3dPeca.machining_json; return d?.workers || []; } catch { return []; } })();
+                            return ops.length > 0 && (
+                                <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: '#e11d4815', color: '#e11d48', fontWeight: 600 }}>
+                                    {ops.length} usinagem{ops.length > 1 ? 'ns' : ''}
+                                </span>
+                            );
+                        })()}
+                    </div>
+                </>)}
+            </SlidePanel>
 
-            {/* ══ Print label modal ══ */}
-            {printLabelPeca && (
-                <div style={{
-                    position: 'fixed', inset: 0, zIndex: 9999,
-                    background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }} onClick={() => setPrintLabelPeca(null)}>
-                    <div style={{
-                        background: 'var(--bg-card)', borderRadius: 14, border: '1px solid var(--border)',
-                        boxShadow: 'var(--shadow-xl)', maxWidth: 500, width: '90vw', padding: 24,
-                    }} onClick={e => e.stopPropagation()}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <Printer size={18} /> Imprimir Etiqueta
-                            </h3>
-                            <button onClick={() => setPrintLabelPeca(null)} style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', display: 'flex' }}>
-                                <X size={16} style={{ color: 'var(--text-muted)' }} />
-                            </button>
+            {/* ══ Print label SlidePanel ══ */}
+            <SlidePanel isOpen={!!printLabelPeca} onClose={() => setPrintLabelPeca(null)} title="Imprimir Etiqueta" width={420}>
+                {printLabelPeca && (<>
+                    <div className="glass-card" style={{ padding: 14, marginBottom: 16 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{printLabelPeca.descricao}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                            {printLabelPeca.comprimento} × {printLabelPeca.largura} × {printLabelPeca.espessura} mm · {printLabelPeca.material_code}
                         </div>
-                        {/* Piece info */}
-                        <div className="glass-card" style={{ padding: 14, marginBottom: 16 }}>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{printLabelPeca.descricao}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                                {printLabelPeca.comprimento} × {printLabelPeca.largura} × {printLabelPeca.espessura} mm · {printLabelPeca.material_code}
-                            </div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                                Módulo: {printLabelPeca.modulo_desc} · Qtd: {printLabelPeca.quantidade}
-                            </div>
-                        </div>
-                        {/* Print action */}
-                        <div style={{ display: 'flex', gap: 10 }}>
-                            <button onClick={() => {
-                                // Navigate to etiquetas tab with this piece pre-selected for printing
-                                setPrintLabelPeca(null);
-                                if (setTab) setTab('etiquetas');
-                            }} style={{
-                                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                                padding: '12px 20px', borderRadius: 8,
-                                background: 'var(--primary)', color: '#fff',
-                                border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
-                            }}>
-                                <TagIcon size={15} /> Abrir Etiquetas
-                            </button>
-                            <button onClick={() => {
-                                // Quick print — open print dialog with piece label
-                                const win = window.open('', '_blank', 'width=400,height=300');
-                                if (win) {
-                                    const p = printLabelPeca;
-                                    const bordas = ['frontal','traseira','esq','dir'].map(s => {
-                                        const v = p[`borda_${s}`];
-                                        const c = p[`borda_cor_${s}`];
-                                        return v ? `${s}: ${c || v}` : null;
-                                    }).filter(Boolean).join(' | ');
-                                    win.document.write(`<html><head><style>
-                                        body { font-family: Arial, sans-serif; padding: 10px; margin: 0; }
-                                        .label { border: 1px solid #000; padding: 8px; width: 95mm; }
-                                        .name { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
-                                        .dims { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
-                                        .info { font-size: 10px; color: #555; margin-bottom: 2px; }
-                                        @media print { body { padding: 0; } }
-                                    </style></head><body onload="window.print();window.close()">
-                                        <div class="label">
-                                            <div class="name">${p.descricao}</div>
-                                            <div class="dims">${p.comprimento} × ${p.largura} × ${p.espessura} mm</div>
-                                            <div class="info">${p.material || ''} · ${p.modulo_desc || ''}</div>
-                                            <div class="info">Qtd: ${p.quantidade} · ${p.persistent_id || p.upmcode || ''}</div>
-                                            ${bordas ? `<div class="info">Fitas: ${bordas}</div>` : ''}
-                                        </div>
-                                    </body></html>`);
-                                    win.document.close();
-                                }
-                                setPrintLabelPeca(null);
-                            }} style={{
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                                padding: '12px 20px', borderRadius: 8,
-                                background: 'var(--bg-muted)', color: 'var(--text-primary)',
-                                border: '1px solid var(--border)', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-                            }}>
-                                <Printer size={15} /> Imprimir Rápido
-                            </button>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                            Módulo: {printLabelPeca.modulo_desc} · Qtd: {printLabelPeca.quantidade}
                         </div>
                     </div>
-                </div>
-            )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <button onClick={() => {
+                            setPrintLabelPeca(null);
+                            if (setTab) setTab('etiquetas');
+                        }} style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                            padding: '12px 20px', borderRadius: 8,
+                            background: 'var(--primary)', color: '#fff',
+                            border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                        }}>
+                            <TagIcon size={15} /> Abrir Etiquetas
+                        </button>
+                        <button onClick={() => {
+                            const win = window.open('', '_blank', 'width=400,height=300');
+                            if (win) {
+                                const p = printLabelPeca;
+                                const bordas = ['frontal','traseira','esq','dir'].map(s => {
+                                    const v = p[`borda_${s}`];
+                                    const c = p[`borda_cor_${s}`];
+                                    return v ? `${s}: ${c || v}` : null;
+                                }).filter(Boolean).join(' | ');
+                                win.document.write(`<html><head><style>
+                                    body { font-family: Arial, sans-serif; padding: 10px; margin: 0; }
+                                    .label { border: 1px solid #000; padding: 8px; width: 95mm; }
+                                    .name { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+                                    .dims { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+                                    .info { font-size: 10px; color: #555; margin-bottom: 2px; }
+                                    @media print { body { padding: 0; } }
+                                </style></head><body onload="window.print();window.close()">
+                                    <div class="label">
+                                        <div class="name">${p.descricao}</div>
+                                        <div class="dims">${p.comprimento} × ${p.largura} × ${p.espessura} mm</div>
+                                        <div class="info">${p.material || ''} · ${p.modulo_desc || ''}</div>
+                                        <div class="info">Qtd: ${p.quantidade} · ${p.persistent_id || p.upmcode || ''}</div>
+                                        ${bordas ? `<div class="info">Fitas: ${bordas}</div>` : ''}
+                                    </div>
+                                </body></html>`);
+                                win.document.close();
+                            }
+                            setPrintLabelPeca(null);
+                        }} style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                            padding: '12px 20px', borderRadius: 8,
+                            background: 'var(--bg-muted)', color: 'var(--text-primary)',
+                            border: '1px solid var(--border)', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                        }}>
+                            <Printer size={15} /> Imprimir Rápido
+                        </button>
+                    </div>
+                </>)}
+            </SlidePanel>
 
             {/* ═══ Modal Review Checklist ═══ */}
             {showReview && reviewData && (
@@ -4882,6 +5393,734 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                     )}
                 </Modal>
             )}
+
+            {/* ═══ SlidePanel Conferência Pós-Corte ═══ */}
+            <SlidePanel isOpen={showConferencia} onClose={() => setShowConferencia(false)} title="Conferência Pós-Corte" width={580}>
+                {plano && plano.chapas && (<div>
+                    {/* Resumo */}
+                    {(() => {
+                        const total = plano.chapas.reduce((s, c) => s + (c.pecas?.length || 0), 0);
+                        const ok = conferencia.filter(c => c.status === 'ok').length;
+                        const def = conferencia.filter(c => c.status === 'defeito').length;
+                        const pend = total - ok - def;
+                        return (
+                            <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                                <div style={{ flex: 1, padding: '10px 14px', borderRadius: 8, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', textAlign: 'center' }}>
+                                    <div style={{ fontSize: 22, fontWeight: 800, color: '#22c55e' }}>{ok}</div>
+                                    <div style={{ fontSize: 9, fontWeight: 600, color: '#22c55e' }}>OK</div>
+                                </div>
+                                <div style={{ flex: 1, padding: '10px 14px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', textAlign: 'center' }}>
+                                    <div style={{ fontSize: 22, fontWeight: 800, color: '#ef4444' }}>{def}</div>
+                                    <div style={{ fontSize: 9, fontWeight: 600, color: '#ef4444' }}>Defeito</div>
+                                </div>
+                                <div style={{ flex: 1, padding: '10px 14px', borderRadius: 8, background: 'var(--bg-muted)', border: '1px solid var(--border)', textAlign: 'center' }}>
+                                    <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-muted)' }}>{pend}</div>
+                                    <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)' }}>Pendente</div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* Por chapa */}
+                    {plano.chapas.map((chapa, ci) => {
+                        const confMap = {};
+                        for (const c of conferencia) { if (c.chapa_idx === ci) confMap[c.peca_idx] = c; }
+                        const allOk = chapa.pecas.every((_, pi) => confMap[pi]?.status === 'ok');
+                        return (
+                            <div key={ci} style={{ marginBottom: 12 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, background: allOk ? 'rgba(34,197,94,0.06)' : 'var(--bg-muted)', border: `1px solid ${allOk ? 'rgba(34,197,94,0.2)' : 'var(--border)'}` }}>
+                                    <span style={{ fontSize: 12, fontWeight: 700 }}>
+                                        {allOk && <Check size={13} style={{ color: '#22c55e', marginRight: 4, verticalAlign: -2 }} />}
+                                        Chapa {ci + 1} <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>({chapa.pecas.length} peças)</span>
+                                    </span>
+                                    {!allOk && (
+                                        <button onClick={() => conferirChapaOk(ci)} style={{
+                                            fontSize: 10, padding: '4px 12px', borderRadius: 6,
+                                            background: '#22c55e', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 700,
+                                        }}>Tudo OK</button>
+                                    )}
+                                </div>
+                                <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                    {chapa.pecas.map((p, pi) => {
+                                        const conf = confMap[pi];
+                                        const st = conf?.status || 'pendente';
+                                        return (
+                                            <div key={pi} style={{
+                                                display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px',
+                                                borderRadius: 6, fontSize: 11, background: st === 'defeito' ? 'rgba(239,68,68,0.05)' : 'transparent',
+                                            }}>
+                                                <span style={{
+                                                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                                                    background: st === 'ok' ? '#22c55e' : st === 'defeito' ? '#ef4444' : '#9ca3af',
+                                                }} />
+                                                <span style={{ flex: 1, fontWeight: 500 }}>{p.desc || `Peça ${pi + 1}`}</span>
+                                                <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                                    {p.w}×{p.h}
+                                                </span>
+                                                {st === 'pendente' && (<>
+                                                    <button onClick={() => conferirPeca(ci, pi, p.desc, 'ok')} style={{
+                                                        fontSize: 9, padding: '2px 8px', borderRadius: 4,
+                                                        background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)',
+                                                        cursor: 'pointer', fontWeight: 700,
+                                                    }}>OK</button>
+                                                    <button onClick={() => {
+                                                        const obs = prompt('Descreva o defeito:');
+                                                        if (obs !== null) conferirPeca(ci, pi, p.desc, 'defeito', 'outro', obs);
+                                                    }} style={{
+                                                        fontSize: 9, padding: '2px 8px', borderRadius: 4,
+                                                        background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)',
+                                                        cursor: 'pointer', fontWeight: 700,
+                                                    }}>Defeito</button>
+                                                </>)}
+                                                {st === 'ok' && <span style={{ fontSize: 9, color: '#22c55e', fontWeight: 700 }}>✓</span>}
+                                                {st === 'defeito' && (
+                                                    <span style={{ fontSize: 9, color: '#ef4444', fontWeight: 600 }} title={conf?.defeito_obs || ''}>
+                                                        ✗ {conf?.defeito_tipo || 'defeito'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>)}
+            </SlidePanel>
+
+            {/* ═══ SlidePanel Fila de Produção ═══ */}
+            <SlidePanel isOpen={showFila} onClose={() => setShowFila(false)} title="Fila de Produção" width={620}>
+                <div style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
+                    <button onClick={enviarParaFila} className={Z.btn}
+                        style={{ fontSize: 12, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Send size={13} /> Enviar Lote para Fila
+                    </button>
+                </div>
+                {filaProducao.length === 0 ? (
+                    <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                        Fila vazia. Envie chapas para começar.
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {filaProducao.map(item => {
+                            const stColor = item.status === 'em_producao' ? '#f59e0b' : item.status === 'concluido' ? '#22c55e' : '#9ca3af';
+                            return (
+                                <div key={item.id} style={{
+                                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                                    borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)',
+                                }}>
+                                    <div style={{ width: 4, height: 36, borderRadius: 2, background: stColor, flexShrink: 0 }} />
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontSize: 12, fontWeight: 700 }}>
+                                            {item.lote_nome || `Lote ${item.lote_id}`} — Chapa {item.chapa_idx + 1}
+                                        </div>
+                                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                                            {item.lote_cliente || ''} · Máq: {item.maquina_nome || 'Não atribuída'}
+                                            {item.operador && ` · Op: ${item.operador}`}
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 4 }}>
+                                        {item.prioridade > 0 && (
+                                            <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>
+                                                P{item.prioridade}
+                                            </span>
+                                        )}
+                                        <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 4, background: `${stColor}18`, color: stColor, fontWeight: 700 }}>
+                                            {item.status === 'aguardando' ? 'Aguardando' : item.status === 'em_producao' ? 'Em Produção' : 'Concluído'}
+                                        </span>
+                                    </div>
+                                    {item.status === 'aguardando' && (
+                                        <button onClick={() => atualizarFila(item.id, { status: 'em_producao' })}
+                                            style={{ fontSize: 10, padding: '4px 10px', borderRadius: 6, background: '#f59e0b', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 700 }}>
+                                            Iniciar
+                                        </button>
+                                    )}
+                                    {item.status === 'em_producao' && (
+                                        <button onClick={() => atualizarFila(item.id, { status: 'concluido' })}
+                                            style={{ fontSize: 10, padding: '4px 10px', borderRadius: 6, background: '#22c55e', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 700 }}>
+                                            Concluir
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </SlidePanel>
+
+            {/* ═══ SlidePanel Custeio Automático ═══ */}
+            <SlidePanel isOpen={showCusteio} onClose={() => setShowCusteio(false)} title="Custeio por Peça" width={640}>
+                {custeioData && (<div>
+                    {/* Totais */}
+                    <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                        {[
+                            { label: 'Material', val: custeioData.totais.material, color: '#3b82f6' },
+                            { label: 'Máquina', val: custeioData.totais.maquina, color: '#f59e0b' },
+                            { label: 'Borda', val: custeioData.totais.borda, color: '#8b5cf6' },
+                            { label: 'Total', val: custeioData.totais.total, color: '#22c55e' },
+                        ].map(t => (
+                            <div key={t.label} style={{ flex: 1, padding: '10px 14px', borderRadius: 8, background: `${t.color}08`, border: `1px solid ${t.color}30`, textAlign: 'center' }}>
+                                <div style={{ fontSize: 18, fontWeight: 800, color: t.color }}>R${t.val.toFixed(2)}</div>
+                                <div style={{ fontSize: 9, fontWeight: 600, color: t.color, opacity: 0.8 }}>{t.label}</div>
+                            </div>
+                        ))}
+                    </div>
+                    {/* Parâmetros */}
+                    {custeioData.params && (
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 12, display: 'flex', gap: 12 }}>
+                            <span>Material: R${custeioData.params.custo_m2}/m²</span>
+                            <span>Máquina: R${custeioData.params.custo_maquina_min}/min</span>
+                            <span>Borda: R${custeioData.params.custo_borda_m}/m</span>
+                        </div>
+                    )}
+                    {/* Tabela de peças */}
+                    <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                                <th style={{ textAlign: 'left', padding: '4px 6px', fontSize: 10 }}>Peça</th>
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontSize: 10 }}>Área m²</th>
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontSize: 10 }}>Material</th>
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontSize: 10 }}>Máquina</th>
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontSize: 10 }}>Borda</th>
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontSize: 10, fontWeight: 700 }}>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {custeioData.pecas.map((p, i) => (
+                                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <td style={{ padding: '5px 6px', fontWeight: 500, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.peca_desc || `#${p.peca_id}`}</td>
+                                    <td style={{ textAlign: 'right', padding: '5px 6px', fontFamily: 'monospace', fontSize: 10 }}>{p.area_m2.toFixed(4)}</td>
+                                    <td style={{ textAlign: 'right', padding: '5px 6px', fontFamily: 'monospace' }}>R${p.custo_material.toFixed(2)}</td>
+                                    <td style={{ textAlign: 'right', padding: '5px 6px', fontFamily: 'monospace' }}>R${p.custo_maquina.toFixed(2)}</td>
+                                    <td style={{ textAlign: 'right', padding: '5px 6px', fontFamily: 'monospace' }}>R${p.custo_borda.toFixed(2)}</td>
+                                    <td style={{ textAlign: 'right', padding: '5px 6px', fontFamily: 'monospace', fontWeight: 700 }}>R${p.custo_total.toFixed(2)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>)}
+            </SlidePanel>
+
+            {/* ═══ SlidePanel Estoque de Chapas ═══ */}
+            <SlidePanel isOpen={showEstoque} onClose={() => setShowEstoque(false)} title="Estoque de Chapas" width={560}>
+                {/* Alertas de estoque baixo */}
+                {estoqueAlertas.length > 0 && (
+                    <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 8, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', marginBottom: 6 }}>
+                            <AlertTriangle size={12} style={{ verticalAlign: -2, marginRight: 4 }} />
+                            {estoqueAlertas.length} chapa(s) com estoque baixo
+                        </div>
+                        {estoqueAlertas.map(a => (
+                            <div key={a.id} style={{ fontSize: 10, color: '#ef4444', padding: '2px 0' }}>
+                                {a.nome}: {a.estoque_qtd || 0} un. (mín: {a.estoque_minimo})
+                            </div>
+                        ))}
+                    </div>
+                )}
+                {/* Lista de chapas */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {estoqueChapas.map(ch => (
+                        <div key={ch.id} style={{
+                            display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                            borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)',
+                        }}>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 12, fontWeight: 700 }}>{ch.nome}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                                    {ch.comprimento}×{ch.largura}mm · {ch.espessura_nominal}mm · {ch.material_code || '-'}
+                                </div>
+                            </div>
+                            <div style={{ textAlign: 'center', minWidth: 60 }}>
+                                <div style={{
+                                    fontSize: 18, fontWeight: 800,
+                                    color: (ch.estoque_minimo > 0 && (ch.estoque_qtd || 0) <= ch.estoque_minimo) ? '#ef4444' : 'var(--text-primary)',
+                                }}>{ch.estoque_qtd || 0}</div>
+                                <div style={{ fontSize: 8, color: 'var(--text-muted)' }}>un.</div>
+                            </div>
+                            {ch.custo_unitario > 0 && (
+                                <div style={{ textAlign: 'right', fontSize: 10, color: 'var(--text-muted)', minWidth: 70 }}>
+                                    R${ch.custo_unitario.toFixed(2)}/un
+                                </div>
+                            )}
+                            <div style={{ display: 'flex', gap: 4 }}>
+                                <button onClick={() => {
+                                    const qtd = prompt(`Entrada de ${ch.nome} — quantidade:`);
+                                    if (qtd && Number(qtd) > 0) movimentarEstoque(ch.id, 'entrada', Number(qtd), 'Entrada manual');
+                                }} style={{
+                                    fontSize: 9, padding: '4px 8px', borderRadius: 4,
+                                    background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)',
+                                    cursor: 'pointer', fontWeight: 700,
+                                }}>+</button>
+                                <button onClick={() => {
+                                    const qtd = prompt(`Saída de ${ch.nome} — quantidade:`);
+                                    if (qtd && Number(qtd) > 0) movimentarEstoque(ch.id, 'saida', Number(qtd), 'Saída manual');
+                                }} style={{
+                                    fontSize: 9, padding: '4px 8px', borderRadius: 4,
+                                    background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)',
+                                    cursor: 'pointer', fontWeight: 700,
+                                }}>-</button>
+                            </div>
+                        </div>
+                    ))}
+                    {estoqueChapas.length === 0 && (
+                        <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                            Nenhuma chapa cadastrada. Cadastre em Configurações → Chapas.
+                        </div>
+                    )}
+                </div>
+            </SlidePanel>
+
+            {/* ═══ SlidePanel Tool Prediction ═══ */}
+            <SlidePanel isOpen={showToolPrediction} onClose={() => setShowToolPrediction(false)} title="Predição de Ferramentas" width={560}>
+                {toolPrediction && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {(toolPrediction.predictions || []).map((p, i) => {
+                            const pct = p.vida_restante_pct || 0;
+                            const color = pct < 20 ? '#ef4444' : pct < 50 ? '#f59e0b' : '#22c55e';
+                            return (
+                                <div key={i} style={{ padding: '12px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                        <span style={{ fontSize: 12, fontWeight: 700 }}>{p.ferramenta_nome || `Ferramenta #${p.ferramenta_id}`}</span>
+                                        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: `${color}20`, color, fontWeight: 700 }}>
+                                            {pct.toFixed(0)}% vida
+                                        </span>
+                                    </div>
+                                    <div style={{ height: 4, borderRadius: 2, background: 'var(--bg-muted)', overflow: 'hidden', marginBottom: 6 }}>
+                                        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.3s' }} />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 16, fontSize: 10, color: 'var(--text-muted)' }}>
+                                        <span>Horas uso: {(p.horas_uso || 0).toFixed(1)}h</span>
+                                        <span>Vida total: {(p.ciclo_vida_horas || 0).toFixed(0)}h</span>
+                                        {p.previsao_troca && <span style={{ color: '#f59e0b' }}>Troca em: {p.previsao_troca}</span>}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {(!toolPrediction.predictions || toolPrediction.predictions.length === 0) && (
+                            <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                                Nenhuma ferramenta com dados de desgaste registrados.
+                            </div>
+                        )}
+                    </div>
+                )}
+            </SlidePanel>
+
+            {/* ═══ SlidePanel Tool Maintenance ═══ */}
+            <SlidePanel isOpen={showToolMaint} onClose={() => setShowToolMaint(false)} title="Manutenção Programada" width={600}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                    <button onClick={async () => {
+                        const nome = prompt('Nome da manutenção:');
+                        if (!nome) return;
+                        try {
+                            await api.post('/cnc/tool-manutencao', { tipo: 'preventiva', descricao: nome, data_programada: new Date().toISOString().split('T')[0] });
+                            loadToolMaintenance();
+                            notify('Manutenção agendada', 'success');
+                        } catch (err) { notify(err.error || 'Erro'); }
+                    }} className={Z.btn} style={{ fontSize: 11, padding: '6px 14px' }}>
+                        <Plus size={12} style={{ marginRight: 4 }} /> Nova Manutenção
+                    </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {toolMaintenance.map((m, i) => (
+                        <div key={m.id || i} style={{
+                            padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)',
+                            borderLeft: `3px solid ${m.status === 'concluida' ? '#22c55e' : m.status === 'atrasada' ? '#ef4444' : '#f59e0b'}`,
+                        }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: 12, fontWeight: 700 }}>{m.descricao || m.tipo}</span>
+                                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10,
+                                    background: m.status === 'concluida' ? 'rgba(34,197,94,0.1)' : m.status === 'atrasada' ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
+                                    color: m.status === 'concluida' ? '#22c55e' : m.status === 'atrasada' ? '#ef4444' : '#f59e0b',
+                                    fontWeight: 600 }}>{m.status || 'pendente'}</span>
+                            </div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                                {m.ferramenta_nome && <span>Ferramenta: {m.ferramenta_nome} · </span>}
+                                Programada: {m.data_programada || '-'}
+                                {m.data_realizada && <span> · Realizada: {m.data_realizada}</span>}
+                            </div>
+                            {m.status !== 'concluida' && (
+                                <button onClick={async () => {
+                                    try {
+                                        await api.put(`/cnc/tool-manutencao/${m.id}`, { status: 'concluida', data_realizada: new Date().toISOString().split('T')[0] });
+                                        loadToolMaintenance();
+                                        notify('Manutenção concluída', 'success');
+                                    } catch (err) { notify(err.error || 'Erro'); }
+                                }} style={{ marginTop: 6, fontSize: 10, padding: '3px 10px', borderRadius: 4, background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)', cursor: 'pointer' }}>
+                                    <Check size={10} style={{ marginRight: 3 }} /> Concluir
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                    {toolMaintenance.length === 0 && (
+                        <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                            Nenhuma manutenção programada.
+                        </div>
+                    )}
+                </div>
+            </SlidePanel>
+
+            {/* ═══ SlidePanel Material Audit ═══ */}
+            <SlidePanel isOpen={showMaterialAudit} onClose={() => setShowMaterialAudit(false)} title="Auditoria de Consumo" width={620}>
+                {materialAudit.length > 0 ? (
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                            <thead>
+                                <tr style={{ background: 'var(--bg-muted)', borderBottom: '2px solid var(--border)' }}>
+                                    <th style={{ padding: '8px 6px', textAlign: 'left' }}>Material</th>
+                                    <th style={{ padding: '8px 6px', textAlign: 'right' }}>Área Total (m²)</th>
+                                    <th style={{ padding: '8px 6px', textAlign: 'right' }}>Usado (m²)</th>
+                                    <th style={{ padding: '8px 6px', textAlign: 'right' }}>Sobra (m²)</th>
+                                    <th style={{ padding: '8px 6px', textAlign: 'right' }}>Desperdício</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {materialAudit.map((a, i) => (
+                                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                        <td style={{ padding: '6px', fontWeight: 600 }}>{a.material || a.chapa_nome || '-'}</td>
+                                        <td style={{ padding: '6px', textAlign: 'right', fontFamily: 'monospace' }}>{(a.area_total_m2 || 0).toFixed(3)}</td>
+                                        <td style={{ padding: '6px', textAlign: 'right', fontFamily: 'monospace' }}>{(a.area_usada_m2 || 0).toFixed(3)}</td>
+                                        <td style={{ padding: '6px', textAlign: 'right', fontFamily: 'monospace' }}>{(a.area_sobra_m2 || 0).toFixed(3)}</td>
+                                        <td style={{ padding: '6px', textAlign: 'right', fontFamily: 'monospace', color: (a.desperdicio_pct || 0) > 30 ? '#ef4444' : '#22c55e' }}>
+                                            {(a.desperdicio_pct || 0).toFixed(1)}%
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                        Nenhum registro de consumo para este lote.
+                    </div>
+                )}
+            </SlidePanel>
+
+            {/* ═══ SlidePanel Reservations ═══ */}
+            <SlidePanel isOpen={showReservations} onClose={() => setShowReservations(false)} title="Reserva de Material" width={560}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {reservations.map((r, i) => (
+                        <div key={r.id || i} style={{
+                            padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)',
+                            opacity: r.status === 'expirada' ? 0.5 : 1,
+                        }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: 12, fontWeight: 700 }}>{r.chapa_nome || `Chapa #${r.chapa_id}`}</span>
+                                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10,
+                                    background: r.status === 'ativa' ? 'rgba(34,197,94,0.1)' : r.status === 'expirada' ? 'rgba(239,68,68,0.1)' : 'rgba(100,100,100,0.1)',
+                                    color: r.status === 'ativa' ? '#22c55e' : r.status === 'expirada' ? '#ef4444' : '#888',
+                                    fontWeight: 600 }}>{r.status || 'ativa'}</span>
+                            </div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                                Qtd: {r.quantidade} · Lote: {r.lote_nome || r.lote_id}
+                                {r.expira_em && <span> · Expira: {new Date(r.expira_em).toLocaleString('pt-BR')}</span>}
+                            </div>
+                            {r.status === 'ativa' && (
+                                <button onClick={async () => {
+                                    try {
+                                        await api.put(`/cnc/reserva-material/${r.id}`, { status: 'cancelada' });
+                                        loadReservations();
+                                        notify('Reserva cancelada', 'success');
+                                    } catch (err) { notify(err.error || 'Erro'); }
+                                }} style={{ marginTop: 6, fontSize: 10, padding: '3px 10px', borderRadius: 4, background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer' }}>
+                                    Cancelar Reserva
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                    {reservations.length === 0 && (
+                        <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                            Nenhuma reserva ativa. Use o estoque para reservar material.
+                        </div>
+                    )}
+                </div>
+            </SlidePanel>
+
+            {/* ═══ SlidePanel Backup ═══ */}
+            <SlidePanel isOpen={showBackups} onClose={() => setShowBackups(false)} title="Backups" width={500}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                    <button onClick={criarBackup} className={Z.btn} style={{ fontSize: 11, padding: '6px 14px' }}>
+                        <Plus size={12} style={{ marginRight: 4 }} /> Criar Backup
+                    </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {backups.map((b, i) => (
+                        <div key={b.id || i} style={{
+                            display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px',
+                            borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)',
+                        }}>
+                            <Server size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 11, fontWeight: 600 }}>{b.filename || b.nome}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                                    {b.created_at ? new Date(b.created_at).toLocaleString('pt-BR') : '-'}
+                                    {b.size_mb && <span> · {b.size_mb.toFixed(1)} MB</span>}
+                                </div>
+                            </div>
+                            <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>
+                                {b.status || 'ok'}
+                            </span>
+                        </div>
+                    ))}
+                    {backups.length === 0 && (
+                        <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                            Nenhum backup realizado.
+                        </div>
+                    )}
+                </div>
+            </SlidePanel>
+
+            {/* ═══ SlidePanel Machine Performance ═══ */}
+            <SlidePanel isOpen={showMachinePerf} onClose={() => setShowMachinePerf(false)} title="Performance da Máquina" width={640}>
+                {machinePerf ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        {/* Summary cards */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                            {[
+                                { label: 'Tempo Médio/Chapa', value: `${(machinePerf.avg_tempo_min || 0).toFixed(1)} min`, color: '#3b82f6' },
+                                { label: 'Peças/Hora', value: (machinePerf.pecas_hora || 0).toFixed(1), color: '#22c55e' },
+                                { label: 'Aproveit. Médio', value: `${(machinePerf.avg_aproveitamento || 0).toFixed(1)}%`, color: '#f59e0b' },
+                            ].map((c, i) => (
+                                <div key={i} style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', textAlign: 'center' }}>
+                                    <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.value}</div>
+                                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{c.label}</div>
+                                </div>
+                            ))}
+                        </div>
+                        {/* Recent logs */}
+                        {machinePerf.logs && machinePerf.logs.length > 0 && (
+                            <div>
+                                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Últimas Operações</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    {machinePerf.logs.slice(0, 20).map((l, i) => (
+                                        <div key={i} style={{ display: 'flex', gap: 10, padding: '6px 10px', borderRadius: 6, background: 'var(--bg-muted)', fontSize: 10, alignItems: 'center' }}>
+                                            <span style={{ fontWeight: 600, minWidth: 80 }}>{l.maquina_nome || '-'}</span>
+                                            <span style={{ flex: 1 }}>{l.lote_nome || `Lote #${l.lote_id}`}</span>
+                                            <span style={{ fontFamily: 'monospace' }}>{(l.tempo_min || 0).toFixed(1)} min</span>
+                                            <span style={{ color: 'var(--text-muted)' }}>{l.created_at ? new Date(l.created_at).toLocaleDateString('pt-BR') : '-'}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                        Carregando dados de performance...
+                    </div>
+                )}
+            </SlidePanel>
+
+            {/* ═══ SlidePanel Label Preview ═══ */}
+            <SlidePanel isOpen={showLabelPreview} onClose={() => setShowLabelPreview(false)} title="Preview Etiquetas" width={520}>
+                {labelPreviewData ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '8px 12px', background: 'var(--bg-muted)', borderRadius: 6 }}>
+                            {labelPreviewData.total || 0} etiquetas · Template: {labelPreviewData.template_nome || 'Padrão'}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 500, overflowY: 'auto' }}>
+                            {(labelPreviewData.previews || []).slice(0, 20).map((p, i) => (
+                                <div key={i} style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                                    <div style={{ fontSize: 12, fontWeight: 700 }}>{p.descricao || p.peca_desc || `Peça #${i + 1}`}</div>
+                                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                                        {p.dimensoes || '-'} · {p.material || '-'} · {p.modulo || '-'}
+                                    </div>
+                                    {p.qr_data && (
+                                        <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            QR: {p.qr_data.substring(0, 60)}...
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                        Carregando preview...
+                    </div>
+                )}
+            </SlidePanel>
+
+            {/* ═══ SlidePanel Comparação Otimização (#36) ═══ */}
+            <SlidePanel isOpen={showComparison} onClose={() => setShowComparison(false)} title="Comparação da Otimização" width={600}>
+                {comparisonData ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                            {[
+                                { label: 'Chapas', value: comparisonData.total_chapas, color: '#3b82f6' },
+                                { label: 'Peças', value: comparisonData.total_pecas, color: '#22c55e' },
+                                { label: 'Aproveit. Médio', value: `${((comparisonData.aproveitamento_medio || 0) * 100).toFixed(1)}%`, color: '#f59e0b' },
+                            ].map((c, i) => (
+                                <div key={i} style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', textAlign: 'center' }}>
+                                    <div style={{ fontSize: 24, fontWeight: 800, color: c.color }}>{c.value}</div>
+                                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{c.label}</div>
+                                </div>
+                            ))}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>Área Total</div>
+                                <div style={{ fontSize: 18, fontWeight: 700 }}>{(comparisonData.area_total_m2 || 0).toFixed(3)} m²</div>
+                            </div>
+                            <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>Área Utilizada</div>
+                                <div style={{ fontSize: 18, fontWeight: 700, color: '#22c55e' }}>{(comparisonData.area_usada_m2 || 0).toFixed(3)} m²</div>
+                            </div>
+                        </div>
+                        {comparisonData.por_chapa && (
+                            <div>
+                                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Por Chapa</div>
+                                {comparisonData.por_chapa.map((ch, i) => (
+                                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 6, background: 'var(--bg-muted)', marginBottom: 4 }}>
+                                        <span style={{ fontSize: 11, fontWeight: 700, minWidth: 60 }}>Chapa {ch.idx + 1}</span>
+                                        <span style={{ fontSize: 10, color: 'var(--text-muted)', flex: 1 }}>{ch.material} · {ch.pecas} pç</span>
+                                        <div style={{ width: 80, height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
+                                            <div style={{ height: '100%', width: `${(ch.aproveitamento || 0) * 100}%`, background: (ch.aproveitamento || 0) > 0.7 ? '#22c55e' : (ch.aproveitamento || 0) > 0.5 ? '#f59e0b' : '#ef4444', borderRadius: 3 }} />
+                                        </div>
+                                        <span style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 40, textAlign: 'right' }}>{((ch.aproveitamento || 0) * 100).toFixed(1)}%</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {comparisonData.sobras?.length > 0 && (
+                            <div>
+                                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Sobras Reutilizáveis ({comparisonData.sobras.length})</div>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                    {comparisonData.sobras.slice(0, 10).map((s, i) => (
+                                        <span key={i} style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)' }}>
+                                            Ch{s.chapa + 1}: {Math.round(s.w)}×{Math.round(s.h)}mm
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ) : <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>Carregando...</div>}
+            </SlidePanel>
+
+            {/* ═══ SlidePanel Dashboard Desperdício (#39) ═══ */}
+            <SlidePanel isOpen={showWaste} onClose={() => setShowWaste(false)} title="Dashboard de Desperdício" width={660}>
+                {wasteData ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '8px 12px', background: 'var(--bg-muted)', borderRadius: 6 }}>
+                            Últimos 6 meses · {wasteData.total_lotes} lotes analisados
+                        </div>
+                        {/* By month */}
+                        <div>
+                            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Por Mês</div>
+                            {Object.entries(wasteData.por_mes || {}).sort().reverse().map(([mes, d]) => (
+                                <div key={mes} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 6, background: 'var(--bg-muted)', marginBottom: 4 }}>
+                                    <span style={{ fontSize: 11, fontWeight: 700, minWidth: 60 }}>{mes}</span>
+                                    <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--border)', overflow: 'hidden' }}>
+                                        <div style={{ height: '100%', width: `${100 - (d.desperdicio_pct || 0)}%`, background: (d.desperdicio_pct || 0) < 25 ? '#22c55e' : (d.desperdicio_pct || 0) < 40 ? '#f59e0b' : '#ef4444', borderRadius: 4 }} />
+                                    </div>
+                                    <span style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 50, textAlign: 'right', color: (d.desperdicio_pct || 0) > 35 ? '#ef4444' : 'var(--text-muted)' }}>
+                                        {(d.desperdicio_pct || 0).toFixed(1)}% desp.
+                                    </span>
+                                    <span style={{ fontSize: 9, color: 'var(--text-muted)', minWidth: 40 }}>{d.chapas} ch.</span>
+                                </div>
+                            ))}
+                        </div>
+                        {/* By material */}
+                        <div>
+                            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Por Material</div>
+                            {Object.entries(wasteData.por_material || {}).sort((a, b) => b[1].area_total - a[1].area_total).map(([mat, d]) => (
+                                <div key={mat} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 6, background: 'var(--bg-muted)', marginBottom: 4 }}>
+                                    <span style={{ fontSize: 10, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mat}</span>
+                                    <span style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--text-muted)' }}>{d.area_total.toFixed(2)}m²</span>
+                                    <span style={{ fontSize: 10, fontFamily: 'monospace', color: (d.desperdicio_pct || 0) > 35 ? '#ef4444' : '#22c55e' }}>{(d.desperdicio_pct || 0).toFixed(1)}%</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>Carregando...</div>}
+            </SlidePanel>
+
+            {/* ═══ SlidePanel Sugestão Agrupamento (#40) ═══ */}
+            <SlidePanel isOpen={showGrouping} onClose={() => setShowGrouping(false)} title="Sugestão de Agrupamento" width={580}>
+                {groupingSuggestions.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '8px 12px', background: 'rgba(34,197,94,0.06)', borderRadius: 6, border: '1px solid rgba(34,197,94,0.15)' }}>
+                            Lotes com materiais em comum que podem ser otimizados juntos para reduzir desperdício.
+                        </div>
+                        {groupingSuggestions.map((s, i) => (
+                            <div key={i} style={{ padding: '14px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                    <span style={{ fontSize: 13, fontWeight: 700 }}>{s.material}</span>
+                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'rgba(34,197,94,0.1)', color: '#22c55e', fontWeight: 700 }}>
+                                        ~{s.economia_estimada} economia
+                                    </span>
+                                </div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6 }}>
+                                    {s.total_pecas} peças · {s.total_area_m2.toFixed(2)} m² · {s.lotes.length} lotes
+                                </div>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                    {s.lotes.map((l, li) => (
+                                        <span key={li} style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)' }}>
+                                            {l.lote_nome || `Lote #${l.lote_id}`} ({l.qty} pç)
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                        Nenhuma sugestão de agrupamento encontrada. Todos os lotes usam materiais diferentes.
+                    </div>
+                )}
+            </SlidePanel>
+
+            {/* ═══ SlidePanel Retalhos Aproveitáveis (#42) ═══ */}
+            <SlidePanel isOpen={showRemnants} onClose={() => setShowRemnants(false)} title="Retalhos Aproveitáveis" width={620}>
+                {remnantsData ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '8px 12px', background: 'var(--bg-muted)', borderRadius: 6 }}>
+                            {remnantsData.total_retalhos} retalhos disponíveis · {remnantsData.matches?.length || 0} com peças que cabem
+                        </div>
+                        {(remnantsData.matches || []).length > 0 && (
+                            <div>
+                                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: '#22c55e' }}>Matches Encontrados</div>
+                                {remnantsData.matches.map((m, i) => (
+                                    <div key={i} style={{ padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.2)', background: 'rgba(34,197,94,0.04)', marginBottom: 6 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                            <span style={{ fontSize: 12, fontWeight: 700 }}>
+                                                Retalho {Math.round(m.retalho.w)}×{Math.round(m.retalho.h)}mm
+                                            </span>
+                                            <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 700 }}>
+                                                {m.pecas_que_cabem} peça(s) cabem!
+                                            </span>
+                                        </div>
+                                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
+                                            Material: {m.retalho.material} · Lote #{m.retalho.lote_id}
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                            {(m.pecas || []).map((p, pi) => (
+                                                <span key={pi} style={{ fontSize: 9, padding: '2px 6px', borderRadius: 3, background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
+                                                    {p.desc} ({p.dims})
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {(remnantsData.remnants || []).length > 0 && (
+                            <div>
+                                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Todos os Retalhos</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 6 }}>
+                                    {remnantsData.remnants.map((r, i) => (
+                                        <div key={i} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', fontSize: 10 }}>
+                                            <div style={{ fontWeight: 700 }}>{Math.round(r.w)}×{Math.round(r.h)}mm</div>
+                                            <div style={{ color: 'var(--text-muted)' }}>{r.material}</div>
+                                            <div style={{ color: 'var(--text-muted)' }}>{r.area_m2.toFixed(3)} m²</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ) : <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>Carregando...</div>}
+            </SlidePanel>
         </div>
     );
 }
@@ -5276,6 +6515,393 @@ function GcodeSimCanvas({ gcode, chapa }) {
     );
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Painel de Ferramentas — Modal
+// ═══════════════════════════════════════════════════════════════════════
+
+const METHOD_LABELS = {
+    drill: 'Furação direta',
+    helical: 'Helicoidal',
+    circular: 'Interpolação circular',
+    pocket_zigzag: 'Pocket zigzag',
+    pocket_espiral: 'Pocket espiral',
+    groove: 'Rasgo linear',
+    multi_pass: 'Multi-passada',
+    desativado: 'Desativado',
+};
+
+const CATEGORIA_ICON = { hole: Circle, pocket: Square, groove: Minus, generic: Settings };
+const CATEGORIA_COLOR = { hole: '#7c3aed', pocket: '#2563eb', groove: '#d97706', generic: '#6b7280' };
+
+function ToolPanelModal({ data, loteId, onClose, onSave }) {
+    const { operacoes = [], overrides: savedOverrides = {}, overrides_peca: savedOverridesPeca = {}, ferramentas_compativeis = {}, maquina, total_operacoes = 0, total_grupos = 0 } = data;
+    const [localOverrides, setLocalOverrides] = useState(() => {
+        const init = {};
+        operacoes.forEach(op => {
+            const saved = savedOverrides[op.op_key] || {};
+            init[op.op_key] = {
+                ativo: saved.ativo !== undefined ? saved.ativo : true,
+                metodo: saved.metodo || op.metodos_disponiveis?.[0] || 'drill',
+                ferramenta_id: saved.ferramenta_id || op.tool?.id || null,
+                diametro_override: saved.diametro_override ?? null,
+                profundidade_override: saved.profundidade_override ?? null,
+                rpm_override: saved.rpm_override ?? null,
+                feed_override: saved.feed_override ?? null,
+            };
+        });
+        return init;
+    });
+    const [localPecaOverrides, setLocalPecaOverrides] = useState(() => {
+        const init = {};
+        operacoes.forEach(op => {
+            (op.pecas || []).forEach(p => {
+                const key = `${op.op_key}__${p.peca_id}`;
+                const saved = savedOverridesPeca[key] || {};
+                init[key] = {
+                    ativo: saved.ativo !== undefined ? saved.ativo : true,
+                    profundidade_override: saved.profundidade_override ?? null,
+                    diametro_override: saved.diametro_override ?? null,
+                };
+            });
+        });
+        return init;
+    });
+    const [expanded, setExpanded] = useState({});
+    const [expandedPecas, setExpandedPecas] = useState({});
+    const [saving, setSaving] = useState(false);
+    const [filter, setFilter] = useState('');
+    const [dirty, setDirty] = useState(false);
+
+    const updateOverride = (opKey, field, value) => {
+        setLocalOverrides(prev => ({ ...prev, [opKey]: { ...prev[opKey], [field]: value } }));
+        setDirty(true);
+    };
+
+    const updatePecaOverride = (opKey, pecaId, field, value) => {
+        const key = `${opKey}__${pecaId}`;
+        setLocalPecaOverrides(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
+        setDirty(true);
+    };
+
+    const toggleExpand = (opKey) => setExpanded(prev => ({ ...prev, [opKey]: !prev[opKey] }));
+    const toggleExpandPecas = (opKey) => setExpandedPecas(prev => ({ ...prev, [opKey]: !prev[opKey] }));
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const overridesList = Object.entries(localOverrides).map(([op_key, ov]) => ({ op_key, ...ov }));
+            await api.post(`/cnc/lotes/${loteId}/operacoes-overrides-bulk`, { overrides: overridesList });
+
+            // Save per-piece overrides that differ from defaults
+            const pecaPromises = [];
+            operacoes.forEach(op => {
+                (op.pecas || []).forEach(p => {
+                    const key = `${op.op_key}__${p.peca_id}`;
+                    const pov = localPecaOverrides[key];
+                    if (pov && (pov.ativo === false || pov.profundidade_override != null || pov.diametro_override != null)) {
+                        pecaPromises.push(
+                            api.post(`/cnc/lotes/${loteId}/operacoes-override-peca`, {
+                                op_key: op.op_key, peca_id: p.peca_id, ...pov,
+                            })
+                        );
+                    }
+                });
+            });
+            if (pecaPromises.length > 0) await Promise.all(pecaPromises);
+
+            setDirty(false);
+            onSave();
+        } catch (err) {
+            console.error('Erro ao salvar overrides:', err);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const filteredOps = filter
+        ? operacoes.filter(op => op.tipo_label?.toLowerCase().includes(filter.toLowerCase()) || op.op_key?.toLowerCase().includes(filter.toLowerCase()) || op.tool?.nome?.toLowerCase().includes(filter.toLowerCase()))
+        : operacoes;
+
+    const ativos = Object.values(localOverrides).filter(o => o.ativo).length;
+    const desativados = operacoes.length - ativos;
+
+    const sty = {
+        card: { background: 'var(--bg-muted)', borderRadius: 8, padding: '10px 14px', marginBottom: 6, border: '1px solid var(--border)', transition: 'border-color .15s' },
+        cardDisabled: { opacity: 0.45, filter: 'grayscale(0.5)' },
+        label: { fontSize: 12, fontWeight: 600, color: 'var(--text)' },
+        detail: { fontSize: 10, color: 'var(--text-muted)' },
+        input: { background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px', fontSize: 11, color: 'var(--text)', width: 70, fontFamily: 'monospace' },
+        select: { background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px', fontSize: 11, color: 'var(--text)', cursor: 'pointer' },
+        methodBtn: (active) => ({
+            padding: '3px 8px', fontSize: 10, borderRadius: 4, border: '1px solid',
+            borderColor: active ? '#7c3aed' : 'var(--border)',
+            background: active ? '#7c3aed' : 'transparent',
+            color: active ? '#fff' : 'var(--text-muted)',
+            cursor: 'pointer', transition: 'all .15s', fontWeight: active ? 600 : 400,
+        }),
+        toggleOn: { width: 32, height: 18, borderRadius: 9, background: '#7c3aed', position: 'relative', cursor: 'pointer', transition: 'background .15s', flexShrink: 0 },
+        toggleOff: { width: 32, height: 18, borderRadius: 9, background: '#4a4a5a', position: 'relative', cursor: 'pointer', transition: 'background .15s', flexShrink: 0 },
+        toggleKnob: (on) => ({ width: 14, height: 14, borderRadius: 7, background: '#fff', position: 'absolute', top: 2, left: on ? 16 : 2, transition: 'left .15s' }),
+    };
+
+    return (
+        <Modal title={`Painel de Ferramentas — Lote #${loteId}`} close={onClose} w={880}>
+            {/* Header stats */}
+            <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: '#7c3aed22', borderRadius: 6, fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>
+                    <Wrench size={12} /> {total_operacoes} operações em {total_grupos} grupos
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'var(--bg-muted)', borderRadius: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+                    <Check size={12} color="#22c55e" /> {ativos} ativos
+                </div>
+                {desativados > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: '#ef444422', borderRadius: 6, fontSize: 11, color: '#ef4444' }}>
+                        <X size={12} /> {desativados} desativados
+                    </div>
+                )}
+                {maquina && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'var(--bg-muted)', borderRadius: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+                        <Cpu size={12} /> {maquina.nome || maquina.modelo}
+                    </div>
+                )}
+                <div style={{ flex: 1 }} />
+                <input
+                    type="text" placeholder="Filtrar operações..." value={filter} onChange={e => setFilter(e.target.value)}
+                    style={{ ...sty.input, width: 180, fontSize: 11 }}
+                />
+            </div>
+
+            {/* Operation groups */}
+            <div style={{ maxHeight: 'calc(80vh - 180px)', overflowY: 'auto', paddingRight: 4 }}>
+                {filteredOps.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)', fontSize: 12 }}>
+                        {filter ? 'Nenhuma operação encontrada para o filtro' : 'Nenhuma operação detectada neste lote'}
+                    </div>
+                )}
+                {filteredOps.map(op => {
+                    const ov = localOverrides[op.op_key] || {};
+                    const isActive = ov.ativo !== false;
+                    const isExpanded = expanded[op.op_key];
+                    const isPecasExpanded = expandedPecas[op.op_key];
+                    const CatIcon = CATEGORIA_ICON[op.categoria] || Settings;
+                    const catColor = CATEGORIA_COLOR[op.categoria] || '#6b7280';
+                    const compatTools = ferramentas_compativeis[op.op_key] || [];
+
+                    return (
+                        <div key={op.op_key} style={{ ...sty.card, ...(isActive ? {} : sty.cardDisabled), borderColor: isActive ? catColor + '44' : 'var(--border)' }}>
+                            {/* Main row */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                {/* Toggle */}
+                                <div
+                                    style={isActive ? sty.toggleOn : sty.toggleOff}
+                                    onClick={() => updateOverride(op.op_key, 'ativo', !isActive)}
+                                >
+                                    <div style={sty.toggleKnob(isActive)} />
+                                </div>
+
+                                {/* Icon + label */}
+                                <CatIcon size={16} color={catColor} style={{ flexShrink: 0 }} />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={sty.label}>
+                                        {op.tipo_label}{op.diametro ? ` Ø${op.diametro}mm` : ''}
+                                    </div>
+                                    <div style={sty.detail}>
+                                        {op.count} operações em {op.total_pecas} peças
+                                        {op.profundidade_media ? ` · prof. média ${op.profundidade_media.toFixed(1)}mm` : ''}
+                                        {op.tool_code ? ` · ${op.tool_code}` : ''}
+                                    </div>
+                                </div>
+
+                                {/* Tool assignment */}
+                                {compatTools.length > 0 ? (
+                                    <select
+                                        value={ov.ferramenta_id || ''}
+                                        onChange={e => updateOverride(op.op_key, 'ferramenta_id', e.target.value ? Number(e.target.value) : null)}
+                                        style={{ ...sty.select, maxWidth: 160 }}
+                                    >
+                                        <option value="">Auto</option>
+                                        {compatTools.map(t => (
+                                            <option key={t.id} value={t.id}>{t.codigo} — {t.nome} (Ø{t.diametro})</option>
+                                        ))}
+                                    </select>
+                                ) : op.tool ? (
+                                    <span style={{ fontSize: 10, color: 'var(--text-muted)', padding: '2px 8px', background: 'var(--bg)', borderRadius: 4 }}>
+                                        {op.tool.codigo || op.tool.nome}
+                                    </span>
+                                ) : (
+                                    <span style={{ fontSize: 10, color: '#ef4444', padding: '2px 8px', background: '#ef444422', borderRadius: 4 }}>
+                                        <AlertTriangle size={10} style={{ verticalAlign: -1, marginRight: 3 }} />Sem ferramenta
+                                    </span>
+                                )}
+
+                                {/* Expand button */}
+                                <div
+                                    onClick={() => toggleExpand(op.op_key)}
+                                    style={{ cursor: 'pointer', padding: '4px', borderRadius: 4, color: 'var(--text-muted)' }}
+                                >
+                                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                </div>
+                            </div>
+
+                            {/* Method selector */}
+                            {isActive && op.metodos_disponiveis?.length > 1 && (
+                                <div style={{ display: 'flex', gap: 4, marginTop: 8, flexWrap: 'wrap' }}>
+                                    {op.metodos_disponiveis.map(m => (
+                                        <button
+                                            key={m}
+                                            style={sty.methodBtn(ov.metodo === m)}
+                                            onClick={() => updateOverride(op.op_key, 'metodo', m)}
+                                        >
+                                            {METHOD_LABELS[m] || m}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Expanded overrides */}
+                            {isExpanded && (
+                                <div style={{ marginTop: 10, padding: '10px 12px', background: 'var(--bg)', borderRadius: 6, border: '1px solid var(--border)' }}>
+                                    <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 8, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <Settings size={11} /> Overrides
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+                                        <div>
+                                            <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Diâmetro (mm)</label>
+                                            <input
+                                                type="number" step="0.1"
+                                                value={ov.diametro_override ?? ''}
+                                                placeholder={op.diametro || '-'}
+                                                onChange={e => updateOverride(op.op_key, 'diametro_override', e.target.value ? parseFloat(e.target.value) : null)}
+                                                style={sty.input}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Profundidade (mm)</label>
+                                            <input
+                                                type="number" step="0.1"
+                                                value={ov.profundidade_override ?? ''}
+                                                placeholder={op.profundidade_max ? op.profundidade_max.toFixed(1) : '-'}
+                                                onChange={e => updateOverride(op.op_key, 'profundidade_override', e.target.value ? parseFloat(e.target.value) : null)}
+                                                style={sty.input}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>RPM</label>
+                                            <input
+                                                type="number" step="100"
+                                                value={ov.rpm_override ?? ''}
+                                                placeholder="Auto"
+                                                onChange={e => updateOverride(op.op_key, 'rpm_override', e.target.value ? parseInt(e.target.value) : null)}
+                                                style={sty.input}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Avanço (mm/min)</label>
+                                            <input
+                                                type="number" step="50"
+                                                value={ov.feed_override ?? ''}
+                                                placeholder="Auto"
+                                                onChange={e => updateOverride(op.op_key, 'feed_override', e.target.value ? parseInt(e.target.value) : null)}
+                                                style={sty.input}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Per-piece details */}
+                                    {op.pecas?.length > 0 && (
+                                        <div style={{ marginTop: 10 }}>
+                                            <div
+                                                onClick={() => toggleExpandPecas(op.op_key)}
+                                                style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6 }}
+                                            >
+                                                {isPecasExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                                                {op.pecas.length} peças com esta operação
+                                            </div>
+                                            {isPecasExpanded && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                    {op.pecas.map(p => {
+                                                        const pecaKey = `${op.op_key}__${p.peca_id}`;
+                                                        const pov = localPecaOverrides[pecaKey] || {};
+                                                        const pecaAtivo = pov.ativo !== false;
+                                                        return (
+                                                            <div key={p.peca_id} style={{
+                                                                display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px',
+                                                                background: 'var(--bg-muted)', borderRadius: 4, fontSize: 10,
+                                                                opacity: pecaAtivo ? 1 : 0.4,
+                                                            }}>
+                                                                <div
+                                                                    style={pecaAtivo ? { ...sty.toggleOn, width: 24, height: 14, borderRadius: 7 } : { ...sty.toggleOff, width: 24, height: 14, borderRadius: 7 }}
+                                                                    onClick={() => updatePecaOverride(op.op_key, p.peca_id, 'ativo', !pecaAtivo)}
+                                                                >
+                                                                    <div style={{ width: 10, height: 10, borderRadius: 5, background: '#fff', position: 'absolute', top: 2, left: pecaAtivo ? 12 : 2, transition: 'left .15s' }} />
+                                                                </div>
+                                                                <span style={{ flex: 1, fontWeight: 500, color: 'var(--text)' }}>
+                                                                    {p.descricao || `Peça #${p.peca_id}`}
+                                                                    {p.modulo ? <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>({p.modulo})</span> : null}
+                                                                </span>
+                                                                <span style={{ color: 'var(--text-muted)' }}>{p.count}x</span>
+                                                                {p.profundidades && (
+                                                                    <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                                                        prof: {[...new Set(p.profundidades)].join(', ')}mm
+                                                                    </span>
+                                                                )}
+                                                                <input
+                                                                    type="number" step="0.1"
+                                                                    value={pov.profundidade_override ?? ''}
+                                                                    placeholder="prof."
+                                                                    onClick={e => e.stopPropagation()}
+                                                                    onChange={e => updatePecaOverride(op.op_key, p.peca_id, 'profundidade_override', e.target.value ? parseFloat(e.target.value) : null)}
+                                                                    style={{ ...sty.input, width: 50, fontSize: 10 }}
+                                                                    title="Override profundidade para esta peça"
+                                                                />
+                                                                <input
+                                                                    type="number" step="0.1"
+                                                                    value={pov.diametro_override ?? ''}
+                                                                    placeholder="diam."
+                                                                    onClick={e => e.stopPropagation()}
+                                                                    onChange={e => updatePecaOverride(op.op_key, p.peca_id, 'diametro_override', e.target.value ? parseFloat(e.target.value) : null)}
+                                                                    style={{ ...sty.input, width: 50, fontSize: 10 }}
+                                                                    title="Override diâmetro para esta peça"
+                                                                />
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Footer */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {dirty && <span style={{ color: '#f59e0b', fontWeight: 600 }}>Alterações não salvas</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={onClose} className={Z.btn2} style={{ padding: '8px 16px', fontSize: 12 }}>
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={handleSave} disabled={saving || !dirty}
+                        className={Z.btn} style={{
+                            padding: '8px 20px', fontSize: 12, background: '#7c3aed', color: '#fff', border: 'none',
+                            opacity: (saving || !dirty) ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 6,
+                        }}
+                    >
+                        {saving ? <Spinner size={12} /> : <Check size={12} />}
+                        {saving ? 'Salvando...' : 'Salvar Configurações'}
+                    </button>
+                </div>
+            </div>
+        </Modal>
+    );
+}
+
 function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, onSimulate }) {
     const { gcode, filename, stats, alertas, chapaIdx, contorno_tool } = data;
     const lines = (gcode || '').split('\n');
@@ -5399,7 +7025,7 @@ function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, onSimul
             )}
 
             {abaPreview === 'sim2d' && (
-                <GcodeSimCanvas gcode={gcode} chapa={chapaData} />
+                <GcodeSimWrapper gcode={gcode} chapa={chapaData} />
             )}
 
             {/* Actions */}
@@ -5615,7 +7241,7 @@ function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, pieceH, 
 }
 
 // ─── SVG visualization with collision detection, magnetic snap, kerf, lock, context menu ──
-function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, espacoPecas = 7, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, gcodeLoading, onView3D, onPrintLabel, onPrintSingleLabel, onPrintFolha, onSaveRetalhos, setTab, sobraMinW = 300, sobraMinH = 600, validationConflicts = [], timerInfo }) {
+function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, espacoPecas = 7, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, onGerarGcodePeca, gcodeLoading, onView3D, onPrintLabel, onPrintSingleLabel, onPrintFolha, onSaveRetalhos, setTab, sobraMinW = 300, sobraMinH = 600, validationConflicts = [], machineArea, timerInfo }) {
     const [hovered, setHovered] = useState(null);
     const [showCuts, setShowCuts] = useState(false);
     const [showMachining, setShowMachining] = useState(true);
@@ -5921,16 +7547,26 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
 
     useEffect(() => {
         if (!ctxMenu) return;
-        const close = () => setCtxMenu(null);
-        document.addEventListener('click', close);
-        return () => document.removeEventListener('click', close);
+        const close = (e) => {
+            // Don't close if clicking inside the context menu itself
+            const menu = document.querySelector('[data-ctx-menu="piece"]');
+            if (menu && menu.contains(e.target)) return;
+            setCtxMenu(null);
+        };
+        // Delay listener to avoid Ctrl+click release on Mac closing the menu instantly
+        const timer = setTimeout(() => document.addEventListener('mousedown', close), 50);
+        return () => { clearTimeout(timer); document.removeEventListener('mousedown', close); };
     }, [ctxMenu]);
 
     useEffect(() => {
         if (!sobraCtxMenu) return;
-        const close = () => setSobraCtxMenu(null);
-        document.addEventListener('click', close);
-        return () => document.removeEventListener('click', close);
+        const close = (e) => {
+            const menu = document.querySelector('[data-ctx-menu="sobra"]');
+            if (menu && menu.contains(e.target)) return;
+            setSobraCtxMenu(null);
+        };
+        const timer = setTimeout(() => document.addEventListener('mousedown', close), 50);
+        return () => { clearTimeout(timer); document.removeEventListener('mousedown', close); };
     }, [sobraCtxMenu]);
 
     // (Drag de sobras removido — agora é por clique na barra "CORTAR")
@@ -6326,6 +7962,31 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                         {hasVeio && (
                             <rect x={0} y={0} width={svgW} height={svgH}
                                 fill={`url(#grain-${chapa.veio === 'horizontal' ? 'h' : 'v'}-${idx})`} />
+                        )}
+
+                        {/* Machine work area boundary overlay */}
+                        {machineArea && (chapa.comprimento > machineArea.x_max || chapa.largura > machineArea.y_max) && (
+                            <g>
+                                <rect x={0} y={0}
+                                    width={Math.min(machineArea.x_max, chapa.comprimento) * scale}
+                                    height={Math.min(machineArea.y_max, chapa.largura) * scale}
+                                    fill="none" stroke="#3b82f6" strokeWidth={2} strokeDasharray="8,4" opacity={0.7} />
+                                <text x={Math.min(machineArea.x_max, chapa.comprimento) * scale - 4} y={12}
+                                    textAnchor="end" fontSize={8} fill="#3b82f6" fontWeight={700} opacity={0.8}>
+                                    Área máq: {machineArea.x_max}×{machineArea.y_max}mm
+                                </text>
+                                {/* Danger zone beyond machine limits */}
+                                {chapa.comprimento > machineArea.x_max && (
+                                    <rect x={machineArea.x_max * scale} y={0}
+                                        width={(chapa.comprimento - machineArea.x_max) * scale} height={svgH}
+                                        fill="rgba(239,68,68,0.1)" stroke="none" />
+                                )}
+                                {chapa.largura > machineArea.y_max && (
+                                    <rect x={0} y={machineArea.y_max * scale}
+                                        width={svgW} height={(chapa.largura - machineArea.y_max) * scale}
+                                        fill="rgba(239,68,68,0.1)" stroke="none" />
+                                )}
+                            </g>
                         )}
 
                         {/* Refilo area (border trim) — zona proibida com hachura */}
@@ -6935,7 +8596,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                     el.style.top = newTop + 'px';
                                 }
                             }
-                        }} style={{
+                        }} data-ctx-menu="piece" style={{
                             position: 'absolute', left: ctxMenu.x, top: ctxMenu.y,
                             background: 'var(--bg-card)', border: '1px solid var(--border)',
                             borderRadius: 10, boxShadow: 'var(--shadow-lg)', zIndex: 100,
@@ -6963,6 +8624,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                             )}
                             <MI icon={Eye} label="Ver Peça 3D" color="#3b82f6" onClick={() => onView3D && onView3D(piece)} />
                             <MI icon={Printer} label="Imprimir Etiqueta" color="#d97706" onClick={() => onPrintSingleLabel && onPrintSingleLabel(piece)} />
+                            <MI icon={Cpu} label="G-Code desta Peça" color="#1e40af" onClick={() => onGerarGcodePeca && onGerarGcodePeca(idx, ctxMenu.pecaIdx)} />
 
                             <Sep label="Organização" />
                             <MI icon={isLocked ? Unlock : Lock} label={isLocked ? 'Desbloquear posição' : 'Bloquear posição'} color="#fbbf24"
@@ -7036,7 +8698,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                     };
 
                     return (
-                        <div style={{
+                        <div data-ctx-menu="sobra" style={{
                             position: 'absolute', left: Math.min(sobraCtxMenu.x, 300), top: sobraCtxMenu.y,
                             background: 'var(--bg-card)', border: '1px solid var(--border)',
                             borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,.25)', zIndex: 100,
@@ -8574,6 +10236,7 @@ function CfgEtiquetas({ notify, setEditorMode, setEditorTemplateId }) {
 // ABA 5: G-CODE
 // ═══════════════════════════════════════════════════════
 function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
+    const [gcodeSubTab, setGcodeSubTab] = useState('gcode'); // 'gcode' | 'etiquetas'
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(false);
     const [gerando, setGerando] = useState(false);
@@ -8648,6 +10311,34 @@ function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
 
     return (
         <div>
+            {/* Sub-tabs: G-code | Etiquetas */}
+            <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '2px solid var(--border)', paddingBottom: 0 }}>
+                {[
+                    { id: 'gcode', lb: 'G-code / CNC', ic: Cpu },
+                    { id: 'etiquetas', lb: 'Etiquetas', ic: TagIcon },
+                ].map(st => (
+                    <button key={st.id} onClick={() => setGcodeSubTab(st.id)}
+                        style={{
+                            padding: '8px 18px', fontSize: 12, fontWeight: gcodeSubTab === st.id ? 700 : 400,
+                            borderTop: 'none', borderLeft: 'none', borderRight: 'none',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                            borderBottom: gcodeSubTab === st.id ? '2px solid var(--primary)' : '2px solid transparent',
+                            marginBottom: -2, background: 'transparent',
+                            color: gcodeSubTab === st.id ? 'var(--primary)' : 'var(--text-muted)',
+                            transition: 'all .15s',
+                        }}>
+                        <st.ic size={14} /> {st.lb}
+                    </button>
+                ))}
+            </div>
+
+            {/* Etiquetas sub-tab */}
+            {gcodeSubTab === 'etiquetas' && (
+                <TabEtiquetas lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} />
+            )}
+
+            {/* G-code sub-tab */}
+            {gcodeSubTab === 'gcode' && <>
             {/* Machine selector */}
                     <div className="glass-card p-4" style={{ marginBottom: 16 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -8805,6 +10496,7 @@ function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                         isOpen={toolpathOpen}
                         onClose={() => { setToolpathOpen(false); setToolpathMoves([]); setToolpathChapa(null); }}
                     />
+            </>}
         </div>
     );
 }
@@ -8814,37 +10506,81 @@ function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
 // ═══════════════════════════════════════════════════════
 function TabConfig({ notify, setEditorMode, setEditorTemplateId, initialSection, setConfigSection }) {
     const [activeSection, setActiveSection] = useState(initialSection || 'maquinas');
-    const handleSection = (id) => { setActiveSection(id); setConfigSection?.(id); };
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Section tabs */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {[
-                    { id: 'maquinas', lb: 'Máquinas CNC', ic: Monitor },
-                    { id: 'chapas', lb: 'Chapas', ic: Layers },
-                    { id: 'usinagem', lb: 'Tipos de Usinagem', ic: PenTool },
-                    { id: 'parametros', lb: 'Parâmetros Otimizador', ic: Settings },
-                    { id: 'etiquetas', lb: 'Etiquetas', ic: TagIcon },
-                    { id: 'retalhos', lb: 'Retalhos', ic: Package },
-                ].map(s => {
-                    const SIc = s.ic;
-                    return (
-                        <button key={s.id} onClick={() => handleSection(s.id)}
-                            className={activeSection === s.id ? Z.btn : Z.btn2}
-                            style={{ fontSize: 12, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <SIc size={13} />
-                            {s.lb}
-                        </button>
-                    );
-                })}
-            </div>
+    const [cfgSearch, setCfgSearch] = useState('');
+    const handleSection = (id) => { setActiveSection(id); setConfigSection?.(id); setCfgSearch(''); };
 
-            {activeSection === 'maquinas' && <CfgMaquinas notify={notify} />}
-            {activeSection === 'chapas' && <CfgChapas notify={notify} />}
-            {activeSection === 'usinagem' && <CfgUsinagem notify={notify} />}
-            {activeSection === 'parametros' && <CfgParametros notify={notify} />}
-            {activeSection === 'etiquetas' && <CfgEtiquetas notify={notify} setEditorMode={setEditorMode} setEditorTemplateId={setEditorTemplateId} />}
-            {activeSection === 'retalhos' && <CfgRetalhos notify={notify} />}
+    const CONFIG_SECTIONS = [
+        { id: 'maquinas', lb: 'Máquinas CNC', ic: Monitor, desc: 'Cadastro de máquinas CNC, ferramentas, origens' },
+        { id: 'chapas', lb: 'Chapas', ic: Layers, desc: 'Chapas de MDF, MDP, compensado, dimensões' },
+        { id: 'usinagem', lb: 'Tipos de Usinagem', ic: PenTool, desc: 'Furos, rebaixos, canais, contornos, profundidade' },
+        { id: 'parametros', lb: 'Parâmetros', ic: Settings, desc: 'Algoritmo otimizador, margem, kerf, rotação' },
+        { id: 'etiquetas', lb: 'Etiquetas', ic: TagIcon, desc: 'Templates de etiquetas, formato, campos' },
+        { id: 'retalhos', lb: 'Retalhos', ic: Package, desc: 'Estoque de retalhos, aproveitamento, sobras' },
+    ];
+
+    const filteredSections = cfgSearch
+        ? CONFIG_SECTIONS.filter(s => s.lb.toLowerCase().includes(cfgSearch.toLowerCase()) || s.desc.toLowerCase().includes(cfgSearch.toLowerCase()))
+        : CONFIG_SECTIONS;
+
+    return (
+        <div style={{ display: 'flex', gap: 0, minHeight: 500 }}>
+            {/* Sidebar */}
+            <div style={{
+                width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column',
+                borderRight: '1px solid var(--border)', background: 'var(--bg-muted)',
+                borderRadius: '10px 0 0 10px', overflow: 'hidden',
+            }}>
+                {/* Search */}
+                <div style={{ padding: '12px 12px 8px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ position: 'relative' }}>
+                        <SearchIcon size={13} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        <input value={cfgSearch} onChange={e => setCfgSearch(e.target.value)}
+                            placeholder="Buscar config..."
+                            className={Z.inp} style={{ fontSize: 11, padding: '6px 8px 6px 28px', width: '100%' }} />
+                    </div>
+                </div>
+                {/* Section list */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+                    {filteredSections.map(s => {
+                        const SIc = s.ic;
+                        const isActive = activeSection === s.id;
+                        return (
+                            <button key={s.id} onClick={() => handleSection(s.id)}
+                                style={{
+                                    width: '100%', padding: '10px 14px', border: 'none', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', gap: 10, fontSize: 12,
+                                    background: isActive ? 'var(--bg-card)' : 'transparent',
+                                    color: isActive ? 'var(--primary)' : 'var(--text-primary)',
+                                    fontWeight: isActive ? 700 : 400,
+                                    borderLeft: isActive ? '3px solid var(--primary)' : '3px solid transparent',
+                                    transition: 'all .15s',
+                                }}
+                                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--bg-hover, rgba(0,0,0,0.03))'; }}
+                                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}>
+                                <SIc size={15} style={{ opacity: isActive ? 1 : 0.6, flexShrink: 0 }} />
+                                <div style={{ textAlign: 'left' }}>
+                                    <div>{s.lb}</div>
+                                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 400, marginTop: 1 }}>{s.desc.split(',')[0]}</div>
+                                </div>
+                            </button>
+                        );
+                    })}
+                    {filteredSections.length === 0 && (
+                        <div style={{ padding: 16, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+                            Nenhuma seção encontrada
+                        </div>
+                    )}
+                </div>
+            </div>
+            {/* Content */}
+            <div style={{ flex: 1, padding: 16, minWidth: 0 }}>
+                {activeSection === 'maquinas' && <CfgMaquinas notify={notify} />}
+                {activeSection === 'chapas' && <CfgChapas notify={notify} />}
+                {activeSection === 'usinagem' && <CfgUsinagem notify={notify} />}
+                {activeSection === 'parametros' && <CfgParametros notify={notify} />}
+                {activeSection === 'etiquetas' && <CfgEtiquetas notify={notify} setEditorMode={setEditorMode} setEditorTemplateId={setEditorTemplateId} />}
+                {activeSection === 'retalhos' && <CfgRetalhos notify={notify} />}
+            </div>
         </div>
     );
 }
@@ -9373,7 +11109,7 @@ function newMaquinaDefaults() {
         gcode_footer: 'G0 Z200.000\nM5\nM30\n%',
         z_seguro: 30, vel_vazio: 20000, vel_corte: 4000, vel_aproximacao: 8000,
         rpm_padrao: 12000, profundidade_extra: 0.20,
-        coordenada_zero: 'canto_esq_inf', eixo_x_invertido: 0, eixo_y_invertido: 0,
+        coordenada_zero: 'canto_esq_inf', trocar_eixos_xy: 0, eixo_x_invertido: 0, eixo_y_invertido: 0,
         // G-Code v2
         z_origin: 'mesa', z_aproximacao: 2.0, direcao_corte: 'climb',
         usar_n_codes: 1, n_code_incremento: 10, dwell_spindle: 1.0,
@@ -9485,7 +11221,11 @@ function MaquinaModal({ data, onSave, onClose }) {
                             Máquina Padrão
                         </label>
                     </div>
-                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <label style={{ fontSize: 12, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <input type="checkbox" checked={f.trocar_eixos_xy === 1} onChange={e => upd('trocar_eixos_xy', e.target.checked ? 1 : 0)} />
+                            X = comprimento (inverter padrao)
+                        </label>
                         <label style={{ fontSize: 12, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                             <input type="checkbox" checked={f.eixo_x_invertido === 1} onChange={e => upd('eixo_x_invertido', e.target.checked ? 1 : 0)} />
                             Eixo X invertido
@@ -9494,6 +11234,11 @@ function MaquinaModal({ data, onSave, onClose }) {
                             <input type="checkbox" checked={f.eixo_y_invertido === 1} onChange={e => upd('eixo_y_invertido', e.target.checked ? 1 : 0)} />
                             Eixo Y invertido
                         </label>
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: -6 }}>
+                        {f.trocar_eixos_xy === 1
+                            ? 'Modo alternativo: X = comprimento (maior), Y = largura (menor).'
+                            : 'Padrao: X = largura (menor eixo), Y = comprimento (maior eixo). Mais comum em CNC.'}
                     </div>
                 </div>
             )}

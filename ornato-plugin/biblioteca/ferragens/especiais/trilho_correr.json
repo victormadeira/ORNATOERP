@@ -1,0 +1,49 @@
+{
+  "id": "trilho_correr",
+  "nome": "Trilho para Porta de Correr",
+  "marca": "Generico",
+  "modelo": "Trilho duplo aluminio",
+  "categoria": "especial",
+  "tipo": "trilho_correr",
+
+  "especificacoes": {
+    "canal_superior": { "largura": 15, "profundidade": 12 },
+    "canal_inferior": { "largura": 15, "profundidade": 6 },
+    "material": "aluminio",
+    "espessura_porta_compativel": [15, 18],
+    "quantidade_trilhos": { "1_porta": 1, "2_portas": 2 },
+    "descricao": "Canal superior mais fundo para encaixe, canal inferior como guia."
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "canal",
+        "ferramenta": "fresa_6mm",
+        "largura": 15,
+        "profundidade": 12,
+        "lado": "a",
+        "posicao": "borda_inferior_topo",
+        "percurso": "horizontal_completo",
+        "descricao": "Canal superior para trilho de correr"
+      },
+      {
+        "tipo": "canal",
+        "ferramenta": "fresa_6mm",
+        "largura": 15,
+        "profundidade": 6,
+        "lado": "a",
+        "posicao": "borda_superior_base",
+        "percurso": "horizontal_completo",
+        "descricao": "Canal inferior guia para trilho de correr"
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "TRILHO-CORR-AL",
+    "preco_unitario": 28.00,
+    "unidade": "metro",
+    "fornecedor": "Diversos"
+  }
+}

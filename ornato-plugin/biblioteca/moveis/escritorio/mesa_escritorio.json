@@ -1,0 +1,169 @@
+{
+  "id": "mesa_escritorio",
+  "nome": "Mesa Escritorio",
+  "descricao": "Mesa de escritorio com tampo e pe lateral com gavetas.",
+  "categoria": "escritorio",
+  "tags": ["mesa", "escritorio", "gavetas", "tampo"],
+  "icone": "mesa",
+
+  "parametros": {
+    "largura":       { "default": 1400, "min": 1200, "max": 1600, "step": 100, "unidade": "mm" },
+    "altura":        { "default": 750,  "min": 750,  "max": 750,  "step": 50,  "unidade": "mm" },
+    "profundidade":  { "default": 600,  "min": 600,  "max": 600,  "step": 10,  "unidade": "mm" },
+    "espessura":     { "default": 18,   "min": 15,   "max": 25,   "step": 0.5, "unidade": "mm" },
+    "largura_gaveteiro": { "default": 400, "min": 350, "max": 500, "step": 50, "unidade": "mm" },
+    "n_gavetas":     { "default": 3,    "min": 2,    "max": 4,    "step": 1 },
+    "tipo_juncao":   { "default": "minifix", "opcoes": ["minifix", "cavilha", "confirmat"] },
+    "com_fundo":     { "default": true },
+    "puxador":       { "default": "modelo_128mm" }
+  },
+
+  "pecas": [
+    {
+      "nome": "Tampo",
+      "role": "topo",
+      "largura": "{largura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": 0, "y": 0, "z": "{altura} - {espessura}" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true },
+      "notas": "Tampo da mesa com bordas em todos os lados"
+    },
+    {
+      "nome": "Lateral Gaveteiro Esq",
+      "role": "lateral_esq",
+      "largura": "{altura} - {espessura}",
+      "altura": "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "posicao": { "x": 0, "y": 10, "z": 0 },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Lateral Gaveteiro Dir",
+      "role": "lateral_dir",
+      "largura": "{altura} - {espessura}",
+      "altura": "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{largura_gaveteiro} - {espessura}", "y": 10, "z": 0 },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Base Gaveteiro",
+      "role": "base",
+      "largura": "{largura_gaveteiro} - 2 * {espessura}",
+      "altura": "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 10, "z": 0 },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Traseira Gaveteiro",
+      "role": "traseira",
+      "largura": "{largura_gaveteiro} - 2 * {espessura}",
+      "altura": "{altura} - 2 * {espessura}",
+      "espessura": 3,
+      "condicao": "{com_fundo}",
+      "posicao": { "x": "{espessura}", "y": "{profundidade} - 23", "z": "{espessura}" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Painel Lateral Livre",
+      "role": "lateral_dir",
+      "largura": "{altura} - {espessura}",
+      "altura": "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{largura} - {espessura}", "y": 10, "z": 0 },
+      "bordas": { "frontal": true, "traseira": true, "dir": false, "esq": false },
+      "notas": "Pe/painel lateral do lado sem gavetas"
+    },
+    {
+      "nome": "Frente Gaveta 1",
+      "role": "frente_gaveta",
+      "largura": "({altura} - 2 * {espessura}) / {n_gavetas} - 2",
+      "altura": "{largura_gaveteiro} - 2 * {espessura} - 4",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura} + 2", "y": 0, "z": "{espessura} + 1" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+    },
+    {
+      "nome": "Frente Gaveta 2",
+      "role": "frente_gaveta",
+      "largura": "({altura} - 2 * {espessura}) / {n_gavetas} - 2",
+      "altura": "{largura_gaveteiro} - 2 * {espessura} - 4",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura} + 2", "y": 0, "z": "{espessura} + ({altura} - 2 * {espessura}) / {n_gavetas} + 1" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+    },
+    {
+      "nome": "Frente Gaveta 3",
+      "role": "frente_gaveta",
+      "largura": "({altura} - 2 * {espessura}) / {n_gavetas} - 2",
+      "altura": "{largura_gaveteiro} - 2 * {espessura} - 4",
+      "espessura": "{espessura}",
+      "condicao": "{n_gavetas} >= 3",
+      "posicao": { "x": "{espessura} + 2", "y": 0, "z": "{espessura} + 2 * ({altura} - 2 * {espessura}) / {n_gavetas} + 1" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+    },
+    {
+      "nome": "Frente Gaveta 4",
+      "role": "frente_gaveta",
+      "largura": "({altura} - 2 * {espessura}) / {n_gavetas} - 2",
+      "altura": "{largura_gaveteiro} - 2 * {espessura} - 4",
+      "espessura": "{espessura}",
+      "condicao": "{n_gavetas} >= 4",
+      "posicao": { "x": "{espessura} + 2", "y": 0, "z": "{espessura} + 3 * ({altura} - 2 * {espessura}) / {n_gavetas} + 1" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+    },
+    {
+      "nome": "Lateral Gaveta Esq 1",
+      "role": "lateral_gaveta",
+      "largura": "({altura} - 2 * {espessura}) / {n_gavetas} - 40",
+      "altura": "{profundidade} - 100",
+      "espessura": 15,
+      "posicao": { "x": "{espessura} + 3", "y": 28, "z": "{espessura} + 20" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Lateral Gaveta Dir 1",
+      "role": "lateral_gaveta",
+      "largura": "({altura} - 2 * {espessura}) / {n_gavetas} - 40",
+      "altura": "{profundidade} - 100",
+      "espessura": 15,
+      "posicao": { "x": "{largura_gaveteiro} - {espessura} - 18", "y": 28, "z": "{espessura} + 20" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Fundo Gaveta 1",
+      "role": "fundo_gaveta",
+      "largura": "{largura_gaveteiro} - 2 * {espessura} - 42",
+      "altura": "{profundidade} - 100",
+      "espessura": 3,
+      "posicao": { "x": "{espessura} + 21", "y": 28, "z": "{espessura} + 20" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Traseira Gaveta 1",
+      "role": "traseira_gaveta",
+      "largura": "({altura} - 2 * {espessura}) / {n_gavetas} - 55",
+      "altura": "{largura_gaveteiro} - 2 * {espessura} - 42",
+      "espessura": 15,
+      "posicao": { "x": "{espessura} + 21", "y": "{profundidade} - 87", "z": "{espessura} + 20" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+    }
+  ],
+
+  "ferragens_auto": [
+    { "regra": "minifix", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_esq × topo", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × topo", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "cavilha", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'cavilha'" },
+    { "regra": "cavilha", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'cavilha'" },
+    { "regra": "corredica", "peca": "lateral_esq", "condicao": "true" },
+    { "regra": "corredica", "peca": "lateral_dir", "condicao": "true" },
+    { "regra": "rebaixo_fundo", "pecas": ["lateral_esq", "lateral_dir", "base"], "condicao": "{com_fundo}" },
+    { "regra": "puxador", "peca": "frente_gaveta", "condicao": "true" }
+  ],
+
+  "notas": "Mesa com gaveteiro lateral (lado esquerdo). Lado direito e um painel/pe simples. Tampo sobreposto."
+}

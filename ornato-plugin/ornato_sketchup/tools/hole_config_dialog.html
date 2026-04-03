@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ornato - Configurar Furo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    background: #0f1219;
+    color: #e0e6ff;
+    min-height: 100vh;
+    padding: 16px;
+    user-select: none;
+  }
+
+  .title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #2a3042;
+  }
+
+  /* ── Type selector: pill buttons ── */
+  .type-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .type-pill {
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid #2a3042;
+    background: #1a1f2e;
+    color: #8b95b0;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .type-pill:hover {
+    border-color: #4a5568;
+    color: #e0e6ff;
+  }
+  .type-pill.active {
+    border-color: #1379F0;
+    background: rgba(19, 121, 240, 0.15);
+    color: #1379F0;
+  }
+  .type-pill .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+
+  /* ── Form fields ── */
+  .field-group {
+    margin-bottom: 14px;
+  }
+  .field-label {
+    font-size: 11px;
+    color: #6b7a99;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+  .field-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  /* ── Stepper input ── */
+  .stepper {
+    display: flex;
+    align-items: center;
+    background: #141926;
+    border: 1px solid #2a3042;
+    border-radius: 6px;
+    overflow: hidden;
+    flex: 1;
+  }
+  .stepper-btn {
+    width: 32px;
+    height: 34px;
+    background: #1a1f2e;
+    border: none;
+    color: #8b95b0;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+  }
+  .stepper-btn:hover {
+    background: #2a3042;
+    color: #e0e6ff;
+  }
+  .stepper-input {
+    flex: 1;
+    background: #141926;
+    border: none;
+    color: #e0e6ff;
+    font-size: 14px;
+    text-align: center;
+    padding: 6px 4px;
+    outline: none;
+    min-width: 0;
+    -moz-appearance: textfield;
+  }
+  .stepper-input::-webkit-inner-spin-button,
+  .stepper-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .stepper-unit {
+    font-size: 11px;
+    color: #4a5568;
+    padding-right: 8px;
+  }
+
+  /* ── Side toggle ── */
+  .side-toggle {
+    display: flex;
+    gap: 0;
+    border: 1px solid #2a3042;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .side-btn {
+    flex: 1;
+    padding: 8px 16px;
+    background: #1a1f2e;
+    border: none;
+    color: #8b95b0;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .side-btn:first-child {
+    border-right: 1px solid #2a3042;
+  }
+  .side-btn.active {
+    background: rgba(19, 121, 240, 0.15);
+    color: #1379F0;
+  }
+
+  /* ── Text inputs ── */
+  .text-input {
+    width: 100%;
+    background: #141926;
+    border: 1px solid #2a3042;
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: #e0e6ff;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .text-input:focus {
+    border-color: #1379F0;
+  }
+
+  /* ── Position display ── */
+  .position-display {
+    display: flex;
+    gap: 12px;
+  }
+  .pos-item {
+    flex: 1;
+    background: #141926;
+    border: 1px solid #2a3042;
+    border-radius: 6px;
+    padding: 8px 10px;
+    text-align: center;
+  }
+  .pos-label {
+    font-size: 10px;
+    color: #4a5568;
+    margin-bottom: 2px;
+  }
+  .pos-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e0e6ff;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Buttons ── */
+  .footer {
+    display: flex;
+    gap: 8px;
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid #2a3042;
+  }
+  .btn {
+    flex: 1;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .btn-cancel {
+    background: #232839;
+    color: #8b95b0;
+    border: 1px solid #2a3042;
+  }
+  .btn-cancel:hover {
+    background: #2a3042;
+    color: #e0e6ff;
+  }
+  .btn-confirm {
+    background: #1379F0;
+    color: #fff;
+  }
+  .btn-confirm:hover {
+    background: #1060d0;
+  }
+
+  /* ── Separator ── */
+  .sep {
+    height: 1px;
+    background: #2a3042;
+    margin: 14px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="title" id="dialogTitle">Adicionar Furo</div>
+
+<!-- Type Selector -->
+<div class="field-group">
+  <div class="field-label">Tipo</div>
+  <div class="type-selector" id="typeSelector">
+    <button class="type-pill active" data-type="dobradica">
+      <span class="dot" style="background:#f59e0b"></span>Dobradica
+    </button>
+    <button class="type-pill" data-type="minifix">
+      <span class="dot" style="background:#3b82f6"></span>Minifix
+    </button>
+    <button class="type-pill" data-type="cavilha">
+      <span class="dot" style="background:#92400e"></span>Cavilha
+    </button>
+    <button class="type-pill" data-type="passante">
+      <span class="dot" style="background:#22c55e"></span>Passante
+    </button>
+    <button class="type-pill" data-type="sistema32">
+      <span class="dot" style="background:#9ca3af"></span>Sist.32
+    </button>
+    <button class="type-pill" data-type="corredica">
+      <span class="dot" style="background:#f97316"></span>Corredica
+    </button>
+    <button class="type-pill" data-type="custom">
+      <span class="dot" style="background:#d1d5db"></span>Custom
+    </button>
+  </div>
+</div>
+
+<!-- Diameter -->
+<div class="field-group">
+  <div class="field-label">Diametro</div>
+  <div class="stepper">
+    <button class="stepper-btn" onclick="stepValue('diameter', -0.5)">-</button>
+    <input type="number" class="stepper-input" id="diameter" value="35" min="1" max="100" step="0.5">
+    <span class="stepper-unit">mm</span>
+    <button class="stepper-btn" onclick="stepValue('diameter', 0.5)">+</button>
+  </div>
+</div>
+
+<!-- Depth -->
+<div class="field-group">
+  <div class="field-label">Profundidade</div>
+  <div class="stepper">
+    <button class="stepper-btn" onclick="stepValue('depth', -0.5)">-</button>
+    <input type="number" class="stepper-input" id="depth" value="12.5" min="0.5" max="100" step="0.5">
+    <span class="stepper-unit">mm</span>
+    <button class="stepper-btn" onclick="stepValue('depth', 0.5)">+</button>
+  </div>
+</div>
+
+<!-- Side -->
+<div class="field-group">
+  <div class="field-label">Face</div>
+  <div class="side-toggle">
+    <button class="side-btn active" data-side="a" onclick="setSide('a')">Face A (superior)</button>
+    <button class="side-btn" data-side="b" onclick="setSide('b')">Face B (inferior)</button>
+  </div>
+</div>
+
+<div class="sep"></div>
+
+<!-- Tool code -->
+<div class="field-group">
+  <div class="field-label">Codigo ferramenta (opcional)</div>
+  <input type="text" class="text-input" id="toolCode" placeholder="ex: T01, BRO_35...">
+</div>
+
+<!-- Description -->
+<div class="field-group">
+  <div class="field-label">Descricao (opcional)</div>
+  <input type="text" class="text-input" id="description" placeholder="ex: Dobradica inferior esquerda">
+</div>
+
+<div class="sep"></div>
+
+<!-- Position (read-only) -->
+<div class="field-group">
+  <div class="field-label">Posicao (do clique)</div>
+  <div class="position-display">
+    <div class="pos-item">
+      <div class="pos-label">X</div>
+      <div class="pos-value" id="posX">0.0</div>
+    </div>
+    <div class="pos-item">
+      <div class="pos-label">Y</div>
+      <div class="pos-value" id="posY">0.0</div>
+    </div>
+  </div>
+</div>
+
+<!-- Buttons -->
+<div class="footer">
+  <button class="btn btn-cancel" onclick="cancelHole()">Cancelar</button>
+  <button class="btn btn-confirm" onclick="confirmHole()">Confirmar</button>
+</div>
+
+<script>
+  // ── State ──
+  var currentType = 'dobradica';
+  var currentSide = 'a';
+  var posX = 0;
+  var posY = 0;
+
+  // ── Type presets ──
+  var PRESETS = {
+    dobradica:  { diameter: 35.0, depth: 12.5 },
+    minifix:    { diameter: 15.0, depth: 12.0 },
+    cavilha:    { diameter: 8.0,  depth: 15.0 },
+    passante:   { diameter: 5.0,  depth: 0 },
+    sistema32:  { diameter: 5.0,  depth: 12.0 },
+    corredica:  { diameter: 4.0,  depth: 11.0 },
+    custom:     { diameter: 8.0,  depth: 10.0 }
+  };
+
+  // ── Type selector ──
+  var pills = document.querySelectorAll('.type-pill');
+  pills.forEach(function(pill) {
+    pill.addEventListener('click', function() {
+      pills.forEach(function(p) { p.classList.remove('active'); });
+      pill.classList.add('active');
+      currentType = pill.dataset.type;
+
+      // Auto-fill defaults from preset
+      var preset = PRESETS[currentType];
+      if (preset) {
+        document.getElementById('diameter').value = preset.diameter;
+        document.getElementById('depth').value = preset.depth;
+      }
+    });
+  });
+
+  // ── Side toggle ──
+  function setSide(side) {
+    currentSide = side;
+    document.querySelectorAll('.side-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.side === side);
+    });
+  }
+
+  // ── Stepper ──
+  function stepValue(id, delta) {
+    var el = document.getElementById(id);
+    var val = parseFloat(el.value) || 0;
+    val = Math.max(parseFloat(el.min) || 0, val + delta);
+    val = Math.min(parseFloat(el.max) || 999, val);
+    // Round to avoid floating point issues
+    el.value = Math.round(val * 10) / 10;
+  }
+
+  // ── Init from tool ──
+  function initData(data) {
+    if (data.edit_mode) {
+      document.getElementById('dialogTitle').textContent = 'Editar Furo';
+    }
+
+    // Set type
+    if (data.type) {
+      currentType = data.type;
+      pills.forEach(function(p) {
+        p.classList.toggle('active', p.dataset.type === data.type);
+      });
+    }
+
+    // Set values
+    if (data.diameter !== undefined) document.getElementById('diameter').value = data.diameter;
+    if (data.depth !== undefined) document.getElementById('depth').value = data.depth;
+    if (data.side) setSide(data.side);
+    if (data.tool_code) document.getElementById('toolCode').value = data.tool_code;
+    if (data.description) document.getElementById('description').value = data.description;
+
+    // Position
+    posX = data.position_x || 0;
+    posY = data.position_y || 0;
+    document.getElementById('posX').textContent = posX.toFixed(1);
+    document.getElementById('posY').textContent = posY.toFixed(1);
+  }
+
+  // ── Actions ──
+  function confirmHole() {
+    var data = {
+      type: currentType,
+      diameter: parseFloat(document.getElementById('diameter').value) || 8,
+      depth: parseFloat(document.getElementById('depth').value) || 10,
+      side: currentSide,
+      tool_code: document.getElementById('toolCode').value || '',
+      description: document.getElementById('description').value || '',
+      position_x: posX,
+      position_y: posY
+    };
+
+    try {
+      sketchup.confirm_hole(JSON.stringify(data));
+    } catch(e) {
+      console.log('confirm_hole callback not available:', e);
+    }
+  }
+
+  function cancelHole() {
+    try {
+      sketchup.cancel_hole();
+    } catch(e) {
+      console.log('cancel_hole callback not available:', e);
+    }
+  }
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      confirmHole();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelHole();
+    }
+  });
+
+  // Signal ready
+  setTimeout(function() {
+    try {
+      sketchup.dialog_ready();
+    } catch(e) {
+      console.log('dialog_ready callback not available');
+    }
+  }, 100);
+</script>
+</body>
+</html>

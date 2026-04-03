@@ -1,0 +1,1822 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="ornato-dialog-tabs">
+<head>
+<meta charset="UTF-8">
+<title>Ornato</title>
+<style>
+/* ═══════════════════════════════════════════════════════════
+   Ornato Dialog — OCL-style unified UI
+   Adapted from OpenCutList (GPLv3)
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Reset & Base ────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --brand-primary: #C9A96E;
+  --brand-dark: #2B2B2B;
+  --brand-darker: #1E1E1E;
+  --brand-light: #3A3A3A;
+  --brand-text: #E0E0E0;
+  --brand-text-muted: #888;
+  --brand-bg: #252525;
+  --brand-border: #444;
+  --brand-success: #4CAF50;
+  --brand-warning: #FF9800;
+  --brand-danger: #F44336;
+  --brand-info: #2196F3;
+  --leftbar-width: 78px;
+  --leftbar-item-h: 68px;
+  --bottombar-height: 28px;
+  --header-height: 44px;
+  --transition-speed: 250ms;
+}
+
+html, body {
+  height: 100%; width: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  color: var(--brand-text);
+  background: var(--brand-bg);
+}
+
+a { color: var(--brand-primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--brand-darker); }
+::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #777; }
+
+/* ── SVG Icon System ─────────────────────────────────────── */
+.icon-svg {
+  display: inline-block;
+  width: 20px; height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: middle;
+}
+.icon-svg.lg { width: 24px; height: 24px; }
+.icon-svg.xl { width: 32px; height: 32px; }
+
+/* ── Left Sidebar ────────────────────────────────────────── */
+.ornato-leftbar {
+  position: fixed;
+  top: 0; left: 0;
+  width: var(--leftbar-width);
+  height: 100%;
+  background: var(--brand-dark);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  border-right: 1px solid #111;
+  user-select: none;
+}
+
+.ornato-leftbar-logo {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #111;
+  cursor: pointer;
+}
+.ornato-leftbar-logo span {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--brand-primary);
+  letter-spacing: 1px;
+}
+
+.ornato-leftbar-tabs {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.ornato-tab-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: var(--leftbar-item-h);
+  color: var(--brand-text-muted);
+  cursor: pointer;
+  transition: background var(--transition-speed), color var(--transition-speed);
+  position: relative;
+  border: none;
+  background: none;
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 4px 2px;
+}
+.ornato-tab-btn:hover {
+  background: var(--brand-light);
+  color: var(--brand-text);
+}
+.ornato-tab-btn.active {
+  background: var(--brand-primary);
+  color: #1a1a1a;
+}
+.ornato-tab-btn .tab-icon {
+  font-size: 18px;
+  margin-bottom: 3px;
+  line-height: 1;
+}
+.ornato-tab-btn .badge {
+  position: absolute;
+  top: 6px; right: 8px;
+  background: var(--brand-danger);
+  color: #fff;
+  font-size: 9px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+.ornato-leftbar-bottom {
+  border-top: 1px solid #111;
+}
+
+/* ── Bottom Bar ──────────────────────────────────────────── */
+.ornato-bottombar {
+  position: fixed;
+  bottom: 0; right: 0;
+  left: var(--leftbar-width);
+  height: var(--bottombar-height);
+  background: var(--brand-dark);
+  border-top: 1px solid #111;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 11px;
+  color: var(--brand-text-muted);
+  z-index: 90;
+}
+.ornato-bottombar .status { flex: 1; }
+.ornato-bottombar .version { opacity: 0.6; }
+
+/* ── Content Area ────────────────────────────────────────── */
+.ornato-wrapper {
+  position: fixed;
+  top: 0;
+  left: var(--leftbar-width);
+  right: 0;
+  bottom: var(--bottombar-height);
+  overflow: hidden;
+}
+
+/* ── Slides ──────────────────────────────────────────────── */
+.ornato-slide {
+  position: absolute;
+  top: 0; bottom: 0; right: 0;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--brand-bg);
+  transition: transform var(--transition-speed) ease;
+}
+.ornato-slide.in { transform: translateX(0); }
+.ornato-slide.out { transform: translateX(100%); }
+.ornato-slide.out-left { transform: translateX(-30%); opacity: 0.3; }
+
+/* ── Slide Header ────────────────────────────────────────── */
+.ornato-header {
+  position: sticky;
+  top: 0;
+  background: var(--brand-darker);
+  border-bottom: 1px solid var(--brand-border);
+  padding: 0 16px;
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  z-index: 50;
+}
+.ornato-header h1 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--brand-text);
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+.ornato-header-tools {
+  display: flex;
+  gap: 6px;
+}
+
+/* ── Slide Container ─────────────────────────────────────── */
+.ornato-container {
+  padding: 16px;
+}
+
+/* ── Form Controls ───────────────────────────────────────── */
+.form-group { margin-bottom: 12px; }
+.form-group label {
+  display: block;
+  font-size: 11px;
+  color: var(--brand-text-muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+input[type="text"], input[type="number"], input[type="search"],
+select, textarea {
+  width: 100%;
+  padding: 7px 10px;
+  background: var(--brand-darker);
+  border: 1px solid var(--brand-border);
+  border-radius: 4px;
+  color: var(--brand-text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--brand-primary);
+}
+textarea { resize: vertical; min-height: 60px; }
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--brand-border);
+  background: var(--brand-light);
+  color: var(--brand-text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn:hover { background: #4a4a4a; }
+.btn-primary { background: var(--brand-primary); color: #1a1a1a; border-color: var(--brand-primary); font-weight: 600; }
+.btn-primary:hover { background: #d4b87a; }
+.btn-success { background: var(--brand-success); color: #fff; border-color: var(--brand-success); }
+.btn-danger { background: var(--brand-danger); color: #fff; border-color: var(--brand-danger); }
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+.btn-block { display: flex; width: 100%; justify-content: center; }
+.btn-group { display: flex; gap: 6px; }
+.btn-group .btn { flex: 1; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Tables ──────────────────────────────────────────────── */
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 8px; font-size: 11px; color: var(--brand-text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--brand-border); }
+td { padding: 7px 8px; border-bottom: 1px solid #333; font-size: 12px; }
+tr:hover td { background: rgba(255,255,255,0.03); }
+
+/* ── Cards / Panels ──────────────────────────────────────── */
+.panel {
+  background: var(--brand-darker);
+  border: 1px solid var(--brand-border);
+  border-radius: 6px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.panel-heading {
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid var(--brand-border);
+  font-weight: 600;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.panel-heading .ph-icon { color: var(--brand-primary); }
+.panel-heading .arrow {
+  margin-left: auto;
+  transition: transform 0.2s;
+  font-size: 10px;
+}
+.panel-heading.collapsed .arrow { transform: rotate(-90deg); }
+.panel-body { padding: 12px 14px; }
+.panel.collapsed .panel-body { display: none; }
+
+/* ── List Items ──────────────────────────────────────────── */
+.list-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #333;
+  gap: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.list-item:hover { background: rgba(255,255,255,0.04); }
+.list-item:last-child { border-bottom: none; }
+.list-item .li-icon { font-size: 16px; color: var(--brand-primary); width: 24px; text-align: center; }
+.list-item .info { flex: 1; }
+.list-item .info .title { font-weight: 500; font-size: 13px; }
+.list-item .info .subtitle { font-size: 11px; color: var(--brand-text-muted); margin-top: 2px; }
+.list-item .action { color: var(--brand-text-muted); font-size: 14px; }
+
+/* ── Tags / Badges ───────────────────────────────────────── */
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.tag-success { background: rgba(76,175,80,0.2); color: var(--brand-success); }
+.tag-warning { background: rgba(255,152,0,0.2); color: var(--brand-warning); }
+.tag-danger { background: rgba(244,67,54,0.2); color: var(--brand-danger); }
+.tag-info { background: rgba(33,150,243,0.2); color: var(--brand-info); }
+.tag-muted { background: rgba(255,255,255,0.1); color: var(--brand-text-muted); }
+
+/* ── Grid ────────────────────────────────────────────────── */
+.row { display: flex; gap: 12px; margin-bottom: 12px; }
+.col { flex: 1; }
+.col-2 { flex: 2; }
+.col-3 { flex: 3; }
+
+/* ── Tabs inside content ─────────────────────────────────── */
+.inner-tabs {
+  display: flex;
+  border-bottom: 2px solid var(--brand-border);
+  margin-bottom: 14px;
+  gap: 0;
+}
+.inner-tab {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--brand-text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.15s;
+}
+.inner-tab:hover { color: var(--brand-text); }
+.inner-tab.active { color: var(--brand-primary); border-bottom-color: var(--brand-primary); }
+
+.inner-tab-content { display: none; }
+.inner-tab-content.active { display: block; }
+
+/* ── Search ──────────────────────────────────────────────── */
+.search-box {
+  position: relative;
+  margin-bottom: 12px;
+}
+.search-box input {
+  padding-left: 32px;
+}
+.search-box .search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--brand-text-muted);
+  font-size: 14px;
+}
+
+/* ── Empty State ─────────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--brand-text-muted);
+}
+.empty-state .es-icon { font-size: 32px; margin-bottom: 12px; opacity: 0.4; }
+.empty-state p { font-size: 13px; }
+
+/* ── Piece Editor (Construtor) ───────────────────────────── */
+.piece-card {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  background: var(--brand-darker);
+  border: 1px solid var(--brand-border);
+  border-radius: 4px;
+  margin-bottom: 4px;
+  gap: 8px;
+  font-size: 12px;
+}
+.piece-card .piece-name { flex: 1; font-weight: 500; }
+.piece-card .piece-dims { color: var(--brand-text-muted); font-size: 11px; }
+.piece-card .piece-actions { display: flex; gap: 4px; }
+.piece-card .piece-actions button {
+  background: none; border: none; color: var(--brand-text-muted); cursor: pointer; padding: 2px 4px; font-size: 13px;
+}
+.piece-card .piece-actions button:hover { color: var(--brand-text); }
+
+/* ── Edge Banding Visual ─────────────────────────────────── */
+.edge-box {
+  width: 100px; height: 60px;
+  border: 2px solid var(--brand-border);
+  position: relative;
+  margin: 10px auto;
+  border-radius: 2px;
+}
+.edge-box .edge { position: absolute; cursor: pointer; transition: background 0.15s; }
+.edge-box .edge-top { top: -4px; left: 10px; right: 10px; height: 6px; border-radius: 3px; }
+.edge-box .edge-bottom { bottom: -4px; left: 10px; right: 10px; height: 6px; border-radius: 3px; }
+.edge-box .edge-left { left: -4px; top: 10px; bottom: 10px; width: 6px; border-radius: 3px; }
+.edge-box .edge-right { right: -4px; top: 10px; bottom: 10px; width: 6px; border-radius: 3px; }
+.edge-box .edge.off { background: var(--brand-border); }
+.edge-box .edge.on { background: var(--brand-primary); }
+
+/* ── Module Grid (Biblioteca) ────────────────────────────── */
+.module-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.module-card {
+  background: var(--brand-darker);
+  border: 1px solid var(--brand-border);
+  border-radius: 6px;
+  padding: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.1s;
+}
+.module-card:hover { border-color: var(--brand-primary); transform: translateY(-1px); }
+.module-card .mc-icon { font-size: 18px; margin-bottom: 6px; color: var(--brand-primary); }
+.module-card .mc-name { font-weight: 600; font-size: 12px; margin-bottom: 4px; }
+.module-card .mc-desc { font-size: 11px; color: var(--brand-text-muted); }
+
+/* ── Severity Icons ──────────────────────────────────────── */
+.severity-error { color: var(--brand-danger); }
+.severity-warning { color: var(--brand-warning); }
+.severity-info { color: var(--brand-info); }
+
+/* ── Spinner ─────────────────────────────────────────────── */
+.spinner {
+  display: inline-block;
+  width: 18px; height: 18px;
+  border: 2px solid var(--brand-border);
+  border-top-color: var(--brand-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Checkbox / Radio Toggle ─────────────────────────────── */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+.toggle-row input[type="checkbox"], .toggle-row input[type="radio"] {
+  accent-color: var(--brand-primary);
+  width: 16px; height: 16px;
+}
+
+/* ── Slot/Component Items ────────────────────────────────── */
+.slot-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--brand-darker);
+  border: 1px solid var(--brand-border);
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+.slot-item .slot-info { flex: 1; }
+.slot-item .slot-type { font-size: 10px; text-transform: uppercase; color: var(--brand-primary); }
+.slot-item .slot-name { font-size: 12px; font-weight: 500; }
+
+/* ── Component Category Grid (Agregador) ─────────────────── */
+.comp-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.comp-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 4px;
+  background: var(--brand-darker);
+  border: 1px solid var(--brand-border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--brand-text-muted);
+  transition: all 0.15s;
+  text-align: center;
+}
+.comp-btn:hover { border-color: var(--brand-primary); color: var(--brand-text); }
+.comp-btn.selected { border-color: var(--brand-primary); background: rgba(201,169,110,0.1); color: var(--brand-primary); }
+.comp-btn .cb-icon { font-size: 16px; margin-bottom: 4px; }
+
+/* ── Config sections ─────────────────────────────────────── */
+.config-section {
+  border-bottom: 1px solid var(--brand-border);
+  padding: 12px 0;
+}
+.config-section:last-child { border-bottom: none; }
+.config-section label.section-title {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--brand-primary);
+  margin-bottom: 8px;
+}
+
+/* ── Utility ─────────────────────────────────────────────── */
+.mt-8 { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.mt-16 { margin-top: 16px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-12 { margin-bottom: 12px; }
+.text-muted { color: var(--brand-text-muted); }
+.text-primary { color: var(--brand-primary); }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-sm { font-size: 11px; }
+.fw-600 { font-weight: 600; }
+.hidden { display: none !important; }
+.flex { display: flex; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.gap-8 { gap: 8px; }
+.gap-4 { gap: 4px; }
+.w-full { width: 100%; }
+hr { border: none; border-top: 1px solid var(--brand-border); margin: 16px 0; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     LEFT SIDEBAR
+     ═══════════════════════════════════════════════════════ -->
+<nav id="ornato_leftbar" class="ornato-leftbar">
+  <div class="ornato-leftbar-logo" onclick="OrnatoDialog.selectTab('sobre')">
+    <span>ORNATO</span>
+  </div>
+  <div class="ornato-leftbar-tabs" id="ornato_leftbar_tabs">
+  </div>
+  <div class="ornato-leftbar-bottom" id="ornato_leftbar_bottom">
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════
+     CONTENT WRAPPER
+     ═══════════════════════════════════════════════════════ -->
+<div id="ornato_wrapper" class="ornato-wrapper">
+  <div id="ornato_slides"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     BOTTOM BAR
+     ═══════════════════════════════════════════════════════ -->
+<div id="ornato_bottombar" class="ornato-bottombar">
+  <span class="status" id="ornato_status">Pronto</span>
+  <span class="version" id="ornato_version"></span>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SVG ICON DEFINITIONS
+     ═══════════════════════════════════════════════════════ -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="ico-library" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></symbol>
+  <symbol id="ico-build" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+  <symbol id="ico-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+  <symbol id="ico-palette" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.5-.7 1.5-1.5 0-.4-.1-.7-.4-1-.3-.3-.4-.6-.4-1 0-.8.7-1.5 1.5-1.5H16c3.3 0 6-2.7 6-6 0-5.5-4.5-10-10-10z"/></symbol>
+  <symbol id="ico-check" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+  <symbol id="ico-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+  <symbol id="ico-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+  <symbol id="ico-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></symbol>
+  <symbol id="ico-box" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol>
+  <symbol id="ico-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+  <symbol id="ico-refresh" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></symbol>
+  <symbol id="ico-back" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></symbol>
+  <symbol id="ico-edit" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></symbol>
+  <symbol id="ico-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+  <symbol id="ico-x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+  <symbol id="ico-plus" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+  <symbol id="ico-alert" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+  <symbol id="ico-door" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="1"/><circle cx="15" cy="12" r="1" fill="currentColor"/></symbol>
+  <symbol id="ico-drawer" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="10" y1="5" x2="14" y2="5"/><line x1="10" y1="11" x2="14" y2="11"/><line x1="10" y1="17" x2="14" y2="17"/></symbol>
+  <symbol id="ico-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></symbol>
+  <symbol id="ico-shelf" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+  <symbol id="ico-divider" viewBox="0 0 24 24"><line x1="12" y1="3" x2="12" y2="21"/></symbol>
+  <symbol id="ico-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+  <symbol id="ico-zap" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+  <symbol id="ico-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+  <symbol id="ico-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></symbol>
+  <symbol id="ico-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></symbol>
+  <symbol id="ico-play" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></symbol>
+  <symbol id="ico-eye" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+</svg>
+
+<!-- ═══════════════════════════════════════════════════════
+     TAB TEMPLATES (hidden, cloned on demand)
+     ═══════════════════════════════════════════════════════ -->
+
+<!-- ── BIBLIOTECA ────────────────────────────────────────── -->
+<template id="tmpl_biblioteca">
+<div class="ornato-slide out" data-tab="biblioteca">
+  <div class="ornato-header">
+    <h1>Biblioteca de Modulos</h1>
+    <div class="ornato-header-tools">
+      <button class="btn btn-sm" onclick="OrnatoTabs.biblioteca.refresh()"><svg class="icon-svg" style="width:14px;height:14px"><use href="#ico-refresh"/></svg> Atualizar</button>
+    </div>
+  </div>
+  <div class="ornato-container">
+    <div class="inner-tabs">
+      <div class="inner-tab active" data-inner="bib_servidor">Servidor</div>
+      <div class="inner-tab" data-inner="bib_local">Padrao</div>
+    </div>
+    <div class="inner-tab-content active" id="bib_servidor">
+      <div class="search-box">
+        <span class="search-icon"><svg class="icon-svg" style="width:14px;height:14px"><use href="#ico-search"/></svg></span>
+        <input type="search" id="bib_search" placeholder="Buscar modulos..." oninput="OrnatoTabs.biblioteca.filter(this.value)">
+      </div>
+      <div id="bib_categories" class="mb-12"></div>
+      <div id="bib_modules" class="module-grid"></div>
+      <div id="bib_empty" class="empty-state hidden">
+        <div class="es-icon"><svg class="icon-svg xl"><use href="#ico-box"/></svg></div>
+        <p>Nenhum modulo encontrado</p>
+      </div>
+      <div id="bib_loading" class="empty-state">
+        <div class="spinner"></div>
+        <p class="mt-8">Carregando biblioteca...</p>
+      </div>
+    </div>
+    <div class="inner-tab-content" id="bib_local">
+      <div id="bib_local_modules" class="module-grid"></div>
+    </div>
+  </div>
+</div>
+</template>
+
+<!-- ── BIBLIOTECA DETAIL (sub-slide) ─────────────────────── -->
+<template id="tmpl_biblioteca_detail">
+<div class="ornato-slide out">
+  <div class="ornato-header">
+    <h1>
+      <button class="btn btn-sm" onclick="OrnatoDialog.popSlide()" style="margin-right:8px"><svg class="icon-svg" style="width:14px;height:14px"><use href="#ico-back"/></svg></button>
+      <span id="bib_detail_name">Modulo</span>
+    </h1>
+  </div>
+  <div class="ornato-container">
+    <p id="bib_detail_desc" class="text-muted mb-12"></p>
+    <div id="bib_detail_params"></div>
+    <div class="mt-16">
+      <button class="btn btn-primary btn-block" onclick="OrnatoTabs.biblioteca.createModule()">Inserir no Modelo</button>
+    </div>
+  </div>
+</div>
+</template>
+
+<!-- ── CONSTRUTOR ────────────────────────────────────────── -->
+<template id="tmpl_construtor">
+<div class="ornato-slide out" data-tab="construtor">
+  <div class="ornato-header">
+    <h1>Construtor de Modulos</h1>
+    <div class="ornato-header-tools">
+      <button class="btn btn-sm" onclick="OrnatoTabs.construtor.loadTemplate()"><svg class="icon-svg" style="width:14px;height:14px"><use href="#ico-upload"/></svg> Carregar</button>
+      <button class="btn btn-sm" onclick="OrnatoTabs.construtor.saveTemplate()"><svg class="icon-svg" style="width:14px;height:14px"><use href="#ico-save"/></svg> Salvar</button>
+    </div>
+  </div>
+  <div class="ornato-container">
+    <div class="panel">
+      <div class="panel-heading" onclick="togglePanel(this)">
+        <span class="ph-icon"><svg class="icon-svg" style="width:16px;height:16px"><use href="#ico-settings"/></svg></span> Parametros do Modulo
+        <span class="arrow">&#9662;</span>
+      </div>
+      <div class="panel-body">
+        <div class="row">
+          <div class="col-2">
+            <div class="form-group">
+              <label>Nome</label>
+              <input type="text" id="con_nome" value="Modulo 1">
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <div class="form-group"><label>Largura (mm)</label><input type="number" id="con_largura" value="600"></div>
+          </div>
+          <div class="col">
+            <div class="form-group"><label>Altura (mm)</label><input type="number" id="con_altura" value="720"></div>
+          </div>
+          <div class="col">
+            <div class="form-group"><label>Prof. (mm)</label><input type="number" id="con_profundidade" value="560"></div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <div class="form-group"><label>Espessura (mm)</label><input type="number" id="con_espessura" value="18"></div>
+          </div>
+          <div class="col">
+            <div class="form-group"><label>Rodape (mm)</label><input type="number" id="con_rodape" value="100"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-heading" onclick="togglePanel(this)">
+        <span class="ph-icon"><svg class="icon-svg" style="width:16px;height:16px"><use href="#ico-grid"/></svg></span> Pecas (<span id="con_piece_count">0</span>)
+        <span class="arrow">&#9662;</span>
+      </div>
+      <div class="panel-body">
+        <div id="con_pieces_list"></div>
+        <div class="mt-8">
+          <button class="btn btn-sm w-full" onclick="OrnatoTabs.construtor.addPiece()"><svg class="icon-svg" style="width:12px;height:12px"><use href="#ico-plus"/></svg> Adicionar Peca</button>
+        </div>
+        <hr>
+        <p class="text-sm text-muted mb-8">Presets rapidos:</p>
+        <div class="btn-group" style="flex-wrap:wrap;">
+          <button class="btn btn-sm" onclick="OrnatoTabs.construtor.preset('laterais')">Par Laterais</button>
+          <button class="btn btn-sm" onclick="OrnatoTabs.construtor.preset('base')">Base</button>
+          <button class="btn btn-sm" onclick="OrnatoTabs.construtor.preset('tampo')">Tampo</button>
+          <button class="btn btn-sm" onclick="OrnatoTabs.construtor.preset('fundo')">Fundo</button>
+          <button class="btn btn-sm" onclick="OrnatoTabs.construtor.preset('regua')">Regua</button>
+          <button class="btn btn-sm" onclick="OrnatoTabs.construtor.preset('caixa')">Caixa Completa</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-heading" onclick="togglePanel(this)">
+        <span class="ph-icon"><svg class="icon-svg" style="width:16px;height:16px"><use href="#ico-build"/></svg></span> Ferragens automaticas
+        <span class="arrow">&#9662;</span>
+      </div>
+      <div class="panel-body">
+        <div class="toggle-row"><input type="checkbox" id="con_hw_minifix" checked> <span>Minifix (laterais - base/tampo)</span></div>
+        <div class="toggle-row"><input type="checkbox" id="con_hw_cavilha" checked> <span>Cavilhas de reforco</span></div>
+        <div class="toggle-row"><input type="checkbox" id="con_hw_sistema32"> <span>Sistema 32 (furos laterais)</span></div>
+        <div class="toggle-row"><input type="checkbox" id="con_hw_cantoneira"> <span>Cantoneiras</span></div>
+      </div>
+    </div>
+
+    <div class="mt-12 btn-group">
+      <button class="btn btn-primary btn-block" onclick="OrnatoTabs.construtor.create()">Criar no Modelo</button>
+    </div>
+  </div>
+</div>
+</template>
+
+<!-- ── CONSTRUTOR PIECE EDITOR (sub-slide) ───────────────── -->
+<template id="tmpl_construtor_piece_edit">
+<div class="ornato-slide out">
+  <div class="ornato-header">
+    <h1>
+      <button class="btn btn-sm" onclick="OrnatoDialog.popSlide()" style="margin-right:8px"><svg class="icon-svg" style="width:14px;height:14px"><use href="#ico-back"/></svg></button>
+      Editar Peca
+    </h1>
+  </div>
+  <div class="ornato-container">
+    <div class="form-group">
+      <label>Nome da peca</label>
+      <input type="text" id="pe_nome" placeholder="ex: Lateral Esquerda">
+    </div>
+    <div class="form-group">
+      <label>Funcao / Papel</label>
+      <select id="pe_role">
+        <option value="lateral">Lateral</option>
+        <option value="base">Base</option>
+        <option value="topo">Topo / Tampo</option>
+        <option value="travessa">Travessa / Regua</option>
+        <option value="traseira">Traseira / Fundo</option>
+        <option value="prateleira">Prateleira</option>
+        <option value="divisoria">Divisoria</option>
+        <option value="porta">Porta</option>
+        <option value="frente_gaveta">Frente de Gaveta</option>
+        <option value="outro">Outro</option>
+      </select>
+    </div>
+    <hr>
+    <p class="text-sm text-muted mb-8">Dimensoes (formulas: {largura}, {altura}, {profundidade}, {espessura}, {rodape}, {interna_w}, {interna_h})</p>
+    <div class="row">
+      <div class="col"><div class="form-group"><label>Comp. (mm)</label><input type="text" id="pe_comp" placeholder="{altura}-{rodape}"></div></div>
+      <div class="col"><div class="form-group"><label>Larg. (mm)</label><input type="text" id="pe_larg" placeholder="{profundidade}"></div></div>
+      <div class="col"><div class="form-group"><label>Esp. (mm)</label><input type="text" id="pe_esp" placeholder="{espessura}"></div></div>
+    </div>
+    <hr>
+    <p class="text-sm text-muted mb-8">Posicao (formulas permitidas)</p>
+    <div class="row">
+      <div class="col"><div class="form-group"><label>X</label><input type="text" id="pe_x" value="0"></div></div>
+      <div class="col"><div class="form-group"><label>Y</label><input type="text" id="pe_y" value="0"></div></div>
+      <div class="col"><div class="form-group"><label>Z</label><input type="text" id="pe_z" value="0"></div></div>
+    </div>
+    <hr>
+    <p class="text-sm text-muted mb-8">Fita de borda (clique para ativar)</p>
+    <div class="edge-box" id="pe_edges">
+      <div class="edge edge-top off" data-edge="top" onclick="toggleEdge(this)"></div>
+      <div class="edge edge-bottom off" data-edge="bottom" onclick="toggleEdge(this)"></div>
+      <div class="edge edge-left off" data-edge="left" onclick="toggleEdge(this)"></div>
+      <div class="edge edge-right off" data-edge="right" onclick="toggleEdge(this)"></div>
+    </div>
+    <hr>
+    <div class="form-group">
+      <label>Condicao (opcional)</label>
+      <input type="text" id="pe_condition" placeholder="ex: {rodape} > 0">
+    </div>
+    <div class="mt-12">
+      <button class="btn btn-primary btn-block" onclick="OrnatoTabs.construtor.savePiece()">Salvar Peca</button>
+    </div>
+  </div>
+</div>
+</template>
+
+<!-- ── AGREGADOR ──────────────────────────────────────────── -->
+<template id="tmpl_agregador">
+<div class="ornato-slide out" data-tab="agregador">
+  <div class="ornato-header">
+    <h1>Agregar Componentes</h1>
+  </div>
+  <div class="ornato-container">
+    <div id="agr_no_selection" class="empty-state">
+      <div class="es-icon"><svg class="icon-svg xl"><use href="#ico-eye"/></svg></div>
+      <p>Selecione um modulo Ornato no modelo</p>
+    </div>
+    <div id="agr_content" class="hidden">
+      <div class="flex-between mb-12">
+        <div>
+          <div class="fw-600" id="agr_module_name">Modulo</div>
+          <div class="text-sm text-muted" id="agr_module_dims"></div>
+        </div>
+      </div>
+      <div class="panel mb-12">
+        <div class="panel-heading" onclick="togglePanel(this)">
+          <span class="ph-icon"><svg class="icon-svg" style="width:16px;height:16px"><use href="#ico-layers"/></svg></span> Componentes atuais (<span id="agr_slot_count">0</span>)
+          <span class="arrow">&#9662;</span>
+        </div>
+        <div class="panel-body" id="agr_slots_list">
+          <div class="empty-state text-sm" style="padding:12px">Nenhum componente agregado</div>
+        </div>
+      </div>
+      <p class="text-sm fw-600 mb-8">Adicionar componente:</p>
+      <div class="inner-tabs mb-12">
+        <div class="inner-tab active" data-inner="agr_fechamentos">Fechamentos</div>
+        <div class="inner-tab" data-inner="agr_gavetas">Gavetas</div>
+        <div class="inner-tab" data-inner="agr_internos">Internos</div>
+        <div class="inner-tab" data-inner="agr_especiais">Especiais</div>
+      </div>
+      <div class="inner-tab-content active" id="agr_fechamentos">
+        <div class="comp-grid">
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('porta_2')"><div class="cb-icon"><svg class="icon-svg"><use href="#ico-door"/></svg></div>2 Portas</div>
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('porta_1')"><div class="cb-icon"><svg class="icon-svg"><use href="#ico-door"/></svg></div>1 Porta</div>
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('basculante')"><div class="cb-icon">&uarr;</div>Basculante</div>
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('correr')"><div class="cb-icon">&harr;</div>Correr</div>
+        </div>
+      </div>
+      <div class="inner-tab-content" id="agr_gavetas">
+        <div class="comp-grid">
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('gaveta_1')"><div class="cb-icon"><svg class="icon-svg"><use href="#ico-drawer"/></svg></div>1 Gaveta</div>
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('gaveta_2')"><div class="cb-icon"><svg class="icon-svg"><use href="#ico-drawer"/></svg></div>2 Gavetas</div>
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('gaveta_3')"><div class="cb-icon"><svg class="icon-svg"><use href="#ico-drawer"/></svg></div>3 Gavetas</div>
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('gaveta_4')"><div class="cb-icon"><svg class="icon-svg"><use href="#ico-drawer"/></svg></div>4 Gavetas</div>
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('gaveta_5')"><div class="cb-icon"><svg class="icon-svg"><use href="#ico-drawer"/></svg></div>5 Gavetas</div>
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('gaveteiro')"><div class="cb-icon"><svg class="icon-svg"><use href="#ico-drawer"/></svg></div>Gaveteiro</div>
+        </div>
+      </div>
+      <div class="inner-tab-content" id="agr_internos">
+        <div class="comp-grid">
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('prateleira')"><div class="cb-icon"><svg class="icon-svg"><use href="#ico-shelf"/></svg></div>Prateleira</div>
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('divisoria')"><div class="cb-icon"><svg class="icon-svg"><use href="#ico-divider"/></svg></div>Divisoria</div>
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('cabideiro')"><div class="cb-icon">&mdash;</div>Cabideiro</div>
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('sapateira')"><div class="cb-icon">/</div>Sapateira</div>
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('cesto')"><div class="cb-icon"><svg class="icon-svg"><use href="#ico-box"/></svg></div>Cesto</div>
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('nicho')"><div class="cb-icon"><svg class="icon-svg"><use href="#ico-grid"/></svg></div>Nicho</div>
+        </div>
+      </div>
+      <div class="inner-tab-content" id="agr_especiais">
+        <div class="comp-grid">
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('iluminacao')"><div class="cb-icon"><svg class="icon-svg"><use href="#ico-zap"/></svg></div>Iluminacao</div>
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('tomada')"><div class="cb-icon"><svg class="icon-svg"><use href="#ico-zap"/></svg></div>Tomada</div>
+          <div class="comp-btn" onclick="OrnatoTabs.agregador.addComp('organizador')"><div class="cb-icon"><svg class="icon-svg"><use href="#ico-grid"/></svg></div>Organizador</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</template>
+
+<!-- ── ACABAMENTOS ────────────────────────────────────────── -->
+<template id="tmpl_acabamentos">
+<div class="ornato-slide out" data-tab="acabamentos">
+  <div class="ornato-header">
+    <h1>Acabamentos</h1>
+    <div class="ornato-header-tools">
+      <button class="btn btn-sm" onclick="OrnatoTabs.acabamentos.reset()">Resetar</button>
+    </div>
+  </div>
+  <div class="ornato-container">
+    <div id="acb_no_selection" class="empty-state">
+      <div class="es-icon"><svg class="icon-svg xl"><use href="#ico-palette"/></svg></div>
+      <p>Selecione um modulo Ornato no modelo</p>
+    </div>
+    <div id="acb_content" class="hidden">
+      <div class="form-group">
+        <label>Escopo</label>
+        <select id="acb_scope">
+          <option value="selection">Selecao atual</option>
+          <option value="module">Todo o modulo</option>
+          <option value="project">Projeto inteiro</option>
+        </select>
+      </div>
+      <div class="inner-tabs">
+        <div class="inner-tab active" data-inner="acb_material">Material</div>
+        <div class="inner-tab" data-inner="acb_borda">Fita de Borda</div>
+        <div class="inner-tab" data-inner="acb_pecas">Por Peca</div>
+      </div>
+      <div class="inner-tab-content active" id="acb_material">
+        <div class="form-group">
+          <label>Material</label>
+          <select id="acb_mat_select">
+            <option value="">-- Selecionar --</option>
+            <option value="MDF_CRU">MDF Cru</option>
+            <option value="MDF_BRANCO">MDF Branco TX</option>
+            <option value="MDF_PRETO">MDF Preto TX</option>
+            <option value="BP_CARVALHO">BP Carvalho</option>
+            <option value="BP_NOGAL">BP Nogal</option>
+            <option value="BP_FREIJO">BP Freijo</option>
+            <option value="BP_CINZA">BP Cinza</option>
+            <option value="MDP_BRANCO">MDP Branco</option>
+            <option value="MDP_PRETO">MDP Preto</option>
+            <option value="COMP_NAVAL">Compensado Naval</option>
+            <option value="COMP_PINUS">Compensado Pinus</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Espessura (mm)</label>
+          <select id="acb_mat_esp">
+            <option value="3">3mm</option>
+            <option value="6">6mm</option>
+            <option value="9">9mm</option>
+            <option value="12">12mm</option>
+            <option value="15">15mm</option>
+            <option value="18" selected>18mm</option>
+            <option value="25">25mm</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-block mt-12" onclick="OrnatoTabs.acabamentos.applyMaterial()">Aplicar Material</button>
+      </div>
+      <div class="inner-tab-content" id="acb_borda">
+        <div class="form-group">
+          <label>Tipo de fita</label>
+          <select id="acb_borda_tipo">
+            <option value="PP_0.4">PP 0.4mm</option>
+            <option value="PP_1.0">PP 1.0mm</option>
+            <option value="ABS_0.4">ABS 0.4mm</option>
+            <option value="ABS_1.0">ABS 1.0mm</option>
+            <option value="ABS_2.0">ABS 2.0mm</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Regra automatica</label>
+          <select id="acb_borda_regra">
+            <option value="visiveis">Bordas visiveis</option>
+            <option value="todas">Todas as bordas</option>
+            <option value="manual">Manual (por peca)</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-block mt-12" onclick="OrnatoTabs.acabamentos.applyBorda()">Aplicar Bordas</button>
+      </div>
+      <div class="inner-tab-content" id="acb_pecas">
+        <div id="acb_pieces_list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+</template>
+
+<!-- ── VALIDACAO ──────────────────────────────────────────── -->
+<template id="tmpl_validacao">
+<div class="ornato-slide out" data-tab="validacao">
+  <div class="ornato-header">
+    <h1>Validacao</h1>
+    <div class="ornato-header-tools">
+      <button class="btn btn-sm" onclick="OrnatoTabs.validacao.run()"><svg class="icon-svg" style="width:14px;height:14px"><use href="#ico-play"/></svg> Validar</button>
+    </div>
+  </div>
+  <div class="ornato-container">
+    <div id="val_empty" class="empty-state">
+      <div class="es-icon"><svg class="icon-svg xl"><use href="#ico-check"/></svg></div>
+      <p>Clique em Validar para verificar o modelo</p>
+    </div>
+    <div id="val_loading" class="empty-state hidden">
+      <div class="spinner"></div>
+      <p class="mt-8">Validando...</p>
+    </div>
+    <div id="val_results" class="hidden">
+      <div class="flex-between mb-12">
+        <div>
+          <span class="tag tag-danger" id="val_errors_tag">0 erros</span>
+          <span class="tag tag-warning" id="val_warnings_tag">0 avisos</span>
+          <span class="tag tag-info" id="val_info_tag">0 info</span>
+        </div>
+      </div>
+      <div id="val_issues_list"></div>
+    </div>
+  </div>
+</div>
+</template>
+
+<!-- ── EXPORTAR ───────────────────────────────────────────── -->
+<template id="tmpl_exportar">
+<div class="ornato-slide out" data-tab="exportar">
+  <div class="ornato-header">
+    <h1>Exportar</h1>
+  </div>
+  <div class="ornato-container">
+    <div class="panel">
+      <div class="panel-heading"><span class="ph-icon"><svg class="icon-svg" style="width:16px;height:16px"><use href="#ico-save"/></svg></span> Exportar JSON para CNC</div>
+      <div class="panel-body">
+        <p class="text-sm text-muted mb-12">Analisa o modelo, processa furacoes automaticas e gera o JSON compativel com Ornato CNC.</p>
+        <div class="toggle-row"><input type="checkbox" id="exp_validate" checked> <span>Validar antes de exportar</span></div>
+        <div class="toggle-row"><input type="checkbox" id="exp_preview" checked> <span>Mostrar preview</span></div>
+        <button class="btn btn-primary btn-block mt-12" onclick="OrnatoTabs.exportar.exportJson()">Exportar JSON</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-heading"><span class="ph-icon"><svg class="icon-svg" style="width:16px;height:16px"><use href="#ico-link"/></svg></span> Sincronizar com ERP</div>
+      <div class="panel-body">
+        <p class="text-sm text-muted mb-12">Envia dados diretamente para o Ornato ERP via API.</p>
+        <div id="exp_api_status" class="flex gap-8 mb-12">
+          <span class="tag tag-muted">Verificando conexao...</span>
+        </div>
+        <button class="btn btn-block" onclick="OrnatoTabs.exportar.syncErp()" id="exp_sync_btn" disabled>Sincronizar</button>
+      </div>
+    </div>
+  </div>
+</div>
+</template>
+
+<!-- ── CONFIG ─────────────────────────────────────────────── -->
+<template id="tmpl_config">
+<div class="ornato-slide out" data-tab="config">
+  <div class="ornato-header">
+    <h1>Configuracoes</h1>
+    <div class="ornato-header-tools">
+      <button class="btn btn-sm btn-danger" onclick="OrnatoTabs.config.reset()">Resetar</button>
+    </div>
+  </div>
+  <div class="ornato-container">
+    <div class="config-section">
+      <label class="section-title">API Ornato</label>
+      <div class="form-group">
+        <label>URL do servidor</label>
+        <input type="text" id="cfg_api_url" value="http://localhost:3001">
+      </div>
+      <div class="form-group">
+        <label>Token (opcional)</label>
+        <input type="text" id="cfg_api_token" value="">
+      </div>
+      <button class="btn btn-sm" onclick="OrnatoTabs.config.testApi()">Testar conexao</button>
+    </div>
+    <div class="config-section">
+      <label class="section-title">Juncoes padrao</label>
+      <div class="form-group">
+        <label>Tipo de juncao</label>
+        <select id="cfg_joint">
+          <option value="minifix">Minifix</option>
+          <option value="dowel">Cavilha</option>
+        </select>
+      </div>
+    </div>
+    <div class="config-section">
+      <label class="section-title">Ferragens</label>
+      <div class="row">
+        <div class="col">
+          <div class="form-group"><label>Dobradica - diam. copa</label><input type="number" id="cfg_hinge_cup" value="35"></div>
+        </div>
+        <div class="col">
+          <div class="form-group"><label>Prof. copa</label><input type="number" id="cfg_hinge_depth" value="12.5"></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col">
+          <div class="form-group"><label>Minifix - diam. corpo</label><input type="number" id="cfg_minifix_diam" value="15"></div>
+        </div>
+        <div class="col">
+          <div class="form-group"><label>Prof. corpo</label><input type="number" id="cfg_minifix_depth" value="12"></div>
+        </div>
+      </div>
+    </div>
+    <div class="config-section">
+      <label class="section-title">Exportacao</label>
+      <div class="toggle-row"><input type="checkbox" id="cfg_auto_process" checked> <span>Auto-processar ao exportar</span></div>
+      <div class="toggle-row"><input type="checkbox" id="cfg_show_preview" checked> <span>Mostrar preview antes de exportar</span></div>
+    </div>
+    <div class="mt-16">
+      <button class="btn btn-primary btn-block" onclick="OrnatoTabs.config.save()">Salvar Configuracoes</button>
+    </div>
+  </div>
+</div>
+</template>
+
+<!-- ── SOBRE ──────────────────────────────────────────────── -->
+<template id="tmpl_sobre">
+<div class="ornato-slide out" data-tab="sobre">
+  <div class="ornato-header">
+    <h1>Sobre</h1>
+  </div>
+  <div class="ornato-container">
+    <div class="text-center mb-12">
+      <div style="font-size:28px;color:var(--brand-primary);font-weight:700;margin-bottom:4px;letter-spacing:2px;">ORNATO</div>
+      <p class="text-muted">Plugin CNC para marcenaria industrializada</p>
+    </div>
+    <div class="panel">
+      <div class="panel-body">
+        <div class="flex-between mb-8"><span class="text-muted">Versao</span><span class="fw-600" id="about_version">-</span></div>
+        <div class="flex-between mb-8"><span class="text-muted">SketchUp</span><span id="about_su_version">-</span></div>
+        <div class="flex-between mb-8"><span class="text-muted">Ruby</span><span id="about_ruby_version">-</span></div>
+        <div class="flex-between mb-8"><span class="text-muted">Ferragens no catalogo</span><span id="about_catalog_count">-</span></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-body">
+        <p class="text-sm text-muted mb-8">Detecta pecas, gera furacoes automaticas, exporta JSON para producao CNC.</p>
+        <a href="#" onclick="rubyCall('open_url', {url:'https://www.gestaoornato.com'});return false;">www.gestaoornato.com</a>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-body">
+        <p class="text-sm text-muted mb-8">Licenciado sob GPLv3. Interface adaptada do OpenCutList.</p>
+        <a href="#" onclick="rubyCall('open_url', {url:'https://github.com/lairdubois/lairdubois-opencutlist-sketchup-extension'});return false;">OpenCutList no GitHub</a>
+      </div>
+    </div>
+  </div>
+</div>
+</template>
+
+<!-- ═══════════════════════════════════════════════════════
+     JAVASCRIPT — Command Bus + Dialog + Tabs
+     ═══════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════
+// Command Bus — Ruby <-> JS communication (OCL pattern)
+// ═══════════════════════════════════════════════════════════
+var CommandBus = (function() {
+  var _commandId = 0;
+  var _callbacks = {};
+  var _queue = [];
+  var _busy = false;
+
+  function call(command, params, callback) {
+    var id = ++_commandId;
+    if (callback) _callbacks[id] = callback;
+    var payload = JSON.stringify({ id: id, command: command, params: params || {} });
+    var encoded = btoa(unescape(encodeURIComponent(payload)));
+    _queue.push({ id: id, encoded: encoded });
+    _processQueue();
+  }
+
+  function _processQueue() {
+    if (_busy || _queue.length === 0) return;
+    _busy = true;
+    var item = _queue.shift();
+    try {
+      window.location.href = 'skp:ornato_command@' + item.encoded;
+    } catch(e) {
+      console.error('CommandBus send error:', e);
+    }
+    setTimeout(function() { _busy = false; _processQueue(); }, 50);
+  }
+
+  function receive(idStr, b64data) {
+    var id = parseInt(idStr, 10);
+    var data = null;
+    if (b64data) {
+      try { data = JSON.parse(decodeURIComponent(escape(atob(b64data)))); } catch(e) {}
+    }
+    var cb = _callbacks[id];
+    if (cb) { delete _callbacks[id]; cb(data); }
+  }
+
+  return { call: call, receive: receive };
+})();
+
+function rubyCall(command, params, callback) { CommandBus.call(command, params, callback); }
+function commandCallback(id, b64data) { CommandBus.receive(id, b64data); }
+
+// ═══════════════════════════════════════════════════════════
+// OrnatoDialog — Main dialog controller
+// ═══════════════════════════════════════════════════════════
+var OrnatoDialog = (function() {
+  var _activeTab = null;
+  var _tabs = {};
+  var _tabBtns = {};
+  var _slideStacks = {}; // per-tab slide stacks
+  var _config = {};
+
+  var TAB_DEFS = [
+    { name: 'biblioteca',  iconRef: 'ico-library',   label: 'Biblioteca',  bar: 'main' },
+    { name: 'construtor',  iconRef: 'ico-build',     label: 'Construtor',  bar: 'main' },
+    { name: 'agregador',   iconRef: 'ico-layers',    label: 'Agregar',     bar: 'main' },
+    { name: 'acabamentos', iconRef: 'ico-palette',   label: 'Acabam.',     bar: 'main' },
+    { name: 'validacao',   iconRef: 'ico-check',     label: 'Validacao',   bar: 'main' },
+    { name: 'exportar',    iconRef: 'ico-download',  label: 'Exportar',    bar: 'main' },
+    { name: 'config',      iconRef: 'ico-settings',  label: 'Config',      bar: 'bottom' },
+    { name: 'sobre',       iconRef: 'ico-info',      label: 'Sobre',       bar: 'bottom' },
+  ];
+
+  function init(options) {
+    _config = options || {};
+    var mainBtns = document.getElementById('ornato_leftbar_tabs');
+    var bottomBtns = document.getElementById('ornato_leftbar_bottom');
+
+    TAB_DEFS.forEach(function(def) {
+      var btn = document.createElement('button');
+      btn.className = 'ornato-tab-btn';
+      btn.id = 'ornato_tab_btn_' + def.name;
+      btn.innerHTML = '<span class="tab-icon"><svg class="icon-svg"><use href="#' + def.iconRef + '"/></svg></span>' + def.label;
+      btn.onclick = function() { selectTab(def.name); };
+      _tabBtns[def.name] = btn;
+      (def.bar === 'bottom' ? bottomBtns : mainBtns).appendChild(btn);
+    });
+
+    if (_config.version) {
+      document.getElementById('ornato_version').textContent = 'v' + _config.version;
+    }
+
+    // Inner tab delegation — scoped to parent container only
+    document.addEventListener('click', function(e) {
+      var el = e.target.closest('.inner-tab');
+      if (!el) return;
+      var innerId = el.getAttribute('data-inner');
+      if (!innerId) return;
+      el.parentElement.querySelectorAll('.inner-tab').forEach(function(t) { t.classList.remove('active'); });
+      el.classList.add('active');
+      // Search within the closest slide container to avoid cross-tab conflicts
+      var slideContainer = el.closest('.ornato-slide') || el.parentElement.parentElement;
+      slideContainer.querySelectorAll('.inner-tab-content').forEach(function(c) { c.classList.remove('active'); });
+      var target = slideContainer.querySelector('#' + innerId);
+      if (target) target.classList.add('active');
+    });
+
+    selectTab(_config.startupTab || 'biblioteca');
+  }
+
+  function selectTab(tabName) {
+    if (_activeTab === tabName) return;
+
+    // Hide current tab and all its sub-slides
+    if (_activeTab && _tabs[_activeTab]) {
+      var oldStack = _slideStacks[_activeTab] || [];
+      oldStack.forEach(function(s) { s.classList.remove('in'); s.classList.add('out'); });
+      _tabBtns[_activeTab].classList.remove('active');
+    }
+
+    if (!_tabs[tabName]) loadTab(tabName);
+
+    _activeTab = tabName;
+    // Show only the top slide of the new tab
+    var newStack = _slideStacks[tabName] || [];
+    requestAnimationFrame(function() {
+      // Show root slide (and top sub-slide if any)
+      newStack.forEach(function(s, i) {
+        s.classList.remove('out');
+        if (i === newStack.length - 1) { s.classList.add('in'); s.classList.remove('out-left'); }
+        else { s.classList.add('out-left'); s.classList.remove('in'); }
+      });
+      _tabBtns[tabName].classList.add('active');
+    });
+
+    if (OrnatoTabs[tabName] && OrnatoTabs[tabName].onShow) OrnatoTabs[tabName].onShow();
+    setStatus('');
+  }
+
+  function loadTab(tabName) {
+    var template = document.getElementById('tmpl_' + tabName);
+    if (!template) return;
+    var clone = template.content.cloneNode(true);
+    var slide = clone.querySelector('.ornato-slide');
+    document.getElementById('ornato_slides').appendChild(slide);
+    _tabs[tabName] = slide;
+    _slideStacks[tabName] = [slide];
+    if (OrnatoTabs[tabName] && OrnatoTabs[tabName].init) OrnatoTabs[tabName].init(slide);
+  }
+
+  function pushSlide(templateId, setupFn) {
+    if (!_activeTab) return;
+    var stack = _slideStacks[_activeTab];
+    if (!stack) return;
+
+    var template = document.getElementById(templateId);
+    if (!template) return;
+    var clone = template.content.cloneNode(true);
+    var slide = clone.querySelector('.ornato-slide');
+    document.getElementById('ornato_slides').appendChild(slide);
+
+    var current = stack[stack.length - 1];
+    if (current) { current.classList.remove('in'); current.classList.add('out-left'); }
+    stack.push(slide);
+    requestAnimationFrame(function() { slide.classList.remove('out'); slide.classList.add('in'); });
+    if (setupFn) setupFn(slide);
+    return slide;
+  }
+
+  function popSlide() {
+    if (!_activeTab) return;
+    var stack = _slideStacks[_activeTab];
+    if (!stack || stack.length <= 1) return;
+
+    var top = stack.pop();
+    top.classList.remove('in'); top.classList.add('out');
+    var prev = stack[stack.length - 1];
+    if (prev) { prev.classList.remove('out-left'); prev.classList.add('in'); }
+    setTimeout(function() { if (top.parentNode) top.parentNode.removeChild(top); }, 300);
+  }
+
+  function topSlide() {
+    if (!_activeTab) return null;
+    var stack = _slideStacks[_activeTab];
+    return stack ? stack[stack.length - 1] : null;
+  }
+
+  function setStatus(text) { document.getElementById('ornato_status').textContent = text || 'Pronto'; }
+
+  function setNotification(tabName, count) {
+    var btn = _tabBtns[tabName];
+    if (!btn) return;
+    var badge = btn.querySelector('.badge');
+    if (count > 0) {
+      if (!badge) { badge = document.createElement('span'); badge.className = 'badge'; btn.appendChild(badge); }
+      badge.textContent = count;
+    } else if (badge) { badge.remove(); }
+  }
+
+  function getConfig() { return _config; }
+
+  return { init: init, selectTab: selectTab, pushSlide: pushSlide, popSlide: popSlide, topSlide: topSlide, setStatus: setStatus, setNotification: setNotification, getConfig: getConfig };
+})();
+
+function togglePanel(heading) { heading.classList.toggle('collapsed'); heading.parentElement.classList.toggle('collapsed'); }
+function toggleEdge(el) { var wasOn = el.classList.contains('on'); el.classList.remove('on', 'off'); el.classList.add(wasOn ? 'off' : 'on'); }
+
+// ═══════════════════════════════════════════════════════════
+// Tab Controllers
+// ═══════════════════════════════════════════════════════════
+var OrnatoTabs = {};
+
+// ── BIBLIOTECA ──────────────────────────────────────────
+OrnatoTabs.biblioteca = (function() {
+  var _modules = [], _categories = [], _activeCategory = null, _selectedModule = null, _slide = null;
+
+  function init(slide) { _slide = slide; }
+  function onShow() { if (_modules.length === 0) refresh(); }
+
+  function refresh() {
+    var loading = document.getElementById('bib_loading');
+    var empty = document.getElementById('bib_empty');
+    var grid = document.getElementById('bib_modules');
+    if (loading) loading.classList.remove('hidden');
+    if (empty) empty.classList.add('hidden');
+    if (grid) grid.innerHTML = '';
+
+    rubyCall('biblioteca_list', {}, function(data) {
+      if (loading) loading.classList.add('hidden');
+      if (!data || !data.modules) { if (empty) empty.classList.remove('hidden'); return; }
+      _modules = data.modules;
+      _categories = data.categories || [];
+      renderCategories();
+      renderModules(_modules);
+    });
+  }
+
+  function renderCategories() {
+    var container = document.getElementById('bib_categories');
+    if (!container) return;
+    var html = '<button class="btn btn-sm' + (!_activeCategory ? ' btn-primary' : '') + '" onclick="OrnatoTabs.biblioteca.filterCat(null)">Todos</button> ';
+    _categories.forEach(function(cat) {
+      var active = _activeCategory === cat.id ? ' btn-primary' : '';
+      html += '<button class="btn btn-sm' + active + '" onclick="OrnatoTabs.biblioteca.filterCat(\'' + cat.id + '\')">' + (cat.label || cat.id) + '</button> ';
+    });
+    container.innerHTML = html;
+  }
+
+  function renderModules(mods) {
+    var grid = document.getElementById('bib_modules');
+    var empty = document.getElementById('bib_empty');
+    if (!grid) return;
+    if (mods.length === 0) { grid.innerHTML = ''; if (empty) empty.classList.remove('hidden'); return; }
+    if (empty) empty.classList.add('hidden');
+    grid.innerHTML = mods.map(function(m, i) {
+      return '<div class="module-card" onclick="OrnatoTabs.biblioteca.openModule(' + i + ')">' +
+        '<div class="mc-icon"><svg class="icon-svg lg"><use href="#ico-box"/></svg></div>' +
+        '<div class="mc-name">' + esc(m.nome || m.id) + '</div>' +
+        '<div class="mc-desc">' + esc(m.descricao || '') + '</div></div>';
+    }).join('');
+  }
+
+  function filter(query) {
+    var q = (query || '').toLowerCase();
+    var filtered = _modules.filter(function(m) {
+      var match = (m.nome || '').toLowerCase().indexOf(q) >= 0 || (m.id || '').toLowerCase().indexOf(q) >= 0 || (m.descricao || '').toLowerCase().indexOf(q) >= 0;
+      if (_activeCategory) match = match && m.categoria === _activeCategory;
+      return match;
+    });
+    renderModules(filtered);
+  }
+
+  function filterCat(catId) { _activeCategory = catId; renderCategories(); var s = document.getElementById('bib_search'); filter(s ? s.value : ''); }
+
+  function openModule(index) {
+    var filtered = _getFilteredModules();
+    _selectedModule = filtered[index];
+    if (!_selectedModule) return;
+    OrnatoDialog.pushSlide('tmpl_biblioteca_detail', function(slide) {
+      slide.querySelector('#bib_detail_name').textContent = _selectedModule.nome || _selectedModule.id;
+      slide.querySelector('#bib_detail_desc').textContent = _selectedModule.descricao || '';
+      var paramsDiv = slide.querySelector('#bib_detail_params');
+      var params = _selectedModule.parametros || {};
+      var html = '';
+      for (var key in params) {
+        if (!params.hasOwnProperty(key)) continue;
+        var p = params[key]; var v = p.default !== undefined ? p.default : '';
+        html += '<div class="form-group"><label>' + esc(p.label || key) + (p.unit ? ' (' + p.unit + ')' : '') + '</label>' +
+          '<input type="' + (typeof v === 'number' ? 'number' : 'text') + '" class="bib-param" data-key="' + esc(key) + '" value="' + esc(String(v)) + '">' +
+          (p.min !== undefined ? '<span class="text-sm text-muted">Min: ' + p.min + (p.max !== undefined ? ' / Max: ' + p.max : '') + '</span>' : '') + '</div>';
+      }
+      paramsDiv.innerHTML = html;
+    });
+  }
+
+  function createModule() {
+    if (!_selectedModule) return;
+    var inputs = document.querySelectorAll('.bib-param');
+    var params = {};
+    inputs.forEach(function(inp) { var v = inp.value; params[inp.getAttribute('data-key')] = isNaN(v) ? v : parseFloat(v); });
+    rubyCall('biblioteca_create', { module_id: _selectedModule.id, tipo_ruby: _selectedModule.tipo_ruby || 'armario_base', params: params });
+    OrnatoDialog.setStatus('Modulo inserido: ' + (_selectedModule.nome || _selectedModule.id));
+  }
+
+  function _getFilteredModules() {
+    var s = document.getElementById('bib_search');
+    var q = (s ? s.value : '').toLowerCase();
+    return _modules.filter(function(m) {
+      var match = !q || (m.nome || '').toLowerCase().indexOf(q) >= 0 || (m.id || '').toLowerCase().indexOf(q) >= 0;
+      if (_activeCategory) match = match && m.categoria === _activeCategory;
+      return match;
+    });
+  }
+
+  return { init: init, onShow: onShow, refresh: refresh, filter: filter, filterCat: filterCat, openModule: openModule, createModule: createModule };
+})();
+
+// ── CONSTRUTOR ──────────────────────────────────────────
+OrnatoTabs.construtor = (function() {
+  var _pieces = [], _editingIndex = -1;
+  function init() {}
+  function onShow() { renderPieces(); }
+
+  function getParams() {
+    return { nome: val('con_nome'), largura: numVal('con_largura'), altura: numVal('con_altura'), profundidade: numVal('con_profundidade'), espessura: numVal('con_espessura'), rodape: numVal('con_rodape') };
+  }
+
+  function renderPieces() {
+    var el = document.getElementById('con_pieces_list');
+    var countEl = document.getElementById('con_piece_count');
+    if (!el) return;
+    if (countEl) countEl.textContent = _pieces.length;
+    if (_pieces.length === 0) { el.innerHTML = '<div class="text-sm text-muted text-center" style="padding:12px">Nenhuma peca adicionada</div>'; return; }
+    el.innerHTML = _pieces.map(function(p, i) {
+      return '<div class="piece-card"><span class="piece-name">' + esc(p.nome || 'Peca ' + (i+1)) + '</span>' +
+        '<span class="piece-dims text-muted">' + esc(p.comprimento || '-') + ' x ' + esc(p.largura || '-') + ' x ' + esc(p.espessura || '-') + '</span>' +
+        '<span class="piece-actions">' +
+        '<button title="Editar" onclick="OrnatoTabs.construtor.editPiece(' + i + ')"><svg class="icon-svg" style="width:14px;height:14px"><use href="#ico-edit"/></svg></button>' +
+        '<button title="Duplicar" onclick="OrnatoTabs.construtor.dupPiece(' + i + ')"><svg class="icon-svg" style="width:14px;height:14px"><use href="#ico-copy"/></svg></button>' +
+        '<button title="Remover" onclick="OrnatoTabs.construtor.removePiece(' + i + ')"><svg class="icon-svg" style="width:14px;height:14px"><use href="#ico-x"/></svg></button>' +
+        '</span></div>';
+    }).join('');
+  }
+
+  function addPiece() {
+    _editingIndex = -1;
+    OrnatoDialog.pushSlide('tmpl_construtor_piece_edit', function(slide) {
+      slide.querySelector('#pe_nome').value = '';
+      slide.querySelector('#pe_role').value = 'lateral';
+      slide.querySelector('#pe_comp').value = '';
+      slide.querySelector('#pe_larg').value = '';
+      slide.querySelector('#pe_esp').value = '{espessura}';
+      slide.querySelector('#pe_x').value = '0';
+      slide.querySelector('#pe_y').value = '0';
+      slide.querySelector('#pe_z').value = '0';
+      slide.querySelector('#pe_condition').value = '';
+      slide.querySelectorAll('.edge').forEach(function(e) { e.classList.remove('on'); e.classList.add('off'); });
+    });
+  }
+
+  function editPiece(idx) {
+    _editingIndex = idx;
+    var p = _pieces[idx];
+    OrnatoDialog.pushSlide('tmpl_construtor_piece_edit', function(slide) {
+      slide.querySelector('#pe_nome').value = p.nome || '';
+      slide.querySelector('#pe_role').value = p.role || 'lateral';
+      slide.querySelector('#pe_comp').value = p.comprimento || '';
+      slide.querySelector('#pe_larg').value = p.largura || '';
+      slide.querySelector('#pe_esp').value = p.espessura || '{espessura}';
+      slide.querySelector('#pe_x').value = p.x || '0';
+      slide.querySelector('#pe_y').value = p.y || '0';
+      slide.querySelector('#pe_z').value = p.z || '0';
+      slide.querySelector('#pe_condition').value = p.condition || '';
+      var edges = p.edges || {};
+      ['top','bottom','left','right'].forEach(function(dir) {
+        var el = slide.querySelector('.edge-' + dir);
+        if (el) { el.classList.remove('on','off'); el.classList.add(edges[dir] ? 'on' : 'off'); }
+      });
+    });
+  }
+
+  function savePiece() {
+    var slide = OrnatoDialog.topSlide();
+    if (!slide) return;
+    var edges = {};
+    slide.querySelectorAll('.edge').forEach(function(el) { edges[el.getAttribute('data-edge')] = el.classList.contains('on'); });
+    var sval = function(id) { var e = slide.querySelector('#' + id); return e ? e.value : ''; };
+    var piece = { nome: sval('pe_nome'), role: sval('pe_role'), comprimento: sval('pe_comp'), largura: sval('pe_larg'), espessura: sval('pe_esp'), x: sval('pe_x'), y: sval('pe_y'), z: sval('pe_z'), edges: edges, condition: sval('pe_condition') };
+    if (_editingIndex >= 0) _pieces[_editingIndex] = piece; else _pieces.push(piece);
+    OrnatoDialog.popSlide();
+    setTimeout(renderPieces, 300);
+  }
+
+  function dupPiece(idx) { var c = JSON.parse(JSON.stringify(_pieces[idx])); c.nome = (c.nome || 'Peca') + ' (copia)'; _pieces.splice(idx+1,0,c); renderPieces(); }
+  function removePiece(idx) { _pieces.splice(idx, 1); renderPieces(); }
+
+  function preset(type) {
+    var P = {
+      laterais: [
+        { nome: 'Lateral Esquerda', role: 'lateral', comprimento: '{altura}-{rodape}', largura: '{profundidade}', espessura: '{espessura}', x: '0', y: '0', z: '{rodape}', edges: {top:false,bottom:false,left:true,right:false} },
+        { nome: 'Lateral Direita', role: 'lateral', comprimento: '{altura}-{rodape}', largura: '{profundidade}', espessura: '{espessura}', x: '{largura}-{espessura}', y: '0', z: '{rodape}', edges: {top:false,bottom:false,left:true,right:false} },
+      ],
+      base: [{ nome: 'Base', role: 'base', comprimento: '{largura}-{espessura}*2', largura: '{profundidade}', espessura: '{espessura}', x: '{espessura}', y: '0', z: '{rodape}', edges: {top:false,bottom:false,left:true,right:false} }],
+      tampo: [{ nome: 'Tampo', role: 'topo', comprimento: '{largura}-{espessura}*2', largura: '{profundidade}', espessura: '{espessura}', x: '{espessura}', y: '0', z: '{altura}-{espessura}', edges: {top:false,bottom:false,left:true,right:false} }],
+      fundo: [{ nome: 'Fundo', role: 'traseira', comprimento: '{largura}-{espessura}*2', largura: '{altura}-{rodape}-{espessura}*2', espessura: '3', x: '{espessura}', y: '{profundidade}-10', z: '{rodape}+{espessura}', edges: {} }],
+      regua: [{ nome: 'Regua Superior', role: 'travessa', comprimento: '{largura}-{espessura}*2', largura: '80', espessura: '{espessura}', x: '{espessura}', y: '0', z: '{altura}-{espessura}', edges: {top:false,bottom:true,left:false,right:false} }],
+    };
+    if (type === 'caixa') { ['laterais','base','tampo','fundo'].forEach(function(t) { P[t].forEach(function(p) { _pieces.push(JSON.parse(JSON.stringify(p))); }); }); }
+    else if (P[type]) { P[type].forEach(function(p) { _pieces.push(JSON.parse(JSON.stringify(p))); }); }
+    renderPieces();
+  }
+
+  function create() {
+    var data = { params: getParams(), pecas: _pieces, hardware: { minifix: checked('con_hw_minifix'), cavilha: checked('con_hw_cavilha'), sistema32: checked('con_hw_sistema32'), cantoneira: checked('con_hw_cantoneira') } };
+    rubyCall('construtor_create', data);
+    OrnatoDialog.setStatus('Modulo criado: ' + data.params.nome);
+  }
+
+  function saveTemplate() { rubyCall('construtor_save_template', { params: getParams(), pecas: _pieces }); }
+
+  function loadTemplate() {
+    rubyCall('construtor_load_template', {}, function(data) {
+      if (!data) return;
+      if (data.params) { setVal('con_nome', data.params.nome); setVal('con_largura', data.params.largura); setVal('con_altura', data.params.altura); setVal('con_profundidade', data.params.profundidade); setVal('con_espessura', data.params.espessura); setVal('con_rodape', data.params.rodape); }
+      if (data.pecas) _pieces = data.pecas;
+      renderPieces();
+    });
+  }
+
+  return { init: init, onShow: onShow, addPiece: addPiece, editPiece: editPiece, savePiece: savePiece, dupPiece: dupPiece, removePiece: removePiece, preset: preset, create: create, saveTemplate: saveTemplate, loadTemplate: loadTemplate, renderPieces: renderPieces };
+})();
+
+// ── AGREGADOR ───────────────────────────────────────────
+OrnatoTabs.agregador = (function() {
+  var _target = null;
+  function init() {}
+  function onShow() {
+    rubyCall('agregador_get_target', {}, function(data) {
+      if (data && data.nome) setTarget(data);
+      else { document.getElementById('agr_no_selection').classList.remove('hidden'); document.getElementById('agr_content').classList.add('hidden'); }
+    });
+  }
+
+  function setTarget(data) {
+    _target = data;
+    document.getElementById('agr_no_selection').classList.add('hidden');
+    document.getElementById('agr_content').classList.remove('hidden');
+    document.getElementById('agr_module_name').textContent = data.nome || 'Modulo';
+    var p = data.params || {};
+    document.getElementById('agr_module_dims').textContent = (p.largura || '?') + ' x ' + (p.altura || '?') + ' x ' + (p.profundidade || '?') + 'mm';
+    renderSlots(data.slots || []);
+  }
+
+  function renderSlots(slots) {
+    var el = document.getElementById('agr_slots_list');
+    document.getElementById('agr_slot_count').textContent = slots.length;
+    if (slots.length === 0) { el.innerHTML = '<div class="text-sm text-muted text-center" style="padding:12px">Nenhum componente agregado</div>'; return; }
+    el.innerHTML = slots.map(function(s, i) {
+      return '<div class="slot-item"><div class="slot-info"><div class="slot-type">' + esc(s.category || s.type) + '</div><div class="slot-name">' + esc(s.label || s.type) + '</div></div>' +
+        '<button class="btn btn-sm" onclick="OrnatoTabs.agregador.swapComp(' + i + ')">Trocar</button>' +
+        '<button class="btn btn-sm btn-danger" onclick="OrnatoTabs.agregador.removeComp(' + i + ')"><svg class="icon-svg" style="width:12px;height:12px"><use href="#ico-x"/></svg></button></div>';
+    }).join('');
+  }
+
+  function addComp(type) { rubyCall('agregador_add', { type: type }, function(data) { if (data) setTarget(data); }); }
+  function removeComp(idx) { rubyCall('agregador_remove', { index: idx }, function(data) { if (data) setTarget(data); }); }
+  function swapComp(idx) {
+    var slots = (_target && _target.slots) ? _target.slots : [];
+    var slot = slots[idx];
+    if (!slot) return;
+    rubyCall('troca_get_options', { slot: slot }, function(options) {
+      OrnatoDialog.pushSlide('tmpl_construtor_piece_edit', function(slide) {
+        slide.querySelector('.ornato-header h1').innerHTML = '<button class="btn btn-sm" onclick="OrnatoDialog.popSlide()" style="margin-right:8px"><svg class="icon-svg" style="width:14px;height:14px"><use href="#ico-back"/></svg></button> Trocar: ' + esc(slot.label || slot.type);
+      });
+    });
+  }
+
+  return { init: init, onShow: onShow, setTarget: setTarget, addComp: addComp, removeComp: removeComp, swapComp: swapComp };
+})();
+
+// ── ACABAMENTOS ─────────────────────────────────────────
+OrnatoTabs.acabamentos = (function() {
+  function init() {}
+  function onShow() {
+    rubyCall('acabamentos_get_pieces', {}, function(data) {
+      if (data && data.pieces && data.pieces.length > 0) {
+        document.getElementById('acb_no_selection').classList.add('hidden');
+        document.getElementById('acb_content').classList.remove('hidden');
+        renderPieces(data.pieces);
+      } else { document.getElementById('acb_no_selection').classList.remove('hidden'); document.getElementById('acb_content').classList.add('hidden'); }
+    });
+  }
+
+  function renderPieces(pieces) {
+    var el = document.getElementById('acb_pieces_list');
+    if (!el) return;
+    el.innerHTML = pieces.map(function(p) {
+      return '<div class="list-item"><div class="info"><div class="title">' + esc(p.nome || p.role) + '</div>' +
+        '<div class="subtitle">' + esc(p.material || 'Sem material') + ' | Borda: ' + esc(p.borda || 'Nenhuma') + '</div></div>' +
+        '<span class="tag tag-muted">' + esc(p.role || '') + '</span></div>';
+    }).join('');
+  }
+
+  function applyMaterial() {
+    var mat = val('acb_mat_select'), esp = val('acb_mat_esp'), scope = val('acb_scope');
+    if (!mat) return;
+    rubyCall('acabamentos_apply', { type: 'material', material: mat, espessura: esp, scope: scope }, function() { onShow(); OrnatoDialog.setStatus('Material aplicado: ' + mat); });
+  }
+
+  function applyBorda() {
+    var tipo = val('acb_borda_tipo'), regra = val('acb_borda_regra'), scope = val('acb_scope');
+    rubyCall('acabamentos_apply', { type: 'borda', borda_tipo: tipo, regra: regra, scope: scope }, function() { onShow(); OrnatoDialog.setStatus('Bordas aplicadas'); });
+  }
+
+  function reset() { rubyCall('acabamentos_reset', {}, function() { onShow(); }); }
+  return { init: init, onShow: onShow, applyMaterial: applyMaterial, applyBorda: applyBorda, reset: reset };
+})();
+
+// ── VALIDACAO ───────────────────────────────────────────
+OrnatoTabs.validacao = (function() {
+  function init() {}
+  function onShow() {}
+
+  function run() {
+    document.getElementById('val_empty').classList.add('hidden');
+    document.getElementById('val_loading').classList.remove('hidden');
+    document.getElementById('val_results').classList.add('hidden');
+    rubyCall('validacao_run', {}, function(data) {
+      document.getElementById('val_loading').classList.add('hidden');
+      if (!data || !data.issues) return;
+      showResults(data.issues);
+    });
+  }
+
+  function showResults(issues) {
+    document.getElementById('val_results').classList.remove('hidden');
+    var errors = issues.filter(function(i) { return i.severity === 'error'; }).length;
+    var warnings = issues.filter(function(i) { return i.severity === 'warning'; }).length;
+    var infos = issues.filter(function(i) { return i.severity === 'info'; }).length;
+    document.getElementById('val_errors_tag').textContent = errors + ' erros';
+    document.getElementById('val_warnings_tag').textContent = warnings + ' avisos';
+    document.getElementById('val_info_tag').textContent = infos + ' info';
+    OrnatoDialog.setNotification('validacao', errors);
+
+    var el = document.getElementById('val_issues_list');
+    if (issues.length === 0) { el.innerHTML = '<div class="empty-state"><div class="es-icon"><svg class="icon-svg xl"><use href="#ico-check"/></svg></div><p>Nenhum problema encontrado!</p></div>'; return; }
+    el.innerHTML = issues.map(function(issue) {
+      var cls = 'severity-' + issue.severity;
+      return '<div class="list-item" onclick="OrnatoTabs.validacao.select(\'' + esc(issue.piece_id || '') + '\')">' +
+        '<div class="li-icon ' + cls + '"><svg class="icon-svg"><use href="#ico-alert"/></svg></div>' +
+        '<div class="info"><div class="title">' + esc(issue.message) + '</div>' +
+        '<div class="subtitle">' + esc(issue.module_name || '') + (issue.suggestion ? ' -- ' + esc(issue.suggestion) : '') + '</div></div></div>';
+    }).join('');
+  }
+
+  function select(pieceId) { if (pieceId) rubyCall('select_piece', { piece_id: pieceId }); }
+  function setResults(issues) { document.getElementById('val_empty').classList.add('hidden'); document.getElementById('val_loading').classList.add('hidden'); showResults(issues); }
+  return { init: init, onShow: onShow, run: run, select: select, setResults: setResults };
+})();
+
+// ── EXPORTAR ────────────────────────────────────────────
+OrnatoTabs.exportar = (function() {
+  function init() {}
+  function onShow() {
+    rubyCall('check_api', {}, function(data) {
+      var el = document.getElementById('exp_api_status');
+      var btn = document.getElementById('exp_sync_btn');
+      if (data && data.connected) { el.innerHTML = '<span class="tag tag-success">Conectado ao ERP</span>'; btn.disabled = false; }
+      else { el.innerHTML = '<span class="tag tag-danger">Sem conexao</span>'; btn.disabled = true; }
+    });
+  }
+  function exportJson() { OrnatoDialog.setStatus('Exportando...'); rubyCall('export_json', { validate: checked('exp_validate'), preview: checked('exp_preview') }); }
+  function syncErp() { OrnatoDialog.setStatus('Sincronizando...'); rubyCall('sync_erp', {}); }
+  return { init: init, onShow: onShow, exportJson: exportJson, syncErp: syncErp };
+})();
+
+// ── CONFIG ──────────────────────────────────────────────
+OrnatoTabs.config = (function() {
+  function init() {}
+  function onShow() {
+    rubyCall('config_load', {}, function(data) {
+      if (!data) return;
+      setVal('cfg_api_url', (data.api && data.api.url) || 'http://localhost:3001');
+      setVal('cfg_api_token', (data.api && data.api.token) || '');
+      setVal('cfg_joint', data.default_joint_type || 'minifix');
+      setVal('cfg_hinge_cup', (data.hinge && data.hinge.cup_diameter) || 35);
+      setVal('cfg_hinge_depth', (data.hinge && data.hinge.cup_depth) || 12.5);
+      setVal('cfg_minifix_diam', (data.minifix && data.minifix.body_diameter) || 15);
+      setVal('cfg_minifix_depth', (data.minifix && data.minifix.body_depth) || 12);
+      setCheck('cfg_auto_process', data.auto_process_on_export !== false);
+      setCheck('cfg_show_preview', data.show_preview_before_export !== false);
+    });
+  }
+
+  function save() {
+    rubyCall('config_save', { api: { url: val('cfg_api_url'), token: val('cfg_api_token') }, default_joint_type: val('cfg_joint'), hinge: { cup_diameter: numVal('cfg_hinge_cup'), cup_depth: numVal('cfg_hinge_depth') }, minifix: { body_diameter: numVal('cfg_minifix_diam'), body_depth: numVal('cfg_minifix_depth') }, auto_process_on_export: checked('cfg_auto_process'), show_preview_before_export: checked('cfg_show_preview') }, function() { OrnatoDialog.setStatus('Configuracoes salvas'); });
+  }
+
+  function testApi() { OrnatoDialog.setStatus('Testando conexao...'); rubyCall('config_test_api', { url: val('cfg_api_url') }, function(data) { OrnatoDialog.setStatus(data && data.ok ? 'Conexao OK!' : 'Falha na conexao'); }); }
+  function reset() { rubyCall('config_reset', {}, function() { onShow(); OrnatoDialog.setStatus('Configuracoes resetadas'); }); }
+  return { init: init, onShow: onShow, save: save, testApi: testApi, reset: reset };
+})();
+
+// ── SOBRE ───────────────────────────────────────────────
+OrnatoTabs.sobre = (function() {
+  function init() {}
+  function onShow() {
+    rubyCall('about_info', {}, function(data) {
+      if (!data) return;
+      document.getElementById('about_version').textContent = data.version || '-';
+      document.getElementById('about_su_version').textContent = data.sketchup_version || '-';
+      document.getElementById('about_ruby_version').textContent = data.ruby_version || '-';
+      document.getElementById('about_catalog_count').textContent = data.catalog_count || '-';
+    });
+  }
+  return { init: init, onShow: onShow };
+})();
+
+// ═══════════════════════════════════════════════════════════
+// Utility
+// ═══════════════════════════════════════════════════════════
+function val(id) { var e = document.getElementById(id); return e ? e.value : ''; }
+function numVal(id) { return parseFloat(val(id)) || 0; }
+function checked(id) { var e = document.getElementById(id); return e ? e.checked : false; }
+function setVal(id, v) { var e = document.getElementById(id); if (e) e.value = v; }
+function setCheck(id, v) { var e = document.getElementById(id); if (e) e.checked = !!v; }
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ═══════════════════════════════════════════════════════════
+// Ruby -> JS entry points
+// ═══════════════════════════════════════════════════════════
+function ornatoInit(b64config) {
+  var config = {};
+  if (b64config) { try { config = JSON.parse(decodeURIComponent(escape(atob(b64config)))); } catch(e) {} }
+  OrnatoDialog.init(config);
+}
+
+function ornatoSelectionChanged(b64data) {
+  var data = {};
+  if (b64data) { try { data = JSON.parse(decodeURIComponent(escape(atob(b64data)))); } catch(e) {} }
+  if (data.target && OrnatoTabs.agregador) OrnatoTabs.agregador.setTarget(data.target);
+  if (data.pieces && OrnatoTabs.acabamentos) {
+    var noSel = document.getElementById('acb_no_selection');
+    var content = document.getElementById('acb_content');
+    if (noSel) noSel.classList.add('hidden');
+    if (content) content.classList.remove('hidden');
+  }
+}
+
+function ornatoValidationResults(b64data) {
+  var data = {};
+  if (b64data) { try { data = JSON.parse(decodeURIComponent(escape(atob(b64data)))); } catch(e) {} }
+  if (data.issues) OrnatoTabs.validacao.setResults(data.issues);
+}
+
+function ornatoStatus(text) { OrnatoDialog.setStatus(text); }
+
+window.onload = function() {
+  if (typeof sketchup === 'undefined') {
+    OrnatoDialog.init({ version: 'dev', startupTab: 'biblioteca' });
+  }
+};
+</script>
+</body>
+</html>

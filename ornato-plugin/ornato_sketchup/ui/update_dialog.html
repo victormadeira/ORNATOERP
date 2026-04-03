@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atualização Ornato CNC</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #0F1117;
+    color: #E8E0D4;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .header {
+    background: #161820;
+    border-bottom: 1px solid #2A2A35;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo {
+    width: 32px; height: 32px;
+    background: #C9A96E;
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; color: #0F1117; font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .header-title { font-weight: 600; font-size: 14px; color: #F0EAE0; }
+  .header-sub { font-size: 11px; color: #666; margin-top: 2px; }
+
+  .badge {
+    margin-left: auto;
+    background: #C9A96E20;
+    border: 1px solid #C9A96E60;
+    color: #C9A96E;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+
+  .body {
+    flex: 1;
+    padding: 24px 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow: hidden;
+  }
+
+  .version-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #1E1E28;
+    border: 1px solid #2A2A35;
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+
+  .version-box {
+    flex: 1;
+    text-align: center;
+  }
+
+  .version-label { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+  .version-num { font-size: 18px; font-weight: 700; }
+  .version-num.current { color: #666; }
+  .version-num.latest { color: #C9A96E; }
+
+  .arrow { font-size: 20px; color: #444; }
+
+  .changelog-label {
+    font-size: 11px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 6px;
+  }
+
+  .changelog {
+    background: #161820;
+    border: 1px solid #2A2A35;
+    border-radius: 8px;
+    padding: 12px 14px;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  .changelog p {
+    font-size: 12px;
+    color: #A09880;
+    line-height: 1.6;
+    margin-bottom: 2px;
+  }
+
+  .changelog p.dash { color: #888; }
+  .changelog p.empty { height: 6px; }
+
+  .changelog::-webkit-scrollbar { width: 4px; }
+  .changelog::-webkit-scrollbar-track { background: transparent; }
+  .changelog::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+  .actions {
+    padding: 12px 20px 16px;
+    border-top: 1px solid #2A2A35;
+    display: flex;
+    gap: 8px;
+    background: #0F1117;
+  }
+
+  .btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn:active { opacity: 0.7; }
+
+  .btn-primary {
+    background: #C9A96E;
+    color: #0F1117;
+    flex: 2;
+  }
+
+  .btn-secondary {
+    background: #1E1E28;
+    color: #888;
+    border: 1px solid #2A2A35;
+  }
+
+  .btn-skip {
+    background: transparent;
+    color: #555;
+    border: 1px solid #2A2A35;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">O</div>
+  <div>
+    <div class="header-title">Ornato CNC Plugin</div>
+    <div class="header-sub">Atualização disponível</div>
+  </div>
+  <div class="badge" id="badge">NOVO</div>
+</div>
+
+<div class="body">
+  <div class="version-row">
+    <div class="version-box">
+      <div class="version-label">Versão atual</div>
+      <div class="version-num current" id="current-ver">...</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="version-box">
+      <div class="version-label">Nova versão</div>
+      <div class="version-num latest" id="latest-ver">...</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="changelog-label">Novidades</div>
+    <div class="changelog" id="changelog">
+      <p>Carregando...</p>
+    </div>
+  </div>
+</div>
+
+<div class="actions">
+  <button class="btn btn-skip" onclick="skipVersion()">Ignorar versão</button>
+  <button class="btn btn-secondary" onclick="remindLater()">Lembrar depois</button>
+  <button class="btn btn-primary" onclick="downloadUpdate()">⬇ Atualizar agora</button>
+</div>
+
+<script>
+  var latestVersion = '';
+
+  function initUpdateDialog(latest, current, changelog) {
+    latestVersion = latest;
+    document.getElementById('latest-ver').textContent = 'v' + latest;
+    document.getElementById('current-ver').textContent = 'v' + current;
+    document.getElementById('badge').textContent = 'v' + latest;
+
+    var lines = (changelog || 'Melhorias de desempenho e correções.').split('\n');
+    var html = lines.map(function(line) {
+      if (!line.trim()) return '<p class="empty"></p>';
+      if (line.trim().startsWith('-')) return '<p class="dash">' + escapeHtml(line) + '</p>';
+      return '<p>' + escapeHtml(line) + '</p>';
+    }).join('');
+    document.getElementById('changelog').innerHTML = html;
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function downloadUpdate() {
+    sketchup.download_update();
+  }
+
+  function skipVersion() {
+    sketchup.skip_version(latestVersion);
+  }
+
+  function remindLater() {
+    sketchup.remind_later();
+  }
+
+  // Notificar Ruby que a página carregou
+  window.onload = function() {
+    if (typeof sketchup !== 'undefined') {
+      sketchup.ready();
+    }
+  };
+</script>
+</body>
+</html>

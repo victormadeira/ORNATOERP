@@ -1,0 +1,62 @@
+{
+  "id": "hettich_vb36",
+  "nome": "Hettich VB 35/36",
+  "marca": "Hettich",
+  "modelo": "VB 35/36",
+  "categoria": "minifix",
+  "tipo": "cam_lock",
+
+  "especificacoes": {
+    "corpo": { "diametro": 15, "profundidade": 12.0, "lado": "a" },
+    "pino": { "diametro": 8, "profundidade": 11, "lado": "a" },
+    "parafuso": { "diametro": 8, "comprimento": 34, "tipo": "passante", "lado": "b" },
+    "distancia_borda": 34,
+    "distancia_minima_entre": 64,
+    "espessura_minima": 16,
+    "regra_quantidade": {
+      "ate_400mm": 2,
+      "ate_800mm": 3,
+      "ate_1200mm": 4,
+      "acima": 5
+    }
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_15mm",
+        "diametro": 15,
+        "profundidade": 12.0,
+        "lado": "a",
+        "descricao": "Furo corpo minifix na face",
+        "posicao": { "x": 34, "y": 9.5 }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_8mm",
+        "diametro": 8,
+        "profundidade": 11,
+        "lado": "a",
+        "descricao": "Furo pino dentro do corpo",
+        "posicao": { "x": 34, "y": 0 }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_8mm",
+        "diametro": 8,
+        "profundidade": 34,
+        "lado": "b",
+        "descricao": "Furo passante para parafuso na borda",
+        "posicao": { "x": 34, "y": 0 }
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "HTT-0071680",
+    "preco_unitario": 3.50,
+    "unidade": "conjunto",
+    "fornecedor": "Hettich Brasil"
+  }
+}

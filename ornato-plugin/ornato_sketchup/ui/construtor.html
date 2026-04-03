@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Construtor de Módulos - Ornato</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0c0e14; --bg2: #141821; --bg3: #1a1f2e; --border: #2a3040;
+    --text: #e4e8f0; --dim: #8892a4; --accent: #C9A96E; --accent2: #dfc08a;
+    --danger: #e74c3c; --success: #2ecc71; --r: 8px;
+  }
+  body { font-family: 'Inter',-apple-system,sans-serif; background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5; }
+  .header { padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg2); display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 100; }
+  .header .logo { width: 28px; height: 28px; background: var(--accent); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--bg); font-size: 14px; }
+  .header h1 { font-size: 14px; font-weight: 600; }
+  .header .badge { margin-left: auto; font-size: 10px; background: var(--bg3); border: 1px solid var(--border); padding: 2px 8px; border-radius: 10px; color: var(--dim); }
+
+  .section { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+
+  .form-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .form-group { flex: 1; }
+  .form-group label { display: block; font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+  .form-group input, .form-group select { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r); padding: 7px 10px; color: var(--text); font-size: 13px; outline: none; }
+  .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+
+  .checkbox-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .checkbox-row input[type=checkbox] { accent-color: var(--accent); }
+  .checkbox-row label { font-size: 12px; color: var(--text); cursor: pointer; }
+
+  .piece-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+  .piece-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 10px 12px; cursor: pointer; transition: border-color 0.15s; }
+  .piece-card:hover { border-color: var(--accent); }
+  .piece-card.active { border-color: var(--accent); background: #1a1510; }
+  .piece-head { display: flex; align-items: center; justify-content: space-between; }
+  .piece-name { font-weight: 600; font-size: 13px; }
+  .piece-role { font-size: 10px; color: var(--accent); background: rgba(201,169,110,0.1); padding: 1px 6px; border-radius: 3px; }
+  .piece-dims { font-size: 11px; color: var(--dim); margin-top: 3px; }
+  .piece-actions { display: flex; gap: 4px; }
+  .piece-actions button { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 14px; padding: 2px; }
+  .piece-actions button:hover { color: var(--text); }
+  .piece-actions .del:hover { color: var(--danger); }
+
+  .btn { padding: 9px 16px; border-radius: var(--r); border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+  .btn:hover { opacity: 0.85; }
+  .btn-accent { background: var(--accent); color: var(--bg); }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--dim); }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-sm { padding: 5px 10px; font-size: 11px; }
+  .btn-block { width: 100%; }
+
+  .add-piece-btn { width: 100%; padding: 8px; background: var(--bg3); border: 1px dashed var(--border); border-radius: var(--r); color: var(--accent); font-size: 12px; cursor: pointer; text-align: center; margin-top: 6px; }
+  .add-piece-btn:hover { border-color: var(--accent); background: rgba(201,169,110,0.05); }
+
+  /* Piece editor overlay */
+  .overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 200; }
+  .overlay.visible { display: flex; align-items: center; justify-content: center; }
+  .editor-panel { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; width: 90%; max-width: 420px; max-height: 85vh; overflow-y: auto; }
+  .editor-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .editor-header h2 { font-size: 14px; font-weight: 600; }
+  .editor-header .close { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 18px; }
+  .editor-body { padding: 16px; }
+
+  .formula-hint { font-size: 10px; color: var(--dim); margin-top: 2px; font-style: italic; }
+
+  .footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; position: sticky; bottom: 0; background: var(--bg); }
+
+  .empty-state { text-align: center; padding: 24px; color: var(--dim); }
+  .empty-state .icon { font-size: 32px; margin-bottom: 8px; opacity: 0.4; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+  .role-tag { display: inline-block; font-size: 9px; padding: 1px 5px; border-radius: 3px; margin-right: 4px; }
+  .role-lateral { background: #1a2a3a; color: #5a9fd4; }
+  .role-base { background: #2a1a1a; color: #d45a5a; }
+  .role-topo, .role-tampo { background: #1a2a1a; color: #5ad45a; }
+  .role-travessa, .role-regua { background: #2a2a1a; color: #d4c45a; }
+  .role-traseira { background: #1a1a2a; color: #8a8ad4; }
+  .role-rodape { background: #2a1a2a; color: #d45ad4; }
+  .role-prateleira { background: #1a2a2a; color: #5ad4d4; }
+  .role-divisoria { background: #2a2a2a; color: #aaa; }
+  .role-reforco { background: #2a1a10; color: #d49a5a; }
+
+  .config-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .config-chip { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--bg3); border: 1px solid var(--border); color: var(--dim); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">O</div>
+  <h1>Construtor de Módulos</h1>
+  <div class="badge">Peça a Peça</div>
+</div>
+
+<!-- Module params -->
+<div class="section">
+  <div class="section-title">📐 Módulo</div>
+  <div class="form-row">
+    <div class="form-group" style="flex:2">
+      <label>Nome do módulo</label>
+      <input type="text" id="modName" value="Novo Módulo" placeholder="Ex: Balcão Pia 2P">
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>Largura</label><input type="number" id="modW" value="600" min="100" max="3000" step="10"></div>
+    <div class="form-group"><label>Altura</label><input type="number" id="modH" value="720" min="100" max="2700" step="10"></div>
+    <div class="form-group"><label>Profund.</label><input type="number" id="modD" value="560" min="100" max="1000" step="10"></div>
+    <div class="form-group"><label>Espessura</label><input type="number" id="modE" value="18" min="9" max="36" step="0.5"></div>
+  </div>
+  <div class="form-row">
+    <div class="checkbox-row">
+      <input type="checkbox" id="modRodape" checked> <label for="modRodape">Rodapé</label>
+    </div>
+    <div class="form-group" style="flex:0 0 80px">
+      <label>Alt. Rodapé</label>
+      <input type="number" id="modRodapeH" value="100" min="50" max="200">
+    </div>
+    <div class="form-group" style="flex:1">
+      <label>Junção padrão</label>
+      <select id="modJuncao">
+        <option value="minifix">Minifix</option>
+        <option value="cavilha">Cavilha</option>
+        <option value="confirmat">Confirmat</option>
+        <option value="parafuso">Parafuso</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- Piece list -->
+<div class="section" style="flex: 1;">
+  <div class="section-title">
+    📋 Peças do Módulo
+    <span style="margin-left:auto;font-size:11px;color:var(--accent)" id="pieceCount">0 peças</span>
+  </div>
+  <div class="piece-list" id="pieceList">
+    <div class="empty-state">
+      <div class="icon">📦</div>
+      <div>Nenhuma peça ainda.<br>Clique abaixo para começar a montar.</div>
+    </div>
+  </div>
+  <button class="add-piece-btn" onclick="openPieceEditor()">+ Adicionar Peça</button>
+
+  <div style="margin-top: 10px;">
+    <div class="section-title">⚡ Atalhos Rápidos</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+      <button class="btn btn-outline btn-sm" onclick="addPreset('lateral_par')">+ Par Laterais</button>
+      <button class="btn btn-outline btn-sm" onclick="addPreset('base')">+ Base</button>
+      <button class="btn btn-outline btn-sm" onclick="addPreset('tampo')">+ Tampo</button>
+      <button class="btn btn-outline btn-sm" onclick="addPreset('regua_sup')">+ Régua Sup.</button>
+      <button class="btn btn-outline btn-sm" onclick="addPreset('fundo')">+ Fundo</button>
+      <button class="btn btn-outline btn-sm" onclick="addPreset('rodape')">+ Rodapé</button>
+      <button class="btn btn-outline btn-sm" onclick="addPreset('caixa_completa')">+ Caixa Completa</button>
+    </div>
+  </div>
+</div>
+
+<!-- Config ferragens -->
+<div class="section">
+  <div class="section-title">🔩 Ferragens Automáticas</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <div class="checkbox-row"><input type="checkbox" id="cfgDobradicaAuto" checked><label for="cfgDobradicaAuto">Dobradiça</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="cfgMinifixAuto" checked><label for="cfgMinifixAuto">Minifix/Junção</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="cfgSys32Auto"><label for="cfgSys32Auto">System 32</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="cfgRebaixoAuto" checked><label for="cfgRebaixoAuto">Rebaixo fundo</label></div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div class="footer">
+  <button class="btn btn-outline" onclick="saveTemplate()" style="flex:1">💾 Salvar Template</button>
+  <button class="btn btn-accent" onclick="createModule()" style="flex:2">Criar no Modelo</button>
+</div>
+
+<!-- Piece Editor Overlay -->
+<div class="overlay" id="pieceOverlay">
+  <div class="editor-panel">
+    <div class="editor-header">
+      <h2 id="editorTitle">Nova Peça</h2>
+      <button class="close" onclick="closePieceEditor()">×</button>
+    </div>
+    <div class="editor-body">
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Nome da peça</label>
+        <input type="text" id="pName" placeholder="Ex: Régua Traseira Inferior">
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Role (comportamento)</label>
+        <select id="pRole">
+          <option value="lateral">Lateral</option>
+          <option value="base">Base</option>
+          <option value="topo">Topo / Tampo</option>
+          <option value="travessa">Travessa / Régua</option>
+          <option value="traseira">Traseira / Fundo</option>
+          <option value="prateleira">Prateleira</option>
+          <option value="divisoria">Divisória</option>
+          <option value="rodape">Rodapé</option>
+          <option value="reforco">Reforço</option>
+          <option value="custom">Personalizado</option>
+        </select>
+      </div>
+
+      <div class="section-title" style="margin-top:12px;">Dimensões</div>
+      <div class="formula-hint">Use fórmulas: {largura}, {altura}, {profundidade}, {espessura}, {rodape}, {interna_w}, {interna_h}</div>
+      <div class="form-row" style="margin-top:6px;">
+        <div class="form-group"><label>Largura</label><input type="text" id="pW" placeholder="{interna_w}"></div>
+        <div class="form-group"><label>Altura</label><input type="text" id="pH" placeholder="80"></div>
+        <div class="form-group"><label>Espessura</label><input type="text" id="pE" placeholder="{espessura}"></div>
+      </div>
+
+      <div class="section-title" style="margin-top:12px;">Posição (relativa ao módulo)</div>
+      <div class="form-row">
+        <div class="form-group"><label>X</label><input type="text" id="pX" placeholder="{espessura}"></div>
+        <div class="form-group"><label>Y</label><input type="text" id="pY" placeholder="0"></div>
+        <div class="form-group"><label>Z</label><input type="text" id="pZ" placeholder="{rodape}"></div>
+      </div>
+
+      <div class="section-title" style="margin-top:12px;">Fita de Borda</div>
+      <div style="display:flex;gap:12px;">
+        <div class="checkbox-row"><input type="checkbox" id="pBordaF" checked><label for="pBordaF">Frontal</label></div>
+        <div class="checkbox-row"><input type="checkbox" id="pBordaT"><label for="pBordaT">Traseira</label></div>
+        <div class="checkbox-row"><input type="checkbox" id="pBordaD"><label for="pBordaD">Direita</label></div>
+        <div class="checkbox-row"><input type="checkbox" id="pBordaE"><label for="pBordaE">Esquerda</label></div>
+      </div>
+
+      <div class="section-title" style="margin-top:12px;">Condição (opcional)</div>
+      <div class="form-group">
+        <input type="text" id="pCondition" placeholder="Ex: {com_fundo} == true">
+        <div class="formula-hint">Deixe vazio para criar sempre</div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-outline" onclick="closePieceEditor()" style="flex:1">Cancelar</button>
+        <button class="btn btn-accent" onclick="savePiece()" style="flex:2" id="savePieceBtn">Adicionar Peça</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  var pieces = [];
+  var editingIdx = -1;
+
+  var ROLE_COLORS = {
+    lateral:'role-lateral', base:'role-base', topo:'role-topo', tampo:'role-tampo',
+    travessa:'role-travessa', regua:'role-regua', traseira:'role-traseira',
+    rodape:'role-rodape', prateleira:'role-prateleira', divisoria:'role-divisoria',
+    reforco:'role-reforco', custom:'role-reforco'
+  };
+
+  // ═══ Render ═══
+  function renderPieces() {
+    var list = document.getElementById('pieceList');
+    document.getElementById('pieceCount').textContent = pieces.length + ' peça' + (pieces.length !== 1 ? 's' : '');
+
+    if (pieces.length === 0) {
+      list.innerHTML = '<div class="empty-state"><div class="icon">📦</div><div>Nenhuma peça ainda.<br>Clique abaixo para começar a montar.</div></div>';
+      return;
+    }
+
+    list.innerHTML = pieces.map(function(p, i) {
+      var roleClass = ROLE_COLORS[p.role] || 'role-reforco';
+      var bordas = [];
+      if (p.bordas.frontal) bordas.push('F');
+      if (p.bordas.traseira) bordas.push('T');
+      if (p.bordas.dir) bordas.push('D');
+      if (p.bordas.esq) bordas.push('E');
+      var bordasStr = bordas.length > 0 ? ' Bordas: ' + bordas.join('+') : '';
+
+      return '<div class="piece-card" ondblclick="editPiece(' + i + ')">' +
+        '<div class="piece-head">' +
+          '<div><span class="piece-name">' + esc(p.nome) + '</span></div>' +
+          '<div class="piece-actions">' +
+            '<button onclick="editPiece(' + i + ')" title="Editar">✏️</button>' +
+            '<button onclick="duplicatePiece(' + i + ')" title="Duplicar">📋</button>' +
+            '<button class="del" onclick="removePiece(' + i + ')" title="Remover">🗑</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="piece-dims">' +
+          '<span class="role-tag ' + roleClass + '">' + p.role + '</span> ' +
+          esc(p.largura) + ' × ' + esc(p.altura) + ' × ' + esc(p.espessura) + 'mm' + bordasStr +
+          (p.condicao ? ' <span style="color:var(--accent);font-size:10px;">⚡ cond.</span>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function esc(s) { return String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // ═══ Piece Editor ═══
+  function openPieceEditor(idx) {
+    editingIdx = idx !== undefined ? idx : -1;
+    var p = editingIdx >= 0 ? pieces[editingIdx] : null;
+
+    document.getElementById('editorTitle').textContent = p ? 'Editar Peça' : 'Nova Peça';
+    document.getElementById('savePieceBtn').textContent = p ? 'Salvar Alterações' : 'Adicionar Peça';
+
+    document.getElementById('pName').value = p ? p.nome : '';
+    document.getElementById('pRole').value = p ? p.role : 'lateral';
+    document.getElementById('pW').value = p ? p.largura : '';
+    document.getElementById('pH').value = p ? p.altura : '';
+    document.getElementById('pE').value = p ? p.espessura : '{espessura}';
+    document.getElementById('pX').value = p ? p.posicao.x : '0';
+    document.getElementById('pY').value = p ? p.posicao.y : '0';
+    document.getElementById('pZ').value = p ? p.posicao.z : '0';
+    document.getElementById('pBordaF').checked = p ? p.bordas.frontal : true;
+    document.getElementById('pBordaT').checked = p ? p.bordas.traseira : false;
+    document.getElementById('pBordaD').checked = p ? p.bordas.dir : false;
+    document.getElementById('pBordaE').checked = p ? p.bordas.esq : false;
+    document.getElementById('pCondition').value = p ? (p.condicao || '') : '';
+
+    document.getElementById('pieceOverlay').classList.add('visible');
+    document.getElementById('pName').focus();
+  }
+
+  function closePieceEditor() {
+    document.getElementById('pieceOverlay').classList.remove('visible');
+    editingIdx = -1;
+  }
+
+  function savePiece() {
+    var p = {
+      nome: document.getElementById('pName').value || 'Peça sem nome',
+      role: document.getElementById('pRole').value,
+      largura: document.getElementById('pW').value || '100',
+      altura: document.getElementById('pH').value || '100',
+      espessura: document.getElementById('pE').value || '{espessura}',
+      posicao: {
+        x: document.getElementById('pX').value || '0',
+        y: document.getElementById('pY').value || '0',
+        z: document.getElementById('pZ').value || '0',
+      },
+      bordas: {
+        frontal: document.getElementById('pBordaF').checked,
+        traseira: document.getElementById('pBordaT').checked,
+        dir: document.getElementById('pBordaD').checked,
+        esq: document.getElementById('pBordaE').checked,
+      },
+      condicao: document.getElementById('pCondition').value || null,
+    };
+
+    if (editingIdx >= 0) {
+      pieces[editingIdx] = p;
+    } else {
+      pieces.push(p);
+    }
+
+    closePieceEditor();
+    renderPieces();
+  }
+
+  function editPiece(i) { openPieceEditor(i); }
+
+  function removePiece(i) {
+    pieces.splice(i, 1);
+    renderPieces();
+  }
+
+  function duplicatePiece(i) {
+    var copy = JSON.parse(JSON.stringify(pieces[i]));
+    copy.nome = copy.nome + ' (cópia)';
+    pieces.splice(i + 1, 0, copy);
+    renderPieces();
+  }
+
+  // ═══ Presets ═══
+  function addPreset(type) {
+    var E = '{espessura}';
+    var IW = '{interna_w}';
+    var IH = '{interna_h}';
+    var presets = {
+      lateral_par: [
+        { nome: 'Lateral Esquerda', role: 'lateral', largura: '{altura} - {rodape}', altura: '{profundidade}', espessura: E, posicao: {x:'0',y:'0',z:'{rodape}'}, bordas:{frontal:true,traseira:false,dir:false,esq:false} },
+        { nome: 'Lateral Direita', role: 'lateral', largura: '{altura} - {rodape}', altura: '{profundidade}', espessura: E, posicao: {x:'{largura} - {espessura}',y:'0',z:'{rodape}'}, bordas:{frontal:true,traseira:false,dir:false,esq:false} },
+      ],
+      base: [
+        { nome: 'Base', role: 'base', largura: IW, altura: '{profundidade}', espessura: E, posicao: {x:E,y:'0',z:'{rodape}'}, bordas:{frontal:true,traseira:false,dir:false,esq:false} },
+      ],
+      tampo: [
+        { nome: 'Tampo', role: 'topo', largura: IW, altura: '{profundidade}', espessura: E, posicao: {x:E,y:'0',z:'{altura} - {espessura}'}, bordas:{frontal:true,traseira:false,dir:false,esq:false} },
+      ],
+      regua_sup: [
+        { nome: 'Régua Superior Frontal', role: 'travessa', largura: IW, altura: '80', espessura: E, posicao: {x:E,y:'0',z:'{altura} - 80'}, bordas:{frontal:true,traseira:false,dir:false,esq:false} },
+        { nome: 'Régua Superior Traseira', role: 'travessa', largura: IW, altura: '80', espessura: E, posicao: {x:E,y:'{profundidade} - {espessura}',z:'{altura} - 80'}, bordas:{frontal:false,traseira:false,dir:false,esq:false} },
+      ],
+      fundo: [
+        { nome: 'Fundo', role: 'traseira', largura: IW, altura: IH, espessura: '3', posicao: {x:E,y:'{profundidade} - 13',z:'{rodape} + {espessura}'}, bordas:{frontal:false,traseira:false,dir:false,esq:false} },
+      ],
+      rodape: [
+        { nome: 'Rodapé', role: 'rodape', largura: IW, altura: '{rodape}', espessura: E, posicao: {x:E,y:'50',z:'0'}, bordas:{frontal:true,traseira:false,dir:false,esq:false}, condicao: '{rodape} > 0' },
+      ],
+      caixa_completa: null, // handled separately
+    };
+
+    if (type === 'caixa_completa') {
+      pieces = [];
+      ['lateral_par','base','tampo','fundo','rodape'].forEach(function(t) {
+        presets[t].forEach(function(p) { pieces.push(JSON.parse(JSON.stringify(p))); });
+      });
+      renderPieces();
+      return;
+    }
+
+    var items = presets[type];
+    if (!items) return;
+    items.forEach(function(p) { pieces.push(JSON.parse(JSON.stringify(p))); });
+    renderPieces();
+  }
+
+  // ═══ Create Module (SketchUp) ═══
+  function createModule() {
+    var moduleData = {
+      nome: document.getElementById('modName').value,
+      largura: parseFloat(document.getElementById('modW').value),
+      altura: parseFloat(document.getElementById('modH').value),
+      profundidade: parseFloat(document.getElementById('modD').value),
+      espessura: parseFloat(document.getElementById('modE').value),
+      rodape: document.getElementById('modRodape').checked ? parseFloat(document.getElementById('modRodapeH').value) : 0,
+      juncao: document.getElementById('modJuncao').value,
+      ferragens: {
+        dobradica: document.getElementById('cfgDobradicaAuto').checked,
+        minifix: document.getElementById('cfgMinifixAuto').checked,
+        system32: document.getElementById('cfgSys32Auto').checked,
+        rebaixo_fundo: document.getElementById('cfgRebaixoAuto').checked,
+      },
+      pecas: pieces,
+    };
+
+    if (pieces.length === 0) {
+      alert('Adicione pelo menos uma peça ao módulo.');
+      return;
+    }
+
+    if (typeof sketchup !== 'undefined') {
+      sketchup.create_custom_module(JSON.stringify(moduleData));
+    } else {
+      console.log('create_custom_module', moduleData);
+      alert('Módulo criado (debug):\n' + pieces.length + ' peças\n' + JSON.stringify(moduleData, null, 2).substring(0, 500));
+    }
+  }
+
+  // ═══ Save Template (upload to server) ═══
+  function saveTemplate() {
+    var moduleData = {
+      nome: document.getElementById('modName').value,
+      largura: parseFloat(document.getElementById('modW').value),
+      altura: parseFloat(document.getElementById('modH').value),
+      profundidade: parseFloat(document.getElementById('modD').value),
+      espessura: parseFloat(document.getElementById('modE').value),
+      pecas: pieces,
+    };
+
+    if (typeof sketchup !== 'undefined') {
+      sketchup.save_template(JSON.stringify(moduleData));
+    } else {
+      // Fallback: copy to clipboard
+      var json = JSON.stringify(moduleData, null, 2);
+      prompt('Template JSON (copie):', json);
+    }
+  }
+
+  // ═══ Load template from API ═══
+  window.loadTemplate = function(templateJson) {
+    try {
+      var t = JSON.parse(templateJson);
+      document.getElementById('modName').value = t.nome || 'Template';
+      document.getElementById('modW').value = t.parametros?.largura?.default || t.largura || 600;
+      document.getElementById('modH').value = t.parametros?.altura?.default || t.altura || 720;
+      document.getElementById('modD').value = t.parametros?.profundidade?.default || t.profundidade || 560;
+      document.getElementById('modE').value = t.parametros?.espessura?.default || t.espessura || 18;
+
+      if (t.pecas && t.pecas.length > 0) {
+        pieces = t.pecas.map(function(p) {
+          return {
+            nome: p.nome || 'Peça',
+            role: p.role || 'custom',
+            largura: String(p.largura || '100'),
+            altura: String(p.altura || '100'),
+            espessura: String(p.espessura || '{espessura}'),
+            posicao: p.posicao || { x:'0', y:'0', z:'0' },
+            bordas: p.bordas || { frontal:true, traseira:false, dir:false, esq:false },
+            condicao: p.condicao || null,
+          };
+        });
+        renderPieces();
+      }
+    } catch(e) { console.log('loadTemplate error:', e); }
+  };
+
+  // Init
+  renderPieces();
+</script>
+</body>
+</html>

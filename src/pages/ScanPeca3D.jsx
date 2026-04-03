@@ -13,6 +13,7 @@ import PecaViewer3D from '../components/PecaViewer3D';
 import {
     Package, Scan, Camera, CheckCircle2, AlertCircle,
     ChevronRight, Layers, Box, Ruler, Palette, Eye, ArrowLeft,
+    Wrench, ListChecks, ChevronDown, ChevronUp, X,
 } from 'lucide-react';
 
 const API_BASE = '/api';
@@ -237,6 +238,387 @@ function CameraScanner({ onDetect, onClose }) {
     );
 }
 
+/* ---- Piece type heuristics for exploded view ---- */
+function classifyPiece(desc) {
+    if (!desc) return 'other';
+    const d = desc.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (/lateral\s*dir|lateral\s*direita/.test(d)) return 'lateral_dir';
+    if (/lateral\s*esq|lateral\s*esquerda/.test(d)) return 'lateral_esq';
+    if (/^base|fundo\s*inf/.test(d)) return 'base';
+    if (/tampo|topo/.test(d)) return 'tampo';
+    if (/traseira/.test(d) || (/fundo/.test(d) && !/inf/.test(d))) return 'traseira';
+    if (/prateleira|shelf/.test(d)) return 'prateleira';
+    if (/porta|door/.test(d)) return 'porta';
+    if (/frente.*gaveta|drawer.*front/.test(d)) return 'gaveta';
+    if (/divisoria|divis/.test(d)) return 'divisoria';
+    return 'other';
+}
+
+const PIECE_COLORS = {
+    lateral_dir: '#3b82f6', lateral_esq: '#3b82f6',
+    base: '#22c55e', tampo: '#a855f7',
+    traseira: '#6b7280', prateleira: '#06b6d4',
+    porta: '#f59e0b', gaveta: '#f59e0b',
+    divisoria: '#ec4899', other: '#64748b',
+};
+
+const PIECE_LABELS = {
+    lateral_dir: 'Lat. Dir.', lateral_esq: 'Lat. Esq.',
+    base: 'Base', tampo: 'Tampo',
+    traseira: 'Traseira', prateleira: 'Prateleira',
+    porta: 'Porta', gaveta: 'Frente Gaveta',
+    divisoria: 'Divisoria', other: 'Peca',
+};
+
+/* exploded position offsets (translateX, translateY, translateZ, rotateX, rotateY) */
+function getExplodedTransform(type, idx, exploded) {
+    const s = exploded ? 1 : 0;
+    const stagger = idx * 4 * s;
+    const transforms = {
+        lateral_dir: `translateX(${110 * s}px) translateZ(${stagger}px)`,
+        lateral_esq:  `translateX(${-110 * s}px) translateZ(${stagger}px)`,
+        base:         `translateY(${90 * s}px) translateZ(${stagger}px)`,
+        tampo:        `translateY(${-90 * s}px) translateZ(${stagger}px)`,
+        traseira:     `translateZ(${-80 * s + stagger}px)`,
+        prateleira:   `translateY(${20 * s}px) translateZ(${30 * s + stagger}px)`,
+        porta:        `translateZ(${100 * s + stagger}px)`,
+        gaveta:       `translateZ(${100 * s + stagger}px) translateY(${30 * s}px)`,
+        divisoria:    `translateX(${20 * s}px) translateZ(${stagger}px)`,
+        other:        `translateZ(${40 * s + stagger}px)`,
+    };
+    return transforms[type] || transforms.other;
+}
+
+function getCompactSize(type) {
+    switch (type) {
+        case 'lateral_dir': case 'lateral_esq': return { w: 20, h: 90 };
+        case 'base': case 'tampo': return { w: 100, h: 20 };
+        case 'traseira': return { w: 96, h: 86 };
+        case 'prateleira': return { w: 80, h: 14 };
+        case 'porta': case 'gaveta': return { w: 46, h: 70 };
+        case 'divisoria': return { w: 12, h: 80 };
+        default: return { w: 40, h: 40 };
+    }
+}
+
+/* ---- ModuleExplodedView ---- */
+function ModuleExplodedView({ allPieces, highlightId, onClose }) {
+    const [exploded, setExploded] = useState(true);
+    const [hoveredId, setHoveredId] = useState(null);
+
+    const classified = allPieces.map((p, i) => {
+        const type = classifyPiece(p.descricao);
+        return { ...p, _type: type, _idx: i };
+    });
+
+    // Count by type for stagger offset
+    const typeCounters = {};
+    classified.forEach(p => {
+        typeCounters[p._type] = (typeCounters[p._type] || 0);
+        p._typeIdx = typeCounters[p._type]++;
+    });
+
+    return (
+        <div style={{
+            background: 'rgba(255,255,255,0.04)', borderRadius: 14,
+            border: '1px solid rgba(255,255,255,0.08)', padding: 20, marginBottom: 20,
+            position: 'relative',
+        }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{
+                    margin: 0, fontSize: 14, fontWeight: 700, color: '#fff',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                }}>
+                    <Layers size={16} color="#60a5fa" />
+                    Vista do Modulo ({allPieces.length} pecas)
+                </h3>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setExploded(!exploded)} style={{
+                        padding: '6px 14px', fontSize: 11, fontWeight: 700,
+                        background: exploded ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.08)',
+                        border: `1px solid ${exploded ? 'rgba(59,130,246,0.4)' : 'rgba(255,255,255,0.12)'}`,
+                        borderRadius: 8, color: exploded ? '#60a5fa' : '#aaa', cursor: 'pointer',
+                        textTransform: 'uppercase', letterSpacing: 0.5,
+                    }}>
+                        {exploded ? 'Compacto' : 'Explodido'}
+                    </button>
+                    <button onClick={onClose} style={{
+                        width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'rgba(255,255,255,0.06)', color: '#888', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                        <X size={16} />
+                    </button>
+                </div>
+            </div>
+
+            {/* 3D Scene */}
+            <div style={{
+                perspective: 600, perspectiveOrigin: '50% 40%',
+                width: '100%', height: 320, position: 'relative',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden',
+            }}>
+                <div style={{
+                    transformStyle: 'preserve-3d',
+                    transform: 'rotateX(-15deg) rotateY(-25deg)',
+                    position: 'relative', width: 240, height: 200,
+                }}>
+                    {classified.map((p) => {
+                        const type = p._type;
+                        const color = PIECE_COLORS[type];
+                        const isHighlighted = p.id === highlightId;
+                        const isHovered = p.id === hoveredId;
+                        const size = getCompactSize(type);
+                        const transform = getExplodedTransform(type, p._typeIdx, exploded);
+
+                        return (
+                            <div
+                                key={p.id}
+                                onMouseEnter={() => setHoveredId(p.id)}
+                                onMouseLeave={() => setHoveredId(null)}
+                                style={{
+                                    position: 'absolute',
+                                    left: '50%', top: '50%',
+                                    width: size.w, height: size.h,
+                                    marginLeft: -size.w / 2, marginTop: -size.h / 2,
+                                    background: `${color}${isHighlighted ? '55' : '30'}`,
+                                    border: `2px solid ${isHighlighted ? '#60a5fa' : isHovered ? '#fff' : color + '60'}`,
+                                    borderRadius: 4,
+                                    transform,
+                                    transition: 'transform 0.6s cubic-bezier(0.34,1.56,0.64,1), border-color 0.2s, box-shadow 0.2s',
+                                    boxShadow: isHighlighted
+                                        ? '0 0 20px rgba(59,130,246,0.5), inset 0 0 10px rgba(59,130,246,0.15)'
+                                        : isHovered ? '0 0 12px rgba(255,255,255,0.15)' : 'none',
+                                    animation: isHighlighted ? 'exploded-pulse 2s ease-in-out infinite' : 'none',
+                                    cursor: 'default',
+                                    zIndex: isHighlighted ? 10 : isHovered ? 5 : 1,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}
+                            >
+                                <span style={{
+                                    fontSize: 8, fontWeight: 700, color: '#fff',
+                                    textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+                                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                    maxWidth: size.w - 4, textAlign: 'center',
+                                    opacity: (isHovered || isHighlighted) ? 1 : 0.7,
+                                }}>
+                                    {p.descricao || PIECE_LABELS[type]}
+                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Legend */}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginTop: 12 }}>
+                {[...new Set(classified.map(p => p._type))].map(type => (
+                    <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#888' }}>
+                        <span style={{
+                            width: 10, height: 10, borderRadius: 2,
+                            background: PIECE_COLORS[type], flexShrink: 0,
+                        }} />
+                        {PIECE_LABELS[type]}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+/* ---- MontageChecklist ---- */
+function MontageChecklist({ allPieces, currentPeca }) {
+    const [checkedIds, setCheckedIds] = useState({});
+    const [collapsed, setCollapsed] = useState(false);
+
+    // Build montage order
+    const ORDER_PRIORITY = {
+        base: 1, lateral_esq: 2, lateral_dir: 3, divisoria: 4,
+        prateleira: 5, traseira: 6, tampo: 7, porta: 8, gaveta: 9, other: 10,
+    };
+
+    const pieces = allPieces.map(p => ({
+        ...p, _type: classifyPiece(p.descricao),
+    })).sort((a, b) => (ORDER_PRIORITY[a._type] || 10) - (ORDER_PRIORITY[b._type] || 10));
+
+    const checkedCount = Object.values(checkedIds).filter(Boolean).length;
+
+    // Hardware inference from machining_json
+    const allWorkers = allPieces.flatMap(p => parseMach(p.machining_json));
+    let hinges = 0, minifix = 0, cavilhas = 0, grooves = 0;
+    allWorkers.forEach(w => {
+        const d = parseFloat(w.diameter) || 0;
+        const cat = (w.category || '').toLowerCase();
+        const isHole = /hole|furo/i.test(cat);
+        const isGroove = /groove|rasgo|canal|saw/i.test(cat);
+        if (isHole && d >= 33 && d <= 37) hinges++;
+        else if (isHole && d >= 14 && d <= 16) minifix++;
+        else if (isHole && d >= 7 && d <= 9) cavilhas++;
+        if (isGroove) grooves++;
+    });
+
+    const toggle = (id) => setCheckedIds(prev => ({ ...prev, [id]: !prev[id] }));
+
+    const statusIcon = (p) => {
+        const scanned = p.scanned || p.expedida;
+        if (scanned) return { icon: <CheckCircle2 size={14} color="#22c55e" />, label: 'Conferida' };
+        return { icon: <Box size={14} color="#666" />, label: 'Pendente' };
+    };
+
+    return (
+        <div style={{
+            background: 'rgba(255,255,255,0.04)', borderRadius: 14,
+            border: '1px solid rgba(255,255,255,0.08)', marginBottom: 20,
+            overflow: 'hidden',
+        }}>
+            {/* Header */}
+            <button onClick={() => setCollapsed(!collapsed)} style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '16px 20px', background: 'none', border: 'none', cursor: 'pointer', color: '#fff',
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <ListChecks size={16} color="#f59e0b" />
+                    <span style={{ fontSize: 14, fontWeight: 700 }}>
+                        Checklist de Montagem
+                    </span>
+                    <span style={{
+                        fontSize: 11, fontWeight: 600, color: '#888',
+                        padding: '2px 8px', borderRadius: 10,
+                        background: 'rgba(255,255,255,0.06)',
+                    }}>
+                        {checkedCount}/{pieces.length} pecas
+                    </span>
+                </div>
+                {collapsed ? <ChevronDown size={18} color="#888" /> : <ChevronUp size={18} color="#888" />}
+            </button>
+
+            {!collapsed && (
+                <div style={{ padding: '0 20px 20px' }}>
+                    {/* Progress bar */}
+                    <div style={{
+                        height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)',
+                        marginBottom: 16, overflow: 'hidden',
+                    }}>
+                        <div style={{
+                            height: '100%', borderRadius: 2,
+                            background: 'linear-gradient(90deg, #f59e0b, #22c55e)',
+                            width: `${pieces.length > 0 ? (checkedCount / pieces.length) * 100 : 0}%`,
+                            transition: 'width 0.3s ease',
+                        }} />
+                    </div>
+
+                    {/* Suggested order header */}
+                    <div style={{ fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, fontWeight: 600 }}>
+                        Ordem sugerida de montagem
+                    </div>
+
+                    {/* Pieces list */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {pieces.map((p, i) => {
+                            const st = statusIcon(p);
+                            const isCurrent = p.id === currentPeca?.id;
+                            return (
+                                <label key={p.id} style={{
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                    padding: '8px 12px', borderRadius: 8, cursor: 'pointer',
+                                    background: isCurrent ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.02)',
+                                    border: `1px solid ${isCurrent ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.04)'}`,
+                                    transition: 'background 0.15s',
+                                }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={!!checkedIds[p.id]}
+                                        onChange={() => toggle(p.id)}
+                                        style={{ accentColor: '#f59e0b', width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }}
+                                    />
+                                    <span style={{
+                                        fontSize: 10, fontWeight: 700, color: '#555',
+                                        width: 20, textAlign: 'center', flexShrink: 0,
+                                    }}>
+                                        {i + 1}.
+                                    </span>
+                                    {st.icon}
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{
+                                            fontSize: 12, fontWeight: 600,
+                                            color: checkedIds[p.id] ? '#666' : '#ddd',
+                                            textDecoration: checkedIds[p.id] ? 'line-through' : 'none',
+                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                        }}>
+                                            {p.descricao || `Peca #${p.id}`}
+                                            {isCurrent && <span style={{ color: '#60a5fa', fontSize: 10, marginLeft: 6 }}>(atual)</span>}
+                                        </div>
+                                        <div style={{ fontSize: 10, color: '#555', fontFamily: 'monospace' }}>
+                                            {p.comprimento}x{p.largura}x{p.espessura}mm
+                                        </div>
+                                    </div>
+                                    <span style={{
+                                        fontSize: 9, padding: '2px 6px', borderRadius: 4,
+                                        background: `${PIECE_COLORS[classifyPiece(p.descricao)]}20`,
+                                        color: PIECE_COLORS[classifyPiece(p.descricao)],
+                                        fontWeight: 600, whiteSpace: 'nowrap',
+                                    }}>
+                                        {PIECE_LABELS[classifyPiece(p.descricao)]}
+                                    </span>
+                                </label>
+                            );
+                        })}
+                    </div>
+
+                    {/* Hardware summary */}
+                    {(hinges > 0 || minifix > 0 || cavilhas > 0 || grooves > 0) && (
+                        <div style={{ marginTop: 16 }}>
+                            <div style={{
+                                fontSize: 10, color: '#666', textTransform: 'uppercase',
+                                letterSpacing: 0.5, marginBottom: 8, fontWeight: 600,
+                                display: 'flex', alignItems: 'center', gap: 6,
+                            }}>
+                                <Wrench size={12} color="#888" />
+                                Ferragens estimadas
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                {hinges > 0 && (
+                                    <div style={{
+                                        padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                                        background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#ef4444',
+                                    }}>
+                                        {hinges} dobradica{hinges > 1 ? 's' : ''}
+                                    </div>
+                                )}
+                                {minifix > 0 && (
+                                    <div style={{
+                                        padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                                        background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)', color: '#3b82f6',
+                                    }}>
+                                        {minifix} minifix
+                                    </div>
+                                )}
+                                {cavilhas > 0 && (
+                                    <div style={{
+                                        padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                                        background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e',
+                                    }}>
+                                        ~{cavilhas} cavilha{cavilhas > 1 ? 's' : ''}
+                                    </div>
+                                )}
+                                {grooves > 0 && (
+                                    <div style={{
+                                        padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                                        background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', color: '#f59e0b',
+                                    }}>
+                                        {grooves} canal{grooves > 1 ? '/rasgos' : '/rasgo'}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
 /* ---- Main Component ---- */
 export default function ScanPeca3D({ codigo: initialCodigo }) {
     const [codigo, setCodigo] = useState(initialCodigo || '');
@@ -249,6 +631,8 @@ export default function ScanPeca3D({ codigo: initialCodigo }) {
     const [showCamera, setShowCamera] = useState(false);
     const [modulePecas, setModulePecas] = useState([]);
     const [loadingModule, setLoadingModule] = useState(false);
+    const [showModuleView, setShowModuleView] = useState(false);
+    const [showChecklist, setShowChecklist] = useState(false);
     const inputRef = useRef(null);
 
     const buscar = useCallback(async (cod) => {
@@ -256,6 +640,8 @@ export default function ScanPeca3D({ codigo: initialCodigo }) {
         setLoading(true);
         setError('');
         setModulePecas([]);
+        setShowModuleView(false);
+        setShowChecklist(false);
         try {
             const data = await fetchPeca(cod);
             setPeca(data.peca);
@@ -484,7 +870,41 @@ export default function ScanPeca3D({ codigo: initialCodigo }) {
                                     {peca.produto_final && peca.modulo_desc ? ' — ' : ''}
                                     {peca.modulo_desc || ''}
                                 </h2>
+                                {/* Ver no Modulo button */}
+                                {(modulePecas.length > 0 || peca.modulo_desc) && (
+                                    <button
+                                        onClick={() => setShowModuleView(v => !v)}
+                                        style={{
+                                            marginTop: 12, padding: '8px 20px', fontSize: 12, fontWeight: 700,
+                                            background: showModuleView ? 'rgba(96,165,250,0.2)' : 'rgba(255,255,255,0.08)',
+                                            border: `1px solid ${showModuleView ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.15)'}`,
+                                            borderRadius: 8, color: showModuleView ? '#60a5fa' : '#ccc',
+                                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8,
+                                            transition: 'all 0.2s',
+                                        }}
+                                    >
+                                        <Layers size={14} />
+                                        {showModuleView ? 'Fechar Vista do Modulo' : 'Ver no Modulo'}
+                                    </button>
+                                )}
                             </div>
+                        )}
+
+                        {/* #33 — Exploded Module View */}
+                        {showModuleView && peca.modulo_desc && (
+                            <ModuleExplodedView
+                                allPieces={[peca, ...modulePecas]}
+                                highlightId={peca.id}
+                                onClose={() => setShowModuleView(false)}
+                            />
+                        )}
+
+                        {/* #34 — Montage Checklist */}
+                        {showModuleView && peca.modulo_desc && (
+                            <MontageChecklist
+                                allPieces={[peca, ...modulePecas]}
+                                currentPeca={peca}
+                            />
                         )}
 
                         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
@@ -864,6 +1284,10 @@ export default function ScanPeca3D({ codigo: initialCodigo }) {
                 @keyframes pulse-border {
                     0%, 100% { border-color: rgba(59,130,246,0.7); }
                     50% { border-color: rgba(59,130,246,0.2); }
+                }
+                @keyframes exploded-pulse {
+                    0%, 100% { box-shadow: 0 0 15px rgba(59,130,246,0.4), inset 0 0 8px rgba(59,130,246,0.1); }
+                    50% { box-shadow: 0 0 25px rgba(59,130,246,0.7), inset 0 0 15px rgba(59,130,246,0.25); }
                 }
             `}</style>
         </div>

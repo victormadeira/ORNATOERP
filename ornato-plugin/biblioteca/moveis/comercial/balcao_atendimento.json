@@ -1,0 +1,134 @@
+{
+  "id": "balcao_atendimento",
+  "nome": "Balcao Atendimento",
+  "descricao": "Balcao comercial de atendimento. Tampo alto com prateleiras internas do lado do atendente.",
+  "categoria": "comercial",
+  "tags": ["balcao", "atendimento", "comercial", "loja"],
+  "icone": "balcao",
+
+  "parametros": {
+    "largura":       { "default": 1800, "min": 1200, "max": 2400, "step": 100, "unidade": "mm" },
+    "altura":        { "default": 1100, "min": 1100, "max": 1100, "step": 50,  "unidade": "mm" },
+    "profundidade":  { "default": 600,  "min": 600,  "max": 600,  "step": 10,  "unidade": "mm" },
+    "espessura":     { "default": 18,   "min": 15,   "max": 25,   "step": 0.5, "unidade": "mm" },
+    "n_prateleiras": { "default": 2,    "min": 1,    "max": 3,    "step": 1 },
+    "tipo_juncao":   { "default": "minifix", "opcoes": ["minifix", "cavilha", "confirmat"] },
+    "com_fundo":     { "default": true },
+    "com_rodape":    { "default": true, "altura_rodape": 100 }
+  },
+
+  "pecas": [
+    {
+      "nome": "Lateral Esquerda",
+      "role": "lateral_esq",
+      "largura": "{altura} - {altura_rodape}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": 0, "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frontal": true, "traseira": true, "dir": false, "esq": false },
+      "notas": "Bordas frontal e traseira visiveis (balcao independente)"
+    },
+    {
+      "nome": "Lateral Direita",
+      "role": "lateral_dir",
+      "largura": "{altura} - {altura_rodape}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frontal": true, "traseira": true, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Base",
+      "role": "base",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Tampo",
+      "role": "topo",
+      "largura": "{largura}",
+      "altura": "{profundidade} + 50",
+      "espessura": "{espessura}",
+      "posicao": { "x": 0, "y": -25, "z": "{altura} - {espessura}" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true },
+      "notas": "Tampo sobreposto com beirada maior que o corpo"
+    },
+    {
+      "nome": "Painel Frontal",
+      "role": "traseira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{altura} - {altura_rodape} - 2 * {espessura}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape} + {espessura}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false },
+      "notas": "Painel frontal visivel pelo cliente (fecha a frente do balcao)"
+    },
+    {
+      "nome": "Traseira",
+      "role": "traseira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{altura} - {altura_rodape} - 2 * {espessura}",
+      "espessura": 3,
+      "condicao": "{com_fundo}",
+      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{altura_rodape} + {espessura}" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false },
+      "notas": "Fundo traseiro (lado do atendente)"
+    },
+    {
+      "nome": "Prateleira 1",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade} - 40",
+      "espessura": "{espessura}",
+      "condicao": "{n_prateleiras} >= 1",
+      "posicao": { "x": "{espessura}", "y": 20, "z": "{altura_rodape} + ({altura} - {altura_rodape}) / ({n_prateleiras} + 1)" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Prateleira 2",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade} - 40",
+      "espessura": "{espessura}",
+      "condicao": "{n_prateleiras} >= 2",
+      "posicao": { "x": "{espessura}", "y": 20, "z": "{altura_rodape} + 2 * ({altura} - {altura_rodape}) / ({n_prateleiras} + 1)" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Prateleira 3",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade} - 40",
+      "espessura": "{espessura}",
+      "condicao": "{n_prateleiras} >= 3",
+      "posicao": { "x": "{espessura}", "y": 20, "z": "{altura_rodape} + 3 * ({altura} - {altura_rodape}) / ({n_prateleiras} + 1)" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Rodape Frontal",
+      "role": "rodape",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{altura_rodape}",
+      "espessura": "{espessura}",
+      "condicao": "{com_rodape}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": 0 },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    }
+  ],
+
+  "ferragens_auto": [
+    { "regra": "minifix", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_esq × topo", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × topo", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "cavilha", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'cavilha'" },
+    { "regra": "cavilha", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'cavilha'" },
+    { "regra": "rebaixo_fundo", "pecas": ["lateral_esq", "lateral_dir", "base"], "condicao": "{com_fundo}" },
+    { "regra": "system32", "pecas": ["lateral_esq", "lateral_dir"], "condicao": "{n_prateleiras} > 0" }
+  ],
+
+  "notas": "Balcao de atendimento sem portas (lado do atendente aberto). Painel frontal fecha a vista do cliente. Tampo sobreposto com beirada."
+}

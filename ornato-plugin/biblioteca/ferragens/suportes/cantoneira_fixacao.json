@@ -1,0 +1,46 @@
+{
+  "id": "cantoneira_fixacao",
+  "nome": "Cantoneira Metalica Fixacao",
+  "marca": "Generico",
+  "modelo": "Cantoneira L 50x50mm",
+  "categoria": "suporte",
+  "tipo": "cantoneira",
+
+  "especificacoes": {
+    "dimensoes": { "largura": 50, "altura": 50, "espessura": 2 },
+    "furos": { "diametro": 4, "quantidade": 2, "distancia_entre": 30 },
+    "material": "aco_zincado",
+    "capacidade_kg": 30,
+    "uso": "fixacao_parede"
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 12,
+        "lado": "a",
+        "posicao": { "x": "{pos_x}", "y": "{pos_y}" },
+        "descricao": "Furo para fixacao cantoneira"
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 12,
+        "lado": "a",
+        "posicao": { "x": "{pos_x} + 30", "y": "{pos_y}" },
+        "descricao": "Segundo furo fixacao cantoneira"
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "CANT-L50",
+    "preco_unitario": 2.50,
+    "unidade": "un",
+    "fornecedor": "Diversos"
+  }
+}

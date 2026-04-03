@@ -1,0 +1,282 @@
+[
+  {
+    "id": "pvc_04_branco_tx",
+    "nome": "PVC 0.4mm Branco TX",
+    "codigo_ornato": "BRD-PVC04-BTX",
+    "espessura": 0.4,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Branco TX",
+    "cor_hex": "#F5F5F0"
+  },
+  {
+    "id": "pvc_04_preto",
+    "nome": "PVC 0.4mm Preto",
+    "codigo_ornato": "BRD-PVC04-PTO",
+    "espessura": 0.4,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Preto",
+    "cor_hex": "#1A1A1A"
+  },
+  {
+    "id": "pvc_04_cinza",
+    "nome": "PVC 0.4mm Cinza",
+    "codigo_ornato": "BRD-PVC04-CZA",
+    "espessura": 0.4,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Cinza",
+    "cor_hex": "#808080"
+  },
+  {
+    "id": "pvc_04_noce",
+    "nome": "PVC 0.4mm Noce",
+    "codigo_ornato": "BRD-PVC04-NOC",
+    "espessura": 0.4,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Noce",
+    "cor_hex": "#5C3A21"
+  },
+  {
+    "id": "pvc_04_carvalho",
+    "nome": "PVC 0.4mm Carvalho",
+    "codigo_ornato": "BRD-PVC04-CRV",
+    "espessura": 0.4,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Carvalho",
+    "cor_hex": "#8B6914"
+  },
+  {
+    "id": "pvc_04_freijo",
+    "nome": "PVC 0.4mm Freijo",
+    "codigo_ornato": "BRD-PVC04-FRJ",
+    "espessura": 0.4,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Freijo",
+    "cor_hex": "#6B4226"
+  },
+  {
+    "id": "pvc_1_branco_tx",
+    "nome": "PVC 1mm Branco TX",
+    "codigo_ornato": "BRD-PVC1-BTX",
+    "espessura": 1.0,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Branco TX",
+    "cor_hex": "#F5F5F0"
+  },
+  {
+    "id": "pvc_1_preto",
+    "nome": "PVC 1mm Preto",
+    "codigo_ornato": "BRD-PVC1-PTO",
+    "espessura": 1.0,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Preto",
+    "cor_hex": "#1A1A1A"
+  },
+  {
+    "id": "pvc_1_cinza",
+    "nome": "PVC 1mm Cinza",
+    "codigo_ornato": "BRD-PVC1-CZA",
+    "espessura": 1.0,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Cinza",
+    "cor_hex": "#808080"
+  },
+  {
+    "id": "pvc_1_noce",
+    "nome": "PVC 1mm Noce",
+    "codigo_ornato": "BRD-PVC1-NOC",
+    "espessura": 1.0,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Noce",
+    "cor_hex": "#5C3A21"
+  },
+  {
+    "id": "pvc_1_carvalho",
+    "nome": "PVC 1mm Carvalho",
+    "codigo_ornato": "BRD-PVC1-CRV",
+    "espessura": 1.0,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Carvalho",
+    "cor_hex": "#8B6914"
+  },
+  {
+    "id": "pvc_1_freijo",
+    "nome": "PVC 1mm Freijo",
+    "codigo_ornato": "BRD-PVC1-FRJ",
+    "espessura": 1.0,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Freijo",
+    "cor_hex": "#6B4226"
+  },
+  {
+    "id": "pvc_2_branco_tx",
+    "nome": "PVC 2mm Branco TX",
+    "codigo_ornato": "BRD-PVC2-BTX",
+    "espessura": 2.0,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Branco TX",
+    "cor_hex": "#F5F5F0"
+  },
+  {
+    "id": "pvc_2_preto",
+    "nome": "PVC 2mm Preto",
+    "codigo_ornato": "BRD-PVC2-PTO",
+    "espessura": 2.0,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Preto",
+    "cor_hex": "#1A1A1A"
+  },
+  {
+    "id": "pvc_2_cinza",
+    "nome": "PVC 2mm Cinza",
+    "codigo_ornato": "BRD-PVC2-CZA",
+    "espessura": 2.0,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Cinza",
+    "cor_hex": "#808080"
+  },
+  {
+    "id": "pvc_2_noce",
+    "nome": "PVC 2mm Noce",
+    "codigo_ornato": "BRD-PVC2-NOC",
+    "espessura": 2.0,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Noce",
+    "cor_hex": "#5C3A21"
+  },
+  {
+    "id": "pvc_2_carvalho",
+    "nome": "PVC 2mm Carvalho",
+    "codigo_ornato": "BRD-PVC2-CRV",
+    "espessura": 2.0,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Carvalho",
+    "cor_hex": "#8B6914"
+  },
+  {
+    "id": "pvc_2_freijo",
+    "nome": "PVC 2mm Freijo",
+    "codigo_ornato": "BRD-PVC2-FRJ",
+    "espessura": 2.0,
+    "largura": 22,
+    "material": "PVC",
+    "cor": "Freijo",
+    "cor_hex": "#6B4226"
+  },
+  {
+    "id": "abs_04_branco",
+    "nome": "ABS 0.4mm Branco",
+    "codigo_ornato": "BRD-ABS04-BRA",
+    "espessura": 0.4,
+    "largura": 22,
+    "material": "ABS",
+    "cor": "Branco",
+    "cor_hex": "#FFFFFF"
+  },
+  {
+    "id": "abs_1_branco",
+    "nome": "ABS 1mm Branco",
+    "codigo_ornato": "BRD-ABS1-BRA",
+    "espessura": 1.0,
+    "largura": 22,
+    "material": "ABS",
+    "cor": "Branco",
+    "cor_hex": "#FFFFFF"
+  },
+  {
+    "id": "abs_2_branco",
+    "nome": "ABS 2mm Branco",
+    "codigo_ornato": "BRD-ABS2-BRA",
+    "espessura": 2.0,
+    "largura": 22,
+    "material": "ABS",
+    "cor": "Branco",
+    "cor_hex": "#FFFFFF"
+  },
+  {
+    "id": "abs_1_preto",
+    "nome": "ABS 1mm Preto",
+    "codigo_ornato": "BRD-ABS1-PTO",
+    "espessura": 1.0,
+    "largura": 22,
+    "material": "ABS",
+    "cor": "Preto",
+    "cor_hex": "#1A1A1A"
+  },
+  {
+    "id": "abs_2_preto",
+    "nome": "ABS 2mm Preto",
+    "codigo_ornato": "BRD-ABS2-PTO",
+    "espessura": 2.0,
+    "largura": 22,
+    "material": "ABS",
+    "cor": "Preto",
+    "cor_hex": "#1A1A1A"
+  },
+  {
+    "id": "melamina_04_branco",
+    "nome": "Melamina Cola Quente 22x0.4mm Branco",
+    "codigo_ornato": "BRD-MEL-BRA",
+    "espessura": 0.4,
+    "largura": 22,
+    "material": "melamina",
+    "cor": "Branco",
+    "cor_hex": "#F5F5F0"
+  },
+  {
+    "id": "melamina_04_noce",
+    "nome": "Melamina Cola Quente 22x0.4mm Noce",
+    "codigo_ornato": "BRD-MEL-NOC",
+    "espessura": 0.4,
+    "largura": 22,
+    "material": "melamina",
+    "cor": "Noce",
+    "cor_hex": "#5C3A21"
+  },
+  {
+    "id": "melamina_04_carvalho",
+    "nome": "Melamina Cola Quente 22x0.4mm Carvalho",
+    "codigo_ornato": "BRD-MEL-CRV",
+    "espessura": 0.4,
+    "largura": 22,
+    "material": "melamina",
+    "cor": "Carvalho",
+    "cor_hex": "#8B6914"
+  },
+  {
+    "id": "laminado_natural_carvalho",
+    "nome": "Laminado Natural Carvalho 22x0.5mm",
+    "codigo_ornato": "BRD-LAM-CRV",
+    "espessura": 0.5,
+    "largura": 22,
+    "material": "madeira",
+    "cor": "Carvalho Natural",
+    "cor_hex": "#C4A35A"
+  },
+  {
+    "id": "laminado_natural_freijo",
+    "nome": "Laminado Natural Freijo 22x0.5mm",
+    "codigo_ornato": "BRD-LAM-FRJ",
+    "espessura": 0.5,
+    "largura": 22,
+    "material": "madeira",
+    "cor": "Freijo Natural",
+    "cor_hex": "#7B5B3A"
+  }
+]

@@ -1,0 +1,72 @@
+{
+  "id": "blum_clip_top_110",
+  "nome": "Blum CLIP top 110°",
+  "marca": "Blum",
+  "modelo": "CLIP top 110° Blumotion",
+  "categoria": "dobradica",
+  "angulo": 110,
+  "tipo": "embutir",
+  "amortecedor": true,
+  "sistema_amortecimento": "Blumotion",
+
+  "especificacoes": {
+    "furo_principal": { "diametro": 35, "profundidade": 11.5 },
+    "furos_piloto": { "diametro": 2.5, "profundidade": 10, "distancia_centro": 24, "quantidade": 2 },
+    "offset_borda": 22.5,
+    "distancia_topo_base": 100,
+    "distancia_minima_entre": 350,
+    "espessura_porta_min": 14,
+    "espessura_porta_max": 22,
+    "regra_quantidade": {
+      "ate_600mm": 2,
+      "ate_1200mm": 3,
+      "ate_1800mm": 4,
+      "acima": 5
+    }
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo_passante",
+        "ferramenta": "broca_35mm",
+        "diametro": 35,
+        "profundidade": 11.5,
+        "lado": "a",
+        "posicao": {
+          "x": "{offset_borda}",
+          "y": "{distancia_topo_base}"
+        }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_2.5mm",
+        "diametro": 2.5,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": {
+          "x": "{offset_borda}",
+          "y": "{distancia_topo_base} - 24"
+        }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_2.5mm",
+        "diametro": 2.5,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": {
+          "x": "{offset_borda}",
+          "y": "{distancia_topo_base} + 24"
+        }
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "BLUM-71B3550",
+    "preco_unitario": 18.90,
+    "unidade": "un",
+    "fornecedor": "Blum Brasil"
+  }
+}

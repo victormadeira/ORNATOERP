@@ -1,0 +1,60 @@
+{
+  "id": "confirmat_7x50",
+  "nome": "Parafuso Confirmat 7x50mm",
+  "marca": "Generico",
+  "modelo": "Confirmat 7x50mm",
+  "categoria": "especial",
+  "tipo": "confirmat",
+
+  "especificacoes": {
+    "diametro": 7,
+    "comprimento": 50,
+    "furo_passante": { "diametro": 7, "lado": "a" },
+    "furo_escareado": { "diametro": 10, "profundidade": 5, "lado": "a" },
+    "furo_borda": { "diametro": 5, "profundidade": 40, "lado": "b" },
+    "distancia_borda_minima": 30,
+    "distancia_minima_entre": 50,
+    "espessura_minima": 15,
+    "regra_quantidade": {
+      "ate_400mm": 2,
+      "ate_800mm": 3,
+      "acima": 4
+    }
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo_passante",
+        "ferramenta": "broca_7mm",
+        "diametro": 7,
+        "profundidade": "{espessura}",
+        "lado": "a",
+        "descricao": "Furo passante para confirmat 7mm"
+      },
+      {
+        "tipo": "escareado",
+        "ferramenta": "broca_10mm",
+        "diametro": 10,
+        "profundidade": 5,
+        "lado": "a",
+        "descricao": "Escareado para cabeca do confirmat"
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_5mm",
+        "diametro": 5,
+        "profundidade": 40,
+        "lado": "b",
+        "descricao": "Furo piloto na borda da peca conectada"
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "CONF-7X50",
+    "preco_unitario": 0.25,
+    "unidade": "un",
+    "fornecedor": "Diversos"
+  }
+}

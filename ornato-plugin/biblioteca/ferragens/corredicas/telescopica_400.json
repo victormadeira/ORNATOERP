@@ -1,0 +1,62 @@
+{
+  "id": "telescopica_400",
+  "nome": "Telescopica Simples 400mm",
+  "marca": "Generico",
+  "modelo": "Telescopica 400mm",
+  "categoria": "corredica",
+  "tipo": "telescopica",
+  "extensao": "total",
+  "comprimento": 400,
+  "amortecedor": false,
+  "capacidade_kg": 25,
+
+  "especificacoes": {
+    "comprimento_trilho": 400,
+    "furos_fixacao": [
+      { "diametro": 4, "profundidade": 10, "posicao_y": 20 },
+      { "diametro": 4, "profundidade": 10, "posicao_y": 200 },
+      { "diametro": 4, "profundidade": 10, "posicao_y": 380 }
+    ],
+    "quantidade_furos": 3,
+    "distancia_lateral": 37,
+    "folga_lateral": 12.5,
+    "altura_trilho": 45,
+    "largura_trilho": 12.7
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 20 }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 200 }
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_4mm",
+        "diametro": 4,
+        "profundidade": 10,
+        "lado": "a",
+        "posicao": { "x": 37, "y": 380 }
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "TEL-400",
+    "preco_unitario": 20.00,
+    "unidade": "par",
+    "fornecedor": "Diversos"
+  }
+}

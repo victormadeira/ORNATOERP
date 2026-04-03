@@ -1,0 +1,36 @@
+{
+  "id": "furo_corredica",
+  "nome": "Furacao Corredica (3-4x 4mm)",
+  "categoria": "furacao",
+  "descricao": "Padrao de furos para fixacao de corredica na lateral. Quantidade e posicoes dependem do comprimento.",
+
+  "operacao": {
+    "tipo": "serie_furos",
+    "ferramenta": "broca_4mm",
+    "diametro": 4,
+    "profundidade": 10,
+    "lado": "a",
+    "serie": {
+      "eixo": "y",
+      "posicoes_por_tamanho": {
+        "250": [37, 150, 250],
+        "300": [37, 175, 300],
+        "350": [37, 212, 350],
+        "400": [37, 237, 400],
+        "450": [37, 187, 337, 450],
+        "500": [37, 200, 350, 500],
+        "550": [37, 212, 387, 550],
+        "600": [37, 200, 400, 600]
+      },
+      "distancia_lateral": 37
+    },
+    "parametros": {
+      "comprimento_corredica": { "default": 500, "opcoes": [250, 300, 350, 400, 450, 500, 550, 600] }
+    }
+  },
+
+  "aplicacao": {
+    "pecas": ["lateral_esq", "lateral_dir"],
+    "regra": "corredica"
+  }
+}

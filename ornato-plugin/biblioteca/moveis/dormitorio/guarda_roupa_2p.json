@@ -1,0 +1,190 @@
+{
+  "id": "guarda_roupa_2p",
+  "nome": "Guarda-Roupa 2 Portas",
+  "descricao": "Guarda-roupa 2 portas de abrir. Maleiro, cabideiro, prateleiras e gavetas internas.",
+  "categoria": "dormitorio",
+  "tags": ["guarda-roupa", "2portas", "cabideiro", "dormitorio"],
+  "icone": "guarda_roupa",
+
+  "parametros": {
+    "largura":        { "default": 1200, "min": 1000, "max": 1400, "step": 50, "unidade": "mm" },
+    "altura":         { "default": 2200, "min": 2200, "max": 2200, "step": 50, "unidade": "mm" },
+    "profundidade":   { "default": 580,  "min": 580,  "max": 580,  "step": 10, "unidade": "mm" },
+    "espessura":      { "default": 18,   "min": 15,   "max": 25,   "step": 0.5, "unidade": "mm" },
+    "altura_maleiro": { "default": 350,  "min": 250,  "max": 450,  "step": 50, "unidade": "mm" },
+    "n_gavetas":      { "default": 3,    "min": 0,    "max": 4,    "step": 1 },
+    "n_prateleiras":  { "default": 2,    "min": 1,    "max": 4,    "step": 1 },
+    "tipo_juncao":    { "default": "minifix", "opcoes": ["minifix", "cavilha", "confirmat"] },
+    "com_fundo":      { "default": true },
+    "com_rodape":     { "default": true, "altura_rodape": 100 },
+    "puxador":        { "default": "modelo_160mm" }
+  },
+
+  "pecas": [
+    {
+      "nome": "Lateral Esquerda",
+      "role": "lateral_esq",
+      "largura": "{altura} - {altura_rodape}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": 0, "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Lateral Direita",
+      "role": "lateral_dir",
+      "largura": "{altura} - {altura_rodape}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Base",
+      "role": "base",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Topo",
+      "role": "topo",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {espessura}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Prateleira Maleiro",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {altura_maleiro}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false },
+      "notas": "Divide maleiro do espaco principal"
+    },
+    {
+      "nome": "Divisoria Vertical Central",
+      "role": "divisoria",
+      "largura": "{altura} - {altura_rodape} - {altura_maleiro} - 2 * {espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{largura} / 2 - {espessura} / 2", "y": 0, "z": "{altura_rodape} + {espessura}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false },
+      "notas": "Separa lado cabideiro do lado prateleiras/gavetas"
+    },
+    {
+      "nome": "Prateleira Interna 1",
+      "role": "prateleira",
+      "largura": "{largura} / 2 - {espessura} / 2 - {espessura}",
+      "altura": "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "condicao": "{n_prateleiras} >= 1",
+      "posicao": { "x": "{largura} / 2 + {espessura} / 2", "y": 0, "z": "{altura} - {altura_maleiro} - ({altura} - {altura_rodape} - {altura_maleiro}) / 3" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Prateleira Interna 2",
+      "role": "prateleira",
+      "largura": "{largura} / 2 - {espessura} / 2 - {espessura}",
+      "altura": "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "condicao": "{n_prateleiras} >= 2",
+      "posicao": { "x": "{largura} / 2 + {espessura} / 2", "y": 0, "z": "{altura} - {altura_maleiro} - 2 * ({altura} - {altura_rodape} - {altura_maleiro}) / 3" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Traseira",
+      "role": "traseira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{altura} - {altura_rodape} - 2 * {espessura}",
+      "espessura": 3,
+      "condicao": "{com_fundo}",
+      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{altura_rodape} + {espessura}" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Porta Esquerda",
+      "role": "porta",
+      "largura": "{altura} - {altura_rodape} - 2 * {espessura} - 2",
+      "altura": "({largura} - 2 * {espessura}) / 2 - 2",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape} + {espessura} + 1" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+    },
+    {
+      "nome": "Porta Direita",
+      "role": "porta",
+      "largura": "{altura} - {altura_rodape} - 2 * {espessura} - 2",
+      "altura": "({largura} - 2 * {espessura}) / 2 - 2",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{largura} / 2 + 1", "y": 0, "z": "{altura_rodape} + {espessura} + 1" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+    },
+    {
+      "nome": "Frente Gaveta 1",
+      "role": "frente_gaveta",
+      "largura": 180,
+      "altura": "{largura} / 2 - {espessura} / 2 - {espessura} - 4",
+      "espessura": "{espessura}",
+      "condicao": "{n_gavetas} >= 1",
+      "posicao": { "x": "{largura} / 2 + {espessura} / 2 + 2", "y": 0, "z": "{altura_rodape} + {espessura} + 1" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true },
+      "notas": "Gavetas internas no lado direito"
+    },
+    {
+      "nome": "Frente Gaveta 2",
+      "role": "frente_gaveta",
+      "largura": 180,
+      "altura": "{largura} / 2 - {espessura} / 2 - {espessura} - 4",
+      "espessura": "{espessura}",
+      "condicao": "{n_gavetas} >= 2",
+      "posicao": { "x": "{largura} / 2 + {espessura} / 2 + 2", "y": 0, "z": "{altura_rodape} + {espessura} + 183" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+    },
+    {
+      "nome": "Frente Gaveta 3",
+      "role": "frente_gaveta",
+      "largura": 180,
+      "altura": "{largura} / 2 - {espessura} / 2 - {espessura} - 4",
+      "espessura": "{espessura}",
+      "condicao": "{n_gavetas} >= 3",
+      "posicao": { "x": "{largura} / 2 + {espessura} / 2 + 2", "y": 0, "z": "{altura_rodape} + {espessura} + 365" },
+      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+    },
+    {
+      "nome": "Rodape",
+      "role": "rodape",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{altura_rodape}",
+      "espessura": "{espessura}",
+      "condicao": "{com_rodape}",
+      "posicao": { "x": "{espessura}", "y": 50, "z": 0 },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    }
+  ],
+
+  "ferragens_auto": [
+    { "regra": "minifix", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_esq × topo", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × topo", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_esq × prateleira", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × prateleira", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "cavilha", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'cavilha'" },
+    { "regra": "cavilha", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'cavilha'" },
+    { "regra": "dobradica", "peca": "lateral_esq", "condicao": "true" },
+    { "regra": "dobradica", "peca": "lateral_dir", "condicao": "true" },
+    { "regra": "corredica", "peca": "divisoria", "condicao": "{n_gavetas} > 0" },
+    { "regra": "rebaixo_fundo", "pecas": ["lateral_esq", "lateral_dir", "base", "topo"], "condicao": "{com_fundo}" },
+    { "regra": "puxador", "peca": "porta", "condicao": "true" },
+    { "regra": "puxador", "peca": "frente_gaveta", "condicao": "{n_gavetas} > 0" },
+    { "regra": "system32", "pecas": ["lateral_esq", "lateral_dir", "divisoria"], "condicao": "{n_prateleiras} > 0" }
+  ],
+
+  "notas": "Lado esquerdo: cabideiro com barra (acessorio). Lado direito: prateleiras + gavetas internas. Maleiro no topo."
+}

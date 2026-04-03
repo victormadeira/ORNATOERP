@@ -1,0 +1,25 @@
+{
+  "id": "canal_divisoria",
+  "nome": "Canal para Encaixe de Divisoria",
+  "categoria": "canal",
+  "descricao": "Canal para encaixe de divisoria vertical. Largura = espessura_divisoria + 1mm folga, profundidade 8mm.",
+
+  "operacao": {
+    "tipo": "canal",
+    "ferramenta": "fresa_6mm",
+    "largura": "{espessura_divisoria} + 1",
+    "profundidade": 8,
+    "lado": "a",
+    "percurso": "vertical_posicao",
+    "parametros": {
+      "espessura_divisoria": { "default": 15, "opcoes": [9, 12, 15, 18] },
+      "profundidade": { "default": 8, "min": 5, "max": 10 },
+      "posicao_x": { "default": "centro", "min": 100 }
+    }
+  },
+
+  "aplicacao": {
+    "pecas": ["base", "topo"],
+    "condicao_manual": true
+  }
+}

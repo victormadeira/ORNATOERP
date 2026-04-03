@@ -1,0 +1,51 @@
+{
+  "id": "cavilha_8x30",
+  "nome": "Cavilha 8x30mm (padrao)",
+  "marca": "Generico",
+  "modelo": "Cavilha estriada 8x30",
+  "categoria": "cavilha",
+  "tipo": "estriada",
+
+  "especificacoes": {
+    "diametro": 8,
+    "comprimento": 30,
+    "furo_peca": { "diametro": 8, "profundidade": 15 },
+    "distancia_borda_minima": 25,
+    "distancia_minima_entre": 32,
+    "espessura_minima": 15,
+    "regra_quantidade": {
+      "ate_300mm": 2,
+      "ate_600mm": 3,
+      "ate_1000mm": 4,
+      "acima": 5
+    }
+  },
+
+  "cnc": {
+    "operacoes": [
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_8mm",
+        "diametro": 8,
+        "profundidade": 15,
+        "lado": "b",
+        "descricao": "Furo cavilha na borda da peca A"
+      },
+      {
+        "tipo": "furo",
+        "ferramenta": "broca_8mm",
+        "diametro": 8,
+        "profundidade": 15,
+        "lado": "a",
+        "descricao": "Furo cavilha na face da peca B"
+      }
+    ]
+  },
+
+  "bom": {
+    "codigo_compra": "CAV-8X30",
+    "preco_unitario": 0.10,
+    "unidade": "un",
+    "fornecedor": "Diversos"
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "id": "aereo_escorredor",
+  "nome": "Aereo Escorredor",
+  "descricao": "Armario aereo para escorredor de loucas. Sem portas. Prateleiras aramadas (somente laterais em MDF).",
+  "categoria": "cozinha",
+  "tags": ["aereo", "escorredor", "aberto", "cozinha"],
+  "icone": "armario_aereo",
+
+  "parametros": {
+    "largura":       { "default": 800, "min": 600, "max": 900,  "step": 50, "unidade": "mm" },
+    "altura":        { "default": 700, "min": 700, "max": 700,  "step": 50, "unidade": "mm" },
+    "profundidade":  { "default": 350, "min": 350, "max": 350,  "step": 10, "unidade": "mm" },
+    "espessura":     { "default": 18,  "min": 15,  "max": 25,   "step": 0.5, "unidade": "mm" },
+    "tipo_juncao":   { "default": "minifix", "opcoes": ["minifix", "cavilha", "confirmat"] },
+    "com_fundo":     { "default": true }
+  },
+
+  "pecas": [
+    {
+      "nome": "Lateral Esquerda",
+      "role": "lateral_esq",
+      "largura": "{altura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": 0, "y": 0, "z": 0 },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Lateral Direita",
+      "role": "lateral_dir",
+      "largura": "{altura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": 0 },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Base",
+      "role": "base",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": 0 },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Topo",
+      "role": "topo",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {espessura}" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Traseira",
+      "role": "traseira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{altura} - 2 * {espessura}",
+      "espessura": 3,
+      "condicao": "{com_fundo}",
+      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{espessura}" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+    }
+  ],
+
+  "ferragens_auto": [
+    { "regra": "minifix", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_esq × topo", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × topo", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "cavilha", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'cavilha'" },
+    { "regra": "cavilha", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'cavilha'" },
+    { "regra": "rebaixo_fundo", "pecas": ["lateral_esq", "lateral_dir", "base", "topo"], "condicao": "{com_fundo}" }
+  ],
+
+  "notas": "Prateleiras sao aramadas (acessorio comprado pronto). Somente as laterais, base e topo sao pecas em MDF. Sem portas."
+}

@@ -1,0 +1,182 @@
+{
+  "id": "gondola",
+  "nome": "Gondola Dupla Face",
+  "descricao": "Gondola dupla face com prateleiras dos dois lados para exposicao de produtos.",
+  "categoria": "comercial",
+  "tags": ["gondola", "dupla-face", "prateleiras", "exposicao", "comercial"],
+  "icone": "gondola",
+
+  "parametros": {
+    "largura":       { "default": 1200, "min": 1200, "max": 1200, "step": 50, "unidade": "mm" },
+    "altura":        { "default": 1500, "min": 1500, "max": 1500, "step": 50, "unidade": "mm" },
+    "profundidade":  { "default": 800,  "min": 800,  "max": 800,  "step": 10, "unidade": "mm" },
+    "espessura":     { "default": 18,   "min": 15,   "max": 25,   "step": 0.5, "unidade": "mm" },
+    "n_prateleiras": { "default": 4,    "min": 3,    "max": 5,    "step": 1 },
+    "tipo_juncao":   { "default": "minifix", "opcoes": ["minifix", "cavilha", "confirmat"] },
+    "com_rodape":    { "default": true, "altura_rodape": 100 }
+  },
+
+  "pecas": [
+    {
+      "nome": "Lateral Esquerda",
+      "role": "lateral_esq",
+      "largura": "{altura} - {altura_rodape}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": 0, "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frontal": true, "traseira": true, "dir": false, "esq": false },
+      "notas": "Bordas em ambos os lados visiveis (dupla face)"
+    },
+    {
+      "nome": "Lateral Direita",
+      "role": "lateral_dir",
+      "largura": "{altura} - {altura_rodape}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frontal": true, "traseira": true, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Base",
+      "role": "base",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Topo",
+      "role": "topo",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {espessura}" },
+      "bordas": { "frontal": true, "traseira": true, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Divisoria Central Vertical",
+      "role": "divisoria",
+      "largura": "{altura} - {altura_rodape} - 2 * {espessura}",
+      "altura": "{largura} - 2 * {espessura}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": "{profundidade} / 2 - {espessura} / 2", "z": "{altura_rodape} + {espessura}" },
+      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false },
+      "notas": "Divisoria central que separa os dois lados da gondola"
+    },
+    {
+      "nome": "Prateleira Lado A - 1",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade} / 2 - {espessura} / 2 - 10",
+      "espessura": "{espessura}",
+      "condicao": "{n_prateleiras} >= 1",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape} + ({altura} - {altura_rodape}) / ({n_prateleiras} + 1)" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Prateleira Lado A - 2",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade} / 2 - {espessura} / 2 - 10",
+      "espessura": "{espessura}",
+      "condicao": "{n_prateleiras} >= 2",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape} + 2 * ({altura} - {altura_rodape}) / ({n_prateleiras} + 1)" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Prateleira Lado A - 3",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade} / 2 - {espessura} / 2 - 10",
+      "espessura": "{espessura}",
+      "condicao": "{n_prateleiras} >= 3",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape} + 3 * ({altura} - {altura_rodape}) / ({n_prateleiras} + 1)" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Prateleira Lado A - 4",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade} / 2 - {espessura} / 2 - 10",
+      "espessura": "{espessura}",
+      "condicao": "{n_prateleiras} >= 4",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape} + 4 * ({altura} - {altura_rodape}) / ({n_prateleiras} + 1)" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Prateleira Lado B - 1",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade} / 2 - {espessura} / 2 - 10",
+      "espessura": "{espessura}",
+      "condicao": "{n_prateleiras} >= 1",
+      "posicao": { "x": "{espessura}", "y": "{profundidade} / 2 + {espessura} / 2 + 10", "z": "{altura_rodape} + ({altura} - {altura_rodape}) / ({n_prateleiras} + 1)" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Prateleira Lado B - 2",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade} / 2 - {espessura} / 2 - 10",
+      "espessura": "{espessura}",
+      "condicao": "{n_prateleiras} >= 2",
+      "posicao": { "x": "{espessura}", "y": "{profundidade} / 2 + {espessura} / 2 + 10", "z": "{altura_rodape} + 2 * ({altura} - {altura_rodape}) / ({n_prateleiras} + 1)" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Prateleira Lado B - 3",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade} / 2 - {espessura} / 2 - 10",
+      "espessura": "{espessura}",
+      "condicao": "{n_prateleiras} >= 3",
+      "posicao": { "x": "{espessura}", "y": "{profundidade} / 2 + {espessura} / 2 + 10", "z": "{altura_rodape} + 3 * ({altura} - {altura_rodape}) / ({n_prateleiras} + 1)" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Prateleira Lado B - 4",
+      "role": "prateleira",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{profundidade} / 2 - {espessura} / 2 - 10",
+      "espessura": "{espessura}",
+      "condicao": "{n_prateleiras} >= 4",
+      "posicao": { "x": "{espessura}", "y": "{profundidade} / 2 + {espessura} / 2 + 10", "z": "{altura_rodape} + 4 * ({altura} - {altura_rodape}) / ({n_prateleiras} + 1)" },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Rodape Lado A",
+      "role": "rodape",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{altura_rodape}",
+      "espessura": "{espessura}",
+      "condicao": "{com_rodape}",
+      "posicao": { "x": "{espessura}", "y": 50, "z": 0 },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    },
+    {
+      "nome": "Rodape Lado B",
+      "role": "rodape",
+      "largura": "{largura} - 2 * {espessura}",
+      "altura": "{altura_rodape}",
+      "espessura": "{espessura}",
+      "condicao": "{com_rodape}",
+      "posicao": { "x": "{espessura}", "y": "{profundidade} - 50 - {espessura}", "z": 0 },
+      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+    }
+  ],
+
+  "ferragens_auto": [
+    { "regra": "minifix", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_esq × topo", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × topo", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_esq × divisoria", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "minifix", "juncao": "lateral_dir × divisoria", "condicao": "{tipo_juncao} == 'minifix'" },
+    { "regra": "cavilha", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'cavilha'" },
+    { "regra": "cavilha", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'cavilha'" },
+    { "regra": "system32", "pecas": ["lateral_esq", "lateral_dir"], "condicao": "{n_prateleiras} > 0" }
+  ],
+
+  "notas": "Gondola dupla face sem portas. Divisoria central longitudinal separa os dois lados de exposicao. Prateleiras iguais em ambos os lados. Sem fundo."
+}

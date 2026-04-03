@@ -1,0 +1,26 @@
+{
+  "id": "canal_fundo_6mm",
+  "nome": "Canal para Fundo 6mm",
+  "categoria": "canal",
+  "descricao": "Canal 7x8mm para encaixe de fundo 6mm. Offset 10mm da borda traseira.",
+
+  "operacao": {
+    "tipo": "canal",
+    "ferramenta": "fresa_6mm",
+    "largura": 7,
+    "profundidade": 8,
+    "lado": "a",
+    "offset_borda": 10,
+    "percurso": "borda_traseira",
+    "parametros": {
+      "offset_borda": { "default": 10, "min": 8, "max": 15 },
+      "profundidade": { "default": 8, "min": 6, "max": 10 }
+    }
+  },
+
+  "aplicacao": {
+    "pecas": ["lateral_esq", "lateral_dir", "base"],
+    "regra": "rebaixo_fundo",
+    "condicao": "{com_fundo} && {espessura_fundo} == 6"
+  }
+}

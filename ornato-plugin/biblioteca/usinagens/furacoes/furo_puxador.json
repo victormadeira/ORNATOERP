@@ -1,0 +1,39 @@
+{
+  "id": "furo_puxador",
+  "nome": "Furacao Puxador (2x 5mm passante)",
+  "categoria": "furacao",
+  "descricao": "2 furos passantes 5mm com espacamento configuravel (entre-furos do puxador)",
+
+  "operacao": {
+    "tipo": "grupo_furos",
+    "furos": [
+      {
+        "nome": "furo_esq",
+        "ferramenta": "broca_5mm",
+        "diametro": 5,
+        "profundidade": "{espessura}",
+        "lado": "a",
+        "passante": true,
+        "posicao": { "x": "{centro_x} - {entre_furos} / 2", "y": "{pos_y}" }
+      },
+      {
+        "nome": "furo_dir",
+        "ferramenta": "broca_5mm",
+        "diametro": 5,
+        "profundidade": "{espessura}",
+        "lado": "a",
+        "passante": true,
+        "posicao": { "x": "{centro_x} + {entre_furos} / 2", "y": "{pos_y}" }
+      }
+    ],
+    "parametros": {
+      "entre_furos": { "default": 160, "min": 64, "max": 576 },
+      "pos_y": { "default": 100, "min": 30, "max": 500 }
+    }
+  },
+
+  "aplicacao": {
+    "pecas": ["porta", "frente_gaveta"],
+    "regra": "puxador"
+  }
+}
