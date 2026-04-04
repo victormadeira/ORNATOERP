@@ -141,10 +141,10 @@ export function parsePluginJSON(json) {
     const entities = data.model_entities || {};
 
     const loteInfo = {
-        cliente: details.client_name || details.cliente || '',
-        projeto: details.project_name || details.projeto || '',
-        codigo: details.project_code || details.codigo || '',
-        vendedor: details.seller_name || details.vendedor || '',
+        cliente: details.client_name || details.cliente || details.client || '',
+        projeto: details.project_name || details.projeto || details.project || '',
+        codigo: details.project_code || details.codigo || details.my_code || '',
+        vendedor: details.seller_name || details.vendedor || details.seller || '',
     };
 
     const pecas = [];
@@ -192,7 +192,7 @@ export function parsePluginJSON(json) {
                     if (sub && sub.upmfeedstockpanel) {
                         peca.material_code = sub.upmmaterialcode || sub.upmcode || '';
                         peca.material = sub.upmdescription || sub.upmmaterialcode || '';
-                        peca.espessura = sub.upmrealthickness || sub.upmthickness || 0;
+                        peca.espessura = sub.upmcutthickness || sub.upmrealthickness || sub.upmthickness || 0;
                         peca.comprimento = sub.upmcutlength || sub.upmlength || 0;
                         peca.largura = sub.upmcutwidth || sub.upmwidth || 0;
                         panelFound = true;
@@ -225,6 +225,28 @@ export function parsePluginJSON(json) {
                 // Se o contour esta no nivel da piece entity (model_entities), incluir no machining
                 if (ent.contour && !machData.contour) {
                     machData.contour = ent.contour;
+                }
+                // Sanitizar workers: remover campos com objetos SketchUp serializados
+                // e normalizar nomes de campos WPS → Ornato
+                if (machData.workers) {
+                    const sanitizedWorkers = {};
+                    for (const [wk, w] of Object.entries(machData.workers)) {
+                        if (!w || typeof w !== 'object') continue;
+                        const clean = {};
+                        for (const [k, v] of Object.entries(w)) {
+                            // Pular campos com objetos SketchUp serializados
+                            if (typeof v === 'string' && v.includes('#<Sketchup::')) continue;
+                            if (typeof v === 'string' && v.includes('#<Geom::')) continue;
+                            clean[k] = v;
+                        }
+                        // Normalizar campos WPS → Ornato
+                        if (clean.position_x !== undefined && clean.x === undefined) clean.x = clean.position_x;
+                        if (clean.position_y !== undefined && clean.y === undefined) clean.y = clean.position_y;
+                        if (clean.quadrant && !clean.face) clean.face = clean.quadrant;
+                        if (clean.cornerradius !== undefined && clean.corner_radius === undefined) clean.corner_radius = clean.cornerradius;
+                        sanitizedWorkers[wk] = clean;
+                    }
+                    machData.workers = sanitizedWorkers;
                 }
                 peca.machining_json = JSON.stringify(machData);
             } else if (ent.contour) {

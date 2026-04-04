@@ -440,31 +440,75 @@ def _parse_machining(
 
 
 def _parse_worker(w: dict) -> Worker:
-    """Parsear um worker individual (operacao CNC)."""
+    """Parsear um worker individual (operacao CNC).
+
+    Suporta dois formatos de campo:
+    - Ornato nativo: x, y, face, corner_radius
+    - WPS export:    position_x, position_y, quadrant, cornerradius
+    """
+    # Face: aceitar "face" (Ornato) ou "quadrant" (WPS)
     face = str(w.get("face", ""))
+    if not face:
+        quadrant = str(w.get("quadrant", ""))
+        face = _quadrant_to_face(quadrant)
+
     # Inferir side (A ou B) com base na face
     side = _infer_side_from_face(face)
+
+    # Coordenadas: aceitar x/y (Ornato) ou position_x/position_y (WPS)
+    x = _float(w, "x", 0) or _float(w, "position_x", 0)
+    y = _float(w, "y", 0) or _float(w, "position_y", 0)
+
+    # Corner radius: aceitar corner_radius (Ornato) ou cornerradius (WPS)
+    cr = _float_or_none(w, "corner_radius")
+    if cr is None:
+        cr = _float_or_none(w, "cornerradius")
+
+    # Depth: aceitar depth ou usedepth (WPS)
+    depth = _float(w, "depth", 0) or _float(w, "usedepth", 5)
+
+    # Diameter: campo direto ou width_tool (WPS)
+    diameter = _float_or_none(w, "diameter")
+    if diameter is None:
+        diameter = _float_or_none(w, "width_tool")
 
     return Worker(
         category=str(w.get("category", "")),
         tool_code=str(w.get("tool", "")),
         face=face,
         side=side,
-        x=_float(w, "x", 0),
-        y=_float(w, "y", 0),
-        depth=_float(w, "depth", 5),
+        x=x,
+        y=y,
+        depth=depth,
         length=_float_or_none(w, "length"),
         width=_float_or_none(w, "width"),
-        diameter=_float_or_none(w, "diameter"),
-        corner_radius=_float_or_none(w, "corner_radius"),
+        diameter=diameter,
+        corner_radius=cr,
     )
+
+
+def _quadrant_to_face(quadrant: str) -> str:
+    """Converter quadrant WPS para face Ornato.
+
+    WPS usa: top, bottom, left, right, back, front
+    Ornato usa: top, bottom, left, right, back, front, top_edge, bottom_edge
+    """
+    mapping = {
+        "top": "top",
+        "bottom": "bottom",
+        "left": "left",
+        "right": "right",
+        "back": "back",
+        "front": "front",
+    }
+    return mapping.get(quadrant.lower(), quadrant.lower() or "top")
 
 
 def _infer_side_from_face(face: str) -> str:
     """Inferir side A/B a partir da face do worker.
 
-    Faces superiores/frontais → side_a
-    Faces inferiores/traseiras → side_b
+    Faces superiores/frontais -> side_a
+    Faces inferiores/traseiras -> side_b
 
     Args:
         face: Nome da face ("top", "bottom", "back", etc.)
