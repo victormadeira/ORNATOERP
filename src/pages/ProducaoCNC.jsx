@@ -577,16 +577,6 @@ function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) {
                                                     </select>
                                                 </div>
                                                 <div>
-                                                    <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Dir. Corte</label>
-                                                    <select value={edit.direcao_corte} onChange={e => updateField('direcao_corte', e.target.value)}
-                                                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }}>
-                                                        <option value="herdar">Herdar (global)</option>
-                                                        <option value="misto">Misto</option>
-                                                        <option value="horizontal">Horizontal</option>
-                                                        <option value="vertical">Vertical</option>
-                                                    </select>
-                                                </div>
-                                                <div>
                                                     <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Kerf (mm)</label>
                                                     <input type="number" value={edit.kerf} onChange={e => updateField('kerf', Number(e.target.value))}
                                                         className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} step="0.5" />
