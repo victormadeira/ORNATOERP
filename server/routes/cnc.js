@@ -1636,18 +1636,20 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
             // FASE 2: Portfolio multi-pass
             // When direction is set, only run directional-compatible bin types and give priority to directional strategies
             const isDirectional = splitDir !== 'auto';
-            for (const bt of binTypesToTry) {
-                for (const strat of sortStrategies) {
-                    const sorted = [...pecasRestantes].sort(strat.fn);
-                    for (const h of heuristics) {
-                        const bins = runNestingPass(sorted, binW, binH, spacing, h, bt, kerf, splitDir);
-                        const sc = scoreResult(bins);
-                        // When direction is set, give a slight bonus to directional sort strategies (same bin count = prefer directional)
-                        if (isDirectional && (strat.name.startsWith('width_') || strat.name.startsWith('height_'))) {
-                            sc.score -= 0.5; // Small bonus: wins tie-breaks without overriding fewer-bins
+            const dirsToTry = isLargeBatch && isDirectional ? [splitDir, 'auto'] : [splitDir];
+            for (const dir of dirsToTry) {
+                for (const bt of binTypesToTry) {
+                    for (const strat of sortStrategies) {
+                        const sorted = [...pecasRestantes].sort(strat.fn);
+                        for (const h of heuristics) {
+                            const bins = runNestingPass(sorted, binW, binH, spacing, h, bt, kerf, dir);
+                            const sc = scoreResult(bins);
+                            if (isDirectional && dir === splitDir && (strat.name.startsWith('width_') || strat.name.startsWith('height_'))) {
+                                sc.score -= 0.5;
+                            }
+                            if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = bins; bestStrategyName = `${strat.name}+${h}+${bt}${dir !== splitDir ? '+autoDir' : ''}`; bestBinType = bt; }
+                            totalCombinacoes++;
                         }
-                        if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = bins; bestStrategyName = `${strat.name}+${h}+${bt}`; bestBinType = bt; }
-                        totalCombinacoes++;
                     }
                 }
             }
@@ -1660,8 +1662,12 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                 totalCombinacoes++;
             }
 
-            // FASE 3: R&R (iterações otimizadas internamente — sem necessidade de configuração do usuário)
-            const rrIter = Math.max(800, Math.min(2000, pecasRestantes.length * 20));
+            // FASE 3: R&R (iterações escalonadas pelo tamanho do lote)
+            // Lotes grandes (>100 peças) ganham mais iterações para convergir melhor
+            const isLargeBatch = pecasRestantes.length > 100;
+            const rrIter = isLargeBatch
+                ? Math.max(3000, Math.min(8000, pecasRestantes.length * 15))
+                : Math.max(800, Math.min(2000, pecasRestantes.length * 20));
             if (pecasRestantes.length > 3) {
                 for (const bt of binTypesToTry) {
                     const rrResult = ruinAndRecreate(pecasRestantes, binW, binH, spacing, bt, kerf, rrIter, splitDir);
@@ -1671,17 +1677,39 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                     }
                     totalCombinacoes += rrIter;
                 }
+                // Para lotes grandes, rodar R&R adicional com auto splitDir para ver se melhora
+                if (isLargeBatch && splitDir !== 'auto') {
+                    for (const bt of binTypesToTry) {
+                        const rrResult = ruinAndRecreate(pecasRestantes, binW, binH, spacing, bt, kerf, rrIter, 'auto');
+                        if (rrResult && rrResult.score.score < bestBinScore.score) {
+                            bestBinScore = rrResult.score; bestBins = rrResult.bins;
+                            bestStrategyName = `ruin_recreate+LAHC+${bt}+autoDir`; bestBinType = bt;
+                        }
+                        totalCombinacoes += rrIter;
+                    }
+                }
             }
 
-            // FASE 3.5: BRKGA
+            // FASE 3.5: BRKGA (mais gerações para lotes grandes)
             if (pecasRestantes.length > 3 && bestBinScore.bins > minTeoricoChapas) {
-                const brkgaGen = Math.min(100, Math.max(40, pecasRestantes.length * 3));
+                const brkgaGen = isLargeBatch
+                    ? Math.min(200, Math.max(80, pecasRestantes.length * 2))
+                    : Math.min(100, Math.max(40, pecasRestantes.length * 3));
                 const brkgaResult = runBRKGA(pecasRestantes, binW, binH, spacing, binType, kerf, brkgaGen, splitDir);
                 if (brkgaResult && brkgaResult.score.score < bestBinScore.score) {
                     bestBinScore = brkgaResult.score; bestBins = brkgaResult.bins;
                     bestStrategyName = `BRKGA_${brkgaGen}gen`; bestBinType = binType;
                 }
                 totalCombinacoes += brkgaGen * 40;
+                // Tentar BRKGA com direção auto também
+                if (isLargeBatch && splitDir !== 'auto') {
+                    const brkgaResult2 = runBRKGA(pecasRestantes, binW, binH, spacing, binType, kerf, brkgaGen, 'auto');
+                    if (brkgaResult2 && brkgaResult2.score.score < bestBinScore.score) {
+                        bestBinScore = brkgaResult2.score; bestBins = brkgaResult2.bins;
+                        bestStrategyName = `BRKGA_${brkgaGen}gen+autoDir`; bestBinType = binType;
+                    }
+                    totalCombinacoes += brkgaGen * 40;
+                }
             }
 
             // FASE 5: Gap filling
