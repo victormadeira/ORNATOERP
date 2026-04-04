@@ -1619,6 +1619,95 @@ export function simulatedAnnealing(bins, binW, binH, spacing, binType, kerf, max
     return { bins: bestBins, score: bestScore, improved: bestBins.length < bins.length };
 }
 
+// ─── Cascata de Retalhos: usar sobras de chapas cheias para peças da chapa fraca ──
+// Tenta eliminar a chapa com menor ocupação redistribuindo suas peças
+// nas sobras (freeRects) das demais chapas
+export function cascadeRemnants(bins, binW, binH, spacing, binType, kerf, splitDir, sobraMinW = 300, sobraMinH = 300) {
+    if (!bins || bins.length < 2) return { bins, improved: false };
+
+    const ALL_H = ['BSSF', 'BLSF', 'BAF', 'BL', 'CP'];
+    let improved = false;
+    let currentBins = [...bins];
+
+    // Tentar até 3 rodadas de cascata
+    for (let round = 0; round < 3; round++) {
+        if (currentBins.length < 2) break;
+
+        // Encontrar bin com menor ocupação
+        let weakIdx = 0, minOcc = Infinity;
+        for (let i = 0; i < currentBins.length; i++) {
+            const occ = currentBins[i].occupancy();
+            if (occ < minOcc) { minOcc = occ; weakIdx = i; }
+        }
+
+        // Se a chapa fraca tem >70% de ocupação, não vale tentar
+        if (minOcc > 0.70) break;
+
+        const weakPieces = extractPieces(currentBins[weakIdx]);
+        if (weakPieces.length === 0) break;
+
+        // Ordenar peças do bin fraco: menores primeiro (mais fáceis de encaixar em sobras)
+        const sortedPieces = [...weakPieces].sort((a, b) => a.area - b.area);
+
+        // Para cada peça do bin fraco, tentar encaixar nas freeRects das outras chapas
+        const placed = [];
+        const failed = [];
+
+        // Rebuild outros bins para ter freeRects frescos
+        const otherBins = [];
+        for (let i = 0; i < currentBins.length; i++) {
+            if (i === weakIdx) continue;
+            const pieces = extractPieces(currentBins[i]);
+            const { bin } = rebuildBin(pieces.sort((a, b) => b.area - a.area), binW, binH, binType, kerf, splitDir, spacing);
+            otherBins.push(bin);
+        }
+
+        for (const p of sortedPieces) {
+            let didPlace = false;
+            for (const targetBin of otherBins) {
+                for (const h of ALL_H) {
+                    const rect = targetBin.findBest(p.w, p.h, p.allowRotate, h, p.classificacao || 'normal');
+                    if (rect) {
+                        rect.pieceRef = p.ref;
+                        rect.allowRotate = p.allowRotate;
+                        const pl = targetBin.placeRect(rect);
+                        if (pl) {
+                            pl.pieceRef = p.ref;
+                            pl.allowRotate = p.allowRotate;
+                            didPlace = true;
+                            placed.push(p);
+                            break;
+                        }
+                    }
+                }
+                if (didPlace) break;
+            }
+            if (!didPlace) failed.push(p);
+        }
+
+        if (placed.length === weakPieces.length) {
+            // Eliminamos a chapa fraca completamente!
+            currentBins = otherBins;
+            improved = true;
+            console.log(`  [Cascade] Rodada ${round + 1}: eliminada chapa fraca (${Math.round(minOcc * 100)}% occ, ${weakPieces.length} peças redistribuídas)`);
+        } else if (placed.length > 0 && failed.length < weakPieces.length) {
+            // Redistribuímos parcialmente — reconstruir chapa fraca com peças restantes
+            const { bin: newWeak, failed: rebuildFailed } = rebuildBin(
+                failed.sort((a, b) => b.area - a.area), binW, binH, binType, kerf, splitDir, spacing
+            );
+            if (rebuildFailed.length === 0) {
+                currentBins = [...otherBins, newWeak];
+                // Não "improved" se não eliminou chapa, mas melhorou distribuição
+            }
+            break; // Não tentar mais rodadas se não eliminou
+        } else {
+            break; // Nenhuma peça colocada, parar
+        }
+    }
+
+    return { bins: currentBins, improved };
+}
+
 // ─── SA Perturbação: Mover uma peça de um bin para outro ──
 function perturbMove(bins, binW, binH, binType, kerf, splitDir, spacing) {
     if (bins.length < 2) return null;

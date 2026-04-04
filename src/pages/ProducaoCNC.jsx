@@ -348,6 +348,9 @@ function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) {
     const [nome, setNome] = useState('');
     const [importing, setImporting] = useState(false);
     const [lastImportedLote, setLastImportedLote] = useState(null);
+    const [matCheck, setMatCheck] = useState(null); // { cadastrados, nao_cadastrados }
+    const [matEdits, setMatEdits] = useState({}); // edits to suggested chapas
+    const [checkingMats, setCheckingMats] = useState(false);
     const fileRef = useRef(null);
 
     const handleFile = (file) => {
@@ -409,6 +412,25 @@ function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) {
                     modulos: [...modulos],
                 });
                 setNome(det.project_name || det.projeto || file.name.replace('.json', ''));
+
+                // Verificar materiais não cadastrados
+                if (materiais.size > 0) {
+                    const matList = [...materiais].map(mc => {
+                        // Tentar extrair espessura do material_code
+                        const m = mc.match(/_(\d+(?:\.\d+)?)_/);
+                        return { material_code: mc, espessura: m ? parseFloat(m[1]) : 0 };
+                    });
+                    api.post('/cnc/chapas/verificar-materiais', { materiais: matList })
+                        .then(result => {
+                            if (result.nao_cadastrados?.length > 0) {
+                                setMatCheck(result);
+                                setMatEdits({});
+                            } else {
+                                setMatCheck(null);
+                            }
+                        })
+                        .catch(() => {}); // silently ignore
+                }
             } catch (err) {
                 notify('Erro ao ler JSON: ' + err.message);
             }
@@ -481,13 +503,141 @@ function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) {
                         <InfoCard label="Módulos" value={preview.totalModulos} />
                         <InfoCard label="Materiais" value={preview.materiais.join(', ') || 'N/A'} />
                     </div>
+                    {/* ═══ MATERIAIS NÃO CADASTRADOS ═══ */}
+                    {matCheck?.nao_cadastrados?.length > 0 && (
+                        <div style={{
+                            marginBottom: 16, padding: 12, borderRadius: 8,
+                            background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)',
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                                <AlertTriangle size={14} color="#f59e0b" />
+                                <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>
+                                    {matCheck.nao_cadastrados.length} material(is) não cadastrado(s)
+                                </span>
+                                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                                    Peças usarão fallback por espessura se não cadastrar
+                                </span>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {matCheck.nao_cadastrados.map((mat, i) => {
+                                    const edit = matEdits[i] || mat.sugestao;
+                                    const updateField = (k, v) => setMatEdits(prev => ({
+                                        ...prev, [i]: { ...(prev[i] || mat.sugestao), [k]: v },
+                                    }));
+                                    return (
+                                        <div key={mat.material_code} style={{
+                                            padding: 10, background: 'var(--bg-card)', borderRadius: 6,
+                                            border: '1px solid var(--border)',
+                                        }}>
+                                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
+                                                {mat.material_code}
+                                                <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8, fontSize: 10 }}>
+                                                    esp: {mat.espessura || '?'}mm
+                                                </span>
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 6 }}>
+                                                <div>
+                                                    <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Nome</label>
+                                                    <input value={edit.nome} onChange={e => updateField('nome', e.target.value)}
+                                                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} />
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Comp. (mm)</label>
+                                                    <input type="number" value={edit.comprimento} onChange={e => updateField('comprimento', Number(e.target.value))}
+                                                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} />
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Larg. (mm)</label>
+                                                    <input type="number" value={edit.largura} onChange={e => updateField('largura', Number(e.target.value))}
+                                                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} />
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Esp. Real</label>
+                                                    <input type="number" value={edit.espessura_real} onChange={e => updateField('espessura_real', Number(e.target.value))}
+                                                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} step="0.1" />
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Veio</label>
+                                                    <select value={edit.veio} onChange={e => updateField('veio', e.target.value)}
+                                                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }}>
+                                                        <option value="sem_veio">Sem veio</option>
+                                                        <option value="horizontal">━ Horizontal</option>
+                                                        <option value="vertical">┃ Vertical</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Dir. Corte</label>
+                                                    <select value={edit.direcao_corte} onChange={e => updateField('direcao_corte', e.target.value)}
+                                                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }}>
+                                                        <option value="herdar">Herdar (global)</option>
+                                                        <option value="misto">Misto</option>
+                                                        <option value="horizontal">Horizontal</option>
+                                                        <option value="vertical">Vertical</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Kerf (mm)</label>
+                                                    <input type="number" value={edit.kerf} onChange={e => updateField('kerf', Number(e.target.value))}
+                                                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} step="0.5" />
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Preço (R$)</label>
+                                                    <input type="number" value={edit.preco} onChange={e => updateField('preco', Number(e.target.value))}
+                                                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} step="0.01" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <button
+                                disabled={checkingMats}
+                                onClick={async () => {
+                                    setCheckingMats(true);
+                                    try {
+                                        const chapas = matCheck.nao_cadastrados.map((mat, i) => ({
+                                            ...(matEdits[i] || mat.sugestao),
+                                            material_code: mat.material_code,
+                                            espessura_nominal: mat.espessura || (matEdits[i] || mat.sugestao).espessura_nominal,
+                                        }));
+                                        const r = await api.post('/cnc/chapas/bulk', { chapas });
+                                        notify(`${r.total} chapa(s) cadastrada(s) com sucesso!`);
+                                        setMatCheck(null);
+                                        setMatEdits({});
+                                    } catch (err) {
+                                        notify('Erro: ' + (err.error || err.message));
+                                    } finally {
+                                        setCheckingMats(false);
+                                    }
+                                }}
+                                className={Z.btn}
+                                style={{ marginTop: 10, padding: '8px 20px', fontSize: 12, background: '#f59e0b', border: 'none' }}
+                            >
+                                {checkingMats ? 'Cadastrando...' : `Cadastrar ${matCheck.nao_cadastrados.length} Material(is)`}
+                            </button>
+                        </div>
+                    )}
+
+                    {matCheck?.cadastrados?.length > 0 && matCheck.cadastrados.some(c => c.match_type === 'fallback_espessura') && (
+                        <div style={{
+                            marginBottom: 12, padding: '8px 12px', borderRadius: 6,
+                            background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)',
+                            fontSize: 11, color: '#1e40af',
+                        }}>
+                            <strong>Info:</strong> {matCheck.cadastrados.filter(c => c.match_type === 'fallback_espessura').length} material(is)
+                            resolvido(s) por espessura (fallback), não por código exato.
+                        </div>
+                    )}
+
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                         <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome do lote"
                             className={Z.inp} style={{ flex: 1, minWidth: 200 }} />
                         <button onClick={doImport} disabled={importing} className={Z.btn} style={{ padding: '8px 24px' }}>
                             {importing ? 'Importando...' : 'Importar Lote'}
                         </button>
-                        <button onClick={() => { setPreview(null); setJsonData(null); }} className={Z.btn2} style={{ padding: '8px 16px' }}>
+                        <button onClick={() => { setPreview(null); setJsonData(null); setMatCheck(null); }} className={Z.btn2} style={{ padding: '8px 16px' }}>
                             Cancelar
                         </button>
                     </div>

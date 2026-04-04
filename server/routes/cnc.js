@@ -10,7 +10,7 @@ import {
     intersects, isContainedIn, pruneFreeList, clipRect, clipAndKeep,
     classifyBySize, scoreResult, verifyNoOverlaps, repairOverlaps, compactBin,
     runNestingPass, runFillFirst, runStripPacking, runBRKGA, ruinAndRecreate,
-    simulatedAnnealing,
+    simulatedAnnealing, cascadeRemnants,
     gerarSequenciaCortes, setVacuumAware, getVacuumAware,
     optimizeLastBin, crossBinOptimize,
     calculatePolygonArea, isPointInPolygon, contourBoundingBox,
@@ -471,6 +471,90 @@ router.post('/lotes/importar', requireAuth, (req, res) => {
     } catch (err) {
         console.error('Erro ao importar JSON CNC:', err);
         res.status(500).json({ error: 'Erro ao importar JSON' });
+    }
+});
+
+// ── Verificar materiais não cadastrados de um JSON ──────
+router.post('/chapas/verificar-materiais', requireAuth, (req, res) => {
+    try {
+        const { materiais } = req.body; // [{ material_code, espessura }]
+        if (!Array.isArray(materiais)) return res.status(400).json({ error: 'materiais deve ser array' });
+
+        const cadastrados = [];
+        const nao_cadastrados = [];
+
+        for (const mat of materiais) {
+            const mc = mat.material_code || '';
+            const esp = mat.espessura || 0;
+            if (!mc) continue;
+
+            // Mesma lógica de resolução do otimizador
+            let chapa = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(mc);
+            if (!chapa && esp) {
+                chapa = db.prepare('SELECT * FROM cnc_chapas WHERE ABS(espessura_real - ?) <= 1.0 AND ativo = 1 ORDER BY ABS(espessura_real - ?) ASC LIMIT 1').get(esp, esp);
+            }
+
+            if (chapa) {
+                cadastrados.push({ material_code: mc, espessura: esp, chapa_nome: chapa.nome, chapa_id: chapa.id, match_type: chapa.material_code === mc ? 'exato' : 'fallback_espessura' });
+            } else {
+                // Inferir defaults inteligentes pelo nome
+                const upper = mc.toUpperCase();
+                const temVeio = upper.includes('CARVALHO') || upper.includes('FREIJO') || upper.includes('NOGUEIRA') ||
+                    upper.includes('AREAL') || upper.includes('FENDI') || upper.includes('CANELA') || upper.includes('ROVERE') ||
+                    upper.includes('NOGAL') || upper.includes('TECA') || upper.includes('CASTANHO') || upper.includes('TABACO');
+                const veio = temVeio ? 'horizontal' : 'sem_veio';
+                const direcao = temVeio ? 'horizontal' : 'misto';
+
+                nao_cadastrados.push({
+                    material_code: mc, espessura: esp,
+                    sugestao: {
+                        nome: mc.replace(/_/g, ' '),
+                        material_code: mc,
+                        espessura_nominal: esp || 18,
+                        espessura_real: esp ? esp + 0.5 : 18.5,
+                        comprimento: 2750, largura: 1850,
+                        refilo: 10, kerf: 4,
+                        veio, direcao_corte: direcao, modo_corte: 'herdar',
+                        preco: 0,
+                    },
+                });
+            }
+        }
+
+        res.json({ cadastrados, nao_cadastrados });
+    } catch (err) {
+        console.error('Erro ao verificar materiais:', err);
+        res.status(500).json({ error: 'Erro ao verificar materiais' });
+    }
+});
+
+// ── Cadastro rápido de múltiplas chapas (bulk) ──────────
+router.post('/chapas/bulk', requireAuth, (req, res) => {
+    try {
+        const { chapas } = req.body;
+        if (!Array.isArray(chapas)) return res.status(400).json({ error: 'chapas deve ser array' });
+
+        const insert = db.prepare(`INSERT INTO cnc_chapas (user_id, nome, material_code, espessura_nominal, espessura_real,
+            comprimento, largura, refilo, veio, preco, kerf, direcao_corte, modo_corte)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+
+        const created = [];
+        const insertAll = db.transaction((items) => {
+            for (const c of items) {
+                const r = insert.run(req.user.id, c.nome || c.material_code, c.material_code || '',
+                    c.espessura_nominal || 18, c.espessura_real || 18.5,
+                    c.comprimento || 2750, c.largura || 1850, c.refilo || 10,
+                    c.veio || 'sem_veio', c.preco || 0, c.kerf ?? 4,
+                    c.direcao_corte || 'herdar', c.modo_corte || 'herdar');
+                created.push({ id: Number(r.lastInsertRowid), nome: c.nome, material_code: c.material_code });
+            }
+        });
+        insertAll(chapas);
+
+        res.json({ ok: true, created, total: created.length });
+    } catch (err) {
+        console.error('Erro ao criar chapas em lote:', err);
+        res.status(500).json({ error: 'Erro ao criar chapas' });
     }
 });
 
@@ -1788,6 +1872,18 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                             }
                         }
                     }
+                }
+            }
+
+            // FASE 6: CASCATA DE RETALHOS — redistribuir peças da chapa fraca usando sobras das outras
+            if (bestBins && bestBins.length > 1 && bestBins.length > minTeoricoChapas) {
+                const cascResult = cascadeRemnants(bestBins, binW, binH, spacing, bestBinType, kerf, groupSplitDir, sobraMinW, sobraMinH);
+                if (cascResult.improved) {
+                    const saved = bestBins.length - cascResult.bins.length;
+                    console.log(`  [Cascade] ${groupKey}: ${bestBins.length}→${cascResult.bins.length} chapas (-${saved} = -R$${saved * 400})`);
+                    bestBins = cascResult.bins;
+                    bestBinScore = scoreResult(bestBins);
+                    bestStrategyName += '+cascade';
                 }
             }
 
