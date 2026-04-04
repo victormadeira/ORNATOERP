@@ -9,8 +9,8 @@ import {
     MaxRectsBin, SkylineBin, GuillotineBin, ShelfBin,
     intersects, isContainedIn, pruneFreeList, clipRect, clipAndKeep,
     classifyBySize, scoreResult, verifyNoOverlaps, repairOverlaps, compactBin,
-    runNestingPass, runFillFirst, runStripPacking, runBRKGA, ruinAndRecreate,
-    simulatedAnnealing, cascadeRemnants,
+    runNestingPass, runFillFirst, runFillFirstV2, runTwoPhase, runStripPacking, runBRKGA, ruinAndRecreate,
+    simulatedAnnealing, cascadeRemnants, runAggressivePack,
     gerarSequenciaCortes, setVacuumAware, getVacuumAware,
     optimizeLastBin, crossBinOptimize,
     calculatePolygonArea, isPointInPolygon, contourBoundingBox,
@@ -503,7 +503,7 @@ router.post('/chapas/verificar-materiais', requireAuth, (req, res) => {
                     upper.includes('AREAL') || upper.includes('FENDI') || upper.includes('CANELA') || upper.includes('ROVERE') ||
                     upper.includes('NOGAL') || upper.includes('TECA') || upper.includes('CASTANHO') || upper.includes('TABACO') ||
                     upper.includes('TITANIO') || upper.includes('TRAMA');
-                const veio = temVeio ? 'horizontal' : 'sem_veio';
+                const veio = temVeio ? 'com_veio' : 'sem_veio';
                 const direcao = temVeio ? 'horizontal' : 'misto';
 
                 // Copiar dimensões da chapa fallback se existir (mesma espessura, outro material)
@@ -515,8 +515,8 @@ router.post('/chapas/verificar-materiais', requireAuth, (req, res) => {
                     sugestao: {
                         nome: mc.replace(/_/g, ' '),
                         material_code: mc,
-                        espessura_nominal: esp || 18,
-                        espessura_real: baseChapa.espessura_real || (esp ? esp + 0.5 : 18.5),
+                        espessura_nominal: esp ? Math.floor(esp) : 18,
+                        espessura_real: baseChapa.espessura_real || (esp ? Math.floor(esp) : 18),
                         comprimento: baseChapa.comprimento || 2750,
                         largura: baseChapa.largura || 1850,
                         refilo: baseChapa.refilo || 10,
@@ -1769,6 +1769,53 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                 totalCombinacoes++;
             }
 
+            // FASE 2.6: Two-Phase (grandes primeiro, depois preenche com pequenas)
+            for (const bt of binTypesToTry) {
+                for (const dir of dirsToTry) {
+                    const tpBins = runTwoPhase(pecasRestantes, binW, binH, spacing, bt, kerf, dir);
+                    const sc = scoreResult(tpBins);
+                    if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = tpBins; bestStrategyName = `two_phase+${bt}+${dir}`; bestBinType = bt; }
+                    totalCombinacoes++;
+                }
+            }
+
+            // FASE 2.7: Fill-First V2 — Per-bin multi-start (CORE OPTIMIZER)
+            // Para cada chapa, testa 9 sorts × 5 heurísticas × N bin types
+            // e mantém o melhor empacotamento por chapa. Muito mais eficiente
+            // que o portfolio global.
+            {
+                const v2Start = Date.now();
+                for (const dir of dirsToTry) {
+                    const v2Bins = runFillFirstV2(pecasRestantes, binW, binH, spacing, kerf, dir, binTypesToTry);
+                    const sc = scoreResult(v2Bins);
+                    if (sc.score < bestBinScore.score) {
+                        bestBinScore = sc; bestBins = v2Bins;
+                        bestStrategyName = `fillFirstV2+${dir}`;
+                        bestBinType = binTypesToTry[0];
+                    }
+                    totalCombinacoes += 9 * 5 * binTypesToTry.length;
+                }
+                const v2Time = Date.now() - v2Start;
+                console.log(`  [FillFirstV2] ${groupKey}: score=${bestBinScore.score.toFixed(1)}, bins=${bestBinScore.bins}, avg=${bestBinScore.avgOccupancy.toFixed(1)}% (${v2Time}ms)`);
+            }
+
+            // FASE 2.8: Fill-First V1 with multiHeuristic (portfolio rápido)
+            for (const bt of binTypesToTry) {
+                for (const dir of dirsToTry) {
+                    for (const strat of sortStrategies) {
+                        const sorted = [...pecasRestantes].sort(strat.fn);
+                        const ffBins = runFillFirst(sorted, binW, binH, spacing, 'BSSF', bt, kerf, dir, true);
+                        const sc = scoreResult(ffBins);
+                        if (sc.score < bestBinScore.score) {
+                            bestBinScore = sc; bestBins = ffBins;
+                            bestStrategyName = `fillFirst+${strat.name}+${bt}+${dir}`;
+                            bestBinType = bt;
+                        }
+                        totalCombinacoes++;
+                    }
+                }
+            }
+
             // FASE 3: R&R (iterações escalonadas pelo tamanho do lote)
             const isLargeBatch = pecasRestantes.length > 100;
             const rrIter = isLargeBatch
@@ -1821,8 +1868,8 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
             // FASE 4: SIMULATED ANNEALING — cross-bin
             if (bestBins && bestBins.length > 1 && bestBins.length > minTeoricoChapas) {
                 const saIter = isLargeBatch
-                    ? Math.max(25000, Math.min(50000, pecasRestantes.length * 80))
-                    : Math.max(10000, Math.min(25000, pecasRestantes.length * 50));
+                    ? Math.max(40000, Math.min(80000, pecasRestantes.length * 120))
+                    : Math.max(15000, Math.min(40000, pecasRestantes.length * 80));
                 console.log(`  [SA] Iniciando Simulated Annealing: ${saIter} iterações, ${bestBins.length} bins (mín teórico: ${minTeoricoChapas})`);
                 const saStart = Date.now();
                 const saResult = simulatedAnnealing(bestBins, binW, binH, spacing, bestBinType, kerf, saIter, groupSplitDir);

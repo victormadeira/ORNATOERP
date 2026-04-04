@@ -149,10 +149,8 @@ export class MaxRectsBin {
         let sc;
         // When direction is explicitly set, OVERRIDE heuristic with directional placement
         if (this.splitDir === 'horizontal') {
-            // Horizontal: fill in rows (low y first, then low x) → leaves wide remnants at bottom
             sc = free.y * 100000 + free.x;
         } else if (this.splitDir === 'vertical') {
-            // Vertical: fill in columns (low x first, then low y) → leaves tall remnants on right
             sc = free.x * 100000 + free.y;
         } else {
             switch (heuristic) {
@@ -163,6 +161,13 @@ export class MaxRectsBin {
                 default:     sc = Math.min(free.w - w, free.h - h); break; // BSSF
             }
         }
+        // ── Flush bonus (OpenCutList insight): encaixe perfeito em pelo menos 1 dimensão ──
+        // Quando a peça preenche exatamente a largura ou altura do espaço livre,
+        // o corte resultante é limpo e não cria tiras finas de desperdício.
+        const wMatch = Math.abs(free.w - w) < 2;  // encaixe exato na largura
+        const hMatch = Math.abs(free.h - h) < 2;  // encaixe exato na altura
+        if (wMatch && hMatch) sc = -1e9;           // encaixe perfeito em ambas dimensões
+        else if (wMatch || hMatch) sc -= 5000;     // encaixe perfeito em 1 dimensão
         return { x: free.x, y: free.y, w, h, realW: pw, realH: ph, score: sc };
     }
     findBest(pw, ph, allowRotate, heuristic = 'BSSF', pieceClass = 'normal') {
@@ -374,6 +379,7 @@ export class GuillotineBin {
     }
     findBest(pw, ph, allowRotate, heuristic = 'BSSF', pieceClass = 'normal') {
         let bestScore = Infinity, bestIdx = -1, bestRotated = false;
+        const kerf = this.kerf;
         const centerX = this.binW / 2, centerY = this.binH / 2;
         const maxDist = Math.sqrt(centerX * centerX + centerY * centerY);
         for (let i = 0; i < this.freeRects.length; i++) {
@@ -387,11 +393,17 @@ export class GuillotineBin {
                     case 'BL':   sc = f.y * 100000 + f.x; break;
                     default:     sc = Math.min(f.w - tw, f.h - th); break;
                 }
+                // ── Flush bonus: encaixe perfeito reduz desperdício ──
+                const wMatch = Math.abs(f.w - tw) < (kerf + 2);
+                const hMatch = Math.abs(f.h - th) < (kerf + 2);
+                if (wMatch && hMatch) sc = -1e9;
+                else if (wMatch || hMatch) sc -= 5000;
+
                 if (this.vacuumAware && pieceClass !== 'normal') {
                     const pcx = f.x + tw / 2, pcy = f.y + th / 2;
                     const dist = Math.sqrt((pcx - centerX) ** 2 + (pcy - centerY) ** 2) / maxDist;
                     const weight = pieceClass === 'super_pequena' ? 0.4 : 0.2;
-                    sc += dist * weight * sc;
+                    sc += dist * weight * Math.abs(sc);
                 }
                 if (sc < bestScore) { bestScore = sc; bestIdx = i; bestRotated = rot; }
             };
@@ -419,10 +431,27 @@ export class GuillotineBin {
             switch (this.splitDir) {
                 case 'horizontal': useVerticalSplit = false; break;
                 case 'vertical': useVerticalSplit = true; break;
-                default:
-                    const maxV = Math.max(rightW * f.h, pw * bottomH);
-                    const maxH = Math.max(rightW * ph, f.w * bottomH);
-                    useVerticalSplit = maxV >= maxH;
+                default: {
+                    // SLA-inspired: prefer split that creates more USEFUL (square-ish) leftovers
+                    // Vertical split leftovers: (rightW × f.h) and (pw × bottomH)
+                    // Horizontal split leftovers: (f.w × bottomH) and (rightW × ph)
+                    // Score = min dimension of the LARGER leftover (bigger is better = more versatile)
+                    const vLarger = rightW * f.h >= pw * bottomH
+                        ? { w: rightW, h: f.h } : { w: pw, h: bottomH };
+                    const hLarger = f.w * bottomH >= rightW * ph
+                        ? { w: f.w, h: bottomH } : { w: rightW, h: ph };
+                    const vMin = Math.min(vLarger.w, vLarger.h);
+                    const hMin = Math.min(hLarger.w, hLarger.h);
+                    // Prefer the split where the larger leftover has a longer minimum dimension
+                    // (more square = more pieces can fit). Tiebreak by total area.
+                    if (vMin !== hMin) {
+                        useVerticalSplit = vMin > hMin;
+                    } else {
+                        const maxV = Math.max(rightW * f.h, pw * bottomH);
+                        const maxH = Math.max(rightW * ph, f.w * bottomH);
+                        useVerticalSplit = maxV >= maxH;
+                    }
+                }
             }
             if (useVerticalSplit) {
                 this.freeRects.push({ x: f.x + pw + kerf, y: f.y, w: rightW, h: f.h });
@@ -590,10 +619,17 @@ export function scoreResult(bins) {
     }
 
     // Recompensa especial: último bin com boa ocupação (não desperdiça chapa)
-    if (n > 1 && sorted[sorted.length - 1] >= 50) score -= 800;
+    const lastOcc = sorted[sorted.length - 1];
+    if (n > 1) {
+        if (lastOcc >= 70) score -= 1500;
+        else if (lastOcc >= 50) score -= 800;
+        else if (lastOcc < 30) score += 3000;  // Chapa quase vazia no final = muito ruim
+        else if (lastOcc < 45) score += 1500;  // Chapa fraca no final
+    }
 
     // Penalidade severa para bins muito vazios em soluções multi-chapa
-    if (minOccupancy < 15 && n > 1) score += 5000;
+    if (minOccupancy < 15 && n > 1) score += 6000;
+    if (minOccupancy < 30 && n > 1) score += 2000;
 
     return { bins: n, avgOccupancy, minOccupancy, score };
 }
@@ -845,6 +881,130 @@ export function runNestingPass(pieces, binW, binH, spacing, heuristic = 'BSSF', 
     return bins;
 }
 
+// ─── Two-Phase Packing: Large pieces first, then fill gaps with small ────
+// Strategy: 1) Place large pieces (>median area) sequentially into bins
+//           2) Sweep ALL remaining small pieces trying to fill every gap in every bin
+//           3) Only create new bins for pieces that truly don't fit anywhere
+export function runTwoPhase(pieces, binW, binH, spacing, binType = 'guillotine', kerf = 4, splitDir = 'auto') {
+    if (pieces.length === 0) return [];
+    const effectiveSpacing = Math.max(kerf || 0, spacing || 0);
+    const heuristics = ['BSSF', 'BLSF', 'BAF', 'BL', 'CP'];
+    const createBin = () => {
+        switch (binType) {
+            case 'shelf': return new ShelfBin(binW, binH, effectiveSpacing);
+            case 'guillotine': return new GuillotineBin(binW, binH, effectiveSpacing, splitDir);
+            case 'skyline': return new SkylineBin(binW, binH, effectiveSpacing, splitDir);
+            default: return new MaxRectsBin(binW, binH, effectiveSpacing, splitDir);
+        }
+    };
+
+    // Split into large and small based on median area
+    const sorted = [...pieces].sort((a, b) => b.area - a.area);
+    const medianArea = sorted[Math.floor(sorted.length / 2)]?.area || 0;
+    // Use a threshold: pieces above 60% of median are "large"
+    const threshold = medianArea * 0.6;
+    const large = sorted.filter(p => p.area >= threshold);
+    const small = sorted.filter(p => p.area < threshold);
+
+    // PHASE 1: Place large pieces (greedy, biggest first)
+    const bins = [createBin()];
+    for (const p of large) {
+        let bestBinIdx = -1, bestRect = null, bestFitScore = Infinity;
+        for (let bi = 0; bi < bins.length; bi++) {
+            for (const h of heuristics) {
+                const rect = bins[bi].findBest(p.w, p.h, p.allowRotate, h, p.classificacao || 'normal');
+                if (rect) {
+                    const fitScore = rect.score != null ? rect.score : ((rect.w * rect.h) - p.area);
+                    if (fitScore < bestFitScore) {
+                        bestFitScore = fitScore; bestRect = rect; bestBinIdx = bi;
+                    }
+                }
+            }
+        }
+        if (bestRect && bestBinIdx >= 0) {
+            bestRect.pieceRef = p.ref; bestRect.allowRotate = p.allowRotate;
+            const placed = bins[bestBinIdx].placeRect(bestRect);
+            if (placed) { placed.pieceRef = p.ref; placed.allowRotate = p.allowRotate; }
+        } else {
+            const newBin = createBin();
+            let placed = false;
+            for (const h of heuristics) {
+                const rect = newBin.findBest(p.w, p.h, p.allowRotate, h);
+                if (rect) {
+                    rect.pieceRef = p.ref; rect.allowRotate = p.allowRotate;
+                    const pl = newBin.placeRect(rect);
+                    if (pl) { pl.pieceRef = p.ref; pl.allowRotate = p.allowRotate; placed = true; break; }
+                }
+            }
+            if (placed) bins.push(newBin);
+        }
+    }
+
+    // PHASE 2: Fill gaps with small pieces (try ALL bins for each piece, best-fit)
+    const remaining = [...small];
+    // Multiple sweeps — each placement opens new adjacencies
+    for (let sweep = 0; sweep < 3 && remaining.length > 0; sweep++) {
+        const stillRemaining = [];
+        for (const p of remaining) {
+            let bestBinIdx = -1, bestRect = null, bestFitScore = Infinity;
+            // Try ALL existing bins, find the tightest fit
+            for (let bi = 0; bi < bins.length; bi++) {
+                for (const h of heuristics) {
+                    const rect = bins[bi].findBest(p.w, p.h, p.allowRotate, h, p.classificacao || 'normal');
+                    if (rect) {
+                        const fitScore = rect.score != null ? rect.score : ((rect.w * rect.h) - p.area);
+                        // Prefer bins that are already fuller (pack tight, don't spread)
+                        const occBonus = bins[bi].occupancy() * -0.5;
+                        if (fitScore + occBonus < bestFitScore) {
+                            bestFitScore = fitScore + occBonus; bestRect = rect; bestBinIdx = bi;
+                        }
+                    }
+                }
+            }
+            if (bestRect && bestBinIdx >= 0) {
+                bestRect.pieceRef = p.ref; bestRect.allowRotate = p.allowRotate;
+                const placed = bins[bestBinIdx].placeRect(bestRect);
+                if (placed) { placed.pieceRef = p.ref; placed.allowRotate = p.allowRotate; }
+                else stillRemaining.push(p);
+            } else {
+                stillRemaining.push(p);
+            }
+        }
+        remaining.length = 0;
+        remaining.push(...stillRemaining);
+    }
+
+    // PHASE 3: Any truly remaining pieces go into new bins
+    for (const p of remaining) {
+        let placed = false;
+        for (let bi = 0; bi < bins.length; bi++) {
+            for (const h of heuristics) {
+                const rect = bins[bi].findBest(p.w, p.h, p.allowRotate, h);
+                if (rect) {
+                    rect.pieceRef = p.ref; rect.allowRotate = p.allowRotate;
+                    const pl = bins[bi].placeRect(rect);
+                    if (pl) { pl.pieceRef = p.ref; pl.allowRotate = p.allowRotate; placed = true; break; }
+                }
+            }
+            if (placed) break;
+        }
+        if (!placed) {
+            const newBin = createBin();
+            for (const h of heuristics) {
+                const rect = newBin.findBest(p.w, p.h, p.allowRotate, h);
+                if (rect) {
+                    rect.pieceRef = p.ref; rect.allowRotate = p.allowRotate;
+                    const pl = newBin.placeRect(rect);
+                    if (pl) { pl.pieceRef = p.ref; pl.allowRotate = p.allowRotate; bins.push(newBin); break; }
+                }
+            }
+        }
+    }
+
+    for (const bin of bins) compactBin(bin, binW, binH, kerf, spacing, splitDir);
+    return bins;
+}
+
 // ─── Fill-First Nesting (Enhanced: Multi-Heuristic per Piece) ────
 const ALL_HEURISTICS = ['BSSF', 'BLSF', 'BAF', 'BL', 'CP'];
 
@@ -860,7 +1020,63 @@ export function runFillFirst(pieces, binW, binH, spacing, heuristic = 'BSSF', bi
     };
 
     const heuristicsToTry = multiHeuristic ? ALL_HEURISTICS : [heuristic];
-    const remaining = pieces.map((p, i) => ({ ...p, _idx: i }));
+
+    // ── SuperBox: agrupar peças idênticas (mesma w×h) para colocar em bloco ──
+    // Peças iguais empilhadas preenchem faixas inteiras sem desperdício
+    const superBoxed = [];
+    const sizeMap = new Map();
+    for (let i = 0; i < pieces.length; i++) {
+        const p = pieces[i];
+        const key = `${Math.round(p.w)}x${Math.round(p.h)}`;
+        if (!sizeMap.has(key)) sizeMap.set(key, []);
+        sizeMap.get(key).push({ ...p, _idx: i });
+    }
+
+    for (const [, group] of sizeMap) {
+        if (group.length >= 2) {
+            // Tentar empilhar peças iguais horizontalmente (lado a lado na mesma faixa)
+            const p0 = group[0];
+            const stackW = p0.w;
+            const stackH = p0.h;
+            // Quantas cabem lado a lado em uma faixa?
+            const maxPerRow = Math.floor((binW + effectiveSpacing) / (stackW + effectiveSpacing));
+            if (maxPerRow >= 2) {
+                // Agrupar em blocos de maxPerRow
+                for (let start = 0; start < group.length; start += maxPerRow) {
+                    const block = group.slice(start, start + maxPerRow);
+                    if (block.length >= 2) {
+                        // Criar superbox: largura = N peças + (N-1) espaçamentos
+                        const sbW = block.length * stackW + (block.length - 1) * effectiveSpacing;
+                        if (sbW <= binW) {
+                            superBoxed.push({
+                                w: sbW, h: stackH,
+                                area: sbW * stackH,
+                                allowRotate: false, // SuperBox não rotaciona
+                                ref: `superbox_${block.map(b => b.ref).join('+')}`,
+                                _superbox: block.map(b => ({ ref: b.ref, w: stackW, h: stackH, allowRotate: b.allowRotate })),
+                                classificacao: p0.classificacao || 'normal',
+                                perim: 2 * (sbW + stackH),
+                                maxSide: Math.max(sbW, stackH),
+                                diff: Math.abs(sbW - stackH),
+                            });
+                            continue;
+                        }
+                    }
+                    // Peças que sobraram ou bloco de 1 → individuais
+                    for (const p of block) superBoxed.push(p);
+                }
+            } else {
+                // Não cabe empilhado → individuais
+                for (const p of group) superBoxed.push(p);
+            }
+        } else {
+            superBoxed.push(group[0]);
+        }
+    }
+
+    // Ordenar superBoxed: maiores primeiro
+    superBoxed.sort((a, b) => b.area - a.area);
+    const remaining = superBoxed;
     const bins = [];
 
     while (remaining.length > 0) {
@@ -878,10 +1094,12 @@ export function runFillFirst(pieces, binW, binH, spacing, heuristic = 'BSSF', bi
                 for (const h of heuristicsToTry) {
                     const rect = bin.findBest(p.w, p.h, p.allowRotate, h, pClass);
                     if (rect) {
-                        // Composite score: primary = heuristic score, tiebreak = area fit
                         let sc = rect.score != null ? rect.score : ((rect.w * rect.h) - (p.w * p.h));
-                        // Bonus for larger pieces (fill big gaps first, leave small gaps for small pieces)
-                        if (multiHeuristic) sc -= p.area * 0.00001;
+                        // ── Forte preferência por peças maiores (OpenCutList insight) ──
+                        // Bônus de área: peça de 500.000mm² → -2500, peça de 50.000mm² → -250
+                        // Flush -5000 ainda pode ganhar de peça grande, mas isso é aceitável
+                        // pois flush perfeito é raro e evita desperdício real.
+                        sc -= p.area * 0.005;
                         if (sc < bestScore) { bestScore = sc; bestRect = rect; bestIdx = i; }
                     }
                 }
@@ -921,10 +1139,499 @@ export function runFillFirst(pieces, binW, binH, spacing, heuristic = 'BSSF', bi
         }
     }
 
+    // ── Unmake SuperBoxes: expandir superboxes de volta em peças individuais ──
+    for (const bin of bins) {
+        const expanded = [];
+        for (const r of bin.usedRects) {
+            if (r.pieceRef && typeof r.pieceRef === 'string' && r.pieceRef.startsWith('superbox_')) {
+                // Encontrar o superbox original
+                const sb = superBoxed.find(s => s.ref === r.pieceRef && s._superbox);
+                if (sb && sb._superbox) {
+                    const pieces = sb._superbox;
+                    let xOff = r.x;
+                    for (let si = 0; si < pieces.length; si++) {
+                        const sp = pieces[si];
+                        expanded.push({
+                            x: xOff, y: r.y,
+                            w: sp.w, h: sp.h,
+                            realW: sp.w, realH: sp.h,
+                            rotated: r.rotated || false,
+                            pieceRef: sp.ref,
+                            allowRotate: sp.allowRotate,
+                        });
+                        xOff += sp.w + effectiveSpacing;
+                    }
+                    continue;
+                }
+            }
+            expanded.push(r);
+        }
+        bin.usedRects = expanded;
+    }
+
     for (const bin of bins) {
         compactBin(bin, binW, binH, kerf, spacing, splitDir);
     }
     return bins;
+}
+
+// ─── Fill-First V2: Per-Bin Multi-Start + Balanced Allocation + N-1 Consolidation ──
+// Combina 3 estratégias e mantém o melhor resultado:
+//   A) Greedy per-bin multi-start (9 sorts × 5 heurísticas × N bin types por chapa)
+//   B) Balanced allocation (LPT) + per-bin optimize
+//   C) N-1 consolidation iterativa
+// Inspirado no OpenCutList (192-864 permutações por bin).
+export function runFillFirstV2(pieces, binW, binH, spacing, kerf = 4, splitDir = 'auto', binTypes = ['guillotine'], _noConsolidate = false) {
+    if (pieces.length === 0) return [];
+    const effectiveSpacing = Math.max(kerf || 0, spacing || 0);
+    const ALL_H = ['BSSF', 'BLSF', 'BAF', 'BL', 'CP'];
+    const sheetArea = binW * binH;
+
+    const createBin = (bt) => {
+        switch (bt) {
+            case 'shelf': return new ShelfBin(binW, binH, effectiveSpacing);
+            case 'guillotine': return new GuillotineBin(binW, binH, effectiveSpacing, splitDir);
+            case 'skyline': return new SkylineBin(binW, binH, effectiveSpacing, splitDir);
+            default: return new MaxRectsBin(binW, binH, effectiveSpacing, splitDir);
+        }
+    };
+
+    // ── SuperBox V2: tenta empilhar H e V, usa o que cabe mais ──
+    const superBoxed = [];
+    const sizeMap = new Map();
+    for (let i = 0; i < pieces.length; i++) {
+        const p = pieces[i];
+        const key = `${Math.round(p.w)}x${Math.round(p.h)}`;
+        if (!sizeMap.has(key)) sizeMap.set(key, []);
+        sizeMap.get(key).push({ ...p, _idx: i });
+    }
+    for (const [, group] of sizeMap) {
+        if (group.length >= 2) {
+            const p0 = group[0];
+            const sw = p0.w, sh = p0.h;
+            const maxH = Math.floor((binW + effectiveSpacing) / (sw + effectiveSpacing));
+            const maxV = Math.floor((binH + effectiveSpacing) / (sh + effectiveSpacing));
+            const useH = maxH >= maxV;
+            const maxPer = useH ? maxH : maxV;
+            if (maxPer >= 2) {
+                for (let start = 0; start < group.length; start += maxPer) {
+                    const block = group.slice(start, start + maxPer);
+                    if (block.length >= 2) {
+                        const sbW = useH ? block.length * sw + (block.length - 1) * effectiveSpacing : sw;
+                        const sbH = useH ? sh : block.length * sh + (block.length - 1) * effectiveSpacing;
+                        if (sbW <= binW && sbH <= binH) {
+                            superBoxed.push({
+                                w: sbW, h: sbH, area: sbW * sbH, allowRotate: false,
+                                ref: `superbox_${block.map(b => b.ref).join('+')}`,
+                                _superbox: block.map(b => ({ ref: b.ref, w: sw, h: sh, allowRotate: b.allowRotate })),
+                                _superboxDir: useH ? 'h' : 'v',
+                                classificacao: p0.classificacao || 'normal',
+                                perim: 2 * (sbW + sbH), maxSide: Math.max(sbW, sbH), diff: Math.abs(sbW - sbH),
+                            });
+                            continue;
+                        }
+                    }
+                    for (const p of block) superBoxed.push(p);
+                }
+            } else {
+                for (const p of group) superBoxed.push(p);
+            }
+        } else {
+            superBoxed.push(group[0]);
+        }
+    }
+
+    // ── Sort strategies ──
+    const sortFns = [
+        (a, b) => b.area - a.area,
+        (a, b) => b.maxSide - a.maxSide || b.area - a.area,
+        (a, b) => b.w - a.w || b.h - a.h,
+        (a, b) => b.h - a.h || b.w - a.w,
+        (a, b) => b.perim - a.perim,
+        (a, b) => b.diff - a.diff || b.area - a.area,
+        (a, b) => Math.sqrt(b.w * b.w + b.h * b.h) - Math.sqrt(a.w * a.w + a.h * a.h),
+        (a, b) => { const ra = Math.min(a.w,a.h)/Math.max(a.w,a.h); const rb = Math.min(b.w,b.h)/Math.max(b.w,b.h); return rb - ra || b.area - a.area; },
+        (a, b) => Math.min(b.w, b.h) - Math.min(a.w, a.h) || b.area - a.area,
+    ];
+
+    // Fill one bin: single pass, multi-heuristic per piece
+    function fillBin(bin, ordered) {
+        const placedIndices = [];
+        for (let i = 0; i < ordered.length; i++) {
+            const p = ordered[i];
+            let bestRect = null, bestSc = Infinity;
+            for (const h of ALL_H) {
+                const rect = bin.findBest(p.w, p.h, p.allowRotate, h, p.classificacao || 'normal');
+                if (rect) {
+                    const sc = rect.score != null ? rect.score : 0;
+                    if (sc < bestSc) { bestSc = sc; bestRect = rect; }
+                }
+            }
+            if (bestRect) {
+                bestRect.pieceRef = p.ref;
+                bestRect.allowRotate = p.allowRotate;
+                const r = bin.placeRect(bestRect);
+                if (r) { r.pieceRef = p.ref; r.allowRotate = p.allowRotate; }
+                placedIndices.push(i);
+            }
+        }
+        return placedIndices;
+    }
+
+    // Pack a specific set of pieces into ONE bin using multi-start
+    function packSetIntoBin(pieceSet) {
+        let bestBin = null, bestCount = 0, bestArea = 0;
+        for (const bt of binTypes) {
+            for (const fn of sortFns) {
+                const ordered = [...pieceSet].sort(fn);
+                const bin = createBin(bt);
+                const placed = fillBin(bin, ordered);
+                let area = 0;
+                for (const idx of placed) area += ordered[idx].area;
+                if (placed.length > bestCount || (placed.length === bestCount && area > bestArea)) {
+                    bestCount = placed.length;
+                    bestArea = area;
+                    bestBin = bin;
+                }
+            }
+        }
+        return { bin: bestBin, count: bestCount, area: bestArea };
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // Strategy A: Greedy per-bin multi-start
+    // ══════════════════════════════════════════════════════════════
+    function greedyPerBin(inputPieces) {
+        let remaining = [...inputPieces];
+        const bins = [];
+        while (remaining.length > 0) {
+            let bestBin = null, bestPlacedRefs = null, bestArea = 0;
+            for (const bt of binTypes) {
+                for (const fn of sortFns) {
+                    const ordered = [...remaining].sort(fn);
+                    const bin = createBin(bt);
+                    const placedIndices = fillBin(bin, ordered);
+                    let totalArea = 0;
+                    const placedRefs = new Set();
+                    for (const idx of placedIndices) {
+                        totalArea += ordered[idx].area;
+                        placedRefs.add(ordered[idx].ref);
+                    }
+                    if (totalArea > bestArea) {
+                        bestArea = totalArea; bestBin = bin; bestPlacedRefs = placedRefs;
+                    }
+                }
+            }
+            if (bestBin && bestPlacedRefs && bestPlacedRefs.size > 0) {
+                bins.push(bestBin);
+                remaining = remaining.filter(p => !bestPlacedRefs.has(p.ref));
+            } else {
+                const p = remaining.shift();
+                const bin = createBin(binTypes[0]);
+                const rect = bin.findBest(p.w, p.h, p.allowRotate, 'BSSF');
+                if (rect) { rect.pieceRef = p.ref; bin.placeRect(rect); bins.push(bin); }
+            }
+        }
+        return bins;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // Strategy B: Balanced Allocation (LPT) + per-bin optimize
+    // Distribui peças em N chapas pelo método LPT (Longest Processing Time)
+    // e depois otimiza o layout de cada chapa com multi-start.
+    // ══════════════════════════════════════════════════════════════
+    function balancedAllocation(inputPieces, numBins) {
+        if (numBins <= 0) return null;
+        // LPT: atribuir cada peça ao bin com menor área total
+        const allocations = Array.from({ length: numBins }, () => ({ pieces: [], totalArea: 0 }));
+        const sorted = [...inputPieces].sort((a, b) => b.area - a.area);
+        for (const p of sorted) {
+            // Find bin with least area that can still theoretically fit
+            let minIdx = 0;
+            for (let i = 1; i < numBins; i++) {
+                if (allocations[i].totalArea < allocations[minIdx].totalArea) minIdx = i;
+            }
+            allocations[minIdx].pieces.push(p);
+            allocations[minIdx].totalArea += p.area;
+        }
+
+        // Check if any bin exceeds sheet area (theoretical overflow)
+        for (const a of allocations) {
+            if (a.totalArea > sheetArea * 1.02) return null; // 2% tolerance for kerf
+        }
+
+        // Now physically pack each bin using multi-start
+        const bins = [];
+        const overflow = [];
+        for (const alloc of allocations) {
+            if (alloc.pieces.length === 0) continue;
+            const result = packSetIntoBin(alloc.pieces);
+            if (result.bin && result.count === alloc.pieces.length) {
+                bins.push(result.bin);
+            } else if (result.bin) {
+                bins.push(result.bin);
+                // Some pieces didn't fit — collect overflow
+                const placedRefs = new Set(result.bin.usedRects.map(r => r.pieceRef));
+                for (const p of alloc.pieces) {
+                    if (!placedRefs.has(p.ref)) overflow.push(p);
+                }
+            } else {
+                overflow.push(...alloc.pieces);
+            }
+        }
+
+        // Pack overflow into additional bins
+        if (overflow.length > 0) {
+            const extraBins = greedyPerBin(overflow);
+            bins.push(...extraBins);
+        }
+
+        return bins;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // Strategy C: N-1 Consolidation — extract all pieces, repack into fewer bins
+    // ══════════════════════════════════════════════════════════════
+    function consolidateNMinus1(inputBins, targetCount) {
+        // Extract ALL pieces from all bins
+        const allPieces = [];
+        for (const bin of inputBins) {
+            for (const r of bin.usedRects) {
+                allPieces.push({
+                    ref: r.pieceRef, w: r.realW || r.w, h: r.realH || r.h,
+                    allowRotate: r.allowRotate || false,
+                    area: (r.realW || r.w) * (r.realH || r.h),
+                    perim: 2 * ((r.realW || r.w) + (r.realH || r.h)),
+                    maxSide: Math.max(r.realW || r.w, r.realH || r.h),
+                    diff: Math.abs((r.realW || r.w) - (r.realH || r.h)),
+                    classificacao: 'normal',
+                });
+            }
+        }
+
+        // Try greedy repack into target count
+        const greedyResult = greedyPerBin(allPieces);
+        if (greedyResult.length <= targetCount) return greedyResult;
+
+        // Try balanced allocation into target count
+        const balResult = balancedAllocation(allPieces, targetCount);
+        if (balResult && balResult.length <= targetCount) return balResult;
+
+        // Try balanced allocation into target+1 if target failed
+        if (targetCount < inputBins.length) {
+            const balResult2 = balancedAllocation(allPieces, targetCount + 1);
+            if (balResult2 && balResult2.length < inputBins.length) return balResult2;
+        }
+
+        return null; // Couldn't improve
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // EXECUTE: Run strategies and pick best
+    // ══════════════════════════════════════════════════════════════
+    const totalArea = superBoxed.reduce((s, p) => s + p.area, 0);
+    const minTeoricoChapas = Math.ceil(totalArea / sheetArea);
+
+    // Strategy A: greedy
+    let bestBins = greedyPerBin(superBoxed);
+
+    // Strategy B: balanced allocation for different target counts
+    for (let target = minTeoricoChapas; target <= minTeoricoChapas + 2 && target < bestBins.length + 2; target++) {
+        const balBins = balancedAllocation(superBoxed, target);
+        if (balBins) {
+            const balScore = scoreResult(balBins);
+            const curScore = scoreResult(bestBins);
+            if (balScore.score < curScore.score) {
+                bestBins = balBins;
+            }
+        }
+    }
+
+    // ── Unmake SuperBoxes ──
+    function unmakeSuperBoxes(binsArr) {
+        for (const bin of binsArr) {
+            const expanded = [];
+            for (const r of bin.usedRects) {
+                if (r.pieceRef && typeof r.pieceRef === 'string' && r.pieceRef.startsWith('superbox_')) {
+                    const sb = superBoxed.find(s => s.ref === r.pieceRef && s._superbox);
+                    if (sb && sb._superbox) {
+                        const isVert = sb._superboxDir === 'v';
+                        let xOff = r.x, yOff = r.y;
+                        for (const sp of sb._superbox) {
+                            expanded.push({
+                                x: xOff, y: yOff, w: sp.w, h: sp.h,
+                                realW: sp.w, realH: sp.h, rotated: r.rotated || false,
+                                pieceRef: sp.ref, allowRotate: sp.allowRotate,
+                            });
+                            if (isVert) yOff += sp.h + effectiveSpacing;
+                            else xOff += sp.w + effectiveSpacing;
+                        }
+                        continue;
+                    }
+                }
+                expanded.push(r);
+            }
+            bin.usedRects = expanded;
+        }
+    }
+
+    unmakeSuperBoxes(bestBins);
+
+    // Strategy C: Direct piece-insertion consolidation
+    // Move pieces from weakest bin into gaps in other bins.
+    // If the weak bin becomes empty, eliminate it.
+    if (!_noConsolidate && bestBins.length > minTeoricoChapas) {
+        let changed = true;
+        let safetyLimit = 10; // prevent infinite loop
+        while (changed && bestBins.length > minTeoricoChapas && safetyLimit-- > 0) {
+            changed = false;
+            // Find weakest bin
+            let weakIdx = 0, weakOcc = Infinity;
+            for (let i = 0; i < bestBins.length; i++) {
+                const occ = bestBins[i].occupancy();
+                if (occ < weakOcc) { weakOcc = occ; weakIdx = i; }
+            }
+            const weakBin = bestBins[weakIdx];
+            const weakPieces = [...weakBin.usedRects];
+
+            // Try to insert each weak piece into another bin
+            // Rebuild each OTHER bin from its pieces + try adding weak pieces
+            for (const weakPiece of weakPieces) {
+                const wp = {
+                    ref: weakPiece.pieceRef,
+                    w: weakPiece.realW || weakPiece.w,
+                    h: weakPiece.realH || weakPiece.h,
+                    allowRotate: weakPiece.allowRotate !== false,
+                    area: (weakPiece.realW || weakPiece.w) * (weakPiece.realH || weakPiece.h),
+                    classificacao: 'normal',
+                };
+
+                // Try to fit in each other bin by rebuilding it with this extra piece
+                let inserted = false;
+                for (let bi = 0; bi < bestBins.length; bi++) {
+                    if (bi === weakIdx) continue;
+                    const otherBin = bestBins[bi];
+
+                    // Extract other bin's pieces + add the weak piece
+                    const otherPieces = otherBin.usedRects.map(r => ({
+                        ref: r.pieceRef, w: r.realW || r.w, h: r.realH || r.h,
+                        allowRotate: r.allowRotate !== false,
+                        area: (r.realW || r.w) * (r.realH || r.h),
+                        perim: 2 * ((r.realW || r.w) + (r.realH || r.h)),
+                        maxSide: Math.max(r.realW || r.w, r.realH || r.h),
+                        diff: Math.abs((r.realW || r.w) - (r.realH || r.h)),
+                        classificacao: 'normal',
+                    }));
+                    const combined = [...otherPieces, wp];
+                    combined.sort((a, b) => b.area - a.area);
+
+                    // Try to pack combined set into one bin using multi-start
+                    const result = packSetIntoBin(combined);
+                    if (result.count === combined.length) {
+                        // SUCCESS — all pieces fit including the weak piece
+                        bestBins[bi] = result.bin;
+                        // Remove piece from weak bin
+                        const idx = weakBin.usedRects.indexOf(weakPiece);
+                        if (idx >= 0) weakBin.usedRects.splice(idx, 1);
+                        inserted = true;
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+
+            // If weak bin is now empty, remove it
+            if (weakBin.usedRects.length === 0) {
+                bestBins.splice(weakIdx, 1);
+                changed = true;
+            }
+        }
+
+        // Try merging pairs of weak bins into single bins
+        if (bestBins.length > minTeoricoChapas) {
+            let mergeImproved = true;
+            while (mergeImproved && bestBins.length > minTeoricoChapas) {
+                mergeImproved = false;
+                // Sort bins by occupancy ascending
+                const occList = bestBins.map((b, i) => ({ idx: i, occ: b.occupancy() }));
+                occList.sort((a, b) => a.occ - b.occ);
+
+                // Try merging the two weakest bins
+                for (let i = 0; i < occList.length && !mergeImproved; i++) {
+                    for (let j = i + 1; j < occList.length && !mergeImproved; j++) {
+                        const bi = occList[i].idx, bj = occList[j].idx;
+                        const combinedPieces = [];
+                        for (const r of bestBins[bi].usedRects) {
+                            combinedPieces.push({
+                                ref: r.pieceRef, w: r.realW || r.w, h: r.realH || r.h,
+                                allowRotate: r.allowRotate !== false,
+                                area: (r.realW || r.w) * (r.realH || r.h),
+                                perim: 2 * ((r.realW || r.w) + (r.realH || r.h)),
+                                maxSide: Math.max(r.realW || r.w, r.realH || r.h),
+                                diff: Math.abs((r.realW || r.w) - (r.realH || r.h)),
+                                classificacao: 'normal',
+                            });
+                        }
+                        for (const r of bestBins[bj].usedRects) {
+                            combinedPieces.push({
+                                ref: r.pieceRef, w: r.realW || r.w, h: r.realH || r.h,
+                                allowRotate: r.allowRotate !== false,
+                                area: (r.realW || r.w) * (r.realH || r.h),
+                                perim: 2 * ((r.realW || r.w) + (r.realH || r.h)),
+                                maxSide: Math.max(r.realW || r.w, r.realH || r.h),
+                                diff: Math.abs((r.realW || r.w) - (r.realH || r.h)),
+                                classificacao: 'normal',
+                            });
+                        }
+
+                        // Check area feasibility
+                        const combinedArea = combinedPieces.reduce((s, p) => s + p.area, 0);
+                        if (combinedArea > sheetArea * 0.99) continue; // won't fit
+
+                        const mergeResult = packSetIntoBin(combinedPieces);
+                        if (mergeResult.count === combinedPieces.length) {
+                            // Merge successful! Replace two bins with one
+                            const idxsToRemove = [bi, bj].sort((a, b) => b - a);
+                            for (const idx of idxsToRemove) bestBins.splice(idx, 1);
+                            bestBins.push(mergeResult.bin);
+                            mergeImproved = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Full repack without SuperBox as last resort
+        if (bestBins.length > minTeoricoChapas) {
+            const allIndividualPieces = [];
+            for (const bin of bestBins) {
+                for (const r of bin.usedRects) {
+                    if (!r.pieceRef) continue;
+                    allIndividualPieces.push({
+                        ref: r.pieceRef, w: r.realW || r.w, h: r.realH || r.h,
+                        allowRotate: r.allowRotate !== false,
+                        area: (r.realW || r.w) * (r.realH || r.h),
+                        perim: 2 * ((r.realW || r.w) + (r.realH || r.h)),
+                        maxSide: Math.max(r.realW || r.w, r.realH || r.h),
+                        diff: Math.abs((r.realW || r.w) - (r.realH || r.h)),
+                        classificacao: r.classificacao || 'normal',
+                    });
+                }
+            }
+            const noSBResult = greedyPerBin(allIndividualPieces);
+            if (noSBResult.length < bestBins.length ||
+                (noSBResult.length === bestBins.length && scoreResult(noSBResult).score < scoreResult(bestBins).score)) {
+                bestBins = noSBResult;
+            }
+        }
+    }
+
+    // ── Compactação ──
+    for (const bin of bestBins) {
+        compactBin(bin, binW, binH, kerf, spacing, splitDir);
+    }
+
+    return bestBins;
 }
 
 // ─── Strip Packing ──────────────────────────────────────────────
@@ -1182,6 +1889,11 @@ export function ruinAndRecreate(pieces, binW, binH, spacing, binType, kerf, maxI
     const stripSc = scoreResult(stripBins);
     if (stripSc.score < bestScore.score) { bestScore = stripSc; bestBins = stripBins; }
 
+    // Two-phase: large pieces first, then fill gaps with small
+    const tpBins = runTwoPhase(pieces, binW, binH, spacing, binType, kerf, splitDir);
+    const tpSc = scoreResult(tpBins);
+    if (tpSc.score < bestScore.score) { bestScore = tpSc; bestBins = tpBins; }
+
     const windowSize = 60;                          // Wider window (was 40) — more memory of past scores
     const lahcWindow = new Array(windowSize).fill(bestScore.score);
     let noImproveCount = 0;
@@ -1285,11 +1997,16 @@ export function ruinAndRecreate(pieces, binW, binH, spacing, binType, kerf, maxI
         }
 
         const h = heuristics[iter % heuristics.length];
-        // Alternate: even iterations → nesting pass, odd → fill-first multi-heuristic
-        const useFillFirst = iter % 3 !== 0; // 2/3 fill-first (it's generally better)
-        const bins = useFillFirst
-            ? runFillFirst(reconstructed, binW, binH, spacing, h, binType, kerf, splitDir, true)
-            : runNestingPass(reconstructed, binW, binH, spacing, h, binType, kerf, splitDir);
+        // Alternate: nesting pass, fill-first, two-phase
+        const packMode = iter % 5;
+        let bins;
+        if (packMode <= 1) {
+            bins = runFillFirst(reconstructed, binW, binH, spacing, h, binType, kerf, splitDir, true);
+        } else if (packMode <= 3) {
+            bins = runNestingPass(reconstructed, binW, binH, spacing, h, binType, kerf, splitDir);
+        } else {
+            bins = runTwoPhase(reconstructed, binW, binH, spacing, binType, kerf, splitDir);
+        }
         const sc = scoreResult(bins);
 
         const lahcIdx = iter % windowSize;
@@ -1536,15 +2253,15 @@ export function simulatedAnnealing(bins, binW, binH, spacing, binType, kerf, max
     let T = T0;
 
     let noImproveStreak = 0;
-    const maxNoImprove = Math.max(maxIter * 0.25, 1500);
+    const maxNoImprove = Math.max(maxIter * 0.35, 3000);
 
     // Reheat counter — quando fica estagnado, reaquece
     let reheatCount = 0;
-    const maxReheats = 4;
+    const maxReheats = 6;
 
-    // Tempo máximo para SA: 60s (não travar servidor)
+    // Tempo máximo para SA: 90s (dar mais tempo para otimizar)
     const saStartTime = Date.now();
-    const saMaxMs = 60000;
+    const saMaxMs = 90000;
 
     for (let iter = 0; iter < maxIter; iter++) {
         T *= coolingRate;
@@ -1560,26 +2277,45 @@ export function simulatedAnnealing(bins, binW, binH, spacing, binType, kerf, max
         const pertType = Math.random();
         let candidateBins;
 
-        if (pertType < 0.35) {
+        if (pertType < 0.25) {
             // ─── PERTURBAÇÃO 1: Mover peça do bin menos cheio para outro ───
             candidateBins = perturbMove(currentBins, binW, binH, binType, kerf, splitDir, spacing);
-        } else if (pertType < 0.55) {
+        } else if (pertType < 0.40) {
             // ─── PERTURBAÇÃO 2: Swap de peças entre dois bins ───
             candidateBins = perturbSwap(currentBins, binW, binH, binType, kerf, splitDir, spacing);
-        } else if (pertType < 0.70) {
+        } else if (pertType < 0.55) {
             // ─── PERTURBAÇÃO 3: Tentar esvaziar o bin mais fraco ───
             candidateBins = perturbEvacuate(currentBins, binW, binH, binType, kerf, splitDir, spacing);
-        } else if (pertType < 0.85) {
+        } else if (pertType < 0.65) {
             // ─── PERTURBAÇÃO 4: Rebuild de um bin aleatório com sort diferente ───
             candidateBins = perturbRebuild(currentBins, binW, binH, binType, kerf, splitDir, spacing);
-        } else {
+        } else if (pertType < 0.78) {
             // ─── PERTURBAÇÃO 5: Mover múltiplas peças pequenas do bin fraco ───
             candidateBins = perturbMultiMove(currentBins, binW, binH, binType, kerf, splitDir, spacing);
+        } else if (pertType < 0.88) {
+            // ─── PERTURBAÇÃO 6: Merge 2 bins fracos em 1 ───
+            candidateBins = perturbMergeBins(currentBins, binW, binH, binType, kerf, splitDir, spacing);
+        } else {
+            // ─── PERTURBAÇÃO 7: Rebuild 2 bins juntos (mix & repack) ───
+            candidateBins = perturbDualRebuild(currentBins, binW, binH, binType, kerf, splitDir, spacing);
         }
 
         if (!candidateBins || candidateBins.length === 0) {
             noImproveStreak++;
             continue;
+        }
+
+        // ── CRITICAL: Verify piece count integrity ──
+        // Perturbations can silently lose pieces during bin rebuilds.
+        // Reject any candidate that has fewer pieces than current.
+        {
+            let curCount = 0, candCount = 0;
+            for (const b of currentBins) curCount += b.usedRects.filter(r => r.pieceRef).length;
+            for (const b of candidateBins) candCount += b.usedRects.filter(r => r.pieceRef).length;
+            if (candCount < curCount) {
+                noImproveStreak++;
+                continue;
+            }
         }
 
         const candidateScore = scoreResult(candidateBins);
@@ -1886,7 +2622,8 @@ function perturbMultiMove(bins, binW, binH, binType, kerf, splitDir, spacing) {
     for (let i = 0; i < bins.length; i++) {
         if (i === weakIdx) continue;
         const pieces = extractPieces(bins[i]);
-        const { bin } = rebuildBin(pieces.sort((a, b) => b.area - a.area), binW, binH, binType, kerf, splitDir, spacing);
+        const { bin, failed } = rebuildBin(pieces.sort((a, b) => b.area - a.area), binW, binH, binType, kerf, splitDir, spacing);
+        if (failed.length > 0) return null; // Can't rebuild without losing pieces
         otherBins.push(bin);
     }
 
@@ -1918,6 +2655,69 @@ function perturbMultiMove(bins, binW, binH, binType, kerf, splitDir, spacing) {
     if (failed.length > 0) return null;
 
     return [...otherBins, newWeak];
+}
+
+// ─── SA Perturbação: Merge 2 bins fracos e rebuild como 1 ──
+function perturbMergeBins(bins, binW, binH, binType, kerf, splitDir, spacing) {
+    if (bins.length < 3) return null;
+
+    // Encontrar os 2 bins com menor ocupação
+    const occs = bins.map((b, i) => ({ i, occ: b.occupancy() }));
+    occs.sort((a, b) => a.occ - b.occ);
+    const weak1 = occs[0].i, weak2 = occs[1].i;
+
+    // Extrair peças de ambos e tentar caber em 1 bin
+    const pieces1 = extractPieces(bins[weak1]);
+    const pieces2 = extractPieces(bins[weak2]);
+    const combined = [...pieces1, ...pieces2].sort((a, b) => b.area - a.area);
+
+    // Verificar se a área total cabe em 1 bin
+    const totalArea = combined.reduce((s, p) => s + p.area, 0);
+    if (totalArea > binW * binH * 0.98) return null;
+
+    const { bin: merged, failed } = rebuildBin(combined, binW, binH, binType, kerf, splitDir, spacing);
+    if (failed.length > 0) {
+        // Tentar fill-first como fallback
+        const ffBins = runFillFirst(combined, binW, binH, spacing, 'BSSF', binType, kerf, splitDir, true);
+        if (ffBins.length > 1) return null; // Didn't fit in 1 bin
+        const otherBins = bins.filter((_, i) => i !== weak1 && i !== weak2);
+        return [...otherBins, ...ffBins];
+    }
+
+    const otherBins = bins.filter((_, i) => i !== weak1 && i !== weak2);
+    return [...otherBins, merged];
+}
+
+// ─── SA Perturbação: Rebuild 2 bins juntos (mix pieces, repack) ──
+function perturbDualRebuild(bins, binW, binH, binType, kerf, splitDir, spacing) {
+    if (bins.length < 2) return null;
+
+    // Escolher 2 bins aleatórios
+    const idx1 = Math.floor(Math.random() * bins.length);
+    let idx2 = Math.floor(Math.random() * (bins.length - 1));
+    if (idx2 >= idx1) idx2++;
+
+    const pieces1 = extractPieces(bins[idx1]);
+    const pieces2 = extractPieces(bins[idx2]);
+    const combined = [...pieces1, ...pieces2];
+
+    // Shuffle + sort para explorar nova ordenação
+    const sorts = [
+        (a, b) => b.area - a.area,
+        (a, b) => b.maxSide - a.maxSide,
+        (a, b) => b.h - a.h || b.w - a.w,
+        (a, b) => b.w - a.w || b.h - a.h,
+        () => Math.random() - 0.5,
+    ];
+    const sortFn = sorts[Math.floor(Math.random() * sorts.length)];
+    combined.sort(sortFn);
+
+    // Repack as 2 bins using fill-first
+    const ffBins = runFillFirst(combined, binW, binH, spacing, 'BSSF', binType, kerf, splitDir, true);
+    if (ffBins.length > 2) return null; // Got worse
+
+    const otherBins = bins.filter((_, i) => i !== idx1 && i !== idx2);
+    return [...otherBins, ...ffBins];
 }
 
 // ─── Gerar sequência de cortes (para esquadrejadeira) — OTIMIZADA ──
@@ -2044,4 +2844,361 @@ export function gerarSequenciaCortes(bin) {
     }
 
     return sequence;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// AGGRESSIVE PACK — Foco em minimizar número de chapas
+// Estratégia: calcular mínimo teórico e forçar atingi-lo
+// ═══════════════════════════════════════════════════════════════════
+export function runAggressivePack(pieces, binW, binH, spacing, kerf, splitDir = 'auto', timeoutMs = 30000) {
+    if (pieces.length === 0) return [];
+    const startTime = Date.now();
+    const effSp = Math.max(kerf || 0, spacing || 0);
+
+    // ─── Calculate theoretical minimum bins ───
+    // Account for spacing: each piece effectively uses (w+sp)*(h+sp) area
+    const totalAreaWithSpacing = pieces.reduce((s, p) => s + (p.w + effSp) * (p.h + effSp), 0);
+    const binArea = binW * binH;
+    const minTheoretical = Math.ceil(totalAreaWithSpacing / binArea);
+
+    const ALL_H = ['BSSF', 'BLSF', 'BAF', 'BL', 'CP'];
+    const BIN_TYPES = ['maxrects', 'guillotine', 'skyline'];
+    const DIRS = splitDir === 'auto' ? ['auto'] : [splitDir, 'auto'];
+
+    const createBin = (bt, dir) => {
+        switch (bt) {
+            case 'shelf': return new ShelfBin(binW, binH, effSp);
+            case 'guillotine': return new GuillotineBin(binW, binH, effSp, dir);
+            case 'skyline': return new SkylineBin(binW, binH, effSp, dir);
+            default: return new MaxRectsBin(binW, binH, effSp, dir);
+        }
+    };
+
+    // ─── Sort strategies (proven effective for 2D bin packing) ───
+    const SORTS = [
+        { name: 'area_desc', fn: (a, b) => b.area - a.area },
+        { name: 'height_desc', fn: (a, b) => b.h - a.h || b.w - a.w },
+        { name: 'width_desc', fn: (a, b) => b.w - a.w || b.h - a.h },
+        { name: 'maxside_desc', fn: (a, b) => b.maxSide - a.maxSide },
+        { name: 'perim_desc', fn: (a, b) => b.perim - a.perim },
+        { name: 'diff_desc', fn: (a, b) => b.diff - a.diff },
+        // Interleaved: big, small, big, small — fills gaps better
+        { name: 'interleaved', fn: null, custom: (pcs) => {
+            const sorted = [...pcs].sort((a, b) => b.area - a.area);
+            const result = [];
+            let lo = 0, hi = sorted.length - 1;
+            while (lo <= hi) {
+                result.push(sorted[lo++]);
+                if (lo <= hi) result.push(sorted[hi--]);
+            }
+            return result;
+        }},
+        // Pair-matching: pair pieces whose widths sum close to binW
+        { name: 'pair_width', fn: null, custom: (pcs) => {
+            const sorted = [...pcs].sort((a, b) => b.w - a.w);
+            const used = new Set();
+            const result = [];
+            for (let i = 0; i < sorted.length; i++) {
+                if (used.has(i)) continue;
+                result.push(sorted[i]);
+                used.add(i);
+                // Find best pair (width complement)
+                const target = binW - sorted[i].w - effSp;
+                let bestJ = -1, bestDiff = Infinity;
+                for (let j = i + 1; j < sorted.length; j++) {
+                    if (used.has(j)) continue;
+                    const d = Math.abs(sorted[j].w - target);
+                    if (d < bestDiff) { bestDiff = d; bestJ = j; }
+                }
+                if (bestJ >= 0 && bestDiff < binW * 0.4) {
+                    result.push(sorted[bestJ]);
+                    used.add(bestJ);
+                }
+            }
+            return result;
+        }},
+        // Pair by height
+        { name: 'pair_height', fn: null, custom: (pcs) => {
+            const sorted = [...pcs].sort((a, b) => b.h - a.h);
+            const used = new Set();
+            const result = [];
+            for (let i = 0; i < sorted.length; i++) {
+                if (used.has(i)) continue;
+                result.push(sorted[i]);
+                used.add(i);
+                const target = binH - sorted[i].h - effSp;
+                let bestJ = -1, bestDiff = Infinity;
+                for (let j = i + 1; j < sorted.length; j++) {
+                    if (used.has(j)) continue;
+                    const d = Math.abs(sorted[j].h - target);
+                    if (d < bestDiff) { bestDiff = d; bestJ = j; }
+                }
+                if (bestJ >= 0 && bestDiff < binH * 0.4) {
+                    result.push(sorted[bestJ]);
+                    used.add(bestJ);
+                }
+            }
+            return result;
+        }},
+    ];
+
+    // ─── Bin-completion packing: fill each bin to max before creating next ───
+    function packWithCompletion(sortedPieces, binType, dir, heuristic) {
+        const remaining = sortedPieces.map((p, i) => ({ ...p, _idx: i }));
+        const bins = [];
+
+        while (remaining.length > 0) {
+            const bin = createBin(binType, dir);
+            let progress = true;
+
+            // Greedy fill: pick the best-fitting piece from ALL remaining
+            while (progress && remaining.length > 0) {
+                progress = false;
+                let bestIdx = -1, bestRect = null, bestScore = Infinity;
+
+                for (let i = 0; i < remaining.length; i++) {
+                    const p = remaining[i];
+                    const pClass = p.classificacao || 'normal';
+                    const rect = bin.findBest(p.w, p.h, p.allowRotate, heuristic, pClass);
+                    if (rect) {
+                        // Score: prefer pieces that leave more usable space
+                        let sc = rect.score != null ? rect.score : ((rect.w * rect.h) - p.area);
+                        // Bonus for larger pieces (pack big ones first, small ones fill gaps)
+                        sc -= p.area * 0.0001;
+                        if (sc < bestScore) {
+                            bestScore = sc; bestRect = rect; bestIdx = i;
+                        }
+                    }
+                }
+
+                if (bestIdx >= 0 && bestRect) {
+                    const p = remaining.splice(bestIdx, 1)[0];
+                    bestRect.pieceRef = p.ref;
+                    bestRect.allowRotate = p.allowRotate;
+                    const placed = bin.placeRect(bestRect);
+                    if (placed) { placed.pieceRef = p.ref; placed.allowRotate = p.allowRotate; }
+                    progress = true;
+                }
+            }
+
+            // Second pass: try ALL heuristics for remaining pieces
+            if (remaining.length > 0) {
+                let secondProgress = true;
+                while (secondProgress && remaining.length > 0) {
+                    secondProgress = false;
+                    for (let i = remaining.length - 1; i >= 0; i--) {
+                        const p = remaining[i];
+                        let placed = false;
+                        for (const h of ALL_H) {
+                            const rect = bin.findBest(p.w, p.h, p.allowRotate, h, p.classificacao || 'normal');
+                            if (rect) {
+                                rect.pieceRef = p.ref;
+                                rect.allowRotate = p.allowRotate;
+                                const pl = bin.placeRect(rect);
+                                if (pl) { pl.pieceRef = p.ref; pl.allowRotate = p.allowRotate; placed = true; break; }
+                            }
+                        }
+                        if (placed) {
+                            remaining.splice(i, 1);
+                            secondProgress = true;
+                        }
+                    }
+                }
+            }
+
+            if (bin.usedRects.length > 0) {
+                bins.push(bin);
+            } else if (remaining.length > 0) {
+                // Can't place anything — force first piece into new bin
+                const p = remaining.shift();
+                const newBin = createBin(binType, dir);
+                for (const h of ALL_H) {
+                    const rect = newBin.findBest(p.w, p.h, p.allowRotate, h);
+                    if (rect) {
+                        rect.pieceRef = p.ref; rect.allowRotate = p.allowRotate;
+                        newBin.placeRect(rect);
+                        bins.push(newBin);
+                        break;
+                    }
+                }
+            }
+        }
+
+        for (const bin of bins) compactBin(bin, binW, binH, kerf, spacing, splitDir);
+        return bins;
+    }
+
+    // ─── PHASE 1: Portfolio — Try all combinations, find best ───
+    let bestBins = null, bestScore = { score: Infinity };
+
+    for (const sortStrat of SORTS) {
+        if (Date.now() - startTime > timeoutMs * 0.4) break;
+        for (const bt of BIN_TYPES) {
+            for (const dir of DIRS) {
+                for (const h of ALL_H) {
+                    const sorted = sortStrat.custom
+                        ? sortStrat.custom(pieces)
+                        : [...pieces].sort(sortStrat.fn);
+                    const bins = packWithCompletion(sorted, bt, dir, h);
+                    const sc = scoreResult(bins);
+                    if (sc.score < bestScore.score) {
+                        bestScore = sc; bestBins = bins;
+                    }
+                }
+            }
+        }
+    }
+
+    // Also try fill-first and two-phase
+    for (const bt of BIN_TYPES) {
+        for (const dir of DIRS) {
+            const sorted = [...pieces].sort((a, b) => b.area - a.area);
+            const ff = runFillFirst(sorted, binW, binH, spacing, 'BSSF', bt, kerf, dir, true);
+            const ffSc = scoreResult(ff);
+            if (ffSc.score < bestScore.score) { bestScore = ffSc; bestBins = ff; }
+
+            const tp = runTwoPhase(sorted, binW, binH, spacing, bt, kerf, dir);
+            const tpSc = scoreResult(tp);
+            if (tpSc.score < bestScore.score) { bestScore = tpSc; bestBins = tp; }
+        }
+    }
+
+    if (!bestBins) return [];
+
+    // ─── PHASE 2: Aggressive N-1 consolidation ───
+    // If we have more bins than theoretical minimum, try hard to eliminate
+    let targetBins = bestBins.length - 1;
+    const allPiecesOrig = pieces;
+
+    while (targetBins >= minTheoretical && Date.now() - startTime < timeoutMs * 0.8) {
+        let eliminated = false;
+
+        // Strategy A: Re-pack ALL pieces into N-1 bins
+        const totalArea = allPiecesOrig.reduce((s, p) => s + p.area, 0);
+        if (totalArea > targetBins * binArea * 0.98) break; // Theoretically impossible
+
+        for (const sortStrat of SORTS) {
+            if (eliminated || Date.now() - startTime > timeoutMs * 0.8) break;
+            for (const bt of BIN_TYPES) {
+                if (eliminated) break;
+                for (const dir of DIRS) {
+                    if (eliminated) break;
+                    const sorted = sortStrat.custom
+                        ? sortStrat.custom(allPiecesOrig)
+                        : [...allPiecesOrig].sort(sortStrat.fn);
+
+                    for (const h of ALL_H) {
+                        const bins = packWithCompletion(sorted, bt, dir, h);
+                        if (bins.length <= targetBins && verifyNoOverlaps(bins)) {
+                            const sc = scoreResult(bins);
+                            if (sc.score < bestScore.score) {
+                                bestScore = sc; bestBins = bins;
+                                eliminated = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Strategy B: Extract all from current best, reshuffle, repack
+        if (!eliminated) {
+            const allPcs = [];
+            for (const bin of bestBins) allPcs.push(...extractPieces(bin));
+
+            // Try 20 random permutations
+            for (let attempt = 0; attempt < 20 && !eliminated; attempt++) {
+                if (Date.now() - startTime > timeoutMs * 0.8) break;
+                const shuffled = [...allPcs];
+                // Partially shuffle: keep top 60% sorted by area, shuffle bottom 40%
+                shuffled.sort((a, b) => b.area - a.area);
+                const cutoff = Math.floor(shuffled.length * 0.6);
+                const tail = shuffled.splice(cutoff);
+                for (let i = tail.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [tail[i], tail[j]] = [tail[j], tail[i]];
+                }
+                shuffled.push(...tail);
+
+                for (const bt of BIN_TYPES) {
+                    if (eliminated) break;
+                    const bins = packWithCompletion(shuffled, bt, splitDir, ALL_H[attempt % ALL_H.length]);
+                    if (bins.length <= targetBins && verifyNoOverlaps(bins)) {
+                        const sc = scoreResult(bins);
+                        if (sc.score < bestScore.score) {
+                            bestScore = sc; bestBins = bins;
+                            eliminated = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Strategy C: Evacuate weakest bin into rebuilt others
+        if (!eliminated && bestBins.length > 1) {
+            let weakIdx = 0, minOcc = Infinity;
+            for (let i = 0; i < bestBins.length; i++) {
+                const occ = bestBins[i].occupancy();
+                if (occ < minOcc) { minOcc = occ; weakIdx = i; }
+            }
+            const weakPieces = extractPieces(bestBins[weakIdx]);
+            // Sort weak pieces: biggest first (hardest to place)
+            weakPieces.sort((a, b) => b.area - a.area);
+
+            for (const bt of BIN_TYPES) {
+                if (eliminated) break;
+                // Rebuild all other bins to get fresh freeRects
+                const otherBins = [];
+                for (let i = 0; i < bestBins.length; i++) {
+                    if (i === weakIdx) continue;
+                    const pcs = extractPieces(bestBins[i]).sort((a, b) => b.area - a.area);
+                    const { bin } = rebuildBin(pcs, binW, binH, bt, kerf, splitDir, spacing);
+                    otherBins.push(bin);
+                }
+
+                // Try to insert each weak piece into rebuilt bins
+                let allPlaced = true;
+                const placed = [];
+                for (const p of weakPieces) {
+                    let didPlace = false;
+                    // Try all bins, sorted by occupancy (prefer fuller bins)
+                    const binsByOcc = otherBins.map((b, i) => ({ b, i, occ: b.occupancy() }))
+                        .sort((a, b) => a.occ - b.occ); // Less full first = more space
+
+                    for (const { b: targetBin } of binsByOcc) {
+                        for (const h of ALL_H) {
+                            const rect = targetBin.findBest(p.w, p.h, p.allowRotate, h, p.classificacao || 'normal');
+                            if (rect) {
+                                rect.pieceRef = p.ref; rect.allowRotate = p.allowRotate;
+                                const pl = targetBin.placeRect(rect);
+                                if (pl) { pl.pieceRef = p.ref; pl.allowRotate = p.allowRotate; didPlace = true; break; }
+                            }
+                        }
+                        if (didPlace) break;
+                    }
+                    if (!didPlace) { allPlaced = false; break; }
+                    placed.push(p);
+                }
+
+                if (allPlaced) {
+                    for (const bin of otherBins) compactBin(bin, binW, binH, kerf, spacing, splitDir);
+                    const sc = scoreResult(otherBins);
+                    if (sc.score < bestScore.score) {
+                        bestScore = sc; bestBins = otherBins;
+                        eliminated = true;
+                    }
+                }
+            }
+        }
+
+        if (!eliminated) break;
+        targetBins--;
+    }
+
+    // ─── PHASE 3: Final compaction and verification ───
+    for (const bin of bestBins) compactBin(bin, binW, binH, kerf, spacing, splitDir);
+    bestBins = bestBins.filter(b => b.usedRects && b.usedRects.length > 0);
+
+    return bestBins;
 }
