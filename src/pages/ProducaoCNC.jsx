@@ -4192,36 +4192,77 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                 </div>
                             )}
 
-                            {/* ═══ STEPPER: Progresso horizontal das chapas ═══ */}
+                            {/* ═══ STEPPER: Navegação compacta das chapas ═══ */}
                             {plano && plano.chapas.length > 1 && (
-                                <div style={{ display: 'flex', gap: 0, alignItems: 'center', marginBottom: 10, overflowX: 'auto', paddingBottom: 4 }}>
-                                    {plano.chapas.map((ch, ci) => {
-                                        const isActive = ci === selectedChapa;
-                                        const st = chapaStatuses[ci];
-                                        const statusColor = !st || st.status === 'pendente' ? '#9ca3af' : st.status === 'em_corte' ? '#f59e0b' : st.status === 'cortada' ? '#22c55e' : '#3b82f6';
-                                        const statusIcon = !st || st.status === 'pendente' ? '○' : st.status === 'em_corte' ? '◐' : st.status === 'cortada' ? '●' : '✓';
-                                        return (
-                                            <Fragment key={ci}>
-                                                {ci > 0 && <div style={{ width: 16, height: 2, background: chapaStatuses[ci - 1]?.status === 'cortada' || chapaStatuses[ci - 1]?.status === 'conferida' ? '#22c55e' : 'var(--border)', flexShrink: 0 }} />}
-                                                <button
-                                                    onClick={() => { setSelectedChapa(ci); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
-                                                    title={`Chapa ${ci + 1}: ${ch.material} · ${ch.aproveitamento.toFixed(1)}% · ${st?.status || 'pendente'}`}
-                                                    style={{
-                                                        flexShrink: 0, width: 32, height: 32, borderRadius: '50%', border: `2px solid ${isActive ? 'var(--primary)' : statusColor}`,
-                                                        background: isActive ? 'var(--primary)' : 'var(--bg-card)', color: isActive ? '#fff' : statusColor,
-                                                        fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                        transition: 'all .15s', boxShadow: isActive ? '0 0 0 3px rgba(230,126,34,0.2)' : 'none',
-                                                    }}
-                                                >
-                                                    {isActive ? ci + 1 : statusIcon}
-                                                </button>
-                                            </Fragment>
-                                        );
-                                    })}
-                                    <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, fontSize: 9, color: 'var(--text-muted)', alignItems: 'center', flexShrink: 0, paddingLeft: 12 }}>
-                                        <span>○ Pendente</span><span style={{ color: '#f59e0b' }}>◐ Em corte</span><span style={{ color: '#22c55e' }}>● Cortada</span><span style={{ color: '#3b82f6' }}>✓ Conferida</span>
+                                plano.chapas.length <= 15 ? (
+                                    /* Stepper circular — só para poucos chapas */
+                                    <div style={{ display: 'flex', gap: 0, alignItems: 'center', marginBottom: 10, overflowX: 'auto', paddingBottom: 4 }}>
+                                        {plano.chapas.map((ch, ci) => {
+                                            const isActive = ci === selectedChapa;
+                                            const st = chapaStatuses[ci];
+                                            const statusColor = !st || st.status === 'pendente' ? '#9ca3af' : st.status === 'em_corte' ? '#f59e0b' : st.status === 'cortada' ? '#22c55e' : '#3b82f6';
+                                            const statusIcon = !st || st.status === 'pendente' ? '○' : st.status === 'em_corte' ? '◐' : st.status === 'cortada' ? '●' : '✓';
+                                            return (
+                                                <Fragment key={ci}>
+                                                    {ci > 0 && <div style={{ width: 16, height: 2, background: chapaStatuses[ci - 1]?.status === 'cortada' || chapaStatuses[ci - 1]?.status === 'conferida' ? '#22c55e' : 'var(--border)', flexShrink: 0 }} />}
+                                                    <button
+                                                        onClick={() => { setSelectedChapa(ci); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
+                                                        title={`Chapa ${ci + 1}: ${ch.material} · ${ch.aproveitamento.toFixed(1)}% · ${st?.status || 'pendente'}`}
+                                                        style={{
+                                                            flexShrink: 0, width: 32, height: 32, borderRadius: '50%', border: `2px solid ${isActive ? 'var(--primary)' : statusColor}`,
+                                                            background: isActive ? 'var(--primary)' : 'var(--bg-card)', color: isActive ? '#fff' : statusColor,
+                                                            fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                            transition: 'all .15s', boxShadow: isActive ? '0 0 0 3px rgba(230,126,34,0.2)' : 'none',
+                                                        }}
+                                                    >
+                                                        {isActive ? ci + 1 : statusIcon}
+                                                    </button>
+                                                </Fragment>
+                                            );
+                                        })}
+                                        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, fontSize: 9, color: 'var(--text-muted)', alignItems: 'center', flexShrink: 0, paddingLeft: 12 }}>
+                                            <span>○ Pendente</span><span style={{ color: '#f59e0b' }}>◐ Em corte</span><span style={{ color: '#22c55e' }}>● Cortada</span><span style={{ color: '#3b82f6' }}>✓ Conferida</span>
+                                        </div>
                                     </div>
-                                </div>
+                                ) : (
+                                    /* Barra compacta com mini-blocos — para muitas chapas (>15) */
+                                    <div style={{ marginBottom: 10 }}>
+                                        <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginBottom: 6 }}>
+                                            {plano.chapas.map((ch, ci) => {
+                                                const isActive = ci === selectedChapa;
+                                                const st = chapaStatuses[ci];
+                                                const statusColor = !st || st.status === 'pendente' ? '#d1d5db' : st.status === 'em_corte' ? '#f59e0b' : st.status === 'cortada' ? '#22c55e' : '#3b82f6';
+                                                const aprov = ch.aproveitamento || 0;
+                                                const aprovColor = aprov >= 80 ? '#22c55e' : aprov >= 60 ? '#f59e0b' : '#ef4444';
+                                                return (
+                                                    <button key={ci}
+                                                        onClick={() => { setSelectedChapa(ci); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
+                                                        title={`Chapa ${ci + 1}: ${ch.material} · ${aprov.toFixed(1)}% · ${ch.pecas.length}pç · ${st?.status || 'pendente'}`}
+                                                        style={{
+                                                            width: 24, height: 18, borderRadius: 3, cursor: 'pointer', fontSize: 8, fontWeight: 700,
+                                                            border: isActive ? '2px solid var(--primary)' : `1px solid ${statusColor}`,
+                                                            background: isActive ? 'var(--primary)' : 'var(--bg-card)',
+                                                            color: isActive ? '#fff' : 'var(--text-muted)',
+                                                            position: 'relative', overflow: 'hidden', padding: 0,
+                                                            boxShadow: isActive ? '0 0 0 2px rgba(230,126,34,0.25)' : 'none',
+                                                            transition: 'all .12s',
+                                                        }}>
+                                                        {ci + 1}
+                                                        <div style={{
+                                                            position: 'absolute', bottom: 0, left: 0, right: 0, height: 2,
+                                                            background: isActive ? '#fff' : aprovColor, opacity: isActive ? 0.7 : 0.6,
+                                                        }} />
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 8, fontSize: 9, color: 'var(--text-muted)', alignItems: 'center' }}>
+                                            <span>Chapa <b>{selectedChapa + 1}</b> de <b>{plano.chapas.length}</b></span>
+                                            <span style={{ flex: 1 }} />
+                                            <span>○ Pendente</span><span style={{ color: '#f59e0b' }}>◐ Em corte</span><span style={{ color: '#22c55e' }}>● Cortada</span><span style={{ color: '#3b82f6' }}>✓ Conferida</span>
+                                        </div>
+                                    </div>
+                                )
                             )}
 
                             {/* View mode toggle */}
@@ -7280,18 +7321,33 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
     const scale = Math.min((maxW - marginDim * 2) / chapa.comprimento, (maxH - marginDim) / chapa.largura);
 
     // Edge band color — based on color name (hash) or type fallback
+    // Paleta fixa de cores para fitas — mais distinta que hash HSL
+    const FITA_PALETTE = [
+        '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6',
+        '#1abc9c', '#e67e22', '#e91e63', '#00bcd4', '#8bc34a',
+        '#ff5722', '#607d8b', '#795548', '#3f51b5', '#009688',
+    ];
+    const fitaColorCache = useRef({});
+    let fitaColorIdx = useRef(0);
     const edgeColorGlobal = (val, corVal) => {
         if (!val) return null;
-        if (corVal) {
-            let hash = 0;
-            for (let i = 0; i < corVal.length; i++) hash = corVal.charCodeAt(i) + ((hash << 5) - hash);
-            return `hsl(${Math.abs(hash) % 360}, 70%, 50%)`;
+        const key = corVal || val;
+        if (fitaColorCache.current[key]) return fitaColorCache.current[key];
+        // Tentar match por padrão conhecido
+        let color = null;
+        const upper = (val + ' ' + (corVal || '')).toUpperCase();
+        if (upper.includes('BRANCO') || upper.includes('WHITE')) color = '#78909c';
+        else if (upper.includes('PRETO') || upper.includes('BLACK')) color = '#37474f';
+        else if (upper.includes('FREIJO') || upper.includes('CARVALHO') || upper.includes('NOGUEIRA') || upper.includes('NOGAL')) color = '#8d6e47';
+        else if (upper.includes('CANELA') || upper.includes('AMENDOA')) color = '#a1887f';
+        else if (upper.includes('CINZA') || upper.includes('GRAFITE')) color = '#90a4ae';
+        else {
+            // Cor única por fita — pegar próxima da paleta
+            color = FITA_PALETTE[fitaColorIdx.current % FITA_PALETTE.length];
+            fitaColorIdx.current++;
         }
-        if (val.includes('2MM')) return '#e74c3c';
-        if (val.includes('1MM')) return '#3498db';
-        if (val.includes('0.4')) return '#2ecc71';
-        if (val.includes('MELAM')) return '#f39c12';
-        return '#9b59b6';
+        fitaColorCache.current[key] = color;
+        return color;
     };
     const svgW = chapa.comprimento * scale;
     const svgH = chapa.largura * scale;
@@ -7954,9 +8010,20 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                             {chapa.largura} mm
                         </text>
 
-                        {/* Sheet background — clean industrial look */}
+                        {/* Sheet background — cor baseada no material */}
                         <rect x={0} y={0} width={svgW} height={svgH}
-                            fill="#eae5dc" stroke="#8a7d6d" strokeWidth={1.5} />
+                            fill={(() => {
+                                const mat = (chapa.material || '').toUpperCase();
+                                if (mat.includes('BRANCO') || mat.includes('WHITE') || mat.includes('BP_BR')) return '#f5f0e8';
+                                if (mat.includes('PRETO') || mat.includes('BLACK')) return '#a09890';
+                                if (mat.includes('CINZA') || mat.includes('GRAFITE')) return '#c8c0b8';
+                                if (mat.includes('FREIJO') || mat.includes('CARVALHO')) return '#d4a76a';
+                                if (mat.includes('NOGUEIRA') || mat.includes('NOGAL')) return '#b8906a';
+                                if (mat.includes('CANELA')) return '#c49a6c';
+                                if (mat.includes('AMENDOA')) return '#d4b896';
+                                if (mat.includes('RUSTICO') || mat.includes('DEMOLICAO')) return '#b8956a';
+                                return '#eae5dc';
+                            })()} stroke="#8a7d6d" strokeWidth={1.5} />
 
                         {/* Grain pattern overlay on sheet */}
                         {hasVeio && (
