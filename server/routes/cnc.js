@@ -134,6 +134,30 @@ try { seedTestCabinet(); } catch (e) { /* ignore if already seeded */ }
 // JSON PARSING — Extrair peças do JSON do plugin
 // ═══════════════════════════════════════════════════════════════════
 
+// Inferir tipo/diâmetro de ferramenta a partir do tool_code WPS
+function _inferToolFromCode(tc) {
+    // Padrões comuns: f_8mm_xxx → broca 8mm, p_3mm → broca 3mm, r_xxx → fresa
+    const diamMatch = tc.match(/(\d+(?:\.\d+)?)mm/i);
+    const diametro = diamMatch ? parseFloat(diamMatch[1]) : 6;
+
+    let tipo = 'broca';
+    let tipo_corte = 'broca';
+    let nome = tc;
+
+    if (tc.startsWith('f_') || tc.startsWith('p_')) {
+        tipo = 'broca'; tipo_corte = 'broca';
+        nome = `Broca ${diametro}mm (${tc})`;
+    } else if (tc.startsWith('r_') || tc.startsWith('rb_')) {
+        tipo = 'fresa'; tipo_corte = 'fresa_reta';
+        nome = `Fresa ${diametro}mm (${tc})`;
+    } else if (tc.includes('usi') || tc.includes('chanfro') || tc.includes('fresa')) {
+        tipo = 'fresa'; tipo_corte = 'fresa_reta';
+        nome = `Fresa ${diametro}mm (${tc})`;
+    }
+
+    return { nome, tipo, diametro, tipo_corte };
+}
+
 export function parsePluginJSON(json) {
     const data = typeof json === 'string' ? JSON.parse(json) : json;
     const details = data.details_project || {};
@@ -242,8 +266,45 @@ export function parsePluginJSON(json) {
                         // Normalizar campos WPS → Ornato
                         if (clean.position_x !== undefined && clean.x === undefined) clean.x = clean.position_x;
                         if (clean.position_y !== undefined && clean.y === undefined) clean.y = clean.position_y;
+                        if (clean.position_z !== undefined && clean.z === undefined) clean.z = clean.position_z;
                         if (clean.quadrant && !clean.face) clean.face = clean.quadrant;
                         if (clean.cornerradius !== undefined && clean.corner_radius === undefined) clean.corner_radius = clean.cornerradius;
+                        if (clean.usedepth && (!clean.depth || clean.depth === 0)) clean.depth = clean.usedepth;
+                        if (clean.width_tool && !clean.diameter) clean.diameter = clean.width_tool;
+                        if (clean.width_line && !clean.width) clean.width = clean.width_line;
+
+                        // Parsear pointinsert WPS: "(150 mm, 0 mm, 0 mm)" ou "(46,736845 mm, 0,213878 mm, 0 mm)"
+                        if (clean.pointinsert && typeof clean.pointinsert === 'string' && clean.x == null) {
+                            const piMatch = clean.pointinsert.replace(/,(\d)/g, '.$1').match(/\(?\s*([-\d.]+)\s*mm\s*,\s*([-\d.]+)\s*mm\s*,\s*([-\d.]+)\s*mm/);
+                            if (piMatch) {
+                                clean.x = parseFloat(piMatch[1]);
+                                clean.y = parseFloat(piMatch[2]);
+                                clean.z = parseFloat(piMatch[3]);
+                            }
+                        }
+
+                        // Parsear positions dict para usi_line/usi_point_to_point → path array
+                        if (clean.positions && typeof clean.positions === 'object' && !Array.isArray(clean.positions)) {
+                            const keys = Object.keys(clean.positions).sort((a, b) => Number(a) - Number(b));
+                            clean.path = keys.map(k => {
+                                const pt = clean.positions[k];
+                                if (Array.isArray(pt) && pt.length >= 2) return { x: pt[0], y: pt[1], z: pt[2] || 0 };
+                                return null;
+                            }).filter(Boolean);
+                            // Usar primeiro ponto como x/y se não definido
+                            if (clean.path.length > 0 && (clean.x == null || (clean.x === 0 && clean.y === 0))) {
+                                clean.x = clean.path[0].x;
+                                clean.y = clean.path[0].y;
+                            }
+                        }
+
+                        // Marcar operações de borda (furação horizontal)
+                        const faceLower = (clean.face || '').toLowerCase();
+                        if (['left', 'right', 'front', 'rear', 'back'].includes(faceLower)) {
+                            clean.is_edge_operation = true;
+                            clean.edge_face = faceLower;
+                        }
+
                         sanitizedWorkers[wk] = clean;
                     }
                     machData.workers = sanitizedWorkers;
@@ -329,6 +390,74 @@ router.post('/lotes/importar', requireAuth, (req, res) => {
             }
         } catch (mapErr) {
             console.warn('Aviso: falha ao aplicar mapeamentos de material:', mapErr.message);
+        }
+
+        // Auto-registrar ferramentas WPS que não existem no sistema
+        try {
+            const toolCodesInLote = new Set();
+            for (const p of pecas) {
+                try {
+                    const mj = JSON.parse(p.machining_json || '{}');
+                    const wArr = mj.workers ? (Array.isArray(mj.workers) ? mj.workers : Object.values(mj.workers)) : [];
+                    for (const w of wArr) {
+                        const tc = w.tool_code || w.tool || '';
+                        if (tc) toolCodesInLote.add(tc);
+                    }
+                } catch (_) {}
+            }
+
+            if (toolCodesInLote.size > 0) {
+                // Buscar máquina padrão do usuário
+                const maquina = db.prepare('SELECT id FROM cnc_maquinas WHERE user_id = ? ORDER BY id ASC LIMIT 1').get(req.user.id);
+                const maquinaId = maquina?.id || null;
+
+                const existingTools = db.prepare(
+                    `SELECT tool_code FROM cnc_ferramentas WHERE user_id = ? AND tool_code IN (${[...toolCodesInLote].map(() => '?').join(',')})`
+                ).all(req.user.id, ...toolCodesInLote);
+                const existingSet = new Set(existingTools.map(t => t.tool_code));
+
+                // Mapeamento inteligente de tool_code WPS → tipo/diâmetro
+                const WPS_TOOL_MAP = {
+                    'f_15mm_tambor_min': { nome: 'Broca 15mm (minifix)', tipo: 'broca', diametro: 15, tipo_corte: 'broca' },
+                    'f_15mm_uniblock':  { nome: 'Broca 15mm (uniblock)', tipo: 'broca', diametro: 15, tipo_corte: 'broca' },
+                    'f_35mm_dob':       { nome: 'Broca 35mm (dobradiça)', tipo: 'broca', diametro: 35, tipo_corte: 'broca_forstner' },
+                    'f_8mm_cavilha':    { nome: 'Broca 8mm (cavilha)', tipo: 'broca', diametro: 8, tipo_corte: 'broca' },
+                    'f_8mm_eixo_tambor_min': { nome: 'Broca 8mm (eixo minifix)', tipo: 'broca', diametro: 8, tipo_corte: 'broca' },
+                    'f_8mm':            { nome: 'Broca 8mm', tipo: 'broca', diametro: 8, tipo_corte: 'broca' },
+                    'f_5mm_twister243': { nome: 'Broca 5mm (twister)', tipo: 'broca', diametro: 5, tipo_corte: 'broca' },
+                    'f_3mm':            { nome: 'Broca 3mm', tipo: 'broca', diametro: 3, tipo_corte: 'broca' },
+                    'p_3mm':            { nome: 'Broca 3mm (prateleira)', tipo: 'broca', diametro: 3, tipo_corte: 'broca' },
+                    'p_8mm_cavilha':    { nome: 'Broca 8mm (cavilha prat.)', tipo: 'broca', diametro: 8, tipo_corte: 'broca' },
+                    'p_12mm':           { nome: 'Broca 12mm', tipo: 'broca', diametro: 12, tipo_corte: 'broca' },
+                    'r_f':              { nome: 'Fresa rasgo fundo', tipo: 'fresa', diametro: 3.5, tipo_corte: 'fresa_reta' },
+                    'rb_av':            { nome: 'Fresa rebaixo avesso', tipo: 'fresa', diametro: 6, tipo_corte: 'fresa_reta' },
+                    'usi_line':         { nome: 'Fresa contorno', tipo: 'fresa', diametro: 6, tipo_corte: 'fresa_compressao' },
+                    'usi_point_to_point': { nome: 'Fresa ponto-a-ponto', tipo: 'fresa', diametro: 6, tipo_corte: 'fresa_reta' },
+                    'chanfro_45':       { nome: 'Fresa chanfro 45°', tipo: 'fresa', diametro: 6, tipo_corte: 'fresa_chanfro' },
+                };
+
+                const insertTool = db.prepare(`
+                    INSERT INTO cnc_ferramentas (user_id, maquina_id, codigo, nome, tipo, diametro, tool_code, tipo_corte, ativo)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+                `);
+
+                let autoCreated = 0;
+                for (const tc of toolCodesInLote) {
+                    if (existingSet.has(tc)) continue;
+                    const info = WPS_TOOL_MAP[tc] || _inferToolFromCode(tc);
+                    const tNum = String(autoCreated + 20).padStart(2, '0');
+                    insertTool.run(
+                        req.user.id, maquinaId, `T${tNum}`, info.nome,
+                        info.tipo, info.diametro, tc, info.tipo_corte
+                    );
+                    autoCreated++;
+                }
+                if (autoCreated > 0) {
+                    console.log(`  [CNC Import] Auto-registradas ${autoCreated} ferramentas WPS para o lote ${loteId}`);
+                }
+            }
+        } catch (toolErr) {
+            console.warn('Aviso: falha ao auto-registrar ferramentas:', toolErr.message);
         }
 
         res.json({
@@ -2994,6 +3123,53 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             if (tipo.includes('rebaixo') && !exportRebaixos) continue;
             if (tipo.includes('pocket') && !exportUsinagens) continue;
 
+            // ─── Operações de borda (furação horizontal) ───
+            // Estas operações são executadas nas laterais da peça (left/right/front/rear)
+            // e precisam de transformação de coordenadas para o eixo horizontal do CNC.
+            // Máquinas sem agregado horizontal não podem executar essas operações.
+            if (w.is_edge_operation) {
+                const edgeFace = w.edge_face || '';
+                // Transformar coordenadas: no WPS, position_x/y/z são relativas à face da peça
+                // Para furação horizontal: x na peça = posição ao longo do comprimento,
+                // y na peça = profundidade do furo na borda, z = posição na espessura
+                let edgeX = Number(w.x ?? 0);
+                let edgeY = Number(w.y ?? 0);
+                let edgeZ = Number(w.z ?? w.position_z ?? 0);
+                let edgeDepth = Number(w.depth ?? 5);
+
+                // Remapear coordenadas baseado na face da borda
+                if (edgeFace === 'left' || edgeFace === 'right') {
+                    // Furo na lateral: x(peça)=y(borda), y(peça)=z(borda), depth entra pela borda
+                    wx = edgeY;           // posição ao longo da largura
+                    wy = edgeX;           // posição ao longo do comprimento
+                    if (edgeFace === 'right') wx = largOrig - edgeY;
+                } else if (edgeFace === 'front' || edgeFace === 'rear' || edgeFace === 'back') {
+                    // Furo na frente/traseira: x normal, depth entra pela borda
+                    wx = edgeX;
+                    wy = edgeFace === 'front' ? 0 : largOrig;
+                }
+
+                allOps.push({
+                    pecaId: pp.pecaId, pecaDesc: pDb.descricao, moduloDesc: pDb.modulo_desc,
+                    absX: refilo + pX + (rotated ? (() => { const t = transformRotated(wx, wy, compOrig); return t.x; })() : wx),
+                    absY: refilo + pY + (rotated ? (() => { const t = transformRotated(wx, wy, compOrig); return t.y; })() : wy),
+                    absX2: undefined, absY2: undefined,
+                    opType: 'edge_hole',
+                    fase: 0, prioridade: 5, tipoNome: `Furo borda (${edgeFace})`,
+                    toolCode: tc, toolCodigo: '', toolNome: tc,
+                    toolRpm: 0, toolDiam: Number(w.diameter || 0),
+                    depthTotal: edgeDepth, passes: [edgeDepth], velCorte: 0,
+                    pocketW: 0, pocketH: 0,
+                    classificacao: cls, areaCm2, isPequena: isPeq,
+                    isContorno: false, needsOnionSkin: false,
+                    grooveMultiPass: false, grooveOffsets: [0], grooveWidth: 0, toolAdapted: false,
+                    resolvedMetodo: 'edge_drill', holeDiameter: Number(w.diameter || 0),
+                    hasOverride: false,
+                    edgeInfo: { face: edgeFace, depth: edgeDepth, diameter: Number(w.diameter || 0), z: edgeZ },
+                });
+                continue; // Não processar como operação vertical
+            }
+
             // ─── Overrides de operação ───
             const diam = Number(w.diameter || 0);
             const diamKey = diam > 0 ? Math.round(diam * 10) / 10 : 0;
@@ -3034,6 +3210,14 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 wy = Number(w.pos_start_for_line.position_y ?? w.pos_start_for_line.y ?? 0);
                 wx2 = Number(w.pos_end_for_line?.position_x ?? w.pos_end_for_line?.x ?? wx);
                 wy2 = Number(w.pos_end_for_line?.position_y ?? w.pos_end_for_line?.y ?? wy);
+            } else if (w.path && Array.isArray(w.path) && w.path.length >= 2) {
+                // usi_line/usi_point_to_point: usar primeiro e último pontos do path
+                const first = w.path[0];
+                const last = w.path[w.path.length - 1];
+                wx = Number(first.x ?? 0);
+                wy = Number(first.y ?? 0);
+                wx2 = Number(last.x ?? wx);
+                wy2 = Number(last.y ?? wy);
             } else {
                 wx = Number(w.x ?? w.position_x ?? 0);
                 wy = Number(w.y ?? w.position_y ?? 0);
