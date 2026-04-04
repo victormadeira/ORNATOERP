@@ -1,0 +1,5881 @@
+{
+  "generated_at": "2026-04-03T23:51:32-0300",
+  "total_materials": 837,
+  "suppliers": [
+    "ARAUCO",
+    "BERNECK",
+    "DURATEX",
+    "EUCATEX",
+    "FIBRAPLAC",
+    "FLORAPLAC",
+    "GREENPLAC",
+    "GUARARAPES",
+    "LEO MADEIRAS",
+    "LOPAR",
+    "MASISA",
+    "PLACAS DO BRASIL",
+    "SEM FORNECEDOR",
+    "SUDATI"
+  ],
+  "materials": [
+    {
+      "id": "acacia_carmel",
+      "original_name": "ACACIA_CARMEL",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 159163
+    },
+    {
+      "id": "acacia_volcano",
+      "original_name": "ACACIA_VOLCANO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 829974
+    },
+    {
+      "id": "alpaca",
+      "original_name": "ALPACA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 494061
+    },
+    {
+      "id": "amendoeira",
+      "original_name": "AMENDOEIRA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 194163
+    },
+    {
+      "id": "areal",
+      "original_name": "AREAL",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 220807
+    },
+    {
+      "id": "argila",
+      "original_name": "ARGILA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 446033
+    },
+    {
+      "id": "atelie",
+      "original_name": "ATELIE",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 206691
+    },
+    {
+      "id": "atenna",
+      "original_name": "ATENNA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 126817
+    },
+    {
+      "id": "atlantica",
+      "original_name": "ATLANTICA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 1798322
+    },
+    {
+      "id": "aureo",
+      "original_name": "AUREO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 192019
+    },
+    {
+      "id": "autentic",
+      "original_name": "AUTENTIC",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 560911
+    },
+    {
+      "id": "azul",
+      "original_name": "AZUL",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 25586
+    },
+    {
+      "id": "azul_sereno",
+      "original_name": "AZUL_SERENO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2705
+    },
+    {
+      "id": "baltic",
+      "original_name": "BALTIC",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 513553
+    },
+    {
+      "id": "bambu",
+      "original_name": "BAMBU",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 179392
+    },
+    {
+      "id": "beige",
+      "original_name": "BEIGE",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 4139
+    },
+    {
+      "id": "beton",
+      "original_name": "BETON",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 4254
+    },
+    {
+      "id": "blues_dueto",
+      "original_name": "BLUES_DUETO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 1374797
+    },
+    {
+      "id": "blues_matt",
+      "original_name": "BLUES_MATT",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2136
+    },
+    {
+      "id": "bossa_nova",
+      "original_name": "BOSSA_NOVA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 1287410
+    },
+    {
+      "id": "branco_supremo_chess",
+      "original_name": "BRANCO_SUPREMO_CHESS",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 146712
+    },
+    {
+      "id": "branco_supremo_matt",
+      "original_name": "BRANCO_SUPREMO_MATT",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2476
+    },
+    {
+      "id": "branco_tx_ultra",
+      "original_name": "BRANCO_TX_ULTRA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 3970
+    },
+    {
+      "id": "bufalo",
+      "original_name": "BUFALO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 86715
+    },
+    {
+      "id": "cacao_chess",
+      "original_name": "CACAO_CHESS",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 199643
+    },
+    {
+      "id": "cacao_matt",
+      "original_name": "CACAO_MATT",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 4159
+    },
+    {
+      "id": "camelo",
+      "original_name": "CAMELO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 126951
+    },
+    {
+      "id": "canela",
+      "original_name": "CANELA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 408091
+    },
+    {
+      "id": "canelato",
+      "original_name": "CANELATO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 325673
+    },
+    {
+      "id": "carvalho",
+      "original_name": "CARVALHO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 303953
+    },
+    {
+      "id": "carvalho_americano",
+      "original_name": "CARVALHO_AMERICANO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 157448
+    },
+    {
+      "id": "carvalho_dakar",
+      "original_name": "CARVALHO_DAKAR",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 524072
+    },
+    {
+      "id": "carvalho_ibiza",
+      "original_name": "CARVALHO_IBIZA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 575386
+    },
+    {
+      "id": "carvalho_leggero",
+      "original_name": "CARVALHO_LEGGERO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 595774
+    },
+    {
+      "id": "carvalho_mel",
+      "original_name": "CARVALHO_MEL",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2779692
+    },
+    {
+      "id": "carvalho_poro",
+      "original_name": "CARVALHO_PORO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 192997
+    },
+    {
+      "id": "carvalho_ristretto",
+      "original_name": "CARVALHO_RISTRETTO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 495807
+    },
+    {
+      "id": "carvalho_sevilha",
+      "original_name": "CARVALHO_SEVILHA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 1221611
+    },
+    {
+      "id": "castanheira_natural",
+      "original_name": "CASTANHEIRA_NATURAL",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 172979
+    },
+    {
+      "id": "castanho",
+      "original_name": "CASTANHO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2108082
+    },
+    {
+      "id": "cerrado",
+      "original_name": "CERRADO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 286587
+    },
+    {
+      "id": "ciliegio_florenca",
+      "original_name": "CILIEGIO_FLORENCA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 564671
+    },
+    {
+      "id": "cinza_cristal_chess_arauco",
+      "original_name": "CINZA_CRISTAL_CHESS_ARAUCO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 755399
+    },
+    {
+      "id": "cinza_cristal_tx_arauco",
+      "original_name": "CINZA_CRISTAL_TX_ARAUCO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 755386
+    },
+    {
+      "id": "cinza_puro",
+      "original_name": "CINZA_PURO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2702
+    },
+    {
+      "id": "cinzell",
+      "original_name": "CINZELL",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 128887
+    },
+    {
+      "id": "cobre_corten",
+      "original_name": "COBRE_CORTEN",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 505808
+    },
+    {
+      "id": "concreto_decor",
+      "original_name": "CONCRETO_DECOR",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 590258
+    },
+    {
+      "id": "connect_chess",
+      "original_name": "CONNECT_CHESS",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 86999
+    },
+    {
+      "id": "connect_matt",
+      "original_name": "CONNECT_MATT",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 335192
+    },
+    {
+      "id": "cosmo",
+      "original_name": "COSMO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 1223993
+    },
+    {
+      "id": "cristalina",
+      "original_name": "CRISTALINA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2096
+    },
+    {
+      "id": "cumaru_trend",
+      "original_name": "CUMARU_TREND",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 122142
+    },
+    {
+      "id": "damasco",
+      "original_name": "DAMASCO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2251
+    },
+    {
+      "id": "deva",
+      "original_name": "DEVA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 233019
+    },
+    {
+      "id": "ebano",
+      "original_name": "EBANO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 558094
+    },
+    {
+      "id": "ebano_chess",
+      "original_name": "EBANO_CHESS",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 41028
+    },
+    {
+      "id": "escarlate",
+      "original_name": "ESCARLATE",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 184506
+    },
+    {
+      "id": "farm",
+      "original_name": "FARM",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 509367
+    },
+    {
+      "id": "flor_de_algodao",
+      "original_name": "FLOR_DE_ALGODAO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 1939936
+    },
+    {
+      "id": "frape_matt",
+      "original_name": "FRAPE_MATT",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 255183
+    },
+    {
+      "id": "frape_sethos",
+      "original_name": "FRAPE_SETHOS",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 102537
+    },
+    {
+      "id": "frevo_dueto",
+      "original_name": "FREVO_DUETO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 890127
+    },
+    {
+      "id": "frevo_matt",
+      "original_name": "FREVO_MATT",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 656741
+    },
+    {
+      "id": "gaia",
+      "original_name": "GAIA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 287977
+    },
+    {
+      "id": "gales",
+      "original_name": "GALES",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 968758
+    },
+    {
+      "id": "golden",
+      "original_name": "GOLDEN",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 75936
+    },
+    {
+      "id": "grafen",
+      "original_name": "GRAFEN",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 47249
+    },
+    {
+      "id": "grafito",
+      "original_name": "GRAFITO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 392157
+    },
+    {
+      "id": "gris",
+      "original_name": "GRIS",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 876384
+    },
+    {
+      "id": "ipe_real",
+      "original_name": "IPE_REAL",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 208648
+    },
+    {
+      "id": "jalapao",
+      "original_name": "JALAPAO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2076
+    },
+    {
+      "id": "jatoba_brasileiro",
+      "original_name": "JATOBA_BRASILEIRO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 239185
+    },
+    {
+      "id": "jazz",
+      "original_name": "JAZZ",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2110
+    },
+    {
+      "id": "jequitiba",
+      "original_name": "JEQUITIBA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 144128
+    },
+    {
+      "id": "kashmir",
+      "original_name": "KASHMIR",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 75109
+    },
+    {
+      "id": "lassen",
+      "original_name": "LASSEN",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 388908
+    },
+    {
+      "id": "lavanda",
+      "original_name": "LAVANDA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2238
+    },
+    {
+      "id": "linheiro_grigio",
+      "original_name": "LINHEIRO_GRIGIO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 575094
+    },
+    {
+      "id": "linho_couro",
+      "original_name": "LINHO_COURO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 118287
+    },
+    {
+      "id": "lino_chess",
+      "original_name": "LINO_CHESS",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 128883
+    },
+    {
+      "id": "lino_piombo",
+      "original_name": "LINO_PIOMBO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 703793
+    },
+    {
+      "id": "lord_matt",
+      "original_name": "LORD_MATT",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 564688
+    },
+    {
+      "id": "lord_sethos",
+      "original_name": "LORD_SETHOS",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 123198
+    },
+    {
+      "id": "louro_freijo",
+      "original_name": "LOURO_FREIJO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 125585
+    },
+    {
+      "id": "louro_freijo_poro",
+      "original_name": "LOURO_FREIJO_PORO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2199296
+    },
+    {
+      "id": "louro_freijo_trend",
+      "original_name": "LOURO_FREIJO_TREND",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2199302
+    },
+    {
+      "id": "madeira",
+      "original_name": "MADEIRA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 212204
+    },
+    {
+      "id": "maragogi",
+      "original_name": "MARAGOGI",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2085
+    },
+    {
+      "id": "marau",
+      "original_name": "MARAU",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 341246
+    },
+    {
+      "id": "marau_bold",
+      "original_name": "MARAU_BOLD",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 3145586
+    },
+    {
+      "id": "mezzo_bianco",
+      "original_name": "MEZZO_BIANCO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 571175
+    },
+    {
+      "id": "mezzo_castani",
+      "original_name": "MEZZO_CASTANI",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 703312
+    },
+    {
+      "id": "noce_naturale",
+      "original_name": "NOCE_NATURALE",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 107406
+    },
+    {
+      "id": "nodo",
+      "original_name": "NODO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 601050
+    },
+    {
+      "id": "nogal_terracota",
+      "original_name": "NOGAL_TERRACOTA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 158096
+    },
+    {
+      "id": "nogueira",
+      "original_name": "NOGUEIRA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 386020
+    },
+    {
+      "id": "nogueira_pecan",
+      "original_name": "NOGUEIRA_PECAN",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 1043985
+    },
+    {
+      "id": "nogueira_persa",
+      "original_name": "NOGUEIRA_PERSA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 126722
+    },
+    {
+      "id": "nordic",
+      "original_name": "NORDIC",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 489764
+    },
+    {
+      "id": "nude_arauco",
+      "original_name": "NUDE_ARAUCO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 665876
+    },
+    {
+      "id": "oceano",
+      "original_name": "OCEANO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2238
+    },
+    {
+      "id": "orla",
+      "original_name": "ORLA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 79949
+    },
+    {
+      "id": "orvalho_vert",
+      "original_name": "ORVALHO_VERT",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 50791
+    },
+    {
+      "id": "ovo_light",
+      "original_name": "OVO_LIGHT",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 81505
+    },
+    {
+      "id": "pau_ferro_trend",
+      "original_name": "PAU_FERRO_TREND",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 523050
+    },
+    {
+      "id": "petar",
+      "original_name": "PETAR",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 1072042
+    },
+    {
+      "id": "preto_tx",
+      "original_name": "PRETO_TX",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 1374
+    },
+    {
+      "id": "reali",
+      "original_name": "REALI",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 118680
+    },
+    {
+      "id": "ricori_nativo",
+      "original_name": "RICORI_NATIVO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 225488
+    },
+    {
+      "id": "rovere_canova",
+      "original_name": "ROVERE_CANOVA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 625072
+    },
+    {
+      "id": "rovere_miro",
+      "original_name": "ROVERE_MIRO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 596108
+    },
+    {
+      "id": "rustic",
+      "original_name": "RUSTIC",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 234146
+    },
+    {
+      "id": "sal_rosa",
+      "original_name": "SAL_ROSA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 20529
+    },
+    {
+      "id": "salvia",
+      "original_name": "SALVIA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2241
+    },
+    {
+      "id": "samba",
+      "original_name": "SAMBA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 1313651
+    },
+    {
+      "id": "sertanejo",
+      "original_name": "SERTANEJO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 1320844
+    },
+    {
+      "id": "silicio",
+      "original_name": "SILICIO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 55169
+    },
+    {
+      "id": "sucupira",
+      "original_name": "SUCUPIRA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 210584
+    },
+    {
+      "id": "taj",
+      "original_name": "TAJ",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 266114
+    },
+    {
+      "id": "tauari_classico",
+      "original_name": "TAUARI_CLASSICO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 1128710
+    },
+    {
+      "id": "teka_artico",
+      "original_name": "TEKA_ARTICO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 109257
+    },
+    {
+      "id": "teka_barcelona",
+      "original_name": "TEKA_BARCELONA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 583648
+    },
+    {
+      "id": "terrarum",
+      "original_name": "TERRARUM",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 545852
+    },
+    {
+      "id": "titan",
+      "original_name": "TITAN",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 204780
+    },
+    {
+      "id": "tokai",
+      "original_name": "TOKAI",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 537189
+    },
+    {
+      "id": "vanilla_arauco",
+      "original_name": "VANILLA_ARAUCO",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 1715811
+    },
+    {
+      "id": "venezia",
+      "original_name": "VENEZIA",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 513369
+    },
+    {
+      "id": "verde_jade",
+      "original_name": "VERDE_JADE",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 2944
+    },
+    {
+      "id": "vesuvio_pedras",
+      "original_name": "VESUVIO_PEDRAS",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 199775
+    },
+    {
+      "id": "walnut",
+      "original_name": "WALNUT",
+      "supplier": "ARAUCO",
+      "type": "MDF",
+      "file_size": 115970
+    },
+    {
+      "id": "amantea",
+      "original_name": "AMANTEA",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 229066
+    },
+    {
+      "id": "argento",
+      "original_name": "ARGENTO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 112699
+    },
+    {
+      "id": "azul_tx",
+      "original_name": "AZUL_TX",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 213471
+    },
+    {
+      "id": "azul_vel",
+      "original_name": "AZUL_VEL",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 214156
+    },
+    {
+      "id": "barrique",
+      "original_name": "BARRIQUE",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 722873
+    },
+    {
+      "id": "baru_micro",
+      "original_name": "BARU_MICRO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 2165
+    },
+    {
+      "id": "baumkuchen",
+      "original_name": "BAUMKUCHEN",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 640998
+    },
+    {
+      "id": "branco_design",
+      "original_name": "BRANCO_DESIGN",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 585390
+    },
+    {
+      "id": "branco_liso",
+      "original_name": "BRANCO_LISO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 1818
+    },
+    {
+      "id": "branco_vel",
+      "original_name": "BRANCO_VEL",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 7704
+    },
+    {
+      "id": "cacau_grann",
+      "original_name": "CACAU_GRANN",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 316482
+    },
+    {
+      "id": "carvalho_atenas",
+      "original_name": "CARVALHO_ATENAS",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 2821527
+    },
+    {
+      "id": "carvalho_japandi_micro",
+      "original_name": "CARVALHO_JAPANDI_MICRO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 2612036
+    },
+    {
+      "id": "carvalho_treviso",
+      "original_name": "CARVALHO_TREVISO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 680217
+    },
+    {
+      "id": "castaine",
+      "original_name": "CASTAINE",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 692273
+    },
+    {
+      "id": "ceramik",
+      "original_name": "CERAMIK",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 524552
+    },
+    {
+      "id": "chiaro",
+      "original_name": "CHIARO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 226071
+    },
+    {
+      "id": "chumbo",
+      "original_name": "CHUMBO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 2875
+    },
+    {
+      "id": "cinamomo_grann",
+      "original_name": "CINAMOMO_GRANN",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 3278587
+    },
+    {
+      "id": "cinza_cobalto_tx",
+      "original_name": "CINZA_COBALTO_TX",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 5589
+    },
+    {
+      "id": "cinza_cobalto_vel",
+      "original_name": "CINZA_COBALTO_VEL",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 12424
+    },
+    {
+      "id": "cinza_cristal_tx_berneck",
+      "original_name": "CINZA_CRISTAL_TX_BERNECK",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 16275
+    },
+    {
+      "id": "cromio_vel",
+      "original_name": "CROMIO_VEL",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 16144
+    },
+    {
+      "id": "cru",
+      "original_name": "CRU",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 134935
+    },
+    {
+      "id": "damasco",
+      "original_name": "DAMASCO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 733350
+    },
+    {
+      "id": "desert_vel",
+      "original_name": "DESERT_VEL",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 628356
+    },
+    {
+      "id": "dust_alumi",
+      "original_name": "DUST_ALUMI",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 724932
+    },
+    {
+      "id": "faia",
+      "original_name": "FAIA",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 592152
+    },
+    {
+      "id": "falesia_vel",
+      "original_name": "FALESIA_VEL",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 782976
+    },
+    {
+      "id": "frassino_almendra_poro",
+      "original_name": "FRASSINO_ALMENDRA_PORO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 3055935
+    },
+    {
+      "id": "frassino_stone",
+      "original_name": "FRASSINO_STONE",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 34312
+    },
+    {
+      "id": "galiano_grann",
+      "original_name": "GALIANO_GRANN",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 2753970
+    },
+    {
+      "id": "gelo",
+      "original_name": "GELO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 3580
+    },
+    {
+      "id": "gengibre",
+      "original_name": "GENGIBRE",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 426406
+    },
+    {
+      "id": "gold_alumi",
+      "original_name": "GOLD_ALUMI",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 838117
+    },
+    {
+      "id": "griseo",
+      "original_name": "GRISEO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 457360
+    },
+    {
+      "id": "italian_noce",
+      "original_name": "ITALIAN_NOCE",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 702544
+    },
+    {
+      "id": "latte_micro",
+      "original_name": "LATTE_MICRO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 1874
+    },
+    {
+      "id": "linen_grigio",
+      "original_name": "LINEN_GRIGIO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 721863
+    },
+    {
+      "id": "louro_freijo_berneck",
+      "original_name": "LOURO_FREIJO_BERNECK",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 523301
+    },
+    {
+      "id": "louro_preto",
+      "original_name": "LOURO_PRETO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 758496
+    },
+    {
+      "id": "lunar",
+      "original_name": "LUNAR",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 170321
+    },
+    {
+      "id": "maple",
+      "original_name": "MAPLE",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 84608
+    },
+    {
+      "id": "marfim_florenca",
+      "original_name": "MARFIM_FLORENCA",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 171996
+    },
+    {
+      "id": "marquina",
+      "original_name": "MARQUINA",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 1069889
+    },
+    {
+      "id": "metallic_suede",
+      "original_name": "METALLIC_SUEDE",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 24770
+    },
+    {
+      "id": "millennial_micro",
+      "original_name": "MILLENNIAL_MICRO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 510168
+    },
+    {
+      "id": "mostrato_micro",
+      "original_name": "MOSTRATO_MICRO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 1169565
+    },
+    {
+      "id": "nero_rust",
+      "original_name": "NERO_RUST",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 651105
+    },
+    {
+      "id": "nogal_artezzano_grann",
+      "original_name": "NOGAL_ARTEZZANO_GRANN",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 2407305
+    },
+    {
+      "id": "nogal_malaga",
+      "original_name": "NOGAL_MALAGA",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 270844
+    },
+    {
+      "id": "nogal_sevilha_berneck",
+      "original_name": "NOGAL_SEVILHA_BERNECK",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 757559
+    },
+    {
+      "id": "nude_berneck",
+      "original_name": "NUDE_BERNECK",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 97486
+    },
+    {
+      "id": "opera_micro",
+      "original_name": "OPERA_MICRO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 537181
+    },
+    {
+      "id": "parquet_grann",
+      "original_name": "PARQUET_GRANN",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 1764572
+    },
+    {
+      "id": "pecan_vel",
+      "original_name": "PECAN_VEL",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 1888
+    },
+    {
+      "id": "peroba",
+      "original_name": "PEROBA",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 176043
+    },
+    {
+      "id": "plomo_alumi",
+      "original_name": "PLOMO_ALUMI",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 582567
+    },
+    {
+      "id": "preto_cristallo",
+      "original_name": "PRETO_CRISTALLO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 6915
+    },
+    {
+      "id": "preto_design",
+      "original_name": "PRETO_DESIGN",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 768170
+    },
+    {
+      "id": "provence_tatto",
+      "original_name": "PROVENCE_TATTO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 1880114
+    },
+    {
+      "id": "roble_catedral_grann",
+      "original_name": "ROBLE_CATEDRAL_GRANN",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 816622
+    },
+    {
+      "id": "ruggine_tx",
+      "original_name": "RUGGINE_TX",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 739923
+    },
+    {
+      "id": "salina_tatto",
+      "original_name": "SALINA_TATTO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 240258
+    },
+    {
+      "id": "sky_vel",
+      "original_name": "SKY_VEL",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 7304
+    },
+    {
+      "id": "solanum",
+      "original_name": "SOLANUM",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 2534127
+    },
+    {
+      "id": "super_white",
+      "original_name": "SUPER_WHITE",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 1381
+    },
+    {
+      "id": "tabasco_micro",
+      "original_name": "TABASCO_MICRO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 1895
+    },
+    {
+      "id": "tangara_micro",
+      "original_name": "TANGARA_MICRO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 1893
+    },
+    {
+      "id": "taupe_micro",
+      "original_name": "TAUPE_MICRO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 1876
+    },
+    {
+      "id": "terrazza",
+      "original_name": "TERRAZZA",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 320589
+    },
+    {
+      "id": "veneer_grann",
+      "original_name": "VENEER_GRANN",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 2098541
+    },
+    {
+      "id": "verti_micro",
+      "original_name": "VERTI_MICRO",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 86486
+    },
+    {
+      "id": "volakas",
+      "original_name": "VOLAKAS",
+      "supplier": "BERNECK",
+      "type": "MDF",
+      "file_size": 467840
+    },
+    {
+      "id": "absoluto",
+      "original_name": "ABSOLUTO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1957326
+    },
+    {
+      "id": "absoluto_design",
+      "original_name": "ABSOLUTO_DESIGN",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 62575
+    },
+    {
+      "id": "acqua",
+      "original_name": "ACQUA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 39093
+    },
+    {
+      "id": "alamo",
+      "original_name": "ALAMO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 639386
+    },
+    {
+      "id": "amendola_rustica",
+      "original_name": "AMENDOLA_RUSTICA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 141571
+    },
+    {
+      "id": "arena",
+      "original_name": "ARENA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 302986
+    },
+    {
+      "id": "arenito",
+      "original_name": "ARENITO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 10695087
+    },
+    {
+      "id": "arizona",
+      "original_name": "ARIZONA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 551742
+    },
+    {
+      "id": "artesanal",
+      "original_name": "ARTESANAL",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 511428
+    },
+    {
+      "id": "aurora",
+      "original_name": "AURORA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 2462
+    },
+    {
+      "id": "azul_astral",
+      "original_name": "AZUL_ASTRAL",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 2405533
+    },
+    {
+      "id": "azul_profundo",
+      "original_name": "AZUL_PROFUNDO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1882
+    },
+    {
+      "id": "azul_secreto",
+      "original_name": "AZUL_SECRETO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 9817
+    },
+    {
+      "id": "basalto",
+      "original_name": "BASALTO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1591877
+    },
+    {
+      "id": "betula",
+      "original_name": "BETULA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 229471
+    },
+    {
+      "id": "blush",
+      "original_name": "BLUSH",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1848
+    },
+    {
+      "id": "bolero",
+      "original_name": "BOLERO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 6655774
+    },
+    {
+      "id": "borgonha",
+      "original_name": "BORGONHA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 35559
+    },
+    {
+      "id": "bossa_ultra",
+      "original_name": "BOSSA_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1155111
+    },
+    {
+      "id": "branco",
+      "original_name": "BRANCO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 3355
+    },
+    {
+      "id": "branco_artico",
+      "original_name": "BRANCO_ARTICO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 3324
+    },
+    {
+      "id": "branco_artico_trama",
+      "original_name": "BRANCO_ARTICO_TRAMA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 9862
+    },
+    {
+      "id": "branco_artico_ultra",
+      "original_name": "BRANCO_ARTICO_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 16063
+    },
+    {
+      "id": "branco_diamante_ab",
+      "original_name": "BRANCO_DIAMANTE_AB",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 4813
+    },
+    {
+      "id": "branco_diamante_acetinatta",
+      "original_name": "BRANCO_DIAMANTE_ACETINATTA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1896
+    },
+    {
+      "id": "branco_diamante_cristallo",
+      "original_name": "BRANCO_DIAMANTE_CRISTALLO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 46941
+    },
+    {
+      "id": "branco_diamante_essencial",
+      "original_name": "BRANCO_DIAMANTE_ESSENCIAL",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 9585
+    },
+    {
+      "id": "branco_diamante_trama",
+      "original_name": "BRANCO_DIAMANTE_TRAMA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 9852
+    },
+    {
+      "id": "brise",
+      "original_name": "BRISE",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 125563
+    },
+    {
+      "id": "calacata_gold_ultra",
+      "original_name": "CALACATA_GOLD_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 97951
+    },
+    {
+      "id": "camadas_brasileiras_ultra",
+      "original_name": "CAMADAS_BRASILEIRAS_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 527920
+    },
+    {
+      "id": "canelado_ultra",
+      "original_name": "CANELADO_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 685341
+    },
+    {
+      "id": "canion_rustico",
+      "original_name": "CANION_RUSTICO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 223155
+    },
+    {
+      "id": "carbono",
+      "original_name": "CARBONO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 264834
+    },
+    {
+      "id": "carvalho_avela",
+      "original_name": "CARVALHO_AVELA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 62518
+    },
+    {
+      "id": "carvalho_batur",
+      "original_name": "CARVALHO_BATUR",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 155176
+    },
+    {
+      "id": "carvalho_berlin",
+      "original_name": "CARVALHO_BERLIN",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 182203
+    },
+    {
+      "id": "carvalho_dian",
+      "original_name": "CARVALHO_DIAN",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 52674463
+    },
+    {
+      "id": "carvalho_eterno",
+      "original_name": "CARVALHO_ETERNO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 195343
+    },
+    {
+      "id": "carvalho_evora",
+      "original_name": "CARVALHO_EVORA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 235885
+    },
+    {
+      "id": "carvalho_hanover",
+      "original_name": "CARVALHO_HANOVER",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 215499
+    },
+    {
+      "id": "carvalho_lir_prisma",
+      "original_name": "CARVALHO_LIR_PRISMA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 138509
+    },
+    {
+      "id": "carvalho_luar",
+      "original_name": "CARVALHO_LUAR",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 977686
+    },
+    {
+      "id": "carvalho_malva",
+      "original_name": "CARVALHO_MALVA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 113469
+    },
+    {
+      "id": "carvalho_malva_ultra",
+      "original_name": "CARVALHO_MALVA_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 791808
+    },
+    {
+      "id": "carvalho_munique",
+      "original_name": "CARVALHO_MUNIQUE",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 220624
+    },
+    {
+      "id": "chevron_ultra",
+      "original_name": "CHEVRON_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1468865
+    },
+    {
+      "id": "cinza_fossil",
+      "original_name": "CINZA_FOSSIL",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 2236
+    },
+    {
+      "id": "cinza_sagrado",
+      "original_name": "CINZA_SAGRADO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1393
+    },
+    {
+      "id": "cinza_sagrado_cristallo",
+      "original_name": "CINZA_SAGRADO_CRISTALLO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 462117
+    },
+    {
+      "id": "cinza_sagrado_ultra",
+      "original_name": "CINZA_SAGRADO_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 5277
+    },
+    {
+      "id": "citrino",
+      "original_name": "CITRINO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 53159
+    },
+    {
+      "id": "cosmos_ultra",
+      "original_name": "COSMOS_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 801286
+    },
+    {
+      "id": "cristal",
+      "original_name": "CRISTAL",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 12198
+    },
+    {
+      "id": "croma_cristallo",
+      "original_name": "CROMA_CRISTALLO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 38202
+    },
+    {
+      "id": "cru_ultra",
+      "original_name": "CRU_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 211360
+    },
+    {
+      "id": "cumaru_raiz_essencial_wood",
+      "original_name": "CUMARU_RAIZ_ESSENCIAL_WOOD",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 161194
+    },
+    {
+      "id": "delicate_ultra",
+      "original_name": "DELICATE_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1205694
+    },
+    {
+      "id": "encontros_ultra",
+      "original_name": "ENCONTROS_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1578325
+    },
+    {
+      "id": "fibra_nativa",
+      "original_name": "FIBRA_NATIVA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 361244
+    },
+    {
+      "id": "freijo_imperial_thera",
+      "original_name": "FREIJO_IMPERIAL_THERA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 597859
+    },
+    {
+      "id": "freijo_puro",
+      "original_name": "FREIJO_PURO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 546612
+    },
+    {
+      "id": "freijo_puro_ultra",
+      "original_name": "FREIJO_PURO_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 170316
+    },
+    {
+      "id": "galaxia_ultra",
+      "original_name": "GALAXIA_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1520974
+    },
+    {
+      "id": "gianduia_cristallo",
+      "original_name": "GIANDUIA_CRISTALLO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 4528
+    },
+    {
+      "id": "gianduia_natural_vel",
+      "original_name": "GIANDUIA_NATURAL_VEL",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 3935
+    },
+    {
+      "id": "gianduia_puro_sense",
+      "original_name": "GIANDUIA_PURO_SENSE",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1903
+    },
+    {
+      "id": "gianduia_trama",
+      "original_name": "GIANDUIA_TRAMA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 311542
+    },
+    {
+      "id": "gianduia_ultra",
+      "original_name": "GIANDUIA_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 21511
+    },
+    {
+      "id": "ginga_com_tapicoca_ultra",
+      "original_name": "GINGA_COM_TAPICOCA_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1528095
+    },
+    {
+      "id": "grafite_acetinatta",
+      "original_name": "GRAFITE_ACETINATTA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 2572
+    },
+    {
+      "id": "grafite_trama",
+      "original_name": "GRAFITE_TRAMA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 206261
+    },
+    {
+      "id": "hong_kong",
+      "original_name": "HONG_KONG",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 333768
+    },
+    {
+      "id": "ibiza",
+      "original_name": "IBIZA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 89860
+    },
+    {
+      "id": "inhotim",
+      "original_name": "INHOTIM",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 588534
+    },
+    {
+      "id": "itapua",
+      "original_name": "ITAPUA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 163319
+    },
+    {
+      "id": "itapua_ultra",
+      "original_name": "ITAPUA_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 103384
+    },
+    {
+      "id": "jequitiba_rosa",
+      "original_name": "JEQUITIBA_ROSA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 78166
+    },
+    {
+      "id": "lago_ultra",
+      "original_name": "LAGO_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1339503
+    },
+    {
+      "id": "lana",
+      "original_name": "LANA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 291969
+    },
+    {
+      "id": "larnaca",
+      "original_name": "LARNACA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 152850
+    },
+    {
+      "id": "legno_ultra",
+      "original_name": "LEGNO_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 123773
+    },
+    {
+      "id": "linho_belga_sense",
+      "original_name": "LINHO_BELGA_SENSE",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 349375
+    },
+    {
+      "id": "maya_cristallo",
+      "original_name": "MAYA_CRISTALLO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 787524
+    },
+    {
+      "id": "metropole",
+      "original_name": "METROPOLE",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 334466
+    },
+    {
+      "id": "mint",
+      "original_name": "MINT",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 459249
+    },
+    {
+      "id": "moss",
+      "original_name": "MOSS",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1806
+    },
+    {
+      "id": "nazca",
+      "original_name": "NAZCA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 354051
+    },
+    {
+      "id": "nexgeo_ultra",
+      "original_name": "NEXGEO_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 927509
+    },
+    {
+      "id": "nobile",
+      "original_name": "NOBILE",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 94865
+    },
+    {
+      "id": "noce_amendoa",
+      "original_name": "NOCE_AMENDOA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 110239
+    },
+    {
+      "id": "noce_california_essencial",
+      "original_name": "NOCE_CALIFORNIA_ESSENCIAL",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 391734
+    },
+    {
+      "id": "noce_mare",
+      "original_name": "NOCE_MARE",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 355576
+    },
+    {
+      "id": "nogueira_asti",
+      "original_name": "NOGUEIRA_ASTI",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 238705
+    },
+    {
+      "id": "nogueira_cadiz_prisma",
+      "original_name": "NOGUEIRA_CADIZ_PRISMA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 184597
+    },
+    {
+      "id": "nogueira_caiena",
+      "original_name": "NOGUEIRA_CAIENA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 270357
+    },
+    {
+      "id": "nogueira_florida",
+      "original_name": "NOGUEIRA_FLORIDA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 418420
+    },
+    {
+      "id": "nogueira_thar",
+      "original_name": "NOGUEIRA_THAR",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 833611
+    },
+    {
+      "id": "noturno",
+      "original_name": "NOTURNO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 92745
+    },
+    {
+      "id": "noturno_cristallo",
+      "original_name": "NOTURNO_CRISTALLO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 212578
+    },
+    {
+      "id": "oasis",
+      "original_name": "OASIS",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 330879
+    },
+    {
+      "id": "ocre_solar",
+      "original_name": "OCRE_SOLAR",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 885258
+    },
+    {
+      "id": "off_white",
+      "original_name": "OFF_WHITE",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 3051
+    },
+    {
+      "id": "opala_cristallo",
+      "original_name": "OPALA_CRISTALLO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 442902
+    },
+    {
+      "id": "orion",
+      "original_name": "ORION",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 832712
+    },
+    {
+      "id": "ouro_palido",
+      "original_name": "OURO_PALIDO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 37802
+    },
+    {
+      "id": "ovo",
+      "original_name": "OVO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 15448
+    },
+    {
+      "id": "palha",
+      "original_name": "PALHA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 5147112
+    },
+    {
+      "id": "partitura_ultra",
+      "original_name": "PARTITURA_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 12820
+    },
+    {
+      "id": "pau_ferro_natural_cristallo",
+      "original_name": "PAU_FERRO_NATURAL_CRISTALLO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 331585
+    },
+    {
+      "id": "pau_ferro_natural_essencial",
+      "original_name": "PAU_FERRO_NATURAL_ESSENCIAL",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 331584
+    },
+    {
+      "id": "perola_absoluto_design",
+      "original_name": "PEROLA_ABSOLUTO_DESIGN",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 13032550
+    },
+    {
+      "id": "perola_urbana",
+      "original_name": "PEROLA_URBANA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 9401
+    },
+    {
+      "id": "pinole",
+      "original_name": "PINOLE",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 2355
+    },
+    {
+      "id": "portoro",
+      "original_name": "PORTORO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 146197
+    },
+    {
+      "id": "portoro_ultra",
+      "original_name": "PORTORO_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 146085
+    },
+    {
+      "id": "prata",
+      "original_name": "PRATA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 121753
+    },
+    {
+      "id": "preto",
+      "original_name": "PRETO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 72882
+    },
+    {
+      "id": "preto_acetinatta",
+      "original_name": "PRETO_ACETINATTA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 465612
+    },
+    {
+      "id": "preto_trama",
+      "original_name": "PRETO_TRAMA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 9812
+    },
+    {
+      "id": "quartzo_bienna",
+      "original_name": "QUARTZO_BIENNA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 354158
+    },
+    {
+      "id": "quartzo_bienna_ultra",
+      "original_name": "QUARTZO_BIENNA_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 415756
+    },
+    {
+      "id": "renda",
+      "original_name": "RENDA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 68206
+    },
+    {
+      "id": "rialto_ultra",
+      "original_name": "RIALTO_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1277851
+    },
+    {
+      "id": "riga",
+      "original_name": "RIGA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 330091
+    },
+    {
+      "id": "riviera",
+      "original_name": "RIVIERA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 368371
+    },
+    {
+      "id": "rocha_rara",
+      "original_name": "ROCHA_RARA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 561370
+    },
+    {
+      "id": "rock_ultra",
+      "original_name": "ROCK_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 239570
+    },
+    {
+      "id": "rosa_glamour",
+      "original_name": "ROSA_GLAMOUR",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 9939
+    },
+    {
+      "id": "rosa_infinito",
+      "original_name": "ROSA_INFINITO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 30907
+    },
+    {
+      "id": "rovere_marsala",
+      "original_name": "ROVERE_MARSALA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 524289
+    },
+    {
+      "id": "rovere_sereno",
+      "original_name": "ROVERE_SERENO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 436353
+    },
+    {
+      "id": "rusty",
+      "original_name": "RUSTY",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 236648
+    },
+    {
+      "id": "ruvia_ultra",
+      "original_name": "RUVIA_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1097103
+    },
+    {
+      "id": "sepia",
+      "original_name": "SEPIA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 81082
+    },
+    {
+      "id": "sirena",
+      "original_name": "SIRENA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 264045
+    },
+    {
+      "id": "sirena_trama",
+      "original_name": "SIRENA_TRAMA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 29542
+    },
+    {
+      "id": "tape_ultra",
+      "original_name": "TAPE_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 2036193
+    },
+    {
+      "id": "tartufo",
+      "original_name": "TARTUFO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 5308
+    },
+    {
+      "id": "teka_soho",
+      "original_name": "TEKA_SOHO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 214293
+    },
+    {
+      "id": "thassos",
+      "original_name": "THASSOS",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 128328
+    },
+    {
+      "id": "thassos_ultra",
+      "original_name": "THASSOS_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 128356
+    },
+    {
+      "id": "titanio",
+      "original_name": "TITANIO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 41005
+    },
+    {
+      "id": "titanio_cristallo",
+      "original_name": "TITANIO_CRISTALLO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 31915
+    },
+    {
+      "id": "titanio_trama",
+      "original_name": "TITANIO_TRAMA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 9833
+    },
+    {
+      "id": "titanio_ultra",
+      "original_name": "TITANIO_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 10382
+    },
+    {
+      "id": "tramas_ultra",
+      "original_name": "TRAMAS_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 940859
+    },
+    {
+      "id": "tramato",
+      "original_name": "TRAMATO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 53581
+    },
+    {
+      "id": "trancoso",
+      "original_name": "TRANCOSO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 106277
+    },
+    {
+      "id": "trevi_ultra",
+      "original_name": "TREVI_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1208862
+    },
+    {
+      "id": "tribus_ultra",
+      "original_name": "TRIBUS_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1197575
+    },
+    {
+      "id": "trufa",
+      "original_name": "TRUFA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 38492
+    },
+    {
+      "id": "trufa_cristallo",
+      "original_name": "TRUFA_CRISTALLO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 4846
+    },
+    {
+      "id": "ultramarino_cristallo",
+      "original_name": "ULTRAMARINO_CRISTALLO",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 4293
+    },
+    {
+      "id": "verde_floresta",
+      "original_name": "VERDE_FLORESTA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1026766
+    },
+    {
+      "id": "verde_real",
+      "original_name": "VERDE_REAL",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 9443
+    },
+    {
+      "id": "zen_ultra",
+      "original_name": "ZEN_ULTRA",
+      "supplier": "DURATEX",
+      "type": "MDF",
+      "file_size": 1003766
+    },
+    {
+      "id": "areia_noronha",
+      "original_name": "AREIA_NORONHA",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 3484
+    },
+    {
+      "id": "arenas",
+      "original_name": "ARENAS",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 2706
+    },
+    {
+      "id": "blue_sky",
+      "original_name": "BLUE_SKY",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 3455
+    },
+    {
+      "id": "branco_neve",
+      "original_name": "BRANCO_NEVE",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 11563
+    },
+    {
+      "id": "carbono_raizes",
+      "original_name": "CARBONO_RAIZES",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 167971
+    },
+    {
+      "id": "carvalho_tropical",
+      "original_name": "CARVALHO_TROPICAL",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 12062941
+    },
+    {
+      "id": "castanho_bronze",
+      "original_name": "CASTANHO_BRONZE",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 9098524
+    },
+    {
+      "id": "cinza_italia",
+      "original_name": "CINZA_ITALIA",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 42049
+    },
+    {
+      "id": "cinza_supremo",
+      "original_name": "CINZA_SUPREMO",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 3473
+    },
+    {
+      "id": "cinza_urbano",
+      "original_name": "CINZA_URBANO",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 3463
+    },
+    {
+      "id": "cristal_aqua",
+      "original_name": "CRISTAL_AQUA",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 3468
+    },
+    {
+      "id": "cronos",
+      "original_name": "CRONOS",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 246659
+    },
+    {
+      "id": "cumaru_nativo",
+      "original_name": "CUMARU_NATIVO",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 14601140
+    },
+    {
+      "id": "dunas",
+      "original_name": "DUNAS",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 3442
+    },
+    {
+      "id": "elmo_macciato",
+      "original_name": "ELMO_MACCIATO",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 5345713
+    },
+    {
+      "id": "freijo_ambar",
+      "original_name": "FREIJO_AMBAR",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 3675005
+    },
+    {
+      "id": "freijo_brasil",
+      "original_name": "FREIJO_BRASIL",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 6140004
+    },
+    {
+      "id": "fume_classico",
+      "original_name": "FUME_CLASSICO",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 2545
+    },
+    {
+      "id": "fume_lacca_cetin",
+      "original_name": "FUME_LACCA_CETIN",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 2738
+    },
+    {
+      "id": "itaparica",
+      "original_name": "ITAPARICA",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 12287099
+    },
+    {
+      "id": "lacca_amarelo_gema",
+      "original_name": "LACCA_AMARELO_GEMA",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 654792
+    },
+    {
+      "id": "lacca_cetin_grafite_intenso",
+      "original_name": "LACCA_CETIN_GRAFITE_INTENSO",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 3673
+    },
+    {
+      "id": "lacca_cinza_italia",
+      "original_name": "LACCA_CINZA_ITALIA",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 4532
+    },
+    {
+      "id": "lacca_cinza_supremo",
+      "original_name": "LACCA_CINZA_SUPREMO",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 3491
+    },
+    {
+      "id": "lacca_cinza_urbano",
+      "original_name": "LACCA_CINZA_URBANO",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 3487
+    },
+    {
+      "id": "lacca_desert_rose",
+      "original_name": "LACCA_DESERT_ROSE",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 1863
+    },
+    {
+      "id": "lacca_fume",
+      "original_name": "LACCA_FUME",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 74567
+    },
+    {
+      "id": "lacca_metallic_cobre",
+      "original_name": "LACCA_METALLIC_COBRE",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 3090
+    },
+    {
+      "id": "lacca_preto_onix",
+      "original_name": "LACCA_PRETO_ONIX",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 938697
+    },
+    {
+      "id": "lacca_vermelho",
+      "original_name": "LACCA_VERMELHO",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 26442
+    },
+    {
+      "id": "lamina_dourada",
+      "original_name": "LAMINA_DOURADA",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 1931750
+    },
+    {
+      "id": "madero_cacau",
+      "original_name": "MADERO_CACAU",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 175446
+    },
+    {
+      "id": "madero_cinza",
+      "original_name": "MADERO_CINZA",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 169288
+    },
+    {
+      "id": "natural_oak",
+      "original_name": "NATURAL_OAK",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 76462
+    },
+    {
+      "id": "nevada_poro",
+      "original_name": "NEVADA_PORO",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 178942
+    },
+    {
+      "id": "nogueira_terracota",
+      "original_name": "NOGUEIRA_TERRACOTA",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 8752521
+    },
+    {
+      "id": "peroba_rosa",
+      "original_name": "PEROBA_ROSA",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 1089248
+    },
+    {
+      "id": "petala_rosa",
+      "original_name": "PETALA_ROSA",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 489225
+    },
+    {
+      "id": "quartzo_bege",
+      "original_name": "QUARTZO_BEGE",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 8793854
+    },
+    {
+      "id": "verde_mar",
+      "original_name": "VERDE_MAR",
+      "supplier": "EUCATEX",
+      "type": "MDF",
+      "file_size": 3447
+    },
+    {
+      "id": "acai",
+      "original_name": "ACAI",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 272284
+    },
+    {
+      "id": "ambar",
+      "original_name": "AMBAR",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 219838
+    },
+    {
+      "id": "aspen",
+      "original_name": "ASPEN",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 650472
+    },
+    {
+      "id": "auris",
+      "original_name": "AURIS",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 663879
+    },
+    {
+      "id": "branco_larissa",
+      "original_name": "BRANCO_LARISSA",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 3858
+    },
+    {
+      "id": "branco_larissa_ls",
+      "original_name": "BRANCO_LARISSA_LS",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 3872
+    },
+    {
+      "id": "cacau",
+      "original_name": "CACAU",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 127144
+    },
+    {
+      "id": "carbiuna_nobre",
+      "original_name": "CARBIUNA_NOBRE",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 873820
+    },
+    {
+      "id": "carvalho_capuccino",
+      "original_name": "CARVALHO_CAPUCCINO",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 602141
+    },
+    {
+      "id": "carvalho_frances",
+      "original_name": "CARVALHO_FRANCES",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 717381
+    },
+    {
+      "id": "carvalho_latino",
+      "original_name": "CARVALHO_LATINO",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 666529
+    },
+    {
+      "id": "carvalho_montreal",
+      "original_name": "CARVALHO_MONTREAL",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 575271
+    },
+    {
+      "id": "carvalho_tropical_fibraplac",
+      "original_name": "CARVALHO_TROPICAL_FIBRAPLAC",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 1980044
+    },
+    {
+      "id": "cerezo_anthenas",
+      "original_name": "CEREZO_ANTHENAS",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 654774
+    },
+    {
+      "id": "cinza_calcario_sumatra",
+      "original_name": "CINZA_CALCARIO_SUMATRA",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 103567
+    },
+    {
+      "id": "couro_cafe",
+      "original_name": "COURO_CAFE",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 589650
+    },
+    {
+      "id": "ebano_exotico",
+      "original_name": "EBANO_EXOTICO",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 535739
+    },
+    {
+      "id": "inovatta",
+      "original_name": "INOVATTA",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 632722
+    },
+    {
+      "id": "lavanda_fibraplac",
+      "original_name": "LAVANDA_FIBRAPLAC",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 178408
+    },
+    {
+      "id": "linho_branco_plus",
+      "original_name": "LINHO_BRANCO_PLUS",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 2471887
+    },
+    {
+      "id": "linho_cacau",
+      "original_name": "LINHO_CACAU",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 418315
+    },
+    {
+      "id": "linho_egipcio",
+      "original_name": "LINHO_EGIPCIO",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 835446
+    },
+    {
+      "id": "linho_fendi",
+      "original_name": "LINHO_FENDI",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 586322
+    },
+    {
+      "id": "linho_platina",
+      "original_name": "LINHO_PLATINA",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 101723
+    },
+    {
+      "id": "linum",
+      "original_name": "LINUM",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 1266351
+    },
+    {
+      "id": "maracuja",
+      "original_name": "MARACUJA",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 56143
+    },
+    {
+      "id": "marrocos",
+      "original_name": "MARROCOS",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 681849
+    },
+    {
+      "id": "mocaccino",
+      "original_name": "MOCACCINO",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 726480
+    },
+    {
+      "id": "mocca_sumatra",
+      "original_name": "MOCCA_SUMATRA",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 665091
+    },
+    {
+      "id": "montego",
+      "original_name": "MONTEGO",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 476424
+    },
+    {
+      "id": "murano",
+      "original_name": "MURANO",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 616772
+    },
+    {
+      "id": "nacre",
+      "original_name": "NACRE",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 524079
+    },
+    {
+      "id": "narita",
+      "original_name": "NARITA",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 602888
+    },
+    {
+      "id": "nogueira_boreal",
+      "original_name": "NOGUEIRA_BOREAL",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 597250
+    },
+    {
+      "id": "oceano",
+      "original_name": "OCEANO",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 4364
+    },
+    {
+      "id": "panna",
+      "original_name": "PANNA",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 421911
+    },
+    {
+      "id": "platina",
+      "original_name": "PLATINA",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 40934
+    },
+    {
+      "id": "rafia_cinza",
+      "original_name": "RAFIA_CINZA",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 650920
+    },
+    {
+      "id": "raphia",
+      "original_name": "RAPHIA",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 239247
+    },
+    {
+      "id": "saara",
+      "original_name": "SAARA",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 45275
+    },
+    {
+      "id": "sakura",
+      "original_name": "SAKURA",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 259344
+    },
+    {
+      "id": "serrano",
+      "original_name": "SERRANO",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 601489
+    },
+    {
+      "id": "siena_natural",
+      "original_name": "SIENA_NATURAL",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 576358
+    },
+    {
+      "id": "turmalina",
+      "original_name": "TURMALINA",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 257593
+    },
+    {
+      "id": "unique",
+      "original_name": "UNIQUE",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 693368
+    },
+    {
+      "id": "urbi",
+      "original_name": "URBI",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 149405
+    },
+    {
+      "id": "vanilla_fibraplac",
+      "original_name": "VANILLA_FIBRAPLAC",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 680207
+    },
+    {
+      "id": "versato",
+      "original_name": "VERSATO",
+      "supplier": "FIBRAPLAC",
+      "type": "MDF",
+      "file_size": 468644
+    },
+    {
+      "id": "argos",
+      "original_name": "ARGOS",
+      "supplier": "FLORAPLAC",
+      "type": "MDF",
+      "file_size": 576015
+    },
+    {
+      "id": "barcelona",
+      "original_name": "BARCELONA",
+      "supplier": "FLORAPLAC",
+      "type": "MDF",
+      "file_size": 313123
+    },
+    {
+      "id": "carbon",
+      "original_name": "CARBON",
+      "supplier": "FLORAPLAC",
+      "type": "MDF",
+      "file_size": 22167
+    },
+    {
+      "id": "carvalho_europeu",
+      "original_name": "CARVALHO_EUROPEU",
+      "supplier": "FLORAPLAC",
+      "type": "MDF",
+      "file_size": 611501
+    },
+    {
+      "id": "cinza_cristal_floraplac",
+      "original_name": "CINZA_CRISTAL_FLORAPLAC",
+      "supplier": "FLORAPLAC",
+      "type": "MDF",
+      "file_size": 59375
+    },
+    {
+      "id": "city_floraplac",
+      "original_name": "CITY_FLORAPLAC",
+      "supplier": "FLORAPLAC",
+      "type": "MDF",
+      "file_size": 177714
+    },
+    {
+      "id": "durban",
+      "original_name": "DURBAN",
+      "supplier": "FLORAPLAC",
+      "type": "MDF",
+      "file_size": 7666
+    },
+    {
+      "id": "floresta",
+      "original_name": "FLORESTA",
+      "supplier": "FLORAPLAC",
+      "type": "MDF",
+      "file_size": 2163
+    },
+    {
+      "id": "freijo_tucuma",
+      "original_name": "FREIJO_TUCUMA",
+      "supplier": "FLORAPLAC",
+      "type": "MDF",
+      "file_size": 536125
+    },
+    {
+      "id": "geppetto",
+      "original_name": "GEPPETTO",
+      "supplier": "FLORAPLAC",
+      "type": "MDF",
+      "file_size": 320074
+    },
+    {
+      "id": "manga_rosa",
+      "original_name": "MANGA_ROSA",
+      "supplier": "FLORAPLAC",
+      "type": "MDF",
+      "file_size": 44508
+    },
+    {
+      "id": "nogal_amendoado",
+      "original_name": "NOGAL_AMENDOADO",
+      "supplier": "FLORAPLAC",
+      "type": "MDF",
+      "file_size": 409854
+    },
+    {
+      "id": "nogueira_imperial",
+      "original_name": "NOGUEIRA_IMPERIAL",
+      "supplier": "FLORAPLAC",
+      "type": "MDF",
+      "file_size": 491360
+    },
+    {
+      "id": "proa",
+      "original_name": "PROA",
+      "supplier": "FLORAPLAC",
+      "type": "MDF",
+      "file_size": 412398
+    },
+    {
+      "id": "rose_gold",
+      "original_name": "ROSE_GOLD",
+      "supplier": "FLORAPLAC",
+      "type": "MDF",
+      "file_size": 140075
+    },
+    {
+      "id": "safira",
+      "original_name": "SAFIRA",
+      "supplier": "FLORAPLAC",
+      "type": "MDF",
+      "file_size": 2159
+    },
+    {
+      "id": "aria_colore",
+      "original_name": "ARIA_COLORE",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 1838
+    },
+    {
+      "id": "avellano",
+      "original_name": "AVELLANO",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 1535134
+    },
+    {
+      "id": "azuro",
+      "original_name": "AZURO",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 4269371
+    },
+    {
+      "id": "bali",
+      "original_name": "BALI",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 1505970
+    },
+    {
+      "id": "caput",
+      "original_name": "CAPUT",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 1917656
+    },
+    {
+      "id": "carmel_essenziale",
+      "original_name": "CARMEL_ESSENZIALE",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 152163
+    },
+    {
+      "id": "cascais",
+      "original_name": "CASCAIS",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 9465473
+    },
+    {
+      "id": "cromato_colore",
+      "original_name": "CROMATO_COLORE",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 22472
+    },
+    {
+      "id": "garanza",
+      "original_name": "GARANZA",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 1887099
+    },
+    {
+      "id": "granile",
+      "original_name": "GRANILE",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 303269
+    },
+    {
+      "id": "greige",
+      "original_name": "GREIGE",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 3033
+    },
+    {
+      "id": "ipe_guarani",
+      "original_name": "IPE_GUARANI",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 40584407
+    },
+    {
+      "id": "jade_natural",
+      "original_name": "JADE_NATURAL",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 130309
+    },
+    {
+      "id": "linare",
+      "original_name": "LINARE",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 631563
+    },
+    {
+      "id": "londres",
+      "original_name": "LONDRES",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 6811321
+    },
+    {
+      "id": "luanda",
+      "original_name": "LUANDA",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 9481293
+    },
+    {
+      "id": "nerali",
+      "original_name": "NERALI",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 6106075
+    },
+    {
+      "id": "nevari",
+      "original_name": "NEVARI",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 13034330
+    },
+    {
+      "id": "nilo",
+      "original_name": "NILO",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 6903688
+    },
+    {
+      "id": "pale",
+      "original_name": "PALE",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 1322807
+    },
+    {
+      "id": "petale",
+      "original_name": "PETALE",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 287475
+    },
+    {
+      "id": "pietra_bronze",
+      "original_name": "PIETRA_BRONZE",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 1920112
+    },
+    {
+      "id": "preto_tx_greenplac",
+      "original_name": "PRETO_TX_GREENPLAC",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 2047
+    },
+    {
+      "id": "raven",
+      "original_name": "RAVEN",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 1654252
+    },
+    {
+      "id": "rosato_toccare",
+      "original_name": "ROSATO_TOCCARE",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 345300
+    },
+    {
+      "id": "seline_frizzo",
+      "original_name": "SELINE_FRIZZO",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 240831
+    },
+    {
+      "id": "seline_toccare",
+      "original_name": "SELINE_TOCCARE",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 353621
+    },
+    {
+      "id": "toquio",
+      "original_name": "TOQUIO",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 5720732
+    },
+    {
+      "id": "toquio_frizzo",
+      "original_name": "TOQUIO_FRIZZO",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 5147
+    },
+    {
+      "id": "verbenni",
+      "original_name": "VERBENNI",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 402641
+    },
+    {
+      "id": "veredas",
+      "original_name": "VEREDAS",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 1593006
+    },
+    {
+      "id": "verona",
+      "original_name": "VERONA",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 13112399
+    },
+    {
+      "id": "versalhes",
+      "original_name": "VERSALHES",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 1965327
+    },
+    {
+      "id": "villandry",
+      "original_name": "VILLANDRY",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 143491
+    },
+    {
+      "id": "villandry_natural",
+      "original_name": "VILLANDRY_NATURAL",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 271055
+    },
+    {
+      "id": "vittra",
+      "original_name": "VITTRA",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 2695
+    },
+    {
+      "id": "volato",
+      "original_name": "VOLATO",
+      "supplier": "GREENPLAC",
+      "type": "MDF",
+      "file_size": 392684
+    },
+    {
+      "id": "alabama",
+      "original_name": "ALABAMA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 262979
+    },
+    {
+      "id": "alecrim",
+      "original_name": "ALECRIM",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 8749
+    },
+    {
+      "id": "amana",
+      "original_name": "AMANA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 2874619
+    },
+    {
+      "id": "ametista",
+      "original_name": "AMETISTA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 2175
+    },
+    {
+      "id": "andorra",
+      "original_name": "ANDORRA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 598889
+    },
+    {
+      "id": "antiqua",
+      "original_name": "ANTIQUA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 820045
+    },
+    {
+      "id": "antuerpia",
+      "original_name": "ANTUERPIA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 648392
+    },
+    {
+      "id": "araucaria",
+      "original_name": "ARAUCARIA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 1537650
+    },
+    {
+      "id": "areia",
+      "original_name": "AREIA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 4718
+    },
+    {
+      "id": "areia_ruc",
+      "original_name": "AREIA_RUC",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 2151
+    },
+    {
+      "id": "aura",
+      "original_name": "AURA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 4146487
+    },
+    {
+      "id": "avela",
+      "original_name": "AVELA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 809213
+    },
+    {
+      "id": "azul_ardosia",
+      "original_name": "AZUL_ARDOSIA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 1950
+    },
+    {
+      "id": "azul_marinho",
+      "original_name": "AZUL_MARINHO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 2888
+    },
+    {
+      "id": "azul_petroleo",
+      "original_name": "AZUL_PETROLEO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 4775
+    },
+    {
+      "id": "baviera",
+      "original_name": "BAVIERA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 850541
+    },
+    {
+      "id": "berinjela",
+      "original_name": "BERINJELA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 643070
+    },
+    {
+      "id": "bilbao",
+      "original_name": "BILBAO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 298037
+    },
+    {
+      "id": "branco_iceland",
+      "original_name": "BRANCO_ICELAND",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 387165
+    },
+    {
+      "id": "branco_maxi",
+      "original_name": "BRANCO_MAXI",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 3332
+    },
+    {
+      "id": "branco_tx_ruc",
+      "original_name": "BRANCO_TX_RUC",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 1759
+    },
+    {
+      "id": "brisa",
+      "original_name": "BRISA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 1846
+    },
+    {
+      "id": "brisa_ruc",
+      "original_name": "BRISA_RUC",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 2188
+    },
+    {
+      "id": "bronze",
+      "original_name": "BRONZE",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 557331
+    },
+    {
+      "id": "canovas",
+      "original_name": "CANOVAS",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 703856
+    },
+    {
+      "id": "capuccino",
+      "original_name": "CAPUCCINO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 6770
+    },
+    {
+      "id": "caribe",
+      "original_name": "CARIBE",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 527852
+    },
+    {
+      "id": "carvalho_capri",
+      "original_name": "CARVALHO_CAPRI",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 1514931
+    },
+    {
+      "id": "carvalho_decape",
+      "original_name": "CARVALHO_DECAPE",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 358887
+    },
+    {
+      "id": "carvalho_natural_deep_wood",
+      "original_name": "CARVALHO_NATURAL_DEEP_WOOD",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 92118
+    },
+    {
+      "id": "carvalho_natural_ruc",
+      "original_name": "CARVALHO_NATURAL_RUC",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 152394
+    },
+    {
+      "id": "carvalho_terrazo",
+      "original_name": "CARVALHO_TERRAZO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 726745
+    },
+    {
+      "id": "cinza_perfeito",
+      "original_name": "CINZA_PERFEITO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 531646
+    },
+    {
+      "id": "cinza_urban",
+      "original_name": "CINZA_URBAN",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 13272383
+    },
+    {
+      "id": "cioccolato",
+      "original_name": "CIOCCOLATO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 847138
+    },
+    {
+      "id": "cipres",
+      "original_name": "CIPRES",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 276411
+    },
+    {
+      "id": "cobre",
+      "original_name": "COBRE",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 635152
+    },
+    {
+      "id": "corten",
+      "original_name": "CORTEN",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 679026
+    },
+    {
+      "id": "cosmos",
+      "original_name": "COSMOS",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 959322
+    },
+    {
+      "id": "cromio",
+      "original_name": "CROMIO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 5769775
+    },
+    {
+      "id": "curupixa",
+      "original_name": "CURUPIXA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 477164
+    },
+    {
+      "id": "curupixa_ripado",
+      "original_name": "CURUPIXA_RIPADO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 336278
+    },
+    {
+      "id": "dual_black",
+      "original_name": "DUAL_BLACK",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 372780
+    },
+    {
+      "id": "dual_blanc",
+      "original_name": "DUAL_BLANC",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 409392
+    },
+    {
+      "id": "elmo_dubai",
+      "original_name": "ELMO_DUBAI",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 245562
+    },
+    {
+      "id": "erva_mate",
+      "original_name": "ERVA_MATE",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 2002
+    },
+    {
+      "id": "fendi",
+      "original_name": "FENDI",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 128073
+    },
+    {
+      "id": "floresta",
+      "original_name": "FLORESTA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 3382043
+    },
+    {
+      "id": "fog",
+      "original_name": "FOG",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 347707
+    },
+    {
+      "id": "fontana",
+      "original_name": "FONTANA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 643279
+    },
+    {
+      "id": "freijo",
+      "original_name": "FREIJO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 600096
+    },
+    {
+      "id": "freijo_ruc",
+      "original_name": "FREIJO_RUC",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 141290
+    },
+    {
+      "id": "fresno_acores",
+      "original_name": "FRESNO_ACORES",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 313178
+    },
+    {
+      "id": "fresno_aveiro",
+      "original_name": "FRESNO_AVEIRO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 4459268
+    },
+    {
+      "id": "fresno_coimbra",
+      "original_name": "FRESNO_COIMBRA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 324417
+    },
+    {
+      "id": "fresno_madeira",
+      "original_name": "FRESNO_MADEIRA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 3068415
+    },
+    {
+      "id": "fulge",
+      "original_name": "FULGE",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 1094558
+    },
+    {
+      "id": "gali",
+      "original_name": "GALI",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 4624114
+    },
+    {
+      "id": "grafite",
+      "original_name": "GRAFITE",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 4922
+    },
+    {
+      "id": "grafite_ruc",
+      "original_name": "GRAFITE_RUC",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 2155
+    },
+    {
+      "id": "imbuia",
+      "original_name": "IMBUIA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 695783
+    },
+    {
+      "id": "ipe",
+      "original_name": "IPE",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 672022
+    },
+    {
+      "id": "jaspe",
+      "original_name": "JASPE",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 4064998
+    },
+    {
+      "id": "jauzi",
+      "original_name": "JAUZI",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 355902
+    },
+    {
+      "id": "lisboa",
+      "original_name": "LISBOA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 405855
+    },
+    {
+      "id": "lume",
+      "original_name": "LUME",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 2555
+    },
+    {
+      "id": "lume_ruc",
+      "original_name": "LUME_RUC",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 2235
+    },
+    {
+      "id": "mageo_carvalho",
+      "original_name": "MAGEO_CARVALHO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 4273665
+    },
+    {
+      "id": "mageo_imbuia",
+      "original_name": "MAGEO_IMBUIA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 4797662
+    },
+    {
+      "id": "mageo_mel",
+      "original_name": "MAGEO_MEL",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 5376319
+    },
+    {
+      "id": "mangue",
+      "original_name": "MANGUE",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 2371
+    },
+    {
+      "id": "marmo",
+      "original_name": "MARMO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 1288647
+    },
+    {
+      "id": "marsala",
+      "original_name": "MARSALA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 4439
+    },
+    {
+      "id": "maxi_branco_guararapes",
+      "original_name": "MAXI_BRANCO_GUARARAPES",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 2972
+    },
+    {
+      "id": "maxi_branco_ruc",
+      "original_name": "MAXI_BRANCO_RUC",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 2161
+    },
+    {
+      "id": "metal_champagne",
+      "original_name": "METAL_CHAMPAGNE",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 1189058
+    },
+    {
+      "id": "milano",
+      "original_name": "MILANO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 482826
+    },
+    {
+      "id": "nairobi",
+      "original_name": "NAIROBI",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 883735
+    },
+    {
+      "id": "neblina",
+      "original_name": "NEBLINA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 1923
+    },
+    {
+      "id": "nero",
+      "original_name": "NERO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 768655
+    },
+    {
+      "id": "nevada",
+      "original_name": "NEVADA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 553508
+    },
+    {
+      "id": "new_cherry",
+      "original_name": "NEW_CHERRY",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 300923
+    },
+    {
+      "id": "niquel",
+      "original_name": "NIQUEL",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 94298
+    },
+    {
+      "id": "nogal_champagne",
+      "original_name": "NOGAL_CHAMPAGNE",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 479088
+    },
+    {
+      "id": "nogal_gris",
+      "original_name": "NOGAL_GRIS",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 759141
+    },
+    {
+      "id": "nogal_sevilha_guararapes",
+      "original_name": "NOGAL_SEVILHA_GUARARAPES",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 517761
+    },
+    {
+      "id": "nogueira_ambar",
+      "original_name": "NOGUEIRA_AMBAR",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 1372728
+    },
+    {
+      "id": "nogueira_rubi",
+      "original_name": "NOGUEIRA_RUBI",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 1615755
+    },
+    {
+      "id": "noite",
+      "original_name": "NOITE",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 4574
+    },
+    {
+      "id": "nuvem",
+      "original_name": "NUVEM",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 2058
+    },
+    {
+      "id": "nuvem_ruc",
+      "original_name": "NUVEM_RUC",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 1838
+    },
+    {
+      "id": "oliva",
+      "original_name": "OLIVA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 379133
+    },
+    {
+      "id": "onix_guararapes",
+      "original_name": "ONIX_GUARARAPES",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 768405
+    },
+    {
+      "id": "ouro",
+      "original_name": "OURO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 69775
+    },
+    {
+      "id": "papyrus",
+      "original_name": "PAPYRUS",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 537694
+    },
+    {
+      "id": "paris",
+      "original_name": "PARIS",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 891677
+    },
+    {
+      "id": "pau_ferro_deep_wood",
+      "original_name": "PAU_FERRO_DEEP_WOOD",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 938361
+    },
+    {
+      "id": "peroba",
+      "original_name": "PEROBA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 1549362
+    },
+    {
+      "id": "petra",
+      "original_name": "PETRA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 976432
+    },
+    {
+      "id": "platina",
+      "original_name": "PLATINA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 2305976
+    },
+    {
+      "id": "porto",
+      "original_name": "PORTO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 771668
+    },
+    {
+      "id": "preto_silk",
+      "original_name": "PRETO_SILK",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 721470
+    },
+    {
+      "id": "pretoria",
+      "original_name": "PRETORIA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 740279
+    },
+    {
+      "id": "quartzo",
+      "original_name": "QUARTZO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 308998
+    },
+    {
+      "id": "rosa_milkshake",
+      "original_name": "ROSA_MILKSHAKE",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 12003
+    },
+    {
+      "id": "salerno",
+      "original_name": "SALERNO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 1216608
+    },
+    {
+      "id": "santorini",
+      "original_name": "SANTORINI",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 455468
+    },
+    {
+      "id": "sao_paulo",
+      "original_name": "SAO_PAULO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 3550468
+    },
+    {
+      "id": "savana",
+      "original_name": "SAVANA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 866189
+    },
+    {
+      "id": "savana_ruc",
+      "original_name": "SAVANA_RUC",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 124819
+    },
+    {
+      "id": "sawcut",
+      "original_name": "SAWCUT",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 638394
+    },
+    {
+      "id": "siberia",
+      "original_name": "SIBERIA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 706788
+    },
+    {
+      "id": "sonora",
+      "original_name": "SONORA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 681902
+    },
+    {
+      "id": "tauari",
+      "original_name": "TAUARI",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 20580361
+    },
+    {
+      "id": "tauari_ripado",
+      "original_name": "TAUARI_RIPADO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 5112898
+    },
+    {
+      "id": "tauari_ruc",
+      "original_name": "TAUARI_RUC",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 129257
+    },
+    {
+      "id": "tear_confort",
+      "original_name": "TEAR_CONFORT",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 6171636
+    },
+    {
+      "id": "tecido",
+      "original_name": "TECIDO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 648086
+    },
+    {
+      "id": "tecno_metalic",
+      "original_name": "TECNO_METALIC",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 5218313
+    },
+    {
+      "id": "teka_bianco",
+      "original_name": "TEKA_BIANCO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 579275
+    },
+    {
+      "id": "tela",
+      "original_name": "TELA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 1114079
+    },
+    {
+      "id": "terrino",
+      "original_name": "TERRINO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 2278
+    },
+    {
+      "id": "tijolo",
+      "original_name": "TIJOLO",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 79749
+    },
+    {
+      "id": "tricote",
+      "original_name": "TRICOTE",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 223925
+    },
+    {
+      "id": "vesuvio_magma",
+      "original_name": "VESUVIO_MAGMA",
+      "supplier": "GUARARAPES",
+      "type": "MDF",
+      "file_size": 949183
+    },
+    {
+      "id": "acacia_japonesa_evidencias",
+      "original_name": "ACACIA_JAPONESA_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 130464
+    },
+    {
+      "id": "alpes_evidencias",
+      "original_name": "ALPES_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 2137
+    },
+    {
+      "id": "azul_indigo",
+      "original_name": "AZUL_INDIGO",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 3109
+    },
+    {
+      "id": "carvalho_bali_evidencias",
+      "original_name": "CARVALHO_BALI_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 86103
+    },
+    {
+      "id": "carvalho_deli_evidencias",
+      "original_name": "CARVALHO_DELI_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 72291
+    },
+    {
+      "id": "carvalho_valdez_evidencias",
+      "original_name": "CARVALHO_VALDEZ_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 93241
+    },
+    {
+      "id": "cimento_evidencias",
+      "original_name": "CIMENTO_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 2147
+    },
+    {
+      "id": "cinza_lunar_evidencias",
+      "original_name": "CINZA_LUNAR_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 2269
+    },
+    {
+      "id": "cronos_evidencias",
+      "original_name": "CRONOS_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 2258
+    },
+    {
+      "id": "elmo_avila_evidencias",
+      "original_name": "ELMO_AVILA_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 103939
+    },
+    {
+      "id": "freijo_ripado_evidencias",
+      "original_name": "FREIJO_RIPADO_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 121725
+    },
+    {
+      "id": "geada_evidencias",
+      "original_name": "GEADA_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 2136
+    },
+    {
+      "id": "jequitiba_dourado_evidencias",
+      "original_name": "JEQUITIBA_DOURADO_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 68763
+    },
+    {
+      "id": "legno_canela_evidencias",
+      "original_name": "LEGNO_CANELA_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 79727
+    },
+    {
+      "id": "marrom_gruta_evidencias",
+      "original_name": "MARROM_GRUTA_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 2687
+    },
+    {
+      "id": "marula_evidencias",
+      "original_name": "MARULA_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 1899
+    },
+    {
+      "id": "nogueira_moderna_evidencias",
+      "original_name": "NOGUEIRA_MODERNA_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 95995
+    },
+    {
+      "id": "nogueira_udine_evidencias",
+      "original_name": "NOGUEIRA_UDINE_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 79600
+    },
+    {
+      "id": "nogueira_veneto_evidencias",
+      "original_name": "NOGUEIRA_VENETO_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 87882
+    },
+    {
+      "id": "nua_evidencias",
+      "original_name": "NUA_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 26706
+    },
+    {
+      "id": "relva",
+      "original_name": "RELVA",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 1856
+    },
+    {
+      "id": "rovere_opala_evidencias",
+      "original_name": "ROVERE_OPALA_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 76362
+    },
+    {
+      "id": "saara_evidencias",
+      "original_name": "SAARA_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 2323
+    },
+    {
+      "id": "seiva",
+      "original_name": "SEIVA",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 85383
+    },
+    {
+      "id": "teca_soberano_evidencias",
+      "original_name": "TECA_SOBERANO_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 65033
+    },
+    {
+      "id": "titanio_sublime_evidencias",
+      "original_name": "TITANIO_SUBLIME_EVIDENCIAS",
+      "supplier": "LEO MADEIRAS",
+      "type": "MDF",
+      "file_size": 23644
+    },
+    {
+      "id": "amadeus",
+      "original_name": "AMADEUS",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 2655
+    },
+    {
+      "id": "amendoa_fiore",
+      "original_name": "AMENDOA_FIORE",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 221398
+    },
+    {
+      "id": "ametista_boreal",
+      "original_name": "AMETISTA_BOREAL",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 114196
+    },
+    {
+      "id": "apple",
+      "original_name": "APPLE",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 2898
+    },
+    {
+      "id": "bege",
+      "original_name": "BEGE",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 11941
+    },
+    {
+      "id": "best_nude",
+      "original_name": "BEST_NUDE",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 2311
+    },
+    {
+      "id": "branco_radiante_105_gr",
+      "original_name": "BRANCO_RADIANTE_105_GR",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 3111
+    },
+    {
+      "id": "cinza_argila",
+      "original_name": "CINZA_ARGILA",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 8342
+    },
+    {
+      "id": "cinza_cobalto_lopar",
+      "original_name": "CINZA_COBALTO_LOPAR",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 320406
+    },
+    {
+      "id": "cinza_cristal",
+      "original_name": "CINZA_CRISTAL",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 3319
+    },
+    {
+      "id": "coffee",
+      "original_name": "COFFEE",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 2397
+    },
+    {
+      "id": "dali",
+      "original_name": "DALI",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 82967
+    },
+    {
+      "id": "desert",
+      "original_name": "DESERT",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 2721
+    },
+    {
+      "id": "ebano_dakar",
+      "original_name": "EBANO_DAKAR",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 3673
+    },
+    {
+      "id": "freijo_mezzo",
+      "original_name": "FREIJO_MEZZO",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 126231
+    },
+    {
+      "id": "isadora_allure",
+      "original_name": "ISADORA_ALLURE",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 117178
+    },
+    {
+      "id": "land",
+      "original_name": "LAND",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 2610
+    },
+    {
+      "id": "linho_nice",
+      "original_name": "LINHO_NICE",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 92901
+    },
+    {
+      "id": "linho_persa",
+      "original_name": "LINHO_PERSA",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 125984
+    },
+    {
+      "id": "maciera_nobre",
+      "original_name": "MACIERA_NOBRE",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 86607
+    },
+    {
+      "id": "mongolia_brown",
+      "original_name": "MONGOLIA_BROWN",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 118093
+    },
+    {
+      "id": "moonlight",
+      "original_name": "MOONLIGHT",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 2265
+    },
+    {
+      "id": "noce_avela",
+      "original_name": "NOCE_AVELA",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 106049
+    },
+    {
+      "id": "nogueira_gris",
+      "original_name": "NOGUEIRA_GRIS",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 96380
+    },
+    {
+      "id": "ocean",
+      "original_name": "OCEAN",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 2393
+    },
+    {
+      "id": "perola_negra",
+      "original_name": "PEROLA_NEGRA",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 110513
+    },
+    {
+      "id": "valentina_vanilla",
+      "original_name": "VALENTINA_VANILLA",
+      "supplier": "LOPAR",
+      "type": "MDF",
+      "file_size": 690071
+    },
+    {
+      "id": "aco_corten",
+      "original_name": "ACO_CORTEN",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 331155
+    },
+    {
+      "id": "agata",
+      "original_name": "AGATA",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 757395
+    },
+    {
+      "id": "ameixa_negra",
+      "original_name": "AMEIXA_NEGRA",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 289775
+    },
+    {
+      "id": "aspen",
+      "original_name": "ASPEN",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 138430
+    },
+    {
+      "id": "authentic",
+      "original_name": "AUTHENTIC",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 393480
+    },
+    {
+      "id": "azulao",
+      "original_name": "AZULAO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 385341
+    },
+    {
+      "id": "blanche",
+      "original_name": "BLANCHE",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 607368
+    },
+    {
+      "id": "branco_platinum",
+      "original_name": "BRANCO_PLATINUM",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 493385
+    },
+    {
+      "id": "branco_tx",
+      "original_name": "BRANCO_TX",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 27604
+    },
+    {
+      "id": "brita",
+      "original_name": "BRITA",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 27875
+    },
+    {
+      "id": "cafelatte",
+      "original_name": "CAFELATTE",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 340175
+    },
+    {
+      "id": "cajueiro",
+      "original_name": "CAJUEIRO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 451806
+    },
+    {
+      "id": "calvi",
+      "original_name": "CALVI",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 396559
+    },
+    {
+      "id": "camurca",
+      "original_name": "CAMURCA",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 60759
+    },
+    {
+      "id": "canela_da_india",
+      "original_name": "CANELA_DA_INDIA",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 768113
+    },
+    {
+      "id": "carvalho",
+      "original_name": "CARVALHO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 199814
+    },
+    {
+      "id": "carvalho_indiano",
+      "original_name": "CARVALHO_INDIANO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 829333
+    },
+    {
+      "id": "carvalho_mel",
+      "original_name": "CARVALHO_MEL",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 192962
+    },
+    {
+      "id": "castanha_branca",
+      "original_name": "CASTANHA_BRANCA",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 642107
+    },
+    {
+      "id": "castanho",
+      "original_name": "CASTANHO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 561931
+    },
+    {
+      "id": "chamois",
+      "original_name": "CHAMOIS",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 315840
+    },
+    {
+      "id": "ciliegio",
+      "original_name": "CILIEGIO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 171785
+    },
+    {
+      "id": "coll",
+      "original_name": "COLL",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 683490
+    },
+    {
+      "id": "colorido",
+      "original_name": "COLORIDO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 27611
+    },
+    {
+      "id": "concreto_metropolitan",
+      "original_name": "CONCRETO_METROPOLITAN",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 168509
+    },
+    {
+      "id": "elmo_suico",
+      "original_name": "ELMO_SUICO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 595134
+    },
+    {
+      "id": "espresso",
+      "original_name": "ESPRESSO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 353775
+    },
+    {
+      "id": "fabric",
+      "original_name": "FABRIC",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 800638
+    },
+    {
+      "id": "fresno_blanco",
+      "original_name": "FRESNO_BLANCO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 561679
+    },
+    {
+      "id": "fresno_negro",
+      "original_name": "FRESNO_NEGRO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 286886
+    },
+    {
+      "id": "genev",
+      "original_name": "GENEV",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 308668
+    },
+    {
+      "id": "grigio",
+      "original_name": "GRIGIO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 795274
+    },
+    {
+      "id": "hunter",
+      "original_name": "HUNTER",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 271134
+    },
+    {
+      "id": "ipe_amarelo",
+      "original_name": "IPE_AMARELO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 336338
+    },
+    {
+      "id": "laricina",
+      "original_name": "LARICINA",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 648845
+    },
+    {
+      "id": "licor",
+      "original_name": "LICOR",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 493283
+    },
+    {
+      "id": "linho",
+      "original_name": "LINHO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 826058
+    },
+    {
+      "id": "louro_freijo_masisa",
+      "original_name": "LOURO_FREIJO_MASISA",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 277139
+    },
+    {
+      "id": "malbec_amaro",
+      "original_name": "MALBEC_AMARO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 629800
+    },
+    {
+      "id": "malbec_cassis",
+      "original_name": "MALBEC_CASSIS",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 170877
+    },
+    {
+      "id": "malbec_vanilla",
+      "original_name": "MALBEC_VANILLA",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 292604
+    },
+    {
+      "id": "marmara_erik",
+      "original_name": "MARMARA_ERIK",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 446820
+    },
+    {
+      "id": "marmara_gri",
+      "original_name": "MARMARA_GRI",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 642965
+    },
+    {
+      "id": "marmara_kahve",
+      "original_name": "MARMARA_KAHVE",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 274993
+    },
+    {
+      "id": "nebraska",
+      "original_name": "NEBRASKA",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 129075
+    },
+    {
+      "id": "nova_imbuia",
+      "original_name": "NOVA_IMBUIA",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 374740
+    },
+    {
+      "id": "onix_masisa",
+      "original_name": "ONIX_MASISA",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 386521
+    },
+    {
+      "id": "pedra_sol",
+      "original_name": "PEDRA_SOL",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 198687
+    },
+    {
+      "id": "pistache",
+      "original_name": "PISTACHE",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 33614
+    },
+    {
+      "id": "rovere_bianco",
+      "original_name": "ROVERE_BIANCO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 761486
+    },
+    {
+      "id": "rubi",
+      "original_name": "RUBI",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 826704
+    },
+    {
+      "id": "santana",
+      "original_name": "SANTANA",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 578642
+    },
+    {
+      "id": "sheffield",
+      "original_name": "SHEFFIELD",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 275353
+    },
+    {
+      "id": "tabaco",
+      "original_name": "TABACO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 601025
+    },
+    {
+      "id": "teca_italia",
+      "original_name": "TECA_ITALIA",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 252752
+    },
+    {
+      "id": "tirol",
+      "original_name": "TIROL",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 789216
+    },
+    {
+      "id": "toledo",
+      "original_name": "TOLEDO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 311933
+    },
+    {
+      "id": "toronto",
+      "original_name": "TORONTO",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 250270
+    },
+    {
+      "id": "tweed",
+      "original_name": "TWEED",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 447698
+    },
+    {
+      "id": "venezuela",
+      "original_name": "VENEZUELA",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 303944
+    },
+    {
+      "id": "vintage",
+      "original_name": "VINTAGE",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 416199
+    },
+    {
+      "id": "virginia",
+      "original_name": "VIRGINIA",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 234425
+    },
+    {
+      "id": "western",
+      "original_name": "WESTERN",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 399123
+    },
+    {
+      "id": "zurich",
+      "original_name": "ZURICH",
+      "supplier": "MASISA",
+      "type": "MDF",
+      "file_size": 313995
+    },
+    {
+      "id": "acacia",
+      "original_name": "ACACIA",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 1882801
+    },
+    {
+      "id": "acacia_hidroresistente",
+      "original_name": "ACACIA_HIDRORESISTENTE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 613712
+    },
+    {
+      "id": "alva_tear",
+      "original_name": "ALVA_TEAR",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 764739
+    },
+    {
+      "id": "amazonas_pele",
+      "original_name": "AMAZONAS_PELE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 2375593
+    },
+    {
+      "id": "aurea_imperial_linheiro",
+      "original_name": "AUREA_IMPERIAL_LINHEIRO",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 983257
+    },
+    {
+      "id": "branco_hidroresistente",
+      "original_name": "BRANCO_HIDRORESISTENTE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 1851
+    },
+    {
+      "id": "cafe_torrado_tear",
+      "original_name": "CAFE_TORRADO_TEAR",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 3274
+    },
+    {
+      "id": "capim_dourado_pele",
+      "original_name": "CAPIM_DOURADO_PELE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 2047
+    },
+    {
+      "id": "caravela",
+      "original_name": "CARAVELA",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 132339
+    },
+    {
+      "id": "carvalho_aicana",
+      "original_name": "CARVALHO_AICANA",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 71626
+    },
+    {
+      "id": "carvalho_arandu",
+      "original_name": "CARVALHO_ARANDU",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 109547
+    },
+    {
+      "id": "carvalho_caete",
+      "original_name": "CARVALHO_CAETE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 1305379
+    },
+    {
+      "id": "carvalho_tupi",
+      "original_name": "CARVALHO_TUPI",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 74144
+    },
+    {
+      "id": "castanha_de_caju",
+      "original_name": "CASTANHA_DE_CAJU",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 2569
+    },
+    {
+      "id": "castanha_de_caju_pele_hidroresistente",
+      "original_name": "CASTANHA_DE_CAJU_PELE_HIDRORESISTENTE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 2648
+    },
+    {
+      "id": "castanha_de_caju_tear_hidroresistente",
+      "original_name": "CASTANHA_DE_CAJU_TEAR_HIDRORESISTENTE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 134760
+    },
+    {
+      "id": "cinza_cristal_orvalho",
+      "original_name": "CINZA_CRISTAL_ORVALHO",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 10684
+    },
+    {
+      "id": "cinza_real",
+      "original_name": "CINZA_REAL",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 2528
+    },
+    {
+      "id": "cinza_real_hidroresistente",
+      "original_name": "CINZA_REAL_HIDRORESISTENTE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 2620
+    },
+    {
+      "id": "congo_capixaba_orvalho",
+      "original_name": "CONGO_CAPIXABA_ORVALHO",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 91267
+    },
+    {
+      "id": "cupuacu",
+      "original_name": "CUPUACU",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 2302510
+    },
+    {
+      "id": "cupuacu_tear",
+      "original_name": "CUPUACU_TEAR",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 7953339
+    },
+    {
+      "id": "elmo_aracruz_linheiro",
+      "original_name": "ELMO_ARACRUZ_LINHEIRO",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 72751
+    },
+    {
+      "id": "elmo_palmares",
+      "original_name": "ELMO_PALMARES",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 101768
+    },
+    {
+      "id": "freijo_hidroresistente",
+      "original_name": "FREIJO_HIDRORESISTENTE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 87093
+    },
+    {
+      "id": "freijo_poro_natural",
+      "original_name": "FREIJO_PORO_NATURAL",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 87086
+    },
+    {
+      "id": "freijo_ripado_poro_natural",
+      "original_name": "FREIJO_RIPADO_PORO_NATURAL",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 127599
+    },
+    {
+      "id": "guarana_tear",
+      "original_name": "GUARANA_TEAR",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 864988
+    },
+    {
+      "id": "hortensia_tear",
+      "original_name": "HORTENSIA_TEAR",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 6138
+    },
+    {
+      "id": "inga_tear",
+      "original_name": "INGA_TEAR",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 2725963
+    },
+    {
+      "id": "jacaranda",
+      "original_name": "JACARANDA",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 89879
+    },
+    {
+      "id": "jequitiba_rei_nativa",
+      "original_name": "JEQUITIBA_REI_NATIVA",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 1440449
+    },
+    {
+      "id": "luar_tear",
+      "original_name": "LUAR_TEAR",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 1106055
+    },
+    {
+      "id": "macanaiba",
+      "original_name": "MACANAIBA",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 106447
+    },
+    {
+      "id": "manteiga_de_cacau",
+      "original_name": "MANTEIGA_DE_CACAU",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 2773
+    },
+    {
+      "id": "manteiga_de_cacau_hidroresistente",
+      "original_name": "MANTEIGA_DE_CACAU_HIDRORESISTENTE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 3014
+    },
+    {
+      "id": "nogal_terena",
+      "original_name": "NOGAL_TERENA",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 1103337
+    },
+    {
+      "id": "nogueira_arroio",
+      "original_name": "NOGUEIRA_ARROIO",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 63634
+    },
+    {
+      "id": "nogueira_caiapo",
+      "original_name": "NOGUEIRA_CAIAPO",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 87999
+    },
+    {
+      "id": "nogueira_caiapo_hidroresistente",
+      "original_name": "NOGUEIRA_CAIAPO_HIDRORESISTENTE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 88059
+    },
+    {
+      "id": "nogueira_carajas",
+      "original_name": "NOGUEIRA_CARAJAS",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 98522
+    },
+    {
+      "id": "nogueira_goitaca",
+      "original_name": "NOGUEIRA_GOITACA",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 66618
+    },
+    {
+      "id": "ocre_pele",
+      "original_name": "OCRE_PELE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 2041
+    },
+    {
+      "id": "peroba_do_brasil",
+      "original_name": "PEROBA_DO_BRASIL",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 134595
+    },
+    {
+      "id": "peroba_do_brasil_hidroresistente",
+      "original_name": "PEROBA_DO_BRASIL_HIDRORESISTENTE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 134655
+    },
+    {
+      "id": "peroba_do_campo_nativa",
+      "original_name": "PEROBA_DO_CAMPO_NATIVA",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 3090058
+    },
+    {
+      "id": "pimenta_do_reino",
+      "original_name": "PIMENTA_DO_REINO",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 7657
+    },
+    {
+      "id": "pitanga_tear",
+      "original_name": "PITANGA_TEAR",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 306256
+    },
+    {
+      "id": "poente_hidroresistente",
+      "original_name": "POENTE_HIDRORESISTENTE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 39098
+    },
+    {
+      "id": "poente_tear",
+      "original_name": "POENTE_TEAR",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 12057
+    },
+    {
+      "id": "preto_orvalho",
+      "original_name": "PRETO_ORVALHO",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 2550
+    },
+    {
+      "id": "rio_negro",
+      "original_name": "RIO_NEGRO",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 594533
+    },
+    {
+      "id": "rio_negro_pele",
+      "original_name": "RIO_NEGRO_PELE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 2409163
+    },
+    {
+      "id": "samba_orvalho",
+      "original_name": "SAMBA_ORVALHO",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 61490
+    },
+    {
+      "id": "selva_pele",
+      "original_name": "SELVA_PELE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 2012
+    },
+    {
+      "id": "super_branco_acetinado",
+      "original_name": "SUPER_BRANCO_ACETINADO",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 1916
+    },
+    {
+      "id": "tapioca_tear",
+      "original_name": "TAPIOCA_TEAR",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 11584
+    },
+    {
+      "id": "terra_bronze",
+      "original_name": "TERRA_BRONZE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 2014
+    },
+    {
+      "id": "tropicalia_orvalho",
+      "original_name": "TROPICALIA_ORVALHO",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 152012
+    },
+    {
+      "id": "urucum_pele",
+      "original_name": "URUCUM_PELE",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 2013
+    },
+    {
+      "id": "vila_velha_linheiro",
+      "original_name": "VILA_VELHA_LINHEIRO",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 166049
+    },
+    {
+      "id": "vitoria_regia_tear",
+      "original_name": "VITORIA_REGIA_TEAR",
+      "supplier": "PLACAS DO BRASIL",
+      "type": "MDF",
+      "file_size": 6354
+    },
+    {
+      "id": "amendoa_pin_ct",
+      "original_name": "AMENDOA_PIN_CT",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 5851841
+    },
+    {
+      "id": "branco_pin_ct",
+      "original_name": "BRANCO_PIN_CT",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 12509
+    },
+    {
+      "id": "cedro_pin_ct",
+      "original_name": "CEDRO_PIN_CT",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 1321513
+    },
+    {
+      "id": "cinza_pin_ct",
+      "original_name": "CINZA_PIN_CT",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 1395
+    },
+    {
+      "id": "especial_1",
+      "original_name": "ESPECIAL_1",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 27611
+    },
+    {
+      "id": "especial_2",
+      "original_name": "ESPECIAL_2",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 27617
+    },
+    {
+      "id": "especial_3",
+      "original_name": "ESPECIAL_3",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 27616
+    },
+    {
+      "id": "especial_4",
+      "original_name": "ESPECIAL_4",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 27614
+    },
+    {
+      "id": "laca_brilho_1",
+      "original_name": "LACA_BRILHO_1",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 27617
+    },
+    {
+      "id": "laca_brilho_2",
+      "original_name": "LACA_BRILHO_2",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 27620
+    },
+    {
+      "id": "laca_brilho_3",
+      "original_name": "LACA_BRILHO_3",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 27620
+    },
+    {
+      "id": "laca_brilho_4",
+      "original_name": "LACA_BRILHO_4",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 27619
+    },
+    {
+      "id": "laca_fosco_1",
+      "original_name": "LACA_FOSCO_1",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 27617
+    },
+    {
+      "id": "laca_fosco_2",
+      "original_name": "LACA_FOSCO_2",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 27618
+    },
+    {
+      "id": "laca_fosco_3",
+      "original_name": "LACA_FOSCO_3",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 27617
+    },
+    {
+      "id": "laca_fosco_4",
+      "original_name": "LACA_FOSCO_4",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 27614
+    },
+    {
+      "id": "nogal_pin_ct",
+      "original_name": "NOGAL_PIN_CT",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 869481
+    },
+    {
+      "id": "nude_pin_ct",
+      "original_name": "NUDE_PIN_CT",
+      "supplier": "SEM FORNECEDOR",
+      "type": "MDF",
+      "file_size": 2552
+    },
+    {
+      "id": "amazonia",
+      "original_name": "AMAZONIA",
+      "supplier": "SUDATI",
+      "type": "MDF",
+      "file_size": 271487
+    },
+    {
+      "id": "argel",
+      "original_name": "ARGEL",
+      "supplier": "SUDATI",
+      "type": "MDF",
+      "file_size": 331353
+    },
+    {
+      "id": "asti_soul",
+      "original_name": "ASTI_SOUL",
+      "supplier": "SUDATI",
+      "type": "MDF",
+      "file_size": 2383
+    },
+    {
+      "id": "bianco_ravena",
+      "original_name": "BIANCO_RAVENA",
+      "supplier": "SUDATI",
+      "type": "MDF",
+      "file_size": 434286
+    },
+    {
+      "id": "cambiasi_unicolor",
+      "original_name": "CAMBIASI_UNICOLOR",
+      "supplier": "SUDATI",
+      "type": "MDF",
+      "file_size": 289096
+    },
+    {
+      "id": "carvalho_lino",
+      "original_name": "CARVALHO_LINO",
+      "supplier": "SUDATI",
+      "type": "MDF",
+      "file_size": 429701
+    },
+    {
+      "id": "carvalho_natural_naturally",
+      "original_name": "CARVALHO_NATURAL_NATURALLY",
+      "supplier": "SUDATI",
+      "type": "MDF",
+      "file_size": 635709
+    },
+    {
+      "id": "corazzi_naturally",
+      "original_name": "CORAZZI_NATURALLY",
+      "supplier": "SUDATI",
+      "type": "MDF",
+      "file_size": 197550
+    },
+    {
+      "id": "floripa",
+      "original_name": "FLORIPA",
+      "supplier": "SUDATI",
+      "type": "MDF",
+      "file_size": 247811
+    },
+    {
+      "id": "mineral",
+      "original_name": "MINERAL",
+      "supplier": "SUDATI",
+      "type": "MDF",
+      "file_size": 581085
+    },
+    {
+      "id": "santiago",
+      "original_name": "SANTIAGO",
+      "supplier": "SUDATI",
+      "type": "MDF",
+      "file_size": 181746
+    },
+    {
+      "id": "tempranillo",
+      "original_name": "TEMPRANILLO",
+      "supplier": "SUDATI",
+      "type": "MDF",
+      "file_size": 439191
+    }
+  ]
+}

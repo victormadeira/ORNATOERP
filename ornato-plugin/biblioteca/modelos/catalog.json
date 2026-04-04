@@ -1,0 +1,2739 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-04-03T23:43:50-03:00",
+  "total_models": 388,
+  "categories": {
+    "portas": 140,
+    "ferragens": 64,
+    "puxadores": 59,
+    "acessorios": 28,
+    "frentes": 20,
+    "basculantes": 18,
+    "kits": 15,
+    "prateleiras": 13,
+    "gavetas": 9,
+    "roupeiros": 8,
+    "corpos": 8,
+    "consoles": 3,
+    "nichos": 2,
+    "aereos": 1
+  },
+  "models": [
+    {
+      "id": "basculante_cava_madeira",
+      "original_name": "Basculante Cava Madeira",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_cava_madeira.skp",
+      "file_size": 257394
+    },
+    {
+      "id": "basculante_moldura_com_recorte_fs",
+      "original_name": "Basculante Moldura com Recorte FS",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_moldura_com_recorte_fs.skp",
+      "file_size": 305232
+    },
+    {
+      "id": "basculante_moldura_com_recorte_fecho_toque",
+      "original_name": "Basculante Moldura com Recorte Fecho Toque",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_moldura_com_recorte_fecho_toque.skp",
+      "file_size": 302982
+    },
+    {
+      "id": "basculante_moldura_com_recorte_hf",
+      "original_name": "Basculante Moldura com Recorte HF",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_moldura_com_recorte_hf.skp",
+      "file_size": 298267
+    },
+    {
+      "id": "basculante_moldura_com_recorte",
+      "original_name": "Basculante Moldura com Recorte",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_moldura_com_recorte.skp",
+      "file_size": 304979
+    },
+    {
+      "id": "basculante_perfil_3136_hf",
+      "original_name": "Basculante Perfil 3136 HF",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_perfil_3136_hf.skp",
+      "file_size": 404389
+    },
+    {
+      "id": "basculante_perfil_3345_hf",
+      "original_name": "Basculante Perfil 3345 HF",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_perfil_3345_hf.skp",
+      "file_size": 393265
+    },
+    {
+      "id": "basculante_perfil_3446_hf",
+      "original_name": "Basculante Perfil 3446 HF",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_perfil_3446_hf.skp",
+      "file_size": 385546
+    },
+    {
+      "id": "basculante_puxador_7015_perfil_3136_inferior",
+      "original_name": "Basculante Puxador 7015 Perfil 3136 Inferior",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_puxador_7015_perfil_3136_inferior.skp",
+      "file_size": 432551
+    },
+    {
+      "id": "basculante_puxador_7015_perfil_3136_superior",
+      "original_name": "Basculante Puxador 7015 Perfil 3136 Superior",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_puxador_7015_perfil_3136_superior.skp",
+      "file_size": 433035
+    },
+    {
+      "id": "basculante_puxador_7015_perfil_3136",
+      "original_name": "Basculante Puxador 7015 Perfil 3136",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_puxador_7015_perfil_3136.skp",
+      "file_size": 431789
+    },
+    {
+      "id": "basculante_puxador_7015_perfil_3345_inferior",
+      "original_name": "Basculante Puxador 7015 Perfil 3345 Inferior",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_puxador_7015_perfil_3345_inferior.skp",
+      "file_size": 439146
+    },
+    {
+      "id": "basculante_puxador_7015_perfil_3345_superior_fs",
+      "original_name": "Basculante Puxador 7015 Perfil 3345 Superior FS",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_puxador_7015_perfil_3345_superior_fs.skp",
+      "file_size": 442575
+    },
+    {
+      "id": "basculante_puxador_7015_perfil_3345_superior",
+      "original_name": "Basculante Puxador 7015 Perfil 3345 Superior",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_puxador_7015_perfil_3345_superior.skp",
+      "file_size": 439178
+    },
+    {
+      "id": "basculante_puxador_7015_perfil_3345",
+      "original_name": "Basculante Puxador 7015 Perfil 3345",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_puxador_7015_perfil_3345.skp",
+      "file_size": 418382
+    },
+    {
+      "id": "basculante_puxador_7015_perfil_3446_inferior",
+      "original_name": "Basculante Puxador 7015 Perfil 3446 Inferior",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_puxador_7015_perfil_3446_inferior.skp",
+      "file_size": 431837
+    },
+    {
+      "id": "basculante_puxador_7015_perfil_3446_superior",
+      "original_name": "Basculante Puxador 7015 Perfil 3446 Superior",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_puxador_7015_perfil_3446_superior.skp",
+      "file_size": 403602
+    },
+    {
+      "id": "basculante_puxador_7015_perfil_3446",
+      "original_name": "Basculante Puxador 7015 Perfil 3446",
+      "category": "basculantes",
+      "file_path": "basculantes/basculante_puxador_7015_perfil_3446.skp",
+      "file_size": 414777
+    },
+    {
+      "id": "cantoneira_13_x_13_2f_cj",
+      "original_name": "Cantoneira 13 x 13 2F CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/cantoneira_13_x_13_2f_cj.skp",
+      "file_size": 118075
+    },
+    {
+      "id": "cantoneira_13_x_13_2f",
+      "original_name": "Cantoneira 13 x 13 2F",
+      "category": "ferragens",
+      "file_path": "ferragens/cantoneira_13_x_13_2f.skp",
+      "file_size": 68919
+    },
+    {
+      "id": "cantoneira_metalica_e_acabamento_plastico",
+      "original_name": "Cantoneira Metalica e Acabamento Plastico",
+      "category": "ferragens",
+      "file_path": "ferragens/cantoneira_metalica_e_acabamento_plastico.skp",
+      "file_size": 101388
+    },
+    {
+      "id": "cavilha_cj",
+      "original_name": "Cavilha CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/cavilha_cj.skp",
+      "file_size": 72687
+    },
+    {
+      "id": "conjunto_porta_provencal_basculante",
+      "original_name": "Conjunto Porta Provencal Basculante",
+      "category": "portas",
+      "file_path": "portas/conjunto_porta_provencal_basculante.skp",
+      "file_size": 425269
+    },
+    {
+      "id": "conjunto_porta_provencal",
+      "original_name": "Conjunto Porta Provencal",
+      "category": "portas",
+      "file_path": "portas/conjunto_porta_provencal.skp",
+      "file_size": 402518
+    },
+    {
+      "id": "corpo_aereo",
+      "original_name": "Corpo Aereo",
+      "category": "aereos",
+      "file_path": "aereos/corpo_aereo.skp",
+      "file_size": 1704707
+    },
+    {
+      "id": "corpo_console_aberto",
+      "original_name": "Corpo Console Aberto",
+      "category": "consoles",
+      "file_path": "consoles/corpo_console_aberto.skp",
+      "file_size": 1092192
+    },
+    {
+      "id": "corpo_console_fechado",
+      "original_name": "Corpo Console Fechado",
+      "category": "consoles",
+      "file_path": "consoles/corpo_console_fechado.skp",
+      "file_size": 1148494
+    },
+    {
+      "id": "corpo_console_com_tampo",
+      "original_name": "Corpo Console com Tampo",
+      "category": "consoles",
+      "file_path": "consoles/corpo_console_com_tampo.skp",
+      "file_size": 1018081
+    },
+    {
+      "id": "corpo_duplo_2_vaos",
+      "original_name": "Corpo Duplo 2 Vaos",
+      "category": "corpos",
+      "file_path": "corpos/corpo_duplo_2_vaos.skp",
+      "file_size": 1570516
+    },
+    {
+      "id": "corpo_duplo_3_vaos",
+      "original_name": "Corpo Duplo 3 Vaos",
+      "category": "corpos",
+      "file_path": "corpos/corpo_duplo_3_vaos.skp",
+      "file_size": 2433179
+    },
+    {
+      "id": "corpo_duplo_4_vaos",
+      "original_name": "Corpo Duplo 4 Vaos",
+      "category": "corpos",
+      "file_path": "corpos/corpo_duplo_4_vaos.skp",
+      "file_size": 3177111
+    },
+    {
+      "id": "corpo_duplo_5_vaos",
+      "original_name": "Corpo Duplo 5 Vaos",
+      "category": "corpos",
+      "file_path": "corpos/corpo_duplo_5_vaos.skp",
+      "file_size": 3609207
+    },
+    {
+      "id": "corpo_simples_2_vaos",
+      "original_name": "Corpo Simples 2 Vaos",
+      "category": "corpos",
+      "file_path": "corpos/corpo_simples_2_vaos.skp",
+      "file_size": 1500037
+    },
+    {
+      "id": "corpo_simples_3_vaos",
+      "original_name": "Corpo Simples 3 Vaos",
+      "category": "corpos",
+      "file_path": "corpos/corpo_simples_3_vaos.skp",
+      "file_size": 2295296
+    },
+    {
+      "id": "corpo_simples_4_vaos",
+      "original_name": "Corpo Simples 4 Vaos",
+      "category": "corpos",
+      "file_path": "corpos/corpo_simples_4_vaos.skp",
+      "file_size": 2965527
+    },
+    {
+      "id": "corpo_simples_5_vaos",
+      "original_name": "Corpo Simples 5 Vaos",
+      "category": "corpos",
+      "file_path": "corpos/corpo_simples_5_vaos.skp",
+      "file_size": 3638408
+    },
+    {
+      "id": "corredica_oculta_extensao_total_b",
+      "original_name": "Corredica Oculta Extensao Total B",
+      "category": "ferragens",
+      "file_path": "ferragens/corredica_oculta_extensao_total_b.skp",
+      "file_size": 286040
+    },
+    {
+      "id": "corredica_oculta_extensao_total",
+      "original_name": "Corredica Oculta Extensao Total",
+      "category": "ferragens",
+      "file_path": "ferragens/corredica_oculta_extensao_total.skp",
+      "file_size": 287934
+    },
+    {
+      "id": "corredica_oculta_slowmotion",
+      "original_name": "Corredica Oculta Slowmotion",
+      "category": "ferragens",
+      "file_path": "ferragens/corredica_oculta_slowmotion.skp",
+      "file_size": 200215
+    },
+    {
+      "id": "corredica_sobreposta",
+      "original_name": "Corredica Sobreposta",
+      "category": "ferragens",
+      "file_path": "ferragens/corredica_sobreposta.skp",
+      "file_size": 412266
+    },
+    {
+      "id": "corredica_telescopica_inox",
+      "original_name": "Corredica Telescopica Inox",
+      "category": "ferragens",
+      "file_path": "ferragens/corredica_telescopica_inox.skp",
+      "file_size": 251762
+    },
+    {
+      "id": "corredica_telescopica_light_e_distanciador",
+      "original_name": "Corredica Telescopica Light e Distanciador",
+      "category": "ferragens",
+      "file_path": "ferragens/corredica_telescopica_light_e_distanciador.skp",
+      "file_size": 349066
+    },
+    {
+      "id": "corredica_telescopica_light",
+      "original_name": "Corredica Telescopica Light",
+      "category": "ferragens",
+      "file_path": "ferragens/corredica_telescopica_light.skp",
+      "file_size": 255871
+    },
+    {
+      "id": "corredica_telescopica_com_amortecedor",
+      "original_name": "Corredica Telescopica com Amortecedor",
+      "category": "ferragens",
+      "file_path": "ferragens/corredica_telescopica_com_amortecedor.skp",
+      "file_size": 251040
+    },
+    {
+      "id": "corredica_telescopica_e_distanciador",
+      "original_name": "Corredica Telescopica e Distanciador",
+      "category": "ferragens",
+      "file_path": "ferragens/corredica_telescopica_e_distanciador.skp",
+      "file_size": 339092
+    },
+    {
+      "id": "corredica_telescopica",
+      "original_name": "Corredica Telescopica",
+      "category": "ferragens",
+      "file_path": "ferragens/corredica_telescopica.skp",
+      "file_size": 251625
+    },
+    {
+      "id": "dobradica_amor_165_cj_canto_l",
+      "original_name": "Dobradica Amor. 165 Cj Canto L",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_amor_165_cj_canto_l.skp",
+      "file_size": 273202
+    },
+    {
+      "id": "dobradica_amor_165_cj",
+      "original_name": "Dobradica Amor. 165 Cj",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_amor_165_cj.skp",
+      "file_size": 273145
+    },
+    {
+      "id": "dobradica_amor_calco_duplo_cj_canto_reto",
+      "original_name": "Dobradica Amor. Calco Duplo Cj Canto Reto",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_amor_calco_duplo_cj_canto_reto.skp",
+      "file_size": 291765
+    },
+    {
+      "id": "dobradica_amor_calco_duplo_cj",
+      "original_name": "Dobradica Amor. Calco Duplo Cj",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_amor_calco_duplo_cj.skp",
+      "file_size": 290505
+    },
+    {
+      "id": "dobradica_amor_cj_canto_reto",
+      "original_name": "Dobradica Amor. Cj Canto Reto",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_amor_cj_canto_reto.skp",
+      "file_size": 263222
+    },
+    {
+      "id": "dobradica_amor_cj",
+      "original_name": "Dobradica Amor. Cj",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_amor_cj.skp",
+      "file_size": 261766
+    },
+    {
+      "id": "dobradica_curva_amor_calco_duplo_cj",
+      "original_name": "Dobradica Curva Amor. Calco Duplo Cj",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_curva_amor_calco_duplo_cj.skp",
+      "file_size": 269506
+    },
+    {
+      "id": "dobradica_curva_amor_cj",
+      "original_name": "Dobradica Curva Amor. Cj",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_curva_amor_cj.skp",
+      "file_size": 237497
+    },
+    {
+      "id": "dobradica_curva_sem_amor_calco_duplo_cj",
+      "original_name": "Dobradica Curva Sem Amor. Calco Duplo Cj",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_curva_sem_amor_calco_duplo_cj.skp",
+      "file_size": 266933
+    },
+    {
+      "id": "dobradica_curva_sem_amor_cj",
+      "original_name": "Dobradica Curva Sem Amor. Cj",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_curva_sem_amor_cj.skp",
+      "file_size": 235239
+    },
+    {
+      "id": "dobradica_porta_espessa_amor_cj_155_canto_l",
+      "original_name": "Dobradica Porta Espessa Amor. Cj 155 Canto L",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_porta_espessa_amor_cj_155_canto_l.skp",
+      "file_size": 277984
+    },
+    {
+      "id": "dobradica_porta_espessa_amor_cj_155",
+      "original_name": "Dobradica Porta Espessa Amor. Cj 155",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_porta_espessa_amor_cj_155.skp",
+      "file_size": 277933
+    },
+    {
+      "id": "dobradica_porta_espessa_amor_cj_canto_reto",
+      "original_name": "Dobradica Porta Espessa Amor. Cj Canto Reto",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_porta_espessa_amor_cj_canto_reto.skp",
+      "file_size": 279657
+    },
+    {
+      "id": "dobradica_porta_espessa_amor_cj",
+      "original_name": "Dobradica Porta Espessa Amor. Cj",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_porta_espessa_amor_cj.skp",
+      "file_size": 278733
+    },
+    {
+      "id": "dobradica_porta_espessa_sem_amor_cj_155_canto_l",
+      "original_name": "Dobradica Porta Espessa Sem Amor. Cj 155 Canto L",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_porta_espessa_sem_amor_cj_155_canto_l.skp",
+      "file_size": 276760
+    },
+    {
+      "id": "dobradica_porta_espessa_sem_amor_cj_155",
+      "original_name": "Dobradica Porta Espessa Sem Amor. Cj 155",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_porta_espessa_sem_amor_cj_155.skp",
+      "file_size": 276701
+    },
+    {
+      "id": "dobradica_porta_espessa_sem_amor_cj_canto_reto",
+      "original_name": "Dobradica Porta Espessa Sem Amor. Cj Canto Reto",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_porta_espessa_sem_amor_cj_canto_reto.skp",
+      "file_size": 279761
+    },
+    {
+      "id": "dobradica_porta_espessa_sem_amor_cj",
+      "original_name": "Dobradica Porta Espessa Sem Amor. Cj",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_porta_espessa_sem_amor_cj.skp",
+      "file_size": 278847
+    },
+    {
+      "id": "dobradica_sem_amor_calco_duplo_cj_canto_reto",
+      "original_name": "Dobradica Sem Amor. Calco Duplo Cj Canto Reto",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_sem_amor_calco_duplo_cj_canto_reto.skp",
+      "file_size": 288832
+    },
+    {
+      "id": "dobradica_sem_amor_calco_duplo_cj",
+      "original_name": "Dobradica Sem Amor. Calco Duplo Cj",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_sem_amor_calco_duplo_cj.skp",
+      "file_size": 288618
+    },
+    {
+      "id": "dobradica_sem_amor_cj_canto_reto",
+      "original_name": "Dobradica Sem Amor. Cj Canto Reto",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_sem_amor_cj_canto_reto.skp",
+      "file_size": 263279
+    },
+    {
+      "id": "dobradica_sem_amor_cj",
+      "original_name": "Dobradica Sem Amor. Cj",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_sem_amor_cj.skp",
+      "file_size": 261810
+    },
+    {
+      "id": "dobradica_sem_amor_165_cj_canto_l",
+      "original_name": "Dobradica Sem Amor.165 Cj Canto L",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_sem_amor_165_cj_canto_l.skp",
+      "file_size": 275418
+    },
+    {
+      "id": "dobradica_sem_amor_165_cj",
+      "original_name": "Dobradica Sem Amor.165 Cj",
+      "category": "ferragens",
+      "file_path": "ferragens/dobradica_sem_amor_165_cj.skp",
+      "file_size": 275378
+    },
+    {
+      "id": "estrutura_rodape_mdf",
+      "original_name": "Estrutura Rodape MDF",
+      "category": "acessorios",
+      "file_path": "acessorios/estrutura_rodape_mdf.skp",
+      "file_size": 1933142
+    },
+    {
+      "id": "fixacao_frentes_parafuso_4x25_cj",
+      "original_name": "Fixacao Frentes Parafuso 4x25 CJ",
+      "category": "acessorios",
+      "file_path": "acessorios/fixacao_frentes_parafuso_4x25_cj.skp",
+      "file_size": 120830
+    },
+    {
+      "id": "frente_cava_com_aba_parcial",
+      "original_name": "Frente Cava Com Aba Parcial",
+      "category": "frentes",
+      "file_path": "frentes/frente_cava_com_aba_parcial.skp",
+      "file_size": 552599
+    },
+    {
+      "id": "frente_lisa",
+      "original_name": "Frente Lisa",
+      "category": "frentes",
+      "file_path": "frentes/frente_lisa.skp",
+      "file_size": 188483
+    },
+    {
+      "id": "frente_moldura_rebaixo",
+      "original_name": "Frente Moldura Rebaixo",
+      "category": "frentes",
+      "file_path": "frentes/frente_moldura_rebaixo.skp",
+      "file_size": 371597
+    },
+    {
+      "id": "frente_moldura_com_recorte",
+      "original_name": "Frente Moldura com Recorte",
+      "category": "frentes",
+      "file_path": "frentes/frente_moldura_com_recorte.skp",
+      "file_size": 297534
+    },
+    {
+      "id": "frente_pux_cava_alum",
+      "original_name": "Frente Pux Cava Alum",
+      "category": "frentes",
+      "file_path": "frentes/frente_pux_cava_alum.skp",
+      "file_size": 608804
+    },
+    {
+      "id": "frente_pux_cava_madeira",
+      "original_name": "Frente Pux Cava Madeira",
+      "category": "frentes",
+      "file_path": "frentes/frente_pux_cava_madeira.skp",
+      "file_size": 253074
+    },
+    {
+      "id": "frente_puxador_2009",
+      "original_name": "Frente Puxador 2009",
+      "category": "frentes",
+      "file_path": "frentes/frente_puxador_2009.skp",
+      "file_size": 354501
+    },
+    {
+      "id": "frente_puxador_7015_perfil_3136",
+      "original_name": "Frente Puxador 7015 Perfil 3136",
+      "category": "frentes",
+      "file_path": "frentes/frente_puxador_7015_perfil_3136.skp",
+      "file_size": 442586
+    },
+    {
+      "id": "frente_puxador_7015_perfil_3345",
+      "original_name": "Frente Puxador 7015 Perfil 3345",
+      "category": "frentes",
+      "file_path": "frentes/frente_puxador_7015_perfil_3345.skp",
+      "file_size": 448436
+    },
+    {
+      "id": "frente_puxador_7015_perfil_3446",
+      "original_name": "Frente Puxador 7015 Perfil 3446",
+      "category": "frentes",
+      "file_path": "frentes/frente_puxador_7015_perfil_3446.skp",
+      "file_size": 440412
+    },
+    {
+      "id": "frente_puxador_cava_madeira",
+      "original_name": "Frente Puxador Cava Madeira",
+      "category": "frentes",
+      "file_path": "frentes/frente_puxador_cava_madeira.skp",
+      "file_size": 252843
+    },
+    {
+      "id": "frente_puxador_facetato",
+      "original_name": "Frente Puxador Facetato",
+      "category": "frentes",
+      "file_path": "frentes/frente_puxador_facetato.skp",
+      "file_size": 618193
+    },
+    {
+      "id": "frente_puxador_gola",
+      "original_name": "Frente Puxador Gola",
+      "category": "frentes",
+      "file_path": "frentes/frente_puxador_gola.skp",
+      "file_size": 557347
+    },
+    {
+      "id": "frente_puxador_m14",
+      "original_name": "Frente Puxador M14",
+      "category": "frentes",
+      "file_path": "frentes/frente_puxador_m14.skp",
+      "file_size": 438731
+    },
+    {
+      "id": "frente_puxador_montana_cava",
+      "original_name": "Frente Puxador Montana Cava",
+      "category": "frentes",
+      "file_path": "frentes/frente_puxador_montana_cava.skp",
+      "file_size": 568046
+    },
+    {
+      "id": "frente_puxador_neo_45",
+      "original_name": "Frente Puxador Neo 45",
+      "category": "frentes",
+      "file_path": "frentes/frente_puxador_neo_45.skp",
+      "file_size": 408793
+    },
+    {
+      "id": "frente_puxador_slim",
+      "original_name": "Frente Puxador Slim",
+      "category": "frentes",
+      "file_path": "frentes/frente_puxador_slim.skp",
+      "file_size": 396069
+    },
+    {
+      "id": "frente_puxador_zen_sottile",
+      "original_name": "Frente Puxador Zen Sottile",
+      "category": "frentes",
+      "file_path": "frentes/frente_puxador_zen_sottile.skp",
+      "file_size": 256905
+    },
+    {
+      "id": "frente_puxador_cava_com_aba",
+      "original_name": "Frente puxador cava com aba",
+      "category": "frentes",
+      "file_path": "frentes/frente_puxador_cava_com_aba.skp",
+      "file_size": 308065
+    },
+    {
+      "id": "frente_puxador_usinado",
+      "original_name": "Frente puxador usinado",
+      "category": "frentes",
+      "file_path": "frentes/frente_puxador_usinado.skp",
+      "file_size": 361216
+    },
+    {
+      "id": "furacao_horizontal_puxador_generico",
+      "original_name": "Furacao Horizontal Puxador Generico",
+      "category": "puxadores",
+      "file_path": "puxadores/furacao_horizontal_puxador_generico.skp",
+      "file_size": 67824
+    },
+    {
+      "id": "furacao_ponto_puxador_generico",
+      "original_name": "Furacao Ponto Puxador Generico",
+      "category": "puxadores",
+      "file_path": "puxadores/furacao_ponto_puxador_generico.skp",
+      "file_size": 58131
+    },
+    {
+      "id": "furacao_vertical_puxador_generico",
+      "original_name": "Furacao Vertical Puxador Generico",
+      "category": "puxadores",
+      "file_path": "puxadores/furacao_vertical_puxador_generico.skp",
+      "file_size": 68774
+    },
+    {
+      "id": "gav_sobreposta",
+      "original_name": "Gav. Sobreposta",
+      "category": "gavetas",
+      "file_path": "gavetas/gav_sobreposta.skp",
+      "file_size": 1571733
+    },
+    {
+      "id": "gaveta_alto_drawer",
+      "original_name": "Gaveta Alto Drawer",
+      "category": "gavetas",
+      "file_path": "gavetas/gaveta_alto_drawer.skp",
+      "file_size": 2386312
+    },
+    {
+      "id": "gaveta_metabox",
+      "original_name": "Gaveta Metabox",
+      "category": "gavetas",
+      "file_path": "gavetas/gaveta_metabox.skp",
+      "file_size": 2962909
+    },
+    {
+      "id": "gaveta_oculta_b",
+      "original_name": "Gaveta Oculta B",
+      "category": "gavetas",
+      "file_path": "gavetas/gaveta_oculta_b.skp",
+      "file_size": 1361164
+    },
+    {
+      "id": "gaveta_oculta_porta_latas",
+      "original_name": "Gaveta Oculta Porta Latas",
+      "category": "gavetas",
+      "file_path": "gavetas/gaveta_oculta_porta_latas.skp",
+      "file_size": 1304397
+    },
+    {
+      "id": "gaveta_oculta",
+      "original_name": "Gaveta Oculta",
+      "category": "gavetas",
+      "file_path": "gavetas/gaveta_oculta.skp",
+      "file_size": 1361611
+    },
+    {
+      "id": "gaveta_sobreposta",
+      "original_name": "Gaveta Sobreposta",
+      "category": "gavetas",
+      "file_path": "gavetas/gaveta_sobreposta.skp",
+      "file_size": 1515646
+    },
+    {
+      "id": "gaveta_tandembox_plus",
+      "original_name": "Gaveta Tandembox Plus",
+      "category": "gavetas",
+      "file_path": "gavetas/gaveta_tandembox_plus.skp",
+      "file_size": 3575789
+    },
+    {
+      "id": "gaveta_telescopica",
+      "original_name": "Gaveta Telescopica",
+      "category": "gavetas",
+      "file_path": "gavetas/gaveta_telescopica.skp",
+      "file_size": 1292440
+    },
+    {
+      "id": "kit_2_portas_dobradica_canto_l_155",
+      "original_name": "Kit 2 Portas Dobradica Canto L 155",
+      "category": "kits",
+      "file_path": "kits/kit_2_portas_dobradica_canto_l_155.skp",
+      "file_size": 776680
+    },
+    {
+      "id": "kit_2_portas_dobradica_canto_l_165",
+      "original_name": "Kit 2 Portas Dobradica Canto L 165",
+      "category": "kits",
+      "file_path": "kits/kit_2_portas_dobradica_canto_l_165.skp",
+      "file_size": 768824
+    },
+    {
+      "id": "kit_desempenador",
+      "original_name": "Kit Desempenador",
+      "category": "acessorios",
+      "file_path": "acessorios/kit_desempenador.skp",
+      "file_size": 169760
+    },
+    {
+      "id": "kit_deslizante_1_porta",
+      "original_name": "Kit Deslizante 1 Porta",
+      "category": "kits",
+      "file_path": "kits/kit_deslizante_1_porta.skp",
+      "file_size": 746347
+    },
+    {
+      "id": "kit_deslizante_2_portas",
+      "original_name": "Kit Deslizante 2 Portas",
+      "category": "kits",
+      "file_path": "kits/kit_deslizante_2_portas.skp",
+      "file_size": 1110859
+    },
+    {
+      "id": "kit_deslizante_3_portas",
+      "original_name": "Kit Deslizante 3 Portas",
+      "category": "kits",
+      "file_path": "kits/kit_deslizante_3_portas.skp",
+      "file_size": 1239584
+    },
+    {
+      "id": "kit_deslizante_4_portas",
+      "original_name": "Kit Deslizante 4 Portas",
+      "category": "kits",
+      "file_path": "kits/kit_deslizante_4_portas.skp",
+      "file_size": 1439667
+    },
+    {
+      "id": "kit_minifix",
+      "original_name": "Kit Minifix",
+      "category": "kits",
+      "file_path": "kits/kit_minifix.skp",
+      "file_size": 83169
+    },
+    {
+      "id": "kit_porta_dobradica_155",
+      "original_name": "Kit Porta Dobradica 155",
+      "category": "kits",
+      "file_path": "kits/kit_porta_dobradica_155.skp",
+      "file_size": 584913
+    },
+    {
+      "id": "kit_porta_dobradica_165",
+      "original_name": "Kit Porta Dobradica 165",
+      "category": "kits",
+      "file_path": "kits/kit_porta_dobradica_165.skp",
+      "file_size": 563512
+    },
+    {
+      "id": "kit_prateleira_interna_vidro",
+      "original_name": "Kit Prateleira Interna Vidro",
+      "category": "kits",
+      "file_path": "kits/kit_prateleira_interna_vidro.skp",
+      "file_size": 379237
+    },
+    {
+      "id": "kit_puxador_passagem",
+      "original_name": "Kit Puxador Passagem",
+      "category": "kits",
+      "file_path": "kits/kit_puxador_passagem.skp",
+      "file_size": 358048
+    },
+    {
+      "id": "kit_rafix_duplo",
+      "original_name": "Kit Rafix Duplo",
+      "category": "kits",
+      "file_path": "kits/kit_rafix_duplo.skp",
+      "file_size": 284340
+    },
+    {
+      "id": "kit_rafix",
+      "original_name": "Kit Rafix",
+      "category": "kits",
+      "file_path": "kits/kit_rafix.skp",
+      "file_size": 232961
+    },
+    {
+      "id": "kit_rodizios_plastico",
+      "original_name": "Kit Rodizios Plastico",
+      "category": "kits",
+      "file_path": "kits/kit_rodizios_plastico.skp",
+      "file_size": 1044784
+    },
+    {
+      "id": "kit_rodizios_silicone",
+      "original_name": "Kit Rodizios Silicone",
+      "category": "kits",
+      "file_path": "kits/kit_rodizios_silicone.skp",
+      "file_size": 394528
+    },
+    {
+      "id": "mascara_lisa",
+      "original_name": "Mascara Lisa",
+      "category": "acessorios",
+      "file_path": "acessorios/mascara_lisa.skp",
+      "file_size": 226675
+    },
+    {
+      "id": "mascara_pux_cava_alum",
+      "original_name": "Mascara Pux Cava Alum",
+      "category": "acessorios",
+      "file_path": "acessorios/mascara_pux_cava_alum.skp",
+      "file_size": 610037
+    },
+    {
+      "id": "mascara_puxador_facetato",
+      "original_name": "Mascara Puxador Facetato",
+      "category": "acessorios",
+      "file_path": "acessorios/mascara_puxador_facetato.skp",
+      "file_size": 665006
+    },
+    {
+      "id": "mascara_puxador_gola",
+      "original_name": "Mascara Puxador Gola",
+      "category": "acessorios",
+      "file_path": "acessorios/mascara_puxador_gola.skp",
+      "file_size": 602584
+    },
+    {
+      "id": "minifix_e_cavilha_cj_simetrico",
+      "original_name": "Minifix e Cavilha CJ Simetrico",
+      "category": "ferragens",
+      "file_path": "ferragens/minifix_e_cavilha_cj_simetrico.skp",
+      "file_size": 518583
+    },
+    {
+      "id": "minifix_e_cavilha_cj",
+      "original_name": "Minifix e Cavilha CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/minifix_e_cavilha_cj.skp",
+      "file_size": 258547
+    },
+    {
+      "id": "minifix_e_cavilha_multiplo_cj",
+      "original_name": "Minifix e Cavilha Multiplo CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/minifix_e_cavilha_multiplo_cj.skp",
+      "file_size": 211972
+    },
+    {
+      "id": "nicho_bases_passantes",
+      "original_name": "Nicho Bases Passantes",
+      "category": "nichos",
+      "file_path": "nichos/nicho_bases_passantes.skp",
+      "file_size": 1386116
+    },
+    {
+      "id": "nicho_laterais_passantes",
+      "original_name": "Nicho Laterais Passantes",
+      "category": "nichos",
+      "file_path": "nichos/nicho_laterais_passantes.skp",
+      "file_size": 1378633
+    },
+    {
+      "id": "parafuso_3_5x40_cj_flangeado",
+      "original_name": "Parafuso 3.5x40 CJ Flangeado",
+      "category": "ferragens",
+      "file_path": "ferragens/parafuso_3_5x40_cj_flangeado.skp",
+      "file_size": 124896
+    },
+    {
+      "id": "parafuso_3_5x40_cj",
+      "original_name": "Parafuso 3.5x40 CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/parafuso_3_5x40_cj.skp",
+      "file_size": 62126
+    },
+    {
+      "id": "parafuso_4_5x50_cj_flangeado",
+      "original_name": "Parafuso 4.5x50 CJ Flangeado",
+      "category": "ferragens",
+      "file_path": "ferragens/parafuso_4_5x50_cj_flangeado.skp",
+      "file_size": 137000
+    },
+    {
+      "id": "parafuso_4x40_cj",
+      "original_name": "Parafuso 4x40 CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/parafuso_4x40_cj.skp",
+      "file_size": 60678
+    },
+    {
+      "id": "parafuso_cabeca_13_cj",
+      "original_name": "Parafuso Cabeca 13 CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/parafuso_cabeca_13_cj.skp",
+      "file_size": 366372
+    },
+    {
+      "id": "pe_nivelador_aluminio_cj",
+      "original_name": "Pe Nivelador Aluminio CJ",
+      "category": "acessorios",
+      "file_path": "acessorios/pe_nivelador_aluminio_cj.skp",
+      "file_size": 857034
+    },
+    {
+      "id": "pe_nivelador_aluminio_canto_cj",
+      "original_name": "Pe Nivelador Aluminio Canto CJ",
+      "category": "acessorios",
+      "file_path": "acessorios/pe_nivelador_aluminio_canto_cj.skp",
+      "file_size": 891807
+    },
+    {
+      "id": "pe_nivelador_plastico_cj",
+      "original_name": "Pe Nivelador Plastico CJ",
+      "category": "acessorios",
+      "file_path": "acessorios/pe_nivelador_plastico_cj.skp",
+      "file_size": 302825
+    },
+    {
+      "id": "pe_nivelador_plastico_canto_cj",
+      "original_name": "Pe Nivelador Plastico Canto CJ",
+      "category": "acessorios",
+      "file_path": "acessorios/pe_nivelador_plastico_canto_cj.skp",
+      "file_size": 287245
+    },
+    {
+      "id": "pino_metalico",
+      "original_name": "Pino Metalico",
+      "category": "ferragens",
+      "file_path": "ferragens/pino_metalico.skp",
+      "file_size": 168266
+    },
+    {
+      "id": "pino_plastico",
+      "original_name": "Pino Plastico",
+      "category": "ferragens",
+      "file_path": "ferragens/pino_plastico.skp",
+      "file_size": 27923
+    },
+    {
+      "id": "porta_almofada",
+      "original_name": "Porta Almofada",
+      "category": "portas",
+      "file_path": "portas/porta_almofada.skp",
+      "file_size": 844128
+    },
+    {
+      "id": "porta_alta_almofada",
+      "original_name": "Porta Alta Almofada",
+      "category": "portas",
+      "file_path": "portas/porta_alta_almofada.skp",
+      "file_size": 736230
+    },
+    {
+      "id": "porta_alta_cava_com_aba_parcial",
+      "original_name": "Porta Alta Cava com Aba Parcial",
+      "category": "portas",
+      "file_path": "portas/porta_alta_cava_com_aba_parcial.skp",
+      "file_size": 504991
+    },
+    {
+      "id": "porta_alta_moldura_provencal_com_vidro_perfil_pvc",
+      "original_name": "Porta Alta Moldura Provencal com Vidro Perfil PVC",
+      "category": "portas",
+      "file_path": "portas/porta_alta_moldura_provencal_com_vidro_perfil_pvc.skp",
+      "file_size": 586156
+    },
+    {
+      "id": "porta_alta_moldura_provencal_de_vidro_recobrido",
+      "original_name": "Porta Alta Moldura Provencal de Vidro Recobrido",
+      "category": "portas",
+      "file_path": "portas/porta_alta_moldura_provencal_de_vidro_recobrido.skp",
+      "file_size": 722058
+    },
+    {
+      "id": "porta_alta_moldura_de_vidro_perfil_pvc",
+      "original_name": "Porta Alta Moldura de Vidro Perfil PVC",
+      "category": "portas",
+      "file_path": "portas/porta_alta_moldura_de_vidro_perfil_pvc.skp",
+      "file_size": 659890
+    },
+    {
+      "id": "porta_alta_moldura_de_vidro_recobrido",
+      "original_name": "Porta Alta Moldura de Vidro Recobrido",
+      "category": "portas",
+      "file_path": "portas/porta_alta_moldura_de_vidro_recobrido.skp",
+      "file_size": 801325
+    },
+    {
+      "id": "porta_alta_palha",
+      "original_name": "Porta Alta Palha",
+      "category": "portas",
+      "file_path": "portas/porta_alta_palha.skp",
+      "file_size": 997004
+    },
+    {
+      "id": "porta_alta_puxador_usinado_retangular",
+      "original_name": "Porta Alta Puxador Usinado Retangular",
+      "category": "portas",
+      "file_path": "portas/porta_alta_puxador_usinado_retangular.skp",
+      "file_size": 683051
+    },
+    {
+      "id": "porta_basc_mold_rebaixo_sup_aventos_hf",
+      "original_name": "Porta Basc. Mold. Rebaixo Sup. Aventos HF",
+      "category": "portas",
+      "file_path": "portas/porta_basc_mold_rebaixo_sup_aventos_hf.skp",
+      "file_size": 336341
+    },
+    {
+      "id": "porta_basculante_almofada_fs",
+      "original_name": "Porta Basculante Almofada FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_almofada_fs.skp",
+      "file_size": 852119
+    },
+    {
+      "id": "porta_basculante_almofada_fecho_toque",
+      "original_name": "Porta Basculante Almofada Fecho Toque",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_almofada_fecho_toque.skp",
+      "file_size": 734970
+    },
+    {
+      "id": "porta_basculante_almofada",
+      "original_name": "Porta Basculante Almofada",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_almofada.skp",
+      "file_size": 744243
+    },
+    {
+      "id": "porta_basculante_cava_madeira_fs",
+      "original_name": "Porta Basculante Cava Madeira FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_cava_madeira_fs.skp",
+      "file_size": 268510
+    },
+    {
+      "id": "porta_basculante_cava_madeira",
+      "original_name": "Porta Basculante Cava Madeira",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_cava_madeira.skp",
+      "file_size": 267530
+    },
+    {
+      "id": "porta_basculante_cava_com_aba_parcial_fs",
+      "original_name": "Porta Basculante Cava com Aba Parcial FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_cava_com_aba_parcial_fs.skp",
+      "file_size": 581158
+    },
+    {
+      "id": "porta_basculante_cava_com_aba_parcial",
+      "original_name": "Porta Basculante Cava com Aba Parcial",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_cava_com_aba_parcial.skp",
+      "file_size": 576871
+    },
+    {
+      "id": "porta_basculante_lisa_fs",
+      "original_name": "Porta Basculante Lisa FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_lisa_fs.skp",
+      "file_size": 193940
+    },
+    {
+      "id": "porta_basculante_lisa_fecho_toque",
+      "original_name": "Porta Basculante Lisa Fecho Toque",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_lisa_fecho_toque.skp",
+      "file_size": 182470
+    },
+    {
+      "id": "porta_basculante_lisa_superior_aventos_hf",
+      "original_name": "Porta Basculante Lisa Superior Aventos HF",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_lisa_superior_aventos_hf.skp",
+      "file_size": 186883
+    },
+    {
+      "id": "porta_basculante_lisa",
+      "original_name": "Porta Basculante Lisa",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_lisa.skp",
+      "file_size": 192961
+    },
+    {
+      "id": "porta_basculante_moldura_provencal_com_vidro_perfil_pvc",
+      "original_name": "Porta Basculante Moldura Provencal com Vidro Perfil PVC",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_moldura_provencal_com_vidro_perfil_pvc.skp",
+      "file_size": 591760
+    },
+    {
+      "id": "porta_basculante_moldura_provencal_de_vidro_recobrido",
+      "original_name": "Porta Basculante Moldura Provencal de Vidro Recobrido",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_moldura_provencal_de_vidro_recobrido.skp",
+      "file_size": 733318
+    },
+    {
+      "id": "porta_basculante_moldura_rebaixo_fs",
+      "original_name": "Porta Basculante Moldura Rebaixo FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_moldura_rebaixo_fs.skp",
+      "file_size": 363132
+    },
+    {
+      "id": "porta_basculante_moldura_rebaixo_fecho_toque",
+      "original_name": "Porta Basculante Moldura Rebaixo Fecho Toque",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_moldura_rebaixo_fecho_toque.skp",
+      "file_size": 359363
+    },
+    {
+      "id": "porta_basculante_moldura_rebaixo",
+      "original_name": "Porta Basculante Moldura Rebaixo",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_moldura_rebaixo.skp",
+      "file_size": 382778
+    },
+    {
+      "id": "porta_basculante_moldura_de_vidro_perfil_pvc_fs",
+      "original_name": "Porta Basculante Moldura de Vidro Perfil PVC FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_moldura_de_vidro_perfil_pvc_fs.skp",
+      "file_size": 662963
+    },
+    {
+      "id": "porta_basculante_moldura_de_vidro_perfil_pvc",
+      "original_name": "Porta Basculante Moldura de Vidro Perfil PVC",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_moldura_de_vidro_perfil_pvc.skp",
+      "file_size": 659076
+    },
+    {
+      "id": "porta_basculante_moldura_de_vidro_recobrido",
+      "original_name": "Porta Basculante Moldura de Vidro Recobrido",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_moldura_de_vidro_recobrido.skp",
+      "file_size": 803258
+    },
+    {
+      "id": "porta_basculante_palha_fs",
+      "original_name": "Porta Basculante Palha FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_palha_fs.skp",
+      "file_size": 1010819
+    },
+    {
+      "id": "porta_basculante_palha_fecho_toque",
+      "original_name": "Porta Basculante Palha Fecho Toque",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_palha_fecho_toque.skp",
+      "file_size": 1003658
+    },
+    {
+      "id": "porta_basculante_palha",
+      "original_name": "Porta Basculante Palha",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_palha.skp",
+      "file_size": 1010216
+    },
+    {
+      "id": "porta_basculante_pux_cava_alum_fs",
+      "original_name": "Porta Basculante Pux Cava Alum FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_pux_cava_alum_fs.skp",
+      "file_size": 622624
+    },
+    {
+      "id": "porta_basculante_pux_cava_alum",
+      "original_name": "Porta Basculante Pux Cava Alum",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_pux_cava_alum.skp",
+      "file_size": 601295
+    },
+    {
+      "id": "porta_basculante_puxador_2009_fs",
+      "original_name": "Porta Basculante Puxador 2009 FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_2009_fs.skp",
+      "file_size": 350866
+    },
+    {
+      "id": "porta_basculante_puxador_2009",
+      "original_name": "Porta Basculante Puxador 2009",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_2009.skp",
+      "file_size": 354034
+    },
+    {
+      "id": "porta_basculante_puxador_facetato_fs",
+      "original_name": "Porta Basculante Puxador Facetato FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_facetato_fs.skp",
+      "file_size": 653351
+    },
+    {
+      "id": "porta_basculante_puxador_facetato",
+      "original_name": "Porta Basculante Puxador Facetato",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_facetato.skp",
+      "file_size": 622881
+    },
+    {
+      "id": "porta_basculante_puxador_gola_fs",
+      "original_name": "Porta Basculante Puxador Gola FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_gola_fs.skp",
+      "file_size": 558635
+    },
+    {
+      "id": "porta_basculante_puxador_gola",
+      "original_name": "Porta Basculante Puxador Gola",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_gola.skp",
+      "file_size": 558284
+    },
+    {
+      "id": "porta_basculante_puxador_m14_fs",
+      "original_name": "Porta Basculante Puxador M14 FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_m14_fs.skp",
+      "file_size": 453333
+    },
+    {
+      "id": "porta_basculante_puxador_m14",
+      "original_name": "Porta Basculante Puxador M14",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_m14.skp",
+      "file_size": 454571
+    },
+    {
+      "id": "porta_basculante_puxador_montana_cava_fs",
+      "original_name": "Porta Basculante Puxador Montana Cava FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_montana_cava_fs.skp",
+      "file_size": 572527
+    },
+    {
+      "id": "porta_basculante_puxador_montana_cava",
+      "original_name": "Porta Basculante Puxador Montana Cava",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_montana_cava.skp",
+      "file_size": 567860
+    },
+    {
+      "id": "porta_basculante_puxador_neo_45",
+      "original_name": "Porta Basculante Puxador Neo 45",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_neo_45.skp",
+      "file_size": 416779
+    },
+    {
+      "id": "porta_basculante_puxador_slim_fs",
+      "original_name": "Porta Basculante Puxador Slim FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_slim_fs.skp",
+      "file_size": 416987
+    },
+    {
+      "id": "porta_basculante_puxador_slim",
+      "original_name": "Porta Basculante Puxador Slim",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_slim.skp",
+      "file_size": 413950
+    },
+    {
+      "id": "porta_basculante_puxador_zen_sottile_fs",
+      "original_name": "Porta Basculante Puxador Zen Sottile FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_zen_sottile_fs.skp",
+      "file_size": 283465
+    },
+    {
+      "id": "porta_basculante_puxador_zen_sottile",
+      "original_name": "Porta Basculante Puxador Zen Sottile",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_zen_sottile.skp",
+      "file_size": 265062
+    },
+    {
+      "id": "porta_basculante_com_espelho",
+      "original_name": "Porta Basculante com Espelho",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_com_espelho.skp",
+      "file_size": 308856
+    },
+    {
+      "id": "porta_cava_madeira",
+      "original_name": "Porta Cava Madeira",
+      "category": "portas",
+      "file_path": "portas/porta_cava_madeira.skp",
+      "file_size": 254260
+    },
+    {
+      "id": "porta_cava_com_aba_parcial",
+      "original_name": "Porta Cava com Aba Parcial",
+      "category": "portas",
+      "file_path": "portas/porta_cava_com_aba_parcial.skp",
+      "file_size": 676951
+    },
+    {
+      "id": "porta_desliz_central_moldura_rebaixo",
+      "original_name": "Porta Desliz. Central Moldura Rebaixo",
+      "category": "portas",
+      "file_path": "portas/porta_desliz_central_moldura_rebaixo.skp",
+      "file_size": 508602
+    },
+    {
+      "id": "porta_desliz_ext_central_mold_rebaixo",
+      "original_name": "Porta Desliz. Ext. Central Mold. Rebaixo",
+      "category": "portas",
+      "file_path": "portas/porta_desliz_ext_central_mold_rebaixo.skp",
+      "file_size": 505067
+    },
+    {
+      "id": "porta_desliz_ext_mold_rebaixo",
+      "original_name": "Porta Desliz. Ext. Mold. Rebaixo",
+      "category": "portas",
+      "file_path": "portas/porta_desliz_ext_mold_rebaixo.skp",
+      "file_size": 526300
+    },
+    {
+      "id": "porta_desliz_moldura_rebaixo_p",
+      "original_name": "Porta Desliz. Moldura Rebaixo P",
+      "category": "portas",
+      "file_path": "portas/porta_desliz_moldura_rebaixo_p.skp",
+      "file_size": 361121
+    },
+    {
+      "id": "porta_deslizante_central_lisa",
+      "original_name": "Porta Deslizante Central Lisa",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_central_lisa.skp",
+      "file_size": 314249
+    },
+    {
+      "id": "porta_deslizante_central_puxador_2009",
+      "original_name": "Porta Deslizante Central Puxador 2009",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_central_puxador_2009.skp",
+      "file_size": 512980
+    },
+    {
+      "id": "porta_deslizante_central_puxador_3177t_perfil_3446",
+      "original_name": "Porta Deslizante Central Puxador 3177T Perfil 3446",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_central_puxador_3177t_perfil_3446.skp",
+      "file_size": 608444
+    },
+    {
+      "id": "porta_deslizante_central_puxador_3180r_perfil_3345",
+      "original_name": "Porta Deslizante Central Puxador 3180R Perfil 3345",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_central_puxador_3180r_perfil_3345.skp",
+      "file_size": 403999
+    },
+    {
+      "id": "porta_deslizante_central_puxador_7015_perfil_3136",
+      "original_name": "Porta Deslizante Central Puxador 7015 Perfil 3136",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_central_puxador_7015_perfil_3136.skp",
+      "file_size": 414342
+    },
+    {
+      "id": "porta_deslizante_central_puxador_7015_perfil_3345",
+      "original_name": "Porta Deslizante Central Puxador 7015 Perfil 3345",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_central_puxador_7015_perfil_3345.skp",
+      "file_size": 422772
+    },
+    {
+      "id": "porta_deslizante_central_puxador_7015_perfil_3446",
+      "original_name": "Porta Deslizante Central Puxador 7015 Perfil 3446",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_central_puxador_7015_perfil_3446.skp",
+      "file_size": 417452
+    },
+    {
+      "id": "porta_deslizante_central_puxador_cava_aluminio",
+      "original_name": "Porta Deslizante Central Puxador Cava Aluminio",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_central_puxador_cava_aluminio.skp",
+      "file_size": 799729
+    },
+    {
+      "id": "porta_deslizante_central_puxador_gola",
+      "original_name": "Porta Deslizante Central Puxador Gola",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_central_puxador_gola.skp",
+      "file_size": 968037
+    },
+    {
+      "id": "porta_deslizante_central_puxador_montana_cava",
+      "original_name": "Porta Deslizante Central Puxador Montana Cava",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_central_puxador_montana_cava.skp",
+      "file_size": 713520
+    },
+    {
+      "id": "porta_deslizante_externa_central_lisa",
+      "original_name": "Porta Deslizante Externa Central Lisa",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_externa_central_lisa.skp",
+      "file_size": 354732
+    },
+    {
+      "id": "porta_deslizante_externa_central_pux_2009",
+      "original_name": "Porta Deslizante Externa Central Pux. 2009",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_externa_central_pux_2009.skp",
+      "file_size": 524697
+    },
+    {
+      "id": "porta_deslizante_externa_central_puxador_gola",
+      "original_name": "Porta Deslizante Externa Central Puxador Gola",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_externa_central_puxador_gola.skp",
+      "file_size": 914371
+    },
+    {
+      "id": "porta_deslizante_externa_central_puxador_montana_cava",
+      "original_name": "Porta Deslizante Externa Central Puxador Montana Cava",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_externa_central_puxador_montana_cava.skp",
+      "file_size": 663936
+    },
+    {
+      "id": "porta_deslizante_externa_lisa",
+      "original_name": "Porta Deslizante Externa Lisa",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_externa_lisa.skp",
+      "file_size": 312193
+    },
+    {
+      "id": "porta_deslizante_externa_pux_2009",
+      "original_name": "Porta Deslizante Externa Pux. 2009",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_externa_pux_2009.skp",
+      "file_size": 470422
+    },
+    {
+      "id": "porta_deslizante_externa_puxador_gola",
+      "original_name": "Porta Deslizante Externa Puxador Gola",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_externa_puxador_gola.skp",
+      "file_size": 851964
+    },
+    {
+      "id": "porta_deslizante_externa_puxador_montana_cava",
+      "original_name": "Porta Deslizante Externa Puxador Montana Cava",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_externa_puxador_montana_cava.skp",
+      "file_size": 711968
+    },
+    {
+      "id": "porta_deslizante_lateral_puxador_3177t_perfil_3446",
+      "original_name": "Porta Deslizante Lateral Puxador 3177T Perfil 3446",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_lateral_puxador_3177t_perfil_3446.skp",
+      "file_size": 584355
+    },
+    {
+      "id": "porta_deslizante_lateral_puxador_3180r_perfil_3345",
+      "original_name": "Porta Deslizante Lateral Puxador 3180R Perfil 3345",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_lateral_puxador_3180r_perfil_3345.skp",
+      "file_size": 408222
+    },
+    {
+      "id": "porta_deslizante_lateral_puxador_7015_perfil_3136",
+      "original_name": "Porta Deslizante Lateral Puxador 7015 Perfil 3136",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_lateral_puxador_7015_perfil_3136.skp",
+      "file_size": 409510
+    },
+    {
+      "id": "porta_deslizante_lateral_puxador_7015_perfil_3345",
+      "original_name": "Porta Deslizante Lateral Puxador 7015 Perfil 3345",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_lateral_puxador_7015_perfil_3345.skp",
+      "file_size": 410071
+    },
+    {
+      "id": "porta_deslizante_lateral_puxador_7015_perfil_3446",
+      "original_name": "Porta Deslizante Lateral Puxador 7015 Perfil 3446",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_lateral_puxador_7015_perfil_3446.skp",
+      "file_size": 404926
+    },
+    {
+      "id": "porta_deslizante_lisa_p",
+      "original_name": "Porta Deslizante Lisa p",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_lisa_p.skp",
+      "file_size": 188579
+    },
+    {
+      "id": "porta_deslizante_lisa",
+      "original_name": "Porta Deslizante Lisa",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_lisa.skp",
+      "file_size": 316095
+    },
+    {
+      "id": "porta_deslizante_moldura_rebaixo",
+      "original_name": "Porta Deslizante Moldura Rebaixo",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_moldura_rebaixo.skp",
+      "file_size": 504595
+    },
+    {
+      "id": "porta_deslizante_puxador_2009_p",
+      "original_name": "Porta Deslizante Puxador 2009 P",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_puxador_2009_p.skp",
+      "file_size": 378136
+    },
+    {
+      "id": "porta_deslizante_puxador_2009",
+      "original_name": "Porta Deslizante Puxador 2009",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_puxador_2009.skp",
+      "file_size": 470919
+    },
+    {
+      "id": "porta_deslizante_puxador_cava_aluminio",
+      "original_name": "Porta Deslizante Puxador Cava Aluminio",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_puxador_cava_aluminio.skp",
+      "file_size": 677128
+    },
+    {
+      "id": "porta_deslizante_puxador_gola_p",
+      "original_name": "Porta Deslizante Puxador Gola p",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_puxador_gola_p.skp",
+      "file_size": 674006
+    },
+    {
+      "id": "porta_deslizante_puxador_gola",
+      "original_name": "Porta Deslizante Puxador Gola",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_puxador_gola.skp",
+      "file_size": 801976
+    },
+    {
+      "id": "porta_deslizante_puxador_montana_cava_p",
+      "original_name": "Porta Deslizante Puxador Montana Cava p",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_puxador_montana_cava_p.skp",
+      "file_size": 544817
+    },
+    {
+      "id": "porta_deslizante_puxador_montana_cava",
+      "original_name": "Porta Deslizante Puxador Montana Cava",
+      "category": "portas",
+      "file_path": "portas/porta_deslizante_puxador_montana_cava.skp",
+      "file_size": 630267
+    },
+    {
+      "id": "porta_latas_oculta_b",
+      "original_name": "Porta Latas Oculta B",
+      "category": "acessorios",
+      "file_path": "acessorios/porta_latas_oculta_b.skp",
+      "file_size": 2384477
+    },
+    {
+      "id": "porta_latas_oculta",
+      "original_name": "Porta Latas Oculta",
+      "category": "acessorios",
+      "file_path": "acessorios/porta_latas_oculta.skp",
+      "file_size": 2391810
+    },
+    {
+      "id": "porta_latas_telescopica",
+      "original_name": "Porta Latas Telescopica",
+      "category": "acessorios",
+      "file_path": "acessorios/porta_latas_telescopica.skp",
+      "file_size": 2682038
+    },
+    {
+      "id": "porta_lisa",
+      "original_name": "Porta Lisa",
+      "category": "portas",
+      "file_path": "portas/porta_lisa.skp",
+      "file_size": 188965
+    },
+    {
+      "id": "porta_moldura_provencal_com_vidro_perfil_pvc",
+      "original_name": "Porta Moldura Provencal com Vidro Perfil PVC",
+      "category": "portas",
+      "file_path": "portas/porta_moldura_provencal_com_vidro_perfil_pvc.skp",
+      "file_size": 613271
+    },
+    {
+      "id": "porta_moldura_provencal_de_vidro_recobrido",
+      "original_name": "Porta Moldura Provencal de Vidro Recobrido",
+      "category": "portas",
+      "file_path": "portas/porta_moldura_provencal_de_vidro_recobrido.skp",
+      "file_size": 747997
+    },
+    {
+      "id": "porta_moldura_rebaixo",
+      "original_name": "Porta Moldura Rebaixo",
+      "category": "portas",
+      "file_path": "portas/porta_moldura_rebaixo.skp",
+      "file_size": 391525
+    },
+    {
+      "id": "porta_moldura_com_recorte",
+      "original_name": "Porta Moldura com Recorte",
+      "category": "portas",
+      "file_path": "portas/porta_moldura_com_recorte.skp",
+      "file_size": 297214
+    },
+    {
+      "id": "porta_moldura_de_vidro_perfil_pvc",
+      "original_name": "Porta Moldura de Vidro Perfil PVC",
+      "category": "portas",
+      "file_path": "portas/porta_moldura_de_vidro_perfil_pvc.skp",
+      "file_size": 669857
+    },
+    {
+      "id": "porta_moldura_de_vidro_recobrido",
+      "original_name": "Porta Moldura de Vidro Recobrido",
+      "category": "portas",
+      "file_path": "portas/porta_moldura_de_vidro_recobrido.skp",
+      "file_size": 816619
+    },
+    {
+      "id": "porta_palha",
+      "original_name": "Porta Palha",
+      "category": "portas",
+      "file_path": "portas/porta_palha.skp",
+      "file_size": 1201988
+    },
+    {
+      "id": "porta_passagem_lisa",
+      "original_name": "Porta Passagem Lisa",
+      "category": "portas",
+      "file_path": "portas/porta_passagem_lisa.skp",
+      "file_size": 2560820
+    },
+    {
+      "id": "porta_pivotante_puxador_cava",
+      "original_name": "Porta Pivotante Puxador Cava",
+      "category": "portas",
+      "file_path": "portas/porta_pivotante_puxador_cava.skp",
+      "file_size": 3260590
+    },
+    {
+      "id": "porta_pux_cava_alum",
+      "original_name": "Porta Pux Cava Alum",
+      "category": "portas",
+      "file_path": "portas/porta_pux_cava_alum.skp",
+      "file_size": 636141
+    },
+    {
+      "id": "porta_pux_cava_madeira",
+      "original_name": "Porta Pux Cava Madeira",
+      "category": "portas",
+      "file_path": "portas/porta_pux_cava_madeira.skp",
+      "file_size": 263813
+    },
+    {
+      "id": "porta_puxador_2009_alta",
+      "original_name": "Porta Puxador 2009 Alta",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_2009_alta.skp",
+      "file_size": 362770
+    },
+    {
+      "id": "porta_puxador_2009",
+      "original_name": "Porta Puxador 2009",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_2009.skp",
+      "file_size": 370890
+    },
+    {
+      "id": "porta_puxador_7015_perfil_3136_esq",
+      "original_name": "Porta Puxador 7015 Perfil 3136  Esq",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_7015_perfil_3136_esq.skp",
+      "file_size": 412723
+    },
+    {
+      "id": "porta_puxador_7015_perfil_3136_alta",
+      "original_name": "Porta Puxador 7015 Perfil 3136 Alta",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_7015_perfil_3136_alta.skp",
+      "file_size": 402760
+    },
+    {
+      "id": "porta_puxador_7015_perfil_3136",
+      "original_name": "Porta Puxador 7015 Perfil 3136",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_7015_perfil_3136.skp",
+      "file_size": 402675
+    },
+    {
+      "id": "porta_puxador_7015_perfil_3345_alta",
+      "original_name": "Porta Puxador 7015 Perfil 3345 Alta",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_7015_perfil_3345_alta.skp",
+      "file_size": 409312
+    },
+    {
+      "id": "porta_puxador_7015_perfil_3345",
+      "original_name": "Porta Puxador 7015 Perfil 3345",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_7015_perfil_3345.skp",
+      "file_size": 417295
+    },
+    {
+      "id": "porta_puxador_7015_perfil_3446_alta",
+      "original_name": "Porta Puxador 7015 Perfil 3446 Alta",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_7015_perfil_3446_alta.skp",
+      "file_size": 405286
+    },
+    {
+      "id": "porta_puxador_7015_perfil_3446_inferior_esq",
+      "original_name": "Porta Puxador 7015 Perfil 3446 Inferior Esq",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_7015_perfil_3446_inferior_esq.skp",
+      "file_size": 410249
+    },
+    {
+      "id": "porta_puxador_7015_perfil_3446",
+      "original_name": "Porta Puxador 7015 Perfil 3446",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_7015_perfil_3446.skp",
+      "file_size": 405095
+    },
+    {
+      "id": "porta_puxador_facetato",
+      "original_name": "Porta Puxador Facetato",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_facetato.skp",
+      "file_size": 655991
+    },
+    {
+      "id": "porta_puxador_gola",
+      "original_name": "Porta Puxador Gola",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_gola.skp",
+      "file_size": 594372
+    },
+    {
+      "id": "porta_puxador_m14_alta",
+      "original_name": "Porta Puxador M14 Alta",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_m14_alta.skp",
+      "file_size": 448902
+    },
+    {
+      "id": "porta_puxador_m14",
+      "original_name": "Porta Puxador M14",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_m14.skp",
+      "file_size": 457149
+    },
+    {
+      "id": "porta_puxador_montana_cava",
+      "original_name": "Porta Puxador Montana Cava",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_montana_cava.skp",
+      "file_size": 570015
+    },
+    {
+      "id": "porta_puxador_neo_45",
+      "original_name": "Porta Puxador Neo 45",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_neo_45.skp",
+      "file_size": 439814
+    },
+    {
+      "id": "porta_puxador_slim_alta",
+      "original_name": "Porta Puxador Slim Alta",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_slim_alta.skp",
+      "file_size": 409028
+    },
+    {
+      "id": "porta_puxador_slim",
+      "original_name": "Porta Puxador Slim",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_slim.skp",
+      "file_size": 416527
+    },
+    {
+      "id": "porta_puxador_zen_sottile_alta",
+      "original_name": "Porta Puxador Zen Sottile Alta",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_zen_sottile_alta.skp",
+      "file_size": 275447
+    },
+    {
+      "id": "porta_puxador_zen_sottile",
+      "original_name": "Porta Puxador Zen Sottile",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_zen_sottile.skp",
+      "file_size": 297556
+    },
+    {
+      "id": "porta_alta_puxador_usinado",
+      "original_name": "Porta alta puxador usinado",
+      "category": "portas",
+      "file_path": "portas/porta_alta_puxador_usinado.skp",
+      "file_size": 371165
+    },
+    {
+      "id": "porta_basculante_puxador_cava_com_aba_fs",
+      "original_name": "Porta basculante puxador cava com aba FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_cava_com_aba_fs.skp",
+      "file_size": 300197
+    },
+    {
+      "id": "porta_basculante_puxador_cava_com_aba",
+      "original_name": "Porta basculante puxador cava com aba",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_cava_com_aba.skp",
+      "file_size": 299873
+    },
+    {
+      "id": "porta_basculante_puxador_usinado_fs",
+      "original_name": "Porta basculante puxador usinado FS",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_usinado_fs.skp",
+      "file_size": 359540
+    },
+    {
+      "id": "porta_basculante_puxador_usinado",
+      "original_name": "Porta basculante puxador usinado",
+      "category": "portas",
+      "file_path": "portas/porta_basculante_puxador_usinado.skp",
+      "file_size": 365184
+    },
+    {
+      "id": "porta_com_espelho",
+      "original_name": "Porta com Espelho",
+      "category": "portas",
+      "file_path": "portas/porta_com_espelho.skp",
+      "file_size": 288719
+    },
+    {
+      "id": "porta_provencal_basculante_moldura_interna_com_rebaixo",
+      "original_name": "Porta provencal basculante moldura interna com rebaixo",
+      "category": "portas",
+      "file_path": "portas/porta_provencal_basculante_moldura_interna_com_rebaixo.skp",
+      "file_size": 524474
+    },
+    {
+      "id": "porta_provencal_basculante_moldura_interna_sem_rebaixo",
+      "original_name": "Porta provencal basculante moldura interna sem rebaixo",
+      "category": "portas",
+      "file_path": "portas/porta_provencal_basculante_moldura_interna_sem_rebaixo.skp",
+      "file_size": 626203
+    },
+    {
+      "id": "porta_provencal_basculante_rebaixo_moldurado",
+      "original_name": "Porta provencal basculante rebaixo moldurado",
+      "category": "portas",
+      "file_path": "portas/porta_provencal_basculante_rebaixo_moldurado.skp",
+      "file_size": 470480
+    },
+    {
+      "id": "porta_provencal_basculante",
+      "original_name": "Porta provencal basculante",
+      "category": "portas",
+      "file_path": "portas/porta_provencal_basculante.skp",
+      "file_size": 308209
+    },
+    {
+      "id": "porta_provencal_contorno_arredondado",
+      "original_name": "Porta provencal contorno arredondado",
+      "category": "portas",
+      "file_path": "portas/porta_provencal_contorno_arredondado.skp",
+      "file_size": 1295687
+    },
+    {
+      "id": "porta_provencal_moldura_interna_com_rebaixo",
+      "original_name": "Porta provencal moldura interna com rebaixo",
+      "category": "portas",
+      "file_path": "portas/porta_provencal_moldura_interna_com_rebaixo.skp",
+      "file_size": 522437
+    },
+    {
+      "id": "porta_provencal_moldura_interna_sem_rebaixo",
+      "original_name": "Porta provencal moldura interna sem rebaixo",
+      "category": "portas",
+      "file_path": "portas/porta_provencal_moldura_interna_sem_rebaixo.skp",
+      "file_size": 608808
+    },
+    {
+      "id": "porta_provencal_rebaixo_moldurado",
+      "original_name": "Porta provencal rebaixo moldurado",
+      "category": "portas",
+      "file_path": "portas/porta_provencal_rebaixo_moldurado.skp",
+      "file_size": 442333
+    },
+    {
+      "id": "porta_provencal",
+      "original_name": "Porta provencal",
+      "category": "portas",
+      "file_path": "portas/porta_provencal.skp",
+      "file_size": 289533
+    },
+    {
+      "id": "porta_puxador_cava_com_aba",
+      "original_name": "Porta puxador cava com aba",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_cava_com_aba.skp",
+      "file_size": 287645
+    },
+    {
+      "id": "porta_puxador_usinado",
+      "original_name": "Porta puxador usinado",
+      "category": "portas",
+      "file_path": "portas/porta_puxador_usinado.skp",
+      "file_size": 378613
+    },
+    {
+      "id": "prateleira_cj",
+      "original_name": "Prateleira CJ",
+      "category": "prateleiras",
+      "file_path": "prateleiras/prateleira_cj.skp",
+      "file_size": 439258
+    },
+    {
+      "id": "prateleira_dup_com_recorte_cj",
+      "original_name": "Prateleira Dup. com Recorte CJ",
+      "category": "prateleiras",
+      "file_path": "prateleiras/prateleira_dup_com_recorte_cj.skp",
+      "file_size": 708182
+    },
+    {
+      "id": "prateleira_duplada_cj",
+      "original_name": "Prateleira Duplada CJ",
+      "category": "prateleiras",
+      "file_path": "prateleiras/prateleira_duplada_cj.skp",
+      "file_size": 602778
+    },
+    {
+      "id": "prateleira_fixa_cj",
+      "original_name": "Prateleira Fixa CJ",
+      "category": "prateleiras",
+      "file_path": "prateleiras/prateleira_fixa_cj.skp",
+      "file_size": 376533
+    },
+    {
+      "id": "prateleira_fixa_dup_com_recorte_cj",
+      "original_name": "Prateleira Fixa Dup. com Recorte CJ",
+      "category": "prateleiras",
+      "file_path": "prateleiras/prateleira_fixa_dup_com_recorte_cj.skp",
+      "file_size": 688642
+    },
+    {
+      "id": "prateleira_fixa_duplada_cj",
+      "original_name": "Prateleira Fixa Duplada CJ",
+      "category": "prateleiras",
+      "file_path": "prateleiras/prateleira_fixa_duplada_cj.skp",
+      "file_size": 550809
+    },
+    {
+      "id": "prateleira_fixa_com_recorte_cj",
+      "original_name": "Prateleira Fixa com Recorte CJ",
+      "category": "prateleiras",
+      "file_path": "prateleiras/prateleira_fixa_com_recorte_cj.skp",
+      "file_size": 443041
+    },
+    {
+      "id": "prateleira_l_cj",
+      "original_name": "Prateleira L CJ",
+      "category": "prateleiras",
+      "file_path": "prateleiras/prateleira_l_cj.skp",
+      "file_size": 739532
+    },
+    {
+      "id": "prateleira_l_fixa_cj",
+      "original_name": "Prateleira L Fixa CJ",
+      "category": "prateleiras",
+      "file_path": "prateleiras/prateleira_l_fixa_cj.skp",
+      "file_size": 570893
+    },
+    {
+      "id": "prateleira_obliquo_cj",
+      "original_name": "Prateleira Obliquo CJ",
+      "category": "prateleiras",
+      "file_path": "prateleiras/prateleira_obliquo_cj.skp",
+      "file_size": 737573
+    },
+    {
+      "id": "prateleira_obliquo_fixa_cj",
+      "original_name": "Prateleira Obliquo Fixa CJ",
+      "category": "prateleiras",
+      "file_path": "prateleiras/prateleira_obliquo_fixa_cj.skp",
+      "file_size": 635889
+    },
+    {
+      "id": "prateleira_vidro_cj",
+      "original_name": "Prateleira Vidro CJ",
+      "category": "prateleiras",
+      "file_path": "prateleiras/prateleira_vidro_cj.skp",
+      "file_size": 555527
+    },
+    {
+      "id": "prateleira_com_recorte_cj",
+      "original_name": "Prateleira com Recorte CJ",
+      "category": "prateleiras",
+      "file_path": "prateleiras/prateleira_com_recorte_cj.skp",
+      "file_size": 514889
+    },
+    {
+      "id": "puxador_concha_horizontal_duplo",
+      "original_name": "Puxador Concha Horizontal Duplo",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_concha_horizontal_duplo.skp",
+      "file_size": 344690
+    },
+    {
+      "id": "puxador_concha_horizontal",
+      "original_name": "Puxador Concha Horizontal",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_concha_horizontal.skp",
+      "file_size": 307881
+    },
+    {
+      "id": "puxador_concha_vertical_duplo",
+      "original_name": "Puxador Concha Vertical Duplo",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_concha_vertical_duplo.skp",
+      "file_size": 346108
+    },
+    {
+      "id": "puxador_concha_vertical",
+      "original_name": "Puxador Concha Vertical",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_concha_vertical.skp",
+      "file_size": 302077
+    },
+    {
+      "id": "puxador_facetato_acabamento",
+      "original_name": "Puxador Facetato Acabamento",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_facetato_acabamento.skp",
+      "file_size": 412617
+    },
+    {
+      "id": "puxador_facetato_reto",
+      "original_name": "Puxador Facetato Reto",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_facetato_reto.skp",
+      "file_size": 412941
+    },
+    {
+      "id": "puxador_facetato",
+      "original_name": "Puxador Facetato",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_facetato.skp",
+      "file_size": 412753
+    },
+    {
+      "id": "puxador_galla_128mm",
+      "original_name": "Puxador Galla 128mm",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_galla_128mm.skp",
+      "file_size": 97587
+    },
+    {
+      "id": "puxador_galla_160mm",
+      "original_name": "Puxador Galla 160mm",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_galla_160mm.skp",
+      "file_size": 97611
+    },
+    {
+      "id": "puxador_galla_192mm",
+      "original_name": "Puxador Galla 192mm",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_galla_192mm.skp",
+      "file_size": 97379
+    },
+    {
+      "id": "puxador_galla_256mm",
+      "original_name": "Puxador Galla 256mm",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_galla_256mm.skp",
+      "file_size": 96927
+    },
+    {
+      "id": "puxador_galla_352mm",
+      "original_name": "Puxador Galla 352mm",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_galla_352mm.skp",
+      "file_size": 93354
+    },
+    {
+      "id": "puxador_galla_96mm",
+      "original_name": "Puxador Galla 96mm",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_galla_96mm.skp",
+      "file_size": 97564
+    },
+    {
+      "id": "puxador_galla_horizontal_duplo",
+      "original_name": "Puxador Galla Horizontal Duplo",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_galla_horizontal_duplo.skp",
+      "file_size": 148507
+    },
+    {
+      "id": "puxador_galla_horizontal",
+      "original_name": "Puxador Galla Horizontal",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_galla_horizontal.skp",
+      "file_size": 128144
+    },
+    {
+      "id": "puxador_galla_vertical_duplo",
+      "original_name": "Puxador Galla Vertical Duplo",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_galla_vertical_duplo.skp",
+      "file_size": 155126
+    },
+    {
+      "id": "puxador_galla_vertical",
+      "original_name": "Puxador Galla Vertical",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_galla_vertical.skp",
+      "file_size": 128204
+    },
+    {
+      "id": "puxador_goccia_24",
+      "original_name": "Puxador Goccia 24",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_goccia_24.skp",
+      "file_size": 291304
+    },
+    {
+      "id": "puxador_goccia_30",
+      "original_name": "Puxador Goccia 30",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_goccia_30.skp",
+      "file_size": 273762
+    },
+    {
+      "id": "puxador_goccia_ponto_duplo",
+      "original_name": "Puxador Goccia Ponto Duplo",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_goccia_ponto_duplo.skp",
+      "file_size": 376097
+    },
+    {
+      "id": "puxador_goccia_ponto",
+      "original_name": "Puxador Goccia Ponto",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_goccia_ponto.skp",
+      "file_size": 374033
+    },
+    {
+      "id": "puxador_gola_com_ponteira_fechada",
+      "original_name": "Puxador Gola com Ponteira Fechada",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_gola_com_ponteira_fechada.skp",
+      "file_size": 218435
+    },
+    {
+      "id": "puxador_gola_com_ponteira",
+      "original_name": "Puxador Gola com Ponteira",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_gola_com_ponteira.skp",
+      "file_size": 218392
+    },
+    {
+      "id": "puxador_gola_sem_ponteira",
+      "original_name": "Puxador Gola sem Ponteira",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_gola_sem_ponteira.skp",
+      "file_size": 218358
+    },
+    {
+      "id": "puxador_hardt_horizontal_duplo",
+      "original_name": "Puxador Hardt Horizontal Duplo",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_hardt_horizontal_duplo.skp",
+      "file_size": 392929
+    },
+    {
+      "id": "puxador_hardt_horizontal",
+      "original_name": "Puxador Hardt Horizontal",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_hardt_horizontal.skp",
+      "file_size": 228605
+    },
+    {
+      "id": "puxador_hardt_vertical_duplo",
+      "original_name": "Puxador Hardt Vertical Duplo",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_hardt_vertical_duplo.skp",
+      "file_size": 400672
+    },
+    {
+      "id": "puxador_hardt_vertical",
+      "original_name": "Puxador Hardt Vertical",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_hardt_vertical.skp",
+      "file_size": 228001
+    },
+    {
+      "id": "puxador_nazca_horizontal_duplo",
+      "original_name": "Puxador Nazca Horizontal Duplo",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_nazca_horizontal_duplo.skp",
+      "file_size": 321034
+    },
+    {
+      "id": "puxador_nazca_horizontal",
+      "original_name": "Puxador Nazca Horizontal",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_nazca_horizontal.skp",
+      "file_size": 282460
+    },
+    {
+      "id": "puxador_nazca_vertical_duplo",
+      "original_name": "Puxador Nazca Vertical Duplo",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_nazca_vertical_duplo.skp",
+      "file_size": 318465
+    },
+    {
+      "id": "puxador_nazca_vertical",
+      "original_name": "Puxador Nazca Vertical",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_nazca_vertical.skp",
+      "file_size": 278966
+    },
+    {
+      "id": "puxador_reale_horizontal_duplo",
+      "original_name": "Puxador Reale Horizontal Duplo",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_reale_horizontal_duplo.skp",
+      "file_size": 167915
+    },
+    {
+      "id": "puxador_reale_horizontal",
+      "original_name": "Puxador Reale Horizontal",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_reale_horizontal.skp",
+      "file_size": 148617
+    },
+    {
+      "id": "puxador_reale_vertical_duplo",
+      "original_name": "Puxador Reale Vertical Duplo",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_reale_vertical_duplo.skp",
+      "file_size": 166819
+    },
+    {
+      "id": "puxador_reale_vertical",
+      "original_name": "Puxador Reale Vertical",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_reale_vertical.skp",
+      "file_size": 147082
+    },
+    {
+      "id": "puxador_veneza_horizontal_duplo",
+      "original_name": "Puxador Veneza Horizontal Duplo",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_veneza_horizontal_duplo.skp",
+      "file_size": 280155
+    },
+    {
+      "id": "puxador_veneza_horizontal",
+      "original_name": "Puxador Veneza Horizontal",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_veneza_horizontal.skp",
+      "file_size": 240151
+    },
+    {
+      "id": "puxador_veneza_vertical_duplo",
+      "original_name": "Puxador Veneza Vertical Duplo",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_veneza_vertical_duplo.skp",
+      "file_size": 283312
+    },
+    {
+      "id": "puxador_veneza_vertical",
+      "original_name": "Puxador Veneza Vertical",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_veneza_vertical.skp",
+      "file_size": 240165
+    },
+    {
+      "id": "puxador_zen_bali_granado",
+      "original_name": "Puxador Zen Bali Granado",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_zen_bali_granado.skp",
+      "file_size": 5070962
+    },
+    {
+      "id": "puxador_zen_beetle",
+      "original_name": "Puxador Zen Beetle",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_zen_beetle.skp",
+      "file_size": 493240
+    },
+    {
+      "id": "puxador_zen_cup_ponto",
+      "original_name": "Puxador Zen Cup Ponto",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_zen_cup_ponto.skp",
+      "file_size": 944992
+    },
+    {
+      "id": "puxador_zen_fune",
+      "original_name": "Puxador Zen Fune",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_zen_fune.skp",
+      "file_size": 26522987
+    },
+    {
+      "id": "puxador_zen_orion_g",
+      "original_name": "Puxador Zen Orion G",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_zen_orion_g.skp",
+      "file_size": 1832747
+    },
+    {
+      "id": "puxador_zen_orion_m",
+      "original_name": "Puxador Zen Orion M",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_zen_orion_m.skp",
+      "file_size": 1309337
+    },
+    {
+      "id": "puxador_zen_orion_p",
+      "original_name": "Puxador Zen Orion P",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_zen_orion_p.skp",
+      "file_size": 718243
+    },
+    {
+      "id": "puxador_zen_shell",
+      "original_name": "Puxador Zen Shell",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_zen_shell.skp",
+      "file_size": 1985257
+    },
+    {
+      "id": "puxador_zen_sorento_granado_ponto",
+      "original_name": "Puxador Zen Sorento Granado Ponto",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_zen_sorento_granado_ponto.skp",
+      "file_size": 1314562
+    },
+    {
+      "id": "puxador_zen_sorento_granado_vertical",
+      "original_name": "Puxador Zen Sorento Granado Vertical",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_zen_sorento_granado_vertical.skp",
+      "file_size": 1485966
+    },
+    {
+      "id": "puxador_zen_sorento_granado",
+      "original_name": "Puxador Zen Sorento Granado",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_zen_sorento_granado.skp",
+      "file_size": 278391
+    },
+    {
+      "id": "puxador_zen_sorento_ponto",
+      "original_name": "Puxador Zen Sorento Ponto",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_zen_sorento_ponto.skp",
+      "file_size": 1293380
+    },
+    {
+      "id": "puxador_zen_sorento_vertical",
+      "original_name": "Puxador Zen Sorento Vertical",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_zen_sorento_vertical.skp",
+      "file_size": 1329038
+    },
+    {
+      "id": "puxador_zen_sorento",
+      "original_name": "Puxador Zen Sorento",
+      "category": "puxadores",
+      "file_path": "puxadores/puxador_zen_sorento.skp",
+      "file_size": 1336201
+    },
+    {
+      "id": "rafix_cj",
+      "original_name": "Rafix CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/rafix_cj.skp",
+      "file_size": 302713
+    },
+    {
+      "id": "rafix_duplo_cj",
+      "original_name": "Rafix Duplo CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/rafix_duplo_cj.skp",
+      "file_size": 271987
+    },
+    {
+      "id": "roup_base_dupla",
+      "original_name": "Roup Base Dupla",
+      "category": "roupeiros",
+      "file_path": "roupeiros/roup_base_dupla.skp",
+      "file_size": 1224945
+    },
+    {
+      "id": "roup_base_inferior",
+      "original_name": "Roup Base Inferior",
+      "category": "roupeiros",
+      "file_path": "roupeiros/roup_base_inferior.skp",
+      "file_size": 952796
+    },
+    {
+      "id": "roup_base_superior",
+      "original_name": "Roup Base Superior",
+      "category": "roupeiros",
+      "file_path": "roupeiros/roup_base_superior.skp",
+      "file_size": 953711
+    },
+    {
+      "id": "roup_can_l_base_dupla",
+      "original_name": "Roup Can L Base Dupla",
+      "category": "roupeiros",
+      "file_path": "roupeiros/roup_can_l_base_dupla.skp",
+      "file_size": 3639723
+    },
+    {
+      "id": "roup_can_l_base_inferior",
+      "original_name": "Roup Can L Base Inferior",
+      "category": "roupeiros",
+      "file_path": "roupeiros/roup_can_l_base_inferior.skp",
+      "file_size": 3176713
+    },
+    {
+      "id": "roup_can_l_base_superior",
+      "original_name": "Roup Can L Base Superior",
+      "category": "roupeiros",
+      "file_path": "roupeiros/roup_can_l_base_superior.skp",
+      "file_size": 3175887
+    },
+    {
+      "id": "roup_can_l_vao_livre",
+      "original_name": "Roup Can L Vao Livre",
+      "category": "roupeiros",
+      "file_path": "roupeiros/roup_can_l_vao_livre.skp",
+      "file_size": 2711122
+    },
+    {
+      "id": "roup_livre",
+      "original_name": "Roup Livre",
+      "category": "roupeiros",
+      "file_path": "roupeiros/roup_livre.skp",
+      "file_size": 746724
+    },
+    {
+      "id": "sapateira_oculta_b",
+      "original_name": "Sapateira Oculta B",
+      "category": "acessorios",
+      "file_path": "acessorios/sapateira_oculta_b.skp",
+      "file_size": 947167
+    },
+    {
+      "id": "sapateira_oculta",
+      "original_name": "Sapateira Oculta",
+      "category": "acessorios",
+      "file_path": "acessorios/sapateira_oculta.skp",
+      "file_size": 954343
+    },
+    {
+      "id": "sapateira_telescopica",
+      "original_name": "Sapateira Telescopica",
+      "category": "acessorios",
+      "file_path": "acessorios/sapateira_telescopica.skp",
+      "file_size": 858824
+    },
+    {
+      "id": "sapateira_com_dianteira_oculta_b",
+      "original_name": "Sapateira com Dianteira Oculta B",
+      "category": "acessorios",
+      "file_path": "acessorios/sapateira_com_dianteira_oculta_b.skp",
+      "file_size": 1020017
+    },
+    {
+      "id": "sapateira_com_dianteira_oculta",
+      "original_name": "Sapateira com Dianteira Oculta",
+      "category": "acessorios",
+      "file_path": "acessorios/sapateira_com_dianteira_oculta.skp",
+      "file_size": 955326
+    },
+    {
+      "id": "sapateira_com_dianteira_telescopica",
+      "original_name": "Sapateira com Dianteira Telescopica",
+      "category": "acessorios",
+      "file_path": "acessorios/sapateira_com_dianteira_telescopica.skp",
+      "file_size": 909656
+    },
+    {
+      "id": "sapateira_com_laterais_oculta_b",
+      "original_name": "Sapateira com Laterais Oculta B",
+      "category": "acessorios",
+      "file_path": "acessorios/sapateira_com_laterais_oculta_b.skp",
+      "file_size": 1128682
+    },
+    {
+      "id": "sapateira_com_laterais_oculta",
+      "original_name": "Sapateira com Laterais Oculta",
+      "category": "acessorios",
+      "file_path": "acessorios/sapateira_com_laterais_oculta.skp",
+      "file_size": 1251522
+    },
+    {
+      "id": "sem_puxador_passagem",
+      "original_name": "Sem Puxador Passagem",
+      "category": "puxadores",
+      "file_path": "puxadores/sem_puxador_passagem.skp",
+      "file_size": 15466
+    },
+    {
+      "id": "sem_puxador",
+      "original_name": "Sem Puxador",
+      "category": "puxadores",
+      "file_path": "puxadores/sem_puxador.skp",
+      "file_size": 13165
+    },
+    {
+      "id": "sup_ixconnect_tab_sem_aperto_cj",
+      "original_name": "Sup Ixconnect Tab Sem Aperto CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/sup_ixconnect_tab_sem_aperto_cj.skp",
+      "file_size": 90539
+    },
+    {
+      "id": "suporte_cadeirinha_pino_duplo_cj",
+      "original_name": "Suporte Cadeirinha Pino Duplo CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/suporte_cadeirinha_pino_duplo_cj.skp",
+      "file_size": 183238
+    },
+    {
+      "id": "suporte_maori_cj",
+      "original_name": "Suporte Maori CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/suporte_maori_cj.skp",
+      "file_size": 266048
+    },
+    {
+      "id": "suporte_pino_chato_cj",
+      "original_name": "Suporte Pino Chato CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/suporte_pino_chato_cj.skp",
+      "file_size": 119802
+    },
+    {
+      "id": "suporte_pino_metalico_cjold",
+      "original_name": "Suporte Pino Metalico CJold",
+      "category": "ferragens",
+      "file_path": "ferragens/suporte_pino_metalico_cjold.skp",
+      "file_size": 127198
+    },
+    {
+      "id": "suporte_pino_metalico_cj",
+      "original_name": "Suporte Pino Metalico Cj",
+      "category": "ferragens",
+      "file_path": "ferragens/suporte_pino_metalico_cj.skp",
+      "file_size": 228861
+    },
+    {
+      "id": "suporte_pino_plastico_cj",
+      "original_name": "Suporte Pino Plastico CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/suporte_pino_plastico_cj.skp",
+      "file_size": 85623
+    },
+    {
+      "id": "suporte_plastico_redondo_cj",
+      "original_name": "Suporte Plastico Redondo CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/suporte_plastico_redondo_cj.skp",
+      "file_size": 88780
+    },
+    {
+      "id": "suporte_plastico_redondo",
+      "original_name": "Suporte Plastico Redondo",
+      "category": "ferragens",
+      "file_path": "ferragens/suporte_plastico_redondo.skp",
+      "file_size": 39268
+    },
+    {
+      "id": "suporte_prateleira_13_x_13_2f_cj",
+      "original_name": "Suporte Prateleira 13 x 13 2F CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/suporte_prateleira_13_x_13_2f_cj.skp",
+      "file_size": 138544
+    },
+    {
+      "id": "suporte_prateleira_f1109ni_cj",
+      "original_name": "Suporte Prateleira F1109NI CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/suporte_prateleira_f1109ni_cj.skp",
+      "file_size": 126090
+    },
+    {
+      "id": "suporte_prateleira_f1112ni_cj",
+      "original_name": "Suporte Prateleira F1112NI CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/suporte_prateleira_f1112ni_cj.skp",
+      "file_size": 109546
+    },
+    {
+      "id": "suporte_uniblock_cj",
+      "original_name": "Suporte Uniblock CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/suporte_uniblock_cj.skp",
+      "file_size": 98199
+    },
+    {
+      "id": "suporte_uniblock_movel_cj",
+      "original_name": "Suporte Uniblock Movel CJ",
+      "category": "ferragens",
+      "file_path": "ferragens/suporte_uniblock_movel_cj.skp",
+      "file_size": 98506
+    },
+    {
+      "id": "tampo_vidro_6_mm_incolor",
+      "original_name": "Tampo Vidro 6 mm INCOLOR",
+      "category": "acessorios",
+      "file_path": "acessorios/tampo_vidro_6_mm_incolor.skp",
+      "file_size": 186806
+    },
+    {
+      "id": "tampo_vidro_extra_clear_6_mm_incolor",
+      "original_name": "Tampo Vidro Extra Clear 6 mm INCOLOR",
+      "category": "acessorios",
+      "file_path": "acessorios/tampo_vidro_extra_clear_6_mm_incolor.skp",
+      "file_size": 186758
+    },
+    {
+      "id": "tampo_vidro_extra_clear",
+      "original_name": "Tampo Vidro Extra Clear",
+      "category": "acessorios",
+      "file_path": "acessorios/tampo_vidro_extra_clear.skp",
+      "file_size": 180474
+    },
+    {
+      "id": "tampo_vidro",
+      "original_name": "Tampo Vidro",
+      "category": "acessorios",
+      "file_path": "acessorios/tampo_vidro.skp",
+      "file_size": 180330
+    },
+    {
+      "id": "tulha_oculta",
+      "original_name": "Tulha Oculta",
+      "category": "acessorios",
+      "file_path": "acessorios/tulha_oculta.skp",
+      "file_size": 2126775
+    },
+    {
+      "id": "tulha_telescopica",
+      "original_name": "Tulha Telescopica",
+      "category": "acessorios",
+      "file_path": "acessorios/tulha_telescopica.skp",
+      "file_size": 1852279
+    }
+  ]
+}

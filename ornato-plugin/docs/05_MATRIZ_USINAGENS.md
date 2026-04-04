@@ -47,7 +47,28 @@
 
 | Peca A | Peca B | Usinagem em A | Usinagem em B | Notas |
 |--------|--------|---------------|---------------|-------|
-| MOL | MOL | usi_chanfro_45 (contorno) | usi_chanfro_45 (contorno) | Chanfro 45 nas duas molduras. |
+| MOL | MOL | usi_chanfro_45 (contorno) | usi_chanfro_45 (contorno) | Chanfro 45 nas duas molduras. Regra: MiterRule. |
+
+### Juncoes OVERLAY especiais
+
+| Peca A | Peca B | Usinagem em A | Usinagem em B | Notas |
+|--------|--------|---------------|---------------|-------|
+| POR_BAS | LAT | f_pistao (2x O10mm, 12mm prof) | f_pistao (2x O10mm, 12mm prof) | Pistao a gas para porta basculante. Regra: GasPistonRule. |
+| POR_COR | TOPO | — | r_trilho_sup (canal 5mm x 8mm) | Canal trilho superior para porta de correr. Regra: SlidingDoorRule. |
+| POR_COR | BASE | — | r_trilho_inf (canal 5mm x 5mm) | Canal trilho inferior para porta de correr. Regra: SlidingDoorRule. |
+
+### Juncoes BUTT alternativas (Confirmat)
+
+Quando `default_joint_type = confirmat` ou `force_joint = confirmat` na peca:
+
+| Peca A | Peca B | Usinagem em A | Usinagem em B | Notas |
+|--------|--------|---------------|---------------|-------|
+| LAT_ESQ | BASE | p_5mm_confirmat (edge, 45mm) | f_8mm_confirmat (face, passante) | Confirmat em vez de minifix. Regra: ConfirmatRule. |
+| LAT_ESQ | TOPO | p_5mm_confirmat (edge, 45mm) | f_8mm_confirmat (face, passante) | Idem. |
+| LAT_DIR | BASE | p_5mm_confirmat (edge, 45mm) | f_8mm_confirmat (face, passante) | Espelhado. |
+| LAT_DIR | TOPO | p_5mm_confirmat (edge, 45mm) | f_8mm_confirmat (face, passante) | Espelhado. |
+
+Para chapas grossas (25mm+): p_7mm_confirmat (edge, 50mm) + f_8mm_confirmat (face, passante).
 
 ### Colisoes IGNORADAS (sem usinagem)
 
@@ -79,8 +100,8 @@ Algumas usinagens sao geradas pelo papel da peca, nao por colisao:
 | POR_COR | Presente no modulo | r_trilho (canal para trilho) | No topo e base do modulo |
 | POR_BAS | Presente no modulo | f_pistao (furos para pistao) | Na lateral e na porta |
 | GAV_FR | Sempre | f_puxador (passante) | Posicao configuravel (se puxador configurado) |
-| qualquer peca | Atributo ornato_passafio = true | f_passafio (35mm ou 60mm, passante) | Posicao do atributo |
-| qualquer peca | Atributo ornato_led = true | r_led (canal 8-12mm, 8mm prof) | Posicao do atributo |
+| qualquer peca | Atributo ornato_passafio = true | f_passafio (35mm ou 60mm, passante) | Posicao do atributo. Regra: PassThroughRule. Suporta multiplos furos (passafio_2_x, etc.) |
+| qualquer peca | Atributo ornato_led = true | r_led (canal 8-12mm, 8mm prof) | Posicao do atributo. Regra: LEDChannelRule. Configuravel: led_width, led_depth, led_position, led_face |
 
 ---
 

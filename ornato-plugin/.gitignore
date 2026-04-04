@@ -1,0 +1,12 @@
+# Binary library files (served from server, not git)
+biblioteca/modelos/**/*.skp
+biblioteca/materiais/**/*.skm
+
+# Keep directory structure and catalogs
+!biblioteca/modelos/.gitkeep
+!biblioteca/materiais/.gitkeep
+!biblioteca/modelos/catalog.json
+!biblioteca/materiais/catalogo_materiais.json
+
+# Cache
+biblioteca/cache/

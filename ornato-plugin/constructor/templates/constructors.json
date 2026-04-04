@@ -1,0 +1,3198 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "source": "WPS Biblioteca Constructor (.wctr)",
+    "converted": "2026-04-03 23:44",
+    "total": 64,
+    "categories": {
+      "estrutura": 14,
+      "fechamento": 19,
+      "interno": 21,
+      "acessorio": 10
+    }
+  },
+  "constructors": {
+    "estrutura": [
+      {
+        "id": "base_com_fixacao",
+        "wps_name": "Base com Fixacao",
+        "category": "estrutura",
+        "offsets": {
+          "front": -406.5
+        },
+        "alignment": {
+          "vertical": {
+            "options": [
+              "top",
+              "bottom",
+              "middle"
+            ],
+            "default": "bottom"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "name",
+            "wps_name": "wpsusername",
+            "label": "Nome",
+            "default": "Base Inferior"
+          }
+        ]
+      },
+      {
+        "id": "base_sem_fixacao",
+        "wps_name": "Base sem Fixacao",
+        "category": "estrutura",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "top",
+              "bottom",
+              "middle"
+            ],
+            "default": "middle"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "name",
+            "wps_name": "wpsusername",
+            "label": "Nome",
+            "default": "Base Superior"
+          }
+        ]
+      },
+      {
+        "id": "batente_com_fixacao",
+        "wps_name": "Batente com Fixacao",
+        "category": "estrutura",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "top",
+              "bottom",
+              "middle"
+            ],
+            "default": "middle"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "front",
+              "middle",
+              "back"
+            ],
+            "default": "front"
+          }
+        },
+        "fields": [
+          {
+            "key": "rail_position",
+            "wps_name": "posicaobatente",
+            "label": "Posicao Batente",
+            "default": "deitado",
+            "options": [
+              "deitado",
+              "em pé"
+            ]
+          },
+          {
+            "key": "name",
+            "wps_name": "wpsusername",
+            "label": "Nome",
+            "default": "Batente"
+          }
+        ]
+      },
+      {
+        "id": "divisoria_com_recortes",
+        "wps_name": "Divisoria com Recortes",
+        "category": "estrutura",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "left",
+              "right",
+              "middle"
+            ],
+            "default": "middle"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "cutout_bottom_front",
+            "wps_name": "recorteinferiorfrontal",
+            "label": "Recorte Inferior Frontal",
+            "default": "yes",
+            "options": [
+              "yes",
+              "no"
+            ]
+          },
+          {
+            "key": "cutout_height_bottom_front",
+            "wps_name": "alturarecorteinffron",
+            "label": "Altura Recorte Inf. Frontal",
+            "default": 2
+          },
+          {
+            "key": "cutout_width_bottom_front",
+            "wps_name": "largurarecorteinffron",
+            "label": "Largura Recorte Inf. Frontal",
+            "default": 5
+          },
+          {
+            "key": "cutout_bottom_rear",
+            "wps_name": "recorteinferiortraseiro",
+            "label": "Recorte Inferior Traseiro",
+            "default": "yes",
+            "options": [
+              "yes",
+              "no"
+            ]
+          },
+          {
+            "key": "cutout_height_bottom_rear",
+            "wps_name": "alturarecorteinftra",
+            "label": "Altura Recorte Inf. Traseiro",
+            "default": 3
+          },
+          {
+            "key": "cutout_width_bottom_rear",
+            "wps_name": "largurarecorteinftra",
+            "label": "Largura Recorte Inf. Traseiro",
+            "default": 7
+          },
+          {
+            "key": "cutout_top_front",
+            "wps_name": "recortesuperiorfrontal",
+            "label": "Recorte Superior Frontal",
+            "default": "yes",
+            "options": [
+              "yes",
+              "no"
+            ]
+          },
+          {
+            "key": "cutout_height_top_front",
+            "wps_name": "alturarecortesupfron",
+            "label": "Altura Recorte Sup. Frontal",
+            "default": 3
+          },
+          {
+            "key": "cutout_width_top_front",
+            "wps_name": "largurarecortesupfron",
+            "label": "Largura Recorte Sup. Frontal",
+            "default": 8
+          },
+          {
+            "key": "cutout_top_rear",
+            "wps_name": "recortesuperiortraseiro",
+            "label": "Recorte Superior Traseiro",
+            "default": "yes",
+            "options": [
+              "yes",
+              "no"
+            ]
+          },
+          {
+            "key": "cutout_height_top_rear",
+            "wps_name": "alturarecortesuptra",
+            "label": "Altura Recorte Sup. Traseiro",
+            "default": 1
+          },
+          {
+            "key": "cutout_width_top_rear",
+            "wps_name": "largurarecortesuptra",
+            "label": "Largura Recorte Sup. Traseiro",
+            "default": 4
+          }
+        ]
+      },
+      {
+        "id": "divisoria",
+        "wps_name": "Divisoria",
+        "category": "estrutura",
+        "offsets": {
+          "front": 50.0
+        },
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "left",
+              "right",
+              "middle"
+            ],
+            "default": "middle"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "diviso_ria_perfil_j",
+        "wps_name": "Divisoria Perfil J",
+        "category": "estrutura",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "left",
+              "right",
+              "middle"
+            ],
+            "default": "middle"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "name",
+            "wps_name": "wpsusername",
+            "label": "Nome",
+            "default": "Divisoria Perfil J"
+          }
+        ]
+      },
+      {
+        "id": "fundo_com_fixacao",
+        "wps_name": "Fundo com Fixacao",
+        "category": "estrutura",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "front",
+              "middle",
+              "back"
+            ],
+            "default": "front"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "fundo_encaixado",
+        "wps_name": "Fundo Encaixado",
+        "category": "estrutura",
+        "offsets": {
+          "back": -1000.0,
+          "bottom": 2.0,
+          "left": 2.0,
+          "right": 2.0,
+          "top": 2.0
+        },
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "front",
+              "middle",
+              "back"
+            ],
+            "default": "back"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "lateral_com_fixacao",
+        "wps_name": "Lateral com Fixacao",
+        "category": "estrutura",
+        "offsets": {
+          "front": 425.0
+        },
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "left",
+              "right",
+              "middle"
+            ],
+            "default": "left"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "name",
+            "wps_name": "wpsusername",
+            "label": "Nome",
+            "default": "Lateral Esquerda"
+          }
+        ]
+      },
+      {
+        "id": "lateral_sem_fixacao_perfil_j",
+        "wps_name": "Lateral sem Fixacao",
+        "category": "estrutura",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "left",
+              "right",
+              "middle"
+            ],
+            "default": "right"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "name",
+            "wps_name": "wpsusername",
+            "label": "Nome",
+            "default": "Lateral Perfil J"
+          }
+        ]
+      },
+      {
+        "id": "lateral_sem_fixacao",
+        "wps_name": "Lateral sem Fixacao",
+        "category": "estrutura",
+        "offsets": {
+          "back": 2.0,
+          "bottom": 591.5
+        },
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "left",
+              "right",
+              "middle"
+            ],
+            "default": "right"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "name",
+            "wps_name": "wpsusername",
+            "label": "Nome",
+            "default": "Batente"
+          }
+        ]
+      },
+      {
+        "id": "perfil_j",
+        "wps_name": "Batente com Fixacao",
+        "category": "estrutura",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "top",
+              "bottom",
+              "middle"
+            ],
+            "default": "top"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "front"
+            ],
+            "default": "front"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "tampo",
+        "wps_name": "Tampo",
+        "category": "estrutura",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "top",
+              "bottom",
+              "middle"
+            ],
+            "default": "top"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "name",
+            "wps_name": "wpsusername",
+            "label": "Nome",
+            "default": "Tampo"
+          }
+        ]
+      },
+      {
+        "id": "travessa_com_fixacao",
+        "wps_name": "Travessa com Fixacao",
+        "category": "estrutura",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "top",
+              "bottom",
+              "middle"
+            ],
+            "default": "top"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "front",
+              "middle",
+              "back"
+            ],
+            "default": "front"
+          }
+        },
+        "fields": [
+          {
+            "key": "crossbar_position",
+            "wps_name": "posicaotravessa",
+            "label": "Posicao Travessa",
+            "default": "em pé",
+            "options": [
+              "deitado",
+              "em pé"
+            ]
+          },
+          {
+            "key": "name",
+            "wps_name": "wpsusername",
+            "label": "Nome",
+            "default": "Travessa"
+          }
+        ]
+      }
+    ],
+    "fechamento": [
+      {
+        "id": "kit_aventos_hf",
+        "wps_name": "Kit Aventos HF",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "overlay_left",
+            "wps_name": "recobrimentoesquerdo",
+            "label": "Recobrimento Esquerdo",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_right",
+            "wps_name": "recobrimentodireito",
+            "label": "Recobrimento Direito",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_top",
+            "wps_name": "recobrimentosuperior",
+            "label": "Recobrimento Superior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_bottom",
+            "wps_name": "recobrimentoinferior",
+            "label": "Recobrimento Inferior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset",
+              "passthrough"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_aventos_hk",
+        "wps_name": "Kit Aventos HK",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "overlay_left",
+            "wps_name": "recobrimentoesquerdo",
+            "label": "Recobrimento Esquerdo",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_right",
+            "wps_name": "recobrimentodireito",
+            "label": "Recobrimento Direito",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_top",
+            "wps_name": "recobrimentosuperior",
+            "label": "Recobrimento Superior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_bottom",
+            "wps_name": "recobrimentoinferior",
+            "label": "Recobrimento Inferior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset",
+              "passthrough"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_aventos_hl",
+        "wps_name": "Kit Aventos HL",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "overlay_left",
+            "wps_name": "recobrimentoesquerdo",
+            "label": "Recobrimento Esquerdo",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_right",
+            "wps_name": "recobrimentodireito",
+            "label": "Recobrimento Direito",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_top",
+            "wps_name": "recobrimentosuperior",
+            "label": "Recobrimento Superior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_bottom",
+            "wps_name": "recobrimentoinferior",
+            "label": "Recobrimento Inferior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset",
+              "passthrough"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_aventos_hs",
+        "wps_name": "Kit Aventos HS",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "overlay_left",
+            "wps_name": "recobrimentoesquerdo",
+            "label": "Recobrimento Esquerdo",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_right",
+            "wps_name": "recobrimentodireito",
+            "label": "Recobrimento Direito",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_top",
+            "wps_name": "recobrimentosuperior",
+            "label": "Recobrimento Superior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_bottom",
+            "wps_name": "recobrimentoinferior",
+            "label": "Recobrimento Inferior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset",
+              "passthrough"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_2_portas_altas_dobradica",
+        "wps_name": "Kit 2 Portas Altas Dobradica",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "overlay_left",
+            "wps_name": "recobrimentoesquerdo",
+            "label": "Recobrimento Esquerdo",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_right",
+            "wps_name": "recobrimentodireito",
+            "label": "Recobrimento Direito",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_top",
+            "wps_name": "recobrimentosuperior",
+            "label": "Recobrimento Superior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_bottom",
+            "wps_name": "recobrimentoinferior",
+            "label": "Recobrimento Inferior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset",
+              "passthrough"
+            ]
+          },
+          {
+            "key": "handle_position",
+            "wps_name": "posicaopuxador",
+            "label": "Posicao do Puxador",
+            "default": "center",
+            "options": [
+              "top",
+              "bottom",
+              "center"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_2_portas_dobradica",
+        "wps_name": "Kit 2 Portas Dobradica",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "overlay_left",
+            "wps_name": "recobrimentoesquerdo",
+            "label": "Recobrimento Esquerdo",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_right",
+            "wps_name": "recobrimentodireito",
+            "label": "Recobrimento Direito",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_top",
+            "wps_name": "recobrimentosuperior",
+            "label": "Recobrimento Superior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_bottom",
+            "wps_name": "recobrimentoinferior",
+            "label": "Recobrimento Inferior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset",
+              "passthrough"
+            ]
+          },
+          {
+            "key": "handle_position",
+            "wps_name": "posicaopuxador",
+            "label": "Posicao do Puxador",
+            "default": "bottom",
+            "options": [
+              "top",
+              "bottom",
+              "center"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_basculante_pistao_inferior",
+        "wps_name": "Kit Basculante Pistao Inferior",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "overlay_left",
+            "wps_name": "recobrimentoesquerdo",
+            "label": "Recobrimento Esquerdo",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_right",
+            "wps_name": "recobrimentodireito",
+            "label": "Recobrimento Direito",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_top",
+            "wps_name": "recobrimentosuperior",
+            "label": "Recobrimento Superior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_bottom",
+            "wps_name": "recobrimentoinferior",
+            "label": "Recobrimento Inferior",
+            "default": "partial",
+            "options": [
+              "total",
+              "partial",
+              "inset",
+              "passthrough"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_basculante_pistao_superior",
+        "wps_name": "Kit Basculante Pistao Superior",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "overlay_left",
+            "wps_name": "recobrimentoesquerdo",
+            "label": "Recobrimento Esquerdo",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_right",
+            "wps_name": "recobrimentodireito",
+            "label": "Recobrimento Direito",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_top",
+            "wps_name": "recobrimentosuperior",
+            "label": "Recobrimento Superior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_bottom",
+            "wps_name": "recobrimentoinferior",
+            "label": "Recobrimento Inferior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset",
+              "passthrough"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_desl_ro47_2_portas",
+        "wps_name": "Kit Desl RO47 2 Portas",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "kit_desl_ro47_3_portas",
+        "wps_name": "Kit Desl RO47 3 Portas",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "kit_desl_ro47_4_portas",
+        "wps_name": "Kit Desl RO47 4 Portas",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "kit_desl_ro47_5_portas",
+        "wps_name": "Kit Desl RO47 5 Portas",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "kit_desl_ro65_2_portas",
+        "wps_name": "Kit Desl RO65 2 Portas",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "kit_desl_ro65_3_portas",
+        "wps_name": "Kit Desl RO65 3 Portas",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "kit_deslizante_1_porta",
+        "wps_name": "Kit Deslizante 1 Porta",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "front_door",
+            "wps_name": "PortaFrontal",
+            "label": "Porta Frontal",
+            "default": "left",
+            "options": [
+              "right",
+              "left"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_deslizante_2_portas",
+        "wps_name": "Kit Deslizante 2 Portas",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "front_door",
+            "wps_name": "PortaFrontal",
+            "label": "Porta Frontal",
+            "default": "left",
+            "options": [
+              "right",
+              "left"
+            ]
+          },
+          {
+            "key": "track_type",
+            "wps_name": "wpsusermodelotrilhoportaspequena",
+            "label": "Tipo de Trilho",
+            "default": "inset",
+            "options": [
+              "overlay",
+              "inset"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_porta_alta_dobradica",
+        "wps_name": "Kit Porta Alta Dobradica",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "overlay_left",
+            "wps_name": "recobrimentoesquerdo",
+            "label": "Recobrimento Esquerdo",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_right",
+            "wps_name": "recobrimentodireito",
+            "label": "Recobrimento Direito",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_top",
+            "wps_name": "recobrimentosuperior",
+            "label": "Recobrimento Superior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_bottom",
+            "wps_name": "recobrimentoinferior",
+            "label": "Recobrimento Inferior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset",
+              "passthrough"
+            ]
+          },
+          {
+            "key": "handle_position",
+            "wps_name": "posicaopuxador",
+            "label": "Posicao do Puxador",
+            "default": "center",
+            "options": [
+              "top",
+              "bottom",
+              "center"
+            ]
+          },
+          {
+            "key": "door_side",
+            "wps_name": "ladoporta",
+            "label": "Lado da Porta",
+            "default": "direito",
+            "options": [
+              "esquerdo",
+              "direito"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_porta_dobradica",
+        "wps_name": "Kit Porta Dobradica",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "overlay_left",
+            "wps_name": "recobrimentoesquerdo",
+            "label": "Recobrimento Esquerdo",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_right",
+            "wps_name": "recobrimentodireito",
+            "label": "Recobrimento Direito",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_top",
+            "wps_name": "recobrimentosuperior",
+            "label": "Recobrimento Superior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_bottom",
+            "wps_name": "recobrimentoinferior",
+            "label": "Recobrimento Inferior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset",
+              "passthrough"
+            ]
+          },
+          {
+            "key": "handle_position",
+            "wps_name": "posicaopuxador",
+            "label": "Posicao do Puxador",
+            "default": "top",
+            "options": [
+              "top",
+              "bottom",
+              "center"
+            ]
+          },
+          {
+            "key": "door_side",
+            "wps_name": "ladoporta",
+            "label": "Lado da Porta",
+            "default": "direito",
+            "options": [
+              "esquerdo",
+              "direito"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_tulha",
+        "wps_name": "Kit 2 Portas Dobradica",
+        "category": "fechamento",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "overlay_left",
+            "wps_name": "recobrimentoesquerdo",
+            "label": "Recobrimento Esquerdo",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_right",
+            "wps_name": "recobrimentodireito",
+            "label": "Recobrimento Direito",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_top",
+            "wps_name": "recobrimentosuperior",
+            "label": "Recobrimento Superior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_bottom",
+            "wps_name": "recobrimentoinferior",
+            "label": "Recobrimento Inferior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset",
+              "passthrough"
+            ]
+          }
+        ]
+      }
+    ],
+    "interno": [
+      {
+        "id": "calceiro_interno",
+        "wps_name": "Calceiro Interno",
+        "category": "interno",
+        "offsets": {
+          "front": 80.0
+        },
+        "alignment": {
+          "vertical": {
+            "options": [
+              "top",
+              "bottom",
+              "middle"
+            ],
+            "default": "middle"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "colmeia_interna",
+        "wps_name": "Colmeia Interna",
+        "category": "interno",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "shelf_count",
+            "wps_name": "QuantidadePrateleiras",
+            "label": "Qtd Prateleiras",
+            "default": "4",
+            "options": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6"
+            ]
+          },
+          {
+            "key": "vertical_span_count",
+            "wps_name": "QuantidadeVaosVertical",
+            "label": "Qtd Vaos Verticais",
+            "default": 3
+          }
+        ]
+      },
+      {
+        "id": "gaveteiro_interno",
+        "wps_name": "Gaveteiro Interno",
+        "category": "interno",
+        "offsets": {
+          "top": 1000.0
+        },
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "drawer_count",
+            "wps_name": "wpsuserdrawerquantity",
+            "label": "Qtd Gavetas",
+            "default": "4",
+            "options": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "gaveteiro_e_sapateira_interna",
+        "wps_name": "Gaveteiro e Sapateira Interna",
+        "category": "interno",
+        "offsets": {
+          "front": -18.0
+        },
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "drawer_count_cabinet",
+            "wps_name": "wpsuserdrawerquantitygaveteiro",
+            "label": "Qtd Gaveteiro",
+            "default": "2",
+            "options": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5"
+            ]
+          },
+          {
+            "key": "shoe_rack_count",
+            "wps_name": "wpsuserdrawerquantitysapateira",
+            "label": "Qtd Sapateiras",
+            "default": "2",
+            "options": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_colmeia",
+        "wps_name": "Prateleira CJ",
+        "category": "interno",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "horizontal_spans",
+            "wps_name": "wpsvaoshorizontais",
+            "label": "Vaos Horizontais",
+            "default": "3",
+            "options": [
+              "2",
+              "3",
+              "4",
+              "5"
+            ]
+          },
+          {
+            "key": "vertical_spans",
+            "wps_name": "wpsvaosverticais",
+            "label": "Vaos Verticais",
+            "default": "3",
+            "options": [
+              "2",
+              "3",
+              "4",
+              "5"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_gaveta_cava",
+        "wps_name": "Kit Gaveta",
+        "category": "interno",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "overlay_left",
+            "wps_name": "recobrimentoesquerdo",
+            "label": "Recobrimento Esquerdo",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_right",
+            "wps_name": "recobrimentodireito",
+            "label": "Recobrimento Direito",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_top",
+            "wps_name": "recobrimentosuperior",
+            "label": "Recobrimento Superior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset",
+              "cava"
+            ]
+          },
+          {
+            "key": "overlay_bottom",
+            "wps_name": "recobrimentoinferior",
+            "label": "Recobrimento Inferior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "drawer_count",
+            "wps_name": "wpsuserdrawerquantity",
+            "label": "Qtd Gavetas",
+            "default": "3",
+            "options": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_gaveta",
+        "wps_name": "Kit Gaveta",
+        "category": "interno",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "overlay_left",
+            "wps_name": "recobrimentoesquerdo",
+            "label": "Recobrimento Esquerdo",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_right",
+            "wps_name": "recobrimentodireito",
+            "label": "Recobrimento Direito",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_top",
+            "wps_name": "recobrimentosuperior",
+            "label": "Recobrimento Superior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_bottom",
+            "wps_name": "recobrimentoinferior",
+            "label": "Recobrimento Inferior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "drawer_count",
+            "wps_name": "wpsuserdrawerquantity",
+            "label": "Qtd Gavetas",
+            "default": "5",
+            "options": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_montante_com_gav__e_sap__interno",
+        "wps_name": "Kit Montante com Gav. e Sap. Interno",
+        "category": "interno",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "closure_view",
+            "wps_name": "vistafechamentoeditavel",
+            "label": "Vista Fechamento",
+            "default": "both",
+            "options": [
+              "left",
+              "right",
+              "both",
+              "none"
+            ]
+          },
+          {
+            "key": "closure_width",
+            "wps_name": "largurafechamento",
+            "label": "Largura Fechamento",
+            "default": 30
+          },
+          {
+            "key": "drawer_count_drawers",
+            "wps_name": "wpsuserdrawerquantitygavetas",
+            "label": "Qtd Gavetas",
+            "default": "3",
+            "options": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7"
+            ]
+          },
+          {
+            "key": "shoe_rack_count",
+            "wps_name": "wpsuserdrawerquantitysapateira",
+            "label": "Qtd Sapateiras",
+            "default": "2",
+            "options": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_montante_e_gaveta_interno",
+        "wps_name": "Kit Montante e Gaveta Interno",
+        "category": "interno",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "closure_view",
+            "wps_name": "vistafechamentoeditavel",
+            "label": "Vista Fechamento",
+            "default": "both",
+            "options": [
+              "left",
+              "right",
+              "both",
+              "none"
+            ]
+          },
+          {
+            "key": "closure_width",
+            "wps_name": "largurafechamento",
+            "label": "Largura Fechamento",
+            "default": 30
+          },
+          {
+            "key": "drawer_count",
+            "wps_name": "wpsuserdrawerquantity",
+            "label": "Qtd Gavetas",
+            "default": "4",
+            "options": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7"
+            ]
+          },
+          {
+            "key": "rear_crossbar_rotation",
+            "wps_name": "rotacaotravessatraseira",
+            "label": "Rotacao Travessa Traseira",
+            "default": "Não",
+            "options": [
+              "yes",
+              "Não"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_montante_e_sapateira_interno",
+        "wps_name": "Kit Montante e Sapateira Interno",
+        "category": "interno",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "closure_view",
+            "wps_name": "vistafechamentoeditavel",
+            "label": "Vista Fechamento",
+            "default": "both",
+            "options": [
+              "left",
+              "right",
+              "both",
+              "none"
+            ]
+          },
+          {
+            "key": "closure_width",
+            "wps_name": "largurafechamento",
+            "label": "Largura Fechamento",
+            "default": 40
+          },
+          {
+            "key": "drawer_count",
+            "wps_name": "wpsuserdrawerquantity",
+            "label": "Qtd Gavetas",
+            "default": "4",
+            "options": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_porta_latas_gavetas",
+        "wps_name": "Kit Porta Latas Gavetas",
+        "category": "interno",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "overlay_left",
+            "wps_name": "recobrimentoesquerdo",
+            "label": "Recobrimento Esquerdo",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_right",
+            "wps_name": "recobrimentodireito",
+            "label": "Recobrimento Direito",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_top",
+            "wps_name": "recobrimentosuperior",
+            "label": "Recobrimento Superior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_bottom",
+            "wps_name": "recobrimentoinferior",
+            "label": "Recobrimento Inferior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_porta_latas",
+        "wps_name": "Kit Gaveta",
+        "category": "interno",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "overlay_left",
+            "wps_name": "recobrimentoesquerdo",
+            "label": "Recobrimento Esquerdo",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_right",
+            "wps_name": "recobrimentodireito",
+            "label": "Recobrimento Direito",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_top",
+            "wps_name": "recobrimentosuperior",
+            "label": "Recobrimento Superior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_bottom",
+            "wps_name": "recobrimentoinferior",
+            "label": "Recobrimento Inferior",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_sapateira",
+        "wps_name": "Kit Sapateira",
+        "category": "interno",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "overlay_left",
+            "wps_name": "recobrimentoesquerdo",
+            "label": "Recobrimento Esquerdo",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "overlay_right",
+            "wps_name": "recobrimentodireito",
+            "label": "Recobrimento Direito",
+            "default": "total",
+            "options": [
+              "total",
+              "partial",
+              "inset"
+            ]
+          },
+          {
+            "key": "drawer_count",
+            "wps_name": "wpsuserdrawerquantity",
+            "label": "Qtd Gavetas",
+            "default": "4",
+            "options": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "8",
+              "9",
+              "10"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kit_colmeia_recorte",
+        "wps_name": "Kit Colmeia Recorte",
+        "category": "interno",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "horizontal_spans",
+            "wps_name": "wpsvaoshorizontais",
+            "label": "Vaos Horizontais",
+            "default": "4",
+            "options": [
+              "2",
+              "3",
+              "4",
+              "5",
+              "6"
+            ]
+          },
+          {
+            "key": "vertical_spans",
+            "wps_name": "wpsvaosverticais",
+            "label": "Vaos Verticais",
+            "default": "3",
+            "options": [
+              "2",
+              "3",
+              "4",
+              "5",
+              "6"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "montante_interno",
+        "wps_name": "Montante Interno",
+        "category": "interno",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "closure_view",
+            "wps_name": "vistafechamentoeditavel",
+            "label": "Vista Fechamento",
+            "default": "both",
+            "options": [
+              "left",
+              "right",
+              "both",
+              "none"
+            ]
+          },
+          {
+            "key": "closure_view_width",
+            "wps_name": "larguravistafechamento",
+            "label": "Largura Vista Fechamento",
+            "default": 50
+          }
+        ]
+      },
+      {
+        "id": "prateleira_cj",
+        "wps_name": "Prateleira CJ",
+        "category": "interno",
+        "offsets": {
+          "front": 20.0
+        },
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "prateleira_fixa",
+        "wps_name": "Prateleira Fixa",
+        "category": "interno",
+        "offsets": {
+          "bottom": 800.0,
+          "front": 50.0
+        },
+        "alignment": {
+          "vertical": {
+            "options": [
+              "top",
+              "bottom",
+              "middle"
+            ],
+            "default": "bottom"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "name",
+            "wps_name": "wpsusername",
+            "label": "Nome",
+            "default": "Prateleira ABC"
+          }
+        ]
+      },
+      {
+        "id": "prateleira_vidro_cj",
+        "wps_name": "Prateleira Vidro CJ",
+        "category": "interno",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "sapateira_corred__telescopica",
+        "wps_name": "Sapateira Interna",
+        "category": "interno",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "drawer_count",
+            "wps_name": "wpsuserdrawerquantity",
+            "label": "Qtd Gavetas",
+            "default": "3",
+            "options": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sapateira_corredica_oculta",
+        "wps_name": "Sapateira Interna",
+        "category": "interno",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "drawer_count",
+            "wps_name": "wpsuserdrawerquantity",
+            "label": "Qtd Gavetas",
+            "default": "3",
+            "options": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sapateira_interna",
+        "wps_name": "Sapateira Interna",
+        "category": "interno",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "drawer_count",
+            "wps_name": "wpsuserdrawerquantity",
+            "label": "Qtd Gavetas",
+            "default": "2",
+            "options": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7"
+            ]
+          }
+        ]
+      }
+    ],
+    "acessorio": [
+      {
+        "id": "cj_corpo_roupeiro",
+        "wps_name": "Cj Corpo Roupeiro",
+        "category": "acessorio",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "conjunto_cabideiro_oblongo",
+        "wps_name": "Conjunto Cabideiro Oblongo",
+        "category": "acessorio",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "top"
+            ],
+            "default": "top"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "front",
+              "middle",
+              "back"
+            ],
+            "default": "middle"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "conjunto_cabideiro_redondo",
+        "wps_name": "Conjunto Cabideiro Redondo",
+        "category": "acessorio",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "top"
+            ],
+            "default": "top"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "front",
+              "middle",
+              "back"
+            ],
+            "default": "middle"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "corpo_alto",
+        "wps_name": "Corpo Inferior",
+        "category": "acessorio",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "corpo_inferior_intermediario_base_passante",
+        "wps_name": "Corpo Inferior Base Passante",
+        "category": "acessorio",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "corpo_inferior_intermediario",
+        "wps_name": "Corpo Inferior",
+        "category": "acessorio",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "corpo_superior_intermediario",
+        "wps_name": "Corpo Inferior",
+        "category": "acessorio",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+
+        ]
+      },
+      {
+        "id": "kit_led_linear",
+        "wps_name": "Kit Led Linear",
+        "category": "acessorio",
+        "offsets": {
+          "back": 30.0,
+          "front": 50.0
+        },
+        "alignment": {
+          "vertical": {
+            "options": [
+              "top",
+              "bottom"
+            ],
+            "default": "bottom"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "front",
+              "back",
+              "middle"
+            ],
+            "default": "front"
+          }
+        },
+        "fields": [
+          {
+            "key": "name",
+            "wps_name": "wpsusername",
+            "label": "Nome",
+            "default": "Kit Led Linear"
+          },
+          {
+            "key": "led_position",
+            "wps_name": "posicaoled",
+            "label": "Posicao LED",
+            "default": "bottom",
+            "options": [
+              "bottom",
+              "top"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pe_nivelador_plastico_cj",
+        "wps_name": "Pe Nivelador Plastico CJ",
+        "category": "acessorio",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "bottom"
+            ],
+            "default": "bottom"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "leveler_height",
+            "wps_name": "wpsuseralturapenivelador",
+            "label": "Altura Pe Nivelador",
+            "default": 150
+          },
+          {
+            "key": "name",
+            "wps_name": "wpsusername",
+            "label": "Nome",
+            "default": "Pe Nivelador Plastico CJ"
+          }
+        ]
+      },
+      {
+        "id": "rodape_caixa_cj",
+        "wps_name": "Rodapé Caixa CJ",
+        "category": "acessorio",
+        "alignment": {
+          "vertical": {
+            "options": [
+              "all",
+              "bottom"
+            ],
+            "default": "bottom"
+          },
+          "horizontal": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          },
+          "depth": {
+            "options": [
+              "all"
+            ],
+            "default": "all"
+          }
+        },
+        "fields": [
+          {
+            "key": "baseboard_height",
+            "wps_name": "wpsgalturarodape",
+            "label": "Altura Rodape",
+            "default": 150
+          },
+          {
+            "key": "name",
+            "wps_name": "wpsusername",
+            "label": "Nome",
+            "default": "Rodapé"
+          }
+        ]
+      }
+    ]
+  }
+}

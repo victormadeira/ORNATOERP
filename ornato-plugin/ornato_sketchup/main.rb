@@ -15,6 +15,12 @@ require_relative 'core/edge_banding'
 require_relative 'core/hierarchy_builder'
 
 # ─── Hardware rules engine ────────────────────────────
+require_relative 'hardware/confirmat_rule'
+require_relative 'hardware/led_channel_rule'
+require_relative 'hardware/gas_piston_rule'
+require_relative 'hardware/sliding_door_rule'
+require_relative 'hardware/miter_rule'
+require_relative 'hardware/passthrough_rule'
 require_relative 'hardware/rules_engine'
 
 # ─── Machining ────────────────────────────────────────
@@ -37,6 +43,42 @@ require_relative 'constructor/box_builder'
 require_relative 'constructor/aggregator'
 require_relative 'constructor/component_swap'
 require_relative 'constructor/finish_manager'
+
+# ─── Smart Advisor (inteligencia de sugestao) ────────
+begin
+  require_relative 'advisor/smart_advisor'
+  ADVISOR_LOADED = true
+rescue LoadError => e
+  puts "Ornato: SmartAdvisor nao disponivel (#{e.message})"
+  ADVISOR_LOADED = false
+end
+
+# ─── Dynamic Component Reader ────────────────────────
+begin
+  require_relative 'core/dynamic_component_reader'
+  DC_READER_LOADED = true
+rescue LoadError => e
+  puts "Ornato: DC Reader nao disponivel (#{e.message})"
+  DC_READER_LOADED = false
+end
+
+# ─── Cut Optimizer Integration ───────────────────────
+begin
+  require_relative 'integration/cut_optimizer'
+  CUT_OPTIMIZER_LOADED = true
+rescue LoadError => e
+  puts "Ornato: Cut Optimizer nao disponivel (#{e.message})"
+  CUT_OPTIMIZER_LOADED = false
+end
+
+# ─── Material Catalog ────────────────────────────────
+begin
+  require_relative 'catalog/material_catalog'
+  MATERIAL_CATALOG_LOADED = true
+rescue LoadError => e
+  puts "Ornato: Material Catalog nao disponivel (#{e.message})"
+  MATERIAL_CATALOG_LOADED = false
+end
 
 # ─── Unified Dialog Controller (OCL-style) ──────────
 require_relative 'ui/dialog_controller'
@@ -138,6 +180,7 @@ module Ornato
       menu.add_item('Acabamentos...') { show_dialog('acabamentos') }
       menu.add_separator
       menu.add_item('Analisar Modelo') { analyze_model }
+      menu.add_item('Processar Modelo Inteiro') { process_all_modules }
       menu.add_item('Processar Modulo Selecionado') { process_selected_module }
       menu.add_separator
       menu.add_item('Validar Modelo...') { show_dialog('validacao') }
@@ -374,6 +417,97 @@ module Ornato
           "#{all_machining.values.sum { |m| m['workers']&.length || 0 }} operacoes"
         )
       end
+    end
+
+    # ─── Batch Processing (Modelo Inteiro) ──────────
+    def self.process_all_modules
+      model = Sketchup.active_model
+      unless model
+        ::UI.messagebox('Nenhum modelo aberto.')
+        return
+      end
+
+      # Analyze everything first
+      analyzer = Core::ModelAnalyzer.new(model)
+      analysis = analyzer.analyze
+      @last_analysis = analysis
+
+      if analysis[:modules].empty?
+        ::UI.messagebox(
+          "Nenhum modulo Ornato encontrado.\n\n" \
+          "Certifique-se de que os grupos estao nomeados com prefixo ORN_ " \
+          "(ex: ORN_BAL, ORN_ARM, etc.)"
+        )
+        return
+      end
+
+      config = Config.load
+      engine = Hardware::RulesEngine.new(config)
+      all_machining = {}
+      total_ops = 0
+      errors = []
+
+      analysis[:modules].each do |mod|
+        begin
+          machining = engine.process_module(mod[:group])
+          all_machining.merge!(machining)
+          count = machining.values.sum { |m| m['workers']&.length || 0 }
+          total_ops += count
+        rescue => e
+          mod_name = mod[:group].respond_to?(:name) ? mod[:group].name : 'desconhecido'
+          errors << "#{mod_name}: #{e.message}"
+        end
+      end
+
+      @last_machining = all_machining
+
+      # Visualize all hardware
+      if VISUAL_LOADED
+        begin
+          viz = Visual::HardwareVisualizer.new
+          analysis[:modules].each do |mod|
+            mod_machining = {}
+            mod[:group].entities.each do |ent|
+              pid = ent.get_attribute('ornato', 'persistent_id', nil) || "piece_#{ent.entityID}"
+              mod_machining[pid] = all_machining[pid] if all_machining[pid]
+            end
+            viz.visualize_module(mod[:group], mod_machining)
+          end
+        rescue => e
+          puts "Ornato: Erro ao visualizar ferragens: #{e.message}"
+        end
+      end
+
+      # Run SmartAdvisor if available
+      advisor_warnings = []
+      if ADVISOR_LOADED
+        begin
+          advisor = Advisor::SmartAdvisor.new(config)
+          advisor_warnings = advisor.analyze(analysis, all_machining)
+        rescue => e
+          puts "Ornato: SmartAdvisor erro: #{e.message}"
+        end
+      end
+
+      msg = "Processamento em lote completo!\n\n"
+      msg += "#{analysis[:modules].length} modulos processados\n"
+      msg += "#{all_machining.length} pecas com usinagem\n"
+      msg += "#{total_ops} operacoes geradas\n"
+      msg += "\nRegras aplicadas: #{engine.rules.length} (incluindo novas)\n"
+
+      unless errors.empty?
+        msg += "\nErros (#{errors.length}):\n"
+        errors.first(5).each { |e| msg += "  - #{e}\n" }
+        msg += "  ... e mais #{errors.length - 5}\n" if errors.length > 5
+      end
+
+      unless advisor_warnings.empty?
+        msg += "\nAvisos do SmartAdvisor (#{advisor_warnings.length}):\n"
+        advisor_warnings.first(5).each { |w| msg += "  - #{w[:message]}\n" }
+      end
+
+      ::UI.messagebox(msg)
+      all_machining
     end
 
     def self.sync_with_erp

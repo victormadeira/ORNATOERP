@@ -62,6 +62,13 @@ module Ornato
         check_piece_count
         check_erp_connection
 
+        # ── Advanced validations (v0.2) ──
+        check_module_interference
+        check_transport_limits
+        check_edge_vs_hole_position
+        check_symmetry
+        check_depth_vs_thickness
+
         # Sort: errors first, then warnings, then info
         severity_order = { error: 0, warning: 1, info: 2 }
         @issues.sort_by { |i| severity_order[i.severity] || 99 }
@@ -637,6 +644,194 @@ module Ornato
             module_name: nil,
             suggestion: nil
           )
+        end
+      end
+      # ─── 16. check_module_interference ───────────────────
+      # Two modules with overlapping bounding boxes. Warning.
+      def check_module_interference
+        mods = modules_list
+        return if mods.length < 2
+
+        mods.combination(2).each do |ma, mb|
+          ga = ma[:group]
+          gb = mb[:group]
+          next unless ga.respond_to?(:bounds) && gb.respond_to?(:bounds)
+
+          ba = ga.bounds
+          bb = gb.bounds
+          next if ba.empty? || bb.empty?
+
+          # Check overlap in all 3 axes
+          overlap_x = ba.max.x > bb.min.x && bb.max.x > ba.min.x
+          overlap_y = ba.max.y > bb.min.y && bb.max.y > ba.min.y
+          overlap_z = ba.max.z > bb.min.z && bb.max.z > ba.min.z
+
+          if overlap_x && overlap_y && overlap_z
+            name_a = ga.respond_to?(:name) ? ga.name : 'modulo A'
+            name_b = gb.respond_to?(:name) ? gb.name : 'modulo B'
+            @issues << Issue.new(
+              severity: SEVERITY_WARNING,
+              code: 'MOD_INTERFERENCE',
+              message: "Modulos '#{name_a}' e '#{name_b}' se sobrepoem no espaco. " \
+                       "Podem haver colisoes indesejadas.",
+              piece_id: nil,
+              module_name: name_a,
+              suggestion: 'Verifique o posicionamento dos modulos e afaste-os se necessario.'
+            )
+          end
+        end
+      rescue => e
+        # Silently skip if SketchUp bounds not available
+      end
+
+      # ─── 17. check_transport_limits ───────────────────────
+      # Pieces exceeding standard sheet size (2750mm). Warning.
+      def check_transport_limits
+        max_sheet = 2750.0  # mm — standard max sheet length
+
+        pieces.each do |piece|
+          w = piece.respond_to?(:width)  ? piece.width.to_f  : 0
+          h = piece.respond_to?(:height) ? piece.height.to_f : 0
+          max_dim = [w, h].max
+
+          if max_dim > max_sheet
+            @issues << Issue.new(
+              severity: SEVERITY_ERROR,
+              code: 'DIM_EXCEEDS_SHEET',
+              message: "Peca '#{piece_label(piece)}' tem #{max_dim.round(0)}mm, " \
+                       "excede o tamanho maximo de chapa (#{max_sheet.to_i}mm).",
+              piece_id: piece.respond_to?(:persistent_id) ? piece.persistent_id : nil,
+              module_name: module_name_for(piece),
+              suggestion: 'Divida a peca em duas partes ou use uma chapa especial.'
+            )
+          elsif max_dim > 2440
+            @issues << Issue.new(
+              severity: SEVERITY_WARNING,
+              code: 'DIM_LARGE_PIECE',
+              message: "Peca '#{piece_label(piece)}' tem #{max_dim.round(0)}mm. " \
+                       "Pode nao caber em chapas padrao 2440mm.",
+              piece_id: piece.respond_to?(:persistent_id) ? piece.persistent_id : nil,
+              module_name: module_name_for(piece),
+              suggestion: 'Verifique a disponibilidade de chapas no tamanho necessario.'
+            )
+          end
+        end
+      end
+
+      # ─── 18. check_edge_vs_hole_position ──────────────────
+      # Edge banding thickness affects hole position. Info.
+      def check_edge_vs_hole_position
+        pieces.each do |piece|
+          next unless piece.respond_to?(:entity) && piece.entity.respond_to?(:get_attribute)
+
+          # Check if piece has 2mm+ edge banding
+          %w[top bottom left right].each do |side|
+            edge = piece.entity.get_attribute('ornato', "edge_#{side}", nil)
+            next unless edge.is_a?(String) && edge =~ /BOR_(\d+)/
+
+            edge_thick = $1.to_f
+            next if edge_thick < 2.0
+
+            # Check if any hole is close to this edge
+            holes = holes_for_piece(piece)
+            holes.each do |hole|
+              # Simplified check — hole near the edged side
+              w = piece.respond_to?(:width)  ? piece.width.to_f  : 0
+              h = piece.respond_to?(:height) ? piece.height.to_f : 0
+
+              edge_dist = case side
+                          when 'left'   then hole[:x]
+                          when 'right'  then w - hole[:x]
+                          when 'bottom' then hole[:y]
+                          when 'top'    then h - hole[:y]
+                          end
+
+              if edge_dist && edge_dist < 50 && edge_dist > 0
+                @issues << Issue.new(
+                  severity: SEVERITY_INFO,
+                  code: 'EDGE_HOLE_OFFSET',
+                  message: "Furo em #{piece_label(piece)} lado #{side}: borda #{edge_thick}mm " \
+                           "pode deslocar o furo em #{edge_thick}mm. Distancia atual: #{edge_dist.round(1)}mm.",
+                  piece_id: piece.respond_to?(:persistent_id) ? piece.persistent_id : nil,
+                  module_name: module_name_for(piece),
+                  suggestion: 'Considere compensar a espessura da borda no posicionamento dos furos.'
+                )
+                break  # One warning per side is enough
+              end
+            end
+          end
+        end
+      end
+
+      # ─── 19. check_symmetry ───────────────────────────────
+      # LAT_ESQ and LAT_DIR should have same dimensions. Warning.
+      def check_symmetry
+        modules_list.each do |mod|
+          mod_pieces = mod[:pieces] || []
+          laterals = mod_pieces.select do |p|
+            piece = p[:piece] || p
+            role = piece.respond_to?(:role) ? piece.role : nil
+            name = piece.respond_to?(:entity) && piece.entity.respond_to?(:name) ? piece.entity.name.to_s.upcase : ''
+            role == :lateral || name =~ /^LAT_/
+          end
+
+          next if laterals.length < 2
+
+          # Compare first two laterals
+          a = laterals[0][:piece] || laterals[0]
+          b = laterals[1][:piece] || laterals[1]
+
+          wa = a.respond_to?(:width)  ? a.width.to_f.round(1) : 0
+          ha = a.respond_to?(:height) ? a.height.to_f.round(1) : 0
+          wb = b.respond_to?(:width)  ? b.width.to_f.round(1) : 0
+          hb = b.respond_to?(:height) ? b.height.to_f.round(1) : 0
+
+          if wa != wb || ha != hb
+            mod_name = mod[:group].respond_to?(:name) ? mod[:group].name : 'modulo'
+            @issues << Issue.new(
+              severity: SEVERITY_WARNING,
+              code: 'SYMMETRY_MISMATCH',
+              message: "Laterais de '#{mod_name}' tem dimensoes diferentes: " \
+                       "#{wa}x#{ha}mm vs #{wb}x#{hb}mm.",
+              piece_id: nil,
+              module_name: mod_name,
+              suggestion: 'Verifique se as laterais devem ter o mesmo tamanho. ' \
+                          'Diferenca pode indicar erro de modelagem.'
+            )
+          end
+        end
+      end
+
+      # ─── 20. check_depth_vs_thickness ─────────────────────
+      # Hole depth exceeding 85% of piece thickness. Error.
+      def check_depth_vs_thickness
+        pieces.each do |piece|
+          t = piece.respond_to?(:thickness) ? piece.thickness.to_f : 0
+          next if t <= 0
+
+          pid = piece.respond_to?(:persistent_id) ? piece.persistent_id : nil
+          next unless pid
+
+          workers = (@machining[pid] || {})['workers'] || {}
+          workers.each do |key, op|
+            next unless op.is_a?(Hash)
+            depth = (op['depth'] || 0).to_f
+            through = op['through']
+            next if through || depth <= 0
+
+            if depth > t * 0.85
+              @issues << Issue.new(
+                severity: SEVERITY_ERROR,
+                code: 'DEPTH_EXCEEDS',
+                message: "#{op['description'] || key} em '#{piece_label(piece)}': " \
+                         "profundidade #{depth}mm em chapa #{t}mm " \
+                         "(#{((depth / t) * 100).round(0)}%). Risco de perfurar.",
+                piece_id: pid,
+                module_name: module_name_for(piece),
+                suggestion: 'Reduza a profundidade do furo ou use chapa mais grossa.'
+              )
+            end
+          end
         end
       end
     end

@@ -12,13 +12,19 @@ module Ornato
       # Rules are applied in order — earlier rules may influence later ones
       RULE_CLASSES = [
         HingeRule,
+        GasPistonRule,
+        SlidingDoorRule,
         System32Rule,
         MinifixRule,
+        ConfirmatRule,
         DowelRule,
         HandleRule,
         DrawerSlideRule,
         BackPanelRule,
         ShelfRule,
+        MiterRule,
+        LEDChannelRule,
+        PassThroughRule,
       ].freeze
 
       attr_reader :config, :rules
