@@ -509,13 +509,13 @@ function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) {
                             marginBottom: 16, padding: 12, borderRadius: 8,
                             background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)',
                         }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
                                 <AlertTriangle size={14} color="#f59e0b" />
                                 <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>
                                     {matCheck.nao_cadastrados.length} material(is) não cadastrado(s)
                                 </span>
-                                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
-                                    Peças usarão fallback por espessura se não cadastrar
+                                <span style={{ fontSize: 11, color: '#dc2626', marginLeft: 'auto', fontWeight: 600 }}>
+                                    Sem cadastrar, materiais diferentes serão otimizados juntos!
                                 </span>
                             </div>
 
@@ -530,12 +530,17 @@ function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) {
                                             padding: 10, background: 'var(--bg-card)', borderRadius: 6,
                                             border: '1px solid var(--border)',
                                         }}>
-                                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
+                                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
                                                 {mat.material_code}
                                                 <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8, fontSize: 10 }}>
                                                     esp: {mat.espessura || '?'}mm
                                                 </span>
                                             </div>
+                                            {mat.fallback_chapa && (
+                                                <div style={{ fontSize: 10, color: '#dc2626', marginBottom: 4, fontStyle: 'italic' }}>
+                                                    Atualmente usando "{mat.fallback_chapa.nome}" por fallback — materiais misturados na otimização!
+                                                </div>
+                                            )}
                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 6 }}>
                                                 <div>
                                                     <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Nome</label>

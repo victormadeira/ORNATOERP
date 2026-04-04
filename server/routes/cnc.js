@@ -488,34 +488,41 @@ router.post('/chapas/verificar-materiais', requireAuth, (req, res) => {
             const esp = mat.espessura || 0;
             if (!mc) continue;
 
-            // Mesma lógica de resolução do otimizador
-            let chapa = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(mc);
-            if (!chapa && esp) {
-                chapa = db.prepare('SELECT * FROM cnc_chapas WHERE ABS(espessura_real - ?) <= 1.0 AND ativo = 1 ORDER BY ABS(espessura_real - ?) ASC LIMIT 1').get(esp, esp);
-            }
+            // APENAS match exato por material_code conta como "cadastrado"
+            // Fallback por espessura = material diferente agrupado errado = precisa cadastrar
+            const chapaExata = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(mc);
 
-            if (chapa) {
-                cadastrados.push({ material_code: mc, espessura: esp, chapa_nome: chapa.nome, chapa_id: chapa.id, match_type: chapa.material_code === mc ? 'exato' : 'fallback_espessura' });
+            if (chapaExata) {
+                cadastrados.push({ material_code: mc, espessura: esp, chapa_nome: chapaExata.nome, chapa_id: chapaExata.id, match_type: 'exato' });
             } else {
-                // Inferir defaults inteligentes pelo nome
+                // Verificar se existe fallback (para informar o usuário)
+                const chapaFallback = esp ? db.prepare('SELECT * FROM cnc_chapas WHERE ABS(espessura_real - ?) <= 1.0 AND ativo = 1 ORDER BY ABS(espessura_real - ?) ASC LIMIT 1').get(esp, esp) : null;
+                // Inferir defaults inteligentes pelo nome do material
                 const upper = mc.toUpperCase();
                 const temVeio = upper.includes('CARVALHO') || upper.includes('FREIJO') || upper.includes('NOGUEIRA') ||
                     upper.includes('AREAL') || upper.includes('FENDI') || upper.includes('CANELA') || upper.includes('ROVERE') ||
-                    upper.includes('NOGAL') || upper.includes('TECA') || upper.includes('CASTANHO') || upper.includes('TABACO');
+                    upper.includes('NOGAL') || upper.includes('TECA') || upper.includes('CASTANHO') || upper.includes('TABACO') ||
+                    upper.includes('TITANIO') || upper.includes('TRAMA');
                 const veio = temVeio ? 'horizontal' : 'sem_veio';
                 const direcao = temVeio ? 'horizontal' : 'misto';
 
+                // Copiar dimensões da chapa fallback se existir (mesma espessura, outro material)
+                const baseChapa = chapaFallback || {};
+
                 nao_cadastrados.push({
                     material_code: mc, espessura: esp,
+                    fallback_chapa: chapaFallback ? { nome: chapaFallback.nome, id: chapaFallback.id } : null,
                     sugestao: {
                         nome: mc.replace(/_/g, ' '),
                         material_code: mc,
                         espessura_nominal: esp || 18,
-                        espessura_real: esp ? esp + 0.5 : 18.5,
-                        comprimento: 2750, largura: 1850,
-                        refilo: 10, kerf: 4,
+                        espessura_real: baseChapa.espessura_real || (esp ? esp + 0.5 : 18.5),
+                        comprimento: baseChapa.comprimento || 2750,
+                        largura: baseChapa.largura || 1850,
+                        refilo: baseChapa.refilo || 10,
+                        kerf: baseChapa.kerf || 4,
                         veio, direcao_corte: direcao, modo_corte: 'herdar',
-                        preco: 0,
+                        preco: baseChapa.preco || 0,
                     },
                 });
             }
