@@ -413,15 +413,16 @@ function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) {
                 });
                 setNome(det.project_name || det.projeto || file.name.replace('.json', ''));
 
-                // Verificar materiais não cadastrados
+                // Verificar materiais não cadastrados (async mas com feedback)
                 if (materiais.size > 0) {
+                    setCheckingMats(true);
                     const matList = [...materiais].map(mc => {
-                        // Tentar extrair espessura do material_code
                         const m = mc.match(/_(\d+(?:\.\d+)?)_/);
                         return { material_code: mc, espessura: m ? parseFloat(m[1]) : 0 };
                     });
                     api.post('/cnc/chapas/verificar-materiais', { materiais: matList })
                         .then(result => {
+                            console.log('[MatCheck]', result);
                             if (result.nao_cadastrados?.length > 0) {
                                 setMatCheck(result);
                                 setMatEdits({});
@@ -429,7 +430,11 @@ function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) {
                                 setMatCheck(null);
                             }
                         })
-                        .catch(() => {}); // silently ignore
+                        .catch(err => {
+                            console.warn('[MatCheck] Erro:', err);
+                            setMatCheck(null);
+                        })
+                        .finally(() => setCheckingMats(false));
                 }
             } catch (err) {
                 notify('Erro ao ler JSON: ' + err.message);
@@ -639,8 +644,8 @@ function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                         <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome do lote"
                             className={Z.inp} style={{ flex: 1, minWidth: 200 }} />
-                        <button onClick={doImport} disabled={importing} className={Z.btn} style={{ padding: '8px 24px' }}>
-                            {importing ? 'Importando...' : 'Importar Lote'}
+                        <button onClick={doImport} disabled={importing || checkingMats} className={Z.btn} style={{ padding: '8px 24px' }}>
+                            {importing ? 'Importando...' : checkingMats ? 'Verificando materiais...' : 'Importar Lote'}
                         </button>
                         <button onClick={() => { setPreview(null); setJsonData(null); setMatCheck(null); }} className={Z.btn2} style={{ padding: '8px 16px' }}>
                             Cancelar
