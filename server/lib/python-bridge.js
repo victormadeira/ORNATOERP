@@ -16,7 +16,7 @@
 
 const PYTHON_URL = process.env.CNC_OPTIMIZER_URL || 'http://localhost:8000';
 const HEALTH_TIMEOUT = 2000;   // 2s para health check
-const REQUEST_TIMEOUT = 120000; // 2min para otimizacao
+const REQUEST_TIMEOUT = 600000; // 10min para otimizacao (lotes grandes 400+ pecas)
 
 let _lastHealthCheck = 0;
 let _lastHealthResult = false;
@@ -73,7 +73,12 @@ export async function callPython(endpoint, payload) {
         console.log(`  [Python Bridge] OK — motor=${result.motor || 'python'}, tempo=${result.tempo_ms || '?'}ms`);
         return result;
     } catch (err) {
-        console.error(`  [Python Bridge] Falha:`, err.message);
+        const isTimeout = err.name === 'AbortError' || err.message?.includes('timeout') || err.message?.includes('aborted');
+        console.error(`  [Python Bridge] Falha${isTimeout ? ' (TIMEOUT)' : ''}:`, err.message);
+        if (isTimeout) {
+            // Timeout não significa que o Python caiu — não invalidar health
+            return { ok: false, error: `Timeout: otimização excedeu ${REQUEST_TIMEOUT/1000}s. Tente reduzir o número de peças ou simplificar o lote.` };
+        }
         // Invalidar cache de health para recheck na proxima
         _lastHealthCheck = 0;
         _lastHealthResult = false;
