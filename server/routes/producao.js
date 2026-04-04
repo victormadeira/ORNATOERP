@@ -151,6 +151,7 @@ function calcularListaCorte(mods, bib) {
                         area: am,
                         qtd: p.qtd || 1,
                         fita: f,
+                        fita_lados: p.fita || [],
                         tipo: 'caixa',
                     });
                 }
@@ -184,6 +185,7 @@ function calcularListaCorte(mods, bib) {
                             area: am,
                             qtd: p.qtd || 1,
                             fita: f,
+                            fita_lados: p.fita || [],
                             tipo: 'tamponamento',
                         });
                     }
@@ -241,6 +243,7 @@ function calcularListaCorte(mods, bib) {
                         area: am,
                         qtd: pQtd,
                         fita: f * pQtd,
+                        fita_lados: p.fita || [],
                         tipo: 'componente',
                     });
 
@@ -272,6 +275,7 @@ function calcularListaCorte(mods, bib) {
                                 area: am,
                                 qtd: cQtd,
                                 fita: f * cQtd,
+                                fita_lados: fe.fita || [],
                                 tipo: 'frente_externa',
                             });
 

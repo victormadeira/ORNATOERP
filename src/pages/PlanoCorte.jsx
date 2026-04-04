@@ -1,13 +1,77 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import api from '../api';
 import { Ic, Z, Spinner, PageHeader, EmptyState, ProgressBar as PBarUI } from '../ui';
-import { Scissors, Printer, ArrowLeft, ChevronDown, ChevronUp, Search, RefreshCw, RotateCw, Settings, Eye, Package, Layers, BarChart3, AlertTriangle, CheckCircle2, ZoomIn, ZoomOut } from 'lucide-react';
+import { Scissors, Printer, ArrowLeft, ChevronDown, ChevronUp, Search, RefreshCw, RotateCw, Settings, Eye, Package, Layers, BarChart3, AlertTriangle, CheckCircle2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Grid3X3 } from 'lucide-react';
 
-// Cores por ambiente
+// Cores por ambiente (mais vibrantes e distintas)
 const AMB_COLORS = [
     '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6',
     '#06b6d4', '#ec4899', '#f97316', '#14b8a6', '#6366f1',
+    '#84cc16', '#a855f7', '#0ea5e9', '#f43f5e', '#d946ef',
 ];
+
+// Cores de fundo para chapas baseado no tipo de material
+const MAT_BG_COLORS = {
+    // MDF - tons amadeirados
+    mdf: { bg: '#F5E6D3', stroke: '#C4A882' },
+    // MDP - tons mais claros
+    mdp: { bg: '#F0E4D0', stroke: '#D4BC9A' },
+    // BP Branco - branco real
+    'bp branco': { bg: '#FAFAFA', stroke: '#D0D0D0' },
+    'bp_branco': { bg: '#FAFAFA', stroke: '#D0D0D0' },
+    branco: { bg: '#FAFAFA', stroke: '#D0D0D0' },
+    white: { bg: '#FAFAFA', stroke: '#D0D0D0' },
+    // BP cores
+    'bp cinza': { bg: '#E8E8E8', stroke: '#AAAAAA' },
+    cinza: { bg: '#E8E8E8', stroke: '#AAAAAA' },
+    grafite: { bg: '#9E9E9E', stroke: '#666666' },
+    preto: { bg: '#4A4A4A', stroke: '#2A2A2A' },
+    black: { bg: '#4A4A4A', stroke: '#2A2A2A' },
+    // Madeirados
+    freijo: { bg: '#D4A76A', stroke: '#A07840' },
+    carvalho: { bg: '#C9A368', stroke: '#96733C' },
+    nogal: { bg: '#A07040', stroke: '#6E4C2C' },
+    nogueira: { bg: '#A07040', stroke: '#6E4C2C' },
+    amendoa: { bg: '#D4B896', stroke: '#B09070' },
+    canela: { bg: '#C49A6C', stroke: '#9A7048' },
+    teca: { bg: '#C8A060', stroke: '#A08040' },
+    imbuia: { bg: '#7A5230', stroke: '#5A3820' },
+    cedro: { bg: '#C08050', stroke: '#906038' },
+    rustico: { bg: '#B8956A', stroke: '#907040' },
+    demolicao: { bg: '#A08060', stroke: '#705840' },
+    // Lacados
+    laca: { bg: '#F0F0F0', stroke: '#CCCCCC' },
+    // Composto
+    comp: { bg: '#F5E0C0', stroke: '#D4B890' },
+    // Fallback
+    _default: { bg: '#F5E6D3', stroke: '#C4A882' },
+};
+
+// Cores para fitas de borda (cada tipo de fita ganha uma cor distinta)
+const FITA_COLORS = [
+    '#2563eb', // azul
+    '#dc2626', // vermelho
+    '#16a34a', // verde
+    '#d97706', // amber
+    '#7c3aed', // violeta
+    '#db2777', // pink
+    '#0891b2', // cyan
+    '#ea580c', // laranja
+    '#4f46e5', // indigo
+    '#059669', // esmeralda
+];
+
+function getMatBg(materialName) {
+    if (!materialName) return MAT_BG_COLORS._default;
+    const name = materialName.toLowerCase().trim();
+    // Tentar match exato primeiro
+    if (MAT_BG_COLORS[name]) return MAT_BG_COLORS[name];
+    // Tentar match parcial
+    for (const [key, val] of Object.entries(MAT_BG_COLORS)) {
+        if (key !== '_default' && name.includes(key)) return val;
+    }
+    return MAT_BG_COLORS._default;
+}
 
 const N = (v, d = 2) => (v || 0).toFixed(d);
 const R = (v) => `R$ ${(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -118,12 +182,13 @@ export default function PlanoCorte({ notify }) {
             const scale = 0.22;
             const svgW = ch.comprimento * scale + 20;
             const svgH = ch.largura * scale + 20;
+            const matBg = getMatBg(ch.material);
 
             const pecasSvg = ch.pecas.map((p, pi) => {
                 const color = ambColorMap[p.ambiente] || '#94a3b8';
                 return `
                     <rect x="${p.x * scale + 10}" y="${p.y * scale + 10}" width="${p.w * scale}" height="${p.h * scale}"
-                        fill="${color}22" stroke="${color}" stroke-width="1" />
+                        fill="${color}30" stroke="${color}" stroke-width="1" />
                     <text x="${p.x * scale + 10 + p.w * scale / 2}" y="${p.y * scale + 10 + p.h * scale / 2}"
                         text-anchor="middle" dominant-baseline="central"
                         font-size="8" fill="#333" font-family="Arial">
@@ -148,7 +213,7 @@ export default function PlanoCorte({ notify }) {
                 <div style="page-break-inside: avoid; margin-bottom: 16px;">
                     <h3 style="margin: 8px 0 4px; font-size: 12px;">Chapa ${ci + 1} — ${ch.material} (${ch.espessura}mm) — ${ch.comprimento}x${ch.largura}mm — Aprov. ${ch.aproveitamento}%</h3>
                     <svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="10" y="10" width="${ch.comprimento * scale}" height="${ch.largura * scale}" fill="#f8fafc" stroke="#94a3b8" stroke-width="1"/>
+                        <rect x="10" y="10" width="${ch.comprimento * scale}" height="${ch.largura * scale}" fill="${matBg.bg}" stroke="${matBg.stroke}" stroke-width="1.5" rx="2"/>
                         ${ch.refilo > 0 ? `<rect x="${10 + ch.refilo * scale}" y="${10 + ch.refilo * scale}" width="${(ch.comprimento - 2 * ch.refilo) * scale}" height="${(ch.largura - 2 * ch.refilo) * scale}" fill="none" stroke="#ddd" stroke-width="0.5" stroke-dasharray="4 2"/>` : ''}
                         ${pecasSvg}
                         ${retalhosSvg}
@@ -428,13 +493,54 @@ function StepPecas({ pecasData, config, setConfig, onOtimizar, optimizing }) {
 }
 
 // ═══════════════════════════════════════════════════════
-// STEP 3: Resultado
+// STEP 3: Resultado (redesenhado - navegação compacta)
 // ═══════════════════════════════════════════════════════
 function StepResultado({ plano, chapaIdx, setChapaIdx, zoom, setZoom, ambColorMap, onImprimir, onReotimizar }) {
+    const [matFilter, setMatFilter] = useState('all');
+    const [showGrid, setShowGrid] = useState(false);
+
     if (!plano) return null;
     const { resumo, plano: pl } = plano;
     const chapas = pl.chapas || [];
     const chapaAtual = chapas[chapaIdx];
+
+    // Agrupar chapas por material para navegação inteligente
+    const matGroups = useMemo(() => {
+        const groups = {};
+        chapas.forEach((ch, idx) => {
+            const key = ch.material_code || ch.material;
+            if (!groups[key]) groups[key] = { nome: ch.material, espessura: ch.espessura, chapas: [], indices: [] };
+            groups[key].chapas.push(ch);
+            groups[key].indices.push(idx);
+        });
+        return groups;
+    }, [chapas]);
+
+    // Chapas filtradas pelo material selecionado
+    const filteredIndices = useMemo(() => {
+        if (matFilter === 'all') return chapas.map((_, i) => i);
+        return matGroups[matFilter]?.indices || [];
+    }, [matFilter, matGroups, chapas]);
+
+    const currentPosInFilter = filteredIndices.indexOf(chapaIdx);
+    const canPrev = currentPosInFilter > 0;
+    const canNext = currentPosInFilter < filteredIndices.length - 1;
+    const goPrev = () => canPrev && setChapaIdx(filteredIndices[currentPosInFilter - 1]);
+    const goNext = () => canNext && setChapaIdx(filteredIndices[currentPosInFilter + 1]);
+
+    // Extrair fitas únicas para legenda
+    const fitaTypes = useMemo(() => {
+        if (!chapaAtual) return [];
+        const types = new Set();
+        chapaAtual.pecas.forEach(p => {
+            if (p.fita_info) {
+                Object.entries(p.fita_info).forEach(([lado, tipo]) => {
+                    if (tipo) types.add(tipo);
+                });
+            }
+        });
+        return [...types];
+    }, [chapaAtual]);
 
     return (
         <div>
@@ -448,99 +554,239 @@ function StepResultado({ plano, chapaIdx, setChapaIdx, zoom, setZoom, ambColorMa
                 <StatCard icon={<AlertTriangle size={16} />} label="Desperdício" value={`${N(resumo.desperdicio_m2)} m2`} color="#f59e0b" />
             </div>
 
-            {/* Ações */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            {/* Barra de ações + navegação compacta */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                 <button onClick={onImprimir} className={Z.btn2Sm} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <Printer size={14} /> Imprimir
                 </button>
                 <button onClick={onReotimizar} className={Z.btn2Sm} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <RefreshCw size={14} /> Re-otimizar
                 </button>
+
+                <div style={{ flex: 1 }} />
+
+                {/* Filtro por material */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Material:</span>
+                    <select className={Z.inp} value={matFilter} onChange={e => {
+                        setMatFilter(e.target.value);
+                        const indices = e.target.value === 'all' ? [0] : (matGroups[e.target.value]?.indices || [0]);
+                        if (indices.length > 0) setChapaIdx(indices[0]);
+                    }} style={{ fontSize: 11, padding: '4px 8px', minWidth: 140, maxWidth: 220 }}>
+                        <option value="all">Todos ({chapas.length} chapas)</option>
+                        {Object.entries(matGroups).map(([key, g]) => (
+                            <option key={key} value={key}>
+                                {g.nome} {g.espessura}mm ({g.chapas.length} ch)
+                            </option>
+                        ))}
+                    </select>
+                </div>
             </div>
 
-            {/* Layout: thumbnails + detalhe */}
-            <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-                {/* Thumbnails */}
-                <div style={{ minWidth: 180, maxWidth: 200, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>CHAPAS ({chapas.length})</div>
-                    {chapas.map((ch, ci) => (
-                        <button key={ci} onClick={() => setChapaIdx(ci)}
-                            style={{
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                                padding: 8, borderRadius: 8, cursor: 'pointer',
-                                border: ci === chapaIdx ? '2px solid var(--primary)' : '1px solid var(--border)',
-                                background: ci === chapaIdx ? 'var(--primary-light)' : 'var(--bg)',
-                                width: '100%',
+            {/* Navegação de chapas — barra compacta */}
+            <div className={Z.card} style={{ padding: '8px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                {/* Setas + contador */}
+                <button onClick={goPrev} disabled={!canPrev}
+                    style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', cursor: canPrev ? 'pointer' : 'default', opacity: canPrev ? 1 : 0.3 }}>
+                    <ChevronLeft size={16} />
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
+                    {/* Dropdown de chapa atual */}
+                    <select className={Z.inp} value={chapaIdx} onChange={e => setChapaIdx(+e.target.value)}
+                        style={{ fontSize: 12, padding: '4px 8px', fontWeight: 600, minWidth: 180, maxWidth: 320 }}>
+                        {filteredIndices.map((ci, pos) => {
+                            const ch = chapas[ci];
+                            return <option key={ci} value={ci}>
+                                Chapa {ci + 1}/{chapas.length} — {ch.material} — {ch.pecas.length}pç — {ch.aproveitamento}%
+                            </option>;
+                        })}
+                    </select>
+
+                    {/* Info da chapa atual */}
+                    {chapaAtual && (
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                            {/* Cor do material preview */}
+                            <div style={{
+                                width: 20, height: 20, borderRadius: 4,
+                                background: getMatBg(chapaAtual.material).bg,
+                                border: `1.5px solid ${getMatBg(chapaAtual.material).stroke}`,
+                            }} />
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                {chapaAtual.comprimento}x{chapaAtual.largura}mm — {chapaAtual.espessura}mm
+                            </span>
+                            <span style={{
+                                background: chapaAtual.aproveitamento >= 80 ? '#f0fdf4' : chapaAtual.aproveitamento >= 60 ? '#fffbeb' : '#fef2f2',
+                                color: chapaAtual.aproveitamento >= 80 ? '#16a34a' : chapaAtual.aproveitamento >= 60 ? '#d97706' : '#dc2626',
+                                padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap',
                             }}>
-                            <ChapaThumb chapa={ch} ambColorMap={ambColorMap} />
-                            <div style={{ fontSize: 10, textAlign: 'center' }}>
-                                <div style={{ fontWeight: 600 }}>{ch.material}</div>
-                                <div style={{ color: 'var(--text-muted)' }}>{ch.pecas.length} pç — {ch.aproveitamento}%</div>
-                            </div>
-                        </button>
-                    ))}
+                                {chapaAtual.aproveitamento}%
+                            </span>
+                            <span style={{ background: 'var(--bg-hover)', padding: '2px 8px', borderRadius: 10, fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                {chapaAtual.pecas.length} peças
+                            </span>
+                            {chapaAtual.retalhos?.length > 0 && (
+                                <span style={{ background: '#fef3c7', padding: '2px 8px', borderRadius: 10, fontSize: 10, color: '#b45309', whiteSpace: 'nowrap' }}>
+                                    {chapaAtual.retalhos.length} sobras
+                                </span>
+                            )}
+                        </div>
+                    )}
                 </div>
 
-                {/* Detalhe */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                    {chapaAtual && (
-                        <>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                                <div>
-                                    <span style={{ fontWeight: 700, fontSize: 14 }}>Chapa {chapaIdx + 1}</span>
-                                    <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--text-muted)' }}>
-                                        {chapaAtual.material} — {chapaAtual.comprimento}x{chapaAtual.largura}mm — {chapaAtual.espessura}mm
-                                    </span>
-                                </div>
-                                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                    <button onClick={() => setZoom(z => Math.max(0.1, z - 0.05))} style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px', cursor: 'pointer' }}>
-                                        <ZoomOut size={14} />
-                                    </button>
-                                    <span style={{ fontSize: 11, minWidth: 36, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
-                                    <button onClick={() => setZoom(z => Math.min(1, z + 0.05))} style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px', cursor: 'pointer' }}>
-                                        <ZoomIn size={14} />
-                                    </button>
-                                </div>
-                            </div>
+                <button onClick={goNext} disabled={!canNext}
+                    style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', cursor: canNext ? 'pointer' : 'default', opacity: canNext ? 1 : 0.3 }}>
+                    <ChevronRight size={16} />
+                </button>
 
-                            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                                <span style={{
-                                    background: chapaAtual.aproveitamento >= 80 ? '#f0fdf4' : chapaAtual.aproveitamento >= 60 ? '#fffbeb' : '#fef2f2',
-                                    color: chapaAtual.aproveitamento >= 80 ? '#16a34a' : chapaAtual.aproveitamento >= 60 ? '#d97706' : '#dc2626',
-                                    padding: '2px 10px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                {/* Zoom */}
+                <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: 8, display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                    <button onClick={() => setZoom(z => Math.max(0.1, z - 0.05))} style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px', cursor: 'pointer' }}>
+                        <ZoomOut size={14} />
+                    </button>
+                    <span style={{ fontSize: 11, minWidth: 36, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
+                    <button onClick={() => setZoom(z => Math.min(1, z + 0.05))} style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px', cursor: 'pointer' }}>
+                        <ZoomIn size={14} />
+                    </button>
+                </div>
+
+                {/* Toggle grid view */}
+                <button onClick={() => setShowGrid(!showGrid)}
+                    style={{
+                        background: showGrid ? 'var(--primary-light)' : 'var(--bg-hover)',
+                        border: showGrid ? '1px solid var(--primary)' : '1px solid var(--border)',
+                        borderRadius: 4, padding: '3px 6px', cursor: 'pointer',
+                        color: showGrid ? 'var(--primary)' : 'var(--text-muted)',
+                    }}
+                    title="Ver todas as chapas em grid">
+                    <Grid3X3 size={14} />
+                </button>
+            </div>
+
+            {/* Visualização */}
+            {showGrid ? (
+                /* Grid de todas as chapas filtradas */
+                <div style={{
+                    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                    gap: 12, marginBottom: 16,
+                }}>
+                    {filteredIndices.map(ci => {
+                        const ch = chapas[ci];
+                        const isSelected = ci === chapaIdx;
+                        return (
+                            <div key={ci} onClick={() => { setChapaIdx(ci); setShowGrid(false); }}
+                                className={Z.card} style={{
+                                    padding: 8, cursor: 'pointer', transition: 'all 0.15s',
+                                    border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border)',
+                                    background: isSelected ? 'var(--primary-light)' : undefined,
                                 }}>
-                                    {chapaAtual.aproveitamento}% aproveitamento
-                                </span>
-                                <span style={{ background: 'var(--bg-hover)', padding: '2px 10px', borderRadius: 10, fontSize: 11, color: 'var(--text-muted)' }}>
-                                    {chapaAtual.pecas.length} peças
-                                </span>
-                                {chapaAtual.retalhos?.length > 0 && (
-                                    <span style={{ background: '#fef3c7', padding: '2px 10px', borderRadius: 10, fontSize: 11, color: '#b45309' }}>
-                                        {chapaAtual.retalhos.length} sobras
-                                    </span>
-                                )}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                    <span style={{ fontSize: 11, fontWeight: 700 }}>#{ci + 1} {ch.material}</span>
+                                    <span style={{
+                                        fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 8,
+                                        background: ch.aproveitamento >= 80 ? '#f0fdf4' : ch.aproveitamento >= 60 ? '#fffbeb' : '#fef2f2',
+                                        color: ch.aproveitamento >= 80 ? '#16a34a' : ch.aproveitamento >= 60 ? '#d97706' : '#dc2626',
+                                    }}>{ch.aproveitamento}%</span>
+                                </div>
+                                <ChapaThumb chapa={ch} ambColorMap={ambColorMap} />
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                                    {ch.pecas.length} pç — {ch.comprimento}x{ch.largura}mm
+                                </div>
                             </div>
+                        );
+                    })}
+                </div>
+            ) : (
+                /* Vista de detalhe da chapa selecionada */
+                chapaAtual && (
+                    <div className={Z.card} style={{ overflow: 'auto', maxHeight: '65vh', padding: 12, marginBottom: 12 }}>
+                        <ChapaView chapa={chapaAtual} scale={zoom} ambColorMap={ambColorMap} />
+                    </div>
+                )
+            )}
 
-                            <div className={Z.card} style={{ overflow: 'auto', maxHeight: '65vh', padding: 12 }}>
-                                <ChapaView chapa={chapaAtual} scale={zoom} ambColorMap={ambColorMap} />
-                            </div>
-
-                            {/* Legenda ambientes */}
-                            <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
-                                {Object.entries(ambColorMap).map(([amb, color]) => (
-                                    <div key={amb} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
-                                        <div style={{ width: 10, height: 10, borderRadius: 2, background: color }} />
-                                        <span>{amb}</span>
+            {/* Legenda — Ambientes + Fitas (quando existirem) */}
+            {chapaAtual && (
+                <div style={{ display: 'flex', gap: 24, marginBottom: 16, flexWrap: 'wrap' }}>
+                    {/* Legenda ambientes */}
+                    <div>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>AMBIENTES</div>
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                            {Object.entries(ambColorMap).map(([amb, color]) => (
+                                <div key={amb} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
+                                    <div style={{ width: 10, height: 10, borderRadius: 2, background: color }} />
+                                    <span>{amb}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    {/* Legenda fitas de borda */}
+                    {fitaTypes.length > 0 && (
+                        <div>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>FITAS DE BORDA</div>
+                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                {fitaTypes.map((tipo, i) => (
+                                    <div key={tipo} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
+                                        <div style={{ width: 14, height: 4, borderRadius: 1, background: FITA_COLORS[i % FITA_COLORS.length] }} />
+                                        <span>{tipo}</span>
                                     </div>
                                 ))}
                             </div>
-                        </>
+                        </div>
                     )}
+                    {/* Legenda geral */}
+                    <div>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>OUTROS</div>
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
+                                <div style={{ width: 10, height: 10, borderRadius: 2, background: '#fef3c7', border: '1px dashed #f59e0b' }} />
+                                <span>Sobra</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
+                                <div style={{ width: 10, height: 10, borderRadius: 2, background: getMatBg(chapaAtual?.material).bg, border: `1px solid ${getMatBg(chapaAtual?.material).stroke}` }} />
+                                <span>Chapa</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
+
+            {/* Mini-grid rápida de material (quando tem mais de 8 chapas) */}
+            {filteredIndices.length > 1 && !showGrid && (
+                <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>
+                        NAVEGAÇÃO RÁPIDA — {matFilter === 'all' ? 'Todas' : matGroups[matFilter]?.nome} ({filteredIndices.length} chapas)
+                    </div>
+                    <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                        {filteredIndices.map((ci, pos) => {
+                            const ch = chapas[ci];
+                            const isActive = ci === chapaIdx;
+                            const apColor = ch.aproveitamento >= 80 ? '#22c55e' : ch.aproveitamento >= 60 ? '#f59e0b' : '#ef4444';
+                            return (
+                                <button key={ci} onClick={() => setChapaIdx(ci)}
+                                    title={`Chapa ${ci + 1}: ${ch.material} — ${ch.pecas.length}pç — ${ch.aproveitamento}%`}
+                                    style={{
+                                        width: 28, height: 20, borderRadius: 4, cursor: 'pointer', fontSize: 9, fontWeight: 700,
+                                        border: isActive ? '2px solid var(--primary)' : '1px solid var(--border)',
+                                        background: isActive ? 'var(--primary)' : 'var(--bg)',
+                                        color: isActive ? '#fff' : 'var(--text-muted)',
+                                        position: 'relative', overflow: 'hidden',
+                                    }}>
+                                    {ci + 1}
+                                    {/* Barra de aproveitamento */}
+                                    <div style={{
+                                        position: 'absolute', bottom: 0, left: 0, right: 0, height: 2,
+                                        background: apColor, opacity: isActive ? 0.9 : 0.5,
+                                    }} />
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Resumo por material */}
-            <div className={Z.card} style={{ marginTop: 16 }}>
+            <div className={Z.card} style={{ marginTop: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Resumo por Material</div>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
@@ -554,9 +800,26 @@ function StepResultado({ plano, chapaIdx, setChapaIdx, zoom, setZoom, ambColorMa
                         </tr>
                     </thead>
                     <tbody>
-                        {Object.values(pl.materiais).map((m, i) => (
-                            <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                                <td style={{ padding: '5px 8px', fontSize: 12, fontWeight: 500 }}>{m.material}</td>
+                        {Object.entries(pl.materiais).map(([matId, m], i) => (
+                            <tr key={i} style={{
+                                borderBottom: '1px solid var(--border)',
+                                cursor: 'pointer', background: matFilter === matId ? 'var(--primary-light)' : undefined,
+                            }} onClick={() => {
+                                setMatFilter(matId);
+                                const indices = matGroups[matId]?.indices || [];
+                                if (indices.length > 0) setChapaIdx(indices[0]);
+                            }}>
+                                <td style={{ padding: '5px 8px', fontSize: 12, fontWeight: 500 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <div style={{
+                                            width: 14, height: 14, borderRadius: 3,
+                                            background: getMatBg(m.material).bg,
+                                            border: `1px solid ${getMatBg(m.material).stroke}`,
+                                            flexShrink: 0,
+                                        }} />
+                                        {m.material}
+                                    </div>
+                                </td>
                                 <td style={{ padding: '5px 8px', fontSize: 11, textAlign: 'center' }}>{m.espessura}mm</td>
                                 <td style={{ padding: '5px 8px', fontSize: 12, textAlign: 'center', fontWeight: 600 }}>{m.total_pecas}</td>
                                 <td style={{ padding: '5px 8px', fontSize: 12, textAlign: 'center', fontWeight: 600, color: 'var(--primary)' }}>{m.total_chapas}</td>
@@ -574,42 +837,44 @@ function StepResultado({ plano, chapaIdx, setChapaIdx, zoom, setZoom, ambColorMa
 }
 
 // ═══════════════════════════════════════════════════════
-// SVG: Visualização de Chapa (estático)
+// SVG: Visualização de Chapa (com cor do material + fitas de borda)
 // ═══════════════════════════════════════════════════════
 function ChapaView({ chapa, scale, ambColorMap }) {
-    const { comprimento, largura, refilo, pecas, retalhos, cortes } = chapa;
+    const { comprimento, largura, refilo, pecas, retalhos, cortes, material } = chapa;
     const svgW = comprimento * scale;
     const svgH = largura * scale;
+    const matBg = getMatBg(material);
+    const FITA_W = Math.max(2, 3 * scale / 0.28); // espessura visual da fita de borda
 
     return (
         <svg width={svgW + 4} height={svgH + 4} viewBox={`-2 -2 ${svgW + 4} ${svgH + 4}`}
             style={{ display: 'block' }}>
-            {/* Fundo da chapa */}
-            <rect x={0} y={0} width={svgW} height={svgH} fill="#f8fafc" stroke="#94a3b8" strokeWidth={1} />
+            {/* Fundo da chapa — cor do material real */}
+            <rect x={0} y={0} width={svgW} height={svgH} fill={matBg.bg} stroke={matBg.stroke} strokeWidth={1.5} rx={2} />
 
             {/* Refilo */}
             {refilo > 0 && (
                 <rect x={refilo * scale} y={refilo * scale}
                     width={(comprimento - 2 * refilo) * scale}
                     height={(largura - 2 * refilo) * scale}
-                    fill="none" stroke="#e2e8f0" strokeWidth={0.5} strokeDasharray="4 2" />
+                    fill="none" stroke={matBg.stroke} strokeWidth={0.5} strokeDasharray="4 2" strokeOpacity={0.4} />
             )}
 
             {/* Cortes */}
             {(cortes || []).map((c, i) => {
                 if (c.dir === 'Horizontal') {
                     return <line key={`c${i}`} x1={0} y1={c.pos * scale} x2={svgW} y2={c.pos * scale}
-                        stroke="#cbd5e1" strokeWidth={0.5} strokeDasharray="6 3" />;
+                        stroke={matBg.stroke} strokeWidth={0.5} strokeDasharray="6 3" strokeOpacity={0.3} />;
                 }
                 return <line key={`c${i}`} x1={c.pos * scale} y1={0} x2={c.pos * scale} y2={svgH}
-                    stroke="#cbd5e1" strokeWidth={0.5} strokeDasharray="6 3" />;
+                    stroke={matBg.stroke} strokeWidth={0.5} strokeDasharray="6 3" strokeOpacity={0.3} />;
             })}
 
             {/* Sobras */}
             {(retalhos || []).map((r, i) => (
                 <g key={`s${i}`}>
                     <rect x={r.x * scale} y={r.y * scale} width={r.w * scale} height={r.h * scale}
-                        fill="#fef3c7" fillOpacity={0.6} stroke="#f59e0b" strokeWidth={0.5} strokeDasharray="3 2" />
+                        fill="#fef3c7" fillOpacity={0.5} stroke="#f59e0b" strokeWidth={0.5} strokeDasharray="3 2" />
                     {r.w * scale > 40 && r.h * scale > 16 && (
                         <text x={r.x * scale + r.w * scale / 2} y={r.y * scale + r.h * scale / 2}
                             textAnchor="middle" dominantBaseline="central"
@@ -623,25 +888,66 @@ function ChapaView({ chapa, scale, ambColorMap }) {
             {/* Peças */}
             {pecas.map((p, i) => {
                 const color = ambColorMap[p.ambiente] || '#94a3b8';
+                const px = p.x * scale;
+                const py = p.y * scale;
                 const pw = p.w * scale;
                 const ph = p.h * scale;
                 const minDim = Math.min(pw, ph);
                 const showLabel = minDim > 20;
                 const showDims = minDim > 30;
 
+                // Fitas de borda — renderizar como linhas coloridas nos lados da peça
+                const fita = p.fita_info || p.fita || null;
+                const fitaEdges = [];
+                if (fita) {
+                    // fita pode ser array ['f','b','t'] ou objeto {top:'MDF',bottom:'BP',...}
+                    if (Array.isArray(fita)) {
+                        fita.forEach(s => {
+                            if (s === 'f' || s === 'front' || s === 'all') fitaEdges.push('bottom');
+                            if (s === 'b' || s === 'back' || s === 'all') fitaEdges.push('top');
+                            if (s === 'l' || s === 'left' || s === 'all') fitaEdges.push('left');
+                            if (s === 'r' || s === 'right' || s === 'all') fitaEdges.push('right');
+                            if (s === 't') fitaEdges.push('bottom'); // 't' geralmente é a frente
+                        });
+                    } else if (typeof fita === 'object') {
+                        Object.entries(fita).forEach(([lado, tipo]) => {
+                            if (tipo) fitaEdges.push(lado.toLowerCase());
+                        });
+                    }
+                }
+
                 return (
                     <g key={`p${i}`}>
-                        <rect x={p.x * scale} y={p.y * scale} width={pw} height={ph}
-                            fill={color + '22'} stroke={color} strokeWidth={1} rx={1} />
+                        {/* Fundo da peça */}
+                        <rect x={px} y={py} width={pw} height={ph}
+                            fill={color + '30'} stroke={color} strokeWidth={1} rx={1} />
+
+                        {/* Fitas de borda como barras coloridas nos lados */}
+                        {fitaEdges.includes('top') && (
+                            <rect x={px} y={py} width={pw} height={FITA_W} fill={color} fillOpacity={0.7} rx={0.5} />
+                        )}
+                        {fitaEdges.includes('bottom') && (
+                            <rect x={px} y={py + ph - FITA_W} width={pw} height={FITA_W} fill={color} fillOpacity={0.7} rx={0.5} />
+                        )}
+                        {fitaEdges.includes('left') && (
+                            <rect x={px} y={py} width={FITA_W} height={ph} fill={color} fillOpacity={0.7} rx={0.5} />
+                        )}
+                        {fitaEdges.includes('right') && (
+                            <rect x={px + pw - FITA_W} y={py} width={FITA_W} height={ph} fill={color} fillOpacity={0.7} rx={0.5} />
+                        )}
+
+                        {/* Nome da peça */}
                         {showLabel && (
-                            <text x={p.x * scale + pw / 2} y={p.y * scale + ph / 2 + (showDims ? -5 : 0)}
+                            <text x={px + pw / 2} y={py + ph / 2 + (showDims ? -5 : 0)}
                                 textAnchor="middle" dominantBaseline="central"
-                                fontSize={Math.max(7, Math.min(11, pw / 10))} fill="#1e293b" fontFamily="Arial">
+                                fontSize={Math.max(7, Math.min(11, pw / 10))} fill="#1e293b" fontFamily="Arial"
+                                fontWeight={500}>
                                 {p.nome.length > Math.floor(pw / 6) ? p.nome.slice(0, Math.floor(pw / 6) - 1) + '..' : p.nome}
                             </text>
                         )}
+                        {/* Dimensões */}
                         {showDims && (
-                            <text x={p.x * scale + pw / 2} y={p.y * scale + ph / 2 + 8}
+                            <text x={px + pw / 2} y={py + ph / 2 + 8}
                                 textAnchor="middle" dominantBaseline="central"
                                 fontSize={Math.max(6, Math.min(9, pw / 12))} fill="#64748b" fontFamily="Arial">
                                 {p.w}x{p.h}{p.rotated ? ' R' : ''}
@@ -655,20 +961,21 @@ function ChapaView({ chapa, scale, ambColorMap }) {
 }
 
 // ═══════════════════════════════════════════════════════
-// SVG: Thumbnail de chapa (sidebar)
+// SVG: Thumbnail de chapa (com cor do material)
 // ═══════════════════════════════════════════════════════
 function ChapaThumb({ chapa, ambColorMap }) {
     const scale = 0.05;
     const w = chapa.comprimento * scale;
     const h = chapa.largura * scale;
+    const matBg = getMatBg(chapa.material);
 
     return (
         <svg width={w + 2} height={h + 2} viewBox={`-1 -1 ${w + 2} ${h + 2}`} style={{ display: 'block' }}>
-            <rect x={0} y={0} width={w} height={h} fill="#f8fafc" stroke="#94a3b8" strokeWidth={0.5} />
+            <rect x={0} y={0} width={w} height={h} fill={matBg.bg} stroke={matBg.stroke} strokeWidth={0.5} rx={1} />
             {chapa.pecas.map((p, i) => {
                 const color = ambColorMap[p.ambiente] || '#94a3b8';
                 return <rect key={i} x={p.x * scale} y={p.y * scale} width={p.w * scale} height={p.h * scale}
-                    fill={color + '44'} stroke={color} strokeWidth={0.3} />;
+                    fill={color + '55'} stroke={color} strokeWidth={0.3} />;
             })}
         </svg>
     );
