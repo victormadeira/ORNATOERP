@@ -4135,20 +4135,33 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                 </div>
                             )}
 
-                            {/* Legend: projetos (multi) ou módulos (single) */}
-                            {moduleLegend.length > 1 && (
-                                <div style={{ marginBottom: 12, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', padding: '6px 12px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                        {isMultiLote ? 'Projetos:' : 'Módulos:'}
-                                    </span>
-                                    {moduleLegend.map((m, i) => (
-                                        <span key={i} style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-primary)' }}>
-                                            <span style={{ width: 10, height: 10, borderRadius: 2, background: m.color, border: `1px solid ${m.color}`, display: 'inline-block' }} />
-                                            {m.name}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
+                            {/* Legend: projetos (multi) ou módulos (single) — colapsável quando muitos */}
+                            {moduleLegend.length > 1 && (() => {
+                                const MAX_VISIBLE = 8;
+                                const isLong = moduleLegend.length > MAX_VISIBLE;
+                                return (
+                                    <details style={{ marginBottom: 12 }} open={!isLong}>
+                                        <summary style={{
+                                            fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase',
+                                            cursor: 'pointer', padding: '6px 12px', background: 'var(--bg-muted)', borderRadius: 8,
+                                            border: '1px solid var(--border)', userSelect: 'none', listStyle: 'none',
+                                            display: 'flex', alignItems: 'center', gap: 6,
+                                        }}>
+                                            <span style={{ fontSize: 10 }}>{isLong ? '▶' : '▼'}</span>
+                                            {isMultiLote ? 'Projetos' : 'Módulos'}: {moduleLegend.length}
+                                            {isLong && <span style={{ fontWeight: 400, marginLeft: 4 }}>(clique para expandir)</span>}
+                                        </summary>
+                                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '6px 12px', background: 'var(--bg-muted)', borderRadius: '0 0 8px 8px', borderTop: 'none' }}>
+                                            {moduleLegend.map((m, i) => (
+                                                <span key={i} style={{ fontSize: 9, display: 'flex', alignItems: 'center', gap: 3, color: 'var(--text-primary)' }}>
+                                                    <span style={{ width: 8, height: 8, borderRadius: 2, background: m.color, display: 'inline-block', flexShrink: 0 }} />
+                                                    {m.name}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </details>
+                                );
+                            })()}
 
                             {/* Multi-Maquina section */}
                             {maquinas.length > 1 && (
@@ -10684,7 +10697,7 @@ function CfgChapas({ notify }) {
         <div className="glass-card p-4">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <h3 style={{ fontSize: 14, fontWeight: 700 }}>Chapas Cadastradas</h3>
-                <button onClick={() => setModal({ nome: '', material_code: '', espessura_nominal: 18, espessura_real: 18.5, comprimento: 2750, largura: 1850, refilo: 10, veio: 'sem_veio', preco: 0, kerf: 4, ativo: 1 })}
+                <button onClick={() => setModal({ nome: '', material_code: '', espessura_nominal: 18, espessura_real: 18.5, comprimento: 2750, largura: 1850, refilo: 10, veio: 'sem_veio', preco: 0, kerf: 4, ativo: 1, direcao_corte: 'herdar', modo_corte: 'herdar' })}
                     className={Z.btn} style={{ fontSize: 12, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <Plus size={12} /> Nova Chapa
                 </button>
@@ -10694,7 +10707,7 @@ function CfgChapas({ notify }) {
                 <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 12 }}>
                     <thead>
                         <tr>
-                            {['Nome', 'Código', 'Esp.Nom', 'Esp.Real', 'Comp', 'Larg', 'Refilo', 'Kerf', 'Veio', 'Preço', 'Ações'].map(h => (
+                            {['Nome', 'Código', 'Esp.Nom', 'Esp.Real', 'Comp', 'Larg', 'Refilo', 'Kerf', 'Veio', 'Dir.Corte', 'Modo', 'Preço', 'Ações'].map(h => (
                                 <th key={h} className={Z.th} style={{ padding: '6px 8px' }}>{h}</th>
                             ))}
                         </tr>
@@ -10715,6 +10728,16 @@ function CfgChapas({ notify }) {
                                      c.veio === 'horizontal' ? <span style={{ color: '#3b82f6', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>━━ Horiz.</span> :
                                      c.veio === 'vertical' ? <span style={{ color: '#f59e0b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>┃ Vert.</span> :
                                      c.veio}
+                                </td>
+                                <td style={{ padding: '6px 8px', fontSize: 10 }}>
+                                    {(!c.direcao_corte || c.direcao_corte === 'herdar') ? <span style={{ color: 'var(--text-muted)' }}>Global</span> :
+                                     c.direcao_corte === 'misto' ? <span style={{ color: '#22c55e' }}>Misto</span> :
+                                     c.direcao_corte === 'horizontal' ? <span style={{ color: '#3b82f6' }}>━ Horiz</span> :
+                                     <span style={{ color: '#f59e0b' }}>┃ Vert</span>}
+                                </td>
+                                <td style={{ padding: '6px 8px', fontSize: 10 }}>
+                                    {(!c.modo_corte || c.modo_corte === 'herdar') ? <span style={{ color: 'var(--text-muted)' }}>Global</span> :
+                                     <span style={{ fontWeight: 600 }}>{c.modo_corte === 'maxrects' ? 'MaxRects' : c.modo_corte === 'guilhotina' ? 'Guilhotina' : 'Shelf'}</span>}
                                 </td>
                                 <td style={{ padding: '6px 8px', textAlign: 'right' }}>R${(c.preco || 0).toFixed(2)}</td>
                                 <td style={{ padding: '6px 8px' }}>
@@ -10763,6 +10786,27 @@ function ChapaModal({ data, onSave, onClose }) {
                 <div><label className={Z.lbl}>Refilo (mm)</label><input type="number" value={f.refilo} onChange={e => upd('refilo', Number(e.target.value))} className={Z.inp} /></div>
                 <div><label className={Z.lbl}>Kerf - largura serra (mm)</label><input type="number" value={f.kerf ?? 4} onChange={e => upd('kerf', Number(e.target.value))} className={Z.inp} step="0.5" /></div>
                 <div><label className={Z.lbl}>Preço (R$)</label><input type="number" value={f.preco} onChange={e => upd('preco', Number(e.target.value))} className={Z.inp} step="0.01" /></div>
+                <div style={{ gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, color: 'var(--text-muted)' }}>Otimização por Material (opcional)</div>
+                </div>
+                <div>
+                    <label className={Z.lbl}>Direção de Corte</label>
+                    <select value={f.direcao_corte || 'herdar'} onChange={e => upd('direcao_corte', e.target.value)} className={Z.inp}>
+                        <option value="herdar">Herdar (usa config global)</option>
+                        <option value="misto">Misto (automático)</option>
+                        <option value="horizontal">━ Horizontal</option>
+                        <option value="vertical">┃ Vertical</option>
+                    </select>
+                </div>
+                <div>
+                    <label className={Z.lbl}>Modo de Corte</label>
+                    <select value={f.modo_corte || 'herdar'} onChange={e => upd('modo_corte', e.target.value)} className={Z.inp}>
+                        <option value="herdar">Herdar (usa config global)</option>
+                        <option value="guilhotina">Guilhotina</option>
+                        <option value="maxrects">MaxRects (CNC livre)</option>
+                        <option value="shelf">Shelf</option>
+                    </select>
+                </div>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
                 <button onClick={onClose} className={Z.btn2}>Cancelar</button>

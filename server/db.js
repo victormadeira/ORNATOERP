@@ -1835,6 +1835,10 @@ const migrations = [
     user_id INTEGER REFERENCES users(id),
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
+  // ═══ Direção de corte e modo por material (per-material optimization) ═══
+  `ALTER TABLE cnc_chapas ADD COLUMN direcao_corte TEXT DEFAULT 'herdar'`,
+  `ALTER TABLE cnc_chapas ADD COLUMN modo_corte TEXT DEFAULT 'herdar'`,
+
   `ALTER TABLE cnc_ferramentas ADD COLUMN ciclo_vida_horas REAL DEFAULT 100`,
   `ALTER TABLE cnc_ferramentas ADD COLUMN custo_unitario REAL DEFAULT 0`,
   `ALTER TABLE cnc_ferramentas ADD COLUMN horas_uso REAL DEFAULT 0`,

@@ -1082,6 +1082,14 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                 const kerf = kerfOverride != null ? kerfOverride : (chapa.kerf || kerfPadrao);
                 const chapaVeio = chapa.veio || 'sem_veio';
 
+                // ─── Per-material direction override ───
+                const chapaDirecao = chapa.direcao_corte || 'herdar';
+                const chapaModo = chapa.modo_corte || 'herdar';
+                const groupDirecao = chapaDirecao !== 'herdar' ? chapaDirecao : direcaoCorteRaw;
+                const groupModo = chapaModo !== 'herdar'
+                    ? (chapaModo === 'maxrects' ? 'maxrects' : chapaModo === 'shelf' ? 'shelf' : 'guilhotina')
+                    : modoRaw;
+
                 // Retalhos disponiveis (busca pela chapa resolvida, não pela peça)
                 const retalhosDisp = useRetalhos
                     ? db.prepare('SELECT * FROM cnc_retalhos WHERE material_code = ? AND ABS(espessura_real - ?) <= 1.0 AND disponivel = 1 ORDER BY comprimento * largura DESC')
@@ -1144,12 +1152,12 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                         disponivel: true,
                     })),
                     config: {
-                        spacing, kerf, modo: binType,
+                        spacing, kerf, modo: groupModo,
                         permitir_rotacao: permitirRotacao,
                         usar_retalhos: useRetalhos, iteracoes: maxIter,
                         considerar_sobra: considerarSobra,
                         sobra_min_largura: sobraMinW, sobra_min_comprimento: sobraMinH,
-                        direcao_corte: direcaoCorteRaw,
+                        direcao_corte: groupDirecao,
                         limiar_pequena: limiarPequena, limiar_super_pequena: limiarSuperPequena,
                         classificar_pecas: classificarPecas,
                     },
@@ -1484,6 +1492,17 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
             const chapaVeio = chapa.veio || 'sem_veio';
             const temVeio = chapaVeio !== 'sem_veio';
 
+            // ─── Per-material direction: usar direcao_corte da chapa se definido, senão herda global ───
+            const chapaDirecao = chapa.direcao_corte || 'herdar';
+            const chapaModo = chapa.modo_corte || 'herdar';
+            const groupSplitDir = chapaDirecao !== 'herdar'
+                ? (chapaDirecao === 'horizontal' ? 'horizontal' : chapaDirecao === 'vertical' ? 'vertical' : 'auto')
+                : splitDir;
+            const groupBinType = chapaModo !== 'herdar'
+                ? (chapaModo === 'maxrects' ? 'maxrects' : chapaModo === 'shelf' ? 'shelf' : 'guillotine')
+                : binType;
+            console.log(`  [CNC Multi] ${groupKey}: direcao=${chapaDirecao}→splitDir=${groupSplitDir}, modo=${chapaModo}→binType=${groupBinType}`);
+
             // Buscar config de rotação do material cadastrado (-1=herdar do veio, 0=nunca, 1=sempre)
             const matCadastrado = chapa.material_code
                 ? db.prepare('SELECT permitir_rotacao FROM cnc_materiais WHERE codigo = ? LIMIT 1').get(chapa.material_code)
@@ -1527,7 +1546,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                     const retW = ret.comprimento, retH = ret.largura;
                     const bins = runNestingPass(
                         [...pecasRestantes].sort((a, b) => b.area - a.area),
-                        retW, retH, spacing, 'BSSF', binType, kerf, splitDir
+                        retW, retH, spacing, 'BSSF', groupBinType, kerf, groupSplitDir
                     );
 
                     if (bins.length === 1 && bins[0].usedRects.length > 0) {
@@ -1583,18 +1602,15 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
 
             // ═══ FASES 2-5: Mesma lógica do otimizador single-lote ═══
             const heuristics = ['BSSF', 'BLSF', 'BAF', 'BL', 'CP'];
-            let bestBins = null, bestBinScore = { score: Infinity }, bestStrategyName = '', bestBinType = binType;
+            let bestBins = null, bestBinScore = { score: Infinity }, bestStrategyName = '', bestBinType = groupBinType;
 
             const totalPieceArea = pecasRestantes.reduce((s, p) => s + p.area, 0);
             const sheetArea = binW * binH;
             const minTeoricoChapas = Math.ceil(totalPieceArea / sheetArea);
 
-            // Respeitar o modo escolhido pelo usuário:
-            // guilhotina → só guilhotina + shelf (compatíveis com esquadrejadeira)
-            // maxrects → maxrects + skyline (CNC livre)
-            // shelf → só shelf + guilhotina
-            const binTypesToTry = [binType];
-            if (binType === 'guillotine') {
+            // Respeitar o modo escolhido pelo usuário (ou per-material override):
+            const binTypesToTry = [groupBinType];
+            if (groupBinType === 'guillotine') {
                 binTypesToTry.push('shelf');
             } else if (binType === 'shelf') {
                 binTypesToTry.push('guillotine');
@@ -1620,13 +1636,13 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
             ];
             // Add directional sort strategies when direction is set
             const sortStrategies = [...baseSortStrategies];
-            if (splitDir === 'horizontal') {
+            if (groupSplitDir === 'horizontal') {
                 // Horizontal: prioritize wider pieces first (fill rows efficiently)
                 sortStrategies.unshift(
                     { name: 'width_desc',     fn: (a, b) => b.w - a.w || b.h - a.h },
                     { name: 'width_area',     fn: (a, b) => b.w - a.w || b.area - a.area },
                 );
-            } else if (splitDir === 'vertical') {
+            } else if (groupSplitDir === 'vertical') {
                 // Vertical: prioritize taller pieces first (fill columns efficiently)
                 sortStrategies.unshift(
                     { name: 'height_desc',    fn: (a, b) => b.h - a.h || b.w - a.w },
@@ -1634,10 +1650,9 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                 );
             }
 
-            // FASE 2: Portfolio multi-pass
-            // When direction is set, only run directional-compatible bin types and give priority to directional strategies
-            const isDirectional = splitDir !== 'auto';
-            const dirsToTry = isLargeBatch && isDirectional ? [splitDir, 'auto'] : [splitDir];
+            // FASE 2: Portfolio multi-pass (uses per-material groupSplitDir)
+            const isDirectional = groupSplitDir !== 'auto';
+            const dirsToTry = isLargeBatch && isDirectional ? [groupSplitDir, 'auto'] : [groupSplitDir];
             for (const dir of dirsToTry) {
                 for (const bt of binTypesToTry) {
                     for (const strat of sortStrategies) {
@@ -1645,10 +1660,10 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                         for (const h of heuristics) {
                             const bins = runNestingPass(sorted, binW, binH, spacing, h, bt, kerf, dir);
                             const sc = scoreResult(bins);
-                            if (isDirectional && dir === splitDir && (strat.name.startsWith('width_') || strat.name.startsWith('height_'))) {
+                            if (isDirectional && dir === groupSplitDir && (strat.name.startsWith('width_') || strat.name.startsWith('height_'))) {
                                 sc.score -= 0.5;
                             }
-                            if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = bins; bestStrategyName = `${strat.name}+${h}+${bt}${dir !== splitDir ? '+autoDir' : ''}`; bestBinType = bt; }
+                            if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = bins; bestStrategyName = `${strat.name}+${h}+${bt}${dir !== groupSplitDir ? '+autoDir' : ''}`; bestBinType = bt; }
                             totalCombinacoes++;
                         }
                     }
@@ -1657,21 +1672,20 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
 
             // FASE 2.5: Strip packing
             {
-                const stripBins = runStripPacking(pecasRestantes, binW, binH, kerf, spacing, splitDir);
+                const stripBins = runStripPacking(pecasRestantes, binW, binH, kerf, spacing, groupSplitDir);
                 const sc = scoreResult(stripBins);
                 if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = stripBins; bestStrategyName = 'strip_packing'; bestBinType = 'strip'; }
                 totalCombinacoes++;
             }
 
             // FASE 3: R&R (iterações escalonadas pelo tamanho do lote)
-            // Lotes grandes (>100 peças) ganham mais iterações para convergir melhor
             const isLargeBatch = pecasRestantes.length > 100;
             const rrIter = isLargeBatch
                 ? Math.max(3000, Math.min(8000, pecasRestantes.length * 15))
                 : Math.max(800, Math.min(2000, pecasRestantes.length * 20));
             if (pecasRestantes.length > 3) {
                 for (const bt of binTypesToTry) {
-                    const rrResult = ruinAndRecreate(pecasRestantes, binW, binH, spacing, bt, kerf, rrIter, splitDir);
+                    const rrResult = ruinAndRecreate(pecasRestantes, binW, binH, spacing, bt, kerf, rrIter, groupSplitDir);
                     if (rrResult && rrResult.score.score < bestBinScore.score) {
                         bestBinScore = rrResult.score; bestBins = rrResult.bins;
                         bestStrategyName = `ruin_recreate+LAHC+${bt}`; bestBinType = bt;
@@ -1679,7 +1693,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                     totalCombinacoes += rrIter;
                 }
                 // Para lotes grandes, rodar R&R adicional com auto splitDir para ver se melhora
-                if (isLargeBatch && splitDir !== 'auto') {
+                if (isLargeBatch && groupSplitDir !== 'auto') {
                     for (const bt of binTypesToTry) {
                         const rrResult = ruinAndRecreate(pecasRestantes, binW, binH, spacing, bt, kerf, rrIter, 'auto');
                         if (rrResult && rrResult.score.score < bestBinScore.score) {
@@ -1696,33 +1710,31 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                 const brkgaGen = isLargeBatch
                     ? Math.min(200, Math.max(80, pecasRestantes.length * 2))
                     : Math.min(100, Math.max(40, pecasRestantes.length * 3));
-                const brkgaResult = runBRKGA(pecasRestantes, binW, binH, spacing, binType, kerf, brkgaGen, splitDir);
+                const brkgaResult = runBRKGA(pecasRestantes, binW, binH, spacing, groupBinType, kerf, brkgaGen, groupSplitDir);
                 if (brkgaResult && brkgaResult.score.score < bestBinScore.score) {
                     bestBinScore = brkgaResult.score; bestBins = brkgaResult.bins;
-                    bestStrategyName = `BRKGA_${brkgaGen}gen`; bestBinType = binType;
+                    bestStrategyName = `BRKGA_${brkgaGen}gen`; bestBinType = groupBinType;
                 }
                 totalCombinacoes += brkgaGen * 40;
                 // Tentar BRKGA com direção auto também
-                if (isLargeBatch && splitDir !== 'auto') {
-                    const brkgaResult2 = runBRKGA(pecasRestantes, binW, binH, spacing, binType, kerf, brkgaGen, 'auto');
+                if (isLargeBatch && groupSplitDir !== 'auto') {
+                    const brkgaResult2 = runBRKGA(pecasRestantes, binW, binH, spacing, groupBinType, kerf, brkgaGen, 'auto');
                     if (brkgaResult2 && brkgaResult2.score.score < bestBinScore.score) {
                         bestBinScore = brkgaResult2.score; bestBins = brkgaResult2.bins;
-                        bestStrategyName = `BRKGA_${brkgaGen}gen+autoDir`; bestBinType = binType;
+                        bestStrategyName = `BRKGA_${brkgaGen}gen+autoDir`; bestBinType = groupBinType;
                     }
                     totalCombinacoes += brkgaGen * 40;
                 }
             }
 
-            // FASE 4: SIMULATED ANNEALING — cross-bin (mover/trocar peças entre chapas para eliminar chapas)
-            // Cada chapa economizada = ~R$400, então vale investir processamento pesado
+            // FASE 4: SIMULATED ANNEALING — cross-bin
             if (bestBins && bestBins.length > 1 && bestBins.length > minTeoricoChapas) {
-                // Iterações agressivas: 15k-50k baseado no tamanho do lote
                 const saIter = isLargeBatch
                     ? Math.max(25000, Math.min(50000, pecasRestantes.length * 80))
                     : Math.max(10000, Math.min(25000, pecasRestantes.length * 50));
                 console.log(`  [SA] Iniciando Simulated Annealing: ${saIter} iterações, ${bestBins.length} bins (mín teórico: ${minTeoricoChapas})`);
                 const saStart = Date.now();
-                const saResult = simulatedAnnealing(bestBins, binW, binH, spacing, bestBinType, kerf, saIter, splitDir);
+                const saResult = simulatedAnnealing(bestBins, binW, binH, spacing, bestBinType, kerf, saIter, groupSplitDir);
                 const saTime = Date.now() - saStart;
                 if (saResult && saResult.score.score < bestBinScore.score) {
                     const saved = bestBins.length - saResult.bins.length;
@@ -1733,7 +1745,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                     console.log(`  [SA] Sem melhoria (${saTime}ms)`);
                 }
                 // Tentar também com splitDir auto se diferente
-                if (splitDir !== 'auto') {
+                if (groupSplitDir !== 'auto') {
                     const saResult2 = simulatedAnnealing(bestBins, binW, binH, spacing, bestBinType, kerf, saIter, 'auto');
                     if (saResult2 && saResult2.score.score < bestBinScore.score) {
                         const saved = bestBins.length - saResult2.bins.length;
@@ -1767,7 +1779,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                         for (const h of heuristics) {
                             for (const bt of binTypesToTry) {
                                 const sorted = [...allPcs].sort(sortFn);
-                                const testBins = runNestingPass(sorted, binW, binH, spacing, h, bt, kerf, splitDir);
+                                const testBins = runNestingPass(sorted, binW, binH, spacing, h, bt, kerf, groupSplitDir);
                                 if (testBins.length <= targetBins && verifyNoOverlaps(testBins)) {
                                     const sc = scoreResult(testBins);
                                     if (sc.score < bestBinScore.score) { bestBins = testBins; bestBinScore = sc; bestBinType = bt; bestStrategyName += '+gap_repack'; }
@@ -1781,13 +1793,13 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
 
             // Safety + Compactação
             if (!verifyNoOverlaps(bestBins)) {
-                bestBins = repairOverlaps(bestBins, binW, binH, spacing, bestBinType, kerf, splitDir);
+                bestBins = repairOverlaps(bestBins, binW, binH, spacing, bestBinType, kerf, groupSplitDir);
                 bestBinScore = scoreResult(bestBins);
             }
-            for (const bin of bestBins) compactBin(bin, binW, binH, kerf, spacing, splitDir);
+            for (const bin of bestBins) compactBin(bin, binW, binH, kerf, spacing, groupSplitDir);
 
             const maxTeoricoAprov = totalPieceArea / (bestBins.length * sheetArea) * 100;
-            console.log(`  [Nesting Multi] ${groupKey}: ${pecasRestantes.length} peças (${lotes.length} lotes) → ${bestBins.length} chapa(s), ${bestBinScore.avgOccupancy.toFixed(1)}% (${bestStrategyName}) [splitDir=${splitDir}]`);
+            console.log(`  [Nesting Multi] ${groupKey}: ${pecasRestantes.length} peças (${lotes.length} lotes) → ${bestBins.length} chapa(s), ${bestBinScore.avgOccupancy.toFixed(1)}% (${bestStrategyName}) [splitDir=${groupSplitDir}, chapaDirecao=${chapaDirecao}]`);
             if (bestBins[0] && bestBins[0].usedRects) {
                 bestBins[0].usedRects.slice(0, 3).forEach(r => console.log(`    → ${r.pieceRef}: (${Math.round(r.x)},${Math.round(r.y)}) ${Math.round(r.realW||r.w)}x${Math.round(r.realH||r.h)} rot=${r.rotated||false}`));
             }
@@ -1802,6 +1814,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                     espessura_real: chapa.espessura_real || group.espessura,
                     comprimento: chapa.comprimento, largura: chapa.largura,
                     refilo, kerf, preco: chapa.preco || 0, veio: chapaVeio,
+                    direcao_corte: chapaDirecao !== 'herdar' ? chapaDirecao : direcaoCorteRaw,
                     aproveitamento: Math.round(bin.occupancy() * 100) / 100,
                     pecas: [], retalhos: [],
                     cortes: bestBinType !== 'maxrects' ? gerarSequenciaCortes(bin) : [],
@@ -5236,18 +5249,18 @@ router.get('/chapas', requireAuth, (req, res) => {
 });
 
 router.post('/chapas', requireAuth, (req, res) => {
-    const { nome, material_code, espessura_nominal, espessura_real, comprimento, largura, refilo, veio, preco, kerf } = req.body;
+    const { nome, material_code, espessura_nominal, espessura_real, comprimento, largura, refilo, veio, preco, kerf, direcao_corte, modo_corte } = req.body;
     if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
-    const r = db.prepare(`INSERT INTO cnc_chapas (user_id, nome, material_code, espessura_nominal, espessura_real, comprimento, largura, refilo, veio, preco, kerf)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(req.user.id, nome, material_code || '', espessura_nominal || 18, espessura_real || 18.5,
-        comprimento || 2750, largura || 1850, refilo || 10, veio || 'sem_veio', preco || 0, kerf ?? 4);
+    const r = db.prepare(`INSERT INTO cnc_chapas (user_id, nome, material_code, espessura_nominal, espessura_real, comprimento, largura, refilo, veio, preco, kerf, direcao_corte, modo_corte)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(req.user.id, nome, material_code || '', espessura_nominal || 18, espessura_real || 18.5,
+        comprimento || 2750, largura || 1850, refilo || 10, veio || 'sem_veio', preco || 0, kerf ?? 4, direcao_corte || 'herdar', modo_corte || 'herdar');
     res.json({ id: Number(r.lastInsertRowid) });
 });
 
 router.put('/chapas/:id', requireAuth, (req, res) => {
-    const { nome, material_code, espessura_nominal, espessura_real, comprimento, largura, refilo, veio, preco, kerf, ativo } = req.body;
-    db.prepare(`UPDATE cnc_chapas SET nome=?, material_code=?, espessura_nominal=?, espessura_real=?, comprimento=?, largura=?, refilo=?, veio=?, preco=?, kerf=?, ativo=? WHERE id=?`)
-        .run(nome, material_code, espessura_nominal, espessura_real, comprimento, largura, refilo, veio, preco, kerf ?? 4, ativo ?? 1, req.params.id);
+    const { nome, material_code, espessura_nominal, espessura_real, comprimento, largura, refilo, veio, preco, kerf, ativo, direcao_corte, modo_corte } = req.body;
+    db.prepare(`UPDATE cnc_chapas SET nome=?, material_code=?, espessura_nominal=?, espessura_real=?, comprimento=?, largura=?, refilo=?, veio=?, preco=?, kerf=?, ativo=?, direcao_corte=?, modo_corte=? WHERE id=?`)
+        .run(nome, material_code, espessura_nominal, espessura_real, comprimento, largura, refilo, veio, preco, kerf ?? 4, ativo ?? 1, direcao_corte || 'herdar', modo_corte || 'herdar', req.params.id);
     res.json({ ok: true });
 });
 

@@ -1536,11 +1536,15 @@ export function simulatedAnnealing(bins, binW, binH, spacing, binType, kerf, max
     let T = T0;
 
     let noImproveStreak = 0;
-    const maxNoImprove = Math.max(maxIter * 0.4, 2000);
+    const maxNoImprove = Math.max(maxIter * 0.25, 1500);
 
     // Reheat counter — quando fica estagnado, reaquece
     let reheatCount = 0;
-    const maxReheats = 5;
+    const maxReheats = 4;
+
+    // Tempo máximo para SA: 60s (não travar servidor)
+    const saStartTime = Date.now();
+    const saMaxMs = 60000;
 
     for (let iter = 0; iter < maxIter; iter++) {
         T *= coolingRate;
@@ -1603,6 +1607,8 @@ export function simulatedAnnealing(bins, binW, binH, spacing, binType, kerf, max
         }
 
         if (noImproveStreak >= maxNoImprove) break;
+        // Timeout de segurança: não exceder 60s
+        if (iter % 500 === 0 && Date.now() - saStartTime > saMaxMs) break;
     }
 
     // Compactar bins finais

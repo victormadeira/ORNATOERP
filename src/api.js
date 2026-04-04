@@ -7,6 +7,19 @@ function getToken() {
     return localStorage.getItem('erp_token');
 }
 
+// Timeout padrão 30s, rotas pesadas usam mais
+const ROUTE_TIMEOUTS = {
+    '/cnc/': 600000,        // CNC: 10min (otimização SA pesada)
+    '/plano-corte/': 300000, // Plano de corte: 5min
+};
+
+function getTimeout(path) {
+    for (const [route, ms] of Object.entries(ROUTE_TIMEOUTS)) {
+        if (path.includes(route)) return ms;
+    }
+    return 30000;
+}
+
 async function request(method, path, body = null, retries = 1) {
     const token = getToken();
     const opts = {
@@ -18,8 +31,9 @@ async function request(method, path, body = null, retries = 1) {
     };
     if (body) opts.body = JSON.stringify(body);
 
+    const timeoutMs = getTimeout(path);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     opts.signal = controller.signal;
 
     let lastError;
@@ -38,12 +52,13 @@ async function request(method, path, body = null, retries = 1) {
             return data;
         } catch (err) {
             clearTimeout(timeoutId);
-            if (err.name === 'AbortError') throw { error: 'Requisição expirou (timeout 30s). Verifique sua conexão.' };
+            if (err.name === 'AbortError') {
+                const secs = Math.round(timeoutMs / 1000);
+                throw { error: `Requisição expirou (timeout ${secs}s). ${secs > 60 ? 'A otimização pode demorar com muitas peças.' : 'Verifique sua conexão.'}` };
+            }
             lastError = err;
-            // Só faz retry em erros de rede (não em 4xx/5xx)
             const isNetworkError = !err.status;
             if (!isNetworkError || attempt >= retries) throw lastError;
-            // Espera antes de tentar de novo (200ms, 600ms...)
             await new Promise(r => setTimeout(r, 200 * (attempt + 1)));
         }
     }
