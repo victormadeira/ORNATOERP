@@ -1514,6 +1514,317 @@ export function crossBinOptimize(bins, binW, binH, spacing, binType = 'guillotin
     return current;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// SIMULATED ANNEALING — Otimizador de cross-bin com perturbações
+// Objetivo: reduzir número de chapas movendo peças entre bins
+// ═══════════════════════════════════════════════════════════════════
+export function simulatedAnnealing(bins, binW, binH, spacing, binType, kerf, maxIter = 20000, splitDir = 'auto') {
+    if (!bins || bins.length <= 1) return { bins, improved: false };
+
+    const ALL_H = ['BSSF', 'BLSF', 'BAF', 'BL', 'CP'];
+    let bestBins = bins;
+    let bestScore = scoreResult(bins);
+    let currentBins = bins;
+    let currentScore = bestScore;
+
+    // Temperatura inicial proporcional ao score
+    const T0 = bestScore.score * 0.15;
+    const Tmin = 0.01;
+    // Cooling rate: para maxIter=20000, queremos chegar perto de Tmin no final
+    // T0 * rate^maxIter = Tmin → rate = (Tmin/T0)^(1/maxIter)
+    const coolingRate = Math.pow(Tmin / T0, 1 / maxIter);
+    let T = T0;
+
+    let noImproveStreak = 0;
+    const maxNoImprove = Math.max(maxIter * 0.4, 2000);
+
+    // Reheat counter — quando fica estagnado, reaquece
+    let reheatCount = 0;
+    const maxReheats = 5;
+
+    for (let iter = 0; iter < maxIter; iter++) {
+        T *= coolingRate;
+
+        // Reheat se estagnado
+        if (noImproveStreak > maxNoImprove / 2 && reheatCount < maxReheats) {
+            T = T0 * 0.3;
+            reheatCount++;
+            noImproveStreak = 0;
+        }
+
+        // Escolher perturbação
+        const pertType = Math.random();
+        let candidateBins;
+
+        if (pertType < 0.35) {
+            // ─── PERTURBAÇÃO 1: Mover peça do bin menos cheio para outro ───
+            candidateBins = perturbMove(currentBins, binW, binH, binType, kerf, splitDir, spacing);
+        } else if (pertType < 0.55) {
+            // ─── PERTURBAÇÃO 2: Swap de peças entre dois bins ───
+            candidateBins = perturbSwap(currentBins, binW, binH, binType, kerf, splitDir, spacing);
+        } else if (pertType < 0.70) {
+            // ─── PERTURBAÇÃO 3: Tentar esvaziar o bin mais fraco ───
+            candidateBins = perturbEvacuate(currentBins, binW, binH, binType, kerf, splitDir, spacing);
+        } else if (pertType < 0.85) {
+            // ─── PERTURBAÇÃO 4: Rebuild de um bin aleatório com sort diferente ───
+            candidateBins = perturbRebuild(currentBins, binW, binH, binType, kerf, splitDir, spacing);
+        } else {
+            // ─── PERTURBAÇÃO 5: Mover múltiplas peças pequenas do bin fraco ───
+            candidateBins = perturbMultiMove(currentBins, binW, binH, binType, kerf, splitDir, spacing);
+        }
+
+        if (!candidateBins || candidateBins.length === 0) {
+            noImproveStreak++;
+            continue;
+        }
+
+        const candidateScore = scoreResult(candidateBins);
+        if (candidateScore.score >= Infinity) {
+            noImproveStreak++;
+            continue;
+        }
+
+        const delta = candidateScore.score - currentScore.score;
+
+        // Aceitar se melhor, ou com probabilidade e^(-delta/T)
+        if (delta < 0 || Math.random() < Math.exp(-delta / Math.max(T, 0.001))) {
+            currentBins = candidateBins;
+            currentScore = candidateScore;
+
+            if (candidateScore.score < bestScore.score) {
+                bestBins = candidateBins;
+                bestScore = candidateScore;
+                noImproveStreak = 0;
+            } else {
+                noImproveStreak++;
+            }
+        } else {
+            noImproveStreak++;
+        }
+
+        if (noImproveStreak >= maxNoImprove) break;
+    }
+
+    // Compactar bins finais
+    for (const bin of bestBins) compactBin(bin, binW, binH, kerf, spacing, splitDir);
+    // Remover bins vazios
+    bestBins = bestBins.filter(b => b.usedRects && b.usedRects.length > 0);
+
+    return { bins: bestBins, score: bestScore, improved: bestBins.length < bins.length };
+}
+
+// ─── SA Perturbação: Mover uma peça de um bin para outro ──
+function perturbMove(bins, binW, binH, binType, kerf, splitDir, spacing) {
+    if (bins.length < 2) return null;
+
+    // Encontrar bin com menor ocupação (fonte)
+    let srcIdx = 0, minOcc = Infinity;
+    for (let i = 0; i < bins.length; i++) {
+        const occ = bins[i].occupancy();
+        if (occ < minOcc) { minOcc = occ; srcIdx = i; }
+    }
+
+    const srcPieces = extractPieces(bins[srcIdx]);
+    if (srcPieces.length === 0) return null;
+
+    // Escolher peça aleatória do bin fonte
+    const pieceIdx = Math.floor(Math.random() * srcPieces.length);
+    const piece = srcPieces[pieceIdx];
+
+    // Tentar inserir em outro bin
+    const otherIndices = [...Array(bins.length).keys()].filter(i => i !== srcIdx);
+    // Embaralhar para variedade
+    for (let i = otherIndices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [otherIndices[i], otherIndices[j]] = [otherIndices[j], otherIndices[i]];
+    }
+
+    for (const dstIdx of otherIndices) {
+        // Rebuild bin destino com suas peças + a nova
+        const dstPieces = extractPieces(bins[dstIdx]);
+        const combined = [...dstPieces.sort((a, b) => b.area - a.area), piece];
+        const { bin: newDst, failed } = rebuildBin(combined.sort((a, b) => b.area - a.area), binW, binH, binType, kerf, splitDir, spacing);
+
+        if (failed.length === 0) {
+            // Sucesso! Rebuild bin fonte sem a peça
+            const remainingSrc = srcPieces.filter((_, i) => i !== pieceIdx);
+            const newBins = bins.map((b, i) => {
+                if (i === srcIdx) {
+                    if (remainingSrc.length === 0) return null;
+                    const { bin: newSrc } = rebuildBin(remainingSrc.sort((a, b) => b.area - a.area), binW, binH, binType, kerf, splitDir, spacing);
+                    return newSrc;
+                }
+                if (i === dstIdx) return newDst;
+                return b;
+            }).filter(Boolean);
+            return newBins;
+        }
+    }
+    return null;
+}
+
+// ─── SA Perturbação: Swap de peças entre dois bins ──
+function perturbSwap(bins, binW, binH, binType, kerf, splitDir, spacing) {
+    if (bins.length < 2) return null;
+
+    const idx1 = Math.floor(Math.random() * bins.length);
+    let idx2 = Math.floor(Math.random() * (bins.length - 1));
+    if (idx2 >= idx1) idx2++;
+
+    const pieces1 = extractPieces(bins[idx1]);
+    const pieces2 = extractPieces(bins[idx2]);
+    if (pieces1.length === 0 || pieces2.length === 0) return null;
+
+    const pi1 = Math.floor(Math.random() * pieces1.length);
+    const pi2 = Math.floor(Math.random() * pieces2.length);
+
+    // Swap
+    const newPieces1 = [...pieces1]; newPieces1[pi1] = pieces2[pi2];
+    const newPieces2 = [...pieces2]; newPieces2[pi2] = pieces1[pi1];
+
+    const { bin: newBin1, failed: f1 } = rebuildBin(newPieces1.sort((a, b) => b.area - a.area), binW, binH, binType, kerf, splitDir, spacing);
+    if (f1.length > 0) return null;
+    const { bin: newBin2, failed: f2 } = rebuildBin(newPieces2.sort((a, b) => b.area - a.area), binW, binH, binType, kerf, splitDir, spacing);
+    if (f2.length > 0) return null;
+
+    const newBins = bins.map((b, i) => {
+        if (i === idx1) return newBin1;
+        if (i === idx2) return newBin2;
+        return b;
+    });
+    return newBins;
+}
+
+// ─── SA Perturbação: Esvaziar o bin mais fraco redistribuindo peças ──
+function perturbEvacuate(bins, binW, binH, binType, kerf, splitDir, spacing) {
+    if (bins.length < 2) return null;
+
+    // Bin mais fraco
+    let weakIdx = 0, minOcc = Infinity;
+    for (let i = 0; i < bins.length; i++) {
+        const occ = bins[i].occupancy();
+        if (occ < minOcc) { minOcc = occ; weakIdx = i; }
+    }
+
+    const weakPieces = extractPieces(bins[weakIdx]);
+    if (weakPieces.length === 0) return null;
+
+    // Rebuild todos os outros bins (freeRects frescos)
+    const otherBins = [];
+    for (let i = 0; i < bins.length; i++) {
+        if (i === weakIdx) continue;
+        const pieces = extractPieces(bins[i]);
+        const { bin } = rebuildBin(pieces.sort((a, b) => b.area - a.area), binW, binH, binType, kerf, splitDir, spacing);
+        otherBins.push(bin);
+    }
+
+    // Tentar inserir todas as peças do bin fraco nos outros
+    const remaining = [...weakPieces].sort((a, b) => b.area - a.area);
+    const ALL_H = ['BSSF', 'BLSF', 'BAF', 'BL', 'CP'];
+
+    for (const p of remaining) {
+        let placed = false;
+        for (const targetBin of otherBins) {
+            for (const h of ALL_H) {
+                const rect = targetBin.findBest(p.w, p.h, p.allowRotate, h, p.classificacao || 'normal');
+                if (rect) {
+                    rect.pieceRef = p.ref;
+                    rect.allowRotate = p.allowRotate;
+                    const pl = targetBin.placeRect(rect);
+                    if (pl) { pl.pieceRef = p.ref; pl.allowRotate = p.allowRotate; placed = true; break; }
+                }
+            }
+            if (placed) break;
+        }
+        if (!placed) return null; // Não conseguiu evacuar todas
+    }
+
+    // Sucesso — eliminamos um bin!
+    return otherBins;
+}
+
+// ─── SA Perturbação: Rebuild um bin aleatório com sort diferente ──
+function perturbRebuild(bins, binW, binH, binType, kerf, splitDir, spacing) {
+    const idx = Math.floor(Math.random() * bins.length);
+    const pieces = extractPieces(bins[idx]);
+    if (pieces.length < 2) return null;
+
+    // Sort aleatório
+    const sorts = [
+        (a, b) => b.area - a.area,
+        (a, b) => a.area - b.area,
+        (a, b) => b.h - a.h || b.w - a.w,
+        (a, b) => b.w - a.w || b.h - a.h,
+        (a, b) => b.maxSide - a.maxSide,
+        (a, b) => Math.random() - 0.5,
+    ];
+    const sortFn = sorts[Math.floor(Math.random() * sorts.length)];
+    const { bin: newBin, failed } = rebuildBin(pieces.sort(sortFn), binW, binH, binType, kerf, splitDir, spacing);
+
+    if (failed.length > 0) return null;
+
+    return bins.map((b, i) => i === idx ? newBin : b);
+}
+
+// ─── SA Perturbação: Mover múltiplas peças pequenas do bin fraco ──
+function perturbMultiMove(bins, binW, binH, binType, kerf, splitDir, spacing) {
+    if (bins.length < 2) return null;
+
+    let weakIdx = 0, minOcc = Infinity;
+    for (let i = 0; i < bins.length; i++) {
+        const occ = bins[i].occupancy();
+        if (occ < minOcc) { minOcc = occ; weakIdx = i; }
+    }
+
+    const weakPieces = extractPieces(bins[weakIdx]);
+    if (weakPieces.length < 2) return null;
+
+    // Pegar 2-4 peças menores do bin fraco
+    const sorted = [...weakPieces].sort((a, b) => a.area - b.area);
+    const numToMove = Math.min(sorted.length, 2 + Math.floor(Math.random() * 3));
+    const toMove = sorted.slice(0, numToMove);
+    const toKeep = sorted.slice(numToMove);
+
+    // Rebuild outros bins com freeRects frescos
+    const ALL_H = ['BSSF', 'BLSF', 'BAF', 'BL', 'CP'];
+    const otherBins = [];
+    for (let i = 0; i < bins.length; i++) {
+        if (i === weakIdx) continue;
+        const pieces = extractPieces(bins[i]);
+        const { bin } = rebuildBin(pieces.sort((a, b) => b.area - a.area), binW, binH, binType, kerf, splitDir, spacing);
+        otherBins.push(bin);
+    }
+
+    // Tentar inserir as peças nos outros bins
+    const stillFailed = [];
+    for (const p of toMove.sort((a, b) => b.area - a.area)) {
+        let placed = false;
+        for (const targetBin of otherBins) {
+            for (const h of ALL_H) {
+                const rect = targetBin.findBest(p.w, p.h, p.allowRotate, h, p.classificacao || 'normal');
+                if (rect) {
+                    rect.pieceRef = p.ref; rect.allowRotate = p.allowRotate;
+                    const pl = targetBin.placeRect(rect);
+                    if (pl) { pl.pieceRef = p.ref; pl.allowRotate = p.allowRotate; placed = true; break; }
+                }
+            }
+            if (placed) break;
+        }
+        if (!placed) stillFailed.push(p);
+    }
+
+    // Rebuild bin fraco com peças restantes
+    const remaining = [...toKeep, ...stillFailed];
+    if (remaining.length === 0) {
+        return otherBins; // Bin eliminado!
+    }
+
+    const { bin: newWeak, failed } = rebuildBin(remaining.sort((a, b) => b.area - a.area), binW, binH, binType, kerf, splitDir, spacing);
+    if (failed.length > 0) return null;
+
+    return [...otherBins, newWeak];
+}
+
 // ─── Gerar sequência de cortes (para esquadrejadeira) — OTIMIZADA ──
 // Strip-based ordering: H cuts first (separate strips), then V within each strip
 // Large pieces first (more stable on the saw), small pieces last

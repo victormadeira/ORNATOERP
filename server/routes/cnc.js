@@ -10,6 +10,7 @@ import {
     intersects, isContainedIn, pruneFreeList, clipRect, clipAndKeep,
     classifyBySize, scoreResult, verifyNoOverlaps, repairOverlaps, compactBin,
     runNestingPass, runFillFirst, runStripPacking, runBRKGA, ruinAndRecreate,
+    simulatedAnnealing,
     gerarSequenciaCortes, setVacuumAware, getVacuumAware,
     optimizeLastBin, crossBinOptimize,
     calculatePolygonArea, isPointInPolygon, contourBoundingBox,
@@ -1709,6 +1710,37 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                         bestStrategyName = `BRKGA_${brkgaGen}gen+autoDir`; bestBinType = binType;
                     }
                     totalCombinacoes += brkgaGen * 40;
+                }
+            }
+
+            // FASE 4: SIMULATED ANNEALING — cross-bin (mover/trocar peças entre chapas para eliminar chapas)
+            // Cada chapa economizada = ~R$400, então vale investir processamento pesado
+            if (bestBins && bestBins.length > 1 && bestBins.length > minTeoricoChapas) {
+                // Iterações agressivas: 15k-50k baseado no tamanho do lote
+                const saIter = isLargeBatch
+                    ? Math.max(25000, Math.min(50000, pecasRestantes.length * 80))
+                    : Math.max(10000, Math.min(25000, pecasRestantes.length * 50));
+                console.log(`  [SA] Iniciando Simulated Annealing: ${saIter} iterações, ${bestBins.length} bins (mín teórico: ${minTeoricoChapas})`);
+                const saStart = Date.now();
+                const saResult = simulatedAnnealing(bestBins, binW, binH, spacing, bestBinType, kerf, saIter, splitDir);
+                const saTime = Date.now() - saStart;
+                if (saResult && saResult.score.score < bestBinScore.score) {
+                    const saved = bestBins.length - saResult.bins.length;
+                    console.log(`  [SA] Melhorou! ${bestBins.length}→${saResult.bins.length} chapas (${saved > 0 ? '-' + saved + ' chapas = -R$' + (saved * 400) : 'melhor aproveitamento'}) em ${saTime}ms`);
+                    bestBinScore = saResult.score; bestBins = saResult.bins;
+                    bestStrategyName += '+SA';
+                } else {
+                    console.log(`  [SA] Sem melhoria (${saTime}ms)`);
+                }
+                // Tentar também com splitDir auto se diferente
+                if (splitDir !== 'auto') {
+                    const saResult2 = simulatedAnnealing(bestBins, binW, binH, spacing, bestBinType, kerf, saIter, 'auto');
+                    if (saResult2 && saResult2.score.score < bestBinScore.score) {
+                        const saved = bestBins.length - saResult2.bins.length;
+                        console.log(`  [SA auto] Melhorou! ${bestBins.length}→${saResult2.bins.length} chapas (${saved > 0 ? '-' + saved : 'melhor'}) com autoDir`);
+                        bestBinScore = saResult2.score; bestBins = saResult2.bins;
+                        bestStrategyName += '+SA_auto';
+                    }
                 }
             }
 
