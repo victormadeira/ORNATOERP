@@ -324,18 +324,11 @@ router.post('/otimizar', requireAuth, (req, res) => {
                 const occ = bin.occupancy();
                 matChapas++;
 
-                const effW = chapaW - 2 * refilo;
-                const effH = chapaH - 2 * refilo;
                 const pecasPlano = bin.usedRects.map((r, pi) => {
-                    let px = Math.round(r.x) + refilo;
-                    let py = Math.round(r.y) + refilo;
+                    const px = Math.round(r.x) + refilo;
+                    const py = Math.round(r.y) + refilo;
                     const pw = Math.round(r.realW || r.w);
                     const ph = Math.round(r.realH || r.h);
-                    // ── Clamp: garantir que peca nao ultrapasse limites da chapa ──
-                    if (px + pw > chapaW) px = Math.max(refilo, chapaW - pw);
-                    if (py + ph > chapaH) py = Math.max(refilo, chapaH - ph);
-                    if (px < refilo) px = refilo;
-                    if (py < refilo) py = refilo;
                     return {
                         pecaId: pi,
                         nome: r.pieceRef?.nome || `Peça ${pi}`,
@@ -359,6 +352,21 @@ router.post('/otimizar', requireAuth, (req, res) => {
                             h: Math.round(r.h),
                         }));
                 }
+
+                // ── Overlap detection & logging ──
+                let overlapCount = 0;
+                for (let a = 0; a < pecasPlano.length; a++) {
+                    for (let b = a + 1; b < pecasPlano.length; b++) {
+                        const pa = pecasPlano[a], pb = pecasPlano[b];
+                        if (pa.x < pb.x + pb.w && pa.x + pa.w > pb.x && pa.y < pb.y + pb.h && pa.y + pa.h > pb.y) {
+                            overlapCount++;
+                            if (overlapCount <= 3) {
+                                console.warn(`  [OVERLAP] Chapa ${planoChapas.length}: "${pa.nome}" (${pa.x},${pa.y} ${pa.w}x${pa.h}) vs "${pb.nome}" (${pb.x},${pb.y} ${pb.w}x${pb.h})`);
+                            }
+                        }
+                    }
+                }
+                if (overlapCount > 0) console.warn(`  [OVERLAP] Total: ${overlapCount} sobreposicoes na chapa ${planoChapas.length}`);
 
                 // Sequência de cortes
                 const cortes = bin.cuts ? gerarSequenciaCortes(bin) : [];
