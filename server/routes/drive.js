@@ -44,12 +44,17 @@ function getMime(filename) {
 // GET /api/drive/status — verifica se Drive está configurado
 // ═══════════════════════════════════════════════════
 router.get('/status', requireAuth, async (req, res) => {
-    const configured = gdrive.isConfigured();
-    if (!configured) {
-        return res.json({ configured: false, connected: false, storage: 'local' });
+    try {
+        const configured = gdrive.isConfigured();
+        if (!configured) {
+            return res.json({ configured: false, connected: false, storage: 'local' });
+        }
+        const test = await gdrive.testConnection();
+        res.json({ configured: true, connected: test.ok, folder_name: test.folder_name, error: test.error, storage: test.ok ? 'gdrive' : 'local' });
+    } catch (err) {
+        console.error('Drive status erro:', err.message);
+        res.status(500).json({ error: 'Erro ao verificar status do Drive' });
     }
-    const test = await gdrive.testConnection();
-    res.json({ configured: true, connected: test.ok, folder_name: test.folder_name, error: test.error, storage: test.ok ? 'gdrive' : 'local' });
 });
 
 // ═══════════════════════════════════════════════════
@@ -122,29 +127,34 @@ router.get('/test', requireAuth, async (req, res) => {
 // POST /api/drive/projeto/:id/criar-pasta — cria subpasta
 // ═══════════════════════════════════════════════════
 router.post('/projeto/:id/criar-pasta', requireAuth, async (req, res) => {
-    const projeto_id = parseInt(req.params.id);
-    const proj = db.prepare('SELECT * FROM projetos WHERE id = ?').get(projeto_id);
-    if (!proj) return res.status(404).json({ error: 'Projeto nao encontrado' });
+    try {
+        const projeto_id = parseInt(req.params.id);
+        const proj = db.prepare('SELECT * FROM projetos WHERE id = ?').get(projeto_id);
+        if (!proj) return res.status(404).json({ error: 'Projeto nao encontrado' });
 
-    if (gdrive.isConfigured()) {
-        try {
-            let nomeProjeto = proj.nome;
-            if (proj.cliente_id) {
-                const cli = db.prepare('SELECT nome FROM clientes WHERE id = ?').get(proj.cliente_id);
-                if (cli) nomeProjeto = cli.nome;
+        if (gdrive.isConfigured()) {
+            try {
+                let nomeProjeto = proj.nome;
+                if (proj.cliente_id) {
+                    const cli = db.prepare('SELECT nome FROM clientes WHERE id = ?').get(proj.cliente_id);
+                    if (cli) nomeProjeto = cli.nome;
+                }
+                const folders = await gdrive.setupProjectFolders(projeto_id, nomeProjeto);
+                return res.json({ ok: true, folder: folders.projectFolderId, storage: 'gdrive' });
+            } catch (err) {
+                console.error('Drive criar-pasta erro:', err.message);
             }
-            const folders = await gdrive.setupProjectFolders(projeto_id, nomeProjeto);
-            return res.json({ ok: true, folder: folders.projectFolderId, storage: 'gdrive' });
-        } catch (err) {
-            console.error('Drive criar-pasta erro:', err.message);
         }
-    }
 
-    // Fallback local
-    const projectDir = path.join(UPLOADS_DIR, `projeto_${projeto_id}`);
-    if (!fs.existsSync(projectDir)) fs.mkdirSync(projectDir, { recursive: true });
-    db.prepare('UPDATE projetos SET gdrive_folder_id = ? WHERE id = ?').run(`local:projeto_${projeto_id}`, projeto_id);
-    res.json({ ok: true, folder: `local:projeto_${projeto_id}`, storage: 'local' });
+        // Fallback local
+        const projectDir = path.join(UPLOADS_DIR, `projeto_${projeto_id}`);
+        if (!fs.existsSync(projectDir)) fs.mkdirSync(projectDir, { recursive: true });
+        db.prepare('UPDATE projetos SET gdrive_folder_id = ? WHERE id = ?').run(`local:projeto_${projeto_id}`, projeto_id);
+        res.json({ ok: true, folder: `local:projeto_${projeto_id}`, storage: 'local' });
+    } catch (err) {
+        console.error('Criar pasta erro:', err.message);
+        res.status(500).json({ error: 'Erro ao criar pasta do projeto' });
+    }
 });
 
 // ═══════════════════════════════════════════════════
@@ -198,65 +208,70 @@ router.post('/projeto/:id/upload', requireAuth, (req, res, next) => {
         next();
     });
 }, async (req, res) => {
-    const projeto_id = parseInt(req.params.id);
-    let buffer, safeName;
+    try {
+        const projeto_id = parseInt(req.params.id);
+        let buffer, safeName;
 
-    console.log('[UPLOAD] projeto_id:', projeto_id, '| req.file:', !!req.file, '| req.body keys:', Object.keys(req.body || {}));
+        console.log('[UPLOAD] projeto_id:', projeto_id, '| req.file:', !!req.file, '| req.body keys:', Object.keys(req.body || {}));
 
-    if (req.file) {
-        // Upload via FormData (multipart) — novo
-        buffer = req.file.buffer;
-        safeName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-        console.log('[UPLOAD] FormData — arquivo:', safeName, '| tamanho:', buffer.length);
-    } else if (req.body.filename && req.body.data) {
-        // Upload via base64 JSON — legado
-        const { filename, data } = req.body;
-        safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const base64Data = data.includes(',') ? data.split(',')[1] : data;
-        buffer = Buffer.from(base64Data, 'base64');
-        console.log('[UPLOAD] Base64 — arquivo:', safeName, '| tamanho:', buffer.length);
-    } else {
-        console.log('[UPLOAD] FALHA — nenhum arquivo no request');
-        return res.status(400).json({ error: 'Nenhum arquivo recebido' });
-    }
-
-    const ext = path.extname(safeName).toLowerCase();
-    if (!ALLOWED_EXTENSIONS.has(ext)) {
-        return res.status(400).json({ error: `Tipo de arquivo não permitido: ${ext}. Extensões aceitas: ${[...ALLOWED_EXTENSIONS].join(', ')}` });
-    }
-    if (buffer.length > MAX_FILE_SIZE) {
-        return res.status(400).json({ error: `Arquivo excede o limite de ${MAX_FILE_SIZE / 1024 / 1024}MB` });
-    }
-    const mime = getMime(safeName);
-
-    if (gdrive.isConfigured()) {
-        try {
-            const folderId = await gdrive.getProjectDocumentosFolder(projeto_id);
-            const result = await gdrive.uploadFile(folderId, safeName, mime, buffer);
-
-            db.prepare(`
-                INSERT INTO projeto_arquivos (projeto_id, user_id, nome, filename, tipo, tamanho, gdrive_file_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            `).run(projeto_id, req.user.id, safeName, safeName, path.extname(safeName).slice(1), buffer.length, result.id);
-
-            return res.json({ ok: true, nome: safeName, storage: 'gdrive' });
-        } catch (err) {
-            console.error('Drive upload erro:', err.message);
-            // fallback para local
+        if (req.file) {
+            // Upload via FormData (multipart) — novo
+            buffer = req.file.buffer;
+            safeName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+            console.log('[UPLOAD] FormData — arquivo:', safeName, '| tamanho:', buffer.length);
+        } else if (req.body.filename && req.body.data) {
+            // Upload via base64 JSON — legado
+            const { filename, data } = req.body;
+            safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const base64Data = data.includes(',') ? data.split(',')[1] : data;
+            buffer = Buffer.from(base64Data, 'base64');
+            console.log('[UPLOAD] Base64 — arquivo:', safeName, '| tamanho:', buffer.length);
+        } else {
+            console.log('[UPLOAD] FALHA — nenhum arquivo no request');
+            return res.status(400).json({ error: 'Nenhum arquivo recebido' });
         }
+
+        const ext = path.extname(safeName).toLowerCase();
+        if (!ALLOWED_EXTENSIONS.has(ext)) {
+            return res.status(400).json({ error: `Tipo de arquivo não permitido: ${ext}. Extensões aceitas: ${[...ALLOWED_EXTENSIONS].join(', ')}` });
+        }
+        if (buffer.length > MAX_FILE_SIZE) {
+            return res.status(400).json({ error: `Arquivo excede o limite de ${MAX_FILE_SIZE / 1024 / 1024}MB` });
+        }
+        const mime = getMime(safeName);
+
+        if (gdrive.isConfigured()) {
+            try {
+                const folderId = await gdrive.getProjectDocumentosFolder(projeto_id);
+                const result = await gdrive.uploadFile(folderId, safeName, mime, buffer);
+
+                db.prepare(`
+                    INSERT INTO projeto_arquivos (projeto_id, user_id, nome, filename, tipo, tamanho, gdrive_file_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `).run(projeto_id, req.user.id, safeName, safeName, path.extname(safeName).slice(1), buffer.length, result.id);
+
+                return res.json({ ok: true, nome: safeName, storage: 'gdrive' });
+            } catch (err) {
+                console.error('Drive upload erro:', err.message);
+                // fallback para local
+            }
+        }
+
+        // Local fallback
+        const projectDir = path.join(UPLOADS_DIR, `projeto_${projeto_id}`);
+        if (!fs.existsSync(projectDir)) fs.mkdirSync(projectDir, { recursive: true });
+        fs.writeFileSync(path.join(projectDir, safeName), buffer);
+
+        db.prepare(`
+            INSERT INTO projeto_arquivos (projeto_id, user_id, nome, filename, tipo, tamanho, gdrive_file_id)
+            VALUES (?, ?, ?, ?, ?, ?, '')
+        `).run(projeto_id, req.user.id, safeName, safeName, path.extname(safeName).slice(1), buffer.length);
+
+        res.json({ ok: true, nome: safeName, storage: 'local' });
+    } catch (err) {
+        console.error('Upload erro:', err.message);
+        res.status(500).json({ error: 'Erro ao fazer upload do arquivo' });
     }
-
-    // Local fallback
-    const projectDir = path.join(UPLOADS_DIR, `projeto_${projeto_id}`);
-    if (!fs.existsSync(projectDir)) fs.mkdirSync(projectDir, { recursive: true });
-    fs.writeFileSync(path.join(projectDir, safeName), buffer);
-
-    db.prepare(`
-        INSERT INTO projeto_arquivos (projeto_id, user_id, nome, filename, tipo, tamanho, gdrive_file_id)
-        VALUES (?, ?, ?, ?, ?, ?, '')
-    `).run(projeto_id, req.user.id, safeName, safeName, path.extname(safeName).slice(1), buffer.length);
-
-    res.json({ ok: true, nome: safeName, storage: 'local' });
 });
 
 // ═══════════════════════════════════════════════════
@@ -264,36 +279,41 @@ router.post('/projeto/:id/upload', requireAuth, (req, res, next) => {
 // DEVE vir ANTES da rota generica /:filename
 // ═══════════════════════════════════════════════════
 router.get('/arquivo/:projeto_id/montador/:filename', async (req, res) => {
-    const projeto_id = String(req.params.projeto_id).replace(/[^a-zA-Z0-9_-]/g, '');
-    const filename = path.basename(decodeURIComponent(req.params.filename));
+    try {
+        const projeto_id = String(req.params.projeto_id).replace(/[^a-zA-Z0-9_-]/g, '');
+        const filename = path.basename(decodeURIComponent(req.params.filename));
 
-    // Verificar no banco se tem gdrive_file_id
-    const foto = db.prepare('SELECT gdrive_file_id FROM montador_fotos WHERE projeto_id = ? AND filename = ?').get(projeto_id, filename);
+        // Verificar no banco se tem gdrive_file_id
+        const foto = db.prepare('SELECT gdrive_file_id FROM montador_fotos WHERE projeto_id = ? AND filename = ?').get(projeto_id, filename);
 
-    if (foto?.gdrive_file_id) {
-        try {
-            const meta = await gdrive.getFileMeta(foto.gdrive_file_id);
-            const stream = await gdrive.downloadFile(foto.gdrive_file_id);
-            res.setHeader('Content-Type', meta.mimeType || getMime(filename));
-            res.setHeader('Cache-Control', 'public, max-age=86400');
-            stream.on('error', (err) => { console.error('Stream montador erro:', err.message); if (!res.headersSent) res.status(500).end(); });
-            stream.pipe(res);
-            return;
-        } catch (err) {
-            console.error('Drive download montador erro:', err.message);
-            // fallback para local
+        if (foto?.gdrive_file_id) {
+            try {
+                const meta = await gdrive.getFileMeta(foto.gdrive_file_id);
+                const stream = await gdrive.downloadFile(foto.gdrive_file_id);
+                res.setHeader('Content-Type', meta.mimeType || getMime(filename));
+                res.setHeader('Cache-Control', 'public, max-age=86400');
+                stream.on('error', (err) => { console.error('Stream montador erro:', err.message); if (!res.headersSent) res.status(500).end(); });
+                stream.pipe(res);
+                return;
+            } catch (err) {
+                console.error('Drive download montador erro:', err.message);
+                // fallback para local
+            }
         }
+
+        // Local fallback
+        const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, 'montador', filename);
+        const resolved = path.resolve(filePath);
+        if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) return res.status(403).json({ error: 'Acesso negado' });
+        if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo nao encontrado' });
+
+        res.setHeader('Content-Type', getMime(filename));
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.sendFile(filePath);
+    } catch (err) {
+        console.error('Arquivo montador erro:', err.message);
+        if (!res.headersSent) res.status(500).json({ error: 'Erro ao servir arquivo do montador' });
     }
-
-    // Local fallback
-    const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, 'montador', filename);
-    const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) return res.status(403).json({ error: 'Acesso negado' });
-    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo nao encontrado' });
-
-    res.setHeader('Content-Type', getMime(filename));
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.sendFile(filePath);
 });
 
 // ═══════════════════════════════════════════════════
@@ -301,33 +321,38 @@ router.get('/arquivo/:projeto_id/montador/:filename', async (req, res) => {
 // DEVE vir ANTES da rota generica :filename
 // ═══════════════════════════════════════════════════
 router.get('/arquivo/:projeto_id/entrega/:filename', async (req, res) => {
-    const projeto_id = String(req.params.projeto_id).replace(/[^a-zA-Z0-9_-]/g, '');
-    const filename = path.basename(decodeURIComponent(req.params.filename));
+    try {
+        const projeto_id = String(req.params.projeto_id).replace(/[^a-zA-Z0-9_-]/g, '');
+        const filename = path.basename(decodeURIComponent(req.params.filename));
 
-    const foto = db.prepare('SELECT gdrive_file_id FROM entrega_fotos WHERE projeto_id = ? AND filename = ?').get(projeto_id, filename);
+        const foto = db.prepare('SELECT gdrive_file_id FROM entrega_fotos WHERE projeto_id = ? AND filename = ?').get(projeto_id, filename);
 
-    if (foto?.gdrive_file_id) {
-        try {
-            const meta = await gdrive.getFileMeta(foto.gdrive_file_id);
-            const stream = await gdrive.downloadFile(foto.gdrive_file_id);
-            res.setHeader('Content-Type', meta.mimeType || getMime(filename));
-            res.setHeader('Cache-Control', 'public, max-age=86400');
-            stream.on('error', (err) => { console.error('Stream entrega erro:', err.message); if (!res.headersSent) res.status(500).end(); });
-            stream.pipe(res);
-            return;
-        } catch (err) {
-            console.error('Drive download entrega erro:', err.message);
+        if (foto?.gdrive_file_id) {
+            try {
+                const meta = await gdrive.getFileMeta(foto.gdrive_file_id);
+                const stream = await gdrive.downloadFile(foto.gdrive_file_id);
+                res.setHeader('Content-Type', meta.mimeType || getMime(filename));
+                res.setHeader('Cache-Control', 'public, max-age=86400');
+                stream.on('error', (err) => { console.error('Stream entrega erro:', err.message); if (!res.headersSent) res.status(500).end(); });
+                stream.pipe(res);
+                return;
+            } catch (err) {
+                console.error('Drive download entrega erro:', err.message);
+            }
         }
+
+        const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, 'entrega', filename);
+        const resolved = path.resolve(filePath);
+        if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) return res.status(403).json({ error: 'Acesso negado' });
+        if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo nao encontrado' });
+
+        res.setHeader('Content-Type', getMime(filename));
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.sendFile(filePath);
+    } catch (err) {
+        console.error('Arquivo entrega erro:', err.message);
+        if (!res.headersSent) res.status(500).json({ error: 'Erro ao servir arquivo de entrega' });
     }
-
-    const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, 'entrega', filename);
-    const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) return res.status(403).json({ error: 'Acesso negado' });
-    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo nao encontrado' });
-
-    res.setHeader('Content-Type', getMime(filename));
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.sendFile(filePath);
 });
 
 // ═══════════════════════════════════════════════════
@@ -335,70 +360,80 @@ router.get('/arquivo/:projeto_id/entrega/:filename', async (req, res) => {
 // Só serve arquivos com visivel_portal = 1
 // ═══════════════════════════════════════════════════
 router.get('/arquivo-portal/:projeto_id/:filename', async (req, res) => {
-    const projeto_id = String(req.params.projeto_id).replace(/[^a-zA-Z0-9_-]/g, '');
-    const filename = path.basename(decodeURIComponent(req.params.filename));
+    try {
+        const projeto_id = String(req.params.projeto_id).replace(/[^a-zA-Z0-9_-]/g, '');
+        const filename = path.basename(decodeURIComponent(req.params.filename));
 
-    const arq = db.prepare('SELECT gdrive_file_id FROM projeto_arquivos WHERE projeto_id = ? AND filename = ? AND visivel_portal = 1').get(projeto_id, filename);
-    if (!arq) return res.status(404).json({ error: 'Arquivo não encontrado ou não disponível' });
+        const arq = db.prepare('SELECT gdrive_file_id FROM projeto_arquivos WHERE projeto_id = ? AND filename = ? AND visivel_portal = 1').get(projeto_id, filename);
+        if (!arq) return res.status(404).json({ error: 'Arquivo não encontrado ou não disponível' });
 
-    if (arq.gdrive_file_id) {
-        try {
-            const meta = await gdrive.getFileMeta(arq.gdrive_file_id);
-            const stream = await gdrive.downloadFile(arq.gdrive_file_id);
-            res.setHeader('Content-Type', meta.mimeType || getMime(filename));
-            res.setHeader('Cache-Control', 'public, max-age=3600');
-            res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-            stream.on('error', (err) => { console.error('Stream portal erro:', err.message); if (!res.headersSent) res.status(500).end(); });
-            stream.pipe(res);
-            return;
-        } catch (err) {
-            console.error('Drive download portal erro:', err.message);
+        if (arq.gdrive_file_id) {
+            try {
+                const meta = await gdrive.getFileMeta(arq.gdrive_file_id);
+                const stream = await gdrive.downloadFile(arq.gdrive_file_id);
+                res.setHeader('Content-Type', meta.mimeType || getMime(filename));
+                res.setHeader('Cache-Control', 'public, max-age=3600');
+                res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+                stream.on('error', (err) => { console.error('Stream portal erro:', err.message); if (!res.headersSent) res.status(500).end(); });
+                stream.pipe(res);
+                return;
+            } catch (err) {
+                console.error('Drive download portal erro:', err.message);
+            }
         }
+
+        // Local fallback
+        const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, filename);
+        const resolved = path.resolve(filePath);
+        if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) return res.status(403).json({ error: 'Acesso negado' });
+        if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado' });
+
+        res.setHeader('Content-Type', getMime(filename));
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+        res.sendFile(filePath);
+    } catch (err) {
+        console.error('Arquivo portal erro:', err.message);
+        if (!res.headersSent) res.status(500).json({ error: 'Erro ao servir arquivo do portal' });
     }
-
-    // Local fallback
-    const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, filename);
-    const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) return res.status(403).json({ error: 'Acesso negado' });
-    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado' });
-
-    res.setHeader('Content-Type', getMime(filename));
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    res.sendFile(filePath);
 });
 
 // ═══════════════════════════════════════════════════
 // GET /api/drive/arquivo/:projeto_id/:filename — servir arquivo
 // ═══════════════════════════════════════════════════
 router.get('/arquivo/:projeto_id/:filename', async (req, res) => {
-    const projeto_id = String(req.params.projeto_id).replace(/[^a-zA-Z0-9_-]/g, '');
-    const filename = path.basename(decodeURIComponent(req.params.filename));
+    try {
+        const projeto_id = String(req.params.projeto_id).replace(/[^a-zA-Z0-9_-]/g, '');
+        const filename = path.basename(decodeURIComponent(req.params.filename));
 
-    // Verificar no banco
-    const arq = db.prepare('SELECT gdrive_file_id FROM projeto_arquivos WHERE projeto_id = ? AND filename = ?').get(projeto_id, filename);
+        // Verificar no banco
+        const arq = db.prepare('SELECT gdrive_file_id FROM projeto_arquivos WHERE projeto_id = ? AND filename = ?').get(projeto_id, filename);
 
-    if (arq?.gdrive_file_id) {
-        try {
-            const meta = await gdrive.getFileMeta(arq.gdrive_file_id);
-            const stream = await gdrive.downloadFile(arq.gdrive_file_id);
-            res.setHeader('Content-Type', meta.mimeType || getMime(filename));
-            stream.on('error', (err) => { console.error('Stream download erro:', err.message); if (!res.headersSent) res.status(500).end(); });
-            stream.pipe(res);
-            return;
-        } catch (err) {
-            console.error('Drive download erro:', err.message);
+        if (arq?.gdrive_file_id) {
+            try {
+                const meta = await gdrive.getFileMeta(arq.gdrive_file_id);
+                const stream = await gdrive.downloadFile(arq.gdrive_file_id);
+                res.setHeader('Content-Type', meta.mimeType || getMime(filename));
+                stream.on('error', (err) => { console.error('Stream download erro:', err.message); if (!res.headersSent) res.status(500).end(); });
+                stream.pipe(res);
+                return;
+            } catch (err) {
+                console.error('Drive download erro:', err.message);
+            }
         }
+
+        // Local fallback
+        const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, filename);
+        const resolved = path.resolve(filePath);
+        if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) return res.status(403).json({ error: 'Acesso negado' });
+        if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo nao encontrado' });
+
+        res.setHeader('Content-Type', getMime(filename));
+        res.sendFile(filePath);
+    } catch (err) {
+        console.error('Arquivo download erro:', err.message);
+        if (!res.headersSent) res.status(500).json({ error: 'Erro ao servir arquivo' });
     }
-
-    // Local fallback
-    const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, filename);
-    const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) return res.status(403).json({ error: 'Acesso negado' });
-    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo nao encontrado' });
-
-    res.setHeader('Content-Type', getMime(filename));
-    res.sendFile(filePath);
 });
 
 // ═══════════════════════════════════════════════════
@@ -417,27 +452,32 @@ router.put('/projeto-arquivo/:id/portal', requireAuth, (req, res) => {
 // DELETE /api/drive/arquivo/:projeto_id/:filename — excluir arquivo
 // ═══════════════════════════════════════════════════
 router.delete('/arquivo/:projeto_id/:filename', requireAuth, async (req, res) => {
-    const projeto_id = String(req.params.projeto_id).replace(/[^a-zA-Z0-9_-]/g, '');
-    const filename = path.basename(decodeURIComponent(req.params.filename));
+    try {
+        const projeto_id = String(req.params.projeto_id).replace(/[^a-zA-Z0-9_-]/g, '');
+        const filename = path.basename(decodeURIComponent(req.params.filename));
 
-    // Verificar no banco
-    const arq = db.prepare('SELECT id, gdrive_file_id FROM projeto_arquivos WHERE projeto_id = ? AND filename = ?').get(projeto_id, filename);
+        // Verificar no banco
+        const arq = db.prepare('SELECT id, gdrive_file_id FROM projeto_arquivos WHERE projeto_id = ? AND filename = ?').get(projeto_id, filename);
 
-    if (arq?.gdrive_file_id) {
-        try { await gdrive.deleteFile(arq.gdrive_file_id); } catch (err) { console.error('Drive delete erro:', err.message); }
+        if (arq?.gdrive_file_id) {
+            try { await gdrive.deleteFile(arq.gdrive_file_id); } catch (err) { console.error('Drive delete erro:', err.message); }
+        }
+        if (arq) {
+            db.prepare('DELETE FROM projeto_arquivos WHERE id = ?').run(arq.id);
+        }
+
+        // Deletar local se existir
+        const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, filename);
+        const resolved = path.resolve(filePath);
+        if (resolved.startsWith(path.resolve(UPLOADS_DIR)) && fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('Delete arquivo erro:', err.message);
+        res.status(500).json({ error: 'Erro ao excluir arquivo' });
     }
-    if (arq) {
-        db.prepare('DELETE FROM projeto_arquivos WHERE id = ?').run(arq.id);
-    }
-
-    // Deletar local se existir
-    const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, filename);
-    const resolved = path.resolve(filePath);
-    if (resolved.startsWith(path.resolve(UPLOADS_DIR)) && fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-    }
-
-    res.json({ ok: true });
 });
 
 export default router;

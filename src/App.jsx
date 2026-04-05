@@ -122,8 +122,13 @@ export default function App() {
         }
         return localStorage.getItem('erp_page') || 'dash';
     });
-    const [sb, setSb] = useState(true);
+    const [sb, setSb] = useState(() => localStorage.getItem('erp_sidebar') !== 'collapsed');
     const [sidebarHover, setSidebarHover] = useState(false);
+
+    // Persist sidebar state
+    useEffect(() => {
+        localStorage.setItem('erp_sidebar', sb ? 'expanded' : 'collapsed');
+    }, [sb]);
     const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
     const [notif, setNotif] = useState(null);
     const [notifExiting, setNotifExiting] = useState(false);
@@ -509,7 +514,7 @@ export default function App() {
         switch (pg) {
             case "dash": return <Dash nav={nav} notify={notify} user={user} />;
             case "cli": return <Cli clis={clis} reload={loadClis} notify={notify} nav={nav} />;
-            case "cat": return <Cat />;
+            case "cat": return <Cat notify={notify} />;
             case "orcs": return <Orcs orcs={orcs} nav={nav} reload={loadOrcs} notify={notify} />;
             case "novo": return <Novo clis={clis} taxas={taxas} editOrc={editOrc} nav={nav} reload={reload} notify={notify} />;
             case "kb": return <Kb orcs={orcs} reload={loadOrcs} notify={notify} nav={nav} />;

@@ -61,7 +61,7 @@ function CategoriaFerragem({ value, onChange, categoriasExtras }) {
     );
 }
 
-export default function Cat() {
+export default function Cat({ notify }) {
     const [items, setItems] = useState([]);
     const [tab, setTab] = useState('material');
     const [search, setSearch] = useState('');
@@ -113,7 +113,7 @@ export default function Cat() {
     // ── Export: JSON da aba atual ─────────────────────────────────────────────
     const exportBiblioteca = () => {
         const data = items.filter(i => i.tipo === tab);
-        if (!data.length) return alert('Nenhum item para exportar nesta aba.');
+        if (!data.length) return notify('Nenhum item para exportar nesta aba.');
         const clean = data.map(({ id, ativo, criado_em, atualizado_em, ...rest }) => rest);
         const json = JSON.stringify(clean, null, 2);
         const blob = new Blob([json], { type: 'application/json' });
@@ -133,9 +133,9 @@ export default function Cat() {
         try {
             const text = await file.text();
             const arr = JSON.parse(text);
-            if (!Array.isArray(arr) || !arr.length) return alert('Arquivo vazio ou formato inválido. Esperado: array JSON.');
+            if (!Array.isArray(arr) || !arr.length) return notify('Arquivo vazio ou formato inválido. Esperado: array JSON.');
             const invalidos = arr.filter(i => !i.nome);
-            if (invalidos.length) return alert(`${invalidos.length} item(ns) sem nome. Todos os itens precisam ter o campo "nome".`);
+            if (invalidos.length) return notify(`${invalidos.length} item(ns) sem nome. Todos os itens precisam ter o campo "nome".`);
             const tiposNoArquivo = [...new Set(arr.map(i => i.tipo))].join(', ');
             if (!confirm(`Importar ${arr.length} item(ns) (${tiposNoArquivo})?\nItens existentes não serão alterados.`)) return;
             let ok = 0, erros = 0;
@@ -160,8 +160,8 @@ export default function Cat() {
                 } catch { erros++; }
             }
             load();
-            alert(`Importação concluída: ${ok} de ${arr.length} item(ns) importados.${erros ? ` ${erros} erro(s).` : ''}`);
-        } catch { alert('Erro ao ler arquivo. Verifique se é um JSON válido.'); }
+            notify(`Importação concluída: ${ok} de ${arr.length} item(ns) importados.${erros ? ` ${erros} erro(s).` : ''}`);
+        } catch { notify('Erro ao ler arquivo. Verifique se é um JSON válido.'); }
     };
 
     const tabs = [

@@ -1923,6 +1923,16 @@ const migrations = [
     motorista TEXT,
     created_at TEXT
   )`,
+
+  // ═══ Aliases de material → chapa cadastrada ═══
+  `CREATE TABLE IF NOT EXISTS cnc_chapa_aliases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    material_code_importado TEXT NOT NULL,
+    chapa_id INTEGER NOT NULL REFERENCES cnc_chapas(id) ON DELETE CASCADE,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, material_code_importado)
+  )`,
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
@@ -2051,6 +2061,65 @@ const indexes = [
 for (const sql of indexes) {
   try { db.exec(sql); } catch (_) { }
 }
+
+// ═══ Índices adicionais de performance ═══
+try {
+  db.exec(`
+    -- Clientes
+    CREATE INDEX IF NOT EXISTS idx_clientes_user ON clientes(user_id);
+    CREATE INDEX IF NOT EXISTS idx_clientes_email ON clientes(email);
+
+    -- Orcamentos
+    CREATE INDEX IF NOT EXISTS idx_orcamentos_cliente ON orcamentos(cliente_id);
+    CREATE INDEX IF NOT EXISTS idx_orcamentos_user ON orcamentos(user_id);
+    CREATE INDEX IF NOT EXISTS idx_orcamentos_status ON orcamentos(status);
+    CREATE INDEX IF NOT EXISTS idx_orcamentos_criado ON orcamentos(criado_em);
+
+    -- Projetos
+    CREATE INDEX IF NOT EXISTS idx_projetos_cliente ON projetos(cliente_id);
+    CREATE INDEX IF NOT EXISTS idx_projetos_user ON projetos(user_id);
+    CREATE INDEX IF NOT EXISTS idx_projetos_status ON projetos(status);
+
+    -- Etapas
+    CREATE INDEX IF NOT EXISTS idx_etapas_projeto ON etapas_projeto(projeto_id, ordem);
+    CREATE INDEX IF NOT EXISTS idx_etapas_responsavel ON etapas_projeto(responsavel_id);
+
+    -- Financeiro
+    CREATE INDEX IF NOT EXISTS idx_contas_pagar_user ON contas_pagar(user_id);
+    CREATE INDEX IF NOT EXISTS idx_contas_pagar_status ON contas_pagar(status);
+    CREATE INDEX IF NOT EXISTS idx_contas_pagar_vencimento ON contas_pagar(data_vencimento);
+    CREATE INDEX IF NOT EXISTS idx_contas_pagar_projeto ON contas_pagar(projeto_id);
+    CREATE INDEX IF NOT EXISTS idx_contas_receber_projeto ON contas_receber(projeto_id);
+    CREATE INDEX IF NOT EXISTS idx_contas_receber_status ON contas_receber(status);
+    CREATE INDEX IF NOT EXISTS idx_contas_receber_vencimento ON contas_receber(data_vencimento);
+
+    -- Estoque
+    CREATE INDEX IF NOT EXISTS idx_estoque_mov_material ON estoque_movimentacoes(material_id);
+    CREATE INDEX IF NOT EXISTS idx_estoque_mov_data ON estoque_movimentacoes(data);
+
+    -- Chat
+    CREATE INDEX IF NOT EXISTS idx_chat_conversas_cliente ON chat_conversas(cliente_id);
+    CREATE INDEX IF NOT EXISTS idx_chat_msgs_conversa ON chat_mensagens(conversa_id);
+
+    -- Atividades
+    CREATE INDEX IF NOT EXISTS idx_atividades_ref ON atividades(referencia_tipo, referencia_id);
+    CREATE INDEX IF NOT EXISTS idx_atividades_user ON atividades(user_id);
+    CREATE INDEX IF NOT EXISTS idx_atividades_criado ON atividades(criado_em);
+
+    -- Notificacoes
+    CREATE INDEX IF NOT EXISTS idx_notificacoes_user ON notificacoes(user_id, lida);
+
+    -- CNC
+    CREATE INDEX IF NOT EXISTS idx_cnc_pecas_lote ON cnc_pecas(lote_id);
+    CREATE INDEX IF NOT EXISTS idx_cnc_lotes_projeto ON cnc_lotes(projeto_id);
+
+    -- Portal
+    CREATE INDEX IF NOT EXISTS idx_portal_tokens_orc ON portal_tokens(orc_id);
+
+    -- Montador
+    CREATE INDEX IF NOT EXISTS idx_montador_tokens_projeto ON montador_tokens(projeto_id);
+  `);
+} catch (_) { /* tabelas podem não existir ainda */ }
 
 // Backfill: gerar números para orçamentos que ainda não têm
 {

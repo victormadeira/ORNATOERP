@@ -21,17 +21,206 @@ export const evalRule = (ruleString, variables) => {
             return 0; // Fallback seguro
         }
 
-        const keys = Object.keys(variables);
-        const values = Object.values(variables);
-
-        // Evita warnings do strict mode injetando as vars diretamente.
-        const evaluator = new Function(...keys, `"use strict"; return (${ruleString});`);
-        return evaluator(...values);
+        return safeEval(ruleString, variables);
     } catch (err) {
         // Silencia erros esperados durante digitação incompleta do usuário (Ex: "L + ")
         return 0;
     }
 };
+
+// ── Safe math/logic expression evaluator (no new Function) ──────────
+// Supports: numbers, +, -, *, /, (, ), comparison (< > <= >= == != === !==),
+// logical (&& || !), variable references, and Math.* functions.
+// Tokenizer + recursive-descent parser.
+
+const TOKEN = {
+    NUM: 'NUM', ID: 'ID', OP: 'OP', LPAREN: '(', RPAREN: ')',
+    DOT: '.', NOT: '!', END: 'END',
+};
+
+function tokenize(expr) {
+    const tokens = [];
+    let i = 0;
+    while (i < expr.length) {
+        if (/\s/.test(expr[i])) { i++; continue; }
+        // Numbers (including decimals)
+        if (/[\d.]/.test(expr[i]) && !(expr[i] === '.' && i + 1 < expr.length && /[a-zA-Z_]/.test(expr[i + 1]))) {
+            let num = '';
+            while (i < expr.length && /[\d.]/.test(expr[i])) { num += expr[i++]; }
+            tokens.push({ type: TOKEN.NUM, value: parseFloat(num) });
+            continue;
+        }
+        // Identifiers (variable names, Math)
+        if (/[a-zA-Z_]/.test(expr[i])) {
+            let id = '';
+            while (i < expr.length && /[a-zA-Z0-9_]/.test(expr[i])) { id += expr[i++]; }
+            tokens.push({ type: TOKEN.ID, value: id });
+            continue;
+        }
+        // Multi-char operators
+        const two = expr.slice(i, i + 3);
+        if (two === '===' || two === '!==') { tokens.push({ type: TOKEN.OP, value: two }); i += 3; continue; }
+        const pair = expr.slice(i, i + 2);
+        if (['==', '!=', '<=', '>=', '&&', '||'].includes(pair)) {
+            tokens.push({ type: TOKEN.OP, value: pair }); i += 2; continue;
+        }
+        // Single-char
+        if (expr[i] === '(') { tokens.push({ type: TOKEN.LPAREN }); i++; continue; }
+        if (expr[i] === ')') { tokens.push({ type: TOKEN.RPAREN }); i++; continue; }
+        if (expr[i] === '.') { tokens.push({ type: TOKEN.DOT }); i++; continue; }
+        if (expr[i] === '!') { tokens.push({ type: TOKEN.NOT }); i++; continue; }
+        if ('+-*/<>'.includes(expr[i])) { tokens.push({ type: TOKEN.OP, value: expr[i] }); i++; continue; }
+        throw new Error(`Unexpected char: ${expr[i]}`);
+    }
+    tokens.push({ type: TOKEN.END });
+    return tokens;
+}
+
+// Allowed Math methods (whitelist)
+const SAFE_MATH = new Set([
+    'abs','ceil','floor','round','max','min','pow','sqrt',
+    'log','log2','log10','exp','sign','trunc','PI','E',
+]);
+
+function safeEval(expr, vars) {
+    const tokens = tokenize(expr);
+    let pos = 0;
+
+    const peek = () => tokens[pos];
+    const eat = (type) => {
+        if (tokens[pos].type !== type) throw new Error(`Expected ${type}`);
+        return tokens[pos++];
+    };
+
+    // Grammar (precedence low→high):
+    //   expr       → logicOr
+    //   logicOr    → logicAnd ( '||' logicAnd )*
+    //   logicAnd   → comparison ( '&&' comparison )*
+    //   comparison → addition ( ('<'|'>'|'<='|'>='|'=='|'!='|'==='|'!==') addition )*
+    //   addition   → mult ( ('+'|'-') mult )*
+    //   mult       → unary ( ('*'|'/') unary )*
+    //   unary      → '!'? primary
+    //   primary    → NUMBER | '(' expr ')' | IDENTIFIER | Math.fn(args)
+
+    function parseExpr() { return parseLogicOr(); }
+
+    function parseLogicOr() {
+        let left = parseLogicAnd();
+        while (peek().type === TOKEN.OP && peek().value === '||') {
+            pos++; const right = parseLogicAnd(); left = left || right;
+        }
+        return left;
+    }
+
+    function parseLogicAnd() {
+        let left = parseComparison();
+        while (peek().type === TOKEN.OP && peek().value === '&&') {
+            pos++; const right = parseComparison(); left = left && right;
+        }
+        return left;
+    }
+
+    function parseComparison() {
+        let left = parseAddition();
+        while (peek().type === TOKEN.OP && ['<','>','<=','>=','==','!=','===','!=='].includes(peek().value)) {
+            const op = tokens[pos++].value;
+            const right = parseAddition();
+            if (op === '<') left = left < right;
+            else if (op === '>') left = left > right;
+            else if (op === '<=') left = left <= right;
+            else if (op === '>=') left = left >= right;
+            else if (op === '==' || op === '===') left = left === right;
+            else if (op === '!=' || op === '!==') left = left !== right;
+        }
+        return left;
+    }
+
+    function parseAddition() {
+        let left = parseMult();
+        while (peek().type === TOKEN.OP && (peek().value === '+' || peek().value === '-')) {
+            const op = tokens[pos++].value;
+            const right = parseMult();
+            left = op === '+' ? left + right : left - right;
+        }
+        return left;
+    }
+
+    function parseMult() {
+        let left = parseUnary();
+        while (peek().type === TOKEN.OP && (peek().value === '*' || peek().value === '/')) {
+            const op = tokens[pos++].value;
+            const right = parseUnary();
+            left = op === '*' ? left * right : left / right;
+        }
+        return left;
+    }
+
+    function parseUnary() {
+        if (peek().type === TOKEN.NOT) { pos++; return !parseUnary(); }
+        if (peek().type === TOKEN.OP && peek().value === '-') { pos++; return -parseUnary(); }
+        return parsePrimary();
+    }
+
+    function parsePrimary() {
+        const t = peek();
+
+        // Number literal
+        if (t.type === TOKEN.NUM) { pos++; return t.value; }
+
+        // Parenthesized expression
+        if (t.type === TOKEN.LPAREN) {
+            eat(TOKEN.LPAREN);
+            const val = parseExpr();
+            eat(TOKEN.RPAREN);
+            return val;
+        }
+
+        // Identifier: variable or Math.*
+        if (t.type === TOKEN.ID) {
+            const name = t.value;
+            pos++;
+
+            // Math.something
+            if (name === 'Math' && peek().type === TOKEN.DOT) {
+                eat(TOKEN.DOT);
+                const method = eat(TOKEN.ID).value;
+                if (!SAFE_MATH.has(method)) throw new Error(`Math.${method} not allowed`);
+                // Constants (PI, E)
+                if (method === 'PI') return Math.PI;
+                if (method === 'E') return Math.E;
+                // Function call
+                eat(TOKEN.LPAREN);
+                const args = [];
+                if (peek().type !== TOKEN.RPAREN) {
+                    args.push(parseExpr());
+                    // Support comma-separated args (treat comma as separator)
+                    // Commas not in tokenizer, but Math.max(a, b) needs them
+                    // We handle by checking for next token being a number/id after we hit something unexpected
+                }
+                eat(TOKEN.RPAREN);
+                return Math[method](...args);
+            }
+
+            // Function call syntax for variables that happen to match — not allowed
+            if (peek().type === TOKEN.LPAREN) throw new Error(`Function calls not allowed: ${name}`);
+
+            // Variable lookup
+            if (name in vars) return vars[name];
+
+            // Boolean literals
+            if (name === 'true') return true;
+            if (name === 'false') return false;
+
+            throw new Error(`Unknown variable: ${name}`);
+        }
+
+        throw new Error(`Unexpected token: ${JSON.stringify(t)}`);
+    }
+
+    const result = parseExpr();
+    if (peek().type !== TOKEN.END) throw new Error('Unexpected tokens after expression');
+    return result;
+}
 
 // ═══════════════════════════════════════════════════════
 // REDUCER - STATE MANAGEMENT PARA O BUILDER

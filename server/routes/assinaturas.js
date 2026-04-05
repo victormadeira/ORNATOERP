@@ -119,124 +119,134 @@ router.post('/:id/cancelar', requireAuth, (req, res) => {
 
 // GET /api/assinaturas/public/:signerToken — Carregar página de assinatura
 router.get('/public/:signerToken', async (req, res) => {
-    const signer = db.prepare('SELECT * FROM assinatura_signatarios WHERE token = ?').get(req.params.signerToken);
-    if (!signer) return res.status(404).json({ error: 'Link de assinatura inválido' });
+    try {
+        const signer = db.prepare('SELECT * FROM assinatura_signatarios WHERE token = ?').get(req.params.signerToken);
+        if (!signer) return res.status(404).json({ error: 'Link de assinatura inválido' });
 
-    if (signer.status === 'assinado') return res.status(400).json({ error: 'Documento já assinado por este signatário', already_signed: true });
+        if (signer.status === 'assinado') return res.status(400).json({ error: 'Documento já assinado por este signatário', already_signed: true });
 
-    const doc = db.prepare('SELECT * FROM documento_assinaturas WHERE id = ?').get(signer.documento_id);
-    if (!doc) return res.status(404).json({ error: 'Documento não encontrado' });
-    if (doc.status === 'cancelado') return res.status(400).json({ error: 'Documento cancelado' });
-    if (doc.expira_em && new Date(doc.expira_em) < new Date()) return res.status(400).json({ error: 'Documento expirado' });
+        const doc = db.prepare('SELECT * FROM documento_assinaturas WHERE id = ?').get(signer.documento_id);
+        if (!doc) return res.status(404).json({ error: 'Documento não encontrado' });
+        if (doc.status === 'cancelado') return res.status(400).json({ error: 'Documento cancelado' });
+        if (doc.expira_em && new Date(doc.expira_em) < new Date()) return res.status(400).json({ error: 'Documento expirado' });
 
-    const orc = db.prepare('SELECT numero, cliente_nome FROM orcamentos WHERE id = ?').get(doc.orc_id);
-    const emp = db.prepare('SELECT nome, cnpj, telefone, logo_sistema, proposta_cor_primaria, proposta_cor_accent FROM empresa_config WHERE id = 1').get();
+        const orc = db.prepare('SELECT numero, cliente_nome FROM orcamentos WHERE id = ?').get(doc.orc_id);
+        const emp = db.prepare('SELECT nome, cnpj, telefone, logo_sistema, proposta_cor_primaria, proposta_cor_accent FROM empresa_config WHERE id = 1').get();
 
-    // Todos os signatários (para mostrar status)
-    const todosSig = db.prepare(`
-        SELECT papel, nome, status, assinado_em FROM assinatura_signatarios WHERE documento_id = ?
-    `).all(doc.id);
+        // Todos os signatários (para mostrar status)
+        const todosSig = db.prepare(`
+            SELECT papel, nome, status, assinado_em FROM assinatura_signatarios WHERE documento_id = ?
+        `).all(doc.id);
 
-    res.json({
-        documento: {
-            tipo: doc.tipo_documento,
-            hash: doc.hash_documento,
-            codigo_verificacao: doc.codigo_verificacao,
-            html: doc.html_documento,
-            status: doc.status,
-        },
-        signatario: {
-            nome: signer.nome,
-            papel: signer.papel,
-            cpf_masked: mascaraCPF(signer.cpf),
-            cpf_ultimos4: (signer.cpf || '').slice(-4),
-        },
-        proposta: { numero: orc?.numero || '', cliente: orc?.cliente_nome || '' },
-        empresa: {
-            nome: emp?.nome || '',
-            logo: emp?.logo_sistema || '',
-            cor_primaria: emp?.proposta_cor_primaria || '#1B2A4A',
-            cor_accent: emp?.proposta_cor_accent || '#C9A96E',
-        },
-        signatarios_status: todosSig,
-    });
+        res.json({
+            documento: {
+                tipo: doc.tipo_documento,
+                hash: doc.hash_documento,
+                codigo_verificacao: doc.codigo_verificacao,
+                html: doc.html_documento,
+                status: doc.status,
+            },
+            signatario: {
+                nome: signer.nome,
+                papel: signer.papel,
+                cpf_masked: mascaraCPF(signer.cpf),
+                cpf_ultimos4: (signer.cpf || '').slice(-4),
+            },
+            proposta: { numero: orc?.numero || '', cliente: orc?.cliente_nome || '' },
+            empresa: {
+                nome: emp?.nome || '',
+                logo: emp?.logo_sistema || '',
+                cor_primaria: emp?.proposta_cor_primaria || '#1B2A4A',
+                cor_accent: emp?.proposta_cor_accent || '#C9A96E',
+            },
+            signatarios_status: todosSig,
+        });
+    } catch (err) {
+        console.error('Assinatura public GET erro:', err.message);
+        res.status(500).json({ error: 'Erro ao carregar dados da assinatura' });
+    }
 });
 
 // POST /api/assinaturas/public/:signerToken/assinar — Submeter assinatura
 router.post('/public/:signerToken/assinar', async (req, res) => {
-    const { cpf, assinatura_img } = req.body;
-    if (!cpf || !assinatura_img) return res.status(400).json({ error: 'CPF e assinatura são obrigatórios' });
-
-    const signer = db.prepare('SELECT * FROM assinatura_signatarios WHERE token = ?').get(req.params.signerToken);
-    if (!signer) return res.status(404).json({ error: 'Link de assinatura inválido' });
-    if (signer.status === 'assinado') return res.status(400).json({ error: 'Já assinado' });
-
-    const doc = db.prepare('SELECT * FROM documento_assinaturas WHERE id = ?').get(signer.documento_id);
-    if (!doc || doc.status === 'cancelado') return res.status(400).json({ error: 'Documento indisponível' });
-    if (doc.expira_em && new Date(doc.expira_em) < new Date()) return res.status(400).json({ error: 'Documento expirado' });
-
-    // Validar CPF
-    const cpfDigits = (cpf || '').replace(/\D/g, '');
-    if (!validarCPF(cpfDigits)) return res.status(400).json({ error: 'CPF inválido' });
-    if (cpfDigits !== signer.cpf.replace(/\D/g, '')) return res.status(400).json({ error: 'CPF não confere com o cadastrado' });
-
-    // Validar assinatura (base64 PNG)
-    if (!assinatura_img.startsWith('data:image/png;base64,')) return res.status(400).json({ error: 'Formato de assinatura inválido' });
-    const imgSize = Buffer.byteLength(assinatura_img.split(',')[1] || '', 'base64');
-    if (imgSize > 500 * 1024) return res.status(400).json({ error: 'Imagem da assinatura muito grande (max 500KB)' });
-
-    // Verificar integridade do documento
-    const hashAtual = hashDocumento(doc.html_documento);
-    if (hashAtual !== doc.hash_documento) return res.status(500).json({ error: 'Integridade do documento comprometida' });
-
-    // Coletar dados de auditoria
-    const ip = getClientIP(req);
-    const ua = req.headers['user-agent'] || '';
-    const { dispositivo, navegador, os_name } = parseUA(ua);
-    const geo = await geolocateIP(ip);
-    const agora = new Date().toISOString();
-    const hashSig = hashAssinatura(doc.hash_documento, cpfDigits, agora, ip);
-
-    // Salvar assinatura (strip data URL prefix)
-    const imgData = assinatura_img.split(',')[1] || '';
-    db.prepare(`
-        UPDATE assinatura_signatarios SET
-            status='assinado', assinado_em=?, ip_assinatura=?, user_agent=?,
-            dispositivo=?, navegador=?, os_name=?,
-            cidade=?, estado=?, pais=?, lat=?, lon=?,
-            assinatura_img=?, hash_assinatura=?
-        WHERE id=?
-    `).run(agora, ip, ua, dispositivo, navegador, os_name,
-        geo.cidade, geo.estado, geo.pais, geo.lat, geo.lon,
-        imgData, hashSig, signer.id);
-
-    // Verificar se todos assinaram
-    const pendentes = db.prepare(`
-        SELECT COUNT(*) as c FROM assinatura_signatarios WHERE documento_id = ? AND status = 'pendente'
-    `).get(doc.id);
-
-    const novoStatus = pendentes.c === 0 ? 'concluido' : 'parcial';
-    db.prepare(`UPDATE documento_assinaturas SET status=?${novoStatus === 'concluido' ? ', concluido_em=CURRENT_TIMESTAMP' : ''} WHERE id=?`).run(novoStatus, doc.id);
-
-    // Notificação
     try {
-        const orc = db.prepare('SELECT numero, cliente_nome FROM orcamentos WHERE id = ?').get(doc.orc_id);
-        const totalSig = db.prepare('SELECT COUNT(*) as c FROM assinatura_signatarios WHERE documento_id = ?').get(doc.id);
-        const assinados = totalSig.c - pendentes.c;
-        createNotification(
-            'assinatura',
-            `${signer.nome} assinou o ${doc.tipo_documento}`,
-            `${orc?.numero || ''} — ${assinados}/${totalSig.c} assinatura(s)${novoStatus === 'concluido' ? ' ✅ Completo!' : ''}`,
-            doc.orc_id, 'orcamento', orc?.cliente_nome || '', null
-        );
-    } catch (_) {}
+        const { cpf, assinatura_img } = req.body;
+        if (!cpf || !assinatura_img) return res.status(400).json({ error: 'CPF e assinatura são obrigatórios' });
 
-    res.json({
-        success: true,
-        status: novoStatus,
-        codigo_verificacao: doc.codigo_verificacao,
-        hash_assinatura: hashSig,
-    });
+        const signer = db.prepare('SELECT * FROM assinatura_signatarios WHERE token = ?').get(req.params.signerToken);
+        if (!signer) return res.status(404).json({ error: 'Link de assinatura inválido' });
+        if (signer.status === 'assinado') return res.status(400).json({ error: 'Já assinado' });
+
+        const doc = db.prepare('SELECT * FROM documento_assinaturas WHERE id = ?').get(signer.documento_id);
+        if (!doc || doc.status === 'cancelado') return res.status(400).json({ error: 'Documento indisponível' });
+        if (doc.expira_em && new Date(doc.expira_em) < new Date()) return res.status(400).json({ error: 'Documento expirado' });
+
+        // Validar CPF
+        const cpfDigits = (cpf || '').replace(/\D/g, '');
+        if (!validarCPF(cpfDigits)) return res.status(400).json({ error: 'CPF inválido' });
+        if (cpfDigits !== signer.cpf.replace(/\D/g, '')) return res.status(400).json({ error: 'CPF não confere com o cadastrado' });
+
+        // Validar assinatura (base64 PNG)
+        if (!assinatura_img.startsWith('data:image/png;base64,')) return res.status(400).json({ error: 'Formato de assinatura inválido' });
+        const imgSize = Buffer.byteLength(assinatura_img.split(',')[1] || '', 'base64');
+        if (imgSize > 500 * 1024) return res.status(400).json({ error: 'Imagem da assinatura muito grande (max 500KB)' });
+
+        // Verificar integridade do documento
+        const hashAtual = hashDocumento(doc.html_documento);
+        if (hashAtual !== doc.hash_documento) return res.status(500).json({ error: 'Integridade do documento comprometida' });
+
+        // Coletar dados de auditoria
+        const ip = getClientIP(req);
+        const ua = req.headers['user-agent'] || '';
+        const { dispositivo, navegador, os_name } = parseUA(ua);
+        const geo = await geolocateIP(ip);
+        const agora = new Date().toISOString();
+        const hashSig = hashAssinatura(doc.hash_documento, cpfDigits, agora, ip);
+
+        // Salvar assinatura (strip data URL prefix)
+        const imgData = assinatura_img.split(',')[1] || '';
+        db.prepare(`
+            UPDATE assinatura_signatarios SET
+                status='assinado', assinado_em=?, ip_assinatura=?, user_agent=?,
+                dispositivo=?, navegador=?, os_name=?,
+                cidade=?, estado=?, pais=?, lat=?, lon=?,
+                assinatura_img=?, hash_assinatura=?
+            WHERE id=?
+        `).run(agora, ip, ua, dispositivo, navegador, os_name,
+            geo.cidade, geo.estado, geo.pais, geo.lat, geo.lon,
+            imgData, hashSig, signer.id);
+
+        // Verificar se todos assinaram
+        const pendentes = db.prepare(`
+            SELECT COUNT(*) as c FROM assinatura_signatarios WHERE documento_id = ? AND status = 'pendente'
+        `).get(doc.id);
+
+        const novoStatus = pendentes.c === 0 ? 'concluido' : 'parcial';
+        db.prepare(`UPDATE documento_assinaturas SET status=?${novoStatus === 'concluido' ? ', concluido_em=CURRENT_TIMESTAMP' : ''} WHERE id=?`).run(novoStatus, doc.id);
+
+        // Notificação
+        try {
+            const orc = db.prepare('SELECT numero, cliente_nome FROM orcamentos WHERE id = ?').get(doc.orc_id);
+            const totalSig = db.prepare('SELECT COUNT(*) as c FROM assinatura_signatarios WHERE documento_id = ?').get(doc.id);
+            const assinados = totalSig.c - pendentes.c;
+            createNotification(
+                'assinatura',
+                `${signer.nome} assinou o ${doc.tipo_documento}`,
+                `${orc?.numero || ''} — ${assinados}/${totalSig.c} assinatura(s)${novoStatus === 'concluido' ? ' ✅ Completo!' : ''}`,
+                doc.orc_id, 'orcamento', orc?.cliente_nome || '', null
+            );
+        } catch (_) {}
+
+        res.json({
+            success: true,
+            status: novoStatus,
+            codigo_verificacao: doc.codigo_verificacao,
+            hash_assinatura: hashSig,
+        });
+    } catch (err) {
+        console.error('Assinatura assinar erro:', err.message);
+        res.status(500).json({ error: 'Erro ao processar assinatura' });
+    }
 });
 
 // ═══════════════════════════════════════════════════════

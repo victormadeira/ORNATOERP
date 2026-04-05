@@ -144,74 +144,83 @@ router.get('/public/:token', (req, res) => {
 // POST /api/montador/public/:token/upload — upload de foto (sem auth)
 // ═══════════════════════════════════════════════════
 router.post('/public/:token/upload', async (req, res) => {
-    const tokenRow = db.prepare(`
-        SELECT mt.*, p.id as projeto_id
-        FROM montador_tokens mt
-        JOIN projetos p ON p.id = mt.projeto_id
-        WHERE mt.token = ? AND mt.ativo = 1
-    `).get(req.params.token);
-
-    if (!tokenRow) return res.status(403).json({ error: 'Link invalido ou desativado' });
-
-    const { filename, data, ambiente } = req.body;
-    if (!filename || !data) return res.status(400).json({ error: 'Filename e data obrigatorios' });
-
-    // Validar tipo de arquivo (apenas imagens)
-    const ALLOWED_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'];
-    const ext = path.extname(filename).toLowerCase();
-    if (!ALLOWED_EXTS.includes(ext)) return res.status(400).json({ error: `Tipo nao permitido (${ext}). Use: ${ALLOWED_EXTS.join(', ')}` });
-
-    const timestamp = Date.now();
-    const safeName = `${timestamp}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    const base64Data = data.includes(',') ? data.split(',')[1] : data;
-    const buffer = Buffer.from(base64Data, 'base64');
-
-    // Validar tamanho (max 10MB)
-    const MAX_SIZE = 10 * 1024 * 1024;
-    if (buffer.length > MAX_SIZE) return res.status(400).json({ error: `Arquivo muito grande (${(buffer.length / 1024 / 1024).toFixed(1)}MB). Max: 10MB` });
-
-    const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic', '.heif': 'image/heif' };
-    const mime = mimeMap[ext] || 'image/jpeg';
-
-    let gdriveFileId = '';
-
-    if (gdrive.isConfigured()) {
-        try {
-            const folderId = await gdrive.getProjectMontadorFolder(tokenRow.projeto_id);
-            const result = await gdrive.uploadFile(folderId, safeName, mime, buffer);
-            gdriveFileId = result.id;
-        } catch (err) {
-            console.error('Drive montador upload erro:', err.message);
-            // fallback para local
-        }
-    }
-
-    // Se nao foi para o Drive, salvar local
-    if (!gdriveFileId) {
-        const montadorDir = path.join(UPLOADS_DIR, `projeto_${tokenRow.projeto_id}`, 'montador');
-        if (!fs.existsSync(montadorDir)) fs.mkdirSync(montadorDir, { recursive: true });
-        fs.writeFileSync(path.join(montadorDir, safeName), buffer);
-    }
-
-    db.prepare(`
-        INSERT INTO montador_fotos (projeto_id, token_id, nome_montador, ambiente, filename, gdrive_file_id)
-        VALUES (?, ?, ?, ?, ?, ?)
-    `).run(tokenRow.projeto_id, tokenRow.id, tokenRow.nome_montador, ambiente || '', safeName, gdriveFileId);
-
-    // Notificar equipe sobre a foto enviada
-    const projNome = db.prepare('SELECT nome FROM projetos WHERE id = ?').get(tokenRow.projeto_id)?.nome || '';
-    const montadorNome = (tokenRow.nome_montador || '').trim() || 'Montador';
     try {
-        createNotification(
-            'montador_foto',
-            'Nova foto do montador',
-            `${montadorNome} enviou foto${ambiente ? ` (${ambiente})` : ''} — projeto "${projNome}"`,
-            tokenRow.projeto_id,
-            'projeto'
-        );
-    } catch (_) { /* não bloqueia */ }
+        const tokenRow = db.prepare(`
+            SELECT mt.*, p.id as projeto_id
+            FROM montador_tokens mt
+            JOIN projetos p ON p.id = mt.projeto_id
+            WHERE mt.token = ? AND mt.ativo = 1
+        `).get(req.params.token);
 
-    res.json({ ok: true, nome: safeName });
+        if (!tokenRow) return res.status(403).json({ error: 'Link invalido ou desativado' });
+
+        const { filename, data, ambiente } = req.body;
+        if (!filename || !data) return res.status(400).json({ error: 'Filename e data obrigatorios' });
+
+        // Validar tipo de arquivo (apenas imagens)
+        const ALLOWED_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'];
+        const ext = path.extname(filename).toLowerCase();
+        if (!ALLOWED_EXTS.includes(ext)) return res.status(400).json({ error: `Tipo nao permitido (${ext}). Use: ${ALLOWED_EXTS.join(', ')}` });
+
+        const timestamp = Date.now();
+        const safeName = `${timestamp}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const base64Data = data.includes(',') ? data.split(',')[1] : data;
+        const buffer = Buffer.from(base64Data, 'base64');
+
+        // Validar tamanho (max 10MB)
+        const MAX_SIZE = 10 * 1024 * 1024;
+        if (buffer.length > MAX_SIZE) return res.status(400).json({ error: `Arquivo muito grande (${(buffer.length / 1024 / 1024).toFixed(1)}MB). Max: 10MB` });
+
+        const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic', '.heif': 'image/heif' };
+        const mime = mimeMap[ext] || 'image/jpeg';
+
+        let gdriveFileId = '';
+
+        if (gdrive.isConfigured()) {
+            try {
+                const folderId = await gdrive.getProjectMontadorFolder(tokenRow.projeto_id);
+                const result = await gdrive.uploadFile(folderId, safeName, mime, buffer);
+                gdriveFileId = result.id;
+            } catch (err) {
+                console.error('Drive montador upload erro:', err.message);
+                // fallback para local
+            }
+        }
+
+        // Se nao foi para o Drive, salvar local
+        if (!gdriveFileId) {
+            const montadorDir = path.join(UPLOADS_DIR, `projeto_${tokenRow.projeto_id}`, 'montador');
+            if (!fs.existsSync(montadorDir)) fs.mkdirSync(montadorDir, { recursive: true });
+            fs.writeFileSync(path.join(montadorDir, safeName), buffer);
+        }
+
+        // Re-validate token before DB write to prevent race condition
+        const tokenStillValid = db.prepare('SELECT id FROM montador_tokens WHERE id = ? AND ativo = 1').get(tokenRow.id);
+        if (!tokenStillValid) return res.status(403).json({ error: 'Link foi desativado durante o upload' });
+
+        db.prepare(`
+            INSERT INTO montador_fotos (projeto_id, token_id, nome_montador, ambiente, filename, gdrive_file_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).run(tokenRow.projeto_id, tokenRow.id, tokenRow.nome_montador, ambiente || '', safeName, gdriveFileId);
+
+        // Notificar equipe sobre a foto enviada
+        const projNome = db.prepare('SELECT nome FROM projetos WHERE id = ?').get(tokenRow.projeto_id)?.nome || '';
+        const montadorNome = (tokenRow.nome_montador || '').trim() || 'Montador';
+        try {
+            createNotification(
+                'montador_foto',
+                'Nova foto do montador',
+                `${montadorNome} enviou foto${ambiente ? ` (${ambiente})` : ''} — projeto "${projNome}"`,
+                tokenRow.projeto_id,
+                'projeto'
+            );
+        } catch (_) { /* não bloqueia */ }
+
+        res.json({ ok: true, nome: safeName });
+    } catch (err) {
+        console.error('Montador upload erro:', err.message);
+        res.status(500).json({ error: 'Erro ao fazer upload da foto' });
+    }
 });
 
 // ═══════════════════════════════════════════════════
@@ -280,74 +289,84 @@ router.put('/fotos/portal-lote/:projeto_id', requireAuth, (req, res) => {
 // POST /api/montador/fotos/:projeto_id/upload — upload de foto pelo admin (auth)
 // ═══════════════════════════════════════════════════
 router.post('/fotos/:projeto_id/upload', requireAuth, async (req, res) => {
-    const projeto_id = parseInt(req.params.projeto_id);
-    const { filename, data, ambiente } = req.body;
-    if (!filename || !data) return res.status(400).json({ error: 'Filename e data obrigatorios' });
+    try {
+        const projeto_id = parseInt(req.params.projeto_id);
+        const { filename, data, ambiente } = req.body;
+        if (!filename || !data) return res.status(400).json({ error: 'Filename e data obrigatorios' });
 
-    // Validar tipo de arquivo (apenas imagens)
-    const ALLOWED_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'];
-    const ext = path.extname(filename).toLowerCase();
-    if (!ALLOWED_EXTS.includes(ext)) return res.status(400).json({ error: `Tipo nao permitido (${ext}). Use: ${ALLOWED_EXTS.join(', ')}` });
+        // Validar tipo de arquivo (apenas imagens)
+        const ALLOWED_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'];
+        const ext = path.extname(filename).toLowerCase();
+        if (!ALLOWED_EXTS.includes(ext)) return res.status(400).json({ error: `Tipo nao permitido (${ext}). Use: ${ALLOWED_EXTS.join(', ')}` });
 
-    const timestamp = Date.now();
-    const safeName = `${timestamp}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    const base64Data = data.includes(',') ? data.split(',')[1] : data;
-    const buffer = Buffer.from(base64Data, 'base64');
+        const timestamp = Date.now();
+        const safeName = `${timestamp}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const base64Data = data.includes(',') ? data.split(',')[1] : data;
+        const buffer = Buffer.from(base64Data, 'base64');
 
-    // Validar tamanho (max 10MB)
-    const MAX_SIZE = 10 * 1024 * 1024;
-    if (buffer.length > MAX_SIZE) return res.status(400).json({ error: `Arquivo muito grande (${(buffer.length / 1024 / 1024).toFixed(1)}MB). Max: 10MB` });
+        // Validar tamanho (max 10MB)
+        const MAX_SIZE = 10 * 1024 * 1024;
+        if (buffer.length > MAX_SIZE) return res.status(400).json({ error: `Arquivo muito grande (${(buffer.length / 1024 / 1024).toFixed(1)}MB). Max: 10MB` });
 
-    const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic', '.heif': 'image/heif' };
-    const mime = mimeMap[ext] || 'image/jpeg';
+        const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic', '.heif': 'image/heif' };
+        const mime = mimeMap[ext] || 'image/jpeg';
 
-    let gdriveFileId = '';
+        let gdriveFileId = '';
 
-    if (gdrive.isConfigured()) {
-        try {
-            const folderId = await gdrive.getProjectMontadorFolder(projeto_id);
-            const result = await gdrive.uploadFile(folderId, safeName, mime, buffer);
-            gdriveFileId = result.id;
-        } catch (err) {
-            console.error('Drive admin upload erro:', err.message);
+        if (gdrive.isConfigured()) {
+            try {
+                const folderId = await gdrive.getProjectMontadorFolder(projeto_id);
+                const result = await gdrive.uploadFile(folderId, safeName, mime, buffer);
+                gdriveFileId = result.id;
+            } catch (err) {
+                console.error('Drive admin upload erro:', err.message);
+            }
         }
+
+        if (!gdriveFileId) {
+            const montadorDir = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, 'montador');
+            if (!fs.existsSync(montadorDir)) fs.mkdirSync(montadorDir, { recursive: true });
+            fs.writeFileSync(path.join(montadorDir, safeName), buffer);
+        }
+
+        db.prepare(`
+            INSERT INTO montador_fotos (projeto_id, token_id, nome_montador, ambiente, filename, gdrive_file_id)
+            VALUES (?, NULL, ?, ?, ?, ?)
+        `).run(projeto_id, req.user.nome || 'Equipe', ambiente || '', safeName, gdriveFileId);
+
+        res.json({ ok: true, nome: safeName });
+    } catch (err) {
+        console.error('Admin upload foto erro:', err.message);
+        res.status(500).json({ error: 'Erro ao fazer upload da foto' });
     }
-
-    if (!gdriveFileId) {
-        const montadorDir = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, 'montador');
-        if (!fs.existsSync(montadorDir)) fs.mkdirSync(montadorDir, { recursive: true });
-        fs.writeFileSync(path.join(montadorDir, safeName), buffer);
-    }
-
-    db.prepare(`
-        INSERT INTO montador_fotos (projeto_id, token_id, nome_montador, ambiente, filename, gdrive_file_id)
-        VALUES (?, NULL, ?, ?, ?, ?)
-    `).run(projeto_id, req.user.nome || 'Equipe', ambiente || '', safeName, gdriveFileId);
-
-    res.json({ ok: true, nome: safeName });
 });
 
 // ═══════════════════════════════════════════════════
 // DELETE /api/montador/fotos/:id — excluir foto (auth)
 // ═══════════════════════════════════════════════════
 router.delete('/fotos/:id', requireAuth, async (req, res) => {
-    const id = parseInt(req.params.id);
-    const foto = db.prepare('SELECT * FROM montador_fotos WHERE id = ?').get(id);
-    if (!foto) return res.status(404).json({ error: 'Foto nao encontrada' });
+    try {
+        const id = parseInt(req.params.id);
+        const foto = db.prepare('SELECT * FROM montador_fotos WHERE id = ?').get(id);
+        if (!foto) return res.status(404).json({ error: 'Foto nao encontrada' });
 
-    // Excluir do Drive se aplicavel
-    if (foto.gdrive_file_id) {
-        try { await gdrive.deleteFile(foto.gdrive_file_id); } catch (err) { console.error('Drive delete foto erro:', err.message); }
+        // Excluir do Drive se aplicavel
+        if (foto.gdrive_file_id) {
+            try { await gdrive.deleteFile(foto.gdrive_file_id); } catch (err) { console.error('Drive delete foto erro:', err.message); }
+        }
+
+        // Excluir arquivo local se existir
+        const filePath = path.join(UPLOADS_DIR, `projeto_${foto.projeto_id}`, 'montador', foto.filename);
+        if (fs.existsSync(filePath)) {
+            try { fs.unlinkSync(filePath); } catch { }
+        }
+
+        db.prepare('DELETE FROM montador_fotos WHERE id = ?').run(id);
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('Delete foto erro:', err.message);
+        res.status(500).json({ error: 'Erro ao excluir foto' });
     }
-
-    // Excluir arquivo local se existir
-    const filePath = path.join(UPLOADS_DIR, `projeto_${foto.projeto_id}`, 'montador', foto.filename);
-    if (fs.existsSync(filePath)) {
-        try { fs.unlinkSync(filePath); } catch { }
-    }
-
-    db.prepare('DELETE FROM montador_fotos WHERE id = ?').run(id);
-    res.json({ ok: true });
 });
 
 // ═══════════════════════════════════════════════════
