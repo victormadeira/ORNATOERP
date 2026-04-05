@@ -5657,7 +5657,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
                         {view3dPeca.comprimento} × {view3dPeca.largura} × {view3dPeca.espessura} mm · {view3dPeca.material_code}
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: 12, background: '#1a1a2e', borderRadius: 10, marginBottom: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: 4, background: 'var(--bg-muted, #f1f5f9)', borderRadius: 10, marginBottom: 16, border: '1px solid var(--border, #e2e8f0)' }}>
                         <PecaViewer3D peca={view3dPeca} width={Math.min(500, window.innerWidth - 120)} height={380} />
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

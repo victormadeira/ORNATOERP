@@ -754,12 +754,27 @@ function buildCSGPiece(peca, sc) {
 
 
 // ═══════════════════════════════════════════════════════════
+// CAMERA PRESETS
+// ═══════════════════════════════════════════════════════════
+const VIEWS = {
+    perspective: (SX, SY, SZ) => ({ pos: [SX * 0.8, Math.max(SY, SZ) * 0.6, SZ * 1.0], up: [0, 1, 0] }),
+    top:         (SX, SY, SZ) => ({ pos: [SX / 2, Math.max(SX, SZ) * 1.6, SZ / 2], up: [0, 0, -1] }),
+    front:       (SX, SY, SZ) => ({ pos: [SX / 2, SY / 2, Math.max(SX, SZ) * 1.8], up: [0, 1, 0] }),
+    right:       (SX, SY, SZ) => ({ pos: [Math.max(SX, SZ) * 1.8, SY / 2, SZ / 2], up: [0, 1, 0] }),
+    bottom:      (SX, SY, SZ) => ({ pos: [SX / 2, -Math.max(SX, SZ) * 1.6, SZ / 2], up: [0, 0, 1] }),
+};
+
+// ═══════════════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL
 // ═══════════════════════════════════════════════════════════
 export default function PecaViewer3D({ peca, width = 400, height = 300, style, force2d = false }) {
     const canvasRef = useRef(null);
-    const stateRef = useRef({ scene: null, cam: null, ctrl: null, raf: null, disposed: false });
+    const stateRef = useRef({ scene: null, cam: null, ctrl: null, raf: null, disposed: false, dims: null });
     const [error, setError] = useState(false);
+    const [showWireframe, setShowWireframe] = useState(true);
+    const [showEdgeBands, setShowEdgeBands] = useState(true);
+    const [activeView, setActiveView] = useState('perspective');
+    const tooltipRef = useRef(null);
 
     const disposeScene = useCallback(() => {
         const s = stateRef.current;
@@ -777,6 +792,35 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
             s.scene = null;
         }
         s.cam = null;
+    }, []);
+
+    // Camera view change
+    const setCameraView = useCallback((viewName) => {
+        const s = stateRef.current;
+        if (!s.cam || !s.ctrl || !s.dims) return;
+        const { SX, SY, SZ } = s.dims;
+        const view = VIEWS[viewName]?.(SX, SY, SZ);
+        if (!view) return;
+        const target = new THREE.Vector3(SX / 2, SY / 2, SZ / 2);
+        // Smooth transition
+        const startPos = s.cam.position.clone();
+        const endPos = new THREE.Vector3(...view.pos);
+        const startUp = s.cam.up.clone();
+        const endUp = new THREE.Vector3(...view.up);
+        let t = 0;
+        const animView = () => {
+            t += 0.06;
+            if (t >= 1) t = 1;
+            const ease = 1 - Math.pow(1 - t, 3); // easeOutCubic
+            s.cam.position.lerpVectors(startPos, endPos, ease);
+            s.cam.up.lerpVectors(startUp, endUp, ease).normalize();
+            s.ctrl.target.copy(target);
+            s.ctrl.update();
+            s._needsRender = true;
+            if (t < 1 && !s.disposed) requestAnimationFrame(animView);
+        };
+        animView();
+        setActiveView(viewName);
     }, []);
 
     const build = useCallback(() => {
@@ -803,16 +847,30 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
         const SX = comp * sc;
         const SY = esp * sc;
         const SZ = larg * sc;
+        stateRef.current.dims = { SX, SY, SZ };
 
-        // ── Scene ──
+        // ── Scene with gradient background ──
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xffffff);
+        // Create gradient background texture
+        const bgCanvas = document.createElement('canvas');
+        bgCanvas.width = 2; bgCanvas.height = 256;
+        const bgCtx = bgCanvas.getContext('2d');
+        const bgGrad = bgCtx.createLinearGradient(0, 0, 0, 256);
+        bgGrad.addColorStop(0, '#f8fafc');
+        bgGrad.addColorStop(0.5, '#f1f5f9');
+        bgGrad.addColorStop(1, '#e2e8f0');
+        bgCtx.fillStyle = bgGrad;
+        bgCtx.fillRect(0, 0, 2, 256);
+        const bgTex = new THREE.CanvasTexture(bgCanvas);
+        bgTex.minFilter = THREE.LinearFilter;
+        scene.background = bgTex;
         stateRef.current.scene = scene;
 
         // ── Camera ──
         const cam = new THREE.PerspectiveCamera(32, W / H, 0.1, 800);
-        const camDist = Math.max(SX, SZ) * 1.8;
-        cam.position.set(SX * 0.8, camDist * 0.5, SZ * 1.0);
+        const initView = VIEWS.perspective(SX, SY, SZ);
+        cam.position.set(...initView.pos);
+        cam.up.set(...initView.up);
         cam.lookAt(SX / 2, SY / 2, SZ / 2);
         stateRef.current.cam = cam;
 
@@ -824,20 +882,33 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
         ctrl.minDistance = 10;
         ctrl.maxDistance = 400;
         ctrl.target.set(SX / 2, SY / 2, SZ / 2);
-        ctrl.maxPolarAngle = Math.PI * 0.85;
+        ctrl.maxPolarAngle = Math.PI * 0.95;
         stateRef.current.ctrl = ctrl;
 
-        // ── Lighting ──
-        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-        const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        // ── Lighting (improved 3-point + environment) ──
+        const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+        scene.add(ambient);
+        const keyLight = new THREE.DirectionalLight(0xffffff, 0.85);
         keyLight.position.set(SX * 2, SY * 20, SZ * 1.5);
         scene.add(keyLight);
         const fillLight = new THREE.DirectionalLight(0xffffff, 0.35);
         fillLight.position.set(-SX * 2.5, SY * 8, -SZ * 2);
         scene.add(fillLight);
-        const bottomLight = new THREE.DirectionalLight(0xffffff, 0.2);
+        const rimLight = new THREE.DirectionalLight(0xffffff, 0.2);
+        rimLight.position.set(-SX, -SY * 5, SZ * 2);
+        scene.add(rimLight);
+        const bottomLight = new THREE.DirectionalLight(0xffffff, 0.15);
         bottomLight.position.set(0, -SY * 15, 0);
         scene.add(bottomLight);
+
+        // ── Grid (subtle floor reference) ──
+        const gridSize = Math.max(SX, SZ) * 1.5;
+        const gridDiv = Math.round(gridSize / 10);
+        const grid = new THREE.GridHelper(gridSize, gridDiv, 0xcbd5e1, 0xe2e8f0);
+        grid.position.set(SX / 2, -0.5, SZ / 2);
+        grid.material.transparent = true;
+        grid.material.opacity = 0.4;
+        scene.add(grid);
 
         // ═══════════════════════════════════════════════════
         // CSG BUILD
@@ -853,47 +924,26 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
 
         const { geometry: pieceGeo, surfaceMat, cutMat, failedWorkers, allWorkers } = csgResult;
 
-        // The geometry is in shape space: X=comp, Y=larg, Z=espessura (extrude direction)
-        // We need to rotate so that Y=espessura (vertical in scene)
-        // Rotation: swap Y and Z -> rotation around X by -90deg
-        // Shape X -> World X, Shape Y -> World -Z (flip), Shape Z(extrude) -> World Y
-        // Actually: ExtrudeGeometry is in XY plane extruded along Z.
-        // Our shape: X = comp [0..SX], Y = larg [0..SZ-worth], Z = extrude = esp [0..SY]
-        // We want in scene: X = comp, Y = esp (up), Z = larg
-        // So: scene_X = shape_X, scene_Y = shape_Z (extrude), scene_Z = shape_Y
-        // This is rotation.x = -PI/2
-
         // Create multi-material mesh
+        // Rotation: ExtrudeGeometry XY extruded along Z -> rotate -PI/2 around X
+        // shape(x, y, z) -> world(x, z, -y), then position.z = SZ to compensate
         const pieceMesh = new THREE.Mesh(pieceGeo, [surfaceMat, cutMat]);
         pieceMesh.rotation.x = -Math.PI / 2;
-        // After rotation: shape origin (0,0,0) maps to world (0, 0, 0) with rotation
-        // shape (x, y, z) -> world (x, -z, y) after rotation around X
-        // Wait: rotation.x = -PI/2:
-        //   x' = x
-        //   y' = y*cos(-PI/2) - z*sin(-PI/2) = z
-        //   z' = y*sin(-PI/2) + z*cos(-PI/2) = -y
-        // So: shape(x, y, z) -> world(x, z, -y)
-        // Shape extruded along Z [0..SY] -> world Y [0..SY] -> correct (espessura up)
-        // Shape Y [0..SZ] -> world Z [0..-SZ] -> need to shift Z
         pieceMesh.position.set(0, 0, SZ);
-        // Now: world X = [0..SX], Y = [0..SY], Z = [SZ..0] which means Z is reversed
-        // Fix: negate Z by using rotation differently.
-        // Actually let's just set position to compensate. The piece now goes from Z=SZ to Z=0.
-        // The center is at (SX/2, SY/2, SZ/2) which matches our camera target. Good.
-
         scene.add(pieceMesh);
 
-        // Wireframe edges
-        const edges = new THREE.LineSegments(
-            new THREE.EdgesGeometry(pieceGeo, 15),
-            new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.25 })
-        );
+        // Wireframe edges (toggleable)
+        const edgesMat = new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.3 });
+        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(pieceGeo, 15), edgesMat);
         edges.rotation.copy(pieceMesh.rotation);
         edges.position.copy(pieceMesh.position);
+        edges.visible = true;
         scene.add(edges);
+        stateRef.current._edges = edges;
 
         // ── Edge bands (visual strips on piece edges) ──
         const hasEB = (code) => code && code !== '-' && code !== '';
+        const ebGroup = new THREE.Group();
         const ebMat = new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
         const ebThick = Math.max(SY * 0.15, 0.35);
 
@@ -902,15 +952,16 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
             const m = new THREE.Mesh(geo, ebMat);
             m.position.copy(pos);
             if (rotY) m.rotation.y = rotY;
-            scene.add(m);
+            ebGroup.add(m);
         };
-        // Edge band positions (in world coords, piece centered at SX/2, SY/2, SZ/2)
         if (hasEB(peca.borda_frontal))  addEB(new THREE.Vector3(SX / 2, SY / 2, 0 - 0.04), 0, SX, ebThick);
         if (hasEB(peca.borda_traseira)) addEB(new THREE.Vector3(SX / 2, SY / 2, SZ + 0.04), 0, SX, ebThick);
         if (hasEB(peca.borda_dir))      addEB(new THREE.Vector3(SX + 0.04, SY / 2, SZ / 2), Math.PI / 2, SZ, ebThick);
         if (hasEB(peca.borda_esq))      addEB(new THREE.Vector3(-0.04, SY / 2, SZ / 2), Math.PI / 2, SZ, ebThick);
+        scene.add(ebGroup);
+        stateRef.current._ebGroup = ebGroup;
 
-        // ── Visual indicators for lateral holes (not CSG, just visual markers) ──
+        // ── Visual indicators for lateral holes ──
         const latIndicatorMat = new THREE.MeshBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
         const latIndicatorMatGreen = new THREE.MeshBasicMaterial({ color: 0x16a34a, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
 
@@ -928,7 +979,6 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
             const isFB = face === 'front' || face === 'rear' || face === 'back';
             const mat = isFB ? latIndicatorMatGreen : latIndicatorMat;
 
-            // Ring indicator on the entry face
             const ringGeo = new THREE.RingGeometry(r * 0.6, r, 24);
             const ring = new THREE.Mesh(ringGeo, mat);
 
@@ -975,23 +1025,14 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
             if (hits.length > 0 && stateRef.current.tooltipEl) {
                 const hit = hits[0];
                 const el = stateRef.current.tooltipEl;
-                // Show hit point info
-                const wp = hit.point;
-                // Convert world point to piece coords
                 const invMatrix = new THREE.Matrix4().copy(pieceMesh.matrixWorld).invert();
-                const local = wp.clone().applyMatrix4(invMatrix);
+                const local = hit.point.clone().applyMatrix4(invMatrix);
                 const pieceX = (local.x / sc).toFixed(1);
                 const pieceY = (local.y / sc).toFixed(1);
                 const faceIdx = hit.face ? hit.face.materialIndex : -1;
-                const isCutFace = faceIdx === 1;
-                const faceLabel = isCutFace ? 'Corte (MDF)' : 'Superficie';
+                const faceLabel = faceIdx === 1 ? 'Corte' : 'Superficie';
 
-                const lines = [
-                    `${faceLabel}`,
-                    `X: ${pieceX}mm`,
-                    `Y: ${pieceY}mm`,
-                ];
-                el.innerHTML = lines.join('<br>');
+                el.innerHTML = `<b>${faceLabel}</b><br>X: ${pieceX}mm &middot; Y: ${pieceY}mm`;
                 el.style.display = 'block';
                 const tx = Math.min(e.clientX - rect.left + 12, rect.width - 160);
                 el.style.left = tx + 'px';
@@ -1003,26 +1044,41 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
             }
         };
         localCanvas.addEventListener('mousemove', onMouseMove);
-        localCanvas.addEventListener('mouseleave', () => {
+        const onLeave = () => {
             if (stateRef.current.tooltipEl) stateRef.current.tooltipEl.style.display = 'none';
             localCanvas.style.cursor = 'grab';
-        });
+        };
+        localCanvas.addEventListener('mouseleave', onLeave);
         stateRef.current._onMouseMove = onMouseMove;
+        stateRef.current._onMouseLeave = onLeave;
 
         // ═══════════════════════════════════════════════════
-        // RENDER LOOP
+        // RENDER LOOP — demand-driven (no setInterval!)
         // ═══════════════════════════════════════════════════
         renderer.setSize(rW, rH);
         const ctx2d = localCanvas.getContext('2d');
-        let needsRender = true;
-        ctrl.addEventListener('change', () => { needsRender = true; });
+        stateRef.current._needsRender = true;
+        let dampingActive = false;
+        let dampingFrames = 0;
+
+        ctrl.addEventListener('change', () => {
+            stateRef.current._needsRender = true;
+            dampingActive = true;
+            dampingFrames = 30; // ~0.5s of damping after interaction
+        });
 
         const animate = () => {
             if (stateRef.current.disposed) return;
             stateRef.current.raf = requestAnimationFrame(animate);
             ctrl.update();
-            if (needsRender) {
-                needsRender = false;
+            // Only render when needed (on change or during damping)
+            if (dampingActive) {
+                dampingFrames--;
+                stateRef.current._needsRender = true;
+                if (dampingFrames <= 0) dampingActive = false;
+            }
+            if (stateRef.current._needsRender) {
+                stateRef.current._needsRender = false;
                 renderer.setSize(rW, rH);
                 renderer.render(scene, cam);
                 try {
@@ -1031,14 +1087,9 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
                 } catch {}
             }
         };
-        needsRender = true;
-        const dampingInterval = setInterval(() => { needsRender = true; }, 50);
-        stateRef.current._dampingInterval = dampingInterval;
         animate();
 
     }, [peca, width, height, disposeScene]);
-
-    const tooltipRef = useRef(null);
 
     useEffect(() => {
         if (canvasRef.current) {
@@ -1053,31 +1104,164 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
         stateRef.current.tooltipEl = tooltipRef.current;
         build();
         return () => {
-            if (stateRef.current._dampingInterval) clearInterval(stateRef.current._dampingInterval);
-            if (canvasRef.current && stateRef.current._onMouseMove) {
-                canvasRef.current.removeEventListener('mousemove', stateRef.current._onMouseMove);
+            const s = stateRef.current;
+            if (canvasRef.current) {
+                if (s._onMouseMove) canvasRef.current.removeEventListener('mousemove', s._onMouseMove);
+                if (s._onMouseLeave) canvasRef.current.removeEventListener('mouseleave', s._onMouseLeave);
             }
             disposeScene();
         };
     }, [build, disposeScene, width, height]);
 
+    // Toggle wireframe
+    useEffect(() => {
+        if (stateRef.current._edges) {
+            stateRef.current._edges.visible = showWireframe;
+            stateRef.current._needsRender = true;
+        }
+    }, [showWireframe]);
+
+    // Toggle edge bands
+    useEffect(() => {
+        if (stateRef.current._ebGroup) {
+            stateRef.current._ebGroup.visible = showEdgeBands;
+            stateRef.current._needsRender = true;
+        }
+    }, [showEdgeBands]);
+
     if (!peca) return null;
     if (error || force2d) return <Fallback2D peca={peca} width={width} height={height} style={style} />;
 
+    // Count machining operations for info bar
+    const opsCount = (() => {
+        try {
+            const d = typeof peca.machining_json === 'string' ? JSON.parse(peca.machining_json) : peca.machining_json;
+            const w = d?.workers;
+            return w ? (Array.isArray(w) ? w.length : Object.keys(w).length) : 0;
+        } catch { return 0; }
+    })();
+
+    const ebCount = [peca.borda_frontal, peca.borda_traseira, peca.borda_dir, peca.borda_esq].filter(b => b && b !== '-').length;
+
+    // ── Toolbar button style ──
+    const tbBtn = (active, title) => ({
+        background: active ? 'rgba(19,121,240,0.15)' : 'rgba(255,255,255,0.85)',
+        border: active ? '1px solid rgba(19,121,240,0.4)' : '1px solid rgba(0,0,0,0.1)',
+        borderRadius: 6, cursor: 'pointer', padding: '5px 7px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: active ? '#1379F0' : '#64748b', fontSize: 11, fontWeight: 600, lineHeight: 1,
+        backdropFilter: 'blur(8px)', transition: 'all 0.15s ease',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+    });
+
     return (
-        <div style={{ position: 'relative', width, height, ...style }}>
+        <div style={{ position: 'relative', width, height, borderRadius: 8, overflow: 'hidden', ...style }}>
+            {/* Canvas */}
             <canvas
                 ref={canvasRef}
-                style={{ borderRadius: 4, display: 'block', cursor: 'grab', background: '#fff', width: '100%', height: '100%' }}
+                style={{ display: 'block', cursor: 'grab', width: '100%', height: '100%', borderRadius: 8 }}
             />
+
+            {/* ── Toolbar (top-left) ── */}
+            <div style={{
+                position: 'absolute', top: 8, left: 8, display: 'flex', flexDirection: 'column', gap: 4, zIndex: 5,
+            }}>
+                {/* View buttons */}
+                <div style={{ display: 'flex', gap: 3 }}>
+                    <button onClick={() => setCameraView('perspective')} title="Perspectiva" style={tbBtn(activeView === 'perspective')}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
+                    </button>
+                    <button onClick={() => setCameraView('top')} title="Topo" style={tbBtn(activeView === 'top')}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="4" width="16" height="16" rx="1"/><circle cx="12" cy="12" r="2"/></svg>
+                    </button>
+                    <button onClick={() => setCameraView('front')} title="Frontal" style={tbBtn(activeView === 'front')}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="6" width="16" height="12" rx="1"/><line x1="4" y1="12" x2="20" y2="12" opacity="0.3"/></svg>
+                    </button>
+                    <button onClick={() => setCameraView('right')} title="Lateral" style={tbBtn(activeView === 'right')}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="4" width="12" height="16" rx="1"/><line x1="12" y1="4" x2="12" y2="20" opacity="0.3"/></svg>
+                    </button>
+                    <button onClick={() => setCameraView('bottom')} title="Fundo" style={tbBtn(activeView === 'bottom')}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="4" width="16" height="16" rx="1"/><line x1="4" y1="4" x2="20" y2="20" opacity="0.3"/><line x1="20" y1="4" x2="4" y2="20" opacity="0.3"/></svg>
+                    </button>
+                </div>
+                {/* Toggle buttons */}
+                <div style={{ display: 'flex', gap: 3 }}>
+                    <button onClick={() => setShowWireframe(v => !v)} title="Wireframe" style={tbBtn(showWireframe)}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 3h18v18H3z"/><path d="M3 12h18M12 3v18M3 3l18 18M21 3L3 21" opacity="0.5"/></svg>
+                    </button>
+                    <button onClick={() => setShowEdgeBands(v => !v)} title="Fitas de borda" style={tbBtn(showEdgeBands)}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 3h18M3 21h18" strokeWidth="3" stroke={showEdgeBands ? '#3b82f6' : 'currentColor'}/></svg>
+                    </button>
+                </div>
+            </div>
+
+            {/* ── Info bar (bottom) ── */}
+            <div style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 5,
+                background: 'linear-gradient(transparent, rgba(15,23,42,0.75))',
+                padding: '20px 12px 8px',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
+                pointerEvents: 'none',
+            }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <span style={{ color: '#fff', fontSize: 11, fontWeight: 600, fontFamily: 'monospace', textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>
+                        {peca.comprimento} x {peca.largura} x {peca.espessura} mm
+                    </span>
+                    <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 10 }}>
+                        {peca.material_code || peca.material || ''}
+                    </span>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    {opsCount > 0 && (
+                        <span style={{ color: '#fbbf24', fontSize: 10, fontWeight: 600 }}>
+                            {opsCount} usinag.
+                        </span>
+                    )}
+                    {ebCount > 0 && (
+                        <span style={{ color: '#60a5fa', fontSize: 10, fontWeight: 600 }}>
+                            {ebCount} borda{ebCount > 1 ? 's' : ''}
+                        </span>
+                    )}
+                    {peca.grain && peca.grain !== 'sem_veio' && (
+                        <span style={{ color: '#fb923c', fontSize: 10, fontWeight: 600 }}>
+                            veio {peca.grain === 'horizontal' ? '\u2194' : '\u2195'}
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            {/* ── Legend (top-right) ── */}
+            <div style={{
+                position: 'absolute', top: 8, right: 8, zIndex: 5,
+                background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(8px)',
+                borderRadius: 6, padding: '6px 8px', fontSize: 9, lineHeight: 1.7,
+                border: '1px solid rgba(0,0,0,0.08)', boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                color: '#475569',
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: '#C4A672', display: 'inline-block', border: '1px solid #a08850' }} />
+                    Superficie
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: '#9E8060', display: 'inline-block', border: '1px solid #7a6040' }} />
+                    Corte
+                </div>
+                {ebCount > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ width: 8, height: 3, borderRadius: 1, background: '#3b82f6', display: 'inline-block' }} />
+                        Borda
+                    </div>
+                )}
+            </div>
+
+            {/* ── Tooltip ── */}
             <div
                 ref={tooltipRef}
                 style={{
                     display: 'none', position: 'absolute', pointerEvents: 'none',
-                    background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(8px)',
-                    color: '#fff', fontSize: 11, fontFamily: 'monospace',
+                    background: 'rgba(15,23,42,0.92)', backdropFilter: 'blur(8px)',
+                    color: '#fff', fontSize: 11, fontFamily: 'Inter, system-ui, monospace',
                     padding: '6px 10px', borderRadius: 6, lineHeight: 1.5,
-                    maxWidth: 200, zIndex: 10,
+                    maxWidth: 200, zIndex: 15,
                     boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
                     border: '1px solid rgba(255,255,255,0.1)',
                 }}
@@ -1188,13 +1372,10 @@ function Fallback2D({ peca, width, height, style }) {
     // Build piece outline using same algorithm as 3D (removes waste correctly)
     const pieceOutlineSvg = (() => {
         if (!hasContourCut) return null;
-        // Convert open paths to SVG coords (ox/oy offset, Y-flip for SVG)
         const openPathsSvg = contourData.open.map(op =>
             op.map(pt => [(pt.x / comp) * pw, (pt.y / larg) * ph])
         );
-        // Use buildOutlineWithCuts in SVG-space (no Y-flip yet, we flip after)
         const outline = buildOutlineWithCuts(pw, ph, openPathsSvg);
-        // Convert to SVG path with Y-flip: SVG y = oy + ph - outline_y
         let d = '';
         for (let i = 0; i < outline.length; i++) {
             const svgX = ox + outline[i][0];
@@ -1202,7 +1383,6 @@ function Fallback2D({ peca, width, height, style }) {
             d += i === 0 ? `M ${svgX},${svgY}` : ` L ${svgX},${svgY}`;
         }
         d += ' Z';
-        // Add closed paths as holes (reverse winding for evenodd)
         for (const cp of contourData.closed) {
             if (cp.length < 3) continue;
             const pts = cp.map(pt => ({
@@ -1219,8 +1399,9 @@ function Fallback2D({ peca, width, height, style }) {
     return (
         <div style={{
             width, height, overflow: 'hidden', border: 'none',
-            background: '#ffffff', fontFamily: 'Inter, system-ui, sans-serif',
-            position: 'relative', ...style,
+            background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%)',
+            fontFamily: 'Inter, system-ui, sans-serif',
+            position: 'relative', borderRadius: 8, ...style,
         }} onMouseLeave={() => setTip(null)}>
             <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
                 <defs>
@@ -1246,7 +1427,7 @@ function Fallback2D({ peca, width, height, style }) {
                     )}
                 </defs>
 
-                {/* 1. PECA BASE — usar polygon do contorno real ou rect simples */}
+                {/* 1. PECA BASE */}
                 {pieceOutlineSvg ? (
                     <path d={pieceOutlineSvg}
                         fill={grain ? `url(#${uid}_grain)` : M.base}
@@ -1256,7 +1437,7 @@ function Fallback2D({ peca, width, height, style }) {
                 ) : (
                     <rect x={ox} y={oy} width={pw} height={ph}
                         fill={grain ? `url(#${uid}_grain)` : M.base}
-                        stroke={M.stroke} strokeWidth="1.5"
+                        stroke={M.stroke} strokeWidth="1.5" rx="1"
                         filter={`url(#${uid}_shadow)`} />
                 )}
 
@@ -1401,7 +1582,7 @@ function Fallback2D({ peca, width, height, style }) {
                     );
                 })}
 
-                {/* 5. FUROS LATERAIS — semicirculos na borda */}
+                {/* 5. FUROS LATERAIS */}
                 {workers.map((w, i) => {
                     const cat = (w.category || '').toLowerCase();
                     if (!/hole|furo/.test(cat)) return null;
