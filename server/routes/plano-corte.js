@@ -324,19 +324,29 @@ router.post('/otimizar', requireAuth, (req, res) => {
                 const occ = bin.occupancy();
                 matChapas++;
 
-                const pecasPlano = bin.usedRects.map((r, pi) => ({
-                    pecaId: pi,
-                    nome: r.pieceRef?.nome || `Peça ${pi}`,
-                    ambiente: r.pieceRef?.ambiente || '',
-                    modulo: r.pieceRef?.modulo || '',
-                    tipo: r.pieceRef?.tipo || '',
-                    fita: r.pieceRef?.fita_lados || null,
-                    x: Math.round(r.x) + refilo,
-                    y: Math.round(r.y) + refilo,
-                    w: Math.round(r.realW || r.w),
-                    h: Math.round(r.realH || r.h),
-                    rotated: !!r.rotated,
-                }));
+                const effW = chapaW - 2 * refilo;
+                const effH = chapaH - 2 * refilo;
+                const pecasPlano = bin.usedRects.map((r, pi) => {
+                    let px = Math.round(r.x) + refilo;
+                    let py = Math.round(r.y) + refilo;
+                    const pw = Math.round(r.realW || r.w);
+                    const ph = Math.round(r.realH || r.h);
+                    // ── Clamp: garantir que peca nao ultrapasse limites da chapa ──
+                    if (px + pw > chapaW) px = Math.max(refilo, chapaW - pw);
+                    if (py + ph > chapaH) py = Math.max(refilo, chapaH - ph);
+                    if (px < refilo) px = refilo;
+                    if (py < refilo) py = refilo;
+                    return {
+                        pecaId: pi,
+                        nome: r.pieceRef?.nome || `Peça ${pi}`,
+                        ambiente: r.pieceRef?.ambiente || '',
+                        modulo: r.pieceRef?.modulo || '',
+                        tipo: r.pieceRef?.tipo || '',
+                        fita: r.pieceRef?.fita_lados || null,
+                        x: px, y: py, w: pw, h: ph,
+                        rotated: !!r.rotated,
+                    };
+                });
 
                 // Calcular sobras
                 let retalhos = [];

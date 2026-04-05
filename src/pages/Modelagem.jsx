@@ -66,9 +66,12 @@ export default function Modelagem({ api, notify }) {
         setLoading(true);
         api.get('/modelagem/projetos')
             .then(r => setProjetos(Array.isArray(r) ? r : r.data || []))
-            .catch(e => notify(e.error || 'Erro ao carregar projetos'))
+            .catch(e => {
+                console.warn('Modelagem load error:', e);
+                setProjetos([]);
+            })
             .finally(() => setLoading(false));
-    }, [api, notify]);
+    }, [api]);
 
     const loadMateriais = useCallback(() => {
         api.get('/modelagem/materiais').then(r => setMateriais(r)).catch(() => {});
