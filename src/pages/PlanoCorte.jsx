@@ -179,7 +179,9 @@ export default function PlanoCorte({ notify }) {
             if (e.name === 'AbortError' || controller.signal.aborted) {
                 notify('Otimização cancelada');
             } else {
-                notify(e.error || 'Erro ao otimizar');
+                const msg = e.error || e.message || String(e);
+                console.error('Otimizar erro:', e);
+                notify(`Erro ao otimizar: ${msg.includes('Load failed') || msg.includes('Failed to fetch') ? 'Servidor não respondeu. Verifique se o deploy foi feito.' : msg}`);
             }
         } finally {
             setOptimizing(false);
