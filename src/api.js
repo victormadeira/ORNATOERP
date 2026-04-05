@@ -20,7 +20,7 @@ function getTimeout(path) {
     return 30000;
 }
 
-async function request(method, path, body = null, retries = 1) {
+async function request(method, path, body = null, retries = 1, { signal: externalSignal } = {}) {
     const token = getToken();
     const opts = {
         method,
@@ -34,6 +34,10 @@ async function request(method, path, body = null, retries = 1) {
     const timeoutMs = getTimeout(path);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    // Se receber signal externo (ex: cancelamento), abortar o controller interno
+    if (externalSignal) {
+        externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
     opts.signal = controller.signal;
 
     let lastError;
@@ -53,6 +57,12 @@ async function request(method, path, body = null, retries = 1) {
         } catch (err) {
             clearTimeout(timeoutId);
             if (err.name === 'AbortError') {
+                // Se foi cancelamento externo (pelo usuário), propagar como AbortError
+                if (externalSignal && externalSignal.aborted) {
+                    const abortErr = new Error('Cancelado pelo usuário');
+                    abortErr.name = 'AbortError';
+                    throw abortErr;
+                }
                 const secs = Math.round(timeoutMs / 1000);
                 throw { error: `Requisição expirou (timeout ${secs}s). ${secs > 60 ? 'A otimização pode demorar com muitas peças.' : 'Verifique sua conexão.'}` };
             }
@@ -116,7 +126,7 @@ function uploadFile(path, file, onProgress) {
 
 const api = {
     get: (path) => request('GET', path),
-    post: (path, body) => request('POST', path, body),
+    post: (path, body, opts) => request('POST', path, body, 1, opts),
     put: (path, body) => request('PUT', path, body),
     del: (path) => request('DELETE', path),
     postBlob: (path, body) => requestBlob('POST', path, body),

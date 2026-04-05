@@ -7,7 +7,8 @@ import {
     Package, PlusCircle, ArrowUpCircle, ArrowDownCircle, AlertTriangle,
     Search, Filter, RefreshCw, MapPin, Sliders, History, TrendingDown,
     TrendingUp, BarChart3, ChevronDown, CheckCircle2, Users, Clock,
-    UserPlus, Trash2, Edit2, Phone, Briefcase, DollarSign, Layers, Plus, X
+    UserPlus, Trash2, Edit2, Phone, Briefcase, DollarSign, Layers, Plus, X,
+    Download
 } from 'lucide-react';
 
 // ─── Constantes ─────────────────────────────
@@ -17,6 +18,52 @@ const STATUS_COR = (qtd, min) => {
     if (qtd <= 0) return { label: 'Zerado', color: '#ef4444', bg: '#fef2f2' };
     if (min > 0 && qtd < min) return { label: 'Baixo', color: '#f59e0b', bg: '#fffbeb' };
     return { label: 'OK', color: '#22c55e', bg: '#f0fdf4' };
+};
+
+// Indicador visual de nível de estoque (dot + tooltip)
+const StockIndicator = ({ qtd, min, unidade }) => {
+    if (!min || min <= 0) return null;
+    const isBelowMin = qtd <= min;
+    const isApproaching = !isBelowMin && qtd <= min * 1.5;
+    if (!isBelowMin && !isApproaching) return null;
+    const color = isBelowMin ? '#ef4444' : '#f59e0b';
+    const tip = isBelowMin
+        ? `Estoque abaixo do mínimo (${N(min, 1)} ${unidade || 'un'})`
+        : `Estoque próximo do mínimo (${N(min, 1)} ${unidade || 'un'})`;
+    return (
+        <span title={tip} style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: color, marginLeft: 6, verticalAlign: 'middle', boxShadow: isBelowMin ? `0 0 0 0 ${color}` : 'none', animation: isBelowMin ? 'pulse-dot 1.5s infinite' : 'none' }} />
+    );
+};
+
+// CSS injection for pulsing animation
+const pulseStyle = document.getElementById('estoque-pulse-style') || (() => {
+    const s = document.createElement('style');
+    s.id = 'estoque-pulse-style';
+    s.textContent = `@keyframes pulse-dot { 0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); } 70% { box-shadow: 0 0 0 6px rgba(239,68,68,0); } 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } }`;
+    document.head.appendChild(s);
+    return s;
+})();
+
+// Export CSV helper
+const exportCSV = (rows, filename) => {
+    const headers = ['Nome', 'Código', 'Unidade', 'Estoque Atual', 'Estoque Mínimo', 'Valor Unitário', 'Valor Total'];
+    const csvRows = [headers.join(';')];
+    rows.forEach(m => {
+        csvRows.push([
+            `"${(m.nome || '').replace(/"/g, '""')}"`,
+            `"${(m.cod || '').replace(/"/g, '""')}"`,
+            m.unidade || '',
+            (m.quantidade || 0).toString().replace('.', ','),
+            (m.quantidade_minima || 0).toString().replace('.', ','),
+            (m.preco || 0).toString().replace('.', ','),
+            ((m.quantidade || 0) * (m.preco || 0)).toFixed(2).replace('.', ','),
+        ].join(';'));
+    });
+    const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
 };
 
 // ─── Modal de Movimentação ─────────────────
@@ -60,9 +107,11 @@ function MovModal({ tipo, materiais, projetos, onClose, onSave }) {
                     <input className={Z.inp} placeholder="Buscar material..." value={searchMat} onChange={e => setSearchMat(e.target.value)} style={{ marginBottom: 6, fontSize: 13 }} />
                     <select className={Z.inp} style={{ fontSize: 13 }} value={materialId} onChange={e => setMaterialId(e.target.value)} size={Math.min(6, filteredMat.length + 1)}>
                         <option value="">— Selecionar —</option>
-                        {filteredMat.map(m => (
-                            <option key={m.id} value={m.id}>{m.nome} ({m.unidade}) — Estoque: {N(m.quantidade, 1)}</option>
-                        ))}
+                        {filteredMat.map(m => {
+                            const st = STATUS_COR(m.quantidade, m.quantidade_minima);
+                            const warn = st.label !== 'OK' ? ` [${st.label}]` : '';
+                            return <option key={m.id} value={m.id}>{m.nome} ({m.unidade}) — Est: {N(m.quantidade, 1)}{m.quantidade_minima > 0 ? ` / Mín: ${N(m.quantidade_minima, 1)}` : ''}{warn}</option>;
+                        })}
                     </select>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: tipo === 'entrada' ? '1fr 1fr' : '1fr', gap: 12 }}>
@@ -437,6 +486,7 @@ export default function Estoque({ notify }) {
 
     const [estPage, setEstPage] = useState(1);
     const EST_PER_PAGE = 30;
+    const [filterBaixo, setFilterBaixo] = useState(false);
 
     // Filtros
     const filtered = materiais.filter(m => {
@@ -449,11 +499,15 @@ export default function Estoque({ notify }) {
             if (filterStatus === 'ok') return s.label === 'OK';
             return true;
         })();
-        return matchQ && matchTipo && matchStatus;
+        const matchBaixo = !filterBaixo || (() => {
+            const s = STATUS_COR(m.quantidade, m.quantidade_minima);
+            return s.label === 'Baixo' || s.label === 'Zerado';
+        })();
+        return matchQ && matchTipo && matchStatus && matchBaixo;
     });
     const estTotalPages = Math.ceil(filtered.length / EST_PER_PAGE);
     const filteredPaged = filtered.slice((estPage - 1) * EST_PER_PAGE, estPage * EST_PER_PAGE);
-    useEffect(() => setEstPage(1), [search, filterTipo, filterStatus]);
+    useEffect(() => setEstPage(1), [search, filterTipo, filterStatus, filterBaixo]);
 
     // Estatísticas
     const totalItens = materiais.length;
@@ -548,6 +602,37 @@ export default function Estoque({ notify }) {
                             <option value="baixo">Baixo / Zerado</option>
                             <option value="ok">Estoque OK</option>
                         </select>
+                        <button
+                            onClick={() => setFilterBaixo(v => !v)}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
+                                borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                                border: filterBaixo ? '2px solid #ef4444' : '1px solid var(--border)',
+                                background: filterBaixo ? '#fef2f2' : 'var(--bg-card)',
+                                color: filterBaixo ? '#ef4444' : 'var(--text-muted)',
+                                transition: 'all 0.15s',
+                            }}
+                        >
+                            <AlertTriangle size={13} />
+                            Estoque Baixo
+                            {totalBaixo > 0 && (
+                                <span style={{
+                                    background: filterBaixo ? '#ef4444' : 'var(--text-muted)',
+                                    color: '#fff', fontSize: 10, fontWeight: 700,
+                                    padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center',
+                                }}>
+                                    {totalBaixo}
+                                </span>
+                            )}
+                        </button>
+                        <button
+                            onClick={() => exportCSV(filtered, `estoque_${new Date().toISOString().slice(0,10)}.csv`)}
+                            className={Z.btn2}
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, whiteSpace: 'nowrap' }}
+                            title="Exportar lista filtrada como CSV"
+                        >
+                            <Download size={14} /> Exportar
+                        </button>
                     </div>
 
                     {/* Tabela de Materiais */}
@@ -583,6 +668,7 @@ export default function Estoque({ notify }) {
                                                 </td>
                                                 <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: 15 }}>
                                                     {N(m.quantidade, 1)} <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>{m.unidade}</span>
+                                                    <StockIndicator qtd={m.quantidade} min={m.quantidade_minima} unidade={m.unidade} />
                                                 </td>
                                                 <td style={{ padding: '10px 14px', color: 'var(--text-muted)', fontSize: 13 }}>
                                                     {m.quantidade_minima > 0 ? `${N(m.quantidade_minima, 1)} ${m.unidade}` : '—'}

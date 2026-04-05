@@ -4,7 +4,7 @@ import {
     Building2, Filter, X, Repeat, Paperclip, FileText, Image, Upload,
     Eye, RefreshCw, TrendingUp, TrendingDown, Copy, ChevronRight,
     BarChart2, Archive, Receipt, ArrowDownCircle, ArrowUpCircle,
-    History, RotateCcw,
+    History, RotateCcw, Download, Calendar, Trophy,
 } from 'lucide-react';
 import { R$ } from '../engine';
 import { Z, Modal, ConfirmModal, Spinner, Badge, KpiCard, PageHeader, TabBar } from '../ui';
@@ -28,6 +28,16 @@ const mesFmt = (ym) => {
     const [y, m] = ym.split('-');
     return `${['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][parseInt(m) - 1]}/${y.slice(2)}`;
 };
+
+// ─── Helper: semana atual (seg-dom) ────────────────────────────────
+function getWeekRange() {
+    const now = new Date();
+    const day = now.getDay(); // 0=dom
+    const diffMon = day === 0 ? -6 : 1 - day;
+    const mon = new Date(now); mon.setDate(now.getDate() + diffMon); mon.setHours(0,0,0,0);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6); sun.setHours(23,59,59,999);
+    return { start: mon.toISOString().slice(0,10), end: sun.toISOString().slice(0,10) };
+}
 
 // tipoIntervalo: 'mensal' | 'dias'
 // intervaloDias: número de dias entre parcelas (usado quando tipoIntervalo === 'dias')
@@ -116,6 +126,7 @@ function SecaoPagar({ notify, projetos, user }) {
     const [fCategoria, setFCat]   = useState('');
     const [fProjeto, setFProj]    = useState('');
     const [fBusca, setFBusca]     = useState('');
+    const [fSemana, setFSemana]   = useState(false);
     const [showForm, setShowForm] = useState(false);
     const emptyForm = { descricao: '', valor: '', data_vencimento: '', categoria: 'outros', fornecedor: '', meio_pagamento: '', codigo_barras: '', projeto_id: '', observacao: '', nf_numero: '', nf_chave: '', recorrente: false, frequencia: 'mensal', parcelado: false, num_parcelas: 2, tipo_intervalo: 'mensal', intervalo_dias: 30 };
     const [form, setForm]         = useState(emptyForm);
@@ -126,6 +137,8 @@ function SecaoPagar({ notify, projetos, user }) {
     const fileRef = useRef(null);
     const [historicoId, setHistoricoId] = useState(null);
     const [confirmDel, setConfirmDel] = useState(null);
+    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [bulkLoading, setBulkLoading] = useState(false);
 
     const canDelete = user?.role === 'admin' || user?.role === 'gerente';
     const canViewHistory = user?.role === 'admin' || user?.role === 'gerente';
@@ -216,6 +229,10 @@ function SecaoPagar({ notify, projetos, user }) {
     };
 
     const filtradas = contas.filter(c => {
+        if (fSemana && c.data_vencimento) {
+            const wk = getWeekRange();
+            if (c.data_vencimento < wk.start || c.data_vencimento > wk.end) return false;
+        }
         if (!fBusca) return true;
         const b = fBusca.toLowerCase();
         return (c.descricao || '').toLowerCase().includes(b)
@@ -224,6 +241,32 @@ function SecaoPagar({ notify, projetos, user }) {
             || (c.nf_numero || '').toLowerCase().includes(b)
             || (c.codigo_barras || '').includes(b);
     });
+
+    const allVisibleIds = filtradas.filter(c => c.status !== 'pago').map(c => c.id);
+    const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selectedIds.has(id));
+
+    const toggleSelect = (id) => setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+    });
+    const toggleSelectAll = () => {
+        if (allSelected) setSelectedIds(new Set());
+        else setSelectedIds(new Set(allVisibleIds));
+    };
+
+    const bulkMarkPago = () => {
+        if (selectedIds.size === 0) return;
+        setBulkLoading(true);
+        api.put('/financeiro/pagar/bulk-status', { ids: [...selectedIds], status: 'pago', data_pagamento: new Date().toISOString().slice(0,10) })
+            .then(() => { load(); setSelectedIds(new Set()); notify(`${selectedIds.size} conta(s) marcadas como pagas`); })
+            .catch(e => notify(e.error || 'Erro ao atualizar em lote'))
+            .finally(() => setBulkLoading(false));
+    };
+
+    const exportCsv = () => {
+        window.open('/api/financeiro/pagar/export-csv', '_blank');
+    };
 
     const isImg = (n) => /\.(jpg|jpeg|png|gif|webp)$/i.test(n);
 
@@ -346,6 +389,14 @@ function SecaoPagar({ notify, projetos, user }) {
             {/* Filtros */}
             <div className={Z.card} style={{ padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <Filter size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                <button onClick={() => setFSemana(v => !v)}
+                    style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: '1px solid', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                        borderColor: fSemana ? 'var(--primary)' : 'var(--border)',
+                        background: fSemana ? 'var(--primary)' : 'var(--bg-card)',
+                        color: fSemana ? '#fff' : 'var(--text-secondary)',
+                    }}>
+                    <Calendar size={11} /> Esta semana
+                </button>
                 <select className={Z.inp} style={{ width: 140, fontSize: 11 }} value={fCategoria} onChange={e => setFCat(e.target.value)}>
                     <option value="">Todas categorias</option>
                     {CATEGORIAS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
@@ -360,12 +411,16 @@ function SecaoPagar({ notify, projetos, user }) {
                     <input className={Z.inp} style={{ paddingLeft: 28, fontSize: 11, width: '100%' }}
                         placeholder="Buscar..." value={fBusca} onChange={e => setFBusca(e.target.value)} />
                 </div>
-                {(fCategoria || fProjeto || fBusca) && (
-                    <button onClick={() => { setFCat(''); setFProj(''); setFBusca(''); }}
+                {(fCategoria || fProjeto || fBusca || fSemana) && (
+                    <button onClick={() => { setFCat(''); setFProj(''); setFBusca(''); setFSemana(false); }}
                         style={{ fontSize: 10, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2 }}>
                         <X size={11} /> Limpar
                     </button>
                 )}
+                <button onClick={exportCsv} title="Exportar CSV"
+                    style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: 11, fontWeight: 500, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Download size={12} /> CSV
+                </button>
             </div>
 
             {/* Tabela */}
@@ -374,9 +429,12 @@ function SecaoPagar({ notify, projetos, user }) {
                 : filtradas.length === 0 ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhuma conta encontrada.</div>
                 : (
                     <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse', fontSize: 12 }}>
+                        <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse', fontSize: 12 }}>
                             <thead>
                                 <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                                    <th style={{ padding: '10px 8px', width: 32, textAlign: 'center' }}>
+                                        <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} style={{ cursor: 'pointer', accentColor: 'var(--primary)' }} />
+                                    </th>
                                     {['Status', 'Descrição', 'Fornecedor', 'Cat.', 'Projeto', 'Valor', 'Venc.', ''].map((h, i) => (
                                         <th key={i} style={{ padding: '10px 12px', textAlign: i === 5 ? 'right' : i >= 6 ? 'center' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
                                     ))}
@@ -388,7 +446,10 @@ function SecaoPagar({ notify, projetos, user }) {
                                     const cat = CAT_MAP[cp.categoria];
                                     const isPago = cp.status === 'pago';
                                     return (
-                                        <tr key={cp.id} style={{ borderBottom: '1px solid var(--border)', opacity: isPago ? 0.65 : 1, background: !isPago && st.color === '#B86565' ? '#fef2f218' : 'transparent', borderLeft: !isPago && st.color === '#B86565' ? '3px solid #ef4444' : 'none' }}>
+                                        <tr key={cp.id} style={{ borderBottom: '1px solid var(--border)', opacity: isPago ? 0.65 : 1, background: selectedIds.has(cp.id) ? 'rgba(19,121,240,0.06)' : !isPago && st.color === '#B86565' ? '#fef2f218' : 'transparent', borderLeft: !isPago && st.color === '#B86565' ? '3px solid #ef4444' : 'none' }}>
+                                            <td style={{ padding: '10px 8px', textAlign: 'center', width: 32 }}>
+                                                {!isPago && <input type="checkbox" checked={selectedIds.has(cp.id)} onChange={() => toggleSelect(cp.id)} style={{ cursor: 'pointer', accentColor: 'var(--primary)' }} />}
+                                            </td>
                                             <td style={{ padding: '10px 12px' }}><Badge label={st.label} color={st.color} icon={st.icon} /></td>
                                             <td style={{ padding: '10px 12px' }}>
                                                 <div style={{ fontWeight: isPago ? 400 : 600, textDecoration: isPago ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
@@ -452,6 +513,22 @@ function SecaoPagar({ notify, projetos, user }) {
                     </div>
                 )}
             </div>
+
+            {/* Barra de ação em lote */}
+            {selectedIds.size > 0 && (
+                <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 50,
+                    background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '10px 20px',
+                    display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', fontSize: 13 }}>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedIds.size} selecionado{selectedIds.size > 1 ? 's' : ''}</span>
+                    <button className={Z.btn} onClick={bulkMarkPago} disabled={bulkLoading}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '6px 14px' }}>
+                        <Check size={13} /> Marcar como Pago
+                    </button>
+                    <button className={Z.btn2} onClick={() => setSelectedIds(new Set())} style={{ fontSize: 12, padding: '6px 14px' }}>
+                        Cancelar
+                    </button>
+                </div>
+            )}
 
             {/* Resumo por Categoria */}
             {aba === 'pendentes' && resumo?.por_categoria?.length > 0 && (
@@ -553,12 +630,15 @@ function SecaoReceber({ notify, projetos, user }) {
     const [aba, setAba]           = useState('pendentes');
     const [fProjeto, setFProj]    = useState('');
     const [fBusca, setFBusca]     = useState('');
+    const [fSemana, setFSemana]   = useState(false);
     const [showForm, setShowForm] = useState(false);
     const emptyForm = { descricao: '', valor: '', data_vencimento: '', meio_pagamento: '', codigo_barras: '', nf_numero: '', observacao: '', projeto_id: '', parcelado: false, num_parcelas: 2, tipo_intervalo: 'mensal', intervalo_dias: 30 };
     const [form, setForm]         = useState(emptyForm);
     const [parcelas, setParcelas] = useState([]);
     const [historicoId, setHistoricoId] = useState(null);
     const [confirmDel, setConfirmDel] = useState(null);
+    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [bulkLoading, setBulkLoading] = useState(false);
 
     const canDelete = user?.role === 'admin' || user?.role === 'gerente';
     const canViewHistory = user?.role === 'admin' || user?.role === 'gerente';
@@ -615,12 +695,53 @@ function SecaoReceber({ notify, projetos, user }) {
     const copiarCodigo = (texto) => navigator.clipboard.writeText(texto).then(() => notify('Código copiado!'));
 
     const filtradas = contas.filter(c => {
+        if (fSemana && c.data_vencimento) {
+            const wk = getWeekRange();
+            if (c.data_vencimento < wk.start || c.data_vencimento > wk.end) return false;
+        }
         if (!fBusca) return true;
         const b = fBusca.toLowerCase();
         return (c.descricao || '').toLowerCase().includes(b)
             || (c.projeto_nome || '').toLowerCase().includes(b)
             || (c.meio_pagamento || '').toLowerCase().includes(b);
     });
+
+    const allVisibleIds = filtradas.filter(c => c.status !== 'pago').map(c => c.id);
+    const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selectedIds.has(id));
+
+    const toggleSelect = (id) => setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+    });
+    const toggleSelectAll = () => {
+        if (allSelected) setSelectedIds(new Set());
+        else setSelectedIds(new Set(allVisibleIds));
+    };
+
+    const bulkMarkRecebido = () => {
+        if (selectedIds.size === 0) return;
+        setBulkLoading(true);
+        api.put('/financeiro/receber/bulk-status', { ids: [...selectedIds], status: 'pago', data_pagamento: new Date().toISOString().slice(0,10) })
+            .then(() => { load(); setSelectedIds(new Set()); notify(`${selectedIds.size} recebimento(s) marcados`); })
+            .catch(e => notify(e.error || 'Erro ao atualizar em lote'))
+            .finally(() => setBulkLoading(false));
+    };
+
+    const exportCsv = () => {
+        window.open('/api/financeiro/receber/export-csv', '_blank');
+    };
+
+    // "Quem mais deve" — top 3 clientes/projetos com maior saldo pendente
+    const topDevedores = (() => {
+        const pendentes = contas.filter(c => c.status !== 'pago');
+        const map = {};
+        pendentes.forEach(c => {
+            const key = c.projeto_nome || 'Sem projeto';
+            map[key] = (map[key] || 0) + (c.valor || 0);
+        });
+        return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([nome, total]) => ({ nome, total }));
+    })();
 
     return (
         <div>
@@ -637,6 +758,22 @@ function SecaoReceber({ notify, projetos, user }) {
                     <KpiCard label="Vencido"        value={R$(resumo.vencido)}       color="var(--primary)" sub={resumo.qtd_vencidas > 0 ? `${resumo.qtd_vencidas} conta(s)` : null} />
                     <KpiCard label="Recebido (mês)" value={R$(resumo.recebido_mes || 0)} color="var(--primary)" />
                     <KpiCard label="Total Recebido" value={R$(resumo.recebido || 0)} color="#8b5cf6" />
+                </div>
+            )}
+
+            {/* Quem mais deve */}
+            {aba === 'pendentes' && topDevedores.length > 0 && (
+                <div className={Z.card} style={{ padding: '12px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 600, fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>
+                        <Trophy size={13} style={{ color: '#C4924C' }} /> Maiores pendentes
+                    </div>
+                    {topDevedores.map((d, i) => (
+                        <span key={i} style={{ fontSize: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ fontWeight: 600 }}>{d.nome}</span>
+                            <span style={{ color: '#B86565', fontWeight: 700 }}>{R$(d.total)}</span>
+                            {i < topDevedores.length - 1 && <span style={{ color: 'var(--border)', margin: '0 2px' }}>|</span>}
+                        </span>
+                    ))}
                 </div>
             )}
 
@@ -724,6 +861,14 @@ function SecaoReceber({ notify, projetos, user }) {
             {/* Filtros */}
             <div className={Z.card} style={{ padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <Filter size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                <button onClick={() => setFSemana(v => !v)}
+                    style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: '1px solid', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                        borderColor: fSemana ? 'var(--primary)' : 'var(--border)',
+                        background: fSemana ? 'var(--primary)' : 'var(--bg-card)',
+                        color: fSemana ? '#fff' : 'var(--text-secondary)',
+                    }}>
+                    <Calendar size={11} /> Esta semana
+                </button>
                 <select className={Z.inp} style={{ width: 180, fontSize: 11 }} value={fProjeto} onChange={e => setFProj(e.target.value)}>
                     <option value="">Todos os projetos</option>
                     {projetos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
@@ -733,12 +878,16 @@ function SecaoReceber({ notify, projetos, user }) {
                     <input className={Z.inp} style={{ paddingLeft: 28, fontSize: 11, width: '100%' }}
                         placeholder="Buscar..." value={fBusca} onChange={e => setFBusca(e.target.value)} />
                 </div>
-                {(fProjeto || fBusca) && (
-                    <button onClick={() => { setFProj(''); setFBusca(''); }}
+                {(fProjeto || fBusca || fSemana) && (
+                    <button onClick={() => { setFProj(''); setFBusca(''); setFSemana(false); }}
                         style={{ fontSize: 10, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2 }}>
                         <X size={11} /> Limpar
                     </button>
                 )}
+                <button onClick={exportCsv} title="Exportar CSV"
+                    style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: 11, fontWeight: 500, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Download size={12} /> CSV
+                </button>
             </div>
 
             {/* Tabela */}
@@ -747,9 +896,12 @@ function SecaoReceber({ notify, projetos, user }) {
                 : filtradas.length === 0 ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhum recebimento encontrado.</div>
                 : (
                     <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse', fontSize: 12 }}>
+                        <table style={{ width: '100%', minWidth: 680, borderCollapse: 'collapse', fontSize: 12 }}>
                             <thead>
                                 <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                                    <th style={{ padding: '10px 8px', width: 32, textAlign: 'center' }}>
+                                        <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} style={{ cursor: 'pointer', accentColor: 'var(--primary)' }} />
+                                    </th>
                                     {['Status', 'Descrição', 'Projeto', 'Meio', 'Valor', 'Venc.', ''].map((h, i) => (
                                         <th key={i} style={{ padding: '10px 12px', textAlign: i === 4 ? 'right' : i >= 5 ? 'center' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
                                     ))}
@@ -760,7 +912,10 @@ function SecaoReceber({ notify, projetos, user }) {
                                     const st = getStatusReceber(cr);
                                     const isRecebido = cr.status === 'pago';
                                     return (
-                                        <tr key={cr.id} style={{ borderBottom: '1px solid var(--border)', opacity: isRecebido ? 0.65 : 1, background: !isRecebido && st.color === '#B86565' ? '#fef2f218' : 'transparent', borderLeft: !isRecebido && st.color === '#B86565' ? '3px solid #ef4444' : 'none' }}>
+                                        <tr key={cr.id} style={{ borderBottom: '1px solid var(--border)', opacity: isRecebido ? 0.65 : 1, background: selectedIds.has(cr.id) ? 'rgba(19,121,240,0.06)' : !isRecebido && st.color === '#B86565' ? '#fef2f218' : 'transparent', borderLeft: !isRecebido && st.color === '#B86565' ? '3px solid #ef4444' : 'none' }}>
+                                            <td style={{ padding: '10px 8px', textAlign: 'center', width: 32 }}>
+                                                {!isRecebido && <input type="checkbox" checked={selectedIds.has(cr.id)} onChange={() => toggleSelect(cr.id)} style={{ cursor: 'pointer', accentColor: 'var(--primary)' }} />}
+                                            </td>
                                             <td style={{ padding: '10px 12px' }}><Badge label={st.label} color={st.color} icon={st.icon} /></td>
                                             <td style={{ padding: '10px 12px' }}>
                                                 <div style={{ fontWeight: isRecebido ? 400 : 600, textDecoration: isRecebido ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -815,6 +970,22 @@ function SecaoReceber({ notify, projetos, user }) {
                     </div>
                 )}
             </div>
+
+            {/* Barra de ação em lote */}
+            {selectedIds.size > 0 && (
+                <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 50,
+                    background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '10px 20px',
+                    display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', fontSize: 13 }}>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedIds.size} selecionado{selectedIds.size > 1 ? 's' : ''}</span>
+                    <button className={Z.btn} onClick={bulkMarkRecebido} disabled={bulkLoading}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '6px 14px' }}>
+                        <Check size={13} /> Marcar como Recebido
+                    </button>
+                    <button className={Z.btn2} onClick={() => setSelectedIds(new Set())} style={{ fontSize: 12, padding: '6px 14px' }}>
+                        Cancelar
+                    </button>
+                </div>
+            )}
 
             {/* Modal Histórico */}
             {historicoId && (

@@ -1,7 +1,18 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import api from '../api';
 import { Ic, Z, Spinner, PageHeader, EmptyState, ProgressBar as PBarUI } from '../ui';
-import { Scissors, Printer, ArrowLeft, ChevronDown, ChevronUp, Search, RefreshCw, RotateCw, Settings, Eye, Package, Layers, BarChart3, AlertTriangle, CheckCircle2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Grid3X3 } from 'lucide-react';
+import { Scissors, Printer, ArrowLeft, ChevronDown, ChevronUp, Search, RefreshCw, RotateCw, Settings, Eye, Package, Layers, BarChart3, AlertTriangle, CheckCircle2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Grid3X3, XCircle } from 'lucide-react';
+
+// Presets de material para configuração rápida
+const MATERIAL_PRESETS = {
+    'mdf_15': { label: 'MDF 15mm', kerf: 4, refilo: 10, sobra_min_w: 150, sobra_min_h: 150 },
+    'mdf_18': { label: 'MDF 18mm', kerf: 4, refilo: 10, sobra_min_w: 150, sobra_min_h: 150 },
+    'mdf_25': { label: 'MDF 25mm', kerf: 4.5, refilo: 12, sobra_min_w: 180, sobra_min_h: 180 },
+    'comp_15': { label: 'Compensado 15mm', kerf: 3.5, refilo: 8, sobra_min_w: 120, sobra_min_h: 120 },
+    'vidro': { label: 'Vidro Temperado', kerf: 3, refilo: 15, sobra_min_w: 200, sobra_min_h: 200 },
+    'mdf_cru': { label: 'MDF Cru', kerf: 4, refilo: 10, sobra_min_w: 150, sobra_min_h: 150 },
+    'custom': { label: 'Personalizado' },
+};
 
 // Cores por ambiente (mais vibrantes e distintas)
 const AMB_COLORS = [
@@ -95,12 +106,32 @@ export default function PlanoCorte({ notify }) {
     const [considerarSobra, setConsiderarSobra] = useState(true);
     const [sobraMinW, setSobraMinW] = useState(300);
     const [sobraMinH, setSobraMinH] = useState(600);
+    const [preset, setPreset] = useState('custom');
 
     // Resultado
     const [plano, setPlano] = useState(null);
     const [chapaIdx, setChapaIdx] = useState(0);
     const [zoom, setZoom] = useState(0.28);
     const [optimizing, setOptimizing] = useState(false);
+    const abortRef = useRef(null);
+
+    // ── Aplicar preset de material ──
+    const applyPreset = useCallback((key) => {
+        setPreset(key);
+        const p = MATERIAL_PRESETS[key];
+        if (p && key !== 'custom') {
+            setKerf(p.kerf);
+            setRefilo(p.refilo);
+            setSobraMinW(p.sobra_min_w);
+            setSobraMinH(p.sobra_min_h);
+        }
+    }, []);
+
+    // ── Handler para mudança manual de campo (auto-switch para Personalizado) ──
+    const manualSet = useCallback((setter) => (val) => {
+        setter(val);
+        setPreset('custom');
+    }, []);
 
     // ── Carregar orçamentos ──
     useEffect(() => {
@@ -129,6 +160,8 @@ export default function PlanoCorte({ notify }) {
     // ── Otimizar ──
     const otimizar = useCallback(async () => {
         if (!orcSelecionado) return;
+        const controller = new AbortController();
+        abortRef.current = controller;
         setOptimizing(true);
         try {
             const data = await api.post('/plano-corte/otimizar', {
@@ -138,16 +171,28 @@ export default function PlanoCorte({ notify }) {
                     direcao_corte: direcaoCorte, considerar_sobra: considerarSobra,
                     sobra_min_largura: sobraMinW, sobra_min_comprimento: sobraMinH,
                 },
-            });
+            }, { signal: controller.signal });
             setPlano(data);
             setChapaIdx(0);
             setStep('resultado');
         } catch (e) {
-            notify(e.error || 'Erro ao otimizar');
+            if (e.name === 'AbortError' || controller.signal.aborted) {
+                notify('Otimização cancelada');
+            } else {
+                notify(e.error || 'Erro ao otimizar');
+            }
         } finally {
             setOptimizing(false);
+            abortRef.current = null;
         }
     }, [orcSelecionado, kerf, refilo, permitirRotacao, modo, direcaoCorte, considerarSobra, sobraMinW, sobraMinH]);
+
+    // ── Cancelar otimização ──
+    const cancelarOtimizacao = useCallback(() => {
+        if (abortRef.current) {
+            abortRef.current.abort();
+        }
+    }, []);
 
     // ── Voltar ──
     const voltar = () => {
@@ -285,9 +330,10 @@ export default function PlanoCorte({ notify }) {
 
             {step === 'selecao' && <StepSelecao orcamentos={orcamentos} search={search} setSearch={setSearch} onSelect={selecionarOrc} loading={loading} />}
             {step === 'pecas' && <StepPecas pecasData={pecasData} loading={loading}
-                config={{ kerf, refilo, permitirRotacao, modo, direcaoCorte, considerarSobra, sobraMinW, sobraMinH }}
-                setConfig={{ setKerf, setRefilo, setPermitirRotacao, setModo, setDirecaoCorte, setConsiderarSobra, setSobraMinW, setSobraMinH }}
-                onOtimizar={otimizar} optimizing={optimizing} />}
+                config={{ kerf, refilo, permitirRotacao, modo, direcaoCorte, considerarSobra, sobraMinW, sobraMinH, preset }}
+                setConfig={{ setKerf: manualSet(setKerf), setRefilo: manualSet(setRefilo), setPermitirRotacao: manualSet(setPermitirRotacao), setModo: manualSet(setModo), setDirecaoCorte: manualSet(setDirecaoCorte), setConsiderarSobra: manualSet(setConsiderarSobra), setSobraMinW: manualSet(setSobraMinW), setSobraMinH: manualSet(setSobraMinH) }}
+                applyPreset={applyPreset}
+                onOtimizar={otimizar} onCancelar={cancelarOtimizacao} optimizing={optimizing} />}
             {step === 'resultado' && <StepResultado plano={plano} chapaIdx={chapaIdx} setChapaIdx={setChapaIdx}
                 zoom={zoom} setZoom={setZoom} ambColorMap={ambColorMap} onImprimir={imprimir} onReotimizar={() => setStep('pecas')} />}
         </div>
@@ -369,7 +415,7 @@ function StepSelecao({ orcamentos, search, setSearch, onSelect, loading }) {
 // ═══════════════════════════════════════════════════════
 // STEP 2: Peças + Configuração
 // ═══════════════════════════════════════════════════════
-function StepPecas({ pecasData, config, setConfig, onOtimizar, optimizing }) {
+function StepPecas({ pecasData, config, setConfig, applyPreset, onOtimizar, onCancelar, optimizing }) {
     const [showConfig, setShowConfig] = useState(false);
 
     if (!pecasData) return <Spinner />;
@@ -437,6 +483,15 @@ function StepPecas({ pecasData, config, setConfig, onOtimizar, optimizing }) {
 
                 {showConfig && (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginTop: 12 }}>
+                        <div style={{ gridColumn: '1 / -1' }}>
+                            <label className={Z.lbl}>Preset de Material</label>
+                            <select className={Z.inp} value={config.preset} onChange={e => applyPreset(e.target.value)}
+                                style={{ maxWidth: 280 }}>
+                                {Object.entries(MATERIAL_PRESETS).map(([key, p]) => (
+                                    <option key={key} value={key}>{p.label}</option>
+                                ))}
+                            </select>
+                        </div>
                         <div>
                             <label className={Z.lbl}>Serra (kerf) mm</label>
                             <input type="number" className={Z.inp} value={config.kerf} onChange={e => setConfig.setKerf(+e.target.value)} min={0} max={10} step={0.5} />
@@ -482,12 +537,20 @@ function StepPecas({ pecasData, config, setConfig, onOtimizar, optimizing }) {
                 )}
             </div>
 
-            {/* Botão otimizar */}
-            <button onClick={onOtimizar} disabled={optimizing} className={Z.btn}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, padding: '12px 32px' }}>
-                {optimizing ? <><Spinner style={{ width: 16, height: 16 }} /> Otimizando...</> :
-                    <><Scissors size={16} /> Gerar Plano de Corte Otimizado</>}
-            </button>
+            {/* Botão otimizar + cancelar */}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <button onClick={onOtimizar} disabled={optimizing} className={Z.btn}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, padding: '12px 32px' }}>
+                    {optimizing ? <><Spinner style={{ width: 16, height: 16 }} /> Otimizando...</> :
+                        <><Scissors size={16} /> Gerar Plano de Corte Otimizado</>}
+                </button>
+                {optimizing && (
+                    <button onClick={onCancelar} className="btn-secondary"
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '10px 20px', color: '#dc2626', borderColor: '#dc2626' }}>
+                        <XCircle size={16} /> Cancelar
+                    </button>
+                )}
+            </div>
         </div>
     );
 }
