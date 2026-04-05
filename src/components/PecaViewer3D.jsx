@@ -30,6 +30,7 @@ function getRenderer() {
             alpha: false,
             powerPreference: 'high-performance',
             preserveDrawingBuffer: true,
+            logarithmicDepthBuffer: true,
         });
         r.setPixelRatio(1);
         r.shadowMap.enabled = false;
@@ -407,7 +408,7 @@ function buildHoleBrush(w, comp, larg, esp, sc, material) {
     const isLat = !isTop && !isBot;
 
     // CylinderGeometry: axis = Y by default
-    const cylH = isThrough ? SY + 0.5 : depth + 0.1;
+    const cylH = isThrough ? SY + 1.0 : depth + 0.5;
     const cylGeo = new THREE.CylinderGeometry(radius, radius, cylH, segments);
     const brush = new Brush(cylGeo, material);
 
@@ -435,9 +436,9 @@ function buildHoleBrush(w, comp, larg, esp, sc, material) {
         if (isThrough) {
             brush.position.set(rawX, rawY, SY / 2);
         } else if (isTop) {
-            brush.position.set(rawX, rawY, SY - depth / 2 + 0.05);
+            brush.position.set(rawX, rawY, SY - depth / 2 + 0.25);
         } else {
-            brush.position.set(rawX, rawY, depth / 2 - 0.05);
+            brush.position.set(rawX, rawY, depth / 2 - 0.25);
         }
     }
 
@@ -465,11 +466,11 @@ function buildGrooveBrush(w, comp, larg, esp, sc, material) {
         const gw = maxX - minX, gh = maxY - minY;
         if (gw < 0.01 || gh < 0.01) return null;
 
-        const boxGeo = new THREE.BoxGeometry(gw, gh, depth + 0.1);
+        const boxGeo = new THREE.BoxGeometry(gw + 0.2, gh + 0.2, depth + 0.5);
         const brush = new Brush(boxGeo, material);
         const cx = minX + gw / 2, cy = minY + gh / 2;
         const isTop = face === 'top' || face === 'side_a';
-        const cz = isTop ? SY - depth / 2 + 0.05 : depth / 2 - 0.05;
+        const cz = isTop ? SY - depth / 2 + 0.25 : depth / 2 - 0.25;
         brush.position.set(cx, cy, cz);
         brush.updateMatrixWorld(true);
         return brush;
@@ -486,11 +487,11 @@ function buildGrooveBrush(w, comp, larg, esp, sc, material) {
         if (lineLen < 0.01) return null;
 
         const grooveW = Math.max((w.width_line || w.width || 3) * sc, 0.3);
-        const boxGeo = new THREE.BoxGeometry(lineLen + 0.1, grooveW, depth + 0.1);
+        const boxGeo = new THREE.BoxGeometry(lineLen + 0.5, grooveW + 0.2, depth + 0.5);
         const brush = new Brush(boxGeo, material);
         const cx = (sx + ex) / 2, cy = (sy + ey) / 2;
         const isTop = face === 'top' || face === 'side_a';
-        const cz = isTop ? SY - depth / 2 + 0.05 : depth / 2 - 0.05;
+        const cz = isTop ? SY - depth / 2 + 0.25 : depth / 2 - 0.25;
         brush.position.set(cx, cy, cz);
         if (Math.abs(dx) > 0.01 && Math.abs(dy) > 0.01) {
             brush.rotation.z = Math.atan2(dy, dx);
@@ -507,10 +508,10 @@ function buildGrooveBrush(w, comp, larg, esp, sc, material) {
         const rawY = Number(w.y ?? w.position_y ?? 0) * sc;
         const grooveLen = Number(w.length) * sc;
         const grooveW = Math.max((w.width_line || w.width || 3) * sc, 0.3);
-        const boxGeo = new THREE.BoxGeometry(grooveLen, grooveW, depth + 0.1);
+        const boxGeo = new THREE.BoxGeometry(grooveLen + 0.4, grooveW + 0.2, depth + 0.5);
         const brush = new Brush(boxGeo, material);
         const isTop = face === 'top' || face === 'side_a';
-        const cz = isTop ? SY - depth / 2 + 0.05 : depth / 2 - 0.05;
+        const cz = isTop ? SY - depth / 2 + 0.25 : depth / 2 - 0.25;
         brush.position.set(rawX + grooveLen / 2, rawY, cz);
         brush.updateMatrixWorld(true);
         return brush;
@@ -564,10 +565,10 @@ function buildMillingPocketBrush(w, comp, larg, esp, sc, material) {
     for (let i = inner.length - 1; i >= 0; i--) shape.lineTo(inner[i][0], inner[i][1]);
     shape.closePath();
 
-    const geo = new THREE.ExtrudeGeometry(shape, { depth: depth + 0.2, bevelEnabled: false });
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: depth + 0.5, bevelEnabled: false });
     const brush = new Brush(geo, material);
     const isTop = face === 'top' || face === 'side_a';
-    brush.position.set(0, 0, isTop ? SY - depth : -0.1);
+    brush.position.set(0, 0, isTop ? SY - depth + 0.1 : -0.25);
     brush.updateMatrixWorld(true);
     return brush;
 }
@@ -592,13 +593,20 @@ function buildCSGPiece(peca, sc) {
         color: matColor,
         roughness: 0.5,
         metalness: 0,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1,
     });
 
     // Material for cut surfaces (MDF core)
+    // polygonOffset avoids Z-fighting where cut faces meet surface faces
     const cutMat = new THREE.MeshStandardMaterial({
         color: 0x9E8060,
         roughness: 0.85,
         metalness: 0,
+        polygonOffset: true,
+        polygonOffsetFactor: 1,
+        polygonOffsetUnits: 1,
     });
 
     // Build base geometry (with closed passante millings as holes)
