@@ -34,6 +34,7 @@ const GestaoAvancada = lazy(() => import('./pages/GestaoAvancada'));
 const ProducaoTV = lazy(() => import('./pages/ProducaoTV'));
 const Produtividade = lazy(() => import('./pages/Produtividade'));
 const PluginDownload = lazy(() => import('./pages/PluginDownload'));
+const Modelagem = lazy(() => import('./pages/Modelagem'));
 
 // ── Skeleton Fallback ──────────────────────────────────────────
 const LazyFallback = () => (
@@ -111,7 +112,7 @@ class ErrorBoundary extends Component {
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
     // ── Roteamento com History API ──────────────────────────────────────────
-    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download'];
+    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','modelagem','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download'];
     const [pg, setPg] = useState(() => {
         const rawPath = window.location.pathname.replace(/^\/+/, '');
         const parts = rawPath.split('/');
@@ -490,6 +491,7 @@ export default function App() {
         { id: 'producao', label: 'Produção', icon: Ic.Factory, items: [
             { id: "industrializacao", lb: "Ordens", ic: Ic.ClipList },
             { id: "cnc", lb: "Corte & CNC", ic: Ic.Scissors },
+            { id: "modelagem", lb: "Modelagem 3D", ic: Ic.Box },
             { id: "expedicao", lb: "Expedição", ic: Ic.Truck },
         ]},
         { id: 'cadastros', label: 'Cadastros', icon: Ic.Box, items: [
@@ -521,6 +523,7 @@ export default function App() {
         { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         { id: "industrializacao", lb: "Ordens de Produção", ic: Ic.ClipList },
         { id: "cnc", lb: "Corte & CNC", ic: Ic.Scissors },
+        { id: "modelagem", lb: "Modelagem 3D", ic: Ic.Box },
         { id: "producao_fabrica", lb: "Acompanhamento Fábrica", ic: Ic.HardHat },
         { id: "producao_tv", lb: "TV Fábrica", ic: Ic.Monitor },
         { id: "expedicao", lb: "Expedição", ic: Ic.Truck },
@@ -588,6 +591,7 @@ export default function App() {
             case "producao_tv": return <ProducaoTV />;
             case "produtividade": return <Produtividade notify={notify} />;
             case "plugin_download": return <PluginDownload notify={notify} />;
+            case "modelagem": return <Modelagem api={api} notify={notify} />;
             default: return <Dash nav={nav} notify={notify} />;
         }
     };

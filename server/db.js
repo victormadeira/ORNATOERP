@@ -2121,6 +2121,92 @@ try {
   `);
 } catch (_) { /* tabelas podem não existir ainda */ }
 
+// ═══ Modelagem Orgânica ═══
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS materiais_modelagem (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nome TEXT NOT NULL,
+      tipo TEXT NOT NULL DEFAULT 'mdf',
+      espessura_padrao REAL NOT NULL DEFAULT 18,
+      espessuras_disponiveis TEXT DEFAULT '[6,9,12,15,18,25]',
+      raio_min_kerf_mm TEXT DEFAULT '{}',
+      modulo_elasticidade REAL,
+      custo_m2 REAL DEFAULT 0,
+      largura_chapa_mm REAL DEFAULT 2750,
+      comprimento_chapa_mm REAL DEFAULT 1850,
+      permite_kerf INTEGER DEFAULT 1,
+      permite_laminacao INTEGER DEFAULT 0,
+      cor_hex TEXT DEFAULT '#D4B896',
+      ativo INTEGER DEFAULT 1,
+      criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS projetos_modelagem (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      cliente_id INTEGER,
+      orcamento_id INTEGER,
+      nome TEXT NOT NULL,
+      descricao TEXT DEFAULT '',
+      codigo TEXT UNIQUE,
+      status TEXT NOT NULL DEFAULT 'rascunho',
+      versao INTEGER NOT NULL DEFAULT 1,
+      link_token TEXT UNIQUE,
+      link_ativo INTEGER DEFAULT 0,
+      link_expira_em DATETIME,
+      aprovado_por TEXT,
+      aprovado_em DATETIME,
+      comentarios_cliente TEXT,
+      criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+      atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS pecas_modelagem (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      projeto_id INTEGER NOT NULL REFERENCES projetos_modelagem(id) ON DELETE CASCADE,
+      material_id INTEGER REFERENCES materiais_modelagem(id),
+      nome TEXT NOT NULL,
+      descricao TEXT DEFAULT '',
+      espessura REAL NOT NULL DEFAULT 18,
+      geometria_silhueta TEXT DEFAULT '{}',
+      bounding_box_x REAL,
+      bounding_box_y REAL,
+      area_real REAL,
+      perimetro REAL,
+      processo_fabricacao TEXT DEFAULT 'corte_2d',
+      parametros_processo TEXT DEFAULT '{}',
+      furos TEXT DEFAULT '[]',
+      canaletas TEXT DEFAULT '[]',
+      bordas TEXT DEFAULT '{}',
+      fabricabilidade TEXT DEFAULT '{"valido":true,"problemas":[],"avisos":[]}',
+      notas_operador TEXT DEFAULT '',
+      criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+      atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_proj_modelagem_user ON projetos_modelagem(user_id);
+    CREATE INDEX IF NOT EXISTS idx_proj_modelagem_cliente ON projetos_modelagem(cliente_id);
+    CREATE INDEX IF NOT EXISTS idx_proj_modelagem_status ON projetos_modelagem(status);
+    CREATE INDEX IF NOT EXISTS idx_proj_modelagem_token ON projetos_modelagem(link_token);
+    CREATE INDEX IF NOT EXISTS idx_pecas_modelagem_projeto ON pecas_modelagem(projeto_id);
+  `);
+
+  // Seed materiais_modelagem
+  const matCount = db.prepare('SELECT COUNT(*) as c FROM materiais_modelagem').get();
+  if (matCount.c === 0) {
+    const ins = db.prepare('INSERT INTO materiais_modelagem (nome, tipo, espessura_padrao, raio_min_kerf_mm, permite_kerf, cor_hex) VALUES (?,?,?,?,?,?)');
+    ins.run('MDF Cru', 'mdf', 18, '{"6":80,"9":150,"12":220,"15":280,"18":350,"25":500}', 1, '#D4B896');
+    ins.run('MDF Branco', 'mdf', 18, '{"6":80,"9":150,"12":220,"15":280,"18":350,"25":500}', 1, '#F0EBE0');
+    ins.run('MDF Preto', 'mdf', 18, '{"6":80,"9":150,"12":220,"15":280,"18":350,"25":500}', 1, '#3a3a3a');
+    ins.run('Compensado Naval', 'compensado', 15, '{"6":60,"9":120,"12":180,"15":250}', 1, '#C9A86C');
+    ins.run('Vidro Temperado', 'vidro', 8, '{}', 0, '#C8E6F0');
+    ins.run('MDF Amadeirado', 'mdf', 18, '{"6":80,"9":150,"12":220,"15":280,"18":350,"25":500}', 1, '#C4A672');
+    ins.run('Madeira Macica', 'madeira_macica', 25, '{}', 0, '#A0785A');
+    console.log('[OK] Seed materiais_modelagem: 7 materiais criados');
+  }
+} catch (e) { console.warn('Modelagem tables:', e.message); }
+
 // Backfill: gerar números para orçamentos que ainda não têm
 {
   const semNumero = db.prepare("SELECT id, criado_em FROM orcamentos WHERE numero IS NULL OR numero = '' ORDER BY id").all();
