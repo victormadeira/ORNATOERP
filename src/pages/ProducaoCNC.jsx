@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import api from '../api';
-import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar } from '../ui';
+import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar, SearchableSelect } from '../ui';
 import { colorBg, colorBorder, getStatus, STATUS_COLORS as GLOBAL_STATUS } from '../theme';
-import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send, Circle, Square, Minus, Check } from 'lucide-react';
+import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send, Circle, Square, Minus, Check } from 'lucide-react';
 import EditorEtiquetas, { EtiquetaSVG } from '../components/EditorEtiquetas';
 import PecaViewer3D from '../components/PecaViewer3D';
 import PecaEditor from '../components/PecaEditor';
@@ -18,6 +18,7 @@ const TABS_MAIN = [
     { id: 'importar', lb: 'Importar', ic: Upload },
     { id: 'lotes', lb: 'Lotes', ic: Package },
     { id: 'dashboard', lb: 'Dashboard', ic: BarChart3 },
+    { id: 'retalhos', lb: 'Retalhos', ic: Box },
     { id: 'config', lb: 'Configurações', ic: Settings },
 ];
 
@@ -110,7 +111,7 @@ export default function ProducaoCNC({ notify }) {
     // ── MODO EDITOR FULL-SCREEN ──────────────────────────
     if (editorMode) {
         return (
-            <div className={Z.pg} style={{ padding: '0 8px 8px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 52px)' }}>
+            <div className="w-full page-enter" style={{ padding: '0 8px 8px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 52px)' }}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                     <EditorEtiquetas
                         api={api}
@@ -125,7 +126,7 @@ export default function ProducaoCNC({ notify }) {
 
     // ── MODO NORMAL ───────────────────────────────────────
     return (
-        <div className={Z.pg}>
+        <div className="w-full page-enter" style={{ padding: '8px 12px 12px' }}>
             <PageHeader icon={Cpu} title="Produção CNC" subtitle="Importar JSON, otimizar corte, etiquetas e G-code" />
 
             {/* Alerta global de desgaste de ferramentas */}
@@ -304,6 +305,7 @@ export default function ProducaoCNC({ notify }) {
             {tab === 'importar' && !isInsideLote && <TabImportar lotes={lotes} loadLotes={loadLotes} notify={notify} setLoteAtual={abrirLote} setTab={setTab} />}
             {tab === 'lotes' && !isInsideLote && <TabLotes lotes={lotes} loadLotes={loadLotes} notify={notify} abrirLote={abrirLote} />}
             {tab === 'dashboard' && !isInsideLote && <TabDashboard notify={notify} />}
+            {tab === 'retalhos' && !isInsideLote && <TabRetalhos notify={notify} />}
             {tab === 'pecas' && isInsideLote && <TabPecas lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} setTab={setTab} />}
             {tab === 'plano' && isInsideLote && <TabPlano lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} loadLotes={loadLotes} setTab={setTab} />}
             {tab === 'etiquetas' && isInsideLote && <TabEtiquetas lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} />}
@@ -350,6 +352,10 @@ function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) {
     const [lastImportedLote, setLastImportedLote] = useState(null);
     const [matCheck, setMatCheck] = useState(null); // { cadastrados, nao_cadastrados }
     const [matEdits, setMatEdits] = useState({}); // edits to suggested chapas
+    const [matActions, setMatActions] = useState({}); // { [i]: 'vincular' | 'cadastrar' }
+    const [matVinculos, setMatVinculos] = useState({}); // { [i]: chapa_id }
+    const [matConfirmados, setMatConfirmados] = useState({}); // { [i]: true } materiais já confirmados
+    const [chapasDisponiveis, setChapasDisponiveis] = useState([]);
     const [checkingMats, setCheckingMats] = useState(false);
     const fileRef = useRef(null);
 
@@ -420,12 +426,18 @@ function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) {
                         const m = mc.match(/_(\d+(?:\.\d+)?)_/);
                         return { material_code: mc, espessura: m ? parseFloat(m[1]) : 0 };
                     });
-                    api.post('/cnc/chapas/verificar-materiais', { materiais: matList })
-                        .then(result => {
+                    Promise.all([
+                        api.post('/cnc/chapas/verificar-materiais', { materiais: matList }),
+                        api.get('/cnc/chapas'),
+                    ]).then(([result, chapas]) => {
                             console.log('[MatCheck]', result);
+                            setChapasDisponiveis(chapas.filter(c => c.ativo !== 0));
                             if (result.nao_cadastrados?.length > 0) {
                                 setMatCheck(result);
                                 setMatEdits({});
+                                setMatActions({});
+                                setMatVinculos({});
+                                setMatConfirmados({});
                             } else {
                                 setMatCheck(null);
                             }
@@ -517,106 +529,200 @@ function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
                                 <AlertTriangle size={14} color="#f59e0b" />
                                 <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>
-                                    {matCheck.nao_cadastrados.length} material(is) não cadastrado(s)
+                                    {matCheck.nao_cadastrados.length} material(is) não reconhecido(s)
                                 </span>
-                                <span style={{ fontSize: 11, color: '#dc2626', marginLeft: 'auto', fontWeight: 600 }}>
-                                    Sem cadastrar, materiais diferentes serão otimizados juntos!
+                                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                                    Vincule a uma chapa existente ou cadastre uma nova
                                 </span>
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 {matCheck.nao_cadastrados.map((mat, i) => {
+                                    const action = matActions[i] || 'vincular';
                                     const edit = matEdits[i] || mat.sugestao;
                                     const updateField = (k, v) => setMatEdits(prev => ({
                                         ...prev, [i]: { ...(prev[i] || mat.sugestao), [k]: v },
                                     }));
+
+                                    // Filtrar chapas pela espessura similar
+                                    const espMat = mat.espessura || 0;
+                                    const chapasFiltradas = espMat
+                                        ? chapasDisponiveis.filter(c => Math.abs((c.espessura_real || c.espessura_nominal) - espMat) <= 2)
+                                        : chapasDisponiveis;
+                                    const chapasOutras = espMat
+                                        ? chapasDisponiveis.filter(c => Math.abs((c.espessura_real || c.espessura_nominal) - espMat) > 2)
+                                        : [];
+
+                                    const confirmado = matConfirmados[i];
                                     return (
                                         <div key={mat.material_code} style={{
-                                            padding: 10, background: 'var(--bg-card)', borderRadius: 6,
-                                            border: '1px solid var(--border)',
+                                            padding: 10, borderRadius: 6,
+                                            background: confirmado ? 'rgba(34,197,94,0.06)' : 'var(--bg-card)',
+                                            border: confirmado ? '1px solid rgba(34,197,94,0.3)' : '1px solid var(--border)',
+                                            opacity: confirmado ? 0.7 : 1,
                                         }}>
-                                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-                                                {mat.material_code}
-                                                <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8, fontSize: 10 }}>
-                                                    esp: {mat.espessura || '?'}mm
+                                            {/* Header */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: confirmado ? 0 : 6, flexWrap: 'wrap' }}>
+                                                {confirmado && <Check size={14} style={{ color: '#22c55e' }} />}
+                                                <span style={{ fontSize: 12, fontWeight: 700, color: confirmado ? '#16a34a' : 'var(--text-primary)' }}>
+                                                    {mat.material_code.replace(/_/g, ' ')}
                                                 </span>
+                                                <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-muted)', padding: '1px 6px', borderRadius: 4 }}>
+                                                    {mat.espessura || '?'}mm
+                                                </span>
+                                                {mat.fallback_chapa && (
+                                                    <span style={{ fontSize: 10, color: '#dc2626', fontStyle: 'italic' }}>
+                                                        usando "{mat.fallback_chapa.nome}" por fallback
+                                                    </span>
+                                                )}
                                             </div>
-                                            {mat.fallback_chapa && (
-                                                <div style={{ fontSize: 10, color: '#dc2626', marginBottom: 4, fontStyle: 'italic' }}>
-                                                    Atualmente usando "{mat.fallback_chapa.nome}" por fallback — materiais misturados na otimização!
+
+                                            {/* Toggle: Vincular vs Cadastrar */}
+                                            {!confirmado && <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+                                                <button onClick={() => setMatActions(p => ({ ...p, [i]: 'vincular' }))}
+                                                    style={{
+                                                        fontSize: 11, padding: '4px 12px', borderRadius: 4, cursor: 'pointer',
+                                                        border: '1px solid var(--border)', fontWeight: action === 'vincular' ? 700 : 400,
+                                                        background: action === 'vincular' ? 'var(--primary)' : 'transparent',
+                                                        color: action === 'vincular' ? '#fff' : 'var(--text-secondary)',
+                                                    }}>
+                                                    Vincular a chapa existente
+                                                </button>
+                                                <button onClick={() => setMatActions(p => ({ ...p, [i]: 'cadastrar' }))}
+                                                    style={{
+                                                        fontSize: 11, padding: '4px 12px', borderRadius: 4, cursor: 'pointer',
+                                                        border: '1px solid var(--border)', fontWeight: action === 'cadastrar' ? 700 : 400,
+                                                        background: action === 'cadastrar' ? '#f59e0b' : 'transparent',
+                                                        color: action === 'cadastrar' ? '#fff' : 'var(--text-secondary)',
+                                                    }}>
+                                                    Cadastrar nova chapa
+                                                </button>
+                                            </div>}
+
+                                            {/* Vincular */}
+                                            {!confirmado && action === 'vincular' && (
+                                                <div>
+                                                    <select
+                                                        value={matVinculos[i] || ''}
+                                                        onChange={e => setMatVinculos(p => ({ ...p, [i]: Number(e.target.value) }))}
+                                                        className={Z.inp}
+                                                        style={{ fontSize: 12, padding: '6px 8px', width: '100%' }}
+                                                    >
+                                                        <option value="">Selecione a chapa...</option>
+                                                        {chapasFiltradas.length > 0 && (
+                                                            <optgroup label={`Mesma espessura (~${espMat}mm)`}>
+                                                                {chapasFiltradas.map(c => (
+                                                                    <option key={c.id} value={c.id}>
+                                                                        {c.nome} — {c.espessura_real || c.espessura_nominal}mm ({c.comprimento}x{c.largura})
+                                                                    </option>
+                                                                ))}
+                                                            </optgroup>
+                                                        )}
+                                                        {chapasOutras.length > 0 && (
+                                                            <optgroup label="Outras espessuras">
+                                                                {chapasOutras.map(c => (
+                                                                    <option key={c.id} value={c.id}>
+                                                                        {c.nome} — {c.espessura_real || c.espessura_nominal}mm ({c.comprimento}x{c.largura})
+                                                                    </option>
+                                                                ))}
+                                                            </optgroup>
+                                                        )}
+                                                    </select>
+                                                    {matVinculos[i] && (
+                                                        <div style={{ fontSize: 10, color: '#16a34a', marginTop: 4 }}>
+                                                            "{mat.material_code.replace(/_/g, ' ')}" sera tratado como a chapa selecionada na otimizacao
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
-                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 6 }}>
+
+                                            {/* Cadastrar nova */}
+                                            {!confirmado && action === 'cadastrar' && (
                                                 <div>
-                                                    <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Nome</label>
-                                                    <input value={edit.nome} onChange={e => updateField('nome', e.target.value)}
-                                                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} />
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 6 }}>
+                                                        <div>
+                                                            <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Nome</label>
+                                                            <input value={edit.nome} onChange={e => updateField('nome', e.target.value)}
+                                                                className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} />
+                                                        </div>
+                                                        <div>
+                                                            <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Comp. (mm)</label>
+                                                            <input type="number" value={edit.comprimento} onChange={e => updateField('comprimento', Number(e.target.value))}
+                                                                className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} />
+                                                        </div>
+                                                        <div>
+                                                            <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Larg. (mm)</label>
+                                                            <input type="number" value={edit.largura} onChange={e => updateField('largura', Number(e.target.value))}
+                                                                className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} />
+                                                        </div>
+                                                        <div>
+                                                            <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Esp. Real</label>
+                                                            <input type="number" value={edit.espessura_real} onChange={e => updateField('espessura_real', Number(e.target.value))}
+                                                                className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} step="0.1" />
+                                                        </div>
+                                                        <div>
+                                                            <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Veio</label>
+                                                            <select value={edit.veio === 'horizontal' || edit.veio === 'vertical' || edit.veio === 'com_veio' ? 'com_veio' : 'sem_veio'} onChange={e => updateField('veio', e.target.value)}
+                                                                className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }}>
+                                                                <option value="sem_veio">Sem veio</option>
+                                                                <option value="com_veio">Com veio</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Preco (R$)</label>
+                                                            <input type="number" value={edit.preco} onChange={e => updateField('preco', Number(e.target.value))}
+                                                                className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} step="0.01" />
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Comp. (mm)</label>
-                                                    <input type="number" value={edit.comprimento} onChange={e => updateField('comprimento', Number(e.target.value))}
-                                                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} />
-                                                </div>
-                                                <div>
-                                                    <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Larg. (mm)</label>
-                                                    <input type="number" value={edit.largura} onChange={e => updateField('largura', Number(e.target.value))}
-                                                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} />
-                                                </div>
-                                                <div>
-                                                    <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Esp. Real</label>
-                                                    <input type="number" value={edit.espessura_real} onChange={e => updateField('espessura_real', Number(e.target.value))}
-                                                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} step="0.1" />
-                                                </div>
-                                                <div>
-                                                    <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Veio</label>
-                                                    <select value={edit.veio} onChange={e => updateField('veio', e.target.value)}
-                                                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }}>
-                                                        <option value="sem_veio">Sem veio</option>
-                                                        <option value="horizontal">━ Horizontal</option>
-                                                        <option value="vertical">┃ Vertical</option>
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Kerf (mm)</label>
-                                                    <input type="number" value={edit.kerf} onChange={e => updateField('kerf', Number(e.target.value))}
-                                                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} step="0.5" />
-                                                </div>
-                                                <div>
-                                                    <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Preço (R$)</label>
-                                                    <input type="number" value={edit.preco} onChange={e => updateField('preco', Number(e.target.value))}
-                                                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px' }} step="0.01" />
-                                                </div>
-                                            </div>
+                                            )}
+
+                                            {/* Botão confirmar individual */}
+                                            {!matConfirmados[i] && (
+                                                <button
+                                                    disabled={checkingMats || (action === 'vincular' && !matVinculos[i])}
+                                                    onClick={async () => {
+                                                        setCheckingMats(true);
+                                                        try {
+                                                            if (action === 'vincular' && matVinculos[i]) {
+                                                                await api.post('/cnc/chapa-aliases', {
+                                                                    material_code_importado: mat.material_code,
+                                                                    chapa_id: matVinculos[i],
+                                                                });
+                                                                notify(`"${mat.material_code.replace(/_/g, ' ')}" vinculado`);
+                                                            } else if (action === 'cadastrar') {
+                                                                const chapaData = {
+                                                                    ...(matEdits[i] || mat.sugestao),
+                                                                    material_code: mat.material_code,
+                                                                    espessura_nominal: mat.espessura || (matEdits[i] || mat.sugestao).espessura_nominal,
+                                                                };
+                                                                const r = await api.post('/cnc/chapas', chapaData);
+                                                                // Adicionar chapa recem-criada na lista para os outros materiais usarem
+                                                                const novaChapa = { id: r.id, ...chapaData, ativo: 1 };
+                                                                setChapasDisponiveis(prev => [...prev, novaChapa]);
+                                                                notify(`Chapa "${chapaData.nome}" cadastrada`);
+                                                            }
+                                                            setMatConfirmados(prev => ({ ...prev, [i]: true }));
+                                                        } catch (err) {
+                                                            notify('Erro: ' + (err.error || err.message));
+                                                        } finally {
+                                                            setCheckingMats(false);
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        marginTop: 8, padding: '5px 16px', fontSize: 11, fontWeight: 600,
+                                                        borderRadius: 4, cursor: 'pointer', border: 'none',
+                                                        background: action === 'vincular' ? 'var(--primary)' : '#f59e0b',
+                                                        color: '#fff', opacity: (action === 'vincular' && !matVinculos[i]) ? 0.4 : 1,
+                                                    }}
+                                                >
+                                                    {action === 'vincular' ? 'Vincular' : 'Cadastrar Chapa'}
+                                                </button>
+                                            )}
                                         </div>
                                     );
                                 })}
                             </div>
-
-                            <button
-                                disabled={checkingMats}
-                                onClick={async () => {
-                                    setCheckingMats(true);
-                                    try {
-                                        const chapas = matCheck.nao_cadastrados.map((mat, i) => ({
-                                            ...(matEdits[i] || mat.sugestao),
-                                            material_code: mat.material_code,
-                                            espessura_nominal: mat.espessura || (matEdits[i] || mat.sugestao).espessura_nominal,
-                                        }));
-                                        const r = await api.post('/cnc/chapas/bulk', { chapas });
-                                        notify(`${r.total} chapa(s) cadastrada(s) com sucesso!`);
-                                        setMatCheck(null);
-                                        setMatEdits({});
-                                    } catch (err) {
-                                        notify('Erro: ' + (err.error || err.message));
-                                    } finally {
-                                        setCheckingMats(false);
-                                    }
-                                }}
-                                className={Z.btn}
-                                style={{ marginTop: 10, padding: '8px 20px', fontSize: 12, background: '#f59e0b', border: 'none' }}
-                            >
-                                {checkingMats ? 'Cadastrando...' : `Cadastrar ${matCheck.nao_cadastrados.length} Material(is)`}
-                            </button>
                         </div>
                     )}
 
@@ -716,7 +822,7 @@ function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
             notify('Lote excluído');
             loadLotes();
         } catch (err) {
-            notify('Erro ao excluir');
+            notify('Erro ao excluir lote: ' + (err.message || ''), 'error');
         }
     };
 
@@ -2032,8 +2138,12 @@ function printPlano(plano, pecasMap, loteAtual, getModColor) {
         let retSvg = '';
         for (const r of (ch.retalhos || [])) {
             const rx = (r.x + ref) * sc, ry = (r.y + ref) * sc, rw = r.w * sc, rh = r.h * sc;
-            retSvg += `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="#22c55e08" stroke="#22c55e" stroke-width="1" stroke-dasharray="4 2" opacity="0.6"/>`;
-            if (rw > 30 && rh > 12) retSvg += `<text x="${rx + rw / 2}" y="${ry + rh / 2}" text-anchor="middle" dominant-baseline="central" font-size="6" fill="#22c55e" opacity="0.7">${Math.round(r.w)}x${Math.round(r.h)}</text>`;
+            const isAprov = Math.round(Math.max(r.w, r.h)) >= 200 && Math.round(Math.min(r.w, r.h)) >= 200;
+            const sColor = isAprov ? '#22c55e' : '#9ca3af';
+            retSvg += `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${sColor}15" stroke="${sColor}" stroke-width="${isAprov ? 1.5 : 0.8}" stroke-dasharray="${isAprov ? '6 3' : '2 2'}" opacity="${isAprov ? 0.8 : 0.5}"/>`;
+            if (rw > 30 && rh > 12) {
+                retSvg += `<text x="${rx + rw/2}" y="${ry + rh/2}" text-anchor="middle" dominant-baseline="central" font-size="${Math.min(8, rw/8)}" fill="${sColor}" font-weight="700" stroke="#fff" stroke-width="2" paint-order="stroke">${Math.round(r.w)}x${Math.round(r.h)}</text>`;
+            }
         }
 
         // Piece table — grouped by ambiente
@@ -2071,7 +2181,7 @@ function printPlano(plano, pecasMap, loteAtual, getModColor) {
                     <span><b>Aproveitamento:</b> ${ch.aproveitamento.toFixed(1)}%</span>
                     <span><b>Peças:</b> ${ch.pecas.length}</span>
                     <span><b>Retalhos:</b> ${(ch.retalhos?.length || 0)}</span>
-                    ${ch.veio && ch.veio !== 'sem_veio' ? `<span style="color:#8b5cf6"><b>Veio:</b> ${ch.veio === 'horizontal' ? '━ Horizontal' : '┃ Vertical'}</span>` : ''}
+                    ${ch.veio && ch.veio !== 'sem_veio' ? `<span style="color:#8b5cf6"><b>Veio:</b> ━ Com veio</span>` : ''}
                     ${ch.preco > 0 ? `<span><b>Preço:</b> R$${ch.preco.toFixed(2)}</span>` : ''}
                 </div>
                 <svg width="${sw + 4}" height="${sh + 4}" viewBox="-2 -2 ${sw + 4} ${sh + 4}" style="border:1px solid #ddd;border-radius:4px;background:#fafafa">
@@ -2202,11 +2312,8 @@ function printFolhaProducao(chapa, chapaIdx, pecasMap, loteAtual, getModColor, k
     let grainSvg = '';
     if (hasVeio) {
         const gx = sw - 50, gy = sh + 14;
-        if (chapa.veio === 'horizontal') {
-            grainSvg = `<g transform="translate(${gx},${gy})"><line x1="0" y1="0" x2="30" y2="0" stroke="#555" stroke-width="1.2"/><polygon points="30,-3 36,0 30,3" fill="#555"/><text x="18" y="-5" text-anchor="middle" font-size="6" fill="#555">VEIO</text></g>`;
-        } else {
-            grainSvg = `<g transform="translate(${gx},${gy - 20})"><line x1="0" y1="0" x2="0" y2="20" stroke="#555" stroke-width="1.2"/><polygon points="-3,20 0,26 3,20" fill="#555"/><text x="8" y="12" font-size="6" fill="#555">VEIO</text></g>`;
-        }
+        // Veio sempre segue comprimento (horizontal) — é só indicar que tem veio
+        grainSvg = `<g transform="translate(${gx},${gy})"><line x1="0" y1="0" x2="30" y2="0" stroke="#555" stroke-width="1.2"/><polygon points="30,-3 36,0 30,3" fill="#555"/><text x="18" y="-5" text-anchor="middle" font-size="6" fill="#555">VEIO</text></g>`;
     }
 
     // Scale bar (100mm reference)
@@ -2342,7 +2449,7 @@ function printFolhaProducao(chapa, chapaIdx, pecasMap, loteAtual, getModColor, k
         <div style="display:flex;gap:16px;margin-bottom:10px;font-size:10px;flex-wrap:wrap">
             <span><b>Pecas:</b> ${nPecas}</span>
             <span><b>Aproveitamento:</b> ${(chapa.aproveitamento || 0).toFixed(1)}%</span>
-            ${hasVeio ? `<span><b>Veio:</b> ${chapa.veio === 'horizontal' ? 'Horizontal' : 'Vertical'}</span>` : ''}
+            ${hasVeio ? `<span><b>Veio:</b> Com veio</span>` : ''}
             ${kerf ? `<span><b>Kerf:</b> ${kerf}mm</span>` : ''}
             ${ref > 0 ? `<span><b>Refilo:</b> ${ref}mm</span>` : ''}
             ${chapa.is_retalho ? '<span style="color:#0e7490;font-weight:700">RETALHO</span>' : ''}
@@ -2426,6 +2533,9 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
     // Transfer area + undo/redo + selection
     const [transferArea, setTransferArea] = useState([]);
     const [transferOpen, setTransferOpen] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [expandedMats, setExpandedMats] = useState(new Set());
+    const [matAction, setMatAction] = useState(null); // { grpKey, action } — tracks open sub-panel per material
     const [undoStack, setUndoStack] = useState([]);
     const [redoStack, setRedoStack] = useState([]);
     const [selectedPieces, setSelectedPieces] = useState([]); // pecaIdx list for active sheet
@@ -2452,6 +2562,12 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
     const [limiarPequena, setLimiarPequena] = useState(400);
     const [limiarSuperPequena, setLimiarSuperPequena] = useState(200);
     const [colorMode, setColorMode] = useState('modulo'); // 'modulo' | 'classificacao'
+
+    // Retalhos selection modal
+    const [showRetalhosModal, setShowRetalhosModal] = useState(false);
+    const [retalhosPreview, setRetalhosPreview] = useState(null);
+    const [retalhosSelected, setRetalhosSelected] = useState({});
+    const [retalhosPreviewLoading, setRetalhosPreviewLoading] = useState(false);
 
     // 3D modal + label print from context menu
     const [view3dPeca, setView3dPeca] = useState(null); // piece object for 3D modal
@@ -3264,6 +3380,35 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
 
     const otimizar = async () => {
         if (!loteAtual) return;
+        if (usarRetalhos) {
+            // Load retalhos preview first
+            setRetalhosPreviewLoading(true);
+            setShowRetalhosModal(true);
+            try {
+                const data = await api.get(`/cnc/retalhos-preview/${loteAtual.id}`);
+                setRetalhosPreview(data.grupos || []);
+                // Pre-select suggested ones
+                const sel = {};
+                for (const g of (data.grupos || [])) {
+                    for (const r of (g.retalhos || [])) {
+                        sel[r.id] = r.sugerido;
+                    }
+                }
+                setRetalhosSelected(sel);
+            } catch (err) {
+                notify('Erro ao carregar retalhos: ' + (err.error || err.message));
+                setShowRetalhosModal(false);
+            } finally {
+                setRetalhosPreviewLoading(false);
+            }
+            return; // Modal will call doOtimizar when confirmed
+        }
+        doOtimizar([]);
+    };
+
+    const doOtimizar = async (retSelIds) => {
+        if (!loteAtual) return;
+        setShowRetalhosModal(false);
         setOtimizando(true);
         try {
             const r = await api.post(`/cnc/otimizar/${loteAtual.id}`, {
@@ -3273,6 +3418,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                 modo,
                 kerf,
                 usar_retalhos: usarRetalhos,
+                retalhos_selecionados: retSelIds,
                 iteracoes,
                 considerar_sobra: considerarSobra,
                 sobra_min_largura: sobraMinW,
@@ -3283,7 +3429,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
             });
             if (r.ok) {
                 setPlano(r.plano);
-                setPendingChanges(0); // Reset pending changes after fresh optimization
+                setPendingChanges(0);
                 setUndoStack([]); setRedoStack([]);
                 const mats = Object.values(r.plano?.materiais || {});
                 const minTeorico = mats.reduce((s, m) => s + (m.min_teorico_chapas || 0), 0);
@@ -3330,13 +3476,24 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
         </div>
     );
 
-    // Zoom handlers for detail view
+    // Zoom handlers for detail view — zoom towards mouse position
     const handleWheel = (e) => {
-        if (e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            const delta = e.deltaY > 0 ? -0.1 : 0.1;
-            setZoomLevel(z => Math.max(0.3, Math.min(5, z + delta)));
-        }
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.15 : 0.15;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        setZoomLevel(oldZoom => {
+            const newZoom = Math.max(1, Math.min(5, oldZoom + delta));
+            if (newZoom === oldZoom) return oldZoom;
+            const ratio = newZoom / oldZoom;
+            // Adjust pan to keep the point under the mouse cursor fixed
+            setPanOffset(pan => ({
+                x: mouseX - (mouseX - pan.x) * ratio,
+                y: mouseY - (mouseY - pan.y) * ratio,
+            }));
+            return newZoom;
+        });
     };
     const handlePanStart = (e) => {
         if (e.button === 1 || (e.button === 0 && e.altKey)) {
@@ -3834,6 +3991,48 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
             return;
         }
 
+        // ═══ Optimistic local update for to_transfer ═══
+        if (params.action === 'to_transfer' && params.chapaIdx != null && params.pecaIdx != null) {
+            // Capture piece data BEFORE any state updates to avoid stale closure
+            const srcChapa = plano.chapas[params.chapaIdx];
+            if (!srcChapa || !srcChapa.pecas[params.pecaIdx]) return;
+            const transferPeca = {
+                ...srcChapa.pecas[params.pecaIdx],
+                fromChapaIdx: params.chapaIdx,
+                fromMaterial: srcChapa.material_code || srcChapa.material,
+                espessura: srcChapa.espessura,
+                veio: srcChapa.veio,
+            };
+
+            setPlano(prev => {
+                if (!prev?.chapas) return prev;
+                const chapas = prev.chapas.map((ch, ci) => {
+                    if (ci !== params.chapaIdx) return ch;
+                    return { ...ch, pecas: ch.pecas.filter((_, pi) => pi !== params.pecaIdx) };
+                });
+                const transferencia = [...(prev.transferencia || []), transferPeca];
+                return { ...prev, chapas, transferencia };
+            });
+            setTransferArea(prev => [...prev, transferPeca]);
+            setTransferOpen(true); // Auto-abrir painel de transferência
+            setPendingChanges(prev => prev + 1);
+            api.put(`/cnc/plano/${loteAtual.id}/ajustar`, params).then(r => {
+                // Sync with server state to ensure consistency
+                if (r?.ok && r.plano) {
+                    setPlano(r.plano);
+                    setTransferArea(r.plano.transferencia || []);
+                }
+            }).catch(err => {
+                notify('Erro ao enviar para transferência: ' + (err.error || err.message));
+                setUndoStack(prev => {
+                    const last = prev[prev.length - 1];
+                    if (last) { const restored = JSON.parse(last); setPlano(restored); setTransferArea(restored.transferencia || []); }
+                    return prev.slice(0, -1);
+                });
+            });
+            return;
+        }
+
         // ═══ Non-move actions: keep server round-trip with scroll preservation ═══
         const mainEl = document.querySelector('main');
         const savedScroll = mainEl?.scrollTop ?? 0;
@@ -4225,480 +4424,459 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                     {/* RESULTS */}
                     {plano && plano.chapas && plano.chapas.length > 0 ? (
                         <>
-                            {/* Summary cards */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 16 }}>
-                                <InfoCard label="Chapas" value={plano.chapas.length} highlight />
-                                <InfoCard label="Aproveitamento" value={`${loteAtual.aproveitamento || (plano.chapas.reduce((s, c) => s + c.aproveitamento, 0) / plano.chapas.length).toFixed(1)}%`} />
-                                <InfoCard label="Total Peças" value={plano.chapas.reduce((s, c) => s + c.pecas.length, 0)} />
-                                <InfoCard label="Retalhos" value={plano.chapas.reduce((s, c) => s + (c.retalhos?.length || 0), 0)} />
-                                {plano.materiais && (() => {
-                                    const mats = Object.values(plano.materiais);
-                                    const minTeorico = mats.reduce((s, m) => s + (m.min_teorico_chapas || 0), 0);
-                                    return minTeorico > 0 ? (
-                                        <InfoCard label="Mín. Teórico" value={`${minTeorico} chapa${minTeorico > 1 ? 's' : ''}`} />
-                                    ) : null;
-                                })()}
-                                <InfoCard label="Kerf" value={`${plano.chapas[0]?.kerf || 4}mm`} />
-                                {totalCost > 0 && <InfoCard label="Custo Chapas" value={`R$ ${totalCost.toFixed(2)}`} />}
-                            </div>
-
-                            {/* Classification stats bar */}
-                            {plano.classificacao?.ativo && (() => {
-                                let stats = { normal: 0, pequena: 0, super_pequena: 0 };
-                                for (const ch of plano.chapas) {
-                                    for (const p of ch.pecas) {
-                                        const cls = classifyLocal(p.w, p.h);
-                                        stats[cls]++;
+                            {/* ═══ LAYOUT UPMOBB: Sidebar Materiais + Diagrama + Carousel ═══ */}
+                            {(() => {
+                                // Build material groups once for the whole layout
+                                const matColors = ['#2563eb', '#e67e22', '#7c3aed', '#16a34a', '#dc2626', '#0891b2', '#db2777', '#d97706'];
+                                const _matGroups = [];
+                                const _matKeysArr = [];
+                                plano.chapas.forEach((ch, ci) => {
+                                    const mk = ch.material_code || ch.material || '?';
+                                    let grp = _matGroups.find(g => g.key === mk);
+                                    if (!grp) {
+                                        _matKeysArr.push(mk);
+                                        grp = { key: mk, label: (ch.material || mk).replace(/_/g, ' '), color: matColors[(_matKeysArr.length - 1) % matColors.length], chapas: [], direcao: ch.direcao_corte || 'herdar', modo: ch.modo_corte || 'herdar', veio: ch.veio || 'sem_veio' };
+                                        _matGroups.push(grp);
                                     }
-                                }
-                                const total = stats.normal + stats.pequena + stats.super_pequena;
-                                if (stats.pequena === 0 && stats.super_pequena === 0) return null;
+                                    grp.chapas.push({ ci, ch });
+                                });
+                                const activeMatGrp = _matGroups.find(g => g.chapas.some(c => c.ci === selectedChapa));
+                                const totalPecas = plano.chapas.reduce((s, c) => s + c.pecas.length, 0);
+                                const avgAprovGlobal = (plano.chapas.reduce((s, c) => s + c.aproveitamento, 0) / plano.chapas.length);
+
                                 return (
-                                    <div style={{ marginBottom: 12, padding: '8px 14px', borderRadius: 8, background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                                        <AlertTriangle size={14} style={{ color: '#f59e0b' }} />
-                                        <span style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b' }}>Atenção: peças especiais</span>
-                                        {stats.pequena > 0 && (
-                                            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: '#f59e0b', color: '#fff', fontWeight: 700 }}>
-                                                {stats.pequena} pequena{stats.pequena > 1 ? 's' : ''} (&lt;{limiarPequena}mm)
-                                            </span>
-                                        )}
-                                        {stats.super_pequena > 0 && (
-                                            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: '#ef4444', color: '#fff', fontWeight: 700 }}>
-                                                {stats.super_pequena} super pequena{stats.super_pequena > 1 ? 's' : ''} (&lt;{limiarSuperPequena}mm)
-                                            </span>
-                                        )}
-                                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                                            Corte especial: velocidade reduzida, múltiplos passes, tabs/microjuntas
-                                        </span>
-                                    </div>
-                                );
-                            })()}
+                            <div style={{ display: 'flex', gap: 0, alignItems: 'stretch', minHeight: 'calc(100vh - 280px)' }}>
 
-                            {/* Multi-projeto banner */}
-                            {isMultiLote && (
-                                <div style={{ marginBottom: 12, padding: '8px 14px', borderRadius: 8, background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                                    <Zap size={14} style={{ color: '#3b82f6' }} />
-                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#3b82f6' }}>Otimização Multi-Projeto</span>
-                                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                        {plano.lotes_info.length} projetos combinados
-                                    </span>
-                                </div>
-                            )}
-
-                            {/* Legend: projetos (multi) ou módulos (single) — colapsável quando muitos */}
-                            {moduleLegend.length > 1 && (() => {
-                                const MAX_VISIBLE = 8;
-                                const isLong = moduleLegend.length > MAX_VISIBLE;
-                                return (
-                                    <details style={{ marginBottom: 12 }} open={!isLong}>
-                                        <summary style={{
-                                            fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase',
-                                            cursor: 'pointer', padding: '6px 12px', background: 'var(--bg-muted)', borderRadius: 8,
-                                            border: '1px solid var(--border)', userSelect: 'none', listStyle: 'none',
-                                            display: 'flex', alignItems: 'center', gap: 6,
-                                        }}>
-                                            <span style={{ fontSize: 10 }}>{isLong ? '▶' : '▼'}</span>
-                                            {isMultiLote ? 'Projetos' : 'Módulos'}: {moduleLegend.length}
-                                            {isLong && <span style={{ fontWeight: 400, marginLeft: 4 }}>(clique para expandir)</span>}
-                                        </summary>
-                                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '6px 12px', background: 'var(--bg-muted)', borderRadius: '0 0 8px 8px', borderTop: 'none' }}>
-                                            {moduleLegend.map((m, i) => (
-                                                <span key={i} style={{ fontSize: 9, display: 'flex', alignItems: 'center', gap: 3, color: 'var(--text-primary)' }}>
-                                                    <span style={{ width: 8, height: 8, borderRadius: 2, background: m.color, display: 'inline-block', flexShrink: 0 }} />
-                                                    {m.name}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </details>
-                                );
-                            })()}
-
-                            {/* Multi-Maquina section */}
-                            {maquinas.length > 1 && (
-                                <div style={{ marginBottom: 12, padding: '8px 14px', borderRadius: 8, background: 'var(--bg-muted)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => setMultiMaqMode(!multiMaqMode)}>
-                                        <div style={{
-                                            width: 36, height: 20, borderRadius: 10, padding: 2, transition: 'all .2s',
-                                            background: multiMaqMode ? 'var(--primary)' : 'var(--bg-muted)',
-                                            border: `1px solid ${multiMaqMode ? 'var(--primary)' : 'var(--border)'}`,
-                                            display: 'flex', alignItems: 'center',
-                                        }}>
-                                            <div style={{
-                                                width: 14, height: 14, borderRadius: 7, background: '#fff', transition: 'all .2s',
-                                                transform: multiMaqMode ? 'translateX(16px)' : 'translateX(0)',
-                                                boxShadow: '0 1px 3px rgba(0,0,0,.2)',
-                                            }} />
-                                        </div>
-                                        <Server size={14} style={{ color: multiMaqMode ? 'var(--primary)' : 'var(--text-muted)' }} />
-                                        <span style={{ fontSize: 11, fontWeight: 600, color: multiMaqMode ? 'var(--primary)' : 'var(--text-primary)' }}>Modo Multi-Maquina</span>
-                                    </div>
-                                    {multiMaqMode && (
+                                {/* ══ SIDEBAR: Otimizações (estilo UPMOBB) ══ */}
+                                <div style={{
+                                    width: sidebarOpen ? 320 : 40, minWidth: sidebarOpen ? 320 : 40,
+                                    transition: 'width .2s, min-width .2s',
+                                    borderRight: '1px solid var(--border)', background: 'var(--bg-card)',
+                                    borderRadius: '8px 0 0 8px', display: 'flex', flexDirection: 'column',
+                                    overflow: 'hidden',
+                                }}>
+                                    {!sidebarOpen ? (
+                                        <button onClick={() => setSidebarOpen(true)}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '12px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: 'var(--text-muted)' }}
+                                            title="Abrir painel de materiais">
+                                            <ChevronRight size={14} />
+                                            <span style={{ writingMode: 'vertical-rl', fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>Otimizações</span>
+                                            <span style={{ background: 'var(--primary)', color: '#fff', borderRadius: 10, padding: '2px 6px', fontSize: 9, fontWeight: 800 }}>{_matGroups.length}</span>
+                                        </button>
+                                    ) : (
                                         <>
-                                            <button onClick={autoAssignMachines} className={Z.btn2}
-                                                style={{ padding: '4px 10px', fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                <Zap size={12} /> Auto-Atribuir
-                                            </button>
-                                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                                                {maquinas.filter(m => m.ativo !== 0).map(m => {
-                                                    const color = getMachineColor(m.id);
-                                                    const count = Object.values(machineAssignments).filter(a => a.maquina_id === m.id).length;
+                                            {/* Header */}
+                                            <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>Otimizações</span>
+                                                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--primary)', color: '#fff', fontWeight: 700 }}>
+                                                    Total de {_matGroups.length} materiais
+                                                </span>
+                                                <button onClick={() => setSidebarOpen(false)}
+                                                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2, display: 'flex' }}>
+                                                    <ChevronLeft size={14} />
+                                                </button>
+                                            </div>
+
+                                            {/* Material list (accordion) */}
+                                            <div style={{ flex: 1, overflowY: 'auto' }}>
+                                                {_matGroups.map((grp) => {
+                                                    const isExpanded = expandedMats.has(grp.key) || (expandedMats.size === 0 && grp.key === activeMatGrp?.key);
+                                                    const grpPecas = grp.chapas.reduce((s, { ch }) => s + ch.pecas.length, 0);
+                                                    const avgAprov = grp.chapas.reduce((s, { ch }) => s + (ch.aproveitamento || 0), 0) / grp.chapas.length;
+                                                    const hasActiveChapa = grp.chapas.some(c => c.ci === selectedChapa);
+                                                    const hasVeio = grp.veio && grp.veio !== 'sem_veio';
+
                                                     return (
-                                                        <span key={m.id} style={{ fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                                            <span style={{ width: 8, height: 8, borderRadius: 2, background: color, display: 'inline-block' }} />
-                                                            {m.nome} {count > 0 && <span style={{ fontWeight: 700 }}>({count})</span>}
-                                                        </span>
+                                                        <div key={grp.key} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                            {/* Material header — UPMOBB style */}
+                                                            <div
+                                                                onClick={() => {
+                                                                    setExpandedMats(prev => {
+                                                                        const next = new Set(prev);
+                                                                        if (next.has(grp.key)) next.delete(grp.key); else next.add(grp.key);
+                                                                        return next;
+                                                                    });
+                                                                    // Select first sheet of this material
+                                                                    if (!hasActiveChapa && grp.chapas.length > 0) {
+                                                                        setSelectedChapa(grp.chapas[0].ci);
+                                                                        setZoomLevel(1); setPanOffset({ x: 0, y: 0 });
+                                                                    }
+                                                                }}
+                                                                style={{
+                                                                    padding: '10px 12px', cursor: 'pointer', userSelect: 'none',
+                                                                    background: hasActiveChapa ? 'var(--bg-muted)' : 'transparent',
+                                                                }}>
+                                                                {/* Row 1: checkbox + name + action icons */}
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                                                    <div style={{ width: 18, height: 18, borderRadius: 3, border: `2px solid ${grp.color}`, background: grp.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                                        <Check size={12} color="#fff" />
+                                                                    </div>
+                                                                    <span style={{ fontSize: 13, fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                        {grp.label}
+                                                                    </span>
+                                                                    {/* Direção + Config indicators */}
+                                                                    <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'var(--bg-muted)', border: '1px solid var(--border)', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                                                        {grp.direcao === 'horizontal' ? '━' : grp.direcao === 'vertical' ? '┃' : grp.direcao === 'misto' ? '⊞' : '↺'}
+                                                                    </span>
+                                                                    <span style={{ fontSize: 11, color: 'var(--text-muted)', transition: 'transform .15s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)' }}>▼</span>
+                                                                </div>
+
+                                                                {/* Row 2: Action buttons grid (UPMOBB style — 2 rows of 4) */}
+                                                                {isExpanded && (
+                                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3, marginBottom: 6 }} onClick={e => e.stopPropagation()}>
+                                                                        {[
+                                                                            { id: 'atualizar', icon: <RefreshCw size={14} />, label: 'Atualizar', color: '#2563eb' },
+                                                                            { id: 'remover', icon: <Trash2 size={14} />, label: 'Remover', color: '#dc2626' },
+                                                                            { id: 'estatisticas', icon: <BarChart3 size={14} />, label: 'Estatísticas', color: '#2563eb' },
+                                                                            { id: 'pecas', icon: <Layers size={14} />, label: 'Peças', color: '#2563eb' },
+                                                                            { id: 'sobras', icon: <Package size={14} />, label: 'Sobras', color: '#16a34a' },
+                                                                            { id: 'mapa', icon: <Printer size={14} />, label: 'Mapa', color: '#16a34a' },
+                                                                            { id: 'etiqueta', icon: <TagIcon size={14} />, label: 'Etiqueta', color: '#16a34a' },
+                                                                            { id: 'exportar', icon: <FileDown size={14} />, label: 'Exportar', color: '#64748b' },
+                                                                        ].map(btn => {
+                                                                            const isActionActive = matAction?.grpKey === grp.key && matAction?.action === btn.id;
+                                                                            return (
+                                                                                <button key={btn.id}
+                                                                                    title={btn.label}
+                                                                                    onClick={() => setMatAction(isActionActive ? null : { grpKey: grp.key, action: btn.id })}
+                                                                                    style={{
+                                                                                        width: '100%', aspectRatio: '1', borderRadius: 5,
+                                                                                        border: isActionActive ? `2px solid ${btn.color}` : '1px solid var(--border)',
+                                                                                        background: isActionActive ? `${btn.color}11` : 'var(--bg-card)',
+                                                                                        cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                                                                                        alignItems: 'center', justifyContent: 'center', gap: 1,
+                                                                                        color: isActionActive ? btn.color : 'var(--text-primary)',
+                                                                                        transition: 'all .15s',
+                                                                                    }}>
+                                                                                    {btn.icon}
+                                                                                    <span style={{ fontSize: 7, fontWeight: 600, lineHeight: 1, opacity: 0.8 }}>{btn.label}</span>
+                                                                                </button>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Row 3: Badges */}
+                                                                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: grp.color, color: '#fff', fontWeight: 700 }}>
+                                                                        {grpPecas} pç
+                                                                    </span>
+                                                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: grp.color, color: '#fff', fontWeight: 700 }}>
+                                                                        {grp.chapas.length} chapa{grp.chapas.length > 1 ? 's' : ''}
+                                                                    </span>
+                                                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: hasVeio ? '#7c3aed' : '#64748b', color: '#fff', fontWeight: 700 }}>
+                                                                        {hasVeio ? 'Com veio' : 'Sem veio'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Expanded: Action panel content */}
+                                                            {isExpanded && matAction?.grpKey === grp.key && (
+                                                                <div style={{ padding: '0 12px 12px' }} onClick={e => e.stopPropagation()}>
+
+                                                                    {/* ── ATUALIZAR: Re-otimizar este material ── */}
+                                                                    {matAction.action === 'atualizar' && (
+                                                                        <div style={{ background: 'var(--bg-body)', border: '1px solid var(--border)', borderRadius: 6, padding: 10 }}>
+                                                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', marginBottom: 8 }}>Re-otimizar {grp.label}</div>
+                                                                            <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+                                                                                <select value={grp.direcao}
+                                                                                    onChange={e => { grp.chapas.forEach(({ ch }) => { ch.direcao_corte = e.target.value; }); grp.direcao = e.target.value; setPlano({ ...plano }); }}
+                                                                                    style={{ flex: 1, fontSize: 10, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                                                                                    <option value="herdar">Direção: Global</option>
+                                                                                    <option value="misto">Misto</option>
+                                                                                    <option value="horizontal">Horizontal</option>
+                                                                                    <option value="vertical">Vertical</option>
+                                                                                </select>
+                                                                                <select value={grp.modo}
+                                                                                    onChange={e => { grp.chapas.forEach(({ ch }) => { ch.modo_corte = e.target.value; }); grp.modo = e.target.value; setPlano({ ...plano }); }}
+                                                                                    style={{ flex: 1, fontSize: 10, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                                                                                    <option value="herdar">Modo: Global</option>
+                                                                                    <option value="guilhotina">Guilhotina</option>
+                                                                                    <option value="maxrects">MaxRects</option>
+                                                                                    <option value="shelf">Shelf</option>
+                                                                                </select>
+                                                                            </div>
+                                                                            <button
+                                                                                onClick={() => notify('Re-otimização solicitada para ' + grp.label, 'info')}
+                                                                                style={{ width: '100%', padding: '6px 12px', borderRadius: 5, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
+                                                                                <RefreshCw size={12} style={{ marginRight: 4, verticalAlign: -2 }} />
+                                                                                Re-otimizar material
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* ── REMOVER: Remover material da otimização ── */}
+                                                                    {matAction.action === 'remover' && (
+                                                                        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: 10 }}>
+                                                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#dc2626', marginBottom: 6 }}>Remover {grp.label}</div>
+                                                                            <div style={{ fontSize: 10, color: '#7f1d1d', marginBottom: 8 }}>
+                                                                                Isso removerá {grp.chapas.length} chapa(s) com {grpPecas} peça(s) do plano de corte. As peças voltarão para a área de transferência.
+                                                                            </div>
+                                                                            <div style={{ display: 'flex', gap: 6 }}>
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        // Move pieces to transfer area and remove chapas
+                                                                                        const chapaIdxsToRemove = grp.chapas.map(c => c.ci).sort((a, b) => b - a);
+                                                                                        const newTransfer = [...transferArea];
+                                                                                        chapaIdxsToRemove.forEach(ci => {
+                                                                                            const ch = plano.chapas[ci];
+                                                                                            if (ch) {
+                                                                                                ch.pecas.forEach(p => {
+                                                                                                    newTransfer.push({
+                                                                                                        pecaId: p.pecaId || p.id,
+                                                                                                        w: p.w, h: p.h,
+                                                                                                        fromMaterial: ch.material_code || ch.material,
+                                                                                                        espessura: ch.espessura,
+                                                                                                        veio: ch.veio,
+                                                                                                    });
+                                                                                                });
+                                                                                            }
+                                                                                        });
+                                                                                        const newChapas = plano.chapas.filter((_, i) => !chapaIdxsToRemove.includes(i));
+                                                                                        setTransferArea(newTransfer);
+                                                                                        setPlano({ ...plano, chapas: newChapas });
+                                                                                        setSelectedChapa(Math.min(selectedChapa, Math.max(0, newChapas.length - 1)));
+                                                                                        setMatAction(null);
+                                                                                        notify(`${grp.label} removido — ${grpPecas} peças na transferência`, 'info');
+                                                                                    }}
+                                                                                    style={{ flex: 1, padding: '6px', borderRadius: 5, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>
+                                                                                    Confirmar remoção
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => setMatAction(null)}
+                                                                                    style={{ flex: 1, padding: '6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-card)', fontWeight: 600, fontSize: 10, cursor: 'pointer', color: 'var(--text-primary)' }}>
+                                                                                    Cancelar
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* ── ESTATÍSTICAS: Stats do material ── */}
+                                                                    {matAction.action === 'estatisticas' && (
+                                                                        <div style={{ background: 'var(--bg-body)', border: '1px solid var(--border)', borderRadius: 6, padding: 10 }}>
+                                                                            <div style={{ fontSize: 11, fontWeight: 700, color: grp.color, marginBottom: 8 }}>Estatísticas — {grp.label}</div>
+                                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: 10 }}>
+                                                                                <span style={{ color: 'var(--text-muted)' }}>Total de peças</span>
+                                                                                <b style={{ textAlign: 'right' }}>{grpPecas}</b>
+                                                                                <span style={{ color: 'var(--text-muted)' }}>Total de chapas</span>
+                                                                                <b style={{ textAlign: 'right' }}>{grp.chapas.length}</b>
+                                                                                <span style={{ color: 'var(--text-muted)' }}>Aproveitamento</span>
+                                                                                <b style={{ textAlign: 'right', color: avgAprov >= 80 ? '#16a34a' : avgAprov >= 60 ? '#d97706' : '#dc2626' }}>{avgAprov.toFixed(1)}%</b>
+                                                                                <span style={{ color: 'var(--text-muted)' }}>Área aproveitada</span>
+                                                                                <b style={{ textAlign: 'right' }}>{(grp.chapas.reduce((s, { ch }) => s + ch.pecas.reduce((a, p) => a + p.w * p.h, 0), 0) / 1e6).toFixed(2)} m²</b>
+                                                                                <span style={{ color: 'var(--text-muted)' }}>Área total chapas</span>
+                                                                                <b style={{ textAlign: 'right' }}>{(grp.chapas.reduce((s, { ch }) => s + (ch.w || 2750) * (ch.h || 1850), 0) / 1e6).toFixed(2)} m²</b>
+                                                                                <span style={{ color: 'var(--text-muted)' }}>Desperdício</span>
+                                                                                <b style={{ textAlign: 'right', color: '#dc2626' }}>{(100 - avgAprov).toFixed(1)}%</b>
+                                                                                <span style={{ color: 'var(--text-muted)' }}>Espaçamento (kerf)</span>
+                                                                                <b style={{ textAlign: 'right' }}>{plano.chapas[0]?.kerf || kerf}mm</b>
+                                                                                <span style={{ color: 'var(--text-muted)' }}>Refilo (borda)</span>
+                                                                                <b style={{ textAlign: 'right' }}>{plano.chapas[0]?.refilo || refilo}mm</b>
+                                                                            </div>
+                                                                            {(() => {
+                                                                                const grpCost = grp.chapas.reduce((s, { ch }) => s + (ch.preco || 0), 0);
+                                                                                return grpCost > 0 ? (
+                                                                                    <div style={{ marginTop: 8, padding: '6px 8px', borderRadius: 4, background: 'var(--bg-muted)', display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                                                                                        <span style={{ fontWeight: 600 }}>Custo total ({grp.chapas.length} chapas)</span>
+                                                                                        <b style={{ fontFamily: 'monospace', color: 'var(--primary)' }}>R$ {grpCost.toFixed(2)}</b>
+                                                                                    </div>
+                                                                                ) : null;
+                                                                            })()}
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* ── PEÇAS: Listagem de peças do material ── */}
+                                                                    {matAction.action === 'pecas' && (
+                                                                        <div style={{ background: 'var(--bg-body)', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+                                                                            <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                                <Layers size={12} style={{ color: grp.color }} />
+                                                                                <span style={{ fontSize: 11, fontWeight: 700, color: grp.color }}>Peças — {grp.label}</span>
+                                                                                <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--text-muted)' }}>{grpPecas} peças</span>
+                                                                            </div>
+                                                                            <div style={{ maxHeight: 180, overflowY: 'auto' }}>
+                                                                                <table style={{ width: '100%', fontSize: 9, borderCollapse: 'collapse' }}>
+                                                                                    <thead>
+                                                                                        <tr style={{ background: 'var(--bg-muted)', position: 'sticky', top: 0 }}>
+                                                                                            <th style={{ padding: '4px 6px', textAlign: 'left', fontWeight: 700 }}>Peça</th>
+                                                                                            <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 700 }}>C×L</th>
+                                                                                            <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 700 }}>Chapa</th>
+                                                                                        </tr>
+                                                                                    </thead>
+                                                                                    <tbody>
+                                                                                        {grp.chapas.flatMap(({ ci, ch }) =>
+                                                                                            ch.pecas.map((p, pi) => {
+                                                                                                const piece = pecasMap[p.pecaId || p.id];
+                                                                                                return (
+                                                                                                    <tr key={`${ci}-${pi}`} style={{ borderBottom: '1px solid var(--border)' }}
+                                                                                                        onClick={() => { setSelectedChapa(ci); }}
+                                                                                                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-muted)'; }}
+                                                                                                        onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+                                                                                                    >
+                                                                                                        <td style={{ padding: '3px 6px', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                                                                                                            {piece?.descricao?.substring(0, 20) || `#${p.pecaId || p.id}`}
+                                                                                                        </td>
+                                                                                                        <td style={{ padding: '3px 6px', textAlign: 'center', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                                                                                                            {Math.round(p.w)}×{Math.round(p.h)}
+                                                                                                        </td>
+                                                                                                        <td style={{ padding: '3px 6px', textAlign: 'center', fontWeight: 700 }}>
+                                                                                                            {ci + 1}
+                                                                                                        </td>
+                                                                                                    </tr>
+                                                                                                );
+                                                                                            })
+                                                                                        )}
+                                                                                    </tbody>
+                                                                                </table>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* ── SOBRAS: Listagem de sobras/retalhos ── */}
+                                                                    {matAction.action === 'sobras' && (
+                                                                        <div style={{ background: 'var(--bg-body)', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+                                                                            <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                                <Package size={12} style={{ color: '#16a34a' }} />
+                                                                                <span style={{ fontSize: 11, fontWeight: 700, color: '#16a34a' }}>Sobras — {grp.label}</span>
+                                                                            </div>
+                                                                            <div style={{ maxHeight: 160, overflowY: 'auto' }}>
+                                                                                {grp.chapas.map(({ ci, ch }) => {
+                                                                                    const chapaW = ch.w || 2750;
+                                                                                    const chapaH = ch.h || 1850;
+                                                                                    const usedArea = ch.pecas.reduce((s, p) => s + p.w * p.h, 0);
+                                                                                    const freeArea = chapaW * chapaH - usedArea;
+                                                                                    const freePerc = ((freeArea / (chapaW * chapaH)) * 100);
+                                                                                    if (freePerc < 5) return null;
+                                                                                    return (
+                                                                                        <div key={ci} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 10 }}>
+                                                                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                                                                                                <b>Chapa {ci + 1}</b>
+                                                                                                <span style={{ color: freePerc > 30 ? '#16a34a' : '#d97706' }}>{freePerc.toFixed(1)}% livre</span>
+                                                                                            </div>
+                                                                                            <div style={{ color: 'var(--text-muted)', fontSize: 9 }}>
+                                                                                                Área livre: {(freeArea / 1e6).toFixed(3)} m² ({Math.round(freeArea / 1000)}k mm²)
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* ── MAPA: Imprimir mapa de corte ── */}
+                                                                    {matAction.action === 'mapa' && (
+                                                                        <div style={{ background: 'var(--bg-body)', border: '1px solid var(--border)', borderRadius: 6, padding: 10 }}>
+                                                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#16a34a', marginBottom: 8 }}>
+                                                                                <Printer size={12} style={{ marginRight: 4, verticalAlign: -2 }} />
+                                                                                Imprimir Mapa — {grp.label}
+                                                                            </div>
+                                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                                                {grp.chapas.map(({ ci }) => (
+                                                                                    <button key={ci}
+                                                                                        onClick={() => printFolhaProducao(plano.chapas[ci], ci, pecasMap, loteAtual, getModColor, kerf, refilo, plano.chapas.length)}
+                                                                                        style={{ padding: '5px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-card)', cursor: 'pointer', fontSize: 10, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-primary)' }}>
+                                                                                        <Printer size={10} style={{ color: '#16a34a', flexShrink: 0 }} />
+                                                                                        Chapa {ci + 1} — {plano.chapas[ci]?.pecas.length} peças ({(plano.chapas[ci]?.aproveitamento || 0).toFixed(1)}%)
+                                                                                    </button>
+                                                                                ))}
+                                                                                <button
+                                                                                    onClick={() => { grp.chapas.forEach(({ ci }) => printFolhaProducao(plano.chapas[ci], ci, pecasMap, loteAtual, getModColor, kerf, refilo, plano.chapas.length)); }}
+                                                                                    style={{ padding: '6px 10px', borderRadius: 5, border: 'none', background: '#16a34a', color: '#fff', fontWeight: 700, fontSize: 10, cursor: 'pointer', marginTop: 2 }}>
+                                                                                    Imprimir todas ({grp.chapas.length} chapas)
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* ── ETIQUETA: Imprimir etiquetas ── */}
+                                                                    {matAction.action === 'etiqueta' && (
+                                                                        <div style={{ background: 'var(--bg-body)', border: '1px solid var(--border)', borderRadius: 6, padding: 10 }}>
+                                                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#16a34a', marginBottom: 8 }}>
+                                                                                <TagIcon size={12} style={{ marginRight: 4, verticalAlign: -2 }} />
+                                                                                Etiquetas — {grp.label}
+                                                                            </div>
+                                                                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6 }}>
+                                                                                {grpPecas} peças em {grp.chapas.length} chapa(s)
+                                                                            </div>
+                                                                            <button
+                                                                                onClick={() => { setTab('etiquetas'); setMatAction(null); }}
+                                                                                style={{ width: '100%', padding: '6px 12px', borderRadius: 5, border: 'none', background: '#16a34a', color: '#fff', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
+                                                                                <TagIcon size={12} style={{ marginRight: 4, verticalAlign: -2 }} />
+                                                                                Ir para aba de Etiquetas
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* ── EXPORTAR: Exportar para DXF ── */}
+                                                                    {matAction.action === 'exportar' && (
+                                                                        <div style={{ background: 'var(--bg-body)', border: '1px solid var(--border)', borderRadius: 6, padding: 10 }}>
+                                                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 8 }}>
+                                                                                <FileDown size={12} style={{ marginRight: 4, verticalAlign: -2 }} />
+                                                                                Exportar — {grp.label}
+                                                                            </div>
+                                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        grp.chapas.forEach(({ ci }) => handleGerarGcode(ci));
+                                                                                    }}
+                                                                                    style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-card)', cursor: 'pointer', fontSize: 10, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-primary)' }}>
+                                                                                    <Cpu size={10} style={{ flexShrink: 0 }} />
+                                                                                    Gerar G-Code ({grp.chapas.length} chapas)
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => notify('Exportação DXF em desenvolvimento', 'info')}
+                                                                                    style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-card)', cursor: 'pointer', fontSize: 10, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-primary)' }}>
+                                                                                    <FileDown size={10} style={{ flexShrink: 0 }} />
+                                                                                    Exportar DXF
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     );
                                                 })}
+                                            </div>
+
+                                            {/* Footer: Resumo global */}
+                                            <div style={{ borderTop: '1px solid var(--border)', padding: '10px 12px', background: 'var(--bg-muted)' }}>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, fontSize: 10 }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>Total Chapas</span>
+                                                    <span style={{ fontWeight: 700, textAlign: 'right' }}>{plano.chapas.length}</span>
+                                                    <span style={{ color: 'var(--text-muted)' }}>Total Peças</span>
+                                                    <span style={{ fontWeight: 700, textAlign: 'right' }}>{totalPecas}</span>
+                                                    <span style={{ color: 'var(--text-muted)' }}>Aproveitamento</span>
+                                                    <span style={{ fontWeight: 700, textAlign: 'right' }}>{avgAprovGlobal.toFixed(1)}%</span>
+                                                    {totalCost > 0 && <>
+                                                        <span style={{ color: 'var(--primary)', fontWeight: 700 }}>Custo Total</span>
+                                                        <span style={{ fontWeight: 800, textAlign: 'right', color: 'var(--primary)', fontFamily: 'monospace' }}>R$ {totalCost.toFixed(2)}</span>
+                                                    </>}
+                                                </div>
                                             </div>
                                         </>
                                     )}
                                 </div>
-                            )}
 
-                            {/* ═══ STEPPER: Navegação compacta das chapas ═══ */}
-                            {plano && plano.chapas.length > 1 && (
-                                plano.chapas.length <= 15 ? (
-                                    /* Stepper circular — só para poucos chapas */
-                                    <div style={{ display: 'flex', gap: 0, alignItems: 'center', marginBottom: 10, overflowX: 'auto', paddingBottom: 4 }}>
-                                        {plano.chapas.map((ch, ci) => {
-                                            const isActive = ci === selectedChapa;
-                                            const st = chapaStatuses[ci];
-                                            const statusColor = !st || st.status === 'pendente' ? '#9ca3af' : st.status === 'em_corte' ? '#f59e0b' : st.status === 'cortada' ? '#22c55e' : '#3b82f6';
-                                            const statusIcon = !st || st.status === 'pendente' ? '○' : st.status === 'em_corte' ? '◐' : st.status === 'cortada' ? '●' : '✓';
-                                            return (
-                                                <Fragment key={ci}>
-                                                    {ci > 0 && <div style={{ width: 16, height: 2, background: chapaStatuses[ci - 1]?.status === 'cortada' || chapaStatuses[ci - 1]?.status === 'conferida' ? '#22c55e' : 'var(--border)', flexShrink: 0 }} />}
-                                                    <button
-                                                        onClick={() => { setSelectedChapa(ci); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
-                                                        title={`Chapa ${ci + 1}: ${ch.material} · ${ch.aproveitamento.toFixed(1)}% · ${st?.status || 'pendente'}`}
-                                                        style={{
-                                                            flexShrink: 0, width: 32, height: 32, borderRadius: '50%', border: `2px solid ${isActive ? 'var(--primary)' : statusColor}`,
-                                                            background: isActive ? 'var(--primary)' : 'var(--bg-card)', color: isActive ? '#fff' : statusColor,
-                                                            fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                            transition: 'all .15s', boxShadow: isActive ? '0 0 0 3px rgba(230,126,34,0.2)' : 'none',
-                                                        }}
-                                                    >
-                                                        {isActive ? ci + 1 : statusIcon}
-                                                    </button>
-                                                </Fragment>
-                                            );
-                                        })}
-                                        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, fontSize: 9, color: 'var(--text-muted)', alignItems: 'center', flexShrink: 0, paddingLeft: 12 }}>
-                                            <span>○ Pendente</span><span style={{ color: '#f59e0b' }}>◐ Em corte</span><span style={{ color: '#22c55e' }}>● Cortada</span><span style={{ color: '#3b82f6' }}>✓ Conferida</span>
-                                        </div>
+                                {/* ══ MAIN: Diagrama + Carousel inferior ══ */}
+                                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                                    {/* Info bar: Painel X | Total de Y peças */}
+                                    <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ fontSize: 13, fontWeight: 700 }}>Diagrama de corte</span>
+                                        <span style={{ flex: 1 }} />
+                                        {activeMatGrp && (
+                                            <>
+                                                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: activeMatGrp.color, color: '#fff', fontWeight: 700 }}>
+                                                    Painel {activeMatGrp.chapas.findIndex(c => c.ci === selectedChapa) + 1} de {activeMatGrp.chapas.length}
+                                                </span>
+                                                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: 'var(--bg-muted)', border: '1px solid var(--border)', fontWeight: 600 }}>
+                                                    Total de {plano.chapas[selectedChapa]?.pecas.length || 0} peças
+                                                </span>
+                                            </>
+                                        )}
                                     </div>
-                                ) : (
-                                    /* Barra compacta com mini-blocos — para muitas chapas (>15) */
-                                    <div style={{ marginBottom: 10 }}>
-                                        <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginBottom: 6 }}>
-                                            {plano.chapas.map((ch, ci) => {
-                                                const isActive = ci === selectedChapa;
-                                                const st = chapaStatuses[ci];
-                                                const statusColor = !st || st.status === 'pendente' ? '#d1d5db' : st.status === 'em_corte' ? '#f59e0b' : st.status === 'cortada' ? '#22c55e' : '#3b82f6';
-                                                const aprov = ch.aproveitamento || 0;
-                                                const aprovColor = aprov >= 80 ? '#22c55e' : aprov >= 60 ? '#f59e0b' : '#ef4444';
-                                                return (
-                                                    <button key={ci}
-                                                        onClick={() => { setSelectedChapa(ci); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
-                                                        title={`Chapa ${ci + 1}: ${ch.material} · ${aprov.toFixed(1)}% · ${ch.pecas.length}pç · ${st?.status || 'pendente'}`}
-                                                        style={{
-                                                            width: 24, height: 18, borderRadius: 3, cursor: 'pointer', fontSize: 8, fontWeight: 700,
-                                                            border: isActive ? '2px solid var(--primary)' : `1px solid ${statusColor}`,
-                                                            background: isActive ? 'var(--primary)' : 'var(--bg-card)',
-                                                            color: isActive ? '#fff' : 'var(--text-muted)',
-                                                            position: 'relative', overflow: 'hidden', padding: 0,
-                                                            boxShadow: isActive ? '0 0 0 2px rgba(230,126,34,0.25)' : 'none',
-                                                            transition: 'all .12s',
-                                                        }}>
-                                                        {ci + 1}
-                                                        <div style={{
-                                                            position: 'absolute', bottom: 0, left: 0, right: 0, height: 2,
-                                                            background: isActive ? '#fff' : aprovColor, opacity: isActive ? 0.7 : 0.6,
-                                                        }} />
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                        <div style={{ display: 'flex', gap: 8, fontSize: 9, color: 'var(--text-muted)', alignItems: 'center' }}>
-                                            <span>Chapa <b>{selectedChapa + 1}</b> de <b>{plano.chapas.length}</b></span>
-                                            <span style={{ flex: 1 }} />
-                                            <span>○ Pendente</span><span style={{ color: '#f59e0b' }}>◐ Em corte</span><span style={{ color: '#22c55e' }}>● Cortada</span><span style={{ color: '#3b82f6' }}>✓ Conferida</span>
-                                        </div>
-                                    </div>
-                                )
-                            )}
 
-                            {/* View mode toggle */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                    {plano.chapas.length} chapa{plano.chapas.length !== 1 ? 's' : ''}
-                                </span>
-                                <span style={{ flex: 1 }} />
-                                <div style={{ display: 'flex', gap: 2, padding: 2, borderRadius: 6, background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
-                                    <button onClick={() => setChapaViewMode('list')} title="Lista"
-                                        style={{ padding: '4px 8px', borderRadius: 4, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
-                                            background: chapaViewMode === 'list' ? 'var(--bg-card)' : 'transparent',
-                                            color: chapaViewMode === 'list' ? 'var(--primary)' : 'var(--text-muted)',
-                                            boxShadow: chapaViewMode === 'list' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                                        }}><List size={13} /></button>
-                                    <button onClick={() => setChapaViewMode('grid')} title="Grade"
-                                        style={{ padding: '4px 8px', borderRadius: 4, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
-                                            background: chapaViewMode === 'grid' ? 'var(--bg-card)' : 'transparent',
-                                            color: chapaViewMode === 'grid' ? 'var(--primary)' : 'var(--text-muted)',
-                                            boxShadow: chapaViewMode === 'grid' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                                        }}><LayoutGrid size={13} /></button>
-                                </div>
-                            </div>
-
-                            {/* ═══ GRID VIEW ═══ */}
-                            {chapaViewMode === 'grid' && (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginBottom: 16 }}>
-                                    {plano.chapas.map((chapa, ci) => {
-                                        const isActive = ci === selectedChapa;
-                                        const gridScale = Math.min(180 / chapa.comprimento, 100 / chapa.largura);
-                                        const gW = chapa.comprimento * gridScale;
-                                        const gH = chapa.largura * gridScale;
-                                        const aprov = chapa.aproveitamento || 0;
-                                        const aprovColor = aprov >= 80 ? '#22c55e' : aprov >= 60 ? '#f59e0b' : '#ef4444';
-                                        return (
-                                            <div key={ci} onClick={() => { setSelectedChapa(ci); setChapaViewMode('list'); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
-                                                style={{
-                                                    padding: 10, borderRadius: 10, cursor: 'pointer', transition: 'all .15s',
-                                                    background: isActive ? 'var(--primary-bg, rgba(230,126,34,0.08))' : 'var(--bg-card)',
-                                                    border: `2px solid ${isActive ? 'var(--primary)' : 'var(--border)'}`,
-                                                    boxShadow: isActive ? '0 0 0 1px var(--primary)' : '0 1px 4px rgba(0,0,0,0.06)',
-                                                    position: 'relative', overflow: 'hidden',
-                                                }}>
-                                                {/* Utilization overlay bar at top */}
-                                                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'var(--bg-muted)' }}>
-                                                    <div style={{ height: '100%', width: `${Math.min(100, aprov)}%`, background: aprovColor, transition: 'width .3s' }} />
-                                                </div>
-                                                {/* Mini SVG */}
-                                                <svg width={gW} height={gH} viewBox={`0 0 ${chapa.comprimento} ${chapa.largura}`}
-                                                    style={{ display: 'block', margin: '6px auto 8px', background: 'var(--bg-body)', borderRadius: 3, border: '1px solid var(--border)' }}>
-                                                    {chapa.pecas.map((p, pi) => {
-                                                        const ref = chapa.refilo || 0;
-                                                        const col = getModColor(p.pecaId, p);
-                                                        if (p.contour && p.contour.length >= 3) {
-                                                            const pts = p.contour.map(v => `${p.x + ref + (v.x / p.w) * p.w},${p.y + ref + (v.y / p.h) * p.h}`).join(' ');
-                                                            return <polygon key={pi} points={pts} fill={`${col}30`} stroke={col} strokeWidth={Math.max(1, 2 / gridScale)} />;
-                                                        }
-                                                        return <rect key={pi} x={p.x + ref} y={p.y + ref} width={p.w} height={p.h}
-                                                            fill={`${col}30`} stroke={col} strokeWidth={Math.max(1, 2 / gridScale)} />;
-                                                    })}
-                                                    {(chapa.retalhos || []).map((r, ri) => (
-                                                        <rect key={`s${ri}`} x={r.x + (chapa.refilo || 0)} y={r.y + (chapa.refilo || 0)}
-                                                            width={r.w} height={r.h}
-                                                            fill="none" stroke="#9ca3af" strokeWidth={Math.max(1, 2 / gridScale)} strokeDasharray="6 3" opacity={0.5} />
-                                                    ))}
-                                                </svg>
-                                                {/* Info row */}
-                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                    <span style={{ fontSize: 12, fontWeight: 700 }}>
-                                                        Chapa {ci + 1}
-                                                        {chapa.is_retalho && <span style={{ fontSize: 8, padding: '1px 4px', borderRadius: 3, background: colorBg('#06b6d4'), color: '#06b6d4', fontWeight: 700, marginLeft: 4 }}>RET</span>}
-                                                    </span>
-                                                    <span style={{ fontSize: 11, fontWeight: 700, color: aprovColor }}>{aprov.toFixed(0)}%</span>
-                                                </div>
-                                                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>
-                                                    {chapa.pecas.length} pç · {chapa.comprimento}×{chapa.largura}mm
-                                                    {chapa.locked && <Lock size={9} style={{ display: 'inline', verticalAlign: -1, marginLeft: 4, color: '#3b82f6' }} />}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-
-                            {/* ═══ LIST VIEW: LAYOUT LADO A LADO: Thumbnails + Detalhe ═══ */}
-                            {chapaViewMode === 'list' && <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-
-                                {/* LEFT: Thumbnail list — agrupado por material/espessura */}
-                                <div style={{ width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 'calc(100vh - 300px)', overflowY: 'auto', paddingRight: 4 }}>
-                                    {plano.chapas.map((chapa, ci) => {
-                                        const isActive = ci === selectedChapa;
-                                        const thumbScale = Math.min(180 / chapa.comprimento, 80 / chapa.largura);
-                                        const thumbW = chapa.comprimento * thumbScale;
-                                        const thumbH = chapa.largura * thumbScale;
-                                        // Material group header
-                                        const matKey = `${chapa.material_code || chapa.material || '?'}${(chapa.espessura_real || chapa.espessura) ? ` ${chapa.espessura_real || chapa.espessura}mm` : ''}`;
-                                        const prevMatKey = ci > 0 ? `${plano.chapas[ci-1].material_code || plano.chapas[ci-1].material || '?'}${(plano.chapas[ci-1].espessura_real || plano.chapas[ci-1].espessura) ? ` ${plano.chapas[ci-1].espessura_real || plano.chapas[ci-1].espessura}mm` : ''}` : '';
-                                        const matKeys = [...new Set(plano.chapas.map(c => `${c.material_code || c.material || '?'}${(c.espessura_real || c.espessura) ? ` ${c.espessura_real || c.espessura}mm` : ''}`))];
-                                        const showMatHeader = matKeys.length > 1 && matKey !== prevMatKey;
-                                        const matColors = ['#3b82f6', '#e67e22', '#8b5cf6', '#22c55e', '#ef4444', '#06b6d4', '#ec4899'];
-                                        const matColor = matColors[matKeys.indexOf(matKey) % matColors.length];
-                                        const matCount = plano.chapas.filter(c => `${c.material_code || c.material || '?'}${(c.espessura_real || c.espessura) ? ` ${c.espessura_real || c.espessura}mm` : ''}` === matKey).length;
-                                        return (
-                                            <Fragment key={ci}>
-                                            {showMatHeader && (
-                                                <div style={{
-                                                    fontSize: 9, fontWeight: 700, color: matColor,
-                                                    textTransform: 'uppercase', letterSpacing: 0.5,
-                                                    padding: '4px 8px', marginTop: ci > 0 ? 6 : 0,
-                                                    background: `${matColor}10`,
-                                                    borderRadius: 4, borderLeft: `3px solid ${matColor}`,
-                                                }}>
-                                                    {matKey} ({matCount} chapa{matCount > 1 ? 's' : ''})
-                                                </div>
-                                            )}
-                                            <div
-                                                onClick={() => { setSelectedChapa(ci); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
-                                                style={{
-                                                    padding: 8, borderRadius: 8, cursor: 'pointer', transition: 'all .15s',
-                                                    background: isActive ? 'var(--primary-bg, rgba(230,126,34,0.08))' : chapa.locked ? 'rgba(59,130,246,0.05)' : 'var(--bg-card)',
-                                                    border: `2px solid ${multiMaqMode && machineAssignments[ci] ? getMachineColor(machineAssignments[ci].maquina_id) : chapa.locked ? '#3b82f6' : isActive ? 'var(--primary)' : 'var(--border)'}`,
-                                                    boxShadow: isActive ? '0 0 0 1px var(--primary)' : 'none',
-                                                }}>
-                                                {/* Mini SVG */}
-                                                <svg width={thumbW} height={thumbH} viewBox={`0 0 ${chapa.comprimento} ${chapa.largura}`}
-                                                    style={{ display: 'block', margin: '0 auto 6px', background: 'var(--bg-body)', borderRadius: 3, border: '1px solid var(--border)' }}>
-                                                    {chapa.pecas.map((p, pi) => {
-                                                        const ref = chapa.refilo || 0;
-                                                        const col = getModColor(p.pecaId, p);
-                                                        if (p.contour && p.contour.length >= 3) {
-                                                            const pts = p.contour.map(v => `${p.x + ref + (v.x / p.w) * p.w},${p.y + ref + (v.y / p.h) * p.h}`).join(' ');
-                                                            return <polygon key={pi} points={pts} fill={`${col}30`} stroke={col} strokeWidth={Math.max(1, 2 / thumbScale)} />;
-                                                        }
-                                                        return <rect key={pi} x={p.x + ref} y={p.y + ref} width={p.w} height={p.h}
-                                                            fill={`${col}30`} stroke={col} strokeWidth={Math.max(1, 2 / thumbScale)} />;
-                                                    })}
-                                                    {(chapa.retalhos || []).map((r, ri) => (
-                                                        <rect key={`s${ri}`}
-                                                            x={r.x + (chapa.refilo || 0)} y={r.y + (chapa.refilo || 0)}
-                                                            width={r.w} height={r.h}
-                                                            fill="none" stroke="#9ca3af" strokeWidth={Math.max(1, 2 / thumbScale)} strokeDasharray="6 3" opacity={0.5} />
-                                                    ))}
-                                                </svg>
-                                                {/* Info */}
-                                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                    <Box size={11} />
-                                                    Chapa {ci + 1}
-                                                    {chapa.is_retalho && <span style={{ fontSize: 8, padding: '1px 4px', borderRadius: 3, background: colorBg('#06b6d4'), color: '#06b6d4', fontWeight: 700 }}>RET</span>}
-                                                    {chapa.veio && chapa.veio !== 'sem_veio' && <span style={{ fontSize: 8, padding: '1px 4px', borderRadius: 3, background: colorBg('#8b5cf6'), color: '#8b5cf6', fontWeight: 700 }}>VEIO</span>}
-                                                    <button onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (chapa.locked && !confirm('Destravar esta chapa? Ela poderá ser editada e reotimizada.')) return;
-                                                        handleAdjust({ action: chapa.locked ? 'unlock_sheet' : 'lock_sheet', chapaIdx: ci });
-                                                    }} title={chapa.locked ? 'Destravar chapa' : 'Travar chapa'}
-                                                    style={{ marginLeft: 'auto', padding: '1px 4px', borderRadius: 4, border: 'none', cursor: 'pointer', background: chapa.locked ? '#3b82f6' : 'transparent', color: chapa.locked ? '#fff' : 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
-                                                        {chapa.locked ? <Lock size={10} /> : <Unlock size={10} />}
-                                                    </button>
-                                                </div>
-                                                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>
-                                                    {chapa.pecas.length} pç · {chapa.aproveitamento.toFixed(1)}%
-                                                    {chapa.preco > 0 && ` · R$${chapa.preco.toFixed(2)}`}
-                                                </div>
-                                                {/* Occupancy bar */}
-                                                <div style={{ marginTop: 4, height: 3, borderRadius: 2, background: 'var(--bg-muted)', overflow: 'hidden' }}>
-                                                    <div style={{
-                                                        height: '100%', borderRadius: 2, transition: 'width .3s',
-                                                        width: `${Math.min(100, chapa.aproveitamento)}%`,
-                                                        background: chapa.aproveitamento >= 80 ? '#2563eb' : chapa.aproveitamento >= 60 ? '#d97706' : '#dc2626',
-                                                    }} />
-                                                </div>
-                                                {/* Machine assignment */}
-                                                {multiMaqMode && (
-                                                    <div style={{ marginTop: 4 }} onClick={e => e.stopPropagation()}>
-                                                        <select value={machineAssignments[ci]?.maquina_id || ''}
-                                                            onChange={e => assignMachine(ci, e.target.value)}
-                                                            style={{
-                                                                width: '100%', fontSize: 9, padding: '2px 4px', borderRadius: 4,
-                                                                border: `1px solid ${machineAssignments[ci] ? getMachineColor(machineAssignments[ci].maquina_id) || 'var(--border)' : 'var(--border)'}`,
-                                                                background: machineAssignments[ci] ? `${getMachineColor(machineAssignments[ci].maquina_id)}10` : 'var(--bg-card)',
-                                                                color: 'var(--text-primary)', cursor: 'pointer',
-                                                            }}>
-                                                            <option value="">Sem maquina</option>
-                                                            {maquinas.filter(m => m.ativo !== 0).map(m => (
-                                                                <option key={m.id} value={m.id}>{m.nome}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-                                                )}
-                                                {/* Machine badge when assigned and not in multi-machine mode */}
-                                                {!multiMaqMode && machineAssignments[ci] && (
-                                                    <div style={{
-                                                        marginTop: 3, fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
-                                                        background: `${getMachineColor(machineAssignments[ci].maquina_id)}15`,
-                                                        color: getMachineColor(machineAssignments[ci].maquina_id),
-                                                        display: 'inline-block',
-                                                    }}>
-                                                        {machineAssignments[ci].maquina_nome}
-                                                    </div>
-                                                )}
-                                                {/* Tempo estimado */}
-                                                {(() => {
-                                                    const realSt = chapaRealStats[ci];
-                                                    const estMin = getEstimatedTime(chapa, ci);
-                                                    if (!estMin || estMin <= 0) return null;
-                                                    const isReal = !!realSt?.tempo_estimado_min;
-                                                    return (
-                                                        <div style={{
-                                                            marginTop: 4, display: 'flex', alignItems: 'center', gap: 4,
-                                                            fontSize: 9, fontFamily: 'monospace',
-                                                            color: isReal ? '#22c55e' : 'var(--text-muted)',
-                                                        }}>
-                                                            <Clock size={9} />
-                                                            <span>{isReal ? '' : '~'}{estMin}min{isReal ? '' : ' est.'}</span>
-                                                            {isReal && realSt.dist_corte_m > 0 && (
-                                                                <span style={{ color: 'var(--text-muted)' }}>({realSt.dist_corte_m}m corte)</span>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })()}
-                                                {/* Status selector (multi-state) */}
-                                                {(() => {
-                                                    const st = chapaStatuses[ci];
-                                                    const status = st?.status || 'pendente';
-                                                    const statusOpts = [
-                                                        { val: 'pendente', label: 'Pendente', color: '#9ca3af', icon: '○' },
-                                                        { val: 'em_corte', label: 'Em Corte', color: '#f59e0b', icon: '◐' },
-                                                        { val: 'cortada', label: 'Cortada', color: '#22c55e', icon: '●' },
-                                                        { val: 'conferida', label: 'Conferida', color: '#3b82f6', icon: '✓' },
-                                                    ];
-                                                    const cur = statusOpts.find(s => s.val === status) || statusOpts[0];
-                                                    return (
-                                                        <select
-                                                            value={status}
-                                                            onClick={e => e.stopPropagation()}
-                                                            onChange={e => { e.stopPropagation(); updateChapaStatus(ci, e.target.value); marcarChapaCortada(ci); }}
-                                                            style={{
-                                                                marginTop: 5, width: '100%', padding: '4px 6px', borderRadius: 5,
-                                                                fontSize: 10, fontWeight: 700, cursor: 'pointer',
-                                                                border: `1px solid ${cur.color}40`,
-                                                                background: `${cur.color}10`,
-                                                                color: cur.color,
-                                                                textAlign: 'center',
-                                                            }}
-                                                        >
-                                                            {statusOpts.map(s => <option key={s.val} value={s.val}>{s.icon} {s.label}</option>)}
-                                                        </select>
-                                                    );
-                                                })()}
-                                            </div>
-                                            </Fragment>
-                                        );
-                                    })}
-
-                                    {/* Material cost summary */}
-                                    {costSummary.length > 0 && totalCost > 0 && (
-                                        <div style={{ marginTop: 8, padding: 8, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>Custo Material</div>
-                                            {costSummary.map((m, i) => (
-                                                <div key={i} style={{ fontSize: 10, display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                                                    <span style={{ color: 'var(--text-primary)' }}>{m.count}x {m.nome?.substring(0, 18)}</span>
-                                                    <span style={{ fontWeight: 600, fontFamily: 'monospace', color: 'var(--text-primary)' }}>R${(m.count * m.preco).toFixed(2)}</span>
-                                                </div>
-                                            ))}
-                                            <div style={{ borderTop: '1px solid var(--border)', marginTop: 4, paddingTop: 4, fontSize: 11, fontWeight: 700, display: 'flex', justifyContent: 'space-between', color: 'var(--primary)' }}>
-                                                <span>Total</span>
-                                                <span>R$ {totalCost.toFixed(2)}</span>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* RIGHT: Detail view + Transfer panel */}
-                                <div style={{ flex: 1, minWidth: 0, display: 'flex', gap: 0 }}>
+                                    {/* Diagram area + transfer panel */}
+                                    <div style={{ flex: 1, display: 'flex', gap: 0 }}>
                                 <div ref={chapaVizContainerRef} style={{ flex: 1, minWidth: 0, position: 'relative', background: isFullscreen ? 'var(--bg-primary)' : undefined }}>
                                     {plano.chapas[selectedChapa] && (
                                         <ChapaViz
@@ -4735,6 +4913,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                             onPrintSingleLabel={(piece) => setPrintLabelPeca(piece)}
                                             sobraMinW={sobraMinW}
                                             sobraMinH={sobraMinH}
+                                            loteAtual={loteAtual}
                                             onPrintFolha={(chapaIdx) => printFolhaProducao(plano.chapas[chapaIdx], chapaIdx, pecasMap, loteAtual, getModColor, kerf, refilo, plano.chapas.length)}
                                             onSaveRetalhos={async (chapaIdx, retalhos, refugos) => {
                                                 try {
@@ -4990,8 +5169,142 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                         </div>
                                     );
                                 })()}
+                                    </div>
+                                    {/* ══ BOTTOM CAROUSEL: Thumbnails das chapas (estilo UPMOBB) ══ */}
+                                    <div style={{
+                                        borderTop: '1px solid var(--border)',
+                                        background: 'var(--bg-card)',
+                                        padding: '6px 8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        overflowX: 'auto',
+                                        minHeight: 72,
+                                        flexShrink: 0,
+                                    }}>
+                                        {/* Prev arrow */}
+                                        <button
+                                            onClick={() => {
+                                                if (activeMatGrp) {
+                                                    const idxInGroup = activeMatGrp.chapas.findIndex(c => c.ci === selectedChapa);
+                                                    if (idxInGroup > 0) setSelectedChapa(activeMatGrp.chapas[idxInGroup - 1].ci);
+                                                } else if (selectedChapa > 0) {
+                                                    setSelectedChapa(selectedChapa - 1);
+                                                }
+                                            }}
+                                            disabled={(() => {
+                                                if (activeMatGrp) return activeMatGrp.chapas.findIndex(c => c.ci === selectedChapa) <= 0;
+                                                return selectedChapa <= 0;
+                                            })()}
+                                            style={{
+                                                background: 'none', border: 'none', cursor: 'pointer',
+                                                color: 'var(--text-muted)', padding: 4, flexShrink: 0,
+                                                opacity: selectedChapa <= 0 ? 0.3 : 1,
+                                            }}
+                                        >
+                                            <ChevronLeft size={18} />
+                                        </button>
+
+                                        {/* Thumbnails */}
+                                        <div style={{ display: 'flex', gap: 4, flex: 1, overflowX: 'auto', padding: '2px 0' }}>
+                                            {(activeMatGrp ? activeMatGrp.chapas : plano.chapas.map((ch, ci) => ({ ci, ch }))).map(({ ci, ch }) => {
+                                                const isActive = ci === selectedChapa;
+                                                const aprov = ch.aproveitamento || 0;
+                                                const aprovColor = aprov >= 80 ? '#16a34a' : aprov >= 60 ? '#d97706' : '#dc2626';
+                                                const grpForThumb = _matGroups.find(g => g.chapas.some(c => c.ci === ci));
+
+                                                return (
+                                                    <button
+                                                        key={ci}
+                                                        onClick={() => setSelectedChapa(ci)}
+                                                        style={{
+                                                            flexShrink: 0,
+                                                            width: 80,
+                                                            height: 56,
+                                                            borderRadius: 6,
+                                                            border: isActive ? '2px solid var(--primary)' : '1px solid var(--border)',
+                                                            background: isActive ? 'var(--bg-muted)' : 'var(--bg-body)',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            gap: 2,
+                                                            padding: '4px 2px',
+                                                            transition: 'all .15s',
+                                                            boxShadow: isActive ? '0 0 0 1px var(--primary)' : 'none',
+                                                            position: 'relative',
+                                                            overflow: 'hidden',
+                                                        }}
+                                                    >
+                                                        {/* Mini preview: simple filled rect representation */}
+                                                        <div style={{
+                                                            width: 56, height: 28, borderRadius: 3,
+                                                            background: '#e2e8f0',
+                                                            position: 'relative', overflow: 'hidden',
+                                                            border: '1px solid #cbd5e1',
+                                                        }}>
+                                                            {/* Fill bar to represent aproveitamento */}
+                                                            <div style={{
+                                                                position: 'absolute', bottom: 0, left: 0,
+                                                                width: '100%', height: `${aprov}%`,
+                                                                background: aprovColor,
+                                                                opacity: 0.35,
+                                                                transition: 'height .3s',
+                                                            }} />
+                                                            {/* Piece count in center */}
+                                                            <div style={{
+                                                                position: 'absolute', inset: 0,
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                fontSize: 9, fontWeight: 800, color: '#334155',
+                                                            }}>
+                                                                {ch.pecas.length}pç
+                                                            </div>
+                                                        </div>
+                                                        {/* Label */}
+                                                        <div style={{ fontSize: 8, fontWeight: 700, color: isActive ? 'var(--primary)' : 'var(--text-muted)', lineHeight: 1 }}>
+                                                            {aprov.toFixed(0)}%
+                                                        </div>
+                                                        {/* Active group color indicator */}
+                                                        {grpForThumb && (
+                                                            <div style={{
+                                                                position: 'absolute', top: 2, right: 2,
+                                                                width: 6, height: 6, borderRadius: '50%',
+                                                                background: grpForThumb.color,
+                                                            }} />
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* Next arrow */}
+                                        <button
+                                            onClick={() => {
+                                                if (activeMatGrp) {
+                                                    const idxInGroup = activeMatGrp.chapas.findIndex(c => c.ci === selectedChapa);
+                                                    if (idxInGroup < activeMatGrp.chapas.length - 1) setSelectedChapa(activeMatGrp.chapas[idxInGroup + 1].ci);
+                                                } else if (selectedChapa < plano.chapas.length - 1) {
+                                                    setSelectedChapa(selectedChapa + 1);
+                                                }
+                                            }}
+                                            disabled={(() => {
+                                                if (activeMatGrp) return activeMatGrp.chapas.findIndex(c => c.ci === selectedChapa) >= activeMatGrp.chapas.length - 1;
+                                                return selectedChapa >= plano.chapas.length - 1;
+                                            })()}
+                                            style={{
+                                                background: 'none', border: 'none', cursor: 'pointer',
+                                                color: 'var(--text-muted)', padding: 4, flexShrink: 0,
+                                                opacity: selectedChapa >= plano.chapas.length - 1 ? 0.3 : 1,
+                                            }}
+                                        >
+                                            <ChevronRight size={18} />
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>}
+                            </div>
+                            );
+                            })()}
 
                             {/* ═══ Relatório de Desperdício ═══ */}
                             <RelatorioDesperdicio loteId={loteAtual?.id} notify={notify} />
@@ -6325,6 +6638,115 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                     </div>
                 ) : <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>Carregando...</div>}
             </SlidePanel>
+
+            {/* ═══ Modal Seleção de Retalhos pré-Otimização ═══ */}
+            {showRetalhosModal && (
+                <Modal title="Selecionar Retalhos para Otimização" close={() => setShowRetalhosModal(false)} w={700}>
+                    {retalhosPreviewLoading ? (
+                        <div style={{ padding: 40, textAlign: 'center' }}>
+                            <Spinner /> <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 13 }}>Simulando aproveitamento dos retalhos...</span>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            {/* Info banner */}
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '8px 12px', background: 'var(--bg-muted)', borderRadius: 6, lineHeight: 1.5 }}>
+                                O sistema simulou quais retalhos podem ser aproveitados. Marque os que deseja usar.
+                                Retalhos sugeridos (✓) têm bom aproveitamento.
+                            </div>
+
+                            {(retalhosPreview || []).map(grupo => (
+                                <div key={grupo.groupKey}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{grupo.material_nome}</span>
+                                        <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-muted)', padding: '2px 8px', borderRadius: 10 }}>
+                                            {grupo.total_pecas} peças · esp {grupo.espessura}mm
+                                        </span>
+                                    </div>
+                                    {grupo.retalhos.length === 0 ? (
+                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '6px 12px', fontStyle: 'italic' }}>Sem retalhos disponíveis</div>
+                                    ) : (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                            {grupo.retalhos.map(ret => {
+                                                const checked = !!retalhosSelected[ret.id];
+                                                return (
+                                                    <div key={ret.id}
+                                                        onClick={() => setRetalhosSelected(prev => ({ ...prev, [ret.id]: !prev[ret.id] }))}
+                                                        style={{
+                                                            display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                                                            borderRadius: 8, cursor: 'pointer', transition: 'all .15s',
+                                                            border: `1px solid ${checked ? 'var(--primary)' : 'var(--border)'}`,
+                                                            background: checked ? 'rgba(19,121,240,0.04)' : 'var(--bg-card)',
+                                                        }}>
+                                                        {/* Checkbox */}
+                                                        <div style={{
+                                                            width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                                                            border: `2px solid ${checked ? 'var(--primary)' : 'var(--border)'}`,
+                                                            background: checked ? 'var(--primary)' : 'transparent',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        }}>
+                                                            {checked && <Check size={12} color="#fff" />}
+                                                        </div>
+                                                        {/* Dimensions */}
+                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                <span style={{ fontSize: 12, fontWeight: 700 }}>{ret.comprimento}×{ret.largura}mm</span>
+                                                                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{ret.area_m2} m²</span>
+                                                                {ret.sugerido && <span style={{ fontSize: 9, fontWeight: 700, color: '#22c55e', background: 'rgba(34,197,94,0.1)', padding: '1px 6px', borderRadius: 8 }}>Sugerido</span>}
+                                                            </div>
+                                                            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                                                                {ret.nome}{ret.origem_lote ? ` · Lote #${ret.origem_lote}` : ' · Manual'}
+                                                            </div>
+                                                        </div>
+                                                        {/* Simulation result */}
+                                                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                                            {ret.pecas_que_cabem > 0 ? (
+                                                                <>
+                                                                    <div style={{ fontSize: 12, fontWeight: 700, color: '#22c55e' }}>{ret.pecas_que_cabem} peças</div>
+                                                                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{ret.aproveitamento}%</div>
+                                                                </>
+                                                            ) : (
+                                                                <div style={{ fontSize: 10, color: '#ef4444' }}>
+                                                                    {ret.cabe_alguma ? '0 peças' : 'Nenhuma cabe'}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+
+                            {/* Actions */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                                <button onClick={() => {
+                                    setShowRetalhosModal(false);
+                                    doOtimizar([]);
+                                }} style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                                    Otimizar sem retalhos
+                                </button>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    <button onClick={() => setShowRetalhosModal(false)} className="btn-secondary" style={{ padding: '8px 16px', fontSize: 12 }}>
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const ids = Object.entries(retalhosSelected).filter(([, v]) => v).map(([k]) => Number(k));
+                                            doOtimizar(ids);
+                                        }}
+                                        className={Z.btn}
+                                        style={{ padding: '8px 20px', fontSize: 12, fontWeight: 700 }}>
+                                        <Scissors size={14} /> Otimizar{Object.values(retalhosSelected).filter(Boolean).length > 0
+                                            ? ` com ${Object.values(retalhosSelected).filter(Boolean).length} retalho(s)`
+                                            : ''}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </Modal>
+            )}
         </div>
     );
 }
@@ -7261,6 +7683,100 @@ function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, onSimul
     );
 }
 
+// ─── Build piece outline incorporating open passante millings ──
+// Removes waste (refugo) from the piece contour so only the real piece shape is shown.
+// Algorithm: walk rectangle CCW, replace waste arc with milling path.
+function buildMillingOutline(compOrig, largOrig, openPaths) {
+    if (openPaths.length === 0) return [[0, 0], [compOrig, 0], [compOrig, largOrig], [0, largOrig]];
+    const SX = compOrig, SZ = largOrig;
+    const perim = 2 * (SX + SZ);
+    const corners = [[0, 0], [SX, 0], [SX, SZ], [0, SZ]];
+    const cornerT = [0, SX, SX + SZ, 2 * SX + SZ];
+
+    function snapToEdge(px2, py2) {
+        const edges = [
+            { x0: 0, y0: 0, x1: SX, y1: 0, t0: 0 },
+            { x0: SX, y0: 0, x1: SX, y1: SZ, t0: SX },
+            { x0: SX, y0: SZ, x1: 0, y1: SZ, t0: SX + SZ },
+            { x0: 0, y0: SZ, x1: 0, y1: 0, t0: 2 * SX + SZ },
+        ];
+        let best = { dist: Infinity, x: 0, y: 0, t: 0 };
+        for (const e of edges) {
+            const dx = e.x1 - e.x0, dy = e.y1 - e.y0;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const proj = Math.max(0, Math.min(1, ((px2 - e.x0) * dx + (py2 - e.y0) * dy) / (len * len)));
+            const sx2 = e.x0 + proj * dx, sy2 = e.y0 + proj * dy;
+            const d = Math.sqrt((px2 - sx2) ** 2 + (py2 - sy2) ** 2);
+            if (d < best.dist) best = { dist: d, x: sx2, y: sy2, t: e.t0 + proj * len };
+        }
+        return best;
+    }
+    function inArc(t, a, b) {
+        a = ((a % perim) + perim) % perim;
+        b = ((b % perim) + perim) % perim;
+        t = ((t % perim) + perim) % perim;
+        if (a <= b) return t > a + 0.01 && t < b - 0.01;
+        return t > a + 0.01 || t < b - 0.01;
+    }
+
+    let currentCornerFlags = [true, true, true, true];
+    let result = corners.map(c => [...c]);
+
+    for (const pts of openPaths) {
+        if (pts.length < 2) continue;
+        const first = snapToEdge(pts[0][0], pts[0][1]);
+        const last = snapToEdge(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+        const midIdx = Math.floor(pts.length / 2);
+        let closestCI = 0, closestDist = Infinity;
+        for (let ci = 0; ci < 4; ci++) {
+            const d = Math.hypot(corners[ci][0] - pts[midIdx][0], corners[ci][1] - pts[midIdx][1]);
+            if (d < closestDist) { closestDist = d; closestCI = ci; }
+        }
+        const wasteIsFirstToLast = inArc(cornerT[closestCI], first.t, last.t);
+        const skipCorner = [false, false, false, false];
+        for (let ci = 0; ci < 4; ci++) {
+            if (wasteIsFirstToLast) {
+                if (inArc(cornerT[ci], first.t, last.t)) skipCorner[ci] = true;
+            } else {
+                if (inArc(cornerT[ci], last.t, first.t)) skipCorner[ci] = true;
+            }
+        }
+        const newResult = [];
+        if (wasteIsFirstToLast) {
+            newResult.push([last.x, last.y]);
+            const keptCorners = [];
+            for (let ci = 0; ci < 4; ci++) {
+                if (skipCorner[ci] || !currentCornerFlags[ci]) continue;
+                if (inArc(cornerT[ci], last.t, first.t)) {
+                    let rel = cornerT[ci] - last.t; if (rel < 0) rel += perim;
+                    keptCorners.push({ idx: ci, rel });
+                }
+            }
+            keptCorners.sort((a, b) => a.rel - b.rel);
+            for (const kc of keptCorners) newResult.push([...corners[kc.idx]]);
+            newResult.push([first.x, first.y]);
+            for (const pt of pts) newResult.push([pt[0], pt[1]]);
+        } else {
+            newResult.push([first.x, first.y]);
+            const keptCorners = [];
+            for (let ci = 0; ci < 4; ci++) {
+                if (skipCorner[ci] || !currentCornerFlags[ci]) continue;
+                if (inArc(cornerT[ci], first.t, last.t)) {
+                    let rel = cornerT[ci] - first.t; if (rel < 0) rel += perim;
+                    keptCorners.push({ idx: ci, rel });
+                }
+            }
+            keptCorners.sort((a, b) => a.rel - b.rel);
+            for (const kc of keptCorners) newResult.push([...corners[kc.idx]]);
+            newResult.push([last.x, last.y]);
+            for (let pi2 = pts.length - 1; pi2 >= 0; pi2--) newResult.push([pts[pi2][0], pts[pi2][1]]);
+        }
+        result = newResult;
+        for (let ci = 0; ci < 4; ci++) { if (skipCorner[ci]) currentCornerFlags[ci] = false; }
+    }
+    return result;
+}
+
 // ─── Render machining operations (usinagens) on piece SVG ──
 // Usa exatamente a mesma lógica do gerador de G-code para transformar coordenadas.
 // machining_json coords: x = eixo comprimento original, y = eixo largura original
@@ -7268,7 +7784,7 @@ function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, onSimul
 //           se rotated     → p.w=largura,      p.h=comprimento
 // Rotação (igual ao backend): transformRotated(wx,wy,compOrig) → {x: wy, y: compOrig - wx}
 let _machClipId = 0;
-function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, pieceH, ladoAtivo) {
+function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, pieceH, ladoAtivo, onMachHover) {
     const isSideB = ladoAtivo === 'B';
     // If side B has dedicated machining data, use it; otherwise use normal machining_json
     let machSource = piece?.machining_json;
@@ -7279,7 +7795,48 @@ function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, pieceH, 
     if (!mach.workers) return null;
 
     const elements = [];
+    const ghostElements = []; // opposite side elements (rendered behind, ghost style)
     const clipId = `mach-clip-${piece.id || (++_machClipId)}`;
+    const hitPad = 3; // extra hit area padding
+
+    // Helper: wrap element with hover hit area for tooltip
+    const wrapHover = (el, tipData, cx, cy, r) => {
+        if (!onMachHover) return el;
+        const hitR = Math.max(r + hitPad, 6);
+        return (
+            <g key={el.key + '_g'} style={{ cursor: 'crosshair' }}
+                onMouseEnter={(e) => onMachHover({ ...tipData, clientX: e.clientX, clientY: e.clientY })}
+                onMouseMove={(e) => onMachHover(prev => prev ? { ...prev, clientX: e.clientX, clientY: e.clientY } : null)}
+                onMouseLeave={() => onMachHover(null)}>
+                {el}
+                <circle cx={cx} cy={cy} r={hitR} fill="transparent" />
+            </g>
+        );
+    };
+    const wrapHoverRect = (el, tipData, rx, ry, rw, rh) => {
+        if (!onMachHover) return el;
+        return (
+            <g key={el.key + '_g'} style={{ cursor: 'crosshair' }}
+                onMouseEnter={(e) => onMachHover({ ...tipData, clientX: e.clientX, clientY: e.clientY })}
+                onMouseMove={(e) => onMachHover(prev => prev ? { ...prev, clientX: e.clientX, clientY: e.clientY } : null)}
+                onMouseLeave={() => onMachHover(null)}>
+                {el}
+                <rect x={rx - hitPad} y={ry - hitPad} width={rw + hitPad * 2} height={rh + hitPad * 2} fill="transparent" />
+            </g>
+        );
+    };
+    const wrapHoverLine = (el, tipData, x1, y1, x2, y2, sw) => {
+        if (!onMachHover) return el;
+        return (
+            <g key={el.key + '_g'} style={{ cursor: 'crosshair' }}
+                onMouseEnter={(e) => onMachHover({ ...tipData, clientX: e.clientX, clientY: e.clientY })}
+                onMouseMove={(e) => onMachHover(prev => prev ? { ...prev, clientX: e.clientX, clientY: e.clientY } : null)}
+                onMouseLeave={() => onMachHover(null)}>
+                {el}
+                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={Math.max(sw + hitPad * 2, 8)} />
+            </g>
+        );
+    };
 
     // Dimensões originais da peça do DB
     const compOrig = Number(piece.comprimento || pieceW);
@@ -7299,11 +7856,13 @@ function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, pieceH, 
         let effX = isSideB ? compOrig - mx : mx;
         let lx, ly;
         if (isRotated) {
+            // Rotated 90° CW: WPS Y→screen X (same direction, no flip), WPS X→screen Y (inverted)
             lx = my;
             ly = compOrig - effX;
         } else {
+            // Non-rotated: Y-axis flip (WPS Y=0 is bottom, SVG Y=0 is top)
             lx = effX;
-            ly = my;
+            ly = largOrig - my;
         }
         const sx = (lx / pieceW) * pw;
         const sy = (ly / pieceH) * ph;
@@ -7321,8 +7880,30 @@ function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, pieceH, 
     }
 
     for (const [k, w] of allWorkers) {
-        const face = w.quadrant || w.face || 'top';
+        const face = (w.quadrant || w.face || 'top').toLowerCase();
         const cat = (w.category || w.type || '').toLowerCase();
+
+        // Skip back (alias for rear) but keep front/rear for semicircle indicators
+        if (face === 'back') { /* treat as rear */ }
+        if (w.is_edge_operation && !['left', 'right', 'front', 'rear', 'back'].includes(face)) continue;
+        // Skip ghost workers (no position data — transfer_milling sem coordenadas)
+        if (w._no_position) continue;
+        // Skip passante milling (contour cuts) — already shown as piece shape
+        const espVal = Number(piece.espessura) || 18;
+        if (cat.includes('milling') && (w.depth || w.usedepth || 0) >= espVal * 0.9 && w.positions) continue;
+
+        // ── Determine if this worker is on the OPPOSITE side ──
+        // Active side = what user is looking at. Opposite = the other face.
+        // Side A active: top workers = active, bottom workers = opposite
+        // Side B active: bottom workers = active, top workers = opposite
+        const isTopFaceWorker = face === 'top';
+        const isBottomFaceWorker = face === 'bottom';
+        const isGhost = (isSideB && isTopFaceWorker) || (!isSideB && isBottomFaceWorker);
+        // Ghost style: reduced opacity, dashed stroke, neutral color
+        const ghostColor = '#64748b'; // slate gray for all ghost ops
+        const ghostOpacity = 0.18;
+        const ghostDash = '4,2';
+        const targetArr = isGhost ? ghostElements : elements;
 
         // ── Extrair coordenadas locais (mesma lógica do backend) ──
         let mx, my, mx2, my2;
@@ -7340,115 +7921,164 @@ function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, pieceH, 
 
         let p1 = toSvg(mx, my);
 
+        // Tooltip data base
+        const faceLabel = { top: 'Topo', bottom: 'Fundo', left: 'Lateral dir', right: 'Lateral esq', front: 'Frontal', rear: 'Traseira' }[face] || face;
+        const toolLabel = w.tool_code || w.tool || '';
+        const baseTip = { face: faceLabel, tool: toolLabel, posX: Math.round(mx * 10) / 10, posY: Math.round(my * 10) / 10, ghost: isGhost };
+
         // ── Rasgos / Canais (saw cut, grooves) ──
         if (cat.includes('saw_cut') || w.tool === 'r_f') {
             const grooveW = (w.width_line || w.width || 3) * (pw / pieceW);
             let p2;
             if (w.pos_start_for_line && w.pos_end_for_line) {
-                // Formato com start/end explícitos
                 p2 = toSvg(mx2, my2);
             } else if (w.length) {
-                // Formato simples: x/y + length (rasgo corre ao longo do eixo X = comprimento)
-                // Detectar se x é centro (x+length > comprimento) ou início
                 const grooveLen = Number(w.length);
                 let startX, endX;
                 if (mx + grooveLen > compOrig + 1) {
-                    // x é CENTRO do rasgo
                     startX = mx - grooveLen / 2;
                     endX = mx + grooveLen / 2;
                 } else {
-                    // x é INÍCIO do rasgo
                     startX = mx;
                     endX = mx + grooveLen;
                 }
                 p1 = toSvg(startX, my);
                 p2 = toSvg(endX, my);
             } else {
-                continue; // sem dados suficientes
+                continue;
             }
-            elements.push(
-                <line key={`g${k}`} x1={px + p1.sx} y1={py + p1.sy} x2={px + p2.sx} y2={py + p2.sy}
-                    stroke="#eab308" strokeWidth={Math.max(1.5, grooveW)} opacity={0.6} strokeLinecap="round" />
-            );
+            const tipData = { ...baseTip, tipo: 'Rasgo / Canal', largura: w.width_line || w.width || 3, comprimento: w.length || Math.round(Math.sqrt((mx2-mx)**2 + (my2-my)**2)), profundidade: w.depth || '-' };
+            if (isGhost) {
+                const lineEl = <line key={`g${k}`} x1={px + p1.sx} y1={py + p1.sy} x2={px + p2.sx} y2={py + p2.sy}
+                        stroke={ghostColor} strokeWidth={Math.max(1.5, grooveW)} opacity={ghostOpacity} strokeLinecap="round" strokeDasharray={ghostDash} />;
+                targetArr.push(wrapHoverLine(lineEl, tipData, px + p1.sx, py + p1.sy, px + p2.sx, py + p2.sy, Math.max(1.5, grooveW)));
+            } else {
+                const lineEl = <line key={`g${k}`} x1={px + p1.sx} y1={py + p1.sy} x2={px + p2.sx} y2={py + p2.sy}
+                        stroke="#eab308" strokeWidth={Math.max(1.5, grooveW)} opacity={0.6} strokeLinecap="round" />;
+                targetArr.push(wrapHoverLine(lineEl, tipData, px + p1.sx, py + p1.sy, px + p2.sx, py + p2.sy, Math.max(1.5, grooveW)));
+            }
 
         // ── Rebaixos / Pockets ──
-        } else if (cat.includes('pocket') || cat.includes('rebaixo')) {
-            const rw = (w.pocket_width || w.width || 20) * (pw / pieceW);
+        } else if (cat.includes('pocket') || cat.includes('rebaixo') || cat.includes('milling')) {
+            const rw = (w.pocket_width || w.width || w.length || 20) * (pw / pieceW);
             const rh = (w.pocket_height || w.height || 20) * (ph / pieceH);
-            elements.push(
-                <rect key={`p${k}`} x={px + p1.sx - rw / 2} y={py + p1.sy - rh / 2} width={rw} height={rh}
-                    fill="#a855f7" opacity={0.3} stroke="#7c3aed" strokeWidth={0.8} strokeDasharray="2,1" rx={1} />
-            );
+            const tipData = { ...baseTip, tipo: 'Rebaixo / Pocket', largura: w.pocket_width || w.width || w.length || 20, altura: w.pocket_height || w.height || 20, profundidade: w.depth || '-' };
+            if (isGhost) {
+                const rectEl = <rect key={`p${k}`} x={px + p1.sx - rw / 2} y={py + p1.sy - rh / 2} width={rw} height={rh}
+                        fill={ghostColor} opacity={ghostOpacity} stroke={ghostColor} strokeWidth={1} strokeDasharray={ghostDash} rx={1} />;
+                targetArr.push(wrapHoverRect(rectEl, tipData, px + p1.sx - rw / 2, py + p1.sy - rh / 2, rw, rh));
+            } else {
+                const rectEl = <rect key={`p${k}`} x={px + p1.sx - rw / 2} y={py + p1.sy - rh / 2} width={rw} height={rh}
+                        fill="#f97316" opacity={0.35} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="3,1.5" rx={1} />;
+                targetArr.push(wrapHoverRect(rectEl, tipData, px + p1.sx - rw / 2, py + p1.sy - rh / 2, rw, rh));
+            }
 
         // ── Slots / Fresagens ──
         } else if (cat.includes('slot') || cat.includes('fresa')) {
             const slotLen = (w.slot_length || w.length || 20) * (pw / pieceW);
             const slotW = (w.slot_width || w.width || w.diameter || 6) * (ph / pieceH);
-            elements.push(
-                <rect key={`s${k}`} x={px + p1.sx} y={py + p1.sy - slotW / 2} width={slotLen} height={slotW}
-                    fill="#06b6d4" opacity={0.35} stroke="#0891b2" strokeWidth={0.6} rx={slotW / 2} />
-            );
+            const tipData = { ...baseTip, tipo: 'Fresagem / Slot', comprimento: w.slot_length || w.length || 20, largura: w.slot_width || w.width || w.diameter || 6, profundidade: w.depth || '-' };
+            if (isGhost) {
+                const rectEl = <rect key={`s${k}`} x={px + p1.sx} y={py + p1.sy - slotW / 2} width={slotLen} height={slotW}
+                        fill={ghostColor} opacity={ghostOpacity} stroke={ghostColor} strokeWidth={0.6} strokeDasharray={ghostDash} rx={slotW / 2} />;
+                targetArr.push(wrapHoverRect(rectEl, tipData, px + p1.sx, py + p1.sy - slotW / 2, slotLen, slotW));
+            } else {
+                const rectEl = <rect key={`s${k}`} x={px + p1.sx} y={py + p1.sy - slotW / 2} width={slotLen} height={slotW}
+                        fill="#06b6d4" opacity={0.35} stroke="#0891b2" strokeWidth={0.6} rx={slotW / 2} />;
+                targetArr.push(wrapHoverRect(rectEl, tipData, px + p1.sx, py + p1.sy - slotW / 2, slotLen, slotW));
+            }
 
-        // ── Furos (holes, boreholes) ──
-        } else if (w.diameter) {
-            const r = Math.max(1.5, (w.diameter / 2) * Math.min(pw / pieceW, ph / pieceH));
+        // ── Furos (holes, boreholes) — exclude milling ops that have diameter from width_tool ──
+        } else if (w.diameter && !cat.includes('milling')) {
+            const dScale = Math.min(pw / pieceW, ph / pieceH);
+            const r = Math.max(0.8, (w.diameter / 2) * dScale);
             const isTopFace = face === 'top' || face === 'bottom';
             const isSide = face === 'right' || face === 'left';
+            const isFrontRear = face === 'front' || face === 'rear' || face === 'back';
             const isBlind = cat.includes('blind');
+            const isThrough = !isBlind && (w.depth || 0) >= (Number(piece.espessura) || 18);
+            const tipData = { ...baseTip, tipo: isThrough ? 'Furo passante' : isBlind ? 'Furo cego' : 'Furo', diametro: w.diameter, profundidade: w.depth || '-', passante: isThrough };
 
-            if (isTopFace || (!isSide)) {
-                const fillColor = face === 'bottom' ? '#7c3aed' : '#e11d48';
-                const strokeColor = face === 'bottom' ? '#6d28d9' : '#be123c';
-                elements.push(
-                    <circle key={`h${k}`} cx={px + p1.sx} cy={py + p1.sy} r={r}
-                        fill={fillColor} opacity={0.55}
-                        stroke={strokeColor} strokeWidth={0.5} />
-                );
-                if (isBlind) {
-                    elements.push(
-                        <circle key={`hb${k}`} cx={px + p1.sx} cy={py + p1.sy} r={Math.max(1, r * 0.35)}
-                            fill="none" stroke={strokeColor} strokeWidth={0.6} opacity={0.7} />
-                    );
+            if (isTopFace || (!isSide && !isFrontRear)) {
+                if (isGhost) {
+                    const circEl = <circle key={`h${k}`} cx={px + p1.sx} cy={py + p1.sy} r={r}
+                            fill="none" opacity={ghostOpacity + 0.12}
+                            stroke={ghostColor} strokeWidth={1} strokeDasharray={ghostDash} />;
+                    targetArr.push(wrapHover(circEl, tipData, px + p1.sx, py + p1.sy, r));
+                } else {
+                    const fillColor = face === 'bottom' ? '#7c3aed' : '#e11d48';
+                    const strokeColor = face === 'bottom' ? '#6d28d9' : '#be123c';
+                    const circEl = <circle key={`h${k}`} cx={px + p1.sx} cy={py + p1.sy} r={r}
+                            fill={fillColor} opacity={0.55}
+                            stroke={strokeColor} strokeWidth={0.5} />;
+                    targetArr.push(wrapHover(circEl, tipData, px + p1.sx, py + p1.sy, r));
+                    if (isBlind) {
+                        targetArr.push(
+                            <circle key={`hb${k}`} cx={px + p1.sx} cy={py + p1.sy} r={Math.max(1, r * 0.35)}
+                                fill="none" stroke={strokeColor} strokeWidth={0.6} opacity={0.7} style={{ pointerEvents: 'none' }} />
+                        );
+                    }
                 }
             } else if (isSide) {
                 const edgeSize = Math.max(2, r * 0.8);
-                if (face === 'right') {
-                    elements.push(
-                        <polygon key={`h${k}`}
-                            points={`${px + pw},${py + p1.sy - edgeSize} ${px + pw - edgeSize * 1.5},${py + p1.sy} ${px + pw},${py + p1.sy + edgeSize}`}
-                            fill="#2563eb" opacity={0.6} />
-                    );
+                const visualRight = face === 'left';
+                const visualLeft = face === 'right';
+                // Semicircle on edge (more realistic than triangle)
+                if (visualRight) {
+                    const semiD = `M ${px + pw},${py + p1.sy - edgeSize} A ${edgeSize},${edgeSize} 0 0,0 ${px + pw},${py + p1.sy + edgeSize}`;
+                    const semiEl = <path key={`h${k}`} d={semiD}
+                            fill="#2563eb" opacity={0.6} stroke="#1d4ed8" strokeWidth={0.5} />;
+                    targetArr.push(wrapHover(semiEl, tipData, px + pw - edgeSize, py + p1.sy, edgeSize));
+                } else if (visualLeft) {
+                    const semiD = `M ${px},${py + p1.sy - edgeSize} A ${edgeSize},${edgeSize} 0 0,1 ${px},${py + p1.sy + edgeSize}`;
+                    const semiEl = <path key={`h${k}`} d={semiD}
+                            fill="#2563eb" opacity={0.6} stroke="#1d4ed8" strokeWidth={0.5} />;
+                    targetArr.push(wrapHover(semiEl, tipData, px + edgeSize, py + p1.sy, edgeSize));
+                }
+            } else if (isFrontRear) {
+                // Front/rear holes: semicircles on top/bottom edges (green)
+                const edgeSize = Math.max(2, r * 0.8);
+                const atBottom = face === 'front'; // front = y=0 = bottom edge in SVG (after Y-flip)
+                if (atBottom) {
+                    const semiD = `M ${px + p1.sx - edgeSize},${py + ph} A ${edgeSize},${edgeSize} 0 0,0 ${px + p1.sx + edgeSize},${py + ph}`;
+                    const semiEl = <path key={`h${k}`} d={semiD}
+                            fill="#16a34a" opacity={0.6} stroke="#15803d" strokeWidth={0.5} />;
+                    targetArr.push(wrapHover(semiEl, tipData, px + p1.sx, py + ph - edgeSize, edgeSize));
                 } else {
-                    elements.push(
-                        <polygon key={`h${k}`}
-                            points={`${px},${py + p1.sy - edgeSize} ${px + edgeSize * 1.5},${py + p1.sy} ${px},${py + p1.sy + edgeSize}`}
-                            fill="#2563eb" opacity={0.6} />
-                    );
+                    const semiD = `M ${px + p1.sx - edgeSize},${py} A ${edgeSize},${edgeSize} 0 0,1 ${px + p1.sx + edgeSize},${py}`;
+                    const semiEl = <path key={`h${k}`} d={semiD}
+                            fill="#16a34a" opacity={0.6} stroke="#15803d" strokeWidth={0.5} />;
+                    targetArr.push(wrapHover(semiEl, tipData, px + p1.sx, py + edgeSize, edgeSize));
                 }
             }
         }
     }
 
-    if (elements.length === 0) return null;
+    if (elements.length === 0 && ghostElements.length === 0) return null;
 
     // Wrap in clipPath to ensure nothing renders outside the piece boundary
+    // Ghost elements render BEHIND active elements
     return (
-        <g className="machining" style={{ pointerEvents: 'none' }}>
+        <g className="machining" style={{ pointerEvents: onMachHover ? 'auto' : 'none' }}>
             <defs>
                 <clipPath id={clipId}>
                     <rect x={px} y={py} width={pw} height={ph} />
                 </clipPath>
             </defs>
-            <g clipPath={`url(#${clipId})`}>{elements}</g>
+            <g clipPath={`url(#${clipId})`}>
+                {ghostElements}
+                {elements}
+            </g>
         </g>
     );
 }
 
 // ─── SVG visualization with collision detection, magnetic snap, kerf, lock, context menu ──
-function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, espacoPecas = 7, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, onGerarGcodePeca, gcodeLoading, onView3D, onPrintLabel, onPrintSingleLabel, onPrintFolha, onSaveRetalhos, setTab, sobraMinW = 300, sobraMinH = 600, validationConflicts = [], machineArea, timerInfo }) {
+function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, espacoPecas = 7, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, onGerarGcodePeca, gcodeLoading, onView3D, onPrintLabel, onPrintSingleLabel, onPrintFolha, onSaveRetalhos, setTab, sobraMinW = 300, sobraMinH = 600, validationConflicts = [], machineArea, timerInfo, loteAtual }) {
     const [hovered, setHovered] = useState(null);
     const [showCuts, setShowCuts] = useState(false);
     const [showMachining, setShowMachining] = useState(true);
+    const [machTip, setMachTip] = useState(null);
     const [dragging, setDragging] = useState(null);
     const [dragCollision, setDragCollision] = useState(false);
     const [snapGuides, setSnapGuides] = useState([]);
@@ -7518,6 +8148,13 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
     const refiloVal = chapa.refilo || 0;
     const hasVeio = chapa.veio && chapa.veio !== 'sem_veio';
     const kerfPx = (kerfSize / 2) * scale;
+
+    // ─── Transfer tray (bandeja) dimensions ───
+    const trayGap = 24; // gap between sheet and tray
+    const trayW = 160; // width of the tray area
+    const trayX = svgW + trayGap; // X position of tray in SVG coords
+    const [trayHover, setTrayHover] = useState(false);
+    const transferPieces = chapa._transferPieces || []; // pieces currently in transfer for this view
 
     // ─── Client-side AABB collision check (com kerf, igual ao backend) ───
     const isColliding = useCallback((tx, ty, tw, th, exIdx) => {
@@ -7613,11 +8250,31 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
         const mm = pixelToMM(e.clientX, e.clientY);
         const p = chapa.pecas[dragging.pecaIdx];
         const ref = chapa.refilo || 0;
+        const rawX = dragging.origX + (mm.x - dragging.startX);
+        const rawY = dragging.origY + (mm.y - dragging.startY);
+
+        // Check if dragged to tray area (right of sheet)
+        const inTray = rawX > chapa.comprimento - 2 * ref;
+        setTrayHover(inTray);
+
+        if (inTray) {
+            // Let the piece visually move outside the sheet
+            const g = svgRef.current?.querySelector(`[data-pidx="${dragging.pecaIdx}"]`);
+            if (g) {
+                const px = (rawX + refiloVal) * scale, py = Math.max(0, rawY + refiloVal) * scale;
+                g.setAttribute('transform', `translate(${px - (p.x + refiloVal) * scale}, ${py - (p.y + refiloVal) * scale})`);
+            }
+            setDragCollision(false);
+            setSnapGuides([]);
+            setDragging(prev => ({ ...prev, newX: rawX, newY: Math.max(0, rawY) }));
+            return;
+        }
+
         // Limites: área útil completa (0 a binW-pw). Colisão com kerf cuida do espaçamento.
         const maxX = chapa.comprimento - 2 * ref - p.w;
         const maxY = chapa.largura - 2 * ref - p.h;
-        let rx = Math.max(0, Math.min(maxX, dragging.origX + (mm.x - dragging.startX)));
-        let ry = Math.max(0, Math.min(maxY, dragging.origY + (mm.y - dragging.startY)));
+        let rx = Math.max(0, Math.min(maxX, rawX));
+        let ry = Math.max(0, Math.min(maxY, rawY));
         // Magnetic snap
         const snap = magneticSnap(rx, ry, p.w, p.h, dragging.pecaIdx);
         // Round to integer mm and clamp STRICTLY within usable area
@@ -7728,19 +8385,28 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
         return { x: tx, y: ty, valid: false };
     }, [chapa.pecas, chapa.refilo, chapa.comprimento, chapa.largura, chapa.kerf, kerfSize, espacoPecas, isColliding]);
 
-    const handleDragEnd = () => {
-        if (!dragging || dragging.newX == null) { setDragging(null); setDragCollision(false); setSnapGuides([]); return; }
+    const handleDragEnd = (e) => {
+        if (!dragging || dragging.newX == null) { setDragging(null); setDragCollision(false); setSnapGuides([]); setTrayHover(false); return; }
         const g = svgRef.current?.querySelector(`[data-pidx="${dragging.pecaIdx}"]`);
         if (g) g.removeAttribute('transform');
         const p = chapa.pecas[dragging.pecaIdx];
-        if (!p) { setDragging(null); setDragCollision(false); setSnapGuides([]); return; }
+        if (!p) { setDragging(null); setDragCollision(false); setSnapGuides([]); setTrayHover(false); return; }
+
+        // Check if piece was dragged to the tray area (right of sheet)
+        const draggedMM = dragging.newX;
+        if (trayHover || draggedMM > chapa.comprimento) {
+            // Dropped in tray → send to transfer
+            if (onAdjust) onAdjust({ action: 'to_transfer', chapaIdx: idx, pecaIdx: dragging.pecaIdx });
+            setDragging(null); setDragCollision(false); setSnapGuides([]); setTrayHover(false);
+            return;
+        }
 
         // Force-snap: encontrar melhor posição alinhada sem colisão
         const snapped = forceSnap(dragging.newX, dragging.newY, p.w, p.h, dragging.pecaIdx);
 
         if (!snapped.valid) {
             // Nenhuma posição válida → reverter ao original
-            setDragging(null); setDragCollision(false); setSnapGuides([]);
+            setDragging(null); setDragCollision(false); setSnapGuides([]); setTrayHover(false);
             return;
         }
 
@@ -7748,7 +8414,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
         if (onAdjust && (Math.abs(sx - dragging.origX) > 1 || Math.abs(sy - dragging.origY) > 1)) {
             onAdjust({ action: 'move', chapaIdx: idx, pecaIdx: dragging.pecaIdx, x: sx, y: sy });
         }
-        setDragging(null); setDragCollision(false); setSnapGuides([]);
+        setDragging(null); setDragCollision(false); setSnapGuides([]); setTrayHover(false);
     };
 
     const handleRotate = (pecaIdx) => {
@@ -7815,7 +8481,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                     {chapa.is_retalho && <span className={tagClass} style={tagStyle('#0e7490')}>RETALHO</span>}
                     {hasVeio && (
                         <span className={tagClass} style={tagStyle('#7c3aed')}>
-                            {chapa.veio === 'horizontal' ? '━ Veio H' : '┃ Veio V'}
+                            ━ Com Veio
                         </span>
                     )}
                     {/* Timer de corte */}
@@ -8057,7 +8723,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
 
             {/* Zoom controls */}
             <div style={{ display: 'flex', gap: 4, marginBottom: 8, alignItems: 'center' }}>
-                <button onClick={() => setZoomLevel(Math.max(0.3, zoomLevel - 0.2))} className={Z.btn2} style={{ padding: '3px 8px', fontSize: 12, fontWeight: 700 }}>−</button>
+                <button onClick={() => setZoomLevel(Math.max(1, zoomLevel - 0.2))} className={Z.btn2} style={{ padding: '3px 8px', fontSize: 12, fontWeight: 700 }}>−</button>
                 <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', minWidth: 40, textAlign: 'center' }}>{Math.round(zoomLevel * 100)}%</span>
                 <button onClick={() => setZoomLevel(Math.min(5, zoomLevel + 0.2))} className={Z.btn2} style={{ padding: '3px 8px', fontSize: 12, fontWeight: 700 }}>+</button>
                 <button onClick={resetView} className={Z.btn2} style={{ padding: '3px 8px', fontSize: 10 }}>Reset</button>
@@ -8107,6 +8773,51 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                 );
             })()}
 
+            {/* Machining legend */}
+            {showMachining && (
+                <div style={{ display: 'flex', gap: 12, padding: '4px 8px', fontSize: 9, color: 'var(--text-muted)', alignItems: 'center', flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ fontWeight: 700, fontSize: 10 }}>Usinagens:</span>
+                    {/* Furos topo */}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="#e11d48" opacity="0.55" stroke="#be123c" strokeWidth="0.8"/></svg>
+                        Furos (topo)
+                    </span>
+                    {/* Furos fundo */}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="#7c3aed" opacity="0.55" stroke="#6d28d9" strokeWidth="0.8"/></svg>
+                        Furos (fundo)
+                    </span>
+                    {/* Rasgos */}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <svg width="18" height="12"><line x1="1" y1="6" x2="17" y2="6" stroke="#eab308" strokeWidth="3" opacity="0.7" strokeLinecap="round"/></svg>
+                        Rasgos / Canais
+                    </span>
+                    {/* Rebaixos */}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <svg width="16" height="12"><rect x="1" y="1" width="14" height="10" fill="#f97316" opacity="0.35" stroke="#ea580c" strokeWidth="1" strokeDasharray="2,1" rx="1"/></svg>
+                        Rebaixos / Pockets
+                    </span>
+                    {/* Fresagens */}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <svg width="16" height="12"><rect x="1" y="2" width="14" height="8" fill="#06b6d4" opacity="0.4" stroke="#0891b2" strokeWidth="1" rx="4"/></svg>
+                        Fresagens / Slots
+                    </span>
+                    {/* Contorno */}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <svg width="16" height="12"><polygon points="2,10 8,1 14,10" fill="none" stroke="#10b981" strokeWidth="1.2" strokeDasharray="2,1"/></svg>
+                        Contorno
+                    </span>
+                    {/* Lado oposto */}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 4, borderLeft: '1px solid var(--border)', paddingLeft: 8 }}>
+                        <svg width="16" height="12">
+                            <circle cx="6" cy="6" r="4" fill="none" stroke="#64748b" strokeWidth="1" strokeDasharray="2,1.5" opacity="0.5"/>
+                            <line x1="10" y1="2" x2="14" y2="10" stroke="#64748b" strokeWidth="1" strokeDasharray="2,1.5" opacity="0.5"/>
+                        </svg>
+                        <span style={{ fontStyle: 'italic' }}>Lado oposto</span>
+                    </span>
+                </div>
+            )}
+
             {/* SVG Canvas with zoom/pan */}
             <div style={{ overflow: 'hidden', border: `2px solid ${dragCollision ? '#ef4444' : dragging ? '#2563eb' : 'var(--border)'}`, background: '#f8f7f5', position: 'relative', cursor: dragging ? 'grabbing' : isPanningCursor(zoomLevel), transition: 'border-color .15s' }}
                 onWheel={onWheel}
@@ -8119,8 +8830,8 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                     transform: `scale(${zoomLevel}) translate(${panOffset.x / zoomLevel}px, ${panOffset.y / zoomLevel}px)`,
                     transformOrigin: 'top left', transition: zoomLevel === 1 ? 'transform .2s' : 'none',
                 }}>
-                    <svg ref={svgRef} width={svgW + marginDim * 2 + 2} height={svgH + marginDim + 20}
-                        viewBox={`-${marginDim} -14 ${svgW + marginDim * 2 + 2} ${svgH + marginDim + 20}`}
+                    <svg ref={svgRef} width={svgW + marginDim * 2 + 2 + trayGap + trayW} height={svgH + marginDim + 20}
+                        viewBox={`-${marginDim} -14 ${svgW + marginDim * 2 + 2 + trayGap + trayW} ${svgH + marginDim + 20}`}
                         style={{ display: 'block', userSelect: 'none' }}>
 
                         {/* Defs: grain pattern + text shadow filter */}
@@ -8147,15 +8858,8 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                         {/* Grain direction arrow (top) */}
                         {hasVeio && (
                             <g>
-                                {chapa.veio === 'horizontal' ? (
-                                    <>
-                                        <line x1={svgW * 0.2} y1={-12} x2={svgW * 0.8} y2={-12} stroke="#a08060" strokeWidth={1.5} markerEnd={`url(#arrow-${idx})`} />
-                                        <text x={svgW * 0.5} y={-13} textAnchor="middle" fontSize={7} fill="#a08060" fontWeight={700}>VEIO</text>
-                                    </>
-                                ) : (
-                                    <text x={svgW + marginDim + 5} y={svgH * 0.5} textAnchor="middle" fontSize={7} fill="#a08060" fontWeight={700}
-                                        transform={`rotate(90, ${svgW + marginDim + 5}, ${svgH * 0.5})`}>VEIO ↓</text>
-                                )}
+                                <line x1={svgW * 0.2} y1={-12} x2={svgW * 0.8} y2={-12} stroke="#a08060" strokeWidth={1.5} markerEnd={`url(#arrow-${idx})`} />
+                                <text x={svgW * 0.5} y={-13} textAnchor="middle" fontSize={7} fill="#a08060" fontWeight={700}>VEIO</text>
                                 <defs>
                                     <marker id={`arrow-${idx}`} markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
                                         <polygon points="0 0, 6 2, 0 4" fill="#a08060" />
@@ -8191,7 +8895,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                         {/* Grain pattern overlay on sheet */}
                         {hasVeio && (
                             <rect x={0} y={0} width={svgW} height={svgH}
-                                fill={`url(#grain-${chapa.veio === 'horizontal' ? 'h' : 'v'}-${idx})`} />
+                                fill={`url(#grain-h-${idx})`} />
                         )}
 
                         {/* Machine work area boundary overlay */}
@@ -8307,15 +9011,19 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                 fill="rgba(59,130,246,0.06)" pointerEvents="none" />
                         )}
 
-                        {/* Scraps — diagonal hatch, neutral (rendered BEFORE pieces so pieces stay on top and draggable) */}
+                        {/* ══ Sobras/Retalhos — verde para aproveitáveis, cinza para refugo ══ */}
                         {(chapa.retalhos || []).map((r, ri) => {
                             const srx = (r.x + refiloVal) * scale;
                             const sry = (r.y + refiloVal) * scale;
                             const srw = r.w * scale;
                             const srh = r.h * scale;
                             const hatchId = `hatch-${idx}-${ri}`;
+                            // Sobra aproveitável (>=200x200) = verde, senão = cinza
+                            const isAproveitavel = Math.round(Math.max(r.w, r.h)) >= 200 && Math.round(Math.min(r.w, r.h)) >= 200;
+                            const sobraColor = r.status === 'criado' ? '#059669' : isAproveitavel ? '#22c55e' : '#9ca3af';
+                            const sobraLabel = r.status === 'criado' ? 'Retalho' : isAproveitavel ? 'Sobra' : 'Refugo';
                             return (
-                                <g key={`s${ri}`} style={{ cursor: 'context-menu' }}
+                                <g key={`s${ri}`} style={{ cursor: 'pointer' }}
                                     onContextMenu={(e) => {
                                         e.preventDefault(); e.stopPropagation();
                                         const cr = containerRef.current?.getBoundingClientRect();
@@ -8323,19 +9031,34 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                         setCtxMenu(null);
                                     }}>
                                     <defs>
-                                        <pattern id={hatchId} patternUnits="userSpaceOnUse" width={6} height={6} patternTransform="rotate(45)">
-                                            <line x1={0} y1={0} x2={0} y2={6} stroke="#9ca3af" strokeWidth={0.6} />
+                                        <pattern id={hatchId} patternUnits="userSpaceOnUse" width={8} height={8} patternTransform="rotate(45)">
+                                            <line x1={0} y1={0} x2={0} y2={8} stroke={sobraColor} strokeWidth={0.8} opacity={0.5} />
                                         </pattern>
                                     </defs>
                                     <rect x={srx} y={sry} width={srw} height={srh}
-                                        fill={`url(#${hatchId})`} stroke="#9ca3af" strokeWidth={0.8} opacity={0.6} />
+                                        fill={isAproveitavel ? `${sobraColor}12` : `url(#${hatchId})`}
+                                        stroke={sobraColor} strokeWidth={isAproveitavel ? 1.5 : 0.8}
+                                        strokeDasharray={isAproveitavel ? '6 3' : 'none'}
+                                        opacity={isAproveitavel ? 0.85 : 0.5} />
                                     {srw > 40 && srh > 16 && (
-                                        <text x={srx + srw / 2} y={sry + srh / 2} textAnchor="middle" dominantBaseline="central"
-                                            fontSize={7} fill="#6b7280" fontWeight={600}
-                                            stroke="#fff" strokeWidth={2} paintOrder="stroke"
-                                            style={{ pointerEvents: 'none' }}>
-                                            {Math.round(r.w)}×{Math.round(r.h)}
-                                        </text>
+                                        <>
+                                            <text x={srx + srw / 2} y={sry + srh / 2 - (srh > 30 ? 6 : 0)}
+                                                textAnchor="middle" dominantBaseline="central"
+                                                fontSize={Math.min(9, srw / 7)} fill={sobraColor} fontWeight={700}
+                                                stroke="#fff" strokeWidth={2.5} paintOrder="stroke"
+                                                style={{ pointerEvents: 'none' }}>
+                                                {Math.round(r.w)}×{Math.round(r.h)}
+                                            </text>
+                                            {srh > 30 && (
+                                                <text x={srx + srw / 2} y={sry + srh / 2 + 8}
+                                                    textAnchor="middle" dominantBaseline="central"
+                                                    fontSize={Math.min(7, srw / 9)} fill={sobraColor} fontWeight={600}
+                                                    stroke="#fff" strokeWidth={2} paintOrder="stroke"
+                                                    style={{ pointerEvents: 'none', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    {sobraLabel}
+                                                </text>
+                                            )}
+                                        </>
                                     )}
                                 </g>
                             );
@@ -8373,17 +9096,94 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                     onContextMenu={(e) => handleCtxMenu(e, pi)}
                                     style={{ cursor: isLocked ? 'not-allowed' : dragging ? 'grabbing' : 'grab' }}>
 
-                                    {/* Piece fill — contour polygon or rectangle */}
-                                    {p.contour && p.contour.length >= 3 ? (
-                                        <polygon
-                                            points={p.contour.map(v => `${px + (v.x / p.w) * pw},${py + (v.y / p.h) * ph}`).join(' ')}
-                                            fill={fillColor} fillOpacity={isDragging ? 0.3 : isHovered ? 0.85 : 0.7}
-                                            stroke={isDragging ? strokeClr : '#1a1a1a'} strokeWidth={isDragging ? strokeW : isHovered ? 1.5 : 0.8} />
-                                    ) : (
-                                        <rect x={px} y={py} width={pw} height={ph}
-                                            fill={fillColor} fillOpacity={isDragging ? 0.3 : isHovered ? 0.85 : 0.7}
-                                            stroke={isDragging ? strokeClr : '#1a1a1a'} strokeWidth={isDragging ? strokeW : isHovered ? 1.5 : 0.8} />
-                                    )}
+                                    {/* Piece fill — contour polygon, passante milling outline, or rectangle */}
+                                    {(() => {
+                                        const fillOp = isDragging ? 0.3 : isHovered ? 0.85 : 0.7;
+                                        const strokeC = isDragging ? strokeClr : '#1a1a1a';
+                                        const strokeWW = isDragging ? strokeW : isHovered ? 1.5 : 0.8;
+
+                                        // Case 1: nesting contour from optimizer
+                                        if (p.contour && p.contour.length >= 3) {
+                                            return (
+                                                <>
+                                                    <rect x={px} y={py} width={pw} height={ph}
+                                                        fill={fillColor} fillOpacity={isDragging ? 0.15 : 0.25}
+                                                        stroke="#999" strokeWidth={0.4} strokeDasharray="3 2" />
+                                                    <polygon
+                                                        points={p.contour.map(v => `${px + (v.x / p.w) * pw},${py + (p.rotated ? (v.y / p.h) * ph : (1 - v.y / p.h) * ph)}`).join(' ')}
+                                                        fill={fillColor} fillOpacity={isDragging ? 0.3 : isHovered ? 0.85 : 0.65}
+                                                        stroke={strokeC} strokeWidth={isDragging ? strokeW : isHovered ? 2.5 : 2} />
+                                                </>
+                                            );
+                                        }
+
+                                        // Case 2: passante milling from machining_json → build real outline
+                                        if (piece?.machining_json && piece.machining_json !== '{}') {
+                                            try {
+                                                const mach = typeof piece.machining_json === 'string' ? JSON.parse(piece.machining_json) : piece.machining_json;
+                                                if (mach.workers) {
+                                                    const wArr = Array.isArray(mach.workers) ? mach.workers : Object.values(mach.workers);
+                                                    const espVal = Number(piece.espessura) || 18;
+                                                    const compOrig = Number(piece.comprimento) || p.w;
+                                                    const largOrig = Number(piece.largura) || p.h;
+                                                    const openPaths = [];
+                                                    for (const w of wArr) {
+                                                        if (!w) continue;
+                                                        const cat = (w.category || '').toLowerCase();
+                                                        if (!cat.includes('milling')) continue;
+                                                        const depth = w.depth || w.usedepth || 0;
+                                                        if (depth < espVal * 0.9) continue;
+                                                        if (String(w.close) === '1') continue; // closed = internal cutout, not edge
+                                                        const positions = w.positions;
+                                                        if (!positions || typeof positions !== 'object') continue;
+                                                        const keys = Object.keys(positions).sort((a, b) => Number(a) - Number(b));
+                                                        if (keys.length < 2) continue;
+                                                        const pts = keys.map(k => {
+                                                            const pt = positions[k];
+                                                            if (Array.isArray(pt)) return [pt[0], pt[1]];
+                                                            return [Number(pt.x ?? pt.position_x ?? 0), Number(pt.y ?? pt.position_y ?? 0)];
+                                                        });
+                                                        openPaths.push(pts);
+                                                    }
+                                                    if (openPaths.length > 0) {
+                                                        // buildOutlineWithCuts works in shape space [0..SX, 0..SZ]
+                                                        // Use piece original dimensions as shape space
+                                                        const outline = buildMillingOutline(compOrig, largOrig, openPaths);
+                                                        // Convert to SVG coords in the ChapaViz
+                                                        const sX = pw / p.w, sY = ph / p.h;
+                                                        const svgPts = outline.map(pt => {
+                                                            let svgX, svgY;
+                                                            if (p.rotated) {
+                                                                svgX = pt[1] * sX;
+                                                                svgY = (p.h - pt[0]) * sY;
+                                                            } else {
+                                                                svgX = pt[0] * sX;
+                                                                svgY = (p.h - pt[1]) * sY;
+                                                            }
+                                                            return `${px + svgX},${py + svgY}`;
+                                                        }).join(' ');
+                                                        return (
+                                                            <>
+                                                                <rect x={px} y={py} width={pw} height={ph}
+                                                                    fill={fillColor} fillOpacity={0.1}
+                                                                    stroke="#999" strokeWidth={0.3} strokeDasharray="2 2" />
+                                                                <polygon points={svgPts}
+                                                                    fill={fillColor} fillOpacity={fillOp}
+                                                                    stroke={strokeC} strokeWidth={strokeWW} />
+                                                            </>
+                                                        );
+                                                    }
+                                                }
+                                            } catch { /* fall through to rect */ }
+                                        }
+
+                                        // Case 3: simple rectangle
+                                        return (
+                                            <rect x={px} y={py} width={pw} height={ph}
+                                                fill={fillColor} fillOpacity={fillOp}
+                                                stroke={strokeC} strokeWidth={strokeWW} />
+                                        );
+                                    })()}
 
                                     {/* Selection border */}
                                     {isSelected && !isDragging && (
@@ -8391,20 +9191,13 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                             fill="none" stroke="#2563eb" strokeWidth={1.5} strokeDasharray="4 2" />
                                     )}
 
-                                    {/* Grain lines on piece (subtle warm) */}
+                                    {/* Grain lines on piece — veio sempre horizontal */}
                                     {hasVeio && pw > 20 && ph > 20 && (
                                         <g opacity={0.22}>
-                                            {chapa.veio === 'horizontal' ? (
-                                                Array.from({ length: Math.floor(ph / 5) }, (_, i) => (
-                                                    <line key={i} x1={px + 1} y1={py + i * 5 + 2.5} x2={px + pw - 1} y2={py + i * 5 + 2.5}
-                                                        stroke="#a08060" strokeWidth={0.5} />
-                                                ))
-                                            ) : (
-                                                Array.from({ length: Math.floor(pw / 5) }, (_, i) => (
-                                                    <line key={i} x1={px + i * 5 + 2.5} y1={py + 1} x2={px + i * 5 + 2.5} y2={py + ph - 1}
-                                                        stroke="#a08060" strokeWidth={0.5} />
-                                                ))
-                                            )}
+                                            {Array.from({ length: Math.floor(ph / 5) }, (_, i) => (
+                                                <line key={i} x1={px + 1} y1={py + i * 5 + 2.5} x2={px + pw - 1} y2={py + i * 5 + 2.5}
+                                                    stroke="#a08060" strokeWidth={0.5} />
+                                            ))}
                                         </g>
                                     )}
 
@@ -8452,6 +9245,186 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                             style={{ pointerEvents: 'none' }} />
                                     )}
 
+                                    {/* ══ Machining operations visualization ══ */}
+                                    {piece?.machining_json && piece.machining_json !== '{}' && pw > 20 && ph > 20 && (() => {
+                                        try {
+                                            const mach = JSON.parse(piece.machining_json);
+                                            if (!mach.workers) return null;
+                                            const wArr = Array.isArray(mach.workers) ? mach.workers : Object.values(mach.workers);
+                                            if (wArr.length === 0) return null;
+
+                                            const sX = pw / p.w, sY = ph / p.h;
+                                            const cX = v => Math.max(0, Math.min(v, pw));
+                                            const cY = v => Math.max(0, Math.min(v, ph));
+                                            const clipId = `mclip-${idx}-${pi}`;
+
+                                            return (
+                                                <g style={{ pointerEvents: 'none' }}>
+                                                    <defs>
+                                                        <clipPath id={clipId}>
+                                                            <rect x={px} y={py} width={pw} height={ph} />
+                                                        </clipPath>
+                                                    </defs>
+                                                    <g clipPath={`url(#${clipId})`}>
+                                                        {wArr.map((w, wi) => {
+                                                            // Skip edge operations (left/right/front/rear)
+                                                            const face = (w.face || w.quadrant || '').toLowerCase();
+                                                            if (['left', 'right', 'front', 'rear', 'back'].includes(face)) return null;
+                                                            if (w.is_edge_operation) return null;
+                                                            // Skip ghost workers (sem posição)
+                                                            if (w._no_position) return null;
+
+                                                            // Color by side: blue = side A (top), orange = side B (bottom)
+                                                            const isTopFace = face === 'top' || face === 'side_a' || !face;
+                                                            const opColor = isTopFace ? '#2563eb' : '#f59e0b';
+                                                            const opColorStroke = isTopFace ? '#1d4ed8' : '#d97706';
+
+                                                            // Calculate position
+                                                            let wx = 0, wy = 0;
+                                                            if (w.x != null || w.position_x != null) {
+                                                                const rawX = w.x ?? w.position_x ?? 0;
+                                                                const rawY = w.y ?? w.position_y ?? 0;
+                                                                if (p.rotated) {
+                                                                    // Rotated 90° CW: Y→X (same dir, no flip), X→Y (inverted)
+                                                                    wx = cX(rawY * sX);
+                                                                    wy = cY((p.h - rawX) * sY);
+                                                                } else {
+                                                                    // Non-rotated: Y-axis flip (WPS Y=0 bottom → SVG Y=0 top)
+                                                                    wx = cX(rawX * sX);
+                                                                    wy = cY((p.h - rawY) * sY);
+                                                                }
+                                                            } else {
+                                                                return null; // No position data
+                                                            }
+
+                                                            const cat = (w.category || '').toLowerCase();
+                                                            const tc = (w.tool_code || w.tool || '').toLowerCase();
+
+                                                            // Saw cut (rasgo) — line with pos_start/end
+                                                            if ((cat.includes('saw_cut') || tc === 'r_f') && w.pos_start_for_line) {
+                                                                let sx2, sy2, ex2, ey2;
+                                                                const spx = w.pos_start_for_line.position_x ?? w.pos_start_for_line.x ?? 0;
+                                                                const spy = w.pos_start_for_line.position_y ?? w.pos_start_for_line.y ?? 0;
+                                                                const epx = w.pos_end_for_line?.position_x ?? w.pos_end_for_line?.x ?? spx;
+                                                                const epy = w.pos_end_for_line?.position_y ?? w.pos_end_for_line?.y ?? spy;
+                                                                if (p.rotated) {
+                                                                    // Rotated 90° CW: Y→X (no flip), X→Y (inverted)
+                                                                    sx2 = cX(spy * sX);
+                                                                    sy2 = cY((p.h - spx) * sY);
+                                                                    ex2 = cX(epy * sX);
+                                                                    ey2 = cY((p.h - epx) * sY);
+                                                                } else {
+                                                                    // Non-rotated: Y-flip
+                                                                    sx2 = cX(spx * sX);
+                                                                    sy2 = cY((p.h - spy) * sY);
+                                                                    ex2 = cX(epx * sX);
+                                                                    ey2 = cY((p.h - epy) * sY);
+                                                                }
+                                                                const lineW = Math.max(1, (w.width_line || w.width || 3) * Math.min(sX, sY));
+                                                                return (
+                                                                    <line key={wi} x1={px + sx2} y1={py + sy2} x2={px + ex2} y2={py + ey2}
+                                                                        stroke={opColor} strokeWidth={Math.max(lineW, 1.5)} opacity={0.8} />
+                                                                );
+                                                            }
+
+                                                            // Saw cut/rasgo with x/y + length (simple format)
+                                                            if ((cat.includes('saw_cut') || tc === 'r_f') && w.length) {
+                                                                const rawX = w.x ?? w.position_x ?? 0;
+                                                                const rawY = w.y ?? w.position_y ?? 0;
+                                                                const grooveLen = Number(w.length);
+                                                                const endX = rawX + grooveLen;
+                                                                let sx2, sy2, ex2, ey2;
+                                                                if (p.rotated) {
+                                                                    // Rotated 90° CW: Y→X (no flip), X→Y (inverted)
+                                                                    sx2 = cX(rawY * sX);
+                                                                    sy2 = cY((p.h - rawX) * sY);
+                                                                    ex2 = cX(rawY * sX);
+                                                                    ey2 = cY((p.h - endX) * sY);
+                                                                } else {
+                                                                    // Non-rotated: Y-flip
+                                                                    sx2 = cX(rawX * sX);
+                                                                    sy2 = cY((p.h - rawY) * sY);
+                                                                    ex2 = cX(endX * sX);
+                                                                    ey2 = cY((p.h - rawY) * sY);
+                                                                }
+                                                                const lineW = Math.max(1, (w.width_line || w.width || 3) * Math.min(sX, sY));
+                                                                return (
+                                                                    <line key={wi} x1={px + sx2} y1={py + sy2} x2={px + ex2} y2={py + ey2}
+                                                                        stroke={opColor} strokeWidth={Math.max(lineW, 1.5)} opacity={0.8} />
+                                                                );
+                                                            }
+
+                                                            // Groove/rasgo with path
+                                                            if (w.path && w.path.length >= 2) {
+                                                                const pts = w.path.map(pt => {
+                                                                    // Rotated: Y→X (no flip), X→Y (inverted). Non-rotated: Y-flip.
+                                                                    const gx = p.rotated ? cX(pt.y * sX) : cX(pt.x * sX);
+                                                                    const gy = p.rotated ? cY((p.h - pt.x) * sY) : cY((p.h - pt.y) * sY);
+                                                                    return `${px + gx},${py + gy}`;
+                                                                }).join(' ');
+                                                                const lineW = Math.max(1.5, (w.width || w.diameter || 3) * Math.min(sX, sY));
+                                                                return (
+                                                                    <polyline key={wi} points={pts}
+                                                                        fill="none" stroke={opColor} strokeWidth={lineW}
+                                                                        opacity={0.75} strokeLinecap="round" />
+                                                                );
+                                                            }
+
+                                                            // Pocket/rebaixo — rectangle
+                                                            if (cat.includes('pocket') || cat.includes('rebaixo') || cat.includes('milling') || tc.includes('rb_') || tc.includes('pocket')) {
+                                                                const rw = Math.max(4, (w.width || w.length || w.diameter || 10) * Math.min(sX, sY));
+                                                                const rh = Math.max(4, (w.height || w.depth || w.diameter || 10) * Math.min(sX, sY));
+                                                                return (
+                                                                    <rect key={wi} x={px + wx - rw/2} y={py + wy - rh/2}
+                                                                        width={rw} height={rh}
+                                                                        fill="#f97316" fillOpacity={0.35}
+                                                                        stroke="#ea580c" strokeWidth={1.2}
+                                                                        strokeDasharray="3 1.5" />
+                                                                );
+                                                            }
+
+                                                            // Default: hole/drill — circle (exclude millings with diameter from width_tool)
+                                                            if (w.diameter && !cat.includes('milling')) {
+                                                                // Tamanho real: raio = (diâmetro/2) * escala
+                                                                const holeScale = Math.min(sX, sY);
+                                                                const r = Math.max(0.8, (w.diameter / 2) * holeScale);
+                                                                return (
+                                                                    <circle key={wi} cx={px + wx} cy={py + wy} r={r}
+                                                                        fill={opColor} fillOpacity={0.6}
+                                                                        stroke={opColorStroke} strokeWidth={0.8} />
+                                                                );
+                                                            }
+
+                                                            return null;
+                                                        })}
+                                                    </g>
+                                                </g>
+                                            );
+                                        } catch { return null; }
+                                    })()}
+
+                                    {/* Lado ativo indicator — A↑ or B↑ */}
+                                    {pw > 30 && ph > 22 && piece?.machining_json && piece.machining_json !== '{}' && (() => {
+                                        const lado = p.lado_ativo || 'A';
+                                        const isManual = p.lado_manual;
+                                        const bgColor = lado === 'B' ? '#f59e0b' : '#2563eb';
+                                        return (
+                                            <g style={{ pointerEvents: 'none' }}
+                                                transform={`translate(${px + pw - 20}, ${py + 2})`}>
+                                                <rect width={18} height={12} rx={2}
+                                                    fill={bgColor} opacity={0.85} />
+                                                <text x={9} y={9} textAnchor="middle"
+                                                    fontSize={7} fill="#fff" fontWeight={800}>
+                                                    {lado}↑
+                                                </text>
+                                                {isManual && (
+                                                    <rect x={-2} y={-2} width={22} height={16} rx={3}
+                                                        fill="none" stroke="#fff" strokeWidth={0.8} />
+                                                )}
+                                            </g>
+                                        );
+                                    })()}
+
                                     {/* Classification badge (pequena/super_pequena) */}
                                     {classifyLocal && pw > 18 && ph > 18 && (() => {
                                         const cls = p.classificacao || classifyLocal(p.w, p.h);
@@ -8475,11 +9448,11 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                             const pts = p.contour.map(v => `${px + (v.x / p.w) * pw},${py + (v.y / p.h) * ph}`).join(' ');
                                             return (
                                                 <g style={{ pointerEvents: 'none' }}>
-                                                    <polygon points={pts} fill="none" stroke={c} strokeWidth={2.5} strokeLinecap="round" />
+                                                    <polygon points={pts} fill="none" stroke={c} strokeWidth={1.5} strokeLinecap="round" opacity={0.7} />
                                                 </g>
                                             );
                                         }
-                                        const t = 2.5, inset = 0.5;
+                                        const t = 1.8, inset = 0.5;
                                         const edges = [
                                             piece.borda_frontal && { x1: px + inset, y1: py + t/2, x2: px + pw - inset, y2: py + t/2, c: edgeColorGlobal(piece.borda_frontal, piece.borda_cor_frontal) },
                                             piece.borda_traseira && { x1: px + inset, y1: py + ph - t/2, x2: px + pw - inset, y2: py + ph - t/2, c: edgeColorGlobal(piece.borda_traseira, piece.borda_cor_traseira) },
@@ -8498,7 +9471,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
 
                                     {/* Machining operations (usinagens) */}
                                     {showMachining && piece && pw > 25 && ph > 25 &&
-                                        renderMachining(piece, px, py, pw, ph, scale, p.rotated, p.w, p.h, p.lado_ativo)
+                                        renderMachining(piece, px, py, pw, ph, scale, p.rotated, p.w, p.h, p.lado_ativo, setMachTip)
                                     }
 
                                     {/* ══ Lock icon ══ */}
@@ -8706,6 +9679,43 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                             }
                             return handles;
                         })()}
+
+                        {/* ═══ TRANSFER TRAY (bandeja) ═══ */}
+                        <g>
+                            <rect x={trayX} y={0} width={trayW} height={svgH}
+                                rx={6}
+                                fill={trayHover ? 'rgba(37,99,235,0.08)' : 'rgba(148,163,184,0.06)'}
+                                stroke={trayHover ? '#2563eb' : '#94a3b8'}
+                                strokeWidth={trayHover ? 2 : 1}
+                                strokeDasharray={trayHover ? 'none' : '6 3'}
+                                style={{ transition: 'fill .15s, stroke .15s' }} />
+                            {/* Tray label */}
+                            <text x={trayX + trayW / 2} y={16} textAnchor="middle"
+                                fontSize={9} fontWeight={700} fill={trayHover ? '#2563eb' : '#94a3b8'}
+                                style={{ transition: 'fill .15s' }}>
+                                Bandeja
+                            </text>
+                            {/* Tray hint */}
+                            {!trayHover && (
+                                <text x={trayX + trayW / 2} y={svgH / 2} textAnchor="middle"
+                                    fontSize={8} fill="#94a3b8" opacity={0.7}>
+                                    <tspan x={trayX + trayW / 2} dy={0}>Arraste</tspan>
+                                    <tspan x={trayX + trayW / 2} dy={12}>aqui</tspan>
+                                </text>
+                            )}
+                            {/* Drop indicator when hovering */}
+                            {trayHover && (
+                                <>
+                                    <rect x={trayX + 6} y={24} width={trayW - 12} height={svgH - 32}
+                                        rx={4} fill="none"
+                                        stroke="#2563eb" strokeWidth={1.5} strokeDasharray="4 2" opacity={0.5} />
+                                    <text x={trayX + trayW / 2} y={svgH / 2} textAnchor="middle"
+                                        fontSize={10} fontWeight={700} fill="#2563eb">
+                                        Solte aqui
+                                    </text>
+                                </>
+                            )}
+                        </g>
                     </svg>
                 </div>
 
@@ -8724,14 +9734,15 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                             background: 'var(--bg-card)', border: '1px solid var(--border)',
                             borderRadius: 8, padding: '10px 14px', fontSize: 11,
                             boxShadow: '0 4px 16px rgba(0,0,0,.18)', zIndex: 10,
-                            minWidth: 250, lineHeight: 1.6,
+                            minWidth: 270, lineHeight: 1.6,
                         }}>
-                            <div style={{ fontWeight: 700, marginBottom: 4, color: 'var(--text-primary)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                {piece?.descricao || `Peça #${p.pecaId}`}
+                            {/* Title */}
+                            <div style={{ fontWeight: 700, marginBottom: 2, color: 'var(--text-primary)', fontSize: 13, borderBottom: '1px solid var(--border)', paddingBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                Detalhes da peça
                                 {p.locked && <Lock size={10} style={{ color: '#fbbf24' }} />}
                             </div>
                             {/* Classification badge */}
-                            <div style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ marginBottom: 6, marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <span style={{
                                     display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px',
                                     borderRadius: 10, fontSize: 10, fontWeight: 700, color: '#fff',
@@ -8745,11 +9756,21 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                 </span>
                             </div>
                             <div style={{ color: 'var(--text-muted)' }}>
-                                <b>Dimensões:</b> {Math.round(p.w)} x {Math.round(p.h)} mm ({area} m²)
-                                {p.rotated && <span style={{ color: '#f59e0b', fontWeight: 600 }}> (rotacionada 90°)</span>}<br />
-                                <b>Posição:</b> x={Math.round(p.x)}, y={Math.round(p.y)}<br />
+                                <b>ID:</b> {piece?.id || p.pecaId}<br />
+                                <b>Descrição peça:</b> {piece?.descricao || `Peça #${p.pecaId}`}<br />
+                                <b>Rotacionada:</b> {p.rotated ? 'Sim' : 'Não'}<br />
+                                <b>Comprimento:</b> {piece?.comprimento ? Number(piece.comprimento).toFixed(2) : Math.round(p.rotated ? p.h : p.w)}<br />
+                                <b>Largura:</b> {piece?.largura ? Number(piece.largura).toFixed(2) : Math.round(p.rotated ? p.w : p.h)}<br />
+                                <b>Área:</b> {area} m²<br />
+                                {loteAtual?.cliente && <><b>Cliente:</b> {loteAtual.cliente}<br /></>}
+                                <b>Id Master:</b> {piece?.modulo_id || '-'}<br />
                                 <b>Módulo:</b> {piece?.modulo_desc || '-'}<br />
+                                {piece?.persistent_id && <><b>Id Peça:</b> {piece.persistent_id}<br /></>}
+                                {piece?.upmcode && <><b>Meu código:</b> {piece.upmcode}<br /></>}
+                                {piece?.produto_final && <><b>Produto final:</b> {piece.produto_final}<br /></>}
                                 <b>Material:</b> {piece?.material_code || '-'}<br />
+                                {piece?.espessura > 0 && <><b>Espessura:</b> {piece.espessura}mm<br /></>}
+                                <b>Posição:</b> x={Math.round(p.x)}, y={Math.round(p.y)}<br />
                                 {piece?.quantidade > 1 && <><b>Instância:</b> {(p.instancia || 0) + 1} de {piece.quantidade}<br /></>}
                                 {piece && (piece.borda_dir || piece.borda_esq || piece.borda_frontal || piece.borda_traseira) && (() => {
                                     const sides = [
@@ -8766,6 +9787,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                     ))}</>;
                                 })()}
                                 {piece?.acabamento && <><b>Acabamento:</b> {piece.acabamento}<br /></>}
+                                {piece?.observacao && <><b>Obs:</b> {piece.observacao}<br /></>}
                             </div>
                             {/* Special cut rules */}
                             {p.corte && (
@@ -8783,13 +9805,51 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                     );
                 })()}
 
+                {/* ══ Machining Tooltip ══ */}
+                {machTip && (
+                    <div style={{
+                        position: 'fixed', left: machTip.clientX + 14, top: machTip.clientY - 10,
+                        background: 'var(--bg-card)', border: '1px solid var(--border)',
+                        borderRadius: 8, padding: '8px 12px', fontSize: 11,
+                        boxShadow: '0 4px 16px rgba(0,0,0,.22)', zIndex: 50,
+                        minWidth: 180, lineHeight: 1.7, pointerEvents: 'none',
+                        maxWidth: 280,
+                    }}>
+                        <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--text-primary)', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{
+                                width: 8, height: 8, borderRadius: '50%', display: 'inline-block',
+                                background: machTip.ghost ? '#64748b'
+                                    : machTip.tipo?.includes('Rasgo') ? '#eab308'
+                                    : machTip.tipo?.includes('Rebaixo') ? '#f97316'
+                                    : machTip.tipo?.includes('Fresa') ? '#06b6d4'
+                                    : machTip.face === 'Fundo' ? '#7c3aed'
+                                    : machTip.face?.includes('Lateral') ? '#2563eb'
+                                    : '#e11d48',
+                                border: machTip.ghost ? '1.5px dashed #94a3b8' : 'none',
+                            }} />
+                            {machTip.tipo || 'Usinagem'}
+                            {machTip.ghost && <span style={{ fontSize: 9, color: '#94a3b8', fontStyle: 'italic' }}>(lado oposto)</span>}
+                        </div>
+                        <div style={{ color: 'var(--text-muted)' }}>
+                            <b>Face:</b> {machTip.face}<br />
+                            <b>Posição:</b> X={machTip.posX}mm, Y={machTip.posY}mm<br />
+                            {machTip.diametro && <><b>Diâmetro:</b> {machTip.diametro}mm<br /></>}
+                            {machTip.largura && !machTip.diametro && <><b>Largura:</b> {machTip.largura}mm<br /></>}
+                            {machTip.altura && <><b>Altura:</b> {machTip.altura}mm<br /></>}
+                            {machTip.comprimento && <><b>Comprimento:</b> {machTip.comprimento}mm<br /></>}
+                            {machTip.profundidade && machTip.profundidade !== '-' && <><b>Profundidade:</b> {machTip.profundidade}mm<br /></>}
+                            {machTip.passante && <span style={{ color: '#ef4444', fontWeight: 600 }}>● Passante<br /></span>}
+                            {machTip.tool && <><b>Ferramenta:</b> <code style={{ fontSize: 10, background: 'var(--bg-muted)', padding: '0 4px', borderRadius: 3 }}>{machTip.tool}</code></>}
+                        </div>
+                    </div>
+                )}
+
                 {/* ══ Context Menu — Rich actions ══ */}
                 {ctxMenu && (() => {
                     const p = chapa.pecas[ctxMenu.pecaIdx];
                     if (!p) return null;
                     const piece = pecasMap[p.pecaId];
                     const isLocked = p.locked;
-                    const compatibleSheets = allChapas.map((ch, ci) => ({ ch, ci })).filter(({ ch, ci }) => ci !== idx && ch.material === chapa.material);
                     const MI = ({ icon: Icon, label, color, onClick, disabled }) => (
                         <div style={{
                             padding: '7px 14px', cursor: disabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 10,
@@ -8867,16 +9927,6 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                             <MI icon={Layers} label="Ver no Lote (Peças)" color="#22c55e"
                                 onClick={() => setTab && setTab('pecas')} />
 
-                            {/* Mover para outra chapa */}
-                            {compatibleSheets.length > 0 && (
-                                <>
-                                    <Sep label="Mover para chapa" />
-                                    {compatibleSheets.map(({ ci }) => (
-                                        <MI key={ci} icon={Box} label={`Chapa ${ci + 1}`} color="#64748b"
-                                            onClick={() => onAdjust({ action: 'move_to_sheet', chapaIdx: idx, pecaIdx: ctxMenu.pecaIdx, targetChapaIdx: ci })} />
-                                    ))}
-                                </>
-                            )}
                         </div>
                     );
                 })()}
@@ -8964,12 +10014,12 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                     <div style={{
                         position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
                         padding: '4px 14px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                        background: dragCollision ? colorBg('#ef4444') : colorBg('#22c55e'),
-                        color: dragCollision ? '#ef4444' : '#2563eb',
-                        border: `1px solid ${dragCollision ? colorBorder('#ef4444') : colorBorder('#22c55e')}`,
+                        background: trayHover ? colorBg('#2563eb') : dragCollision ? colorBg('#ef4444') : colorBg('#22c55e'),
+                        color: trayHover ? '#2563eb' : dragCollision ? '#ef4444' : '#2563eb',
+                        border: `1px solid ${trayHover ? colorBorder('#2563eb') : dragCollision ? colorBorder('#ef4444') : colorBorder('#22c55e')}`,
                         zIndex: 10, whiteSpace: 'nowrap',
                     }}>
-                        {dragCollision ? 'Colisao! Solte para cancelar' : 'Posicao valida'}
+                        {trayHover ? 'Solte para enviar à bandeja' : dragCollision ? 'Colisao! Solte para cancelar' : 'Posicao valida'}
                     </div>
                 )}
             </div>
@@ -8983,7 +10033,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                 {(chapa.retalhos?.length || 0) > 0 && <span style={{ color: '#22c55e' }}>{chapa.retalhos.length} retalho(s)</span>}
                 {chapa.kerf > 0 && <span>Kerf: {chapa.kerf}mm</span>}
                 {refiloVal > 0 && <span>Refilo: {refiloVal}mm</span>}
-                {hasVeio && <span style={{ color: '#8b5cf6', fontWeight: 600 }}>Veio: {chapa.veio === 'horizontal' ? '━ Horizontal' : '┃ Vertical'}</span>}
+                {hasVeio && <span style={{ color: '#8b5cf6', fontWeight: 600 }}>━ Com Veio</span>}
                 {/* Per-sheet classification counts */}
                 {classifyLocal && (() => {
                     const sheetCls = { normal: 0, pequena: 0, super_pequena: 0 };
@@ -9324,7 +10374,7 @@ function TabMateriais({ notify }) {
 
     const load = useCallback(async () => {
         setLoading(true);
-        try { setMateriais(await api.get('/cnc/materiais')); }
+        try { setMateriais(await api.get('/cnc/materiais?ativo=1')); }
         catch { notify?.('Erro ao carregar materiais', 'error'); }
         setLoading(false);
     }, [notify]);
@@ -9361,9 +10411,13 @@ function TabMateriais({ notify }) {
 
     const handleDelete = async (id) => {
         if (!confirm('Desativar este material?')) return;
-        await api.del(`/cnc/materiais/${id}`);
-        notify?.('Material desativado');
-        load();
+        try {
+            await api.del(`/cnc/materiais/${id}`);
+            notify?.('Material desativado');
+            load();
+        } catch (err) {
+            notify?.('Erro ao desativar material: ' + (err.message || ''), 'error');
+        }
     };
 
     const handleDuplicar = async (id) => {
@@ -9398,7 +10452,7 @@ function TabMateriais({ notify }) {
     );
 
     const MELAMINA_LABELS = { ambos: '● Ambos os lados', face_a: '▲ Só Face A', face_b: '▼ Só Face B', cru: '□ Cru (sem melamina)' };
-    const VEIO_LABELS = { sem_veio: 'Sem veio', horizontal: 'Horizontal →', vertical: 'Vertical ↓' };
+    const VEIO_LABELS = { sem_veio: 'Sem veio', com_veio: 'Com veio', horizontal: 'Com veio', vertical: 'Com veio' };
 
     return (
         <div>
@@ -9503,9 +10557,8 @@ function TabMateriais({ notify }) {
                             </div>
                             <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                                 <EF label="Veio" field="veio" opts={[
-                                    { v: 'sem_veio', l: 'Sem veio' },
-                                    { v: 'horizontal', l: 'Horizontal →' },
-                                    { v: 'vertical', l: 'Vertical ↓' },
+                                    { v: 'sem_veio', l: 'Sem veio (permite rotação)' },
+                                    { v: 'com_veio', l: 'Com veio (não rotaciona)' },
                                 ]} />
                                 <EF label="Melamina" field="melamina" opts={[
                                     { v: 'ambos', l: '● Ambos os lados' },
@@ -9515,7 +10568,7 @@ function TabMateriais({ notify }) {
                                 ]} />
                                 <EF label="Cor / Acabamento" field="cor" />
                                 <EF label="Rotação" field="permitir_rotacao" opts={[
-                                    { v: -1, l: '↺ Automático (segue veio)' },
+                                    { v: -1, l: '↺ Automático (com veio=não, sem veio=sim)' },
                                     { v: 1, l: '✓ Sempre permitir' },
                                     { v: 0, l: '✗ Nunca permitir' },
                                 ]} />
@@ -10732,6 +11785,297 @@ function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
 }
 
 // ═══════════════════════════════════════════════════════
+// TAB RETALHOS — Gerenciamento completo de retalhos
+// ═══════════════════════════════════════════════════════
+function TabRetalhos({ notify }) {
+    const [retalhos, setRetalhos] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState('');
+    const [filterMaterial, setFilterMaterial] = useState('');
+    const [filterEspessura, setFilterEspessura] = useState('');
+    const [selected, setSelected] = useState(new Set());
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [novoRetalho, setNovoRetalho] = useState({ nome: '', material_code: '', espessura_real: 15, comprimento: 0, largura: 0 });
+    const [sortBy, setSortBy] = useState('criado_em');
+    const [sortDir, setSortDir] = useState('desc');
+
+    const loadRetalhos = async () => {
+        try {
+            const data = await api.get('/cnc/retalhos');
+            setRetalhos(data || []);
+        } catch (err) { notify(err.error || 'Erro ao carregar retalhos'); }
+        finally { setLoading(false); }
+    };
+
+    useEffect(() => { loadRetalhos(); }, []);
+
+    // Unique material codes and espessuras for filters
+    const materiais = [...new Set(retalhos.map(r => r.material_code).filter(Boolean))].sort();
+    const espessuras = [...new Set(retalhos.map(r => r.espessura_real).filter(Boolean))].sort((a, b) => a - b);
+
+    // Filter + search
+    const filtered = retalhos.filter(r => {
+        if (filterMaterial && r.material_code !== filterMaterial) return false;
+        if (filterEspessura && r.espessura_real !== Number(filterEspessura)) return false;
+        if (search) {
+            const s = search.toLowerCase();
+            const match = (r.nome || '').toLowerCase().includes(s) ||
+                (r.material_code || '').toLowerCase().includes(s) ||
+                `${r.comprimento}x${r.largura}`.includes(s);
+            if (!match) return false;
+        }
+        return true;
+    });
+
+    // Sort
+    const sorted = [...filtered].sort((a, b) => {
+        let va, vb;
+        switch (sortBy) {
+            case 'area': va = a.comprimento * a.largura; vb = b.comprimento * b.largura; break;
+            case 'comprimento': va = a.comprimento; vb = b.comprimento; break;
+            case 'largura': va = a.largura; vb = b.largura; break;
+            case 'espessura': va = a.espessura_real; vb = b.espessura_real; break;
+            case 'material': va = a.material_code || ''; vb = b.material_code || ''; return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+            default: va = new Date(a.criado_em || 0).getTime(); vb = new Date(b.criado_em || 0).getTime();
+        }
+        return sortDir === 'asc' ? va - vb : vb - va;
+    });
+
+    const toggleSelect = (id) => setSelected(prev => {
+        const next = new Set(prev);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+    });
+
+    const selectAllFiltered = () => {
+        if (selected.size === sorted.length) {
+            setSelected(new Set());
+        } else {
+            setSelected(new Set(sorted.map(r => r.id)));
+        }
+    };
+
+    const deleteSelected = async () => {
+        if (selected.size === 0) return;
+        if (!confirm(`Excluir ${selected.size} retalho(s) permanentemente?`)) return;
+        try {
+            for (const id of selected) {
+                await api.del(`/cnc/retalhos/${id}`);
+            }
+            notify(`${selected.size} retalho(s) excluído(s)`);
+            setSelected(new Set());
+            loadRetalhos();
+        } catch (err) { notify('Erro: ' + (err.error || err.message)); }
+    };
+
+    const addRetalho = async () => {
+        if (!novoRetalho.comprimento || !novoRetalho.largura) {
+            notify('Informe comprimento e largura'); return;
+        }
+        try {
+            await api.post('/cnc/retalhos', novoRetalho);
+            notify('Retalho adicionado');
+            setShowAddModal(false);
+            setNovoRetalho({ nome: '', material_code: '', espessura_real: 15, comprimento: 0, largura: 0 });
+            loadRetalhos();
+        } catch (err) { notify('Erro: ' + (err.error || err.message)); }
+    };
+
+    const SortHeader = ({ label, field, w }) => (
+        <th onClick={() => { if (sortBy === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortBy(field); setSortDir('desc'); } }}
+            style={{ cursor: 'pointer', padding: '8px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)',
+                textAlign: 'left', userSelect: 'none', width: w, whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>
+            {label} {sortBy === field && (sortDir === 'asc' ? '↑' : '↓')}
+        </th>
+    );
+
+    if (loading) return <div style={{ padding: 40, textAlign: 'center' }}><Spinner /></div>;
+
+    return (
+        <div style={{ maxWidth: 1100 }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                    <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Gerenciar Retalhos</h2>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{retalhos.length} retalhos disponíveis · {filtered.length} exibidos</div>
+                </div>
+                <button onClick={() => setShowAddModal(true)} className={Z.btn} style={{ padding: '8px 16px', fontSize: 12, gap: 6 }}>
+                    <Plus size={14} /> Adicionar Retalho
+                </button>
+            </div>
+
+            {/* Filters bar */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                {/* Search */}
+                <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 180 }}>
+                    <SearchIcon size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome, material, dimensão..."
+                        className={Z.inp} style={{ paddingLeft: 32, fontSize: 12, width: '100%' }} />
+                </div>
+                {/* Material filter — searchable */}
+                <SearchableSelect
+                    value={filterMaterial}
+                    onChange={v => setFilterMaterial(v)}
+                    emptyOption="Todos os materiais"
+                    options={materiais.map(m => ({ value: m, label: m.replace(/_/g, ' ') }))}
+                    placeholder="Buscar material..."
+                    className={Z.inp}
+                    style={{ minWidth: 200 }}
+                />
+                {/* Espessura filter — searchable */}
+                <SearchableSelect
+                    value={filterEspessura}
+                    onChange={v => setFilterEspessura(v)}
+                    emptyOption="Todas espessuras"
+                    options={espessuras.map(e => ({ value: String(e), label: `${e}mm` }))}
+                    placeholder="Buscar esp..."
+                    className={Z.inp}
+                    style={{ minWidth: 120 }}
+                />
+                {/* Bulk actions */}
+                {selected.size > 0 && (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 'auto' }}>
+                        <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 600 }}>{selected.size} selecionado(s)</span>
+                        <button onClick={deleteSelected} className="btn-secondary"
+                            style={{ padding: '5px 12px', fontSize: 11, color: '#ef4444', borderColor: '#ef4444', gap: 4 }}>
+                            <Trash2 size={12} /> Excluir
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Table */}
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-card)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                        <tr style={{ background: 'var(--bg-muted)' }}>
+                            <th style={{ width: 36, padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>
+                                <div onClick={selectAllFiltered}
+                                    style={{
+                                        width: 16, height: 16, borderRadius: 3, cursor: 'pointer',
+                                        border: `2px solid ${selected.size > 0 && selected.size === sorted.length ? 'var(--primary)' : 'var(--border)'}`,
+                                        background: selected.size > 0 && selected.size === sorted.length ? 'var(--primary)' : 'transparent',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    }}>
+                                    {selected.size > 0 && selected.size === sorted.length && <Check size={10} color="#fff" />}
+                                    {selected.size > 0 && selected.size < sorted.length && <Minus size={10} color="var(--primary)" />}
+                                </div>
+                            </th>
+                            <SortHeader label="Nome" field="nome" />
+                            <SortHeader label="Material" field="material" />
+                            <SortHeader label="Esp." field="espessura" w={60} />
+                            <SortHeader label="Comprimento" field="comprimento" w={90} />
+                            <SortHeader label="Largura" field="largura" w={80} />
+                            <SortHeader label="Área" field="area" w={80} />
+                            <SortHeader label="Data" field="criado_em" w={90} />
+                            <th style={{ width: 50, padding: '8px 10px', borderBottom: '1px solid var(--border)' }}></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sorted.length === 0 ? (
+                            <tr><td colSpan={9} style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                                {search || filterMaterial || filterEspessura ? 'Nenhum retalho encontrado com os filtros aplicados' : 'Nenhum retalho disponível'}
+                            </td></tr>
+                        ) : sorted.map(r => (
+                            <tr key={r.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background .1s' }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                                onMouseLeave={e => e.currentTarget.style.background = ''}>
+                                <td style={{ padding: '6px 10px' }}>
+                                    <div onClick={() => toggleSelect(r.id)}
+                                        style={{
+                                            width: 16, height: 16, borderRadius: 3, cursor: 'pointer',
+                                            border: `2px solid ${selected.has(r.id) ? 'var(--primary)' : 'var(--border)'}`,
+                                            background: selected.has(r.id) ? 'var(--primary)' : 'transparent',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        }}>
+                                        {selected.has(r.id) && <Check size={10} color="#fff" />}
+                                    </div>
+                                </td>
+                                <td style={{ padding: '8px 10px', fontSize: 12, fontWeight: 600 }}>{r.nome || `Retalho ${r.comprimento}x${r.largura}`}</td>
+                                <td style={{ padding: '8px 10px', fontSize: 11 }}>
+                                    <span style={{ padding: '2px 8px', borderRadius: 4, background: 'var(--bg-muted)', fontSize: 10 }}>
+                                        {(r.material_code || '').replace(/_/g, ' ')}
+                                    </span>
+                                </td>
+                                <td style={{ padding: '8px 10px', fontSize: 12, textAlign: 'center' }}>{r.espessura_real}mm</td>
+                                <td style={{ padding: '8px 10px', fontSize: 12, fontWeight: 600, textAlign: 'right' }}>{r.comprimento}mm</td>
+                                <td style={{ padding: '8px 10px', fontSize: 12, textAlign: 'right' }}>{r.largura}mm</td>
+                                <td style={{ padding: '8px 10px', fontSize: 11, textAlign: 'right', color: 'var(--text-muted)' }}>
+                                    {(r.comprimento * r.largura / 1000000).toFixed(3)} m²
+                                </td>
+                                <td style={{ padding: '8px 10px', fontSize: 10, color: 'var(--text-muted)' }}>
+                                    {r.criado_em ? new Date(r.criado_em).toLocaleDateString('pt-BR') : '-'}
+                                </td>
+                                <td style={{ padding: '6px 10px' }}>
+                                    <button onClick={async () => {
+                                        if (!confirm('Excluir este retalho permanentemente?')) return;
+                                        try {
+                                            await api.del(`/cnc/retalhos/${r.id}`);
+                                            notify('Retalho excluído');
+                                            loadRetalhos();
+                                            setSelected(prev => { const next = new Set(prev); next.delete(r.id); return next; });
+                                        } catch (err) { notify('Erro: ' + (err.error || err.message)); }
+                                    }} style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', borderRadius: 4 }}
+                                        onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                                        <Trash2 size={13} />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Add Retalho Modal */}
+            {showAddModal && (
+                <Modal title="Adicionar Retalho" close={() => setShowAddModal(false)} w={450}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Nome (opcional)</label>
+                            <input value={novoRetalho.nome} onChange={e => setNovoRetalho(p => ({ ...p, nome: e.target.value }))}
+                                className={Z.inp} placeholder="Ex: Sobra bancada cozinha" style={{ width: '100%', fontSize: 12 }} />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Código do Material</label>
+                            <input value={novoRetalho.material_code} onChange={e => setNovoRetalho(p => ({ ...p, material_code: e.target.value }))}
+                                className={Z.inp} placeholder="Ex: MDF_15.5_BRANCO_TX" style={{ width: '100%', fontSize: 12 }}
+                                list="materiais-list" />
+                            <datalist id="materiais-list">
+                                {materiais.map(m => <option key={m} value={m} />)}
+                            </datalist>
+                        </div>
+                        <div style={{ display: 'flex', gap: 12 }}>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Espessura (mm)</label>
+                                <input type="number" value={novoRetalho.espessura_real} onChange={e => setNovoRetalho(p => ({ ...p, espessura_real: Number(e.target.value) }))}
+                                    className={Z.inp} style={{ width: '100%', fontSize: 12 }} min={0} step={0.5} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Comprimento (mm)</label>
+                                <input type="number" value={novoRetalho.comprimento} onChange={e => setNovoRetalho(p => ({ ...p, comprimento: Number(e.target.value) }))}
+                                    className={Z.inp} style={{ width: '100%', fontSize: 12 }} min={0} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Largura (mm)</label>
+                                <input type="number" value={novoRetalho.largura} onChange={e => setNovoRetalho(p => ({ ...p, largura: Number(e.target.value) }))}
+                                    className={Z.inp} style={{ width: '100%', fontSize: 12 }} min={0} />
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                            <button onClick={() => setShowAddModal(false)} className="btn-secondary" style={{ padding: '8px 16px', fontSize: 12 }}>Cancelar</button>
+                            <button onClick={addRetalho} className={Z.btn} style={{ padding: '8px 20px', fontSize: 12, fontWeight: 700 }}>
+                                <Plus size={14} /> Adicionar
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════
 // ABA 6: CONFIGURAÇÕES
 // ═══════════════════════════════════════════════════════
 function TabConfig({ notify, setEditorMode, setEditorTemplateId, initialSection, setConfigSection }) {
@@ -10838,16 +12182,20 @@ function CfgChapas({ notify }) {
 
     const del = async (id) => {
         if (!confirm('Excluir esta chapa?')) return;
-        await api.del(`/cnc/chapas/${id}`);
-        notify('Chapa excluída');
-        load();
+        try {
+            await api.del(`/cnc/chapas/${id}`);
+            notify('Chapa excluída');
+            load();
+        } catch (err) {
+            notify('Erro ao excluir chapa: ' + (err.message || err.error || ''), 'error');
+        }
     };
 
     return (
         <div className="glass-card p-4">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <h3 style={{ fontSize: 14, fontWeight: 700 }}>Chapas Cadastradas</h3>
-                <button onClick={() => setModal({ nome: '', material_code: '', espessura_nominal: 18, espessura_real: 18.5, comprimento: 2750, largura: 1850, refilo: 10, veio: 'sem_veio', preco: 0, kerf: 4, ativo: 1, direcao_corte: 'herdar', modo_corte: 'herdar' })}
+                <button onClick={() => setModal({ nome: '', material_code: '', espessura_nominal: 18, espessura_real: 18, comprimento: 2750, largura: 1850, refilo: 10, veio: 'sem_veio', preco: 0, ativo: 1, direcao_corte: 'herdar', modo_corte: 'herdar' })}
                     className={Z.btn} style={{ fontSize: 12, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <Plus size={12} /> Nova Chapa
                 </button>
@@ -10857,7 +12205,7 @@ function CfgChapas({ notify }) {
                 <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 12 }}>
                     <thead>
                         <tr>
-                            {['Nome', 'Código', 'Esp.Nom', 'Esp.Real', 'Comp', 'Larg', 'Refilo', 'Kerf', 'Veio', 'Dir.Corte', 'Modo', 'Preço', 'Ações'].map(h => (
+                            {['Nome', 'Código', 'Esp.Nom', 'Esp.Real', 'Comp', 'Larg', 'Refilo', 'Veio', 'Dir.Corte', 'Modo', 'Preço', 'Ações'].map(h => (
                                 <th key={h} className={Z.th} style={{ padding: '6px 8px' }}>{h}</th>
                             ))}
                         </tr>
@@ -10872,12 +12220,9 @@ function CfgChapas({ notify }) {
                                 <td style={{ padding: '6px 8px', textAlign: 'center' }}>{c.comprimento}</td>
                                 <td style={{ padding: '6px 8px', textAlign: 'center' }}>{c.largura}</td>
                                 <td style={{ padding: '6px 8px', textAlign: 'center' }}>{c.refilo}</td>
-                                <td style={{ padding: '6px 8px', textAlign: 'center' }}>{c.kerf ?? 4}mm</td>
                                 <td style={{ padding: '6px 8px' }}>
-                                    {c.veio === 'sem_veio' ? <span style={{ color: 'var(--text-muted)' }}>—</span> :
-                                     c.veio === 'horizontal' ? <span style={{ color: '#3b82f6', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>━━ Horiz.</span> :
-                                     c.veio === 'vertical' ? <span style={{ color: '#f59e0b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>┃ Vert.</span> :
-                                     c.veio}
+                                    {c.veio === 'sem_veio' || !c.veio ? <span style={{ color: 'var(--text-muted)' }}>—</span> :
+                                     <span style={{ color: '#8b5cf6', fontWeight: 600 }}>Com veio</span>}
                                 </td>
                                 <td style={{ padding: '6px 8px', fontSize: 10 }}>
                                     {(!c.direcao_corte || c.direcao_corte === 'herdar') ? <span style={{ color: 'var(--text-muted)' }}>Global</span> :
@@ -10922,11 +12267,10 @@ function ChapaModal({ data, onSave, onClose }) {
                     <input value={f.material_code} onChange={e => upd('material_code', e.target.value)} className={Z.inp} />
                 </div>
                 <div>
-                    <label className={Z.lbl}>Veio (sentido da fibra)</label>
-                    <select value={f.veio} onChange={e => upd('veio', e.target.value)} className={Z.inp}>
+                    <label className={Z.lbl}>Veio (fibra)</label>
+                    <select value={f.veio === 'horizontal' || f.veio === 'vertical' || f.veio === 'com_veio' ? 'com_veio' : 'sem_veio'} onChange={e => upd('veio', e.target.value)} className={Z.inp}>
                         <option value="sem_veio">Sem veio (permite rotação)</option>
-                        <option value="horizontal">━ Horizontal (comprimento)</option>
-                        <option value="vertical">┃ Vertical (largura)</option>
+                        <option value="com_veio">Com veio (não rotaciona)</option>
                     </select>
                 </div>
                 <div><label className={Z.lbl}>Esp. Nominal (mm)</label><input type="number" value={f.espessura_nominal} onChange={e => upd('espessura_nominal', Number(e.target.value))} className={Z.inp} /></div>
@@ -10934,7 +12278,6 @@ function ChapaModal({ data, onSave, onClose }) {
                 <div><label className={Z.lbl}>Comprimento (mm)</label><input type="number" value={f.comprimento} onChange={e => upd('comprimento', Number(e.target.value))} className={Z.inp} /></div>
                 <div><label className={Z.lbl}>Largura (mm)</label><input type="number" value={f.largura} onChange={e => upd('largura', Number(e.target.value))} className={Z.inp} /></div>
                 <div><label className={Z.lbl}>Refilo (mm)</label><input type="number" value={f.refilo} onChange={e => upd('refilo', Number(e.target.value))} className={Z.inp} /></div>
-                <div><label className={Z.lbl}>Kerf - largura serra (mm)</label><input type="number" value={f.kerf ?? 4} onChange={e => upd('kerf', Number(e.target.value))} className={Z.inp} step="0.5" /></div>
                 <div><label className={Z.lbl}>Preço (R$)</label><input type="number" value={f.preco} onChange={e => upd('preco', Number(e.target.value))} className={Z.inp} step="0.01" /></div>
                 <div style={{ gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, color: 'var(--text-muted)' }}>Otimização por Material (opcional)</div>

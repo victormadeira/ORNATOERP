@@ -1177,6 +1177,37 @@ function Fallback2D({ peca, width, height, style }) {
     const contourData = extractContourPaths(peca.machining_json, esp);
     const hasContourCut = contourData.closed.length > 0 || contourData.open.length > 0;
 
+    // Build piece outline using same algorithm as 3D (removes waste correctly)
+    const pieceOutlineSvg = (() => {
+        if (!hasContourCut) return null;
+        // Convert open paths to SVG coords (ox/oy offset, Y-flip for SVG)
+        const openPathsSvg = contourData.open.map(op =>
+            op.map(pt => [(pt.x / comp) * pw, (pt.y / larg) * ph])
+        );
+        // Use buildOutlineWithCuts in SVG-space (no Y-flip yet, we flip after)
+        const outline = buildOutlineWithCuts(pw, ph, openPathsSvg);
+        // Convert to SVG path with Y-flip: SVG y = oy + ph - outline_y
+        let d = '';
+        for (let i = 0; i < outline.length; i++) {
+            const svgX = ox + outline[i][0];
+            const svgY = oy + ph - outline[i][1];
+            d += i === 0 ? `M ${svgX},${svgY}` : ` L ${svgX},${svgY}`;
+        }
+        d += ' Z';
+        // Add closed paths as holes (reverse winding for evenodd)
+        for (const cp of contourData.closed) {
+            if (cp.length < 3) continue;
+            const pts = cp.map(pt => ({
+                x: ox + (pt.x / comp) * pw,
+                y: oy + (1 - pt.y / larg) * ph
+            }));
+            d += ` M ${pts[0].x},${pts[0].y}`;
+            for (let pi = 1; pi < pts.length; pi++) d += ` L ${pts[pi].x},${pts[pi].y}`;
+            d += ' Z';
+        }
+        return d;
+    })();
+
     return (
         <div style={{
             width, height, overflow: 'hidden', border: 'none',
@@ -1200,46 +1231,26 @@ function Fallback2D({ peca, width, height, style }) {
                     <filter id={`${uid}_shadow`}>
                         <feDropShadow dx="1" dy="2" stdDeviation="3" floodColor="#000" floodOpacity="0.12" />
                     </filter>
-                    {(() => {
-                        if (!hasContourCut) return null;
-                        let clipD = `M ${ox},${oy} L ${ox + pw},${oy} L ${ox + pw},${oy + ph} L ${ox},${oy + ph} Z`;
-                        for (const cp of contourData.closed) {
-                            if (cp.length < 3) continue;
-                            const pts = cp.map(pt => ({ x: ox + (pt.x / comp) * pw, y: oy + (1 - pt.y / larg) * ph }));
-                            clipD += ` M ${pts[0].x},${pts[0].y}`;
-                            for (let pi = 1; pi < pts.length; pi++) clipD += ` L ${pts[pi].x},${pts[pi].y}`;
-                            clipD += ' Z';
-                        }
-                        for (const op of contourData.open) {
-                            if (op.length < 2) continue;
-                            const pts = op.map(pt => ({ x: ox + (pt.x / comp) * pw, y: oy + (1 - pt.y / larg) * ph }));
-                            const snapX = (p) => p.x < ox + pw * 0.1 ? ox : p.x > ox + pw * 0.9 ? ox + pw : p.x;
-                            const snapY = (p) => p.y < oy + ph * 0.1 ? oy : p.y > oy + ph * 0.9 ? oy + ph : p.y;
-                            const first = pts[0], last = pts[pts.length - 1];
-                            clipD += ` M ${snapX(first)},${snapY(first)}`;
-                            for (const p of pts) clipD += ` L ${p.x},${p.y}`;
-                            clipD += ` L ${snapX(last)},${snapY(last)} Z`;
-                        }
-                        return <clipPath id={`${uid}_contour`}><path d={clipD} clipRule="evenodd" /></clipPath>;
-                    })()}
+                    {pieceOutlineSvg && (
+                        <clipPath id={`${uid}_contour`}>
+                            <path d={pieceOutlineSvg} clipRule="evenodd" />
+                        </clipPath>
+                    )}
                 </defs>
 
-                {/* 1. PECA BASE */}
-                <rect x={ox} y={oy} width={pw} height={ph}
-                    fill={grain ? `url(#${uid}_grain)` : M.base}
-                    stroke={M.stroke} strokeWidth="1.5"
-                    filter={`url(#${uid}_shadow)`}
-                    clipPath={hasContourCut ? `url(#${uid}_contour)` : undefined} />
-                {hasContourCut && contourData.closed.map((cp, ci) => {
-                    if (cp.length < 3) return null;
-                    const pts = cp.map(pt => `${ox + (pt.x / comp) * pw},${oy + (1 - pt.y / larg) * ph}`).join(' ');
-                    return <polygon key={`cc${ci}`} points={pts} fill="none" stroke={M.stroke} strokeWidth="1" strokeDasharray="4,2" opacity="0.6" />;
-                })}
-                {hasContourCut && contourData.open.map((op, oi) => {
-                    if (op.length < 2) return null;
-                    const pts = op.map(pt => `${ox + (pt.x / comp) * pw},${oy + (1 - pt.y / larg) * ph}`).join(' ');
-                    return <polyline key={`co${oi}`} points={pts} fill="none" stroke={M.stroke} strokeWidth="1" strokeDasharray="4,2" opacity="0.6" />;
-                })}
+                {/* 1. PECA BASE — usar polygon do contorno real ou rect simples */}
+                {pieceOutlineSvg ? (
+                    <path d={pieceOutlineSvg}
+                        fill={grain ? `url(#${uid}_grain)` : M.base}
+                        stroke={M.stroke} strokeWidth="1.5"
+                        fillRule="evenodd"
+                        filter={`url(#${uid}_shadow)`} />
+                ) : (
+                    <rect x={ox} y={oy} width={pw} height={ph}
+                        fill={grain ? `url(#${uid}_grain)` : M.base}
+                        stroke={M.stroke} strokeWidth="1.5"
+                        filter={`url(#${uid}_shadow)`} />
+                )}
 
                 {/* 2. REBAIXOS (saw_cut) */}
                 {workers.map((w, i) => {
