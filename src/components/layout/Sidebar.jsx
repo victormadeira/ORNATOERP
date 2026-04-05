@@ -1,5 +1,311 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Ic } from '../../ui';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, ChevronsLeft, ChevronsRight, Search, User, FileText, FolderKanban, Box, X } from 'lucide-react';
+import api from '../../api';
+
+const TYPE_CONFIG = {
+    cliente:   { icon: User,          label: 'Cliente',    page: 'cli',  color: '#3b82f6' },
+    orcamento: { icon: FileText,      label: 'Orcamento', page: 'orcs', color: '#f59e0b' },
+    projeto:   { icon: FolderKanban,  label: 'Projeto',    page: 'proj', color: '#8b5cf6' },
+    peca:      { icon: Box,           label: 'Peca',       page: 'cnc',  color: '#10b981' },
+};
+
+function getResultTitle(r) {
+    if (r.tipo === 'cliente') return r.nome;
+    if (r.tipo === 'orcamento') return `#${r.numero}`;
+    if (r.tipo === 'projeto') return r.nome || `Projeto #${r.id}`;
+    if (r.tipo === 'peca') return r.descricao || `Peca #${r.id}`;
+    return `#${r.id}`;
+}
+
+function getResultSubtitle(r) {
+    if (r.tipo === 'cliente') return [r.email, r.telefone].filter(Boolean).join(' | ') || '';
+    if (r.tipo === 'orcamento') return r.cliente_nome || r.status || '';
+    if (r.tipo === 'projeto') return [r.cliente_nome, r.status].filter(Boolean).join(' - ');
+    if (r.tipo === 'peca') {
+        const dims = [r.comprimento, r.largura, r.espessura].filter(Boolean).join('x');
+        return [r.lote_nome, r.material_code, dims].filter(Boolean).join(' | ');
+    }
+    return '';
+}
+
+function SidebarSearch({ sidebarExpanded, nav, isMobile, setMobileOpen }) {
+    const [open, setOpen] = useState(false);
+    const [query, setQuery] = useState('');
+    const [results, setResults] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [activeIdx, setActiveIdx] = useState(-1);
+    const inputRef = useRef(null);
+    const containerRef = useRef(null);
+    const debounceRef = useRef(null);
+
+    // Debounced search
+    const doSearch = useCallback((q) => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        if (!q || q.length < 2) { setResults([]); setLoading(false); return; }
+        setLoading(true);
+        debounceRef.current = setTimeout(() => {
+            api.get(`/search?q=${encodeURIComponent(q)}`)
+                .then(d => { setResults(d.results || []); setActiveIdx(-1); })
+                .catch(() => setResults([]))
+                .finally(() => setLoading(false));
+        }, 300);
+    }, []);
+
+    useEffect(() => { doSearch(query); }, [query, doSearch]);
+
+    // Global Ctrl+K / "/" shortcut
+    useEffect(() => {
+        const handler = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                setOpen(true);
+                setTimeout(() => inputRef.current?.focus(), 50);
+            }
+            if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+                e.preventDefault();
+                setOpen(true);
+                setTimeout(() => inputRef.current?.focus(), 50);
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, []);
+
+    // Close on click outside
+    useEffect(() => {
+        if (!open) return;
+        const handler = (e) => {
+            if (containerRef.current && !containerRef.current.contains(e.target)) {
+                closeSearch();
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [open]);
+
+    const closeSearch = () => {
+        setOpen(false);
+        setQuery('');
+        setResults([]);
+        setActiveIdx(-1);
+    };
+
+    const handleSelect = (r) => {
+        const cfg = TYPE_CONFIG[r.tipo];
+        if (cfg) nav(cfg.page);
+        closeSearch();
+        if (isMobile) setMobileOpen?.(false);
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Escape') { closeSearch(); return; }
+        if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, results.length - 1)); }
+        if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
+        if (e.key === 'Enter' && activeIdx >= 0 && results[activeIdx]) { handleSelect(results[activeIdx]); }
+    };
+
+    // Compact mode: just icon button
+    if (!sidebarExpanded && !isMobile) {
+        return (
+            <div className="px-2 pt-2">
+                <button
+                    onClick={() => { setOpen(true); setTimeout(() => inputRef.current?.focus(), 50); }}
+                    className="sidebar-item w-full flex justify-center p-2 cursor-pointer"
+                    style={{ color: 'var(--text-muted)' }}
+                    title="Buscar (Ctrl+K)"
+                >
+                    <Search size={16} />
+                    <span className="sidebar-tooltip">Buscar (Ctrl+K)</span>
+                </button>
+                {open && <SearchOverlay
+                    containerRef={containerRef} inputRef={inputRef} query={query} setQuery={setQuery}
+                    results={results} loading={loading} activeIdx={activeIdx}
+                    handleKeyDown={handleKeyDown} handleSelect={handleSelect} closeSearch={closeSearch}
+                />}
+            </div>
+        );
+    }
+
+    // Expanded / Mobile
+    return (
+        <div className="px-2 pt-2 relative" ref={!open ? undefined : containerRef}>
+            <div
+                onClick={() => { if (!open) { setOpen(true); setTimeout(() => inputRef.current?.focus(), 50); } }}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors"
+                style={{
+                    background: open ? 'var(--bg-card)' : 'var(--bg-hover)',
+                    border: '1px solid var(--border)',
+                }}
+            >
+                <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                {open ? (
+                    <input
+                        ref={inputRef}
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Buscar..."
+                        autoFocus
+                        className="flex-1 text-xs bg-transparent outline-none"
+                        style={{ color: 'var(--text-primary)', minWidth: 0 }}
+                    />
+                ) : (
+                    <span className="text-xs flex-1" style={{ color: 'var(--text-muted)' }}>Buscar...</span>
+                )}
+                {!open && (
+                    <kbd className="text-[10px] px-1.5 py-0.5 rounded" style={{
+                        background: 'var(--bg-sidebar)', border: '1px solid var(--border)',
+                        color: 'var(--text-muted)', fontFamily: 'inherit', lineHeight: 1,
+                    }}>
+                        {navigator.platform?.includes('Mac') ? '\u2318' : 'Ctrl'}K
+                    </kbd>
+                )}
+                {open && query && (
+                    <button onClick={(e) => { e.stopPropagation(); setQuery(''); inputRef.current?.focus(); }}
+                        className="p-0.5 rounded hover:bg-[var(--bg-hover)] cursor-pointer" style={{ color: 'var(--text-muted)', background: 'none', border: 'none' }}>
+                        <X size={12} />
+                    </button>
+                )}
+            </div>
+
+            {/* Results dropdown */}
+            {open && (query.length >= 2 || results.length > 0) && (
+                <div style={{
+                    position: 'absolute', left: 8, right: 8, top: '100%', marginTop: 4,
+                    zIndex: 50, borderRadius: 10, overflow: 'hidden',
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    backdropFilter: 'blur(12px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+                    maxHeight: 320, overflowY: 'auto',
+                }}>
+                    {loading && <div className="px-3 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>Buscando...</div>}
+                    {!loading && query.length >= 2 && results.length === 0 && (
+                        <div className="px-3 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>Nenhum resultado</div>
+                    )}
+                    {results.map((r, i) => {
+                        const cfg = TYPE_CONFIG[r.tipo] || {};
+                        const Icon = cfg.icon || Search;
+                        const subtitle = getResultSubtitle(r);
+                        return (
+                            <button
+                                key={`${r.tipo}-${r.id}-${i}`}
+                                onClick={() => handleSelect(r)}
+                                onMouseEnter={() => setActiveIdx(i)}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-left cursor-pointer transition-colors"
+                                style={{
+                                    background: activeIdx === i ? 'var(--bg-hover)' : 'transparent',
+                                    border: 'none', outline: 'none',
+                                }}
+                            >
+                                <span className="shrink-0 flex items-center justify-center rounded-md" style={{
+                                    width: 28, height: 28, background: `${cfg.color || '#666'}18`,
+                                }}>
+                                    <Icon size={14} style={{ color: cfg.color || 'var(--text-muted)' }} />
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                                        {getResultTitle(r)}
+                                    </div>
+                                    {subtitle && (
+                                        <div className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>{subtitle}</div>
+                                    )}
+                                </div>
+                                <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded" style={{
+                                    background: `${cfg.color || '#666'}15`, color: cfg.color || 'var(--text-muted)',
+                                }}>
+                                    {cfg.label || r.tipo}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// Floating overlay for compact sidebar search
+function SearchOverlay({ containerRef, inputRef, query, setQuery, results, loading, activeIdx, handleKeyDown, handleSelect, closeSearch }) {
+    // Close on click outside
+    useEffect(() => {
+        const handler = (e) => {
+            if (containerRef.current && !containerRef.current.contains(e.target)) closeSearch();
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [closeSearch, containerRef]);
+
+    return (
+        <div ref={containerRef} style={{
+            position: 'fixed', left: 'calc(var(--sidebar-compact) + 8px)', top: 8,
+            width: 320, zIndex: 100, borderRadius: 12, overflow: 'hidden',
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            backdropFilter: 'blur(16px)', boxShadow: '0 12px 40px rgba(0,0,0,0.22)',
+        }}>
+            <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
+                <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                <input
+                    ref={inputRef}
+                    value={query}
+                    onChange={e => setQuery(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Buscar..."
+                    autoFocus
+                    className="flex-1 text-xs bg-transparent outline-none"
+                    style={{ color: 'var(--text-primary)', minWidth: 0 }}
+                />
+                {query && (
+                    <button onClick={() => { setQuery(''); inputRef.current?.focus(); }}
+                        className="p-0.5 rounded hover:bg-[var(--bg-hover)] cursor-pointer" style={{ color: 'var(--text-muted)', background: 'none', border: 'none' }}>
+                        <X size={12} />
+                    </button>
+                )}
+            </div>
+            <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+                {loading && <div className="px-3 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>Buscando...</div>}
+                {!loading && query.length >= 2 && results.length === 0 && (
+                    <div className="px-3 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>Nenhum resultado</div>
+                )}
+                {results.map((r, i) => {
+                    const cfg = TYPE_CONFIG[r.tipo] || {};
+                    const Icon = cfg.icon || Search;
+                    const subtitle = getResultSubtitle(r);
+                    return (
+                        <button
+                            key={`${r.tipo}-${r.id}-${i}`}
+                            onClick={() => handleSelect(r)}
+                            onMouseEnter={() => {}}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-left cursor-pointer transition-colors"
+                            style={{
+                                background: activeIdx === i ? 'var(--bg-hover)' : 'transparent',
+                                border: 'none', outline: 'none',
+                            }}
+                        >
+                            <span className="shrink-0 flex items-center justify-center rounded-md" style={{
+                                width: 28, height: 28, background: `${cfg.color || '#666'}18`,
+                            }}>
+                                <Icon size={14} style={{ color: cfg.color || 'var(--text-muted)' }} />
+                            </span>
+                            <div className="flex-1 min-w-0">
+                                <div className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                                    {getResultTitle(r)}
+                                </div>
+                                {subtitle && (
+                                    <div className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>{subtitle}</div>
+                                )}
+                            </div>
+                            <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded" style={{
+                                background: `${cfg.color || '#666'}15`, color: cfg.color || 'var(--text-muted)',
+                            }}>
+                                {cfg.label || r.tipo}
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
 
 export default function Sidebar({
     sb, setSb, sidebarHover, setSidebarHover, sidebarExpanded,
@@ -14,11 +320,11 @@ export default function Sidebar({
                 <div className="fixed inset-0 z-30 transition-opacity modal-overlay" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setMobileOpen(false)} />
             )}
 
-            {/* ═══ Desktop Sidebar ═══ */}
+            {/* Desktop Sidebar */}
             {!isMobile && (
                 <aside
-                    onMouseEnter={() => { if (!sb) setSidebarHover(true); }}
-                    onMouseLeave={() => setSidebarHover(false)}
+                    onMouseEnter={() => {}}
+                    onMouseLeave={() => {}}
                     className="relative z-20 shrink-0 flex flex-col"
                     style={{
                         background: 'var(--bg-sidebar)',
@@ -42,6 +348,9 @@ export default function Sidebar({
                             </div>
                         )}
                     </div>
+
+                    {/* Search */}
+                    <SidebarSearch sidebarExpanded={sidebarExpanded} nav={nav} isMobile={false} />
 
                     {/* Nav Items */}
                     <nav className="flex-1 overflow-y-auto py-2 px-2" style={{ scrollbarWidth: 'thin' }}>
@@ -131,6 +440,18 @@ export default function Sidebar({
 
                     {/* Footer */}
                     <div className="px-2 py-2 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
+                        {/* Collapse/Expand toggle */}
+                        <button
+                            onClick={() => { setSb(!sb); setSidebarHover(false); }}
+                            className="sidebar-item w-full flex items-center gap-2.5 px-2.5 py-2 cursor-pointer"
+                            style={{ color: 'var(--text-muted)' }}
+                            title={sidebarExpanded ? 'Recolher menu' : 'Expandir menu'}
+                        >
+                            {sidebarExpanded ? <ChevronsLeft size={18} /> : <ChevronsRight size={18} />}
+                            {sidebarExpanded && <span className="text-xs whitespace-nowrap">Recolher menu</span>}
+                            {!sidebarExpanded && <span className="sidebar-tooltip">Expandir menu</span>}
+                        </button>
+
                         <button onClick={() => setDark(!dark)} className="sidebar-item w-full flex items-center gap-2.5 px-2.5 py-2 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
                             {dark ? <Ic.Sun /> : <Ic.Moon />}
                             {sidebarExpanded && <span className="text-xs whitespace-nowrap">{dark ? 'Modo Claro' : 'Modo Escuro'}</span>}
@@ -165,7 +486,7 @@ export default function Sidebar({
                 </aside>
             )}
 
-            {/* ═══ Mobile Sidebar (overlay) ═══ */}
+            {/* Mobile Sidebar (overlay) */}
             {isMobile && mobileOpen && (
                 <aside className="fixed inset-y-0 left-0 z-40 w-64 flex flex-col animate-slide-left" style={{ background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)' }}>
                     <div className="flex items-center gap-2.5 px-3 min-h-[56px]" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -179,6 +500,10 @@ export default function Sidebar({
                             }
                         </div>
                     </div>
+
+                    {/* Search (mobile) */}
+                    <SidebarSearch sidebarExpanded={true} nav={nav} isMobile={true} setMobileOpen={setMobileOpen} />
+
                     <nav className="flex-1 overflow-y-auto py-2 px-2">
                         {MENU_GROUPS.map(g => {
                             const visibleItems = g.items.filter(m => canSee(m.id));

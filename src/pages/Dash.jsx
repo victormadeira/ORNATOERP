@@ -9,7 +9,7 @@ import {
     Calendar, Eye, ChevronRight, Activity, BarChart3, Wallet,
     CheckCircle2, XCircle, PauseCircle, Zap, PieChart, ArrowUpRight,
     ArrowDownRight, Receipt, Plus, Trash2, Edit3, Check, X,
-    Factory, Truck, Package, Wrench, ChevronDown
+    Factory, Truck, Package, Wrench, ChevronDown, RefreshCw
 } from 'lucide-react';
 
 const greet = () => {
@@ -855,14 +855,16 @@ export default function Dash({ nav, notify, user }) {
     const [finLoading, setFinLoading] = useState(false);
     const [atividades, setAtividades] = useState([]);
     const [maisDetalhes, setMaisDetalhes] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
-    const load = useCallback(() => {
+    const load = useCallback((manual) => {
+        if (manual) setRefreshing(true);
         api.get('/dashboard').then(d => {
             setData(d);
             setErr(false);
         }).catch(() => {
             setErr(true);
-        }).finally(() => setLoading(false));
+        }).finally(() => { setLoading(false); setRefreshing(false); });
         api.get('/atividades?limit=10').then(setAtividades).catch(err => console.error('Dash atividades:', err));
     }, []);
 
@@ -936,7 +938,11 @@ export default function Dash({ nav, notify, user }) {
 
     return (
         <div className={Z.pg}>
-            <PageHeader icon={Activity} title={`${greet()}, bem-vindo!`} subtitle={today} />
+            <PageHeader icon={Activity} title={`${greet()}, bem-vindo!`} subtitle={today}>
+                <button onClick={() => load(true)} className="btn-secondary" style={{ padding: '7px 12px', minHeight: 0 }} title="Atualizar dados">
+                    <RefreshCw size={14} style={refreshing ? { animation: 'spin 1s linear infinite' } : undefined} />
+                </button>
+            </PageHeader>
             <TabBar
                 tabs={[
                     { id: 'geral', label: 'Visao Geral', icon: Activity },

@@ -82,30 +82,37 @@ const CATEGORIAS_PAGAR = [
     'ferramentas', 'terceirizado', 'marketing', 'software', 'outros',
 ];
 
-// GET /api/financeiro/pagar — listar contas a pagar com filtros
+// GET /api/financeiro/pagar — listar contas a pagar com filtros (paginado)
 router.get('/pagar', requireAuth, (req, res) => {
-    const { status, categoria, periodo_inicio, periodo_fim, projeto_id, pago_inicio, pago_fim } = req.query;
-    let sql = `SELECT cp.*, p.nome as projeto_nome,
-               (SELECT COUNT(*) FROM contas_pagar_anexos WHERE conta_pagar_id = cp.id) as anexos_count
-               FROM contas_pagar cp LEFT JOIN projetos p ON p.id = cp.projeto_id
+    const { status, categoria, periodo_inicio, periodo_fim, projeto_id, pago_inicio, pago_fim, page, per_page } = req.query;
+    let where = `FROM contas_pagar cp LEFT JOIN projetos p ON p.id = cp.projeto_id
                WHERE ${ND.replace(/deletado/g, 'cp.deletado')}`;
     const params = [];
 
-    if (status) { sql += ' AND cp.status = ?'; params.push(status); }
-    if (categoria) { sql += ' AND cp.categoria = ?'; params.push(categoria); }
-    if (periodo_inicio) { sql += ' AND cp.data_vencimento >= ?'; params.push(periodo_inicio); }
-    if (periodo_fim) { sql += ' AND cp.data_vencimento <= ?'; params.push(periodo_fim); }
+    if (status) { where += ' AND cp.status = ?'; params.push(status); }
+    if (categoria) { where += ' AND cp.categoria = ?'; params.push(categoria); }
+    if (periodo_inicio) { where += ' AND cp.data_vencimento >= ?'; params.push(periodo_inicio); }
+    if (periodo_fim) { where += ' AND cp.data_vencimento <= ?'; params.push(periodo_fim); }
     if (projeto_id) {
-        if (projeto_id === '0') { sql += ' AND cp.projeto_id IS NULL'; }
-        else { sql += ' AND cp.projeto_id = ?'; params.push(parseInt(projeto_id)); }
+        if (projeto_id === '0') { where += ' AND cp.projeto_id IS NULL'; }
+        else { where += ' AND cp.projeto_id = ?'; params.push(parseInt(projeto_id)); }
     }
     // Filtro por período de pagamento (para aba "Pagos/Arquivo")
-    if (pago_inicio) { sql += ' AND cp.data_pagamento >= ?'; params.push(pago_inicio); }
-    if (pago_fim) { sql += ' AND cp.data_pagamento <= ?'; params.push(pago_fim); }
+    if (pago_inicio) { where += ' AND cp.data_pagamento >= ?'; params.push(pago_inicio); }
+    if (pago_fim) { where += ' AND cp.data_pagamento <= ?'; params.push(pago_fim); }
 
-    sql += ' ORDER BY cp.data_vencimento ASC, cp.criado_em DESC';
+    const order = ' ORDER BY cp.data_vencimento ASC, cp.criado_em DESC';
 
-    const contas = db.prepare(sql).all(...params);
+    // Pagination
+    const pg = Math.max(1, parseInt(page) || 1);
+    const pp = Math.min(200, Math.max(1, parseInt(per_page) || 50));
+    const total = db.prepare(`SELECT COUNT(*) as cnt ${where}`).get(...params).cnt;
+    const totalPages = Math.ceil(total / pp);
+
+    let sql = `SELECT cp.*, p.nome as projeto_nome,
+               (SELECT COUNT(*) FROM contas_pagar_anexos WHERE conta_pagar_id = cp.id) as anexos_count
+               ${where}${order} LIMIT ? OFFSET ?`;
+    const contas = db.prepare(sql).all(...params, pp, (pg - 1) * pp);
 
     // Marcar vencidas automaticamente
     const hoje = new Date().toISOString().slice(0, 10);
@@ -115,7 +122,11 @@ router.get('/pagar', requireAuth, (req, res) => {
         }
     });
 
-    res.json(contas);
+    // Backward compat: if no page param was sent, return flat array
+    if (!page) {
+        return res.json(contas);
+    }
+    res.json({ data: contas, total, page: pg, per_page: pp, total_pages: totalPages });
 });
 
 // POST /api/financeiro/pagar — criar conta a pagar
@@ -195,6 +206,50 @@ router.post('/pagar/parcelado', requireAuth, (req, res) => {
     } catch (_) { }
 
     res.json({ ids, grupo_parcela_id: ids[0] });
+});
+
+// PUT /api/financeiro/pagar/bulk-status — atualizar status em lote
+router.put('/pagar/bulk-status', requireAuth, (req, res) => {
+    const { ids, status } = req.body;
+    if (!Array.isArray(ids) || !ids.length || !status)
+        return res.status(400).json({ error: 'ids[] e status obrigatórios' });
+
+    const validStatus = ['pendente', 'pago', 'cancelado', 'vencido'];
+    if (!validStatus.includes(status))
+        return res.status(400).json({ error: 'Status inválido' });
+
+    try {
+        const placeholders = ids.map(() => '?').join(',');
+        const now = status === 'pago' ? new Date().toISOString().split('T')[0] : null;
+
+        if (status === 'pago' && now) {
+            db.prepare(`UPDATE contas_pagar SET status = ?, data_pagamento = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`).run(status, now, ...ids);
+        } else {
+            db.prepare(`UPDATE contas_pagar SET status = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`).run(status, ...ids);
+        }
+
+        res.json({ ok: true, updated: ids.length });
+    } catch (e) {
+        console.error('Erro bulk-status pagar:', e);
+        res.status(500).json({ error: 'Erro ao atualizar em lote' });
+    }
+});
+
+// GET /api/financeiro/pagar/export-csv — exportar contas a pagar
+router.get('/pagar/export-csv', requireAuth, (req, res) => {
+    const rows = db.prepare(`SELECT * FROM contas_pagar WHERE ${ND} ORDER BY data_vencimento DESC`).all();
+
+    const BOM = '\uFEFF';
+    const header = 'ID;Descrição;Valor;Vencimento;Status;Categoria;Fornecedor;Obs';
+    const csv = rows.map(r =>
+        [r.id, r.descricao, r.valor, r.data_vencimento, r.status, r.categoria, r.fornecedor, r.observacao]
+            .map(v => `"${(v || '').toString().replace(/"/g, '""')}"`)
+            .join(';')
+    ).join('\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="contas_pagar.csv"');
+    res.send(BOM + header + '\n' + csv);
 });
 
 // PUT /api/financeiro/pagar/:id — atualizar conta a pagar (com auditoria)
@@ -415,20 +470,27 @@ router.get('/pagar/resumo', requireAuth, (req, res) => {
 
 // GET /api/financeiro/receber — listar TODAS as contas a receber (global)
 router.get('/receber', requireAuth, (req, res) => {
-    const { status, projeto_id, periodo_inicio, periodo_fim } = req.query;
-    let sql = `SELECT cr.*, p.nome as projeto_nome, p.token as projeto_token
-               FROM contas_receber cr
+    const { status, projeto_id, periodo_inicio, periodo_fim, page, per_page } = req.query;
+    let where = `FROM contas_receber cr
                JOIN projetos p ON p.id = cr.projeto_id
                WHERE ${ND.replace(/deletado/g, 'cr.deletado')}`;
     const params = [];
 
-    if (status && status !== 'todos') { sql += ' AND cr.status = ?'; params.push(status); }
-    if (projeto_id) { sql += ' AND cr.projeto_id = ?'; params.push(parseInt(projeto_id)); }
-    if (periodo_inicio) { sql += ' AND cr.data_vencimento >= ?'; params.push(periodo_inicio); }
-    if (periodo_fim) { sql += ' AND cr.data_vencimento <= ?'; params.push(periodo_fim); }
+    if (status && status !== 'todos') { where += ' AND cr.status = ?'; params.push(status); }
+    if (projeto_id) { where += ' AND cr.projeto_id = ?'; params.push(parseInt(projeto_id)); }
+    if (periodo_inicio) { where += ' AND cr.data_vencimento >= ?'; params.push(periodo_inicio); }
+    if (periodo_fim) { where += ' AND cr.data_vencimento <= ?'; params.push(periodo_fim); }
 
-    sql += ' ORDER BY cr.data_vencimento ASC, cr.criado_em DESC';
-    const contas = db.prepare(sql).all(...params);
+    const order = ' ORDER BY cr.data_vencimento ASC, cr.criado_em DESC';
+
+    // Pagination
+    const pg = Math.max(1, parseInt(page) || 1);
+    const pp = Math.min(200, Math.max(1, parseInt(per_page) || 50));
+    const total = db.prepare(`SELECT COUNT(*) as cnt ${where}`).get(...params).cnt;
+    const totalPages = Math.ceil(total / pp);
+
+    let sql = `SELECT cr.*, p.nome as projeto_nome, p.token as projeto_token ${where}${order} LIMIT ? OFFSET ?`;
+    const contas = db.prepare(sql).all(...params, pp, (pg - 1) * pp);
 
     const hoje = new Date().toISOString().slice(0, 10);
     contas.forEach(c => {
@@ -436,7 +498,12 @@ router.get('/receber', requireAuth, (req, res) => {
             c.vencida = true;
         }
     });
-    res.json(contas);
+
+    // Backward compat: if no page param was sent, return flat array
+    if (!page) {
+        return res.json(contas);
+    }
+    res.json({ data: contas, total, page: pg, per_page: pp, total_pages: totalPages });
 });
 
 // POST /api/financeiro/receber — criar conta a receber global
@@ -880,6 +947,52 @@ router.post('/:projeto_id/receber', requireAuth, (req, res) => {
     `).run(projeto_id, proj?.orc_id || null, descricao, valor, data_vencimento || null, meio_pagamento || '', observacao || '');
 
     res.json({ id: r.lastInsertRowid });
+});
+
+// PUT /api/financeiro/receber/bulk-status — atualizar status em lote
+router.put('/receber/bulk-status', requireAuth, (req, res) => {
+    const { ids, status } = req.body;
+    if (!Array.isArray(ids) || !ids.length || !status)
+        return res.status(400).json({ error: 'ids[] e status obrigatórios' });
+
+    const validStatus = ['pendente', 'pago', 'cancelado', 'vencido'];
+    if (!validStatus.includes(status))
+        return res.status(400).json({ error: 'Status inválido' });
+
+    try {
+        const placeholders = ids.map(() => '?').join(',');
+        const now = status === 'pago' ? new Date().toISOString().split('T')[0] : null;
+
+        if (status === 'pago' && now) {
+            db.prepare(`UPDATE contas_receber SET status = ?, data_pagamento = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`).run(status, now, ...ids);
+        } else {
+            db.prepare(`UPDATE contas_receber SET status = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`).run(status, ...ids);
+        }
+
+        res.json({ ok: true, updated: ids.length });
+    } catch (e) {
+        console.error('Erro bulk-status receber:', e);
+        res.status(500).json({ error: 'Erro ao atualizar em lote' });
+    }
+});
+
+// GET /api/financeiro/receber/export-csv — exportar contas a receber
+router.get('/receber/export-csv', requireAuth, (req, res) => {
+    const rows = db.prepare(`SELECT cr.*, p.nome as projeto_nome
+        FROM contas_receber cr LEFT JOIN projetos p ON p.id = cr.projeto_id
+        WHERE ${ND.replace(/deletado/g, 'cr.deletado')} ORDER BY cr.data_vencimento DESC`).all();
+
+    const BOM = '\uFEFF';
+    const header = 'ID;Descrição;Valor;Vencimento;Status;Projeto;Meio Pagamento;Obs';
+    const csv = rows.map(r =>
+        [r.id, r.descricao, r.valor, r.data_vencimento, r.status, r.projeto_nome, r.meio_pagamento, r.observacao]
+            .map(v => `"${(v || '').toString().replace(/"/g, '""')}"`)
+            .join(';')
+    ).join('\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="contas_receber.csv"');
+    res.send(BOM + header + '\n' + csv);
 });
 
 // PUT /api/financeiro/receber/:id — atualizar (com auditoria)

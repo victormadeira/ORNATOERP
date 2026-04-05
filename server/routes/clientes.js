@@ -16,6 +16,29 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// GET /api/clientes/export-csv — exportar todos os clientes
+// ═══════════════════════════════════════════════════════
+router.get('/export-csv', requireAuth, (req, res) => {
+    const sql = canSeeAll(req.user)
+        ? 'SELECT * FROM clientes ORDER BY nome'
+        : 'SELECT * FROM clientes WHERE user_id = ? ORDER BY nome';
+    const params = canSeeAll(req.user) ? [] : [req.user.id];
+    const rows = db.prepare(sql).all(...params);
+
+    const BOM = '\uFEFF';
+    const header = 'ID;Nome;Telefone;Email;Cidade;Estado;CPF;CNPJ;Endereço;Bairro;CEP;Origem;Obs';
+    const csv = rows.map(r =>
+        [r.id, r.nome, r.tel, r.email, r.cidade, r.estado, r.cpf, r.cnpj, r.endereco, r.bairro, r.cep, r.origem, r.obs]
+            .map(v => `"${(v || '').toString().replace(/"/g, '""')}"`)
+            .join(';')
+    ).join('\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="clientes.csv"');
+    res.send(BOM + header + '\n' + csv);
+});
+
+// ═══════════════════════════════════════════════════════
 // GET /api/clientes/:id — detalhe com dados CRM
 // ═══════════════════════════════════════════════════════
 router.get('/:id', requireAuth, (req, res) => {

@@ -316,6 +316,31 @@ router.post('/importar', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// PUT /api/orcamentos/bulk-status — atualizar status em lote
+// ═══════════════════════════════════════════════════════
+router.put('/bulk-status', requireAuth, (req, res) => {
+    const { ids, status } = req.body;
+    if (!Array.isArray(ids) || !ids.length || !status)
+        return res.status(400).json({ error: 'ids[] e status obrigatórios' });
+
+    const validStatus = ['lead', 'neg', 'ok', 'prod', 'mont', 'done', 'arquivo', 'perdido'];
+    if (!validStatus.includes(status))
+        return res.status(400).json({ error: 'Status (kb_col) inválido' });
+
+    try {
+        const placeholders = ids.map(() => '?').join(',');
+        const result = db.prepare(
+            `UPDATE orcamentos SET kb_col = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`
+        ).run(status, ...ids);
+
+        res.json({ ok: true, updated: result.changes });
+    } catch (e) {
+        console.error('Erro bulk-status orcamentos:', e);
+        res.status(500).json({ error: 'Erro ao atualizar em lote' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
 // GET /api/orcamentos/:id
 // ═══════════════════════════════════════════════════════
 router.get('/:id', requireAuth, (req, res) => {

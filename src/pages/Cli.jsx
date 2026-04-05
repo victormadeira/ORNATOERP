@@ -6,7 +6,7 @@ import {
     User, Phone, Mail, MapPin, Building2, Calendar, FileText, MessageCircle,
     TrendingUp, DollarSign, Target, Clock, ChevronRight, ArrowLeft,
     Pin, PinOff, Briefcase, Eye, BarChart3, Sparkles, Plus, Edit, Trash2,
-    Star, Hash, Send, ExternalLink
+    Star, Hash, Send, ExternalLink, Copy, Check as CheckIcon
 } from 'lucide-react';
 
 // ── Helpers ──────────────────────────────────────
@@ -90,6 +90,39 @@ const NOTE_COLORS = [
     '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6',
     '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#64748b'
 ];
+
+// ─── Copy Button ────────────────────────────────
+function CopyBtn({ value }) {
+    const [copied, setCopied] = useState(false);
+    const handleCopy = (e) => {
+        e.stopPropagation();
+        if (!value) return;
+        navigator.clipboard.writeText(value).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+        });
+    };
+    return (
+        <button onClick={handleCopy} title={copied ? 'Copiado!' : 'Copiar'} style={{
+            background: 'none', border: 'none', cursor: 'pointer', padding: 2,
+            color: copied ? 'var(--success)' : 'var(--text-muted)',
+            opacity: copied ? 1 : 0.5, transition: 'all 0.2s',
+            position: 'relative', display: 'inline-flex', alignItems: 'center',
+        }}>
+            {copied ? <CheckIcon size={11} /> : <Copy size={11} />}
+            {copied && (
+                <span style={{
+                    position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
+                    fontSize: 10, fontWeight: 600, color: 'var(--success)',
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    borderRadius: 5, padding: '2px 6px', whiteSpace: 'nowrap',
+                    boxShadow: 'var(--shadow-sm)', pointerEvents: 'none',
+                    animation: 'fade-up 0.2s ease-out',
+                }}>Copiado!</span>
+            )}
+        </button>
+    );
+}
 
 // ─── Metric Card ─────────────────────────────────
 function MetricCard({ icon, label, value, sub, color }) {
@@ -239,12 +272,12 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                     <div className="flex items-center gap-4 mt-1 flex-wrap">
                         {cli.tel && (
                             <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                                <Phone size={11} /> {cli.tel}
+                                <Phone size={11} /> {cli.tel} <CopyBtn value={cli.tel} />
                             </span>
                         )}
                         {cli.email && (
                             <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                                <Mail size={11} /> {cli.email}
+                                <Mail size={11} /> {cli.email} <CopyBtn value={cli.email} />
                             </span>
                         )}
                         {(cli.cidade || cli.estado) && (
@@ -319,10 +352,10 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                             <h3 className="text-sm font-bold mb-4" style={{ color: 'var(--text-primary)' }}>Informações</h3>
                             <div className="grid grid-cols-2 gap-4 text-sm">
                                 {cli.tipo_pessoa === 'juridica' && cli.cnpj && (
-                                    <div><span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>CNPJ</span><p className="font-mono mt-0.5" style={{ color: 'var(--text-primary)' }}>{cli.cnpj}</p></div>
+                                    <div><span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>CNPJ</span><p className="font-mono mt-0.5 flex items-center gap-1" style={{ color: 'var(--text-primary)' }}>{cli.cnpj} <CopyBtn value={cli.cnpj} /></p></div>
                                 )}
                                 {cli.tipo_pessoa !== 'juridica' && cli.cpf && (
-                                    <div><span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>CPF</span><p className="font-mono mt-0.5" style={{ color: 'var(--text-primary)' }}>{cli.cpf}</p></div>
+                                    <div><span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>CPF</span><p className="font-mono mt-0.5 flex items-center gap-1" style={{ color: 'var(--text-primary)' }}>{cli.cpf} <CopyBtn value={cli.cpf} /></p></div>
                                 )}
                                 {cli.data_nascimento && (
                                     <div><span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Data Nascimento</span><p className="mt-0.5" style={{ color: 'var(--text-primary)' }}>{dtFmtFull(cli.data_nascimento)}</p></div>

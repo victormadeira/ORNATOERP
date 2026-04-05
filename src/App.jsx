@@ -173,22 +173,66 @@ export default function App() {
     const [cmdOpen, setCmdOpen] = useState(false);
     const [cmdQuery, setCmdQuery] = useState('');
     const cmdInputRef = useRef(null);
+    // Keyboard shortcuts overlay
+    const [shortcutsOpen, setShortcutsOpen] = useState(false);
+    const gPressedRef = useRef(false);
+    const gTimerRef = useRef(null);
 
-    // Ctrl+K command palette
+    // Ctrl+K command palette + keyboard shortcuts
     useEffect(() => {
+        const isInput = () => {
+            const el = document.activeElement;
+            return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.contentEditable === 'true' || el.tagName === 'SELECT');
+        };
         const onKey = (e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
                 e.preventDefault();
                 setCmdOpen(v => !v);
                 setCmdQuery('');
+                return;
             }
-            if (e.key === 'Escape' && cmdOpen) {
-                setCmdOpen(false);
+            if (e.key === 'Escape') {
+                if (shortcutsOpen) { setShortcutsOpen(false); return; }
+                if (cmdOpen) { setCmdOpen(false); return; }
+            }
+            if (isInput()) return;
+            // ? key shows shortcuts overlay
+            if (e.key === '?' && !e.metaKey && !e.ctrlKey) {
+                e.preventDefault();
+                setShortcutsOpen(v => !v);
+                return;
+            }
+            // / key opens command palette (same as Ctrl+K)
+            if (e.key === '/' && !e.metaKey && !e.ctrlKey && !cmdOpen) {
+                e.preventDefault();
+                setCmdOpen(true);
+                setCmdQuery('');
+                return;
+            }
+            // G + letter navigation
+            if (e.key === 'g' || e.key === 'G') {
+                if (!gPressedRef.current) {
+                    gPressedRef.current = true;
+                    clearTimeout(gTimerRef.current);
+                    gTimerRef.current = setTimeout(() => { gPressedRef.current = false; }, 1000);
+                    return;
+                }
+            }
+            if (gPressedRef.current) {
+                const map = { d: 'dash', o: 'orcs', p: 'proj', c: 'cli', f: 'financeiro', e: 'estoque' };
+                const target = map[e.key.toLowerCase()];
+                if (target) {
+                    e.preventDefault();
+                    gPressedRef.current = false;
+                    clearTimeout(gTimerRef.current);
+                    // nav is defined later in the component, use a ref-free approach via setPg
+                    window.dispatchEvent(new CustomEvent('erp-nav', { detail: target }));
+                }
             }
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [cmdOpen]);
+    }, [cmdOpen, shortcutsOpen]);
 
     // Focus command palette input when opened
     useEffect(() => {
@@ -359,6 +403,13 @@ export default function App() {
         window.history.pushState({ page: p, orcId: orc?.id || null }, '', url);
         if (isMobile) setMobileOpen(false);
     };
+
+    // Listen for keyboard shortcut navigation events
+    useEffect(() => {
+        const handleNav = (e) => nav(e.detail);
+        window.addEventListener('erp-nav', handleNav);
+        return () => window.removeEventListener('erp-nav', handleNav);
+    }); // intentionally no deps — nav changes each render
 
     useEffect(() => {
         let initUrl = pg === 'dash' ? '/' : `/${pg}`;
@@ -699,6 +750,67 @@ export default function App() {
                                     </button>
                                 );
                             })}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Keyboard Shortcuts Modal */}
+            {shortcutsOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShortcutsOpen(false)}>
+                    <div className="fixed inset-0 modal-overlay" style={{ background: 'rgba(0,0,0,0.4)' }} />
+                    <div className="relative animate-scale-in" style={{
+                        width: '100%', maxWidth: 440, background: 'var(--bg-card)',
+                        border: '1px solid var(--border)', borderRadius: 16,
+                        boxShadow: 'var(--shadow-xl)', overflow: 'hidden',
+                        backdropFilter: 'blur(20px)',
+                    }} onClick={e => e.stopPropagation()}>
+                        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Atalhos de Teclado</span>
+                            <kbd style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'var(--bg-muted)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>ESC</kbd>
+                        </div>
+                        <div style={{ padding: '12px 20px' }}>
+                            {[
+                                { section: 'Geral', items: [
+                                    { keys: ['Ctrl', 'K'], desc: 'Busca global' },
+                                    { keys: ['/'], desc: 'Busca global' },
+                                    { keys: ['?'], desc: 'Mostrar atalhos' },
+                                    { keys: ['Esc'], desc: 'Fechar modal/painel' },
+                                ]},
+                                { section: 'Navegacao', items: [
+                                    { keys: ['G', 'D'], desc: 'Ir para Dashboard' },
+                                    { keys: ['G', 'O'], desc: 'Ir para Orcamentos' },
+                                    { keys: ['G', 'P'], desc: 'Ir para Projetos' },
+                                    { keys: ['G', 'C'], desc: 'Ir para Clientes' },
+                                    { keys: ['G', 'F'], desc: 'Ir para Financeiro' },
+                                    { keys: ['G', 'E'], desc: 'Ir para Estoque' },
+                                ]},
+                            ].map(group => (
+                                <div key={group.section} style={{ marginBottom: 14 }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 8 }}>{group.section}</div>
+                                    {group.items.map((item, i) => (
+                                        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
+                                            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{item.desc}</span>
+                                            <div style={{ display: 'flex', gap: 4 }}>
+                                                {item.keys.map((k, j) => (
+                                                    <span key={j}>
+                                                        <kbd style={{
+                                                            fontSize: 11, padding: '2px 7px', borderRadius: 5,
+                                                            background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                                                            color: 'var(--text-primary)', fontWeight: 600, fontFamily: 'inherit',
+                                                            boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                                                        }}>{k}</kbd>
+                                                        {j < item.keys.length - 1 && <span style={{ margin: '0 2px', fontSize: 10, color: 'var(--text-muted)' }}>+</span>}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4, textAlign: 'center' }}>
+                                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Pressione <kbd style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>G</kbd> e depois a letra para navegar</span>
+                            </div>
                         </div>
                     </div>
                 </div>
