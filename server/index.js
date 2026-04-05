@@ -37,7 +37,6 @@ import gestaoAvRoutes from './routes/gestao-avancada.js';
 import pluginRoutes from './routes/plugin.js';
 import bibliotecaSkpRoutes from './routes/biblioteca-skp.js';
 import searchRoutes from './routes/search.js';
-import modelagemRoutes from './routes/modelagem.js';
 
 // Inicializa DB (efeito colateral — cria tabelas e seed)
 import './db.js';
@@ -134,7 +133,6 @@ app.use('/api/gestao', gestaoAvRoutes);
 app.use('/api/plugin', pluginRoutes);
 app.use('/api/biblioteca-skp', bibliotecaSkpRoutes);
 app.use('/api/search', searchRoutes);
-app.use('/api/modelagem', modelagemRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
