@@ -66,7 +66,12 @@ const corsOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
     : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5175', 'http://127.0.0.1:5175', 'https://gestaoornato.com', 'http://gestaoornato.com'];
 app.use(cors({ origin: corsOrigins }));
-app.use(express.json({ limit: '2mb' }));
+// Rotas pesadas (CNC, plano-corte, importacao) precisam de body maior
+app.use('/api/cnc', express.json({ limit: '50mb' }));
+app.use('/api/plano-corte', express.json({ limit: '50mb' }));
+app.use('/api/industrializacao', express.json({ limit: '20mb' }));
+// Demais rotas: limite menor por seguranca
+app.use(express.json({ limit: '5mb' }));
 
 // ═══ Anti-cache para API (evita dados stale entre dispositivos) ═══
 app.use('/api', (req, res, next) => {
