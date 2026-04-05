@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { PageHeader, Z, Ic, Modal, Spinner, EmptyState, tagStyle } from '../ui';
 import PecaViewer3D from '../components/PecaViewer3D';
+import EditorSilhueta2D from '../components/modelagem/EditorSilhueta2D';
+import Viewport3DPreview from '../components/modelagem/Viewport3DPreview';
 import {
     Layers, Plus, ArrowLeft, Link2, Unlink, Copy, Trash2, X, ChevronDown,
     CheckCircle2, AlertTriangle, XCircle, Calculator, Upload, ExternalLink,
-    Box, FileText, Send, RotateCcw, Package, Eye
+    Box, FileText, Send, RotateCcw, Package, Eye, PenTool, Save
 } from 'lucide-react';
 
 const STATUS_COLORS = {
@@ -48,6 +50,11 @@ export default function Modelagem({ api, notify }) {
     const [showNovo, setShowNovo] = useState(false);
     const [showKerf, setShowKerf] = useState(false);
     const [showImport, setShowImport] = useState(false);
+    const [showEditor, setShowEditor] = useState(false);
+    const [editorCommands, setEditorCommands] = useState([]);
+    const autoSaveTimer = useRef(null);
+    const widthMmEditor = 1000;
+    const heightMmEditor = 600;
     const [showLink, setShowLink] = useState(null); // { token, expira_em }
 
     // Peca editor
@@ -358,9 +365,21 @@ export default function Modelagem({ api, notify }) {
                                         </div>
                                     )}
 
-                                    {/* Import geometry button */}
+                                    {/* Editor silhueta button */}
+                                    <button onClick={() => {
+                                        let cmds = [];
+                                        try {
+                                            const geo = typeof pecaSel.geometria_silhueta === 'string' ? JSON.parse(pecaSel.geometria_silhueta) : pecaSel.geometria_silhueta;
+                                            cmds = geo?.commands || [];
+                                        } catch {}
+                                        setEditorCommands(cmds);
+                                        setShowEditor(true);
+                                    }} className={Z.btn} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'center' }}>
+                                        <PenTool size={13} /> Editar Silhueta
+                                    </button>
+
                                     <button onClick={() => setShowImport(true)} className={Z.btn2} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'center' }}>
-                                        <Upload size={13} /> Importar Geometria (JSON)
+                                        <Upload size={13} /> Importar JSON
                                     </button>
 
                                     <div>
@@ -379,6 +398,104 @@ export default function Modelagem({ api, notify }) {
 
                 {/* Import Geometry Modal */}
                 {showImport && pecaSel && <ImportGeometriaModal pecaId={pecaSel.id} onSave={(geo) => { atualizarPeca(pecaSel.id, { geometria_silhueta: geo }); setShowImport(false); }} onClose={() => setShowImport(false)} />}
+
+                {/* ═══ FULLSCREEN EDITOR MODAL ═══ */}
+                {showEditor && pecaSel && (
+                    <div style={{
+                        position: 'fixed', inset: 0, zIndex: 1000,
+                        background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                        <div style={{
+                            width: '95vw', height: '90vh', background: '#fff', borderRadius: 12,
+                            display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+                        }}>
+                            {/* Header */}
+                            <div style={{
+                                padding: '10px 16px', borderBottom: '1px solid #e2e8f0',
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                background: '#f8fafc',
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <PenTool size={16} color="#1379F0" />
+                                    <span style={{ fontWeight: 700, fontSize: 14 }}>Editor de Silhueta</span>
+                                    <span style={{ fontSize: 11, color: '#64748b' }}>— {pecaSel.nome}</span>
+                                    <span style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>
+                                        {pecaSel.bounding_box_x ? `${Math.round(pecaSel.bounding_box_x)}x${Math.round(pecaSel.bounding_box_y)}` : `${widthMmEditor}x${heightMmEditor}`}mm
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <button onClick={() => {
+                                        const geo = { type: 'path', width_mm: widthMmEditor, height_mm: heightMmEditor, commands: editorCommands };
+                                        atualizarPeca(pecaSel.id, { geometria_silhueta: geo });
+                                        notify('Silhueta salva!');
+                                    }} className={Z.btnSm} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <Save size={13} /> Salvar
+                                    </button>
+                                    <button onClick={() => {
+                                        // Save before closing
+                                        if (editorCommands.length > 0) {
+                                            const geo = { type: 'path', width_mm: widthMmEditor, height_mm: heightMmEditor, commands: editorCommands };
+                                            atualizarPeca(pecaSel.id, { geometria_silhueta: geo });
+                                        }
+                                        setShowEditor(false);
+                                    }} className={Z.btn2Sm} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <X size={13} /> Fechar
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Body: Editor + 3D Preview */}
+                            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+                                {/* 2D Editor */}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <EditorSilhueta2D
+                                        commands={editorCommands}
+                                        widthMm={widthMmEditor}
+                                        heightMm={heightMmEditor}
+                                        onChange={(cmds) => {
+                                            setEditorCommands(cmds);
+                                            // Auto-save debounce 2s
+                                            clearTimeout(autoSaveTimer.current);
+                                            autoSaveTimer.current = setTimeout(() => {
+                                                const geo = { type: 'path', width_mm: widthMmEditor, height_mm: heightMmEditor, commands: cmds };
+                                                atualizarPeca(pecaSel.id, { geometria_silhueta: geo });
+                                            }, 2000);
+                                        }}
+                                    />
+                                </div>
+
+                                {/* 3D Preview sidebar */}
+                                <div style={{
+                                    width: 300, flexShrink: 0, borderLeft: '1px solid #e2e8f0',
+                                    display: 'flex', flexDirection: 'column', background: '#f8fafc',
+                                }}>
+                                    <div style={{ padding: '8px 12px', borderBottom: '1px solid #e2e8f0', fontSize: 11, fontWeight: 600, color: '#475569' }}>
+                                        Preview 3D
+                                    </div>
+                                    <div style={{ padding: 8 }}>
+                                        <Viewport3DPreview
+                                            commands={editorCommands}
+                                            espessura={pecaSel.espessura || 18}
+                                            materialCor={pecaSel.material_cor || '#C4A672'}
+                                            width={280}
+                                            height={200}
+                                        />
+                                    </div>
+                                    <div style={{ padding: '8px 12px', fontSize: 10, color: '#64748b' }}>
+                                        <div><b>Material:</b> {pecaSel.material_nome || '-'}</div>
+                                        <div><b>Espessura:</b> {pecaSel.espessura}mm</div>
+                                        <div><b>Pontos:</b> {editorCommands.filter(c => c.cmd !== 'Z').length}</div>
+                                        <div style={{ marginTop: 6, fontSize: 9, color: '#94a3b8' }}>
+                                            Clique = reta · Arraste = curva · V=selecionar · P=caneta · G=snap · Ctrl+Z=desfazer
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Link Modal */}
                 {showLink && (
