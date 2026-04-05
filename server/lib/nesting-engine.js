@@ -335,6 +335,7 @@ export class MaxRectsBin {
     }
     placeRect(rect) {
         const newFree = [];
+        const BW = this.binW, BH = this.binH;
         for (const free of this.freeRects) {
             if (!intersects(rect, free)) { newFree.push(free); continue; }
             // Standard MaxRects split — all 4 maximal sub-rectangles
@@ -343,7 +344,16 @@ export class MaxRectsBin {
             if (rect.y > free.y) newFree.push({ x: free.x, y: free.y, w: free.w, h: rect.y - free.y });
             if (rect.y + rect.h < free.y + free.h) newFree.push({ x: free.x, y: rect.y + rect.h, w: free.w, h: (free.y + free.h) - (rect.y + rect.h) });
         }
-        this.freeRects = pruneFreeList(newFree);
+        // ── Clamp all free rects to bin boundaries ──
+        const clamped = [];
+        for (const f of newFree) {
+            const cx = Math.max(0, f.x);
+            const cy = Math.max(0, f.y);
+            const cw = Math.min(f.w, BW - cx);
+            const ch = Math.min(f.h, BH - cy);
+            if (cw > 1 && ch > 1) clamped.push({ x: cx, y: cy, w: cw, h: ch });
+        }
+        this.freeRects = pruneFreeList(clamped);
         this.usedRects.push(rect);
     }
     occupancy() {
@@ -519,6 +529,8 @@ export class GuillotineBin {
             const f = this.freeRects[i];
             const tryPlace = (tw, th, rot) => {
                 if (tw > f.w || th > f.h) return;
+                // Boundary validation
+                if (f.x + tw > this.binW + 0.5 || f.y + th > this.binH + 0.5) return;
                 let sc;
                 switch (heuristic) {
                     case 'BLSF': sc = Math.max(f.w - tw, f.h - th); break;
@@ -556,6 +568,14 @@ export class GuillotineBin {
 
         this.freeRects.splice(info.freeIdx, 1);
 
+        const BW = this.binW, BH = this.binH;
+        const addFree = (x, y, w, h) => {
+            // Clamp to bin boundaries
+            const cx = Math.max(0, x), cy = Math.max(0, y);
+            const cw = Math.min(w, BW - cx), ch = Math.min(h, BH - cy);
+            if (cw > 1 && ch > 1) this.freeRects.push({ x: cx, y: cy, w: cw, h: ch });
+        };
+
         const rightW = f.w - pw - kerf;
         const bottomH = f.h - ph - kerf;
 
@@ -587,21 +607,21 @@ export class GuillotineBin {
                 }
             }
             if (useVerticalSplit) {
-                this.freeRects.push({ x: f.x + pw + kerf, y: f.y, w: rightW, h: f.h });
-                this.freeRects.push({ x: f.x, y: f.y + ph + kerf, w: pw, h: bottomH });
+                addFree(f.x + pw + kerf, f.y, rightW, f.h);
+                addFree(f.x, f.y + ph + kerf, pw, bottomH);
                 this.cuts.push({ dir: 'V', x: f.x + pw, y: f.y, len: f.h });
                 this.cuts.push({ dir: 'H', x: f.x, y: f.y + ph, len: pw });
             } else {
-                this.freeRects.push({ x: f.x, y: f.y + ph + kerf, w: f.w, h: bottomH });
-                this.freeRects.push({ x: f.x + pw + kerf, y: f.y, w: rightW, h: ph });
+                addFree(f.x, f.y + ph + kerf, f.w, bottomH);
+                addFree(f.x + pw + kerf, f.y, rightW, ph);
                 this.cuts.push({ dir: 'H', x: f.x, y: f.y + ph, len: f.w });
                 this.cuts.push({ dir: 'V', x: f.x + pw, y: f.y, len: ph });
             }
         } else if (rightW > 1) {
-            this.freeRects.push({ x: f.x + pw + kerf, y: f.y, w: rightW, h: f.h });
+            addFree(f.x + pw + kerf, f.y, rightW, f.h);
             this.cuts.push({ dir: 'V', x: f.x + pw, y: f.y, len: f.h });
         } else if (bottomH > 1) {
-            this.freeRects.push({ x: f.x, y: f.y + ph + kerf, w: f.w, h: bottomH });
+            addFree(f.x, f.y + ph + kerf, f.w, bottomH);
             this.cuts.push({ dir: 'H', x: f.x, y: f.y + ph, len: f.w });
         }
 
