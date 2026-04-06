@@ -3491,10 +3491,10 @@ function TabAmbientes({ data, notify, reload }) {
                                         </button>
                                     </div>
                                 ) : (
-                                    <span style={{ fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
+                                    <span style={{ fontWeight: 600, fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                                         onClick={() => { setEditing(amb.id); setEditNome(amb.nome); }}>
                                         {amb.nome}
-                                        <Pencil size={10} style={{ marginLeft: 6, opacity: 0.4, verticalAlign: 'middle' }} />
+                                        <Pencil size={10} style={{ opacity: 0.4, flexShrink: 0 }} />
                                     </span>
                                 )}
                             </div>

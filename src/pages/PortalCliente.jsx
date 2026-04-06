@@ -1198,7 +1198,7 @@ export default function PortalCliente({ token, isPreview = false }) {
 
                     {/* Saudação personalizada */}
                     <h1 style={{ color: '#0f172a', fontSize: 22, fontWeight: 800, margin: '0 0 4px', lineHeight: 1.3 }}>
-                        Olá, {(projeto.cliente_nome || '').split(' ')[0] || 'Cliente'}!
+                        Olá, {(projeto.cliente_nome || '').trim() || 'Cliente'}!
                     </h1>
                     <p style={{ color: '#64748b', fontSize: 13, margin: '0 0 18px' }}>
                         {concluidasPct >= 100 ? 'Seu projeto foi concluído!' :
