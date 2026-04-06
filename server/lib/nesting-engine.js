@@ -1230,8 +1230,6 @@ export function compactBin(bin, binW, binH, kerf, spacing, splitDir) {
         }
     }
 
-    // Phase 4: Post-compaction safety — verify no overlaps or out-of-bounds
-    verifyAndRepairBin(bin, binW, binH, kerf, spacing);
 }
 
 // ─── Verificação e reparo de sobreposição pós-nesting ────────────
