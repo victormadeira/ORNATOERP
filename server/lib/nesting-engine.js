@@ -276,9 +276,6 @@ export class MaxRectsBin {
     _tryFit(free, pw, ph, heuristic) {
         const w = pw + this.spacing, h = ph + this.spacing;
         if (w > free.w || h > free.h) return null;
-        // ── Boundary validation: piece must fit within bin limits ──
-        if (free.x + w > this.binW + 0.5) return null;
-        if (free.y + h > this.binH + 0.5) return null;
         let sc;
         // When direction is explicitly set, OVERRIDE heuristic with directional placement
         if (this.splitDir === 'horizontal') {
@@ -335,7 +332,6 @@ export class MaxRectsBin {
     }
     placeRect(rect) {
         const newFree = [];
-        const BW = this.binW, BH = this.binH;
         for (const free of this.freeRects) {
             if (!intersects(rect, free)) { newFree.push(free); continue; }
             // Standard MaxRects split — all 4 maximal sub-rectangles
@@ -344,17 +340,9 @@ export class MaxRectsBin {
             if (rect.y > free.y) newFree.push({ x: free.x, y: free.y, w: free.w, h: rect.y - free.y });
             if (rect.y + rect.h < free.y + free.h) newFree.push({ x: free.x, y: rect.y + rect.h, w: free.w, h: (free.y + free.h) - (rect.y + rect.h) });
         }
-        // ── Clamp all free rects to bin boundaries ──
-        const clamped = [];
-        for (const f of newFree) {
-            const cx = Math.max(0, f.x);
-            const cy = Math.max(0, f.y);
-            const cw = Math.min(f.w, BW - cx);
-            const ch = Math.min(f.h, BH - cy);
-            if (cw > 1 && ch > 1) clamped.push({ x: cx, y: cy, w: cw, h: ch });
-        }
-        this.freeRects = pruneFreeList(clamped);
+        this.freeRects = pruneFreeList(newFree);
         this.usedRects.push(rect);
+        return rect;
     }
     occupancy() {
         let area = 0;
@@ -529,8 +517,6 @@ export class GuillotineBin {
             const f = this.freeRects[i];
             const tryPlace = (tw, th, rot) => {
                 if (tw > f.w || th > f.h) return;
-                // Boundary validation
-                if (f.x + tw > this.binW + 0.5 || f.y + th > this.binH + 0.5) return;
                 let sc;
                 switch (heuristic) {
                     case 'BLSF': sc = Math.max(f.w - tw, f.h - th); break;
@@ -568,14 +554,6 @@ export class GuillotineBin {
 
         this.freeRects.splice(info.freeIdx, 1);
 
-        const BW = this.binW, BH = this.binH;
-        const addFree = (x, y, w, h) => {
-            // Clamp to bin boundaries
-            const cx = Math.max(0, x), cy = Math.max(0, y);
-            const cw = Math.min(w, BW - cx), ch = Math.min(h, BH - cy);
-            if (cw > 1 && ch > 1) this.freeRects.push({ x: cx, y: cy, w: cw, h: ch });
-        };
-
         const rightW = f.w - pw - kerf;
         const bottomH = f.h - ph - kerf;
 
@@ -607,21 +585,21 @@ export class GuillotineBin {
                 }
             }
             if (useVerticalSplit) {
-                addFree(f.x + pw + kerf, f.y, rightW, f.h);
-                addFree(f.x, f.y + ph + kerf, pw, bottomH);
+                this.freeRects.push({ x: f.x + pw + kerf, y: f.y, w: rightW, h: f.h });
+                this.freeRects.push({ x: f.x, y: f.y + ph + kerf, w: pw, h: bottomH });
                 this.cuts.push({ dir: 'V', x: f.x + pw, y: f.y, len: f.h });
                 this.cuts.push({ dir: 'H', x: f.x, y: f.y + ph, len: pw });
             } else {
-                addFree(f.x, f.y + ph + kerf, f.w, bottomH);
-                addFree(f.x + pw + kerf, f.y, rightW, ph);
+                this.freeRects.push({ x: f.x, y: f.y + ph + kerf, w: f.w, h: bottomH });
+                this.freeRects.push({ x: f.x + pw + kerf, y: f.y, w: rightW, h: ph });
                 this.cuts.push({ dir: 'H', x: f.x, y: f.y + ph, len: f.w });
                 this.cuts.push({ dir: 'V', x: f.x + pw, y: f.y, len: ph });
             }
         } else if (rightW > 1) {
-            addFree(f.x + pw + kerf, f.y, rightW, f.h);
+            this.freeRects.push({ x: f.x + pw + kerf, y: f.y, w: rightW, h: f.h });
             this.cuts.push({ dir: 'V', x: f.x + pw, y: f.y, len: f.h });
         } else if (bottomH > 1) {
-            addFree(f.x, f.y + ph + kerf, f.w, bottomH);
+            this.freeRects.push({ x: f.x, y: f.y + ph + kerf, w: f.w, h: bottomH });
             this.cuts.push({ dir: 'H', x: f.x, y: f.y + ph, len: f.w });
         }
 
@@ -739,7 +717,56 @@ export function classifyBySize(pieces) {
     return { small, medium, large };
 }
 
-export function scoreResult(bins, expectedPieces = 0) {
+export function scoreResult(bins) {
+    if (bins.length === 0) return { bins: 0, avgOccupancy: 0, minOccupancy: 0, score: Infinity };
+    if (!verifyNoOverlaps(bins)) return { bins: bins.length, avgOccupancy: 0, minOccupancy: 0, score: Infinity };
+    const occupancies = bins.map(b => b.occupancy());
+    const sorted = [...occupancies].sort((a, b) => b - a);
+    const n = bins.length;
+    const avgOccupancy = occupancies.reduce((s, o) => s + o, 0) / n;
+    const minOccupancy = Math.min(...occupancies);
+
+    // ─── Scoring v2: chapas mínimas é o OBJETIVO PRINCIPAL ───────
+    let score = n * 10000;                          // Penalidade forte por chapa (eliminar chapas é prioridade)
+
+    // Recompensa progressiva por aproveitamento (quadrática — premia altos valores)
+    for (const occ of sorted) {
+        score -= occ * occ * 0.15;                  // Progressiva: 90%→-1215, 70%→-735, 50%→-375
+        // Bônus escalonado
+        if (occ >= 95) score -= 2500;
+        else if (occ >= 90) score -= 1800;
+        else if (occ >= 80) score -= 1000;
+        else if (occ >= 70) score -= 500;
+        else if (occ >= 60) score -= 200;
+        // Penalidades para bins subutilizados
+        else if (occ < 25) score += 4000;           // Chapa quase vazia — FORTE penalidade
+        else if (occ < 40) score += (40 - occ) * 80; // Penalidade progressiva
+    }
+
+    // Distribuição uniforme (variância baixa é melhor — peças bem distribuídas)
+    if (n > 1) {
+        const variance = sorted.reduce((s, o) => s + (o - avgOccupancy) ** 2, 0) / n;
+        score += variance * 0.3;                    // Penalizar alta variância
+    }
+
+    // Recompensa especial: último bin com boa ocupação (não desperdiça chapa)
+    const lastOcc = sorted[sorted.length - 1];
+    if (n > 1) {
+        if (lastOcc >= 70) score -= 1500;
+        else if (lastOcc >= 50) score -= 800;
+        else if (lastOcc < 30) score += 3000;  // Chapa quase vazia no final = muito ruim
+        else if (lastOcc < 45) score += 1500;  // Chapa fraca no final
+    }
+
+    // Penalidade severa para bins muito vazios em soluções multi-chapa
+    if (minOccupancy < 15 && n > 1) score += 6000;
+    if (minOccupancy < 30 && n > 1) score += 2000;
+
+    return { bins: n, avgOccupancy, minOccupancy, score };
+}
+
+// ─── Scoring V5 (avançado — para CNC/Industrial com expectedPieces) ─────
+export function scoreResultV5(bins, expectedPieces = 0) {
     if (bins.length === 0) return { bins: 0, avgOccupancy: 0, minOccupancy: 0, score: Infinity, placedCount: 0 };
     if (!verifyNoOverlaps(bins)) return { bins: bins.length, avgOccupancy: 0, minOccupancy: 0, score: Infinity, placedCount: 0 };
     const occupancies = bins.map(b => b.occupancy());
@@ -748,43 +775,32 @@ export function scoreResult(bins, expectedPieces = 0) {
     const avgOccupancy = occupancies.reduce((s, o) => s + o, 0) / n;
     const minOccupancy = Math.min(...occupancies);
 
-    // Contar peças realmente colocadas
     const placedCount = bins.reduce((s, b) => s + b.usedRects.filter(r => r.pieceRef).length, 0);
 
-    // ─── Scoring v5: equilíbrio entre chapas mínimas, ocupação alta E todas as peças ─────
-    let score = n * 10000;                          // Penalidade por chapa
+    let score = n * 10000;
 
-    // ─── CRÍTICO: Penalidade MASSIVA por peças perdidas ─────
-    // Uma solução que perde peças NUNCA pode ganhar de uma que coloca todas
     if (expectedPieces > 0 && placedCount < expectedPieces) {
-        const missing = expectedPieces - placedCount;
-        score += missing * 100000; // 100k por peça perdida — impossível superar
+        score += (expectedPieces - placedCount) * 100000;
     }
 
-    // Recompensa FORTE por ocupação alta (cúbica — premia MUITO altos valores)
     for (const occ of sorted) {
-        // Cúbica: 95%→-2572, 90%→-2187, 80%→-1536, 70%→-1029, 50%→-375
         score -= (occ * occ * occ) / 350;
-        // Bônus escalonado
         if (occ >= 95) score -= 3500;
         else if (occ >= 90) score -= 2500;
         else if (occ >= 85) score -= 1800;
         else if (occ >= 80) score -= 1200;
         else if (occ >= 70) score -= 600;
         else if (occ >= 60) score -= 200;
-        // Penalidades para bins subutilizados
         else if (occ < 25) score += 5000;
         else if (occ < 40) score += (40 - occ) * 120;
         else if (occ < 50) score += (50 - occ) * 60;
     }
 
-    // Variância — alta variância significa chapas mal equilibradas
     if (n > 1) {
         const variance = sorted.reduce((s, o) => s + (o - avgOccupancy) ** 2, 0) / n;
         score += variance * 0.5;
     }
 
-    // Último bin (o que mais desperdiça) — penalidade FORTE se fraco
     const lastOcc = sorted[sorted.length - 1];
     if (n > 1) {
         if (lastOcc >= 80) score -= 2500;
@@ -795,49 +811,23 @@ export function scoreResult(bins, expectedPieces = 0) {
         else if (lastOcc < 45) score += 1500;
     }
 
-    // Penalidade severa para bins muito vazios em soluções multi-chapa
     if (minOccupancy < 15 && n > 1) score += 8000;
     if (minOccupancy < 30 && n > 1) score += 3000;
 
-    // ─── Scoring v4: Penalidade por sobras fragmentadas ─────
-    // Preferir 1 sobra grande vs. muitas sobras pequenas
-    // Sobras pequenas são inúteis e desperdiçam material
     for (const bin of bins) {
         const freeRects = bin.freeRects || [];
         const binArea = bin.binW * bin.binH;
         if (freeRects.length === 0) continue;
-
-        // Contar sobras significativas (>2% da chapa) vs. fragmentos inúteis (<2%)
-        let significantScraps = 0;
-        let tinyScraps = 0;
-        let largestScrapArea = 0;
-        let totalScrapArea = 0;
+        let significantScraps = 0, tinyScraps = 0, largestScrapArea = 0, totalScrapArea = 0;
         for (const fr of freeRects) {
             const area = fr.w * fr.h;
             totalScrapArea += area;
-            if (area > binArea * 0.02) {
-                significantScraps++;
-                if (area > largestScrapArea) largestScrapArea = area;
-            } else if (area > 100) { // ignore dust (<100mm²)
-                tinyScraps++;
-            }
+            if (area > binArea * 0.02) { significantScraps++; if (area > largestScrapArea) largestScrapArea = area; }
+            else if (area > 100) tinyScraps++;
         }
-
-        // Penalidade: muitas sobras significativas = layout fragmentado
-        // 1 sobra grande = bom, 3+ sobras = ruim
-        if (significantScraps > 2) {
-            score += (significantScraps - 2) * 150;
-        }
-
-        // Bônus: se a maior sobra concentra >70% da sobra total = consolidada
-        if (totalScrapArea > 0 && largestScrapArea / totalScrapArea > 0.7) {
-            score -= 300;
-        }
-
-        // Penalidade leve por fragmentos inúteis (>5 = muita fragmentação)
-        if (tinyScraps > 5) {
-            score += (tinyScraps - 5) * 20;
-        }
+        if (significantScraps > 2) score += (significantScraps - 2) * 150;
+        if (totalScrapArea > 0 && largestScrapArea / totalScrapArea > 0.7) score -= 300;
+        if (tinyScraps > 5) score += (tinyScraps - 5) * 20;
     }
 
     return { bins: n, avgOccupancy, minOccupancy, score, placedCount };
@@ -884,7 +874,8 @@ export function clampBinBounds(bins, binW, binH, binType, kerf, splitDir, spacin
                     console.log(`  [ClampBounds] AVISO: ${failed.length} peça(s) não couberam após rebuild`);
                 }
             } else {
-                // Fallback: apenas clampar
+                // Fallback: clampar com verificação de colisão
+                // Primeiro, clampar posições
                 for (const r of bin.usedRects) {
                     const pw = r.realW || r.w;
                     const ph = r.realH || r.h;
@@ -893,10 +884,154 @@ export function clampBinBounds(bins, binW, binH, binType, kerf, splitDir, spacin
                     if (r.x < 0) r.x = 0;
                     if (r.y < 0) r.y = 0;
                 }
+                // Depois, resolver sobreposições criadas pelo clamp
+                _resolveOverlapsInPlace(bin.usedRects, bW, bH);
             }
         }
     }
     return bins;
+}
+
+// ─── Resolver sobreposições in-place (empurra peças que colidiram) ──
+function _resolveOverlapsInPlace(rects, binW, binH) {
+    const MAX_ITER = 50;
+    for (let iter = 0; iter < MAX_ITER; iter++) {
+        let moved = false;
+        for (let i = 0; i < rects.length; i++) {
+            const a = rects[i];
+            const aw = a.realW || a.w, ah = a.realH || a.h;
+            for (let j = i + 1; j < rects.length; j++) {
+                const b = rects[j];
+                const bw = b.realW || b.w, bh = b.realH || b.h;
+                // Check overlap
+                const ox = Math.min(a.x + aw, b.x + bw) - Math.max(a.x, b.x);
+                const oy = Math.min(a.y + ah, b.y + bh) - Math.max(a.y, b.y);
+                if (ox > 0.5 && oy > 0.5) {
+                    // Push the smaller piece away along the axis with less overlap
+                    const target = (aw * ah) >= (bw * bh) ? b : a;
+                    const tw = target.realW || target.w, th = target.realH || target.h;
+                    if (ox < oy) {
+                        // Push horizontally
+                        if (target.x + tw / 2 < binW / 2) {
+                            target.x = Math.max(0, target.x - ox);
+                        } else {
+                            target.x = Math.min(binW - tw, target.x + ox);
+                        }
+                    } else {
+                        // Push vertically
+                        if (target.y + th / 2 < binH / 2) {
+                            target.y = Math.max(0, target.y - oy);
+                        } else {
+                            target.y = Math.min(binH - th, target.y + oy);
+                        }
+                    }
+                    moved = true;
+                }
+            }
+        }
+        if (!moved) break;
+    }
+}
+
+// ─── Final Safety Check: verificação completa pós-processamento ──
+// Retorna true se tudo OK, ou corrige in-place e retorna false
+export function finalSafetyCheck(bins, binW, binH, binType, kerf, splitDir, spacing) {
+    let hadIssues = false;
+
+    for (let bi = 0; bi < bins.length; bi++) {
+        const bin = bins[bi];
+        const bW = bin.binW || binW;
+        const bH = bin.binH || binH;
+
+        // 1. Verificar e corrigir peças fora dos limites
+        for (const r of bin.usedRects) {
+            const pw = r.realW || r.w;
+            const ph = r.realH || r.h;
+            // Peça maior que a chapa = impossível, logar
+            if (pw > bW + 1 || ph > bH + 1) {
+                console.warn(`  [SafetyCheck] Peça ${r.pieceRef?.pecaId || '?'} (${Math.round(pw)}x${Math.round(ph)}) é MAIOR que a chapa (${bW}x${bH})`);
+            }
+            if (r.x < 0) { r.x = 0; hadIssues = true; }
+            if (r.y < 0) { r.y = 0; hadIssues = true; }
+            if (r.x + pw > bW + 0.5) { r.x = Math.max(0, bW - pw); hadIssues = true; }
+            if (r.y + ph > bH + 0.5) { r.y = Math.max(0, bH - ph); hadIssues = true; }
+        }
+
+        // 2. Verificar sobreposições
+        let hasOverlap = false;
+        for (let i = 0; i < bin.usedRects.length && !hasOverlap; i++) {
+            for (let j = i + 1; j < bin.usedRects.length && !hasOverlap; j++) {
+                const a = bin.usedRects[i], b = bin.usedRects[j];
+                const aw = a.realW || a.w, ah = a.realH || a.h;
+                const bw = b.realW || b.w, bh = b.realH || b.h;
+                if (a.x < b.x + bw - 0.5 && a.x + aw > b.x + 0.5 &&
+                    a.y < b.y + bh - 0.5 && a.y + ah > b.y + 0.5) {
+                    hasOverlap = true;
+                }
+            }
+        }
+
+        if (hasOverlap) {
+            hadIssues = true;
+            console.warn(`  [SafetyCheck] Chapa ${bi}: sobreposições detectadas, reconstruindo...`);
+            // Rebuild completo do bin
+            const pieces = bin.usedRects.filter(r => r.pieceRef).map(r => ({
+                w: r.realW || r.w,
+                h: r.realH || r.h,
+                ref: r.pieceRef,
+                allowRotate: r.allowRotate !== false,
+                area: (r.realW || r.w) * (r.realH || r.h),
+                classificacao: r.classificacao || 'normal',
+                perim: 2 * ((r.realW || r.w) + (r.realH || r.h)),
+                maxSide: Math.max(r.realW || r.w, r.realH || r.h),
+                diff: Math.abs((r.realW || r.w) - (r.realH || r.h)),
+            }));
+            pieces.sort((a, b) => b.area - a.area);
+
+            const effSp = Math.max(kerf || 0, spacing || 0);
+            const { bin: newBin, failed } = rebuildBin(pieces, bW, bH, binType || 'maxrects', kerf || 0, splitDir || 'auto', spacing || 0);
+            bins[bi] = newBin;
+            if (failed.length > 0) {
+                console.warn(`  [SafetyCheck] AVISO: ${failed.length} peça(s) não couberam após rebuild de segurança`);
+                // Tentar encaixar em bins existentes ou criar novos
+                for (const fp of failed) {
+                    let placed = false;
+                    for (let nextBi = bi + 1; nextBi < bins.length && !placed; nextBi++) {
+                        const rect = bins[nextBi].findBest(fp.w, fp.h, fp.allowRotate, 'BSSF');
+                        if (rect) {
+                            rect.pieceRef = fp.ref;
+                            rect.allowRotate = fp.allowRotate;
+                            bins[nextBi].placeRect(rect);
+                            placed = true;
+                        }
+                    }
+                    if (!placed) {
+                        const createBin = () => {
+                            switch (binType) {
+                                case 'shelf': return new ShelfBin(bW, bH, effSp);
+                                case 'guillotine': return new GuillotineBin(bW, bH, effSp, splitDir || 'auto');
+                                case 'skyline': return new SkylineBin(bW, bH, effSp, splitDir || 'auto');
+                                default: return new MaxRectsBin(bW, bH, effSp, splitDir || 'auto');
+                            }
+                        };
+                        const extra = createBin();
+                        const rect = extra.findBest(fp.w, fp.h, fp.allowRotate, 'BSSF');
+                        if (rect) {
+                            rect.pieceRef = fp.ref;
+                            rect.allowRotate = fp.allowRotate;
+                            extra.placeRect(rect);
+                            bins.push(extra);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (hadIssues) {
+        console.warn(`  [SafetyCheck] Problemas corrigidos no layout final`);
+    }
+    return !hadIssues;
 }
 
 // ─── Verificação de sobreposição (segurança) ────────────────────
@@ -1707,8 +1842,8 @@ export function runFillFirstV2(pieces, binW, binH, spacing, kerf = 4, splitDir =
     for (let target = minTeoricoChapas; target <= minTeoricoChapas + 2 && target < bestBins.length + 2; target++) {
         const balBins = balancedAllocation(superBoxed, target);
         if (balBins) {
-            const balScore = scoreResult(balBins, _ffExpected);
-            const curScore = scoreResult(bestBins, _ffExpected);
+            const balScore = scoreResultV5(balBins, _ffExpected);
+            const curScore = scoreResultV5(bestBins, _ffExpected);
             if (balScore.score < curScore.score) {
                 bestBins = balBins;
             }
@@ -1889,7 +2024,7 @@ export function runFillFirstV2(pieces, binW, binH, spacing, kerf = 4, splitDir =
             }
             const noSBResult = greedyPerBin(allIndividualPieces);
             if (noSBResult.length < bestBins.length ||
-                (noSBResult.length === bestBins.length && scoreResult(noSBResult, _ffExpected).score < scoreResult(bestBins, _ffExpected).score)) {
+                (noSBResult.length === bestBins.length && scoreResultV5(noSBResult, _ffExpected).score < scoreResultV5(bestBins, _ffExpected).score)) {
                 bestBins = noSBResult;
             }
         }
@@ -2164,7 +2299,7 @@ export function runIndustrialOptimizer(pieces, binW, binH, spacing, kerf = 4, sp
         {
             const bins = runMultiOrderFill(allPieces, bt);
             const reduced = tryNMinus1Rebuild(bins, bt);
-            const sc = scoreResult(reduced, _indExpected);
+            const sc = scoreResultV5(reduced, _indExpected);
             if (sc.score < bestScore.score) { bestScore = sc; bestBins = reduced; }
         }
 
@@ -2172,7 +2307,7 @@ export function runIndustrialOptimizer(pieces, binW, binH, spacing, kerf = 4, sp
         {
             const bins = runTwoPhaseIndustrial(allPieces, bt);
             const reduced = tryNMinus1Rebuild(bins, bt);
-            const sc = scoreResult(reduced, _indExpected);
+            const sc = scoreResultV5(reduced, _indExpected);
             if (sc.score < bestScore.score) { bestScore = sc; bestBins = reduced; }
         }
     }
@@ -2332,7 +2467,7 @@ export function runBRKGA(pieces, binW, binH, spacing, binType, kerf, maxGen = 80
         const bins = useFillFirst
             ? runFillFirst(sorted, binW, binH, spacing, heuristics[hIdx], binTypes[btIdx], kerf, splitDir, true)
             : runNestingPass(sorted, binW, binH, spacing, heuristics[hIdx], binTypes[btIdx], kerf, splitDir);
-        return scoreResult(bins, n);
+        return scoreResultV5(bins, n);
     }
 
     const chromLen = 2 * n + 3;                      // +1 for fill-first bit (was 2*n+2)
@@ -2400,7 +2535,7 @@ export function runBRKGA(pieces, binW, binH, spacing, binType, kerf, maxGen = 80
     const bins = useFillFirst
         ? runFillFirst(sorted, binW, binH, spacing, heuristics[hIdx], binTypes[btIdx], kerf, splitDir, true)
         : runNestingPass(sorted, binW, binH, spacing, heuristics[hIdx], binTypes[btIdx], kerf, splitDir);
-    return { bins, score: scoreResult(bins, n) };
+    return { bins, score: scoreResultV5(bins, n) };
 }
 
 // ─── Ruin & Recreate + LAHC + Simulated Annealing ────────────────
@@ -2429,22 +2564,22 @@ export function ruinAndRecreate(pieces, binW, binH, spacing, binType, kerf, maxI
         for (const h of heuristics) {
             // Test both nesting pass AND fill-first for each combo
             const bins = runNestingPass(sorted, binW, binH, spacing, h, binType, kerf, splitDir);
-            const sc = scoreResult(bins, _expectedN);
+            const sc = scoreResultV5(bins, _expectedN);
             if (sc.score < bestScore.score) { bestScore = sc; bestBins = bins; }
             // Fill-first with multi-heuristic
             const ffBins = runFillFirst(sorted, binW, binH, spacing, h, binType, kerf, splitDir, true);
-            const ffSc = scoreResult(ffBins, _expectedN);
+            const ffSc = scoreResultV5(ffBins, _expectedN);
             if (ffSc.score < bestScore.score) { bestScore = ffSc; bestBins = ffBins; }
         }
     }
 
     const stripBins = runStripPacking(pieces, binW, binH, kerf, spacing, splitDir);
-    const stripSc = scoreResult(stripBins, _expectedN);
+    const stripSc = scoreResultV5(stripBins, _expectedN);
     if (stripSc.score < bestScore.score) { bestScore = stripSc; bestBins = stripBins; }
 
     // Two-phase: large pieces first, then fill gaps with small
     const tpBins = runTwoPhase(pieces, binW, binH, spacing, binType, kerf, splitDir);
-    const tpSc = scoreResult(tpBins, _expectedN);
+    const tpSc = scoreResultV5(tpBins, _expectedN);
     if (tpSc.score < bestScore.score) { bestScore = tpSc; bestBins = tpBins; }
 
     const windowSize = 60;                          // Wider window (was 40) — more memory of past scores
@@ -2560,7 +2695,7 @@ export function ruinAndRecreate(pieces, binW, binH, spacing, binType, kerf, maxI
         } else {
             bins = runTwoPhase(reconstructed, binW, binH, spacing, binType, kerf, splitDir);
         }
-        const sc = scoreResult(bins, _expectedN);
+        const sc = scoreResultV5(bins, _expectedN);
 
         const lahcIdx = iter % windowSize;
         const delta = sc.score - lahcWindow[lahcIdx];
@@ -2794,7 +2929,7 @@ export function simulatedAnnealing(bins, binW, binH, spacing, binType, kerf, max
     const ALL_H = ['BSSF', 'BLSF', 'BAF', 'BL', 'CP'];
     const _saExpected = bins.reduce((s, b) => s + b.usedRects.filter(r => r.pieceRef).length, 0);
     let bestBins = bins;
-    let bestScore = scoreResult(bins, _saExpected);
+    let bestScore = scoreResultV5(bins, _saExpected);
     let currentBins = bins;
     let currentScore = bestScore;
 
@@ -2872,7 +3007,7 @@ export function simulatedAnnealing(bins, binW, binH, spacing, binType, kerf, max
             }
         }
 
-        const candidateScore = scoreResult(candidateBins, _saExpected);
+        const candidateScore = scoreResultV5(candidateBins, _saExpected);
         if (candidateScore.score >= Infinity) {
             noImproveStreak++;
             continue;
@@ -3447,7 +3582,7 @@ export function runLargeFirstGlobalFill(pieces, binW, binH, spacing, kerf = 4, s
             for (const bin of bins) compactBin(bin, binW, binH, kerf, spacing, splitDir);
 
             // Scoring
-            const sc = scoreResult(bins, pieces.length);
+            const sc = scoreResultV5(bins, pieces.length);
             if (sc.score < bestScore.score) {
                 bestScore = sc;
                 bestBins = [...bins];

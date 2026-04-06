@@ -9101,16 +9101,36 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                         const fillOp = isDragging ? 0.3 : isHovered ? 0.85 : 0.7;
                                         const strokeC = isDragging ? strokeClr : '#1a1a1a';
                                         const strokeWW = isDragging ? strokeW : isHovered ? 1.5 : 0.8;
+                                        const pieceClipId = `pclip-${idx}-${pi}`;
 
                                         // Case 1: nesting contour from optimizer
                                         if (p.contour && p.contour.length >= 3) {
+                                            // Detect contour coordinate space mismatch:
+                                            // If contour max dimensions don't match p.w/p.h, auto-correct
+                                            let contPts = p.contour;
+                                            const maxCX = Math.max(...contPts.map(v => v.x));
+                                            const maxCY = Math.max(...contPts.map(v => v.y));
+                                            // Check if contour axes are swapped relative to piece dimensions
+                                            if (maxCX > 0 && maxCY > 0) {
+                                                const ratioNormal = Math.max(maxCX / p.w, maxCY / p.h);
+                                                const ratioSwapped = Math.max(maxCY / p.w, maxCX / p.h);
+                                                if (ratioSwapped < ratioNormal * 0.7 && ratioNormal > 1.3) {
+                                                    // Axes are swapped — swap x/y to fix
+                                                    contPts = contPts.map(v => ({ x: v.y, y: v.x }));
+                                                }
+                                            }
                                             return (
                                                 <>
+                                                    <defs>
+                                                        <clipPath id={pieceClipId}>
+                                                            <rect x={px} y={py} width={pw} height={ph} />
+                                                        </clipPath>
+                                                    </defs>
                                                     <rect x={px} y={py} width={pw} height={ph}
                                                         fill={fillColor} fillOpacity={isDragging ? 0.15 : 0.25}
                                                         stroke="#999" strokeWidth={0.4} strokeDasharray="3 2" />
-                                                    <polygon
-                                                        points={p.contour.map(v => `${px + (v.x / p.w) * pw},${py + (p.rotated ? (v.y / p.h) * ph : (1 - v.y / p.h) * ph)}`).join(' ')}
+                                                    <polygon clipPath={`url(#${pieceClipId})`}
+                                                        points={contPts.map(v => `${px + Math.min(v.x / p.w, 1) * pw},${py + (p.rotated ? Math.min(v.y / p.h, 1) * ph : (1 - Math.min(v.y / p.h, 1)) * ph)}`).join(' ')}
                                                         fill={fillColor} fillOpacity={isDragging ? 0.3 : isHovered ? 0.85 : 0.65}
                                                         stroke={strokeC} strokeWidth={isDragging ? strokeW : isHovered ? 2.5 : 2} />
                                                 </>
@@ -9154,20 +9174,25 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                                         const svgPts = outline.map(pt => {
                                                             let svgX, svgY;
                                                             if (p.rotated) {
-                                                                svgX = pt[1] * sX;
-                                                                svgY = (p.h - pt[0]) * sY;
+                                                                svgX = Math.max(0, Math.min(pt[1] * sX, pw));
+                                                                svgY = Math.max(0, Math.min((p.h - pt[0]) * sY, ph));
                                                             } else {
-                                                                svgX = pt[0] * sX;
-                                                                svgY = (p.h - pt[1]) * sY;
+                                                                svgX = Math.max(0, Math.min(pt[0] * sX, pw));
+                                                                svgY = Math.max(0, Math.min((p.h - pt[1]) * sY, ph));
                                                             }
                                                             return `${px + svgX},${py + svgY}`;
                                                         }).join(' ');
                                                         return (
                                                             <>
+                                                                <defs>
+                                                                    <clipPath id={pieceClipId}>
+                                                                        <rect x={px} y={py} width={pw} height={ph} />
+                                                                    </clipPath>
+                                                                </defs>
                                                                 <rect x={px} y={py} width={pw} height={ph}
                                                                     fill={fillColor} fillOpacity={0.1}
                                                                     stroke="#999" strokeWidth={0.3} strokeDasharray="2 2" />
-                                                                <polygon points={svgPts}
+                                                                <polygon points={svgPts} clipPath={`url(#${pieceClipId})`}
                                                                     fill={fillColor} fillOpacity={fillOp}
                                                                     stroke={strokeC} strokeWidth={strokeWW} />
                                                             </>

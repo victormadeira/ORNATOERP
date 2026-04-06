@@ -7,10 +7,10 @@ import db from '../db.js';
 import { requireAuth } from '../auth.js';
 import {
     MaxRectsBin, SkylineBin, GuillotineBin, ShelfBin,
-    intersects, isContainedIn, pruneFreeList, clipRect, clipAndKeep,
-    classifyBySize, scoreResult, verifyNoOverlaps, repairOverlaps, compactBin,
-    runNestingPass, runFillFirst, runFillFirstV2, runTwoPhase, runStripPacking, runBRKGA, ruinAndRecreate,
-    simulatedAnnealing, cascadeRemnants, runAggressivePack,
+    intersects, isContainedIn, pruneFreeList, clipRect, clipAndKeep, mergeFreeRects, validateGuillotineCuts,
+    classifyBySize, scoreResult, scoreResultV5, verifyNoOverlaps, repairOverlaps, compactBin, clampBinBounds, finalSafetyCheck,
+    runNestingPass, runFillFirst, runFillFirstV2, runIndustrialOptimizer, runTwoPhase, runStripPacking, runBRKGA, ruinAndRecreate,
+    simulatedAnnealing, cascadeRemnants, crossBinGapFill, runAggressivePack, runLargeFirstGlobalFill,
     gerarSequenciaCortes, setVacuumAware, getVacuumAware,
     optimizeLastBin, crossBinOptimize,
     calculatePolygonArea, isPointInPolygon, contourBoundingBox,
@@ -304,11 +304,60 @@ export function parsePluginJSON(json) {
                         if (['left', 'right', 'front', 'rear', 'back'].includes(faceLower)) {
                             clean.is_edge_operation = true;
                             clean.edge_face = faceLower;
+                            // SketchUp convention: "left" = face at x=LENGTH (drill enters from right, direction -X)
+                            //                     "right" = face at x=0 (drill enters from left, direction +X)
+                            if (faceLower === 'left') {
+                                clean.drill_direction = '-X';
+                                clean.visual_side = 'right'; // Visual side in top-down view
+                            } else if (faceLower === 'right') {
+                                clean.drill_direction = '+X';
+                                clean.visual_side = 'left';
+                            }
                         }
 
                         sanitizedWorkers[wk] = clean;
                     }
-                    machData.workers = sanitizedWorkers;
+
+                    // ═══ DEDUPLICAÇÃO: remover workers duplicados (bug do plugin SketchUp) ═══
+                    // O plugin às vezes exporta o mesmo worker 2x (grupo pai + filho)
+                    // Fingerprint: posição + face + ferramenta + diâmetro + profundidade
+                    const seen = new Set();
+                    const dedupedWorkers = {};
+                    for (const [wk, w] of Object.entries(sanitizedWorkers)) {
+                        const wx = Math.round((Number(w.x ?? w.position_x ?? -999)) * 100);
+                        const wy = Math.round((Number(w.y ?? w.position_y ?? -999)) * 100);
+                        const wz = Math.round((Number(w.z ?? w.position_z ?? -999)) * 100);
+                        const fp = `${wx}|${wy}|${wz}|${(w.face || '').toLowerCase()}|${w.tool_code || w.tool || ''}|${w.diameter || 0}|${Math.round((w.depth || 0) * 100)}`;
+                        if (seen.has(fp)) {
+                            // Worker duplicado — descartar
+                            continue;
+                        }
+                        seen.add(fp);
+
+                        // ═══ TRANSFER_MILLING / SAW_CUT sem posição: marcar como operação de caminho ═══
+                        // Estes workers têm position=None mas coordenadas em pos_start_for_line, pos_corners, etc.
+                        const cat = (w.category || '').toLowerCase();
+                        if ((cat.includes('transfer_milling') || cat.includes('transfer_vertical_saw_cut')) && w.x == null && w.position_x == null) {
+                            // Tentar extrair posição de campos alternativos
+                            if (w.pos_start_for_line) {
+                                w.x = Number(w.pos_start_for_line.position_x ?? w.pos_start_for_line.x ?? 0);
+                                w.y = Number(w.pos_start_for_line.position_y ?? w.pos_start_for_line.y ?? 0);
+                            } else if (w.pos_corners && typeof w.pos_corners === 'object') {
+                                const corners = Object.values(w.pos_corners);
+                                if (corners.length > 0 && Array.isArray(corners[0])) {
+                                    w.x = corners[0][0] || 0;
+                                    w.y = corners[0][1] || 0;
+                                }
+                            }
+                            // Se ainda sem posição, marcar como fantasma (não renderizar como furo)
+                            if (w.x == null && !w.path) {
+                                w._no_position = true;
+                            }
+                        }
+
+                        dedupedWorkers[wk] = w;
+                    }
+                    machData.workers = dedupedWorkers;
                 }
                 peca.machining_json = JSON.stringify(machData);
             } else if (ent.contour) {
@@ -321,6 +370,59 @@ export function parsePluginJSON(json) {
     }
 
     return { loteInfo, pecas };
+}
+
+// ─── Auto-select lado ativo baseado na complexidade de usinagem ──
+// Analisa os workers de cada lado e retorna 'A' ou 'B'
+function autoSelectLadoAtivo(machiningJson) {
+    try {
+        const mach = typeof machiningJson === 'string' ? JSON.parse(machiningJson || '{}') : (machiningJson || {});
+        const workers = mach.workers
+            ? (Array.isArray(mach.workers) ? mach.workers : Object.values(mach.workers))
+            : [];
+
+        if (workers.length === 0) return 'A';
+
+        // Peso por tipo de operação
+        const getWeight = (w) => {
+            const cat = (w.category || '').toLowerCase();
+            const diam = w.diameter || 0;
+            const tc = (w.tool_code || w.tool || '').toLowerCase();
+
+            if (cat.includes('contour') || cat.includes('contorno') || tc.includes('contorno')) return 5;
+            if (cat.includes('rebaixo') || cat.includes('pocket') || tc.includes('rb_') || tc.includes('pocket')) return 4;
+            if (cat.includes('groove') || cat.includes('rasgo') || cat.includes('saw_cut') || tc.includes('r_f')) return 3;
+            if (diam >= 35) return 2; // Dobradiça 35mm — pode ser feita com gabarito
+            if (cat.includes('hole') || cat.includes('transfer')) return 1;
+            return 1;
+        };
+
+        // Determinar lado de cada worker
+        let scoreA = 0, scoreB = 0;
+        for (const w of workers) {
+            const face = (w.face || w.quadrant || '').toLowerCase();
+            const side = (w.side || '').toLowerCase();
+            const weight = getWeight(w);
+
+            // Operações de borda não contam para nenhum lado
+            if (w.is_edge_operation) continue;
+            if (['left', 'right', 'front', 'rear', 'back'].includes(face)) continue;
+
+            if (face === 'top' || face === 'side_a' || side === 'side_a') {
+                scoreA += weight;
+            } else if (face === 'bottom' || face === 'side_b' || side === 'side_b') {
+                scoreB += weight;
+            } else {
+                // Sem face definida — assume lado A
+                scoreA += weight;
+            }
+        }
+
+        // Se lado B tem mais complexidade, ele deve ficar para cima na CNC
+        return scoreB > scoreA ? 'B' : 'A';
+    } catch {
+        return 'A';
+    }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -368,6 +470,17 @@ router.post('/lotes/importar', requireAuth, (req, res) => {
             }
         });
         insertMany(pecas);
+
+        // Auto-select lado_ativo para cada peça baseado na complexidade de usinagem
+        const updateLado = db.prepare('UPDATE cnc_pecas SET lado_ativo = ? WHERE lote_id = ? AND persistent_id = ?');
+        for (const p of pecas) {
+            if (p.machining_json && p.machining_json !== '{}') {
+                const lado = autoSelectLadoAtivo(p.machining_json);
+                if (lado !== 'A') { // Só atualiza se for B (default já é A)
+                    updateLado.run(lado, loteId, p.persistent_id);
+                }
+            }
+        }
 
         // Auto-apply existing material mappings
         try {
@@ -488,9 +601,16 @@ router.post('/chapas/verificar-materiais', requireAuth, (req, res) => {
             const esp = mat.espessura || 0;
             if (!mc) continue;
 
-            // APENAS match exato por material_code conta como "cadastrado"
-            // Fallback por espessura = material diferente agrupado errado = precisa cadastrar
-            const chapaExata = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(mc);
+            // 1. Match exato por material_code
+            let chapaExata = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(mc);
+
+            // 2. Se não achou, buscar por ALIAS
+            if (!chapaExata) {
+                const alias = db.prepare('SELECT chapa_id FROM cnc_chapa_aliases WHERE user_id = ? AND material_code_importado = ?').get(req.user.id, mc);
+                if (alias) {
+                    chapaExata = db.prepare('SELECT * FROM cnc_chapas WHERE id = ? AND ativo = 1').get(alias.chapa_id);
+                }
+            }
 
             if (chapaExata) {
                 cadastrados.push({ material_code: mc, espessura: esp, chapa_nome: chapaExata.nome, chapa_id: chapaExata.id, match_type: 'exato' });
@@ -520,7 +640,6 @@ router.post('/chapas/verificar-materiais', requireAuth, (req, res) => {
                         comprimento: baseChapa.comprimento || 2750,
                         largura: baseChapa.largura || 1850,
                         refilo: baseChapa.refilo || 10,
-                        kerf: baseChapa.kerf || 4,
                         veio, direcao_corte: direcao, modo_corte: 'herdar',
                         preco: baseChapa.preco || 0,
                     },
@@ -980,14 +1099,117 @@ router.post('/lotes/manual', requireAuth, (req, res) => {
 });
 
 router.delete('/lotes/:id', requireAuth, (req, res) => {
-    const lote = db.prepare('SELECT id FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
-    if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
-    db.prepare('DELETE FROM cnc_lotes WHERE id = ?').run(lote.id);
-    res.json({ ok: true });
+    try {
+        const id = Number(req.params.id);
+        const lote = db.prepare('SELECT id FROM cnc_lotes WHERE id = ? AND user_id = ?').get(id, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        db.exec('PRAGMA foreign_keys = OFF');
+        try {
+            db.exec(`DELETE FROM cnc_lotes WHERE id = ${id}`);
+        } finally {
+            db.exec('PRAGMA foreign_keys = ON');
+        }
+        res.json({ ok: true });
+    } catch (err) {
+        try { db.exec('PRAGMA foreign_keys = ON'); } catch (_) {}
+        console.error('Erro ao excluir lote:', err);
+        res.status(500).json({ error: 'Erro ao excluir lote: ' + err.message });
+    }
 });
 
 router.get('/pecas/:loteId', requireAuth, (req, res) => {
     const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ? ORDER BY modulo_id, id').all(req.params.loteId);
+    // Sanitize old machining data on-the-fly for consistent frontend rendering
+    const needsUpdate = [];
+    for (const p of pecas) {
+        if (!p.machining_json || p.machining_json.length < 20) continue;
+        // Trigger: dados antigos (position_x, Sketchup) OU dados sem deduplicação (_deduped flag)
+        const needsSanitize = p.machining_json.includes('position_x') || p.machining_json.includes('#<Sketchup') || !p.machining_json.includes('"_deduped"');
+        if (!needsSanitize) continue;
+        try {
+            const mach = JSON.parse(p.machining_json);
+            if (!mach.workers) continue;
+            let changed = false;
+            const workers = typeof mach.workers === 'object' && !Array.isArray(mach.workers)
+                ? mach.workers : null;
+            if (!workers) continue;
+            for (const [wk, w] of Object.entries(workers)) {
+                if (!w || typeof w !== 'object') continue;
+                // Remove Sketchup serialized objects
+                for (const [k, v] of Object.entries(w)) {
+                    if (typeof v === 'string' && (v.includes('#<Sketchup::') || v.includes('#<Geom::'))) {
+                        delete w[k]; changed = true;
+                    }
+                }
+                // Normalize field names
+                if (w.position_x !== undefined && w.x === undefined) { w.x = w.position_x; changed = true; }
+                if (w.position_y !== undefined && w.y === undefined) { w.y = w.position_y; changed = true; }
+                if (w.position_z !== undefined && w.z === undefined) { w.z = w.position_z; changed = true; }
+                if (w.quadrant && !w.face) { w.face = w.quadrant; changed = true; }
+                if (w.width_tool && !w.diameter) { w.diameter = w.width_tool; changed = true; }
+                if (w.width_line && !w.width) { w.width = w.width_line; changed = true; }
+                if (w.usedepth && (!w.depth || w.depth === 0)) { w.depth = w.usedepth; changed = true; }
+                // Mark edge operations
+                const faceLower = (w.face || '').toLowerCase();
+                if (['left', 'right', 'front', 'rear', 'back'].includes(faceLower) && !w.is_edge_operation) {
+                    w.is_edge_operation = true; w.edge_face = faceLower; changed = true;
+                }
+                // SketchUp LEFT/RIGHT convention normalization
+                if (faceLower === 'left' && !w.visual_side) {
+                    w.drill_direction = '-X'; w.visual_side = 'right'; changed = true;
+                } else if (faceLower === 'right' && !w.visual_side) {
+                    w.drill_direction = '+X'; w.visual_side = 'left'; changed = true;
+                }
+                // Transfer_milling sem posição: extrair de campos alternativos
+                const cat = (w.category || '').toLowerCase();
+                if ((cat.includes('transfer_milling') || cat.includes('transfer_vertical_saw_cut')) && w.x == null && w.position_x == null) {
+                    if (w.pos_start_for_line) {
+                        w.x = Number(w.pos_start_for_line.position_x ?? w.pos_start_for_line.x ?? 0);
+                        w.y = Number(w.pos_start_for_line.position_y ?? w.pos_start_for_line.y ?? 0);
+                        changed = true;
+                    } else if (w.pos_corners && typeof w.pos_corners === 'object') {
+                        const corners = Object.values(w.pos_corners);
+                        if (corners.length > 0 && Array.isArray(corners[0])) {
+                            w.x = corners[0][0] || 0; w.y = corners[0][1] || 0; changed = true;
+                        }
+                    }
+                    if (w.x == null && !w.path) { w._no_position = true; changed = true; }
+                }
+            }
+            // Remove top-level Sketchup fields
+            for (const [k, v] of Object.entries(mach)) {
+                if (typeof v === 'string' && (v.includes('#<Sketchup::') || v.includes('#<Geom::'))) {
+                    delete mach[k]; changed = true;
+                }
+            }
+            // ═══ Deduplicação: remover workers duplicados (bug do plugin SketchUp) ═══
+            if (!mach._deduped) {
+                const seen = new Set();
+                const originalCount = Object.keys(workers).length;
+                for (const [wk, w] of Object.entries(workers)) {
+                    const wx = Math.round((Number(w.x ?? w.position_x ?? -999)) * 100);
+                    const wy = Math.round((Number(w.y ?? w.position_y ?? -999)) * 100);
+                    const wz = Math.round((Number(w.z ?? w.position_z ?? -999)) * 100);
+                    const fp = `${wx}|${wy}|${wz}|${(w.face || '').toLowerCase()}|${w.tool_code || w.tool || ''}|${w.diameter || 0}|${Math.round((w.depth || 0) * 100)}`;
+                    if (seen.has(fp)) { delete workers[wk]; changed = true; continue; }
+                    seen.add(fp);
+                }
+                mach._deduped = true; changed = true;
+            }
+            if (changed) {
+                const sanitized = JSON.stringify(mach);
+                p.machining_json = sanitized;
+                needsUpdate.push({ id: p.id, json: sanitized });
+            }
+        } catch { /* skip malformed JSON */ }
+    }
+    // Persist sanitized data back to DB (lazy migration)
+    if (needsUpdate.length > 0) {
+        const stmt = db.prepare('UPDATE cnc_pecas SET machining_json = ? WHERE id = ?');
+        const tx = db.transaction(() => { for (const u of needsUpdate) stmt.run(u.json, u.id); });
+        try { tx(); } catch { /* ignore write errors */ }
+    }
     res.json(pecas);
 });
 
@@ -1094,6 +1316,130 @@ router.post('/pecas/:id/duplicar', requireAuth, (req, res) => {
     res.json({ id: Number(result.lastInsertRowid), persistent_id });
 });
 
+// ═══ Preview de Retalhos para Otimização (simulação rápida) ═══
+router.get('/retalhos-preview/:loteId', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+
+        const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ?').all(lote.id);
+        if (pecas.length === 0) return res.json({ grupos: [] });
+
+        const config = db.prepare('SELECT * FROM cnc_config WHERE id = 1').get() || {};
+        const kerfPadrao = config.kerf_padrao || 4;
+        const spacing = config.espaco_pecas || 4;
+
+        // Alias map
+        const aliasMap = {};
+        try {
+            const aliases = db.prepare('SELECT material_code_importado, chapa_id FROM cnc_chapa_aliases WHERE user_id = ?').all(req.user.id);
+            for (const a of aliases) aliasMap[a.material_code_importado] = a.chapa_id;
+        } catch (_) {}
+
+        // Group pieces by material (same logic as optimizer)
+        const groups = {};
+        for (const p of pecas) {
+            let esp = p.espessura || 0;
+            if (!esp && p.material_code) { const m = p.material_code.match(/_(\d+(?:\.\d+)?)_/); if (m) esp = parseFloat(m[1]); }
+            let chapa = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(p.material_code);
+            if (!chapa && aliasMap[p.material_code]) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE id = ? AND ativo = 1').get(aliasMap[p.material_code]);
+            if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE ABS(espessura_real - ?) <= 1.0 AND ativo = 1 ORDER BY ABS(espessura_real - ?) ASC LIMIT 1').get(esp, esp);
+            if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE espessura_nominal = ? AND ativo = 1').get(esp);
+            if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE ativo = 1 ORDER BY comprimento DESC LIMIT 1').get();
+            const chapaKey = chapa ? `${chapa.material_code}__${chapa.espessura_real}` : `fallback__${esp}`;
+            if (!groups[chapaKey]) groups[chapaKey] = { material_code: chapa?.material_code || p.material_code, espessura: chapa?.espessura_real || esp, chapa: chapa, pieces: [] };
+            groups[chapaKey].pieces.push(p);
+        }
+
+        // For each material group, find available retalhos and run quick simulation
+        const resultado = [];
+        for (const [groupKey, group] of Object.entries(groups)) {
+            const chapa = group.chapa;
+            if (!chapa) continue;
+
+            const retalhosDisp = db.prepare(
+                'SELECT * FROM cnc_retalhos WHERE material_code = ? AND ABS(espessura_real - ?) <= 1.0 AND disponivel = 1 ORDER BY comprimento * largura DESC'
+            ).all(group.material_code, group.espessura);
+
+            if (retalhosDisp.length === 0) {
+                resultado.push({
+                    groupKey,
+                    material_code: group.material_code,
+                    material_nome: chapa.nome || group.material_code,
+                    espessura: group.espessura,
+                    total_pecas: group.pieces.reduce((s, p) => s + (p.quantidade || 1), 0),
+                    retalhos: [],
+                });
+                continue;
+            }
+
+            // Expand pieces for simulation
+            const kerf = chapa.kerf || kerfPadrao;
+            const expanded = [];
+            for (const p of group.pieces) {
+                for (let q = 0; q < (p.quantidade || 1); q++) {
+                    expanded.push({
+                        ref: { pecaId: p.id, instancia: q },
+                        w: p.comprimento, h: p.largura,
+                        allowRotate: true,
+                        area: p.comprimento * p.largura,
+                        perim: 2 * (p.comprimento + p.largura),
+                        maxSide: Math.max(p.comprimento, p.largura),
+                        diff: Math.abs(p.comprimento - p.largura),
+                        classificacao: 'normal',
+                    });
+                }
+            }
+
+            // Quick simulation for each retalho
+            const retalhosInfo = [];
+            for (const ret of retalhosDisp) {
+                const retW = ret.comprimento, retH = ret.largura;
+                // Quick nesting: try to fit pieces into this retalho
+                const bins = runNestingPass(
+                    [...expanded].sort((a, b) => b.area - a.area),
+                    retW, retH, spacing, 'BSSF', 'maxrects', kerf, 'auto'
+                );
+                const pecasColocadas = bins.length === 1 ? bins[0].usedRects.filter(r => r.pieceRef).length : 0;
+                const aproveitamento = bins.length === 1 ? Math.round(bins[0].occupancy() * 10) / 10 : 0;
+
+                // Find the smallest piece that fits
+                const menorPeca = expanded.find(p => (p.w <= retW && p.h <= retH) || (p.h <= retW && p.w <= retH));
+
+                retalhosInfo.push({
+                    id: ret.id,
+                    nome: ret.nome,
+                    comprimento: ret.comprimento,
+                    largura: ret.largura,
+                    area_m2: Math.round(ret.comprimento * ret.largura / 1000000 * 1000) / 1000,
+                    origem_lote: ret.origem_lote,
+                    criado_em: ret.criado_em,
+                    // Simulation results
+                    pecas_que_cabem: pecasColocadas,
+                    aproveitamento,
+                    cabe_alguma: !!menorPeca,
+                    // Suggestion: mark as suggested if >40% utilization or >2 pieces
+                    sugerido: pecasColocadas >= 2 || aproveitamento > 40,
+                });
+            }
+
+            resultado.push({
+                groupKey,
+                material_code: group.material_code,
+                material_nome: chapa.nome || group.material_code,
+                espessura: group.espessura,
+                total_pecas: expanded.length,
+                retalhos: retalhosInfo,
+            });
+        }
+
+        res.json({ grupos: resultado });
+    } catch (err) {
+        console.error('Erro preview retalhos:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ═══════════════════════════════════════════════════════
 // GRUPO 3: Otimizador Nesting 2D — MaxRects-BSSF
 // ═══════════════════════════════════════════════════════
@@ -1108,21 +1454,18 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
 
         const config = db.prepare('SELECT * FROM cnc_config WHERE id = 1').get() || {};
 
-        // ═══ PYTHON OPTIMIZER (único motor) ═══════════════════════════
-        if (!(await isPythonAvailable())) {
-            return res.status(503).json({ error: 'Motor Python (CNC Optimizer) indisponível. Verifique se o serviço está rodando na porta 8000.' });
-        }
-        console.log(`  [CNC] Usando motor Python para lote ${lote.id}`);
+        // ═══ MOTOR JS INDUSTRIAL (pipeline completo) ═══════════════════
+        // Mesmo pipeline do multi-lote: FASES 1-6
+        console.log(`  [CNC] Usando motor JS Industrial para lote ${lote.id} (${pecas.length} peças)`);
         {
-
             const body = req.body || {};
-            const spacing = body.espaco_pecas != null ? Number(body.espaco_pecas) : (config.espaco_pecas || 7);
+            const spacing = body.espaco_pecas != null ? Number(body.espaco_pecas) : (config.espaco_pecas || 4);
             const kerfPadrao = body.kerf != null ? Number(body.kerf) : (config.kerf_padrao || 4);
             const kerfOverride = body.kerf != null ? Number(body.kerf) : null;
             const modoRaw = body.modo != null ? body.modo : (config.usar_guilhotina !== 0 ? 'guilhotina' : 'maxrects');
             const binType = modoRaw === 'maxrects' ? 'maxrects' : modoRaw === 'shelf' ? 'shelf' : 'guillotine';
+            const splitDir = body.direcao_corte === 'horizontal' ? 'horizontal' : body.direcao_corte === 'vertical' ? 'vertical' : 'auto';
             const useRetalhos = body.usar_retalhos != null ? !!body.usar_retalhos : (config.usar_retalhos !== 0);
-            const maxIter = body.iteracoes != null ? Number(body.iteracoes) : (config.iteracoes_otimizador || 300);
             const considerarSobra = body.considerar_sobra != null ? !!body.considerar_sobra : (config.considerar_sobra !== 0);
             const sobraMinW = body.sobra_min_largura != null ? Number(body.sobra_min_largura) : (config.sobra_min_largura || 300);
             const sobraMinH = body.sobra_min_comprimento != null ? Number(body.sobra_min_comprimento) : (config.sobra_min_comprimento || 600);
@@ -1132,28 +1475,38 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
             const limiarPequena = body.limiar_pequena != null ? Number(body.limiar_pequena) : 400;
             const limiarSuperPequena = body.limiar_super_pequena != null ? Number(body.limiar_super_pequena) : 200;
             const classificarPecas = body.classificar_pecas !== false;
+            const isLargeBatch = pecas.length > 100;
 
-            // Agrupar pecas pela CHAPA RESOLVIDA (não pelo material_code da peça)
-            // Isso garante que peças de materiais diferentes (mdf15, mdp15) que usam
-            // a mesma chapa física sejam otimizadas JUNTAS
+            // Classificação de peças
+            const classifyPiece = (w, h) => {
+                const minDim = Math.min(w, h);
+                if (minDim < limiarSuperPequena) return 'super_pequena';
+                if (minDim < limiarPequena) return 'pequena';
+                return 'normal';
+            };
+
+            // Agrupar peças pela CHAPA RESOLVIDA
+            const aliasMap = {};
+            try {
+                const aliases = db.prepare('SELECT material_code_importado, chapa_id FROM cnc_chapa_aliases WHERE user_id = ?').all(req.user.id);
+                for (const a of aliases) aliasMap[a.material_code_importado] = a.chapa_id;
+            } catch (_) {}
+
             const groups = {};
             for (const p of pecas) {
                 let esp = p.espessura || 0;
                 if (!esp && p.material_code) { const m = p.material_code.match(/_(\d+(?:\.\d+)?)_/); if (m) esp = parseFloat(m[1]); }
-
-                // Resolver qual chapa essa peça vai usar (mesma lógica de fallback)
                 let chapa = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(p.material_code);
+                if (!chapa && aliasMap[p.material_code]) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE id = ? AND ativo = 1').get(aliasMap[p.material_code]);
                 if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE ABS(espessura_real - ?) <= 1.0 AND ativo = 1 ORDER BY ABS(espessura_real - ?) ASC LIMIT 1').get(esp, esp);
                 if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE espessura_nominal = ? AND ativo = 1').get(esp);
                 if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE ativo = 1 ORDER BY comprimento DESC LIMIT 1').get();
-
-                // Agrupar pela chapa resolvida (ex: MDF_15.5_BRANCO_TX), não pela peça
                 const chapaKey = chapa ? `${chapa.material_code}__${chapa.espessura_real}` : `fallback__${esp}`;
                 if (!groups[chapaKey]) groups[chapaKey] = { material_code: chapa?.material_code || p.material_code, espessura: chapa?.espessura_real || esp, chapa_resolvida: chapa, pieces: [] };
                 groups[chapaKey].pieces.push(p);
             }
 
-            // Reset posicoes
+            // Reset posições
             db.prepare('UPDATE cnc_pecas SET chapa_idx = NULL, pos_x = 0, pos_y = 0, rotacionada = 0 WHERE lote_id = ?').run(lote.id);
             db.prepare("DELETE FROM cnc_retalhos WHERE origem_lote = ?").run(String(lote.id));
 
@@ -1162,161 +1515,405 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                 classificacao: { limiar_pequena: limiarPequena, limiar_super_pequena: limiarSuperPequena, ativo: classificarPecas },
             };
             let globalChapaIdx = 0;
+            let totalCombinacoes = 0;
+
+            // Build contour lookup from machining_json (for rendering in plano_json)
+            const contourMap = {};
+            for (const p of pecas) {
+                if (!p.machining_json) continue;
+                try {
+                    const mach = JSON.parse(p.machining_json);
+                    if (mach.contour && mach.contour.outer && mach.contour.outer.length > 0) {
+                        let pts = mach.contour.outer.map(v => ({
+                            x: Math.round((v.x ?? v[0] ?? 0) * 10) / 10,
+                            y: Math.round((v.y ?? v[1] ?? 0) * 10) / 10,
+                        }));
+                        // Auto-detect and fix swapped axes: contour should fit within comprimento × largura
+                        const comp = p.comprimento || 0, larg = p.largura || 0;
+                        if (comp > 0 && larg > 0 && pts.length >= 3) {
+                            const maxX = Math.max(...pts.map(v => v.x));
+                            const maxY = Math.max(...pts.map(v => v.y));
+                            // If contour max values suggest axes are swapped relative to comprimento/largura
+                            const fitNormal = Math.max(maxX / comp, maxY / larg);
+                            const fitSwapped = Math.max(maxY / comp, maxX / larg);
+                            if (fitSwapped < fitNormal * 0.7 && fitNormal > 1.3) {
+                                console.log(`  [Contour] Peça ${p.id}: eixos do contorno invertidos (maxX=${Math.round(maxX)} maxY=${Math.round(maxY)} vs comp=${comp} larg=${larg}), corrigindo...`);
+                                pts = pts.map(v => ({ x: v.y, y: v.x }));
+                            }
+                        }
+                        contourMap[p.id] = pts;
+                    }
+                } catch { /* skip */ }
+            }
+
+            // Helper: parsear espessura da fita de borda
+            const parseBordaEspessura = (t) => {
+                if (!t || t === '' || t === '0' || t === 'nenhum' || t === 'nenhuma') return 0;
+                const m = t.match(/([\d.]+)\s*mm/i);
+                if (m) return parseFloat(m[1]) || 0;
+                const m2 = t.match(/(\d+\.?\d*)/);
+                if (m2) { const v = parseFloat(m2[1]); return v > 10 ? 0 : v || 0; }
+                return t.trim() ? 0.45 : 0;
+            };
 
             for (const [groupKey, group] of Object.entries(groups)) {
-                // Chapa já foi resolvida no agrupamento acima
                 let chapa = group.chapa_resolvida;
                 if (!chapa) chapa = { comprimento: 2750, largura: 1850, refilo: 10, kerf: kerfPadrao, nome: 'Padrão 2750x1850', material_code: group.material_code, preco: 0, veio: 'sem_veio' };
                 console.log(`  [CNC] Grupo ${groupKey}: ${group.pieces.length} peças → chapa ${chapa.material_code || chapa.nome}`);
 
                 const refilo = refiloOverride != null ? refiloOverride : (chapa.refilo || 10);
                 const kerf = kerfOverride != null ? kerfOverride : (chapa.kerf || kerfPadrao);
+                const binW = chapa.comprimento - 2 * refilo;
+                const binH = chapa.largura - 2 * refilo;
                 const chapaVeio = chapa.veio || 'sem_veio';
+                const temVeio = chapaVeio !== 'sem_veio';
 
-                // ─── Per-material direction override ───
                 const chapaDirecao = chapa.direcao_corte || 'herdar';
                 const chapaModo = chapa.modo_corte || 'herdar';
-                const groupDirecao = chapaDirecao !== 'herdar' ? chapaDirecao : direcaoCorteRaw;
-                const groupModo = chapaModo !== 'herdar'
-                    ? (chapaModo === 'maxrects' ? 'maxrects' : chapaModo === 'shelf' ? 'shelf' : 'guilhotina')
-                    : modoRaw;
+                const groupSplitDir = chapaDirecao !== 'herdar'
+                    ? (chapaDirecao === 'horizontal' ? 'horizontal' : chapaDirecao === 'vertical' ? 'vertical' : 'auto')
+                    : splitDir;
+                const groupBinType = chapaModo !== 'herdar'
+                    ? (chapaModo === 'maxrects' ? 'maxrects' : chapaModo === 'shelf' ? 'shelf' : 'guillotine')
+                    : binType;
 
-                // Retalhos disponiveis (busca pela chapa resolvida, não pela peça)
-                const retalhosDisp = useRetalhos
-                    ? db.prepare('SELECT * FROM cnc_retalhos WHERE material_code = ? AND ABS(espessura_real - ?) <= 1.0 AND disponivel = 1 ORDER BY comprimento * largura DESC')
-                        .all(chapa.material_code || group.material_code, chapa.espessura_real || group.espessura)
-                    : [];
+                // Config de rotação do material
+                const matCadastrado = chapa.material_code
+                    ? db.prepare('SELECT permitir_rotacao FROM cnc_materiais WHERE codigo = ? LIMIT 1').get(chapa.material_code)
+                    : null;
+                const matPermitirRot = matCadastrado?.permitir_rotacao;
 
-                // Calcular tool_signature por peça para agrupamento inteligente
-                const usinagemTipos = db.prepare('SELECT * FROM cnc_usinagem_tipos WHERE user_id = ?').all(req.user.id);
-                const usinagemMap = {};
-                for (const u of usinagemTipos) usinagemMap[u.codigo || u.nome] = u;
+                // Expandir peças com fita de borda + grain per-piece
+                const expanded = [];
+                for (const p of group.pieces) {
+                    let allowRotate;
+                    if (matPermitirRot === 0) allowRotate = false;
+                    else if (matPermitirRot === 1) allowRotate = true;
+                    else if (!temVeio) allowRotate = true;
+                    else {
+                        const temBordaVisivel = !!(p.borda_dir || p.borda_esq || p.borda_frontal || p.borda_traseira);
+                        allowRotate = !temBordaVisivel;
+                    }
+                    const fitaEsq = parseBordaEspessura(p.borda_esq), fitaDir = parseBordaEspessura(p.borda_dir);
+                    const fitaFrontal = parseBordaEspessura(p.borda_frontal), fitaTraseira = parseBordaEspessura(p.borda_traseira);
+                    const wCorte = p.comprimento + fitaEsq + fitaDir;
+                    const hCorte = p.largura + fitaFrontal + fitaTraseira;
 
-                // Enviar para Python
-                const pyResult = await callPython('optimize', {
-                    pieces: group.pieces.map(p => {
-                        // Extrair assinatura de ferramentas necessárias
-                        let toolSig = '';
-                        try {
-                            const mach = JSON.parse(p.machining_json || '{}');
-                            const tools = new Set();
-                            for (const face of Object.values(mach)) {
-                                if (!Array.isArray(face)) continue;
-                                for (const op of face) {
-                                    const tipo = usinagemMap[op.tipo || op.type];
-                                    if (tipo?.tool_code) tools.add(tipo.tool_code);
-                                }
-                            }
-                            toolSig = [...tools].sort().join(',');
-                        } catch (_) {}
-                        // Extrair contorno irregular se existir
-                        let contour = null;
-                        try {
-                            const mach = JSON.parse(p.machining_json || '{}');
-                            if (mach.contour && Array.isArray(mach.contour) && mach.contour.length >= 3) {
-                                contour = mach.contour;
-                            }
-                        } catch (_) {}
-                        return {
-                            id: p.id, persistent_id: p.persistent_id || '',
-                            comprimento: p.comprimento, largura: p.largura,
-                            quantidade: p.quantidade, material_code: p.material_code,
-                            espessura: group.espessura,
-                            allow_rotate: chapaVeio !== 'sem_veio' ? false : (permitirRotacao != null ? permitirRotacao : true),
-                            lote_id: lote.id, descricao: p.descricao || '',
-                            tool_signature: toolSig,
-                            contour, // Para nesting de formas irregulares (L, T, U shapes)
-                        };
-                    }),
-                    sheets: [{
-                        id: chapa.id || 0, nome: chapa.nome || '',
-                        material_code: chapa.material_code || group.material_code,
-                        espessura_nominal: chapa.espessura_nominal || group.espessura,
-                        espessura_real: chapa.espessura_real || group.espessura,
-                        comprimento: chapa.comprimento, largura: chapa.largura,
-                        refilo, kerf, veio: chapaVeio, preco: chapa.preco || 0,
-                    }],
-                    scraps: retalhosDisp.map(r => ({
-                        id: r.id, material_code: r.material_code,
-                        espessura_real: r.espessura_real,
-                        comprimento: r.comprimento, largura: r.largura,
-                        disponivel: true,
-                    })),
-                    config: {
-                        spacing, kerf, modo: groupModo,
-                        permitir_rotacao: permitirRotacao,
-                        usar_retalhos: useRetalhos, iteracoes: maxIter,
-                        considerar_sobra: considerarSobra,
-                        sobra_min_largura: sobraMinW, sobra_min_comprimento: sobraMinH,
-                        direcao_corte: groupDirecao,
-                        limiar_pequena: limiarPequena, limiar_super_pequena: limiarSuperPequena,
-                        classificar_pecas: classificarPecas,
-                    },
-                });
-
-                if (!pyResult || !pyResult.ok) {
-                    const errMsg = pyResult?.error || 'Falha na otimização Python';
-                    console.error(`  [Python Bridge] Falha para grupo ${groupKey}: ${errMsg}`);
-                    return res.status(500).json({ error: `Erro na otimização do grupo ${group.material_code}: ${errMsg}` });
+                    for (let q = 0; q < p.quantidade; q++) {
+                        expanded.push({
+                            ref: { pecaId: p.id, instancia: q, loteId: lote.id },
+                            w: wCorte, h: hCorte, allowRotate,
+                            area: wCorte * hCorte,
+                            perim: 2 * (wCorte + hCorte),
+                            maxSide: Math.max(wCorte, hCorte),
+                            diff: Math.abs(wCorte - hCorte),
+                            classificacao: classifyPiece(wCorte, hCorte),
+                        });
+                    }
                 }
 
-                // Processar resultado Python — atualizar DB e montar plano
-                const updatePeca = db.prepare('UPDATE cnc_pecas SET chapa_idx = ?, pos_x = ?, pos_y = ?, rotacionada = ? WHERE id = ? AND lote_id = ?');
+                // ═══ Filtro de segurança: peças maiores que a chapa ═══
+                const pecasValidas = [];
+                const pecasGrandes = [];
+                for (const ep of expanded) {
+                    const fitsNormal = ep.w <= binW + 1 && ep.h <= binH + 1;
+                    const fitsRotated = ep.allowRotate && ep.h <= binW + 1 && ep.w <= binH + 1;
+                    if (fitsNormal || fitsRotated) {
+                        pecasValidas.push(ep);
+                    } else {
+                        pecasGrandes.push(ep);
+                        console.warn(`  [Filter] Peça ${ep.ref.pecaId} (${Math.round(ep.w)}x${Math.round(ep.h)}) NÃO CABE na chapa (${binW}x${binH}) — ignorada`);
+                    }
+                }
+                if (pecasGrandes.length > 0) {
+                    console.warn(`  [Filter] ${pecasGrandes.length} peça(s) ignoradas por serem maiores que a chapa`);
+                }
 
-                for (const pyChapa of pyResult.plano.chapas) {
-                    const chapaIdx = globalChapaIdx++;
-                    const chapaInfo = {
-                        idx: chapaIdx,
-                        material: chapa.nome || '',
-                        material_code: chapa.material_code || group.material_code,
-                        espessura_real: chapa.espessura_real || group.espessura,
-                        espessura_nominal: chapa.espessura_nominal || group.espessura,
-                        comprimento: chapa.comprimento, largura: chapa.largura,
-                        refilo, kerf,
-                        preco: chapa.preco || 0,
-                        veio: chapaVeio,
-                        aproveitamento: pyChapa.aproveitamento || 0,
-                        pecas: pyChapa.pecas || [],
-                        retalhos: pyChapa.retalhos || [],
-                        cortes: pyChapa.cortes || [],
-                    };
-
-                    // Atualizar posicoes das pecas no DB + injetar contour data
-                    for (const pecaInfo of chapaInfo.pecas) {
-                        if (pecaInfo.instancia === 0) {
-                            updatePeca.run(chapaIdx, pecaInfo.x + refilo, pecaInfo.y + refilo, pecaInfo.rotated ? 1 : 0, pecaInfo.pecaId, lote.id);
-                        }
-                        // Inject contour data for irregular pieces (from machining_json)
-                        if (pecaInfo.pecaId) {
-                            const srcPeca = group.pieces.find(p => p.id === pecaInfo.pecaId);
-                            if (srcPeca?.machining_json) {
-                                try {
-                                    const mach = JSON.parse(srcPeca.machining_json);
-                                    if (mach.contour && Array.isArray(mach.contour)) {
-                                        pecaInfo.contour = mach.contour;
-                                        pecaInfo.contourArea = calculatePolygonArea(mach.contour);
+                // ═══ FASE 1: Retalhos ═══
+                let pecasRestantes = [...pecasValidas];
+                const retalhosUsados = [];
+                if (useRetalhos) {
+                    const retSelecionados = Array.isArray(body.retalhos_selecionados) ? body.retalhos_selecionados : null;
+                    let retalhosDisp;
+                    if (retSelecionados && retSelecionados.length > 0) {
+                        // Only use specifically selected retalhos
+                        const placeholders = retSelecionados.map(() => '?').join(',');
+                        retalhosDisp = db.prepare(
+                            `SELECT * FROM cnc_retalhos WHERE id IN (${placeholders}) AND disponivel = 1 ORDER BY comprimento * largura DESC`
+                        ).all(...retSelecionados);
+                    } else if (retSelecionados && retSelecionados.length === 0) {
+                        // Explicitly empty = don't use any retalhos
+                        retalhosDisp = [];
+                    } else {
+                        // No selection provided = use all matching (backward compat)
+                        retalhosDisp = db.prepare(
+                            'SELECT * FROM cnc_retalhos WHERE material_code = ? AND ABS(espessura_real - ?) <= 1.0 AND disponivel = 1 ORDER BY comprimento * largura DESC'
+                        ).all(group.material_code, group.espessura);
+                    }
+                    for (const ret of retalhosDisp) {
+                        if (pecasRestantes.length === 0) break;
+                        const retW = ret.comprimento, retH = ret.largura;
+                        const bins = runNestingPass([...pecasRestantes].sort((a, b) => b.area - a.area), retW, retH, spacing, 'BSSF', groupBinType, kerf, groupSplitDir);
+                        if (bins.length === 1 && bins[0].usedRects.length > 0) {
+                            const bin = bins[0];
+                            const chapaIdx = globalChapaIdx++;
+                            const chapaInfo = { idx: chapaIdx, material: `RETALHO: ${ret.nome}`, material_code: group.material_code,
+                                espessura_real: ret.espessura_real || group.espessura, comprimento: retW, largura: retH,
+                                refilo: 0, preco: 0, veio: chapaVeio, aproveitamento: Math.round(bin.occupancy() * 100) / 100,
+                                is_retalho: true, retalho_id: ret.id, pecas: [], retalhos: [],
+                                cortes: groupBinType !== 'maxrects' ? gerarSequenciaCortes(bin) : [],
+                            };
+                            const placedRefs = new Set();
+                            for (const rect of bin.usedRects) {
+                                if (!rect.pieceRef) continue;
+                                const { pecaId, instancia } = rect.pieceRef;
+                                const retPecaM = { pecaId, instancia, x: rect.x, y: rect.y, w: rect.realW, h: rect.realH, rotated: rect.rotated };
+                                if (contourMap[pecaId]) {
+                                    if (rect.rotated) {
+                                        const compOrig = pecas.find(pp => pp.id === pecaId)?.comprimento || rect.realH;
+                                        retPecaM.contour = contourMap[pecaId].map(v => ({ x: Math.round(v.y * 10) / 10, y: Math.round((compOrig - v.x) * 10) / 10 }));
+                                    } else {
+                                        retPecaM.contour = contourMap[pecaId];
                                     }
-                                } catch (_) {}
+                                }
+                                chapaInfo.pecas.push(retPecaM);
+                                placedRefs.add(`${pecaId}_${instancia}`);
+                            }
+                            gerarCortesRetalhos(chapaInfo);
+                            plano.chapas.push(chapaInfo);
+                            retalhosUsados.push(ret.id);
+                            db.prepare('UPDATE cnc_retalhos SET disponivel = 0 WHERE id = ?').run(ret.id);
+                            pecasRestantes = pecasRestantes.filter(p => !placedRefs.has(`${p.ref.pecaId}_${p.ref.instancia}`));
+                        }
+                    }
+                }
+
+                if (pecasRestantes.length === 0) {
+                    plano.materiais[groupKey] = { material_code: group.material_code, espessura: group.espessura,
+                        total_pecas: expanded.length, total_chapas: 0, chapa_usada: chapa.nome, estrategia: 'retalhos_only',
+                        ocupacao_media: 0, retalhos_usados: retalhosUsados.length };
+                    continue;
+                }
+
+                // ═══ FASES 2-5: Pipeline industrial JS ═══
+                const heuristics = ['BSSF', 'BLSF', 'BAF', 'BL', 'CP'];
+                let bestBins = null, bestBinScore = { score: Infinity }, bestStrategyName = '', bestBinType = groupBinType;
+                const expectedPieceCount = pecasRestantes.length; // para penalizar peças perdidas
+
+                const totalPieceArea = pecasRestantes.reduce((s, p) => s + p.area, 0);
+                const sheetArea = binW * binH;
+                const minTeoricoChapas = Math.ceil(totalPieceArea / sheetArea);
+
+                // Early exit: se atingiu mínimo teórico com boa ocupação, pular fases pesadas
+                const isOptimal = () => bestBinScore.placedCount >= expectedPieceCount
+                    && bestBinScore.bins <= minTeoricoChapas
+                    && bestBinScore.avgOccupancy >= 85;
+
+                const binTypesToTry = [groupBinType];
+                if (groupBinType === 'guillotine') binTypesToTry.push('shelf');
+                else if (groupBinType === 'shelf') binTypesToTry.push('guillotine');
+                else { if (!binTypesToTry.includes('maxrects')) binTypesToTry.push('maxrects'); if (!binTypesToTry.includes('skyline')) binTypesToTry.push('skyline'); }
+
+                const sortStrategies = [
+                    { name: 'area_desc', fn: (a, b) => b.area - a.area },
+                    { name: 'maxside_desc', fn: (a, b) => b.maxSide - a.maxSide },
+                    { name: 'h_w_desc', fn: (a, b) => b.h - a.h || b.w - a.w },
+                    { name: 'w_h_desc', fn: (a, b) => b.w - a.w || b.h - a.h },
+                    { name: 'perim_desc', fn: (a, b) => b.perim - a.perim },
+                ];
+
+                // FASE 2: Portfolio multi-pass
+                for (const dir of [groupSplitDir]) {
+                    for (const strat of sortStrategies) {
+                        const sorted = [...pecasRestantes].sort(strat.fn);
+                        for (const h of heuristics) {
+                            for (const bt of binTypesToTry) {
+                                const bins = runNestingPass(sorted, binW, binH, spacing, h, bt, kerf, dir);
+                                const sc = scoreResultV5(bins, expectedPieceCount);
+                                if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = bins; bestStrategyName = `${strat.name}+${h}+${bt}`; bestBinType = bt; }
+                                totalCombinacoes++;
                             }
                         }
                     }
+                }
 
-                    // Criar retalhos no DB
-                    if (considerarSobra) {
-                        for (const s of chapaInfo.retalhos) {
-                            const w = Math.round(Math.max(s.w, s.h));
-                            const h = Math.round(Math.min(s.w, s.h));
-                            if (w >= sobraMinH && h >= sobraMinW) {
-                                const retResult = db.prepare(`INSERT INTO cnc_retalhos (user_id, chapa_ref_id, nome, material_code, espessura_real, comprimento, largura, origem_lote)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
-                                    req.user.id, chapa.id || null,
-                                    `Retalho ${w}x${h}`, group.material_code, group.espessura, w, h, String(lote.id)
-                                );
-                                db.prepare(`INSERT INTO cnc_retalho_historico (retalho_id, lote_id, chapa_idx, largura, comprimento, material_code, espessura, origem_lote_id, origem_chapa_idx, acao)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'criado')`).run(
-                                    String(retResult.lastInsertRowid), lote.id, chapaInfo.idx, h, w, group.material_code, group.espessura, lote.id, chapaInfo.idx
-                                );
+                // FASE 2.6: Two-Phase
+                for (const bt of binTypesToTry) {
+                    for (const dir of [groupSplitDir, 'auto']) {
+                        const tpBins = runTwoPhase(pecasRestantes, binW, binH, kerf, spacing, dir, [bt]);
+                        const sc = scoreResultV5(tpBins, expectedPieceCount);
+                        if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = tpBins; bestStrategyName = `two_phase+${bt}`; bestBinType = bt; }
+                    }
+                }
+
+                // FASE 2.7: Fill-First V2
+                for (const dir of [groupSplitDir, 'auto']) {
+                    const v2Bins = runFillFirstV2(pecasRestantes, binW, binH, spacing, kerf, dir, binTypesToTry);
+                    const sc = scoreResultV5(v2Bins, expectedPieceCount);
+                    if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = v2Bins; bestStrategyName = `fillFirstV2+${dir}`; bestBinType = binTypesToTry[0]; }
+                }
+
+                // FASE 2.8: Fill-First V1
+                for (const bt of binTypesToTry) {
+                    for (const dir of [groupSplitDir]) {
+                        const sorted = [...pecasRestantes].sort((a, b) => b.area - a.area);
+                        const ffBins = runFillFirst(sorted, binW, binH, spacing, 'BSSF', bt, kerf, dir, true);
+                        const sc = scoreResultV5(ffBins, expectedPieceCount);
+                        if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = ffBins; bestStrategyName = `fillFirst+${bt}`; bestBinType = bt; }
+                    }
+                }
+
+                // FASE 2.9: Industrial Optimizer
+                {
+                    const indBins = runIndustrialOptimizer(pecasRestantes, binW, binH, spacing, kerf, groupSplitDir, binTypesToTry);
+                    const sc = scoreResultV5(indBins, expectedPieceCount);
+                    if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = indBins; bestStrategyName = 'industrial_optimizer'; bestBinType = binTypesToTry[0]; }
+                }
+
+                // FASE 2.95: LargeFirst-GlobalFill — grandes primeiro, pequenas preenchem gaps
+                {
+                    const lfBins = runLargeFirstGlobalFill(pecasRestantes, binW, binH, spacing, kerf, groupSplitDir, binTypesToTry);
+                    const sc = scoreResultV5(lfBins, expectedPieceCount);
+                    if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = lfBins; bestStrategyName = 'large_first_global_fill'; bestBinType = binTypesToTry[0]; }
+                }
+
+                // FASE 3: Ruin & Recreate (skip if already optimal)
+                const rrIter = isLargeBatch ? Math.max(3000, Math.min(8000, pecasRestantes.length * 15)) : Math.max(800, Math.min(2000, pecasRestantes.length * 20));
+                if (pecasRestantes.length > 3 && !isOptimal()) {
+                    for (const bt of binTypesToTry) {
+                        const rrResult = ruinAndRecreate(pecasRestantes, binW, binH, spacing, bt, kerf, rrIter, groupSplitDir);
+                        if (rrResult && rrResult.score.score < bestBinScore.score) { bestBinScore = rrResult.score; bestBins = rrResult.bins; bestStrategyName = `ruin_recreate+${bt}`; bestBinType = bt; }
+                        totalCombinacoes += rrIter;
+                    }
+                }
+
+                // FASE 3.5: BRKGA (skip if already optimal)
+                if (pecasRestantes.length > 3 && bestBinScore.bins > minTeoricoChapas && !isOptimal()) {
+                    const brkgaGen = isLargeBatch ? Math.min(200, Math.max(80, pecasRestantes.length * 2)) : Math.min(100, Math.max(40, pecasRestantes.length * 3));
+                    const brkgaResult = runBRKGA(pecasRestantes, binW, binH, spacing, groupBinType, kerf, brkgaGen, groupSplitDir);
+                    if (brkgaResult && brkgaResult.score.score < bestBinScore.score) { bestBinScore = brkgaResult.score; bestBins = brkgaResult.bins; bestStrategyName = `BRKGA`; bestBinType = groupBinType; }
+                    totalCombinacoes += brkgaGen * 40;
+                }
+
+                // FASE 4: Simulated Annealing (skip if already optimal)
+                if (bestBins && bestBins.length > 1 && bestBins.length > minTeoricoChapas && !isOptimal()) {
+                    const saIter = isLargeBatch ? Math.min(80000, pecasRestantes.length * 100) : Math.min(40000, pecasRestantes.length * 200);
+                    const saResult = simulatedAnnealing(bestBins, binW, binH, spacing, bestBinType, kerf, saIter, groupSplitDir);
+                    if (saResult && saResult.score.score < bestBinScore.score) {
+                        console.log(`  [SA] ${bestBins.length}→${saResult.bins.length} chapas`);
+                        bestBinScore = saResult.score; bestBins = saResult.bins;
+                    }
+                    totalCombinacoes += saIter;
+                }
+
+                // FASE 5: Gap Filling (tentar N-1)
+                if (bestBins && bestBins.length > 1 && bestBins.length > minTeoricoChapas) {
+                    const targetBins = bestBins.length - 1;
+                    const totalArea = bestBins.reduce((s, b) => s + b.usedRects.reduce((s2, r) => s2 + (r.realW || r.w) * (r.realH || r.h), 0), 0);
+                    if (totalArea <= targetBins * sheetArea * 0.98) {
+                        for (const strat of sortStrategies.slice(0, 3)) {
+                            const allPieces = [];
+                            for (const bin of bestBins) for (const r of bin.usedRects) {
+                                if (!r.pieceRef) continue;
+                                allPieces.push({ ref: r.pieceRef, w: r.rotated ? (r.realH||r.h) : (r.realW||r.w), h: r.rotated ? (r.realW||r.w) : (r.realH||r.h),
+                                    allowRotate: r.allowRotate !== false, area: (r.realW||r.w) * (r.realH||r.h), perim: 2*((r.realW||r.w)+(r.realH||r.h)),
+                                    maxSide: Math.max(r.realW||r.w, r.realH||r.h), diff: Math.abs((r.realW||r.w)-(r.realH||r.h)), classificacao: r.classificacao || 'normal' });
                             }
+                            const sorted = allPieces.sort(strat.fn);
+                            for (const bt of binTypesToTry) {
+                                const testBins = runFillFirstV2(sorted, binW, binH, spacing, kerf, groupSplitDir, [bt]);
+                                if (testBins.length <= targetBins && verifyNoOverlaps(testBins)) {
+                                    const sc = scoreResultV5(testBins, expectedPieceCount);
+                                    if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = testBins; bestStrategyName = `gap_fill_${strat.name}`; bestBinType = bt; }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // FASE 6: Cascata de Retalhos
+                if (bestBins && bestBins.length > 1 && bestBins.length > minTeoricoChapas) {
+                    const cascResult = cascadeRemnants(bestBins, binW, binH, spacing, bestBinType, kerf, groupSplitDir);
+                    if (cascResult && cascResult.improved && cascResult.bins) {
+                        const sc = scoreResultV5(cascResult.bins, expectedPieceCount);
+                        if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = cascResult.bins; bestStrategyName += '+cascade'; }
+                    }
+                }
+
+                // FASE 6.5: Cross-Bin Gap Fill — preencher buracos grandes movendo peças entre chapas
+                if (bestBins && bestBins.length > 1) {
+                    const gapResult = crossBinGapFill(bestBins, binW, binH, spacing, bestBinType, kerf, groupSplitDir);
+                    if (gapResult && gapResult.improved && gapResult.bins) {
+                        const sc = scoreResultV5(gapResult.bins, expectedPieceCount);
+                        if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = gapResult.bins; bestStrategyName += '+gapfill'; }
+                    }
+                }
+
+                // Safety + Compactação + Validação de limites
+                if (!verifyNoOverlaps(bestBins)) { bestBins = repairOverlaps(bestBins, binW, binH, spacing, bestBinType, kerf, groupSplitDir); bestBinScore = scoreResultV5(bestBins, expectedPieceCount); }
+                for (const bin of bestBins) compactBin(bin, binW, binH, kerf, spacing, groupSplitDir);
+                clampBinBounds(bestBins, binW, binH, bestBinType, kerf, groupSplitDir, spacing);
+
+                // ═══ FINAL SAFETY CHECK — verificação definitiva pós-processamento ═══
+                // compactBin e clampBinBounds podem introduzir sobreposições/boundary violations
+                const safetyOk = finalSafetyCheck(bestBins, binW, binH, bestBinType, kerf, groupSplitDir, spacing);
+                if (!safetyOk) {
+                    bestBinScore = scoreResultV5(bestBins, expectedPieceCount);
+                    console.log(`  [Nesting] ${groupKey}: layout corrigido pelo safety check → ${bestBins.length} chapa(s), ${bestBinScore.avgOccupancy.toFixed(1)}%`);
+                }
+
+                const totalUsedRects = bestBins.reduce((s, b) => s + b.usedRects.length, 0);
+                const totalWithRef = bestBins.reduce((s, b) => s + b.usedRects.filter(r => r.pieceRef).length, 0);
+                console.log(`  [Nesting] ${groupKey}: ${pecasRestantes.length} peças → ${bestBins.length} chapa(s), ${bestBinScore.avgOccupancy.toFixed(1)}% (${bestStrategyName}) | usedRects=${totalUsedRects}, withRef=${totalWithRef}`);
+
+                // Gravar resultados
+                const updatePeca = db.prepare('UPDATE cnc_pecas SET chapa_idx = ?, pos_x = ?, pos_y = ?, rotacionada = ? WHERE id = ? AND lote_id = ?');
+                for (let bi = 0; bi < bestBins.length; bi++) {
+                    const bin = bestBins[bi];
+                    const chapaIdx = globalChapaIdx++;
+                    const chapaInfo = { idx: chapaIdx, material: chapa.nome, material_code: chapa.material_code || group.material_code,
+                        espessura_real: chapa.espessura_real || group.espessura, comprimento: chapa.comprimento, largura: chapa.largura,
+                        refilo, kerf, preco: chapa.preco || 0, veio: chapaVeio, direcao_corte: direcaoCorteRaw,
+                        aproveitamento: Math.round(bin.occupancy() * 100) / 100,
+                        pecas: [], retalhos: [],
+                        cortes: bestBinType !== 'maxrects' ? gerarSequenciaCortes(bin) : [],
+                    };
+                    for (const rect of bin.usedRects) {
+                        if (!rect.pieceRef) continue;
+                        const { pecaId, instancia } = rect.pieceRef;
+                        if (instancia === 0) updatePeca.run(chapaIdx, rect.x + refilo, rect.y + refilo, rect.rotated ? 1 : 0, pecaId, lote.id);
+                        const cls = classifyPiece(rect.realW, rect.realH);
+                        const pecaM = { pecaId, instancia, x: rect.x, y: rect.y, w: rect.realW, h: rect.realH, rotated: rect.rotated };
+                        if (cls !== 'normal') pecaM.classificacao = cls;
+                        if (cls === 'super_pequena') pecaM.corte = { passes: 2, velocidade: 'lenta', tabs: true, tabSize: 3, tabCount: 2 };
+                        else if (cls === 'pequena') pecaM.corte = { passes: 1, velocidade: 'media', tabs: binType === 'maxrects', tabSize: 2, tabCount: 1 };
+                        // Add contour data for irregular pieces
+                        if (contourMap[pecaId]) {
+                            const contPts = contourMap[pecaId];
+                            if (rect.rotated) {
+                                // Rotate contour 90° CW: (x,y) → (y, comp-x) then swap dimensions
+                                const compOrig = pecas.find(pp => pp.id === pecaId)?.comprimento || rect.realH;
+                                pecaM.contour = contPts.map(v => ({ x: Math.round(v.y * 10) / 10, y: Math.round((compOrig - v.x) * 10) / 10 }));
+                            } else {
+                                pecaM.contour = contPts;
+                            }
+                        }
+                        chapaInfo.pecas.push(pecaM);
+                    }
+
+                    if (considerarSobra) {
+                        const sobras = clipAndKeep(bin.freeRects, sobraMinW, sobraMinH);
+                        for (const s of sobras) {
+                            const w = Math.round(Math.max(s.w, s.h)), h = Math.round(Math.min(s.w, s.h));
+                            chapaInfo.retalhos.push({
+                                x: s.x, y: s.y, w: s.w, h: s.h,
+                                // Metadados para criar retalho quando chapa for cortada
+                                sobra_w: w, sobra_h: h,
+                                material_code: group.material_code,
+                                espessura: group.espessura,
+                                chapa_ref_id: chapa.id || null,
+                                status: 'prevista', // não salvo no DB ainda
+                            });
                         }
                     }
 
@@ -1324,126 +1921,34 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                     plano.chapas.push(chapaInfo);
                 }
 
-                plano.materiais[groupKey] = {
-                    material_code: group.material_code, espessura: group.espessura,
-                    total_pecas: group.pieces.reduce((s, p) => s + p.quantidade, 0),
-                    total_chapas: pyResult.total_chapas,
-                    chapa_usada: chapa.nome, estrategia: 'python_optimizer',
-                    ocupacao_media: pyResult.aproveitamento,
-                    kerf, veio: chapaVeio, retalhos_usados: 0,
+                plano.materiais[groupKey] = { material_code: group.material_code, espessura: group.espessura,
+                    total_pecas: expanded.length, total_chapas: bestBins.length, chapa_usada: chapa.nome,
+                    estrategia: bestStrategyName, ocupacao_media: bestBinScore.avgOccupancy,
+                    kerf, veio: chapaVeio, retalhos_usados: retalhosUsados.length,
+                    min_teorico_chapas: minTeoricoChapas,
                 };
             }
 
-            // ═══ Otimização multi-chapa global: tentar eliminar chapas sub-utilizadas ═══
-            if (plano.chapas.length > 1) {
-                // Ordenar chapas por aproveitamento (menor primeiro = candidata a eliminação)
-                const chapasByUtil = plano.chapas.map((c, i) => ({ idx: i, util: c.aproveitamento || 0, pecas: c.pecas.length }))
-                    .sort((a, b) => a.util - b.util);
+            // Stats
+            const clsStats = { normal: 0, pequena: 0, super_pequena: 0 };
+            for (const ch of plano.chapas) for (const p of ch.pecas) { clsStats[p.classificacao || 'normal'] = (clsStats[p.classificacao || 'normal'] || 0) + 1; }
+            plano.classificacao.stats = clsStats;
 
-                // Tentar mover peças da chapa menos utilizada para outras
-                for (const candidate of chapasByUtil) {
-                    if (candidate.util > 60 || plano.chapas.length <= 1) break; // Não mexer em chapas acima de 60%
-                    const srcChapa = plano.chapas[candidate.idx];
-                    if (!srcChapa || !srcChapa.pecas?.length) continue;
+            const totalChapas = plano.chapas.length;
+            const aprovMedio = totalChapas > 0 ? Math.round(plano.chapas.reduce((s, c) => s + c.aproveitamento, 0) / totalChapas * 100) / 100 : 0;
+            plano.aproveitamento = aprovMedio;
+            plano.config_usada = { spacing, motor: 'javascript_industrial' };
 
-                    let allMoved = true;
-                    for (const peca of srcChapa.pecas) {
-                        let moved = false;
-                        // Tentar encaixar em cada outra chapa
-                        for (let ti = 0; ti < plano.chapas.length; ti++) {
-                            if (ti === candidate.idx) continue;
-                            const targetChapa = plano.chapas[ti];
-                            if (!targetChapa) continue;
-                            const ref = targetChapa.refilo || 0;
-                            const usableW = targetChapa.comprimento - 2 * ref;
-                            const usableH = targetChapa.largura - 2 * ref;
-                            const spacing = Number(config.espaco_pecas || 7);
+            db.prepare(`UPDATE cnc_lotes SET status = 'otimizado', total_chapas = ?, aproveitamento = ?, plano_json = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?`)
+                .run(totalChapas, aprovMedio, JSON.stringify(plano), lote.id);
 
-                            // Verificar se cabe em algum espaço livre (simples AABB check)
-                            const pw = peca.w, ph = peca.h;
-                            let placed = false;
-                            // Tentar posicionar usando scan-line simples
-                            for (let testY = 0; testY <= usableH - ph && !placed; testY += spacing) {
-                                for (let testX = 0; testX <= usableW - pw && !placed; testX += spacing) {
-                                    let collision = false;
-                                    for (const existing of targetChapa.pecas) {
-                                        if (testX < existing.x + existing.w + spacing &&
-                                            testX + pw + spacing > existing.x &&
-                                            testY < existing.y + existing.h + spacing &&
-                                            testY + ph + spacing > existing.y) {
-                                            collision = true;
-                                            // Saltar para depois da peça existente
-                                            testX = existing.x + existing.w + spacing - spacing;
-                                            break;
-                                        }
-                                    }
-                                    if (!collision) {
-                                        // Encaixa! Mover peça
-                                        targetChapa.pecas.push({ ...peca, x: testX, y: testY });
-                                        placed = true;
-                                        moved = true;
-                                    }
-                                }
-                            }
-                            if (placed) break;
-                        }
-                        if (!moved) { allMoved = false; break; }
-                    }
+            notifyCNC(db, req.user.id, 'cnc_otimizado', 'Plano otimizado', `Lote ${lote.id} otimizado: ${totalChapas} chapas, ${aprovMedio}% aproveitamento`, lote.id, 'cnc_lote');
 
-                    if (allMoved) {
-                        // Remover chapa vazia
-                        plano.chapas.splice(candidate.idx, 1);
-                        // Recalcular aproveitamento das chapas afetadas
-                        for (const ch of plano.chapas) {
-                            const ref = ch.refilo || 0;
-                            const usableArea = (ch.comprimento - 2 * ref) * (ch.largura - 2 * ref);
-                            const pecasArea = ch.pecas.reduce((s, p) => s + p.w * p.h, 0);
-                            ch.aproveitamento = usableArea > 0 ? Math.round(pecasArea / usableArea * 10000) / 100 : 0;
-                        }
-                        // Re-index chapas
-                        for (let i = 0; i < plano.chapas.length; i++) plano.chapas[i].idx = i;
-                        break; // Só tentar eliminar uma chapa por vez
-                    }
-                }
-            }
-
-            // Se Python processou tudo com sucesso
-            if (plano.chapas.length > 0) {
-                // Stats de classificacao
-                const clsStats = { normal: 0, pequena: 0, super_pequena: 0 };
-                for (const ch of plano.chapas) {
-                    for (const p of ch.pecas) {
-                        const cls = p.classificacao || 'normal';
-                        clsStats[cls] = (clsStats[cls] || 0) + 1;
-                    }
-                }
-                plano.classificacao.stats = clsStats;
-
-                const totalChapas = plano.chapas.length;
-                const aprovMedio = totalChapas > 0
-                    ? Math.round(plano.chapas.reduce((s, c) => s + c.aproveitamento, 0) / totalChapas * 100) / 100
-                    : 0;
-
-                plano.aproveitamento = aprovMedio;
-                plano.config_usada = { spacing: config.espaco_pecas || 7, motor: 'python' };
-
-                db.prepare(`UPDATE cnc_lotes SET status = 'otimizado', total_chapas = ?, aproveitamento = ?, plano_json = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?`)
-                    .run(totalChapas, aprovMedio, JSON.stringify(plano), lote.id);
-
-                notifyCNC(db, req.user.id, 'cnc_otimizado', 'Plano otimizado', `Lote ${lote.id} otimizado: ${totalChapas} chapas, ${aprovMedio}% aproveitamento`, lote.id, 'cnc_lote');
-
-                return res.json({
-                    ok: true,
-                    total_chapas: totalChapas,
-                    aproveitamento: aprovMedio,
-                    total_combinacoes_testadas: 0,
-                    modo: binType,
-                    motor: 'python',
-                    plano,
-                });
-            }
-            // Python nao produziu resultado
-            return res.status(500).json({ error: 'Motor Python não produziu resultado. Verifique os dados do lote.' });
+            return res.json({
+                ok: true, total_chapas: totalChapas, aproveitamento: aprovMedio,
+                total_combinacoes_testadas: totalCombinacoes, modo: binType,
+                motor: 'javascript_industrial', plano,
+            });
         }
 
     } catch (err) {
@@ -1556,6 +2061,33 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
             db.prepare("DELETE FROM cnc_retalhos WHERE origem_lote = ?").run(String(lote.id));
         }
 
+        // Build contour lookup for multi-lote
+        const contourMap = {};
+        for (const p of allPecas) {
+            if (!p.machining_json) continue;
+            try {
+                const mach = JSON.parse(p.machining_json);
+                if (mach.contour && mach.contour.outer && mach.contour.outer.length > 0) {
+                    let pts = mach.contour.outer.map(v => ({
+                        x: Math.round((v.x ?? v[0] ?? 0) * 10) / 10,
+                        y: Math.round((v.y ?? v[1] ?? 0) * 10) / 10,
+                    }));
+                    // Auto-detect and fix swapped axes
+                    const comp = p.comprimento || 0, larg = p.largura || 0;
+                    if (comp > 0 && larg > 0 && pts.length >= 3) {
+                        const maxX = Math.max(...pts.map(v => v.x));
+                        const maxY = Math.max(...pts.map(v => v.y));
+                        const fitNormal = Math.max(maxX / comp, maxY / larg);
+                        const fitSwapped = Math.max(maxY / comp, maxX / larg);
+                        if (fitSwapped < fitNormal * 0.7 && fitNormal > 1.3) {
+                            pts = pts.map(v => ({ x: v.y, y: v.x }));
+                        }
+                    }
+                    contourMap[p.id] = pts;
+                }
+            } catch { /* skip */ }
+        }
+
         // Cores por projeto para visualização
         const projectColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
         const loteColorMap = {};
@@ -1600,31 +2132,92 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                 : null;
             const matPermitirRot = matCadastrado?.permitir_rotacao;
 
+            // ─── Helper: extrair espessura da fita de borda do texto da borda ───
+            // Bordas vêm como texto ex: "PVC 0.45mm Branco", "1mm Carvalho", "ABS 2mm"
+            // Extrai o valor numérico em mm. Se não encontrar, assume 0 (sem fita)
+            const parseBordaEspessura = (bordaText) => {
+                if (!bordaText || bordaText === '' || bordaText === '0' || bordaText === 'nenhum' || bordaText === 'nenhuma') return 0;
+                // Tentar extrair número seguido de "mm"
+                const matchMm = bordaText.match(/([\d.]+)\s*mm/i);
+                if (matchMm) return parseFloat(matchMm[1]) || 0;
+                // Tentar extrair número decimal isolado (ex: "0.45", "1", "2")
+                const matchNum = bordaText.match(/(\d+\.?\d*)/);
+                if (matchNum) {
+                    const val = parseFloat(matchNum[1]);
+                    // Se > 10, provavelmente é altura da fita (22mm, 35mm), não espessura
+                    if (val > 10) return 0;
+                    return val || 0;
+                }
+                // Tem texto mas sem número → assume fita padrão de 0.45mm
+                return 0.45;
+            };
+
             // Expandir peças com rastreio de lote_id
             const expanded = [];
             for (const p of group.pieces) {
-                // Regra simples: sem veio = SEMPRE permite rotação (melhor aproveitamento)
-                //                com veio = NUNCA permite (protege o projeto)
+                // ─── Grain/Veio por peça ───
+                // Regra: sem veio na chapa = SEMPRE permite rotação (melhor aproveitamento)
+                //        com veio na chapa + peça TEM bordas visíveis (fita) = bloqueia rotação (protege o visual)
+                //        com veio na chapa + peça SEM bordas visíveis = permite rotação (fundo, prateleira interna, etc)
                 // Override do material cadastrado pode forçar diferente
                 let allowRotate;
                 if (matPermitirRot === 0) allowRotate = false;
                 else if (matPermitirRot === 1) allowRotate = true;
-                else allowRotate = !temVeio; // sem veio → true, com veio → false
+                else if (!temVeio) allowRotate = true; // sem veio → sempre permite
+                else {
+                    // Chapa com veio: verificar se a peça tem bordas visíveis (indicativo de peça aparente)
+                    const temBordaVisivel = !!(p.borda_dir || p.borda_esq || p.borda_frontal || p.borda_traseira);
+                    // Peça com bordas = provavelmente aparente → bloquear rotação para manter veio
+                    // Peça sem bordas = provavelmente interna (fundo, prateleira) → permitir rotação
+                    allowRotate = !temBordaVisivel;
+                }
+
+                // ─── Fita de borda: calcular dimensão BRUTA de corte ───
+                // dim_corte = dim_final + espessura_fita nos lados aplicáveis
+                // comprimento (L) é afetado por borda_esq e borda_dir
+                // largura (A) é afetado por borda_frontal e borda_traseira
+                const fitaEsq = parseBordaEspessura(p.borda_esq);
+                const fitaDir = parseBordaEspessura(p.borda_dir);
+                const fitaFrontal = parseBordaEspessura(p.borda_frontal);
+                const fitaTraseira = parseBordaEspessura(p.borda_traseira);
+
+                const wCorte = p.comprimento + fitaEsq + fitaDir;
+                const hCorte = p.largura + fitaFrontal + fitaTraseira;
+
                 for (let q = 0; q < p.quantidade; q++) {
                     expanded.push({
                         ref: { pecaId: p.id, instancia: q, loteId: loteMap[p.id] },
-                        w: p.comprimento, h: p.largura, allowRotate,
-                        area: p.comprimento * p.largura,
-                        perim: 2 * (p.comprimento + p.largura),
-                        maxSide: Math.max(p.comprimento, p.largura),
-                        diff: Math.abs(p.comprimento - p.largura),
-                        classificacao: classifyPieceMulti(p.comprimento, p.largura),
+                        w: wCorte, h: hCorte, allowRotate,
+                        wOriginal: p.comprimento, hOriginal: p.largura,
+                        fitaAdd: { esq: fitaEsq, dir: fitaDir, frontal: fitaFrontal, traseira: fitaTraseira },
+                        area: wCorte * hCorte,
+                        perim: 2 * (wCorte + hCorte),
+                        maxSide: Math.max(wCorte, hCorte),
+                        diff: Math.abs(wCorte - hCorte),
+                        classificacao: classifyPieceMulti(wCorte, hCorte),
                     });
                 }
             }
 
+            // ═══ Filtro de segurança: peças maiores que a chapa ═══
+            const pecasValidas = [];
+            const pecasGrandes = [];
+            for (const ep of expanded) {
+                const fitsNormal = ep.w <= binW + 1 && ep.h <= binH + 1;
+                const fitsRotated = ep.allowRotate && ep.h <= binW + 1 && ep.w <= binH + 1;
+                if (fitsNormal || fitsRotated) {
+                    pecasValidas.push(ep);
+                } else {
+                    pecasGrandes.push(ep);
+                    console.warn(`  [Filter Multi] Peça ${ep.ref.pecaId} (${Math.round(ep.w)}x${Math.round(ep.h)}) NÃO CABE na chapa (${binW}x${binH}) — ignorada`);
+                }
+            }
+            if (pecasGrandes.length > 0) {
+                console.warn(`  [Filter Multi] ${pecasGrandes.length} peça(s) ignoradas por serem maiores que a chapa`);
+            }
+
             // ═══ FASE 1: Retalhos ═══
-            let pecasRestantes = [...expanded];
+            let pecasRestantes = [...pecasValidas];
             const retalhosUsados = [];
 
             if (useRetalhos) {
@@ -1694,10 +2287,16 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
             // ═══ FASES 2-5: Mesma lógica do otimizador single-lote ═══
             const heuristics = ['BSSF', 'BLSF', 'BAF', 'BL', 'CP'];
             let bestBins = null, bestBinScore = { score: Infinity }, bestStrategyName = '', bestBinType = groupBinType;
+            const expectedPieceCount = pecasRestantes.length; // para penalizar peças perdidas
 
             const totalPieceArea = pecasRestantes.reduce((s, p) => s + p.area, 0);
             const sheetArea = binW * binH;
             const minTeoricoChapas = Math.ceil(totalPieceArea / sheetArea);
+
+            // Early exit: se atingiu mínimo teórico com boa ocupação, pular fases pesadas
+            const isOptimal = () => bestBinScore.placedCount >= expectedPieceCount
+                && bestBinScore.bins <= minTeoricoChapas
+                && bestBinScore.avgOccupancy >= 85;
 
             // Respeitar o modo escolhido pelo usuário (ou per-material override):
             const binTypesToTry = [groupBinType];
@@ -1750,7 +2349,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                         const sorted = [...pecasRestantes].sort(strat.fn);
                         for (const h of heuristics) {
                             const bins = runNestingPass(sorted, binW, binH, spacing, h, bt, kerf, dir);
-                            const sc = scoreResult(bins);
+                            const sc = scoreResultV5(bins, expectedPieceCount);
                             if (isDirectional && dir === groupSplitDir && (strat.name.startsWith('width_') || strat.name.startsWith('height_'))) {
                                 sc.score -= 0.5;
                             }
@@ -1764,7 +2363,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
             // FASE 2.5: Strip packing
             {
                 const stripBins = runStripPacking(pecasRestantes, binW, binH, kerf, spacing, groupSplitDir);
-                const sc = scoreResult(stripBins);
+                const sc = scoreResultV5(stripBins, expectedPieceCount);
                 if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = stripBins; bestStrategyName = 'strip_packing'; bestBinType = 'strip'; }
                 totalCombinacoes++;
             }
@@ -1773,7 +2372,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
             for (const bt of binTypesToTry) {
                 for (const dir of dirsToTry) {
                     const tpBins = runTwoPhase(pecasRestantes, binW, binH, spacing, bt, kerf, dir);
-                    const sc = scoreResult(tpBins);
+                    const sc = scoreResultV5(tpBins, expectedPieceCount);
                     if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = tpBins; bestStrategyName = `two_phase+${bt}+${dir}`; bestBinType = bt; }
                     totalCombinacoes++;
                 }
@@ -1787,7 +2386,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                 const v2Start = Date.now();
                 for (const dir of dirsToTry) {
                     const v2Bins = runFillFirstV2(pecasRestantes, binW, binH, spacing, kerf, dir, binTypesToTry);
-                    const sc = scoreResult(v2Bins);
+                    const sc = scoreResultV5(v2Bins, expectedPieceCount);
                     if (sc.score < bestBinScore.score) {
                         bestBinScore = sc; bestBins = v2Bins;
                         bestStrategyName = `fillFirstV2+${dir}`;
@@ -1805,7 +2404,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                     for (const strat of sortStrategies) {
                         const sorted = [...pecasRestantes].sort(strat.fn);
                         const ffBins = runFillFirst(sorted, binW, binH, spacing, 'BSSF', bt, kerf, dir, true);
-                        const sc = scoreResult(ffBins);
+                        const sc = scoreResultV5(ffBins, expectedPieceCount);
                         if (sc.score < bestBinScore.score) {
                             bestBinScore = sc; bestBins = ffBins;
                             bestStrategyName = `fillFirst+${strat.name}+${bt}+${dir}`;
@@ -1816,12 +2415,38 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                 }
             }
 
-            // FASE 3: R&R (iterações escalonadas pelo tamanho do lote)
+            // FASE 2.9: Industrial Optimizer — Two-Phase + Fullest-Bin-First + N-1 Reduction
+            {
+                const indStart = Date.now();
+                const indBins = runIndustrialOptimizer(pecasRestantes, binW, binH, spacing, kerf, groupSplitDir, binTypesToTry);
+                const sc = scoreResultV5(indBins, expectedPieceCount);
+                if (sc.score < bestBinScore.score) {
+                    bestBinScore = sc; bestBins = indBins;
+                    bestStrategyName = 'industrial_optimizer';
+                    bestBinType = binTypesToTry[0];
+                }
+                const indTime = Date.now() - indStart;
+                console.log(`  [Industrial] ${groupKey}: score=${sc.score.toFixed(1)}, bins=${sc.bins}, avg=${sc.avgOccupancy.toFixed(1)}% (${indTime}ms)`);
+            }
+
+            // FASE 2.95: LargeFirst-GlobalFill — grandes primeiro, pequenas preenchem gaps
+            {
+                const lfBins = runLargeFirstGlobalFill(pecasRestantes, binW, binH, spacing, kerf, groupSplitDir, binTypesToTry);
+                const sc = scoreResultV5(lfBins, expectedPieceCount);
+                if (sc.score < bestBinScore.score) {
+                    bestBinScore = sc; bestBins = lfBins;
+                    bestStrategyName = 'large_first_global_fill';
+                    bestBinType = binTypesToTry[0];
+                }
+                console.log(`  [LargeFirst] ${groupKey}: score=${sc.score.toFixed(1)}, bins=${sc.bins}, avg=${sc.avgOccupancy.toFixed(1)}%`);
+            }
+
+            // FASE 3: R&R (iterações escalonadas pelo tamanho do lote) (skip if already optimal)
             const isLargeBatch = pecasRestantes.length > 100;
             const rrIter = isLargeBatch
                 ? Math.max(3000, Math.min(8000, pecasRestantes.length * 15))
                 : Math.max(800, Math.min(2000, pecasRestantes.length * 20));
-            if (pecasRestantes.length > 3) {
+            if (pecasRestantes.length > 3 && !isOptimal()) {
                 for (const bt of binTypesToTry) {
                     const rrResult = ruinAndRecreate(pecasRestantes, binW, binH, spacing, bt, kerf, rrIter, groupSplitDir);
                     if (rrResult && rrResult.score.score < bestBinScore.score) {
@@ -1843,8 +2468,8 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                 }
             }
 
-            // FASE 3.5: BRKGA (mais gerações para lotes grandes)
-            if (pecasRestantes.length > 3 && bestBinScore.bins > minTeoricoChapas) {
+            // FASE 3.5: BRKGA (mais gerações para lotes grandes) (skip if already optimal)
+            if (pecasRestantes.length > 3 && bestBinScore.bins > minTeoricoChapas && !isOptimal()) {
                 const brkgaGen = isLargeBatch
                     ? Math.min(200, Math.max(80, pecasRestantes.length * 2))
                     : Math.min(100, Math.max(40, pecasRestantes.length * 3));
@@ -1865,8 +2490,8 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                 }
             }
 
-            // FASE 4: SIMULATED ANNEALING — cross-bin
-            if (bestBins && bestBins.length > 1 && bestBins.length > minTeoricoChapas) {
+            // FASE 4: SIMULATED ANNEALING — cross-bin (skip if already optimal)
+            if (bestBins && bestBins.length > 1 && bestBins.length > minTeoricoChapas && !isOptimal()) {
                 const saIter = isLargeBatch
                     ? Math.max(40000, Math.min(80000, pecasRestantes.length * 120))
                     : Math.max(15000, Math.min(40000, pecasRestantes.length * 80));
@@ -1919,7 +2544,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                                 const sorted = [...allPcs].sort(sortFn);
                                 const testBins = runNestingPass(sorted, binW, binH, spacing, h, bt, kerf, groupSplitDir);
                                 if (testBins.length <= targetBins && verifyNoOverlaps(testBins)) {
-                                    const sc = scoreResult(testBins);
+                                    const sc = scoreResultV5(testBins, expectedPieceCount);
                                     if (sc.score < bestBinScore.score) { bestBins = testBins; bestBinScore = sc; bestBinType = bt; bestStrategyName += '+gap_repack'; }
                                 }
                                 totalCombinacoes++;
@@ -1936,17 +2561,44 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                     const saved = bestBins.length - cascResult.bins.length;
                     console.log(`  [Cascade] ${groupKey}: ${bestBins.length}→${cascResult.bins.length} chapas (-${saved} = -R$${saved * 400})`);
                     bestBins = cascResult.bins;
-                    bestBinScore = scoreResult(bestBins);
+                    bestBinScore = scoreResultV5(bestBins, expectedPieceCount);
                     bestStrategyName += '+cascade';
                 }
             }
 
-            // Safety + Compactação
+            // FASE 6.5: Cross-Bin Gap Fill
+            if (bestBins && bestBins.length > 1) {
+                const gapResult = crossBinGapFill(bestBins, binW, binH, spacing, bestBinType, kerf, groupSplitDir);
+                if (gapResult && gapResult.improved && gapResult.bins) {
+                    const sc = scoreResultV5(gapResult.bins, expectedPieceCount);
+                    if (sc.score < bestBinScore.score) { bestBinScore = sc; bestBins = gapResult.bins; bestStrategyName += '+gapfill'; }
+                }
+            }
+
+            // Safety + Compactação + Validação de limites
             if (!verifyNoOverlaps(bestBins)) {
                 bestBins = repairOverlaps(bestBins, binW, binH, spacing, bestBinType, kerf, groupSplitDir);
-                bestBinScore = scoreResult(bestBins);
+                bestBinScore = scoreResultV5(bestBins, expectedPieceCount);
             }
             for (const bin of bestBins) compactBin(bin, binW, binH, kerf, spacing, groupSplitDir);
+            clampBinBounds(bestBins, binW, binH, bestBinType, kerf, groupSplitDir, spacing);
+
+            // ═══ FINAL SAFETY CHECK — verificação definitiva pós-processamento ═══
+            const safetyOk = finalSafetyCheck(bestBins, binW, binH, bestBinType, kerf, groupSplitDir, spacing);
+            if (!safetyOk) {
+                bestBinScore = scoreResultV5(bestBins, expectedPieceCount);
+                console.log(`  [Nesting Multi] ${groupKey}: layout corrigido pelo safety check → ${bestBins.length} chapa(s), ${bestBinScore.avgOccupancy.toFixed(1)}%`);
+            }
+
+            // Validação guilhotina (logging apenas — não rejeita o layout)
+            if (bestBinType === 'guillotine' || bestBinType === 'shelf') {
+                for (let bi = 0; bi < bestBins.length; bi++) {
+                    const gv = validateGuillotineCuts(bestBins[bi]);
+                    if (!gv.valid) {
+                        console.log(`  [Guilhotina] AVISO: Chapa ${bi + 1} do grupo ${groupKey} tem layout não-guilhotina`);
+                    }
+                }
+            }
 
             const maxTeoricoAprov = totalPieceArea / (bestBins.length * sheetArea) * 100;
             console.log(`  [Nesting Multi] ${groupKey}: ${pecasRestantes.length} peças (${lotes.length} lotes) → ${bestBins.length} chapa(s), ${bestBinScore.avgOccupancy.toFixed(1)}% (${bestStrategyName}) [splitDir=${groupSplitDir}, chapaDirecao=${chapaDirecao}]`);
@@ -1988,26 +2640,31 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                     } else if (clsM2 === 'pequena') {
                         pecaM2.corte = { passes: 1, velocidade: 'media', tabs: binType === 'maxrects', tabSize: 2, tabCount: 1 };
                     }
+                    // Add contour data for irregular pieces
+                    if (contourMap[pecaId]) {
+                        if (rect.rotated) {
+                            const compOrig = allPecas.find(pp => pp.id === pecaId)?.comprimento || rect.realH;
+                            pecaM2.contour = contourMap[pecaId].map(v => ({ x: Math.round(v.y * 10) / 10, y: Math.round((compOrig - v.x) * 10) / 10 }));
+                        } else {
+                            pecaM2.contour = contourMap[pecaId];
+                        }
+                    }
                     chapaInfo.pecas.push(pecaM2);
                 }
 
-                // Retalhos (Clip & Keep — sem sobreposição)
+                // Retalhos (Clip & Keep — apenas metadados, inserção no DB quando chapa for cortada)
                 if (considerarSobra) {
                     const sobras = clipAndKeep(bin.freeRects, sobraMinW, sobraMinH);
                     for (const s of sobras) {
-                        const w = Math.round(s.w), h = Math.round(s.h);
-                        chapaInfo.retalhos.push({ x: s.x, y: s.y, w: s.w, h: s.h });
-                        const retResult = db.prepare(`INSERT INTO cnc_retalhos (user_id, chapa_ref_id, nome, material_code, espessura_real, comprimento, largura, origem_lote)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
-                            req.user.id, chapa.id || null,
-                            `Retalho ${Math.max(w, h)}x${Math.min(w, h)}`,
-                            group.material_code, group.espessura,
-                            Math.max(w, h), Math.min(w, h), loteIds.join(',')
-                        );
-                        db.prepare(`INSERT INTO cnc_retalho_historico (retalho_id, lote_id, chapa_idx, largura, comprimento, material_code, espessura, origem_lote_id, origem_chapa_idx, acao)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'criado')`).run(
-                            String(retResult.lastInsertRowid), loteIds[0], chapaInfo.idx, Math.min(w, h), Math.max(w, h), group.material_code, group.espessura, loteIds[0], chapaInfo.idx
-                        );
+                        const w = Math.round(Math.max(s.w, s.h)), h = Math.round(Math.min(s.w, s.h));
+                        chapaInfo.retalhos.push({
+                            x: s.x, y: s.y, w: s.w, h: s.h,
+                            sobra_w: w, sobra_h: h,
+                            material_code: group.material_code,
+                            espessura: group.espessura,
+                            chapa_ref_id: chapa.id || null,
+                            status: 'prevista',
+                        });
                     }
                 }
 
@@ -2288,6 +2945,7 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
             if (!peca) return res.status(400).json({ error: 'Peça inválida' });
             // Toggle lado_ativo entre 'A' e 'B'
             peca.lado_ativo = (peca.lado_ativo === 'B') ? 'A' : 'B';
+            peca.lado_manual = true; // Flag: operador escolheu manualmente
 
         // ═══ ACTION: move_to_sheet ═════════════════════════════════════
         } else if (action === 'move_to_sheet') {
@@ -3372,6 +4030,11 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     wy = edgeFace === 'front' ? 0 : largOrig;
                 }
 
+                // Furos laterais: só incluir se máquina tem agregado horizontal / centro de furação
+                const exportarLaterais = maquina.exportar_furos_laterais === 1;
+                if (!exportarLaterais) {
+                    continue; // CNC plana não executa furação horizontal
+                }
                 allOps.push({
                     pecaId: pp.pecaId, pecaDesc: pDb.descricao, moduloDesc: pDb.modulo_desc,
                     absX: refilo + pX + (rotated ? (() => { const t = transformRotated(wx, wy, compOrig); return t.x; })() : wx),
@@ -5415,7 +6078,73 @@ router.put('/chapas/:id', requireAuth, (req, res) => {
 });
 
 router.delete('/chapas/:id', requireAuth, (req, res) => {
-    db.prepare('DELETE FROM cnc_chapas WHERE id = ?').run(req.params.id);
+    try {
+        const id = Number(req.params.id);
+        if (!id || isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+        // Nuclear: exec com SQL puro — PRAGMA foreign_keys só funciona fora de transaction
+        // e db.exec() roda fora do wrapper de transaction do better-sqlite3
+        db.exec(`PRAGMA foreign_keys = OFF`);
+        try {
+            // Limpar TUDO que referencia esta chapa
+            db.exec(`DELETE FROM cnc_retalhos WHERE chapa_ref_id = ${id}`);
+            db.exec(`DELETE FROM cnc_estoque_mov WHERE chapa_id = ${id}`);
+            db.exec(`DELETE FROM cnc_material_consumo WHERE chapa_id = ${id}`);
+            db.exec(`DELETE FROM cnc_reserva_material WHERE chapa_id = ${id}`);
+            // Agora deletar a chapa
+            db.exec(`DELETE FROM cnc_chapas WHERE id = ${id}`);
+        } finally {
+            db.exec(`PRAGMA foreign_keys = ON`);
+        }
+        res.json({ ok: true });
+    } catch (err) {
+        try { db.exec('PRAGMA foreign_keys = ON'); } catch (_) {}
+        console.error('Erro ao excluir chapa:', err);
+        res.status(500).json({ error: 'Erro ao excluir chapa: ' + err.message });
+    }
+});
+
+// ─── Aliases de Material → Chapa ──────────────────────
+router.get('/chapa-aliases', requireAuth, (req, res) => {
+    const aliases = db.prepare(`
+        SELECT a.*, c.nome as chapa_nome, c.material_code as chapa_material_code, c.espessura_real
+        FROM cnc_chapa_aliases a
+        JOIN cnc_chapas c ON c.id = a.chapa_id
+        WHERE a.user_id = ?
+        ORDER BY a.material_code_importado
+    `).all(req.user.id);
+    res.json(aliases);
+});
+
+router.post('/chapa-aliases', requireAuth, (req, res) => {
+    try {
+        const { material_code_importado, chapa_id } = req.body;
+        if (!material_code_importado || !chapa_id) return res.status(400).json({ error: 'material_code_importado e chapa_id são obrigatórios' });
+        db.prepare(`INSERT OR REPLACE INTO cnc_chapa_aliases (user_id, material_code_importado, chapa_id) VALUES (?, ?, ?)`)
+            .run(req.user.id, material_code_importado, chapa_id);
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/chapa-aliases/bulk', requireAuth, (req, res) => {
+    try {
+        const { aliases } = req.body; // [{ material_code_importado, chapa_id }]
+        if (!Array.isArray(aliases)) return res.status(400).json({ error: 'aliases deve ser array' });
+        const ins = db.prepare('INSERT OR REPLACE INTO cnc_chapa_aliases (user_id, material_code_importado, chapa_id) VALUES (?, ?, ?)');
+        const insertAll = db.transaction((items) => {
+            for (const a of items) ins.run(req.user.id, a.material_code_importado, a.chapa_id);
+        });
+        insertAll(aliases);
+        res.json({ ok: true, total: aliases.length });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.delete('/chapa-aliases/:id', requireAuth, (req, res) => {
+    db.prepare('DELETE FROM cnc_chapa_aliases WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
     res.json({ ok: true });
 });
 
@@ -5974,7 +6703,32 @@ router.post('/materiais', requireAuth, (req, res) => {
         b.cor || '', b.acabamento || '', b.fornecedor || '',
         b.custo_m2 ?? 0, b.refilo ?? 10, b.kerf ?? 4, b.permitir_rotacao ?? -1
     );
-    res.json({ id: Number(r.lastInsertRowid) });
+    const materialId = Number(r.lastInsertRowid);
+    const materialNome = b.nome;
+    const materialCor = b.cor || '';
+
+    // ─── Auto-criar fitas de borda para este material ───
+    // Alturas padrão: 22mm, 35mm, 64mm
+    const fitaAlturas = [22, 35, 64];
+    const fitasCreated = [];
+    try {
+        const insertFita = db.prepare(`INSERT INTO biblioteca
+            (tipo, cod, nome, descricao, unidade, preco, espessura, largura, altura, perda_pct, preco_m2, fita_preco, categoria)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+        for (const alt of fitaAlturas) {
+            const fitaCod = `fita_${(b.codigo || materialNome).toLowerCase().replace(/\s+/g, '_')}_${alt}mm`;
+            const fitaNome = `Fita ${materialNome} ${alt}mm`;
+            const fitaDesc = `Fita de borda ${alt}mm - ${materialNome}${materialCor ? ' ' + materialCor : ''}`;
+            const fr = insertFita.run(
+                'material', fitaCod, fitaNome, fitaDesc, 'm', 0, 0.45, alt, 0, 0, 0, 0, 'fita_borda'
+            );
+            fitasCreated.push({ id: Number(fr.lastInsertRowid), nome: fitaNome, altura: alt });
+        }
+    } catch (e) {
+        console.error('[CNC] Erro ao criar fitas de borda:', e.message);
+    }
+
+    res.json({ id: materialId, fitas_criadas: fitasCreated });
 });
 
 router.put('/materiais/:id', requireAuth, (req, res) => {
@@ -5992,8 +6746,24 @@ router.put('/materiais/:id', requireAuth, (req, res) => {
 });
 
 router.delete('/materiais/:id', requireAuth, (req, res) => {
+    // Buscar material antes de desativar (para excluir fitas associadas)
+    const mat = db.prepare('SELECT * FROM cnc_materiais WHERE id = ?').get(req.params.id);
+
     // Soft delete — apenas desativa
     db.prepare('UPDATE cnc_materiais SET ativo = 0 WHERE id = ?').run(req.params.id);
+
+    // ─── Auto-excluir fitas de borda associadas ───
+    if (mat) {
+        const fitaAlturas = [22, 35, 64];
+        for (const alt of fitaAlturas) {
+            const fitaCod = `fita_${(mat.codigo || mat.nome).toLowerCase().replace(/\s+/g, '_')}_${alt}mm`;
+            // Excluir por código exato
+            db.prepare('DELETE FROM biblioteca WHERE cod = ? AND categoria = ?').run(fitaCod, 'fita_borda');
+        }
+        // Também excluir por nome parcial (para fitas criadas antes do sistema de código)
+        db.prepare("DELETE FROM biblioteca WHERE nome LIKE ? AND categoria = ?").run(`Fita ${mat.nome}%`, 'fita_borda');
+    }
+
     res.json({ ok: true });
 });
 
@@ -8562,11 +9332,42 @@ router.post('/chapa-status/:loteId', requireAuth, (req, res) => {
                     const plano = JSON.parse(lote.plano_json);
                     const chapa = plano.chapas?.[chapa_idx];
                     if (chapa) {
+                        // Marcar peças como cortadas
                         const pecaIds = chapa.pecas.map(p => p.pecaId).filter(Boolean);
                         if (pecaIds.length > 0) {
                             const placeholders = pecaIds.map(() => '?').join(',');
                             db.prepare(`UPDATE cnc_pecas SET chapa_idx = ? WHERE id IN (${placeholders}) AND chapa_idx IS NULL`).run(chapa_idx, ...pecaIds);
                         }
+
+                        // ═══ Criar retalhos no DB agora que a chapa foi cortada ═══
+                        const sobras = (chapa.retalhos || []).filter(r => r.status === 'prevista' || !r.retalho_id);
+                        for (const s of sobras) {
+                            const sw = s.sobra_w || Math.round(Math.max(s.w, s.h));
+                            const sh = s.sobra_h || Math.round(Math.min(s.w, s.h));
+                            const matCode = s.material_code || chapa.material_code;
+                            const esp = s.espessura || chapa.espessura_real;
+                            const chapaRefId = s.chapa_ref_id || null;
+
+                            if (sw >= 200 && sh >= 200) { // mínimo razoável para retalho útil
+                                const retResult = db.prepare(`INSERT INTO cnc_retalhos (user_id, chapa_ref_id, nome, material_code, espessura_real, comprimento, largura, origem_lote)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                                    req.user.id, chapaRefId,
+                                    `Retalho ${sw}x${sh}`,
+                                    matCode, esp, sw, sh, String(req.params.loteId)
+                                );
+                                db.prepare(`INSERT INTO cnc_retalho_historico (retalho_id, lote_id, chapa_idx, largura, comprimento, material_code, espessura, origem_lote_id, origem_chapa_idx, acao)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'criado')`).run(
+                                    String(retResult.lastInsertRowid), req.params.loteId, chapa_idx, sh, sw, matCode, esp, Number(req.params.loteId), chapa_idx
+                                );
+
+                                // Atualizar o plano_json com o ID do retalho criado
+                                s.retalho_id = Number(retResult.lastInsertRowid);
+                                s.status = 'criado';
+                            }
+                        }
+
+                        // Salvar plano atualizado com retalho_ids
+                        db.prepare('UPDATE cnc_lotes SET plano_json = ? WHERE id = ?').run(JSON.stringify(plano), req.params.loteId);
                     }
                 } catch (_) {}
             }

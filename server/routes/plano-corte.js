@@ -4,7 +4,7 @@ import { requireAuth } from '../auth.js';
 import { loadBiblioteca, calcularListaCorte } from './producao.js';
 import {
     MaxRectsBin, GuillotineBin, ShelfBin, SkylineBin,
-    scoreResult, verifyNoOverlaps, repairOverlaps, compactBin,
+    scoreResult, verifyNoOverlaps, repairOverlaps, compactBin, finalSafetyCheck,
     runNestingPass, runFillFirst, runStripPacking,
     clipAndKeep, gerarSequenciaCortes,
 } from '../lib/nesting-engine.js';
@@ -311,6 +311,8 @@ router.post('/otimizar', requireAuth, (req, res) => {
             }
             if (bestBins) {
                 for (const bin of bestBins) compactBin(bin, effW, effH, kerf);
+                // Final safety check — resolve sobreposições e boundary violations pós-compactação
+                finalSafetyCheck(bestBins, effW, effH, binType, kerf, direcaoCorte, spacing);
             }
 
             if (!bestBins || bestBins.length === 0) continue;
