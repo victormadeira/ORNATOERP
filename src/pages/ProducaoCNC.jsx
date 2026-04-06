@@ -9108,8 +9108,8 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                             // Detect contour coordinate space mismatch:
                                             // If contour max dimensions don't match p.w/p.h, auto-correct
                                             let contPts = p.contour;
-                                            const maxCX = Math.max(...contPts.map(v => v.x));
-                                            const maxCY = Math.max(...contPts.map(v => v.y));
+                                            let maxCX = Math.max(...contPts.map(v => v.x));
+                                            let maxCY = Math.max(...contPts.map(v => v.y));
                                             // Check if contour axes are swapped relative to piece dimensions
                                             if (maxCX > 0 && maxCY > 0) {
                                                 const ratioNormal = Math.max(maxCX / p.w, maxCY / p.h);
@@ -9117,8 +9117,14 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                                 if (ratioSwapped < ratioNormal * 0.7 && ratioNormal > 1.3) {
                                                     // Axes are swapped — swap x/y to fix
                                                     contPts = contPts.map(v => ({ x: v.y, y: v.x }));
+                                                    const tmp = maxCX; maxCX = maxCY; maxCY = tmp;
                                                 }
                                             }
+                                            // Use contour's own extent for normalization so the shape
+                                            // fills the piece bounding box realistically (contour coords
+                                            // may differ from p.w/p.h which include fita de borda)
+                                            const extX = maxCX || p.w;
+                                            const extY = maxCY || p.h;
                                             return (
                                                 <>
                                                     <defs>
@@ -9130,7 +9136,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                                         fill={fillColor} fillOpacity={isDragging ? 0.15 : 0.25}
                                                         stroke="#999" strokeWidth={0.4} strokeDasharray="3 2" />
                                                     <polygon clipPath={`url(#${pieceClipId})`}
-                                                        points={contPts.map(v => `${px + Math.min(v.x / p.w, 1) * pw},${py + (p.rotated ? Math.min(v.y / p.h, 1) * ph : (1 - Math.min(v.y / p.h, 1)) * ph)}`).join(' ')}
+                                                        points={contPts.map(v => `${px + (v.x / extX) * pw},${py + (p.rotated ? (v.y / extY) * ph : (1 - v.y / extY) * ph)}`).join(' ')}
                                                         fill={fillColor} fillOpacity={isDragging ? 0.3 : isHovered ? 0.85 : 0.65}
                                                         stroke={strokeC} strokeWidth={isDragging ? strokeW : isHovered ? 2.5 : 2} />
                                                 </>
@@ -9169,16 +9175,17 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                                         // buildOutlineWithCuts works in shape space [0..SX, 0..SZ]
                                                         // Use piece original dimensions as shape space
                                                         const outline = buildMillingOutline(compOrig, largOrig, openPaths);
-                                                        // Convert to SVG coords in the ChapaViz
-                                                        const sX = pw / p.w, sY = ph / p.h;
+                                                        // Scale from piece original dimensions to pixel space
+                                                        // Use original dimensions (not p.w/p.h which may include fita)
+                                                        const sX = pw / compOrig, sY = ph / largOrig;
                                                         const svgPts = outline.map(pt => {
                                                             let svgX, svgY;
                                                             if (p.rotated) {
-                                                                svgX = Math.max(0, Math.min(pt[1] * sX, pw));
-                                                                svgY = Math.max(0, Math.min((p.h - pt[0]) * sY, ph));
+                                                                svgX = pt[1] * sX;
+                                                                svgY = (largOrig - pt[0]) * sY;
                                                             } else {
-                                                                svgX = Math.max(0, Math.min(pt[0] * sX, pw));
-                                                                svgY = Math.max(0, Math.min((p.h - pt[1]) * sY, ph));
+                                                                svgX = pt[0] * sX;
+                                                                svgY = (largOrig - pt[1]) * sY;
                                                             }
                                                             return `${px + svgX},${py + svgY}`;
                                                         }).join(' ');

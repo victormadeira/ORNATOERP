@@ -1670,8 +1670,10 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                                 const retPecaM = { pecaId, instancia, x: rect.x, y: rect.y, w: rect.realW, h: rect.realH, rotated: rect.rotated };
                                 if (contourMap[pecaId]) {
                                     if (rect.rotated) {
-                                        const compOrig = pecas.find(pp => pp.id === pecaId)?.comprimento || rect.realH;
-                                        retPecaM.contour = contourMap[pecaId].map(v => ({ x: Math.round(v.y * 10) / 10, y: Math.round((compOrig - v.x) * 10) / 10 }));
+                                        const contPtsR = contourMap[pecaId];
+                                        const maxContX = Math.max(...contPtsR.map(v => v.x));
+                                        const compOrig = Math.max(pecas.find(pp => pp.id === pecaId)?.comprimento || 0, maxContX, rect.realH);
+                                        retPecaM.contour = contPtsR.map(v => ({ x: Math.round(v.y * 10) / 10, y: Math.round((compOrig - v.x) * 10) / 10 }));
                                     } else {
                                         retPecaM.contour = contourMap[pecaId];
                                     }
@@ -1892,7 +1894,8 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                             const contPts = contourMap[pecaId];
                             if (rect.rotated) {
                                 // Rotate contour 90° CW: (x,y) → (y, comp-x) then swap dimensions
-                                const compOrig = pecas.find(pp => pp.id === pecaId)?.comprimento || rect.realH;
+                                const maxContX = Math.max(...contPts.map(v => v.x));
+                                const compOrig = Math.max(pecas.find(pp => pp.id === pecaId)?.comprimento || 0, maxContX, rect.realH);
                                 pecaM.contour = contPts.map(v => ({ x: Math.round(v.y * 10) / 10, y: Math.round((compOrig - v.x) * 10) / 10 }));
                             } else {
                                 pecaM.contour = contPts;
@@ -2643,8 +2646,10 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                     // Add contour data for irregular pieces
                     if (contourMap[pecaId]) {
                         if (rect.rotated) {
-                            const compOrig = allPecas.find(pp => pp.id === pecaId)?.comprimento || rect.realH;
-                            pecaM2.contour = contourMap[pecaId].map(v => ({ x: Math.round(v.y * 10) / 10, y: Math.round((compOrig - v.x) * 10) / 10 }));
+                            const contPtsM2 = contourMap[pecaId];
+                            const maxContX = Math.max(...contPtsM2.map(v => v.x));
+                            const compOrig = Math.max(allPecas.find(pp => pp.id === pecaId)?.comprimento || 0, maxContX, rect.realH);
+                            pecaM2.contour = contPtsM2.map(v => ({ x: Math.round(v.y * 10) / 10, y: Math.round((compOrig - v.x) * 10) / 10 }));
                         } else {
                             pecaM2.contour = contourMap[pecaId];
                         }
