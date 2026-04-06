@@ -84,7 +84,7 @@ router.get('/users-list', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════
 router.get('/portal/:token', (req, res) => {
     const proj = db.prepare(`
-        SELECT p.*, o.cliente_nome, o.valor_venda
+        SELECT p.*, COALESCE(NULLIF(p.cliente_nome,''), o.cliente_nome) as cliente_nome, o.valor_venda
         FROM projetos p
         LEFT JOIN orcamentos o ON o.id = p.orc_id
         WHERE p.token = ?
@@ -244,7 +244,7 @@ router.get('/portal/:token', (req, res) => {
 // ═══════════════════════════════════════════════════
 router.get('/portal-preview/:token', (req, res) => {
     const proj = db.prepare(`
-        SELECT p.*, o.cliente_nome, o.valor_venda
+        SELECT p.*, COALESCE(NULLIF(p.cliente_nome,''), o.cliente_nome) as cliente_nome, o.valor_venda
         FROM projetos p
         LEFT JOIN orcamentos o ON o.id = p.orc_id
         WHERE p.token = ?
@@ -485,7 +485,7 @@ router.get('/:id/portal-acessos', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════
 router.get('/', requireAuth, (req, res) => {
     const rows = db.prepare(`
-        SELECT p.*, o.cliente_nome, o.ambiente as orc_nome, o.valor_venda,
+        SELECT p.*, COALESCE(NULLIF(p.cliente_nome,''), o.cliente_nome) as cliente_nome, o.ambiente as orc_nome, o.valor_venda,
             (SELECT COUNT(*) FROM etapas_projeto e WHERE e.projeto_id = p.id) as total_etapas,
             (SELECT COUNT(*) FROM etapas_projeto e WHERE e.projeto_id = p.id AND e.status = 'concluida') as etapas_concluidas,
             (SELECT COUNT(*) FROM ocorrencias_projeto oc WHERE oc.projeto_id = p.id AND oc.status = 'aberto') as ocorrencias_abertas,
@@ -502,7 +502,7 @@ router.get('/', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════
 router.get('/:id', requireAuth, (req, res) => {
     const proj = db.prepare(`
-        SELECT p.*, o.cliente_nome, o.valor_venda, o.custo_material, o.numero as orc_numero
+        SELECT p.*, COALESCE(NULLIF(p.cliente_nome,''), o.cliente_nome) as cliente_nome, o.valor_venda, o.custo_material, o.numero as orc_numero
         FROM projetos p
         LEFT JOIN orcamentos o ON o.id = p.orc_id
         WHERE p.id = ?
@@ -567,7 +567,7 @@ router.get('/:id', requireAuth, (req, res) => {
 router.get('/:id/termo-entrega', requireAuth, (req, res) => {
     try {
         const proj = db.prepare(`
-            SELECT p.*, o.cliente_nome, o.valor_venda, o.custo_material, o.numero as orc_numero,
+            SELECT p.*, COALESCE(NULLIF(p.cliente_nome,''), o.cliente_nome) as cliente_nome, o.valor_venda, o.custo_material, o.numero as orc_numero,
                    o.mods_json, o.ambiente as orc_ambiente
             FROM projetos p
             LEFT JOIN orcamentos o ON o.id = p.orc_id
@@ -878,7 +878,7 @@ router.delete('/templates/:id', requireAuth, (req, res) => {
 // PUT /api/projetos/:id — atualizar projeto (auth)
 // ═══════════════════════════════════════════════════
 router.put('/:id', requireAuth, (req, res) => {
-    const { nome, descricao, status, data_inicio, data_vencimento, ambientes_json, mostrar_ambientes_portal, portal_mostrar_pagamento } = req.body;
+    const { nome, descricao, status, data_inicio, data_vencimento, cliente_nome, ambientes_json, mostrar_ambientes_portal, portal_mostrar_pagamento } = req.body;
     const projId = parseInt(req.params.id);
 
     // Verificar ownership
@@ -895,11 +895,13 @@ router.put('/:id', requireAuth, (req, res) => {
     db.prepare(`
         UPDATE projetos
         SET nome=?, descricao=?, status=?, data_inicio=?, data_vencimento=?,
+            cliente_nome=COALESCE(?,cliente_nome),
             ambientes_json=COALESCE(?,ambientes_json), mostrar_ambientes_portal=COALESCE(?,mostrar_ambientes_portal),
             portal_mostrar_pagamento=COALESCE(?,portal_mostrar_pagamento),
             atualizado_em=CURRENT_TIMESTAMP
         WHERE id=?
     `).run(nome, descricao || '', status, data_inicio || null, data_vencimento || null,
+        cliente_nome !== undefined ? cliente_nome : null,
         ambientes_json !== undefined ? ambientes_json : null,
         mostrar_ambientes_portal !== undefined ? (mostrar_ambientes_portal ? 1 : 0) : null,
         portal_mostrar_pagamento !== undefined ? (portal_mostrar_pagamento ? 1 : 0) : null,
@@ -1177,7 +1179,7 @@ router.post('/:id/industrializar', requireAuth, (req, res) => {
 
         // Buscar projeto com orçamento vinculado
         const projeto = db.prepare(`
-            SELECT p.*, o.mods_json, o.cliente_nome, o.valor_venda, o.id as orc_id
+            SELECT p.*, o.mods_json, COALESCE(NULLIF(p.cliente_nome,''), o.cliente_nome) as cliente_nome, o.valor_venda, o.id as orc_id
             FROM projetos p
             LEFT JOIN orcamentos o ON o.id = p.orc_id
             WHERE p.id = ?

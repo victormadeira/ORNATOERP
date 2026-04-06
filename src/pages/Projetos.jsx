@@ -3648,6 +3648,14 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user, nav }) {
                                 onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
                                 autoFocus
                             />
+                            <input className={Z.inp} defaultValue={data.cliente_nome || ''} placeholder="Nome do cliente"
+                                style={{ fontSize: 14, padding: '6px 10px' }}
+                                onBlur={e => {
+                                    const v = e.target.value.trim();
+                                    if (v !== (data.cliente_nome || '')) api.put(`/projetos/${data.id}`, { ...data, cliente_nome: v }).then(load);
+                                }}
+                                onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
+                            />
                             <textarea className={Z.inp} defaultValue={data.descricao || ''} placeholder="Descrição do projeto (opcional)"
                                 style={{ fontSize: 13, padding: '6px 10px', minHeight: 50, resize: 'vertical' }}
                                 onBlur={e => {

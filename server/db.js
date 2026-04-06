@@ -1113,6 +1113,8 @@ const migrations = [
   `ALTER TABLE projetos ADD COLUMN mostrar_ambientes_portal INTEGER DEFAULT 0`,
   // ── Pagamento per-project no portal ──
   `ALTER TABLE projetos ADD COLUMN portal_mostrar_pagamento INTEGER DEFAULT 0`,
+  // ── Nome do cliente direto no projeto (fallback se não tiver orçamento) ──
+  "ALTER TABLE projetos ADD COLUMN cliente_nome TEXT DEFAULT ''",
   // ── Documentos visíveis no portal ──
   `ALTER TABLE projeto_arquivos ADD COLUMN visivel_portal INTEGER DEFAULT 0`,
   // ── Histórico de acessos do portal ──
