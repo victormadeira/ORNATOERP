@@ -760,7 +760,7 @@ function TabCronograma({ data, load, notify, users }) {
                 />
             )}
 
-            {/* Progresso */}
+            {/* Progresso + Período editável */}
             <div className={Z.card} style={{ marginBottom: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                     <span style={{ fontWeight: 600, fontSize: 14 }}>Progresso geral</span>
@@ -769,9 +769,26 @@ function TabCronograma({ data, load, notify, users }) {
                 <div style={{ background: 'var(--bg-muted)', borderRadius: 99, height: 10, overflow: 'hidden' }}>
                     <div style={{ width: `${progresso}%`, height: '100%', background: 'var(--primary)', borderRadius: 99, transition: 'width 0.4s' }} />
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 8, flexWrap: 'wrap', gap: 8 }}>
                     <span>{data.etapas?.filter(e => e.status === 'concluida').length || 0} de {data.etapas?.length || 0} etapas concluídas</span>
-                    <span>Entrega: {dtFmt(data.data_vencimento)}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Período:</span>
+                        <input type="date" value={data.data_inicio || ''} style={{
+                            fontSize: 11, padding: '3px 6px', borderRadius: 6,
+                            border: '1px solid var(--border)', background: 'var(--bg-card)',
+                            color: 'var(--text-primary)', width: 120,
+                        }} onChange={e => {
+                            api.put(`/projetos/${data.id}`, { ...data, data_inicio: e.target.value || null }).then(load);
+                        }} />
+                        <span style={{ color: 'var(--text-muted)' }}>→</span>
+                        <input type="date" value={data.data_vencimento || ''} style={{
+                            fontSize: 11, padding: '3px 6px', borderRadius: 6,
+                            border: '1px solid var(--border)', background: 'var(--bg-card)',
+                            color: 'var(--text-primary)', width: 120,
+                        }} onChange={e => {
+                            api.put(`/projetos/${data.id}`, { ...data, data_vencimento: e.target.value || null }).then(load);
+                        }} />
+                    </div>
                 </div>
             </div>
 
@@ -3580,6 +3597,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user, nav }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [editStatus, setEditStatus] = useState(false);
+    const [editInfo, setEditInfo] = useState(false);
     const [tab, setTab] = useState('cronograma');
     const [users, setUsers] = useState([]);
 
@@ -3619,15 +3637,45 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user, nav }) {
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 20 }}>
                 <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                        <h1 className={Z.h1}>{data.nome}</h1>
-                        <Badge label={STATUS_PROJ[data.status]?.label || data.status} color={STATUS_PROJ[data.status]?.color || '#94a3b8'} />
-                    </div>
-                    <p className={Z.sub} style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        {data.cliente_nome && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><UserIcon size={12} /> {data.cliente_nome} ·</span>}
-                        {data.valor_venda && <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{R$(data.valor_venda)} ·</span>}
-                        {data.data_inicio && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><CalendarIcon size={12} /> {dtFmt(data.data_inicio)} → {dtFmt(data.data_vencimento)}</span>}
-                    </p>
+                    {editInfo ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <input className={Z.inp} defaultValue={data.nome} placeholder="Nome do projeto"
+                                style={{ fontSize: 18, fontWeight: 700, padding: '6px 10px' }}
+                                onBlur={e => {
+                                    const v = e.target.value.trim();
+                                    if (v && v !== data.nome) api.put(`/projetos/${data.id}`, { ...data, nome: v }).then(load);
+                                }}
+                                onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
+                                autoFocus
+                            />
+                            <textarea className={Z.inp} defaultValue={data.descricao || ''} placeholder="Descrição do projeto (opcional)"
+                                style={{ fontSize: 13, padding: '6px 10px', minHeight: 50, resize: 'vertical' }}
+                                onBlur={e => {
+                                    const v = e.target.value.trim();
+                                    if (v !== (data.descricao || '')) api.put(`/projetos/${data.id}`, { ...data, descricao: v }).then(load);
+                                }}
+                            />
+                            <div style={{ display: 'flex', gap: 6 }}>
+                                <button onClick={() => setEditInfo(false)} className={Z.btn2} style={{ fontSize: 11, padding: '4px 12px' }}>Fechar</button>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                                <h1 className={Z.h1} style={{ cursor: 'pointer' }} onClick={() => setEditInfo(true)} title="Clique para editar">{data.nome}</h1>
+                                <Badge label={STATUS_PROJ[data.status]?.label || data.status} color={STATUS_PROJ[data.status]?.color || '#94a3b8'} />
+                                <button onClick={() => setEditInfo(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }} title="Editar projeto">
+                                    <Pencil size={14} />
+                                </button>
+                            </div>
+                            <p className={Z.sub} style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                {data.cliente_nome && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><UserIcon size={12} /> {data.cliente_nome} ·</span>}
+                                {data.valor_venda && <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{R$(data.valor_venda)} ·</span>}
+                                {data.data_inicio && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><CalendarIcon size={12} /> {dtFmt(data.data_inicio)} → {dtFmt(data.data_vencimento)}</span>}
+                            </p>
+                            {data.descricao && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, marginBottom: 0 }}>{data.descricao}</p>}
+                        </>
+                    )}
                 </div>
                 <div style={{ position: 'relative' }}>
                     <button onClick={() => setEditStatus(!editStatus)} className={Z.btn2} style={{ fontSize: 12, padding: '7px 12px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>Status <Ic.Chev /></button>

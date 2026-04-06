@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { MapPin, Phone, Mail, Calendar, MessageSquare, Lock, CheckCircle2, Printer, PauseCircle, Clock, Play, AlertCircle, Send, User, Camera, X, ChevronLeft, ChevronRight, ZoomIn, Ruler, ClipboardCheck, ShoppingCart, Factory, Paintbrush, Truck, Wrench, ListChecks, Scissors, Layers, FileText, Download, DollarSign, Activity, Bell } from 'lucide-react';
 
 const dtFmt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
@@ -1216,8 +1216,8 @@ export default function PortalCliente({ token, isPreview = false }) {
                         </div>
                     </div>
 
-                    {/* Info grid */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+                    {/* Info grid — sempre 3 cards */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
                         <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
                             <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Projeto</div>
                             <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{projeto.nome || '—'}</div>
@@ -1230,11 +1230,18 @@ export default function PortalCliente({ token, isPreview = false }) {
                                 border: `1px solid ${statusProj.color}30`,
                             }}>{statusProj.label}</span>
                         </div>
-                        {projeto.data_inicio && (
+                        {projeto.data_inicio ? (
                             <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
                                 <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Período</div>
                                 <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
                                     {dtFmt(projeto.data_inicio)} → {dtFmt(projeto.data_vencimento)}
+                                </div>
+                            </div>
+                        ) : (
+                            <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Etapas</div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
+                                    {etapas.filter(e => e.status === 'concluida').length}/{etapas.length} concluídas
                                 </div>
                             </div>
                         )}
@@ -1418,41 +1425,27 @@ export default function PortalCliente({ token, isPreview = false }) {
                                                 </span>
                                             </div>
 
-                                            {/* Mini pipeline with connected dots */}
-                                            <div style={{ position: 'relative', padding: '0 4px' }}>
-                                                {/* Background line — centered at dot midpoint (6px from top) */}
-                                                <div style={{
-                                                    position: 'absolute', top: 5, left: 20, right: 20,
-                                                    height: 2, background: '#e2e8f0', borderRadius: 1,
-                                                }} />
-                                                {/* Active line overlay */}
-                                                {currentIdx > 0 && (
-                                                    <div style={{
-                                                        position: 'absolute', top: 5, left: 20,
-                                                        width: `calc(${(currentIdx / (AMB_ST.length - 1)) * 100}% - 40px * ${currentIdx / (AMB_ST.length - 1)})`,
-                                                        height: 2, background: st.color, borderRadius: 1,
-                                                        transition: 'width 0.3s',
-                                                    }} />
-                                                )}
-                                                {/* Dots + labels */}
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', position: 'relative' }}>
-                                                    {AMB_ST.map((s, si) => {
-                                                        const isActive = si <= currentIdx;
-                                                        const isCurrent = si === currentIdx;
-                                                        return (
-                                                            <div key={s.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 0, flex: 1 }}>
+                                            {/* Mini pipeline — dots + lines inline no mesmo flex */}
+                                            <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+                                                {AMB_ST.map((s, si) => {
+                                                    const isActive = si <= currentIdx;
+                                                    const isCurrent = si === currentIdx;
+                                                    const isLast = si === AMB_ST.length - 1;
+                                                    const nextActive = (si + 1) <= currentIdx;
+                                                    return (
+                                                        <Fragment key={s.key}>
+                                                            {/* Dot + label column */}
+                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
                                                                 <div style={{
                                                                     width: 12, height: 12, borderRadius: '50%',
                                                                     background: isActive ? st.color : '#d1d5db',
-                                                                    border: isCurrent ? '2.5px solid #fff' : '2px solid #fff',
+                                                                    border: isCurrent ? '2.5px solid #fff' : 'none',
                                                                     boxShadow: isCurrent
-                                                                        ? `0 0 0 2.5px ${st.color}, 0 0 8px ${st.color}40`
-                                                                        : isActive ? `0 0 0 1.5px ${st.color}50` : '0 0 0 1.5px #e2e8f0',
-                                                                    transition: 'all 0.3s',
-                                                                    flexShrink: 0,
+                                                                        ? `0 0 0 2.5px ${st.color}`
+                                                                        : 'none',
                                                                 }} />
                                                                 <span style={{
-                                                                    fontSize: 9, marginTop: 5,
+                                                                    fontSize: 9, marginTop: 4,
                                                                     color: isActive ? st.color : '#cbd5e1',
                                                                     fontWeight: isCurrent ? 700 : 400,
                                                                     whiteSpace: 'nowrap',
@@ -1460,9 +1453,17 @@ export default function PortalCliente({ token, isPreview = false }) {
                                                                     {s.label}
                                                                 </span>
                                                             </div>
-                                                        );
-                                                    })}
-                                                </div>
+                                                            {/* Connecting line between dots */}
+                                                            {!isLast && (
+                                                                <div style={{
+                                                                    flex: 1, height: 2, marginTop: 5,
+                                                                    background: nextActive ? st.color : '#e2e8f0',
+                                                                    borderRadius: 1,
+                                                                }} />
+                                                            )}
+                                                        </Fragment>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     );
