@@ -1414,33 +1414,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                     </div>
                 )}
 
-                {/* ─── Feed de Atividades (dentro do Cronograma) ── */}
-                {atividades.length > 0 && (
-                    <div style={{ background: '#fff', padding: '24px 32px', borderTop: '1px solid #f1f5f9' }}>
-                        <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Activity size={16} style={{ color: accent }} /> Atualizações
-                        </h2>
-                        <div style={{ position: 'relative', paddingLeft: 20 }}>
-                            <div style={{ position: 'absolute', left: 6, top: 4, bottom: 4, width: 2, background: '#e2e8f0' }} />
-                            {atividades.slice(0, 10).map((a, i) => (
-                                <div key={i} style={{ position: 'relative', marginBottom: 14, paddingLeft: 12 }}>
-                                    <div style={{
-                                        position: 'absolute', left: -17, top: 4,
-                                        width: 10, height: 10, borderRadius: '50%',
-                                        background: i === 0 ? accent : '#cbd5e1',
-                                        border: '2px solid #fff',
-                                    }} />
-                                    <div style={{ fontSize: 13, color: '#334155', lineHeight: 1.5 }}>{a.descricao}</div>
-                                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                                        {new Date(a.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
-                                        {' · '}
-                                        {new Date(a.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                {/* Feed de Atividades removido */}
                 </>
                 )}
 
