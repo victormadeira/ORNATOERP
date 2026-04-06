@@ -1015,6 +1015,16 @@ const migrations = [
     ativo INTEGER DEFAULT 1,
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
+  // ═══ Depoimentos — testimonials configuráveis para apresentação ═══
+  `CREATE TABLE IF NOT EXISTS depoimentos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome_cliente TEXT NOT NULL DEFAULT '',
+    texto TEXT NOT NULL DEFAULT '',
+    estrelas INTEGER DEFAULT 5,
+    ordem INTEGER DEFAULT 0,
+    ativo INTEGER DEFAULT 1,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
   // ═══ Template padrão de etapas (com durações) ═══
   "ALTER TABLE empresa_config ADD COLUMN etapas_template_json TEXT DEFAULT '[]'",
   // ═══ Cor primária do sistema (white-label) ═══

@@ -251,6 +251,10 @@ router.get('/landing/:token', (req, res) => {
         'SELECT id, titulo, designer, descricao, imagem FROM portfolio WHERE ativo = 1 ORDER BY ordem ASC, id ASC'
     ).all();
 
+    const depoimentos = db.prepare(
+        'SELECT id, nome_cliente, texto, estrelas FROM depoimentos WHERE ativo = 1 ORDER BY ordem ASC, id ASC'
+    ).all();
+
     // Calcular data de validade da proposta
     let validade = null;
     try {
@@ -276,6 +280,7 @@ router.get('/landing/:token', (req, res) => {
             cor_accent: emp?.proposta_cor_accent || '#C9A96E',
         },
         portfolio,
+        depoimentos,
         proposta_token: token,
     });
 });
@@ -365,6 +370,7 @@ router.get('/public/:token', optionalAuth, async (req, res) => {
         cor_accent: emp?.proposta_cor_accent || '#C9A96E',
         numero: orc.numero || '',
         cliente_nome: orc.cliente_nome || '',
+        aprovado_em: orc.aprovado_em || null,
     });
 });
 
@@ -833,6 +839,43 @@ router.delete('/revoke/:orc_id', requireAuth, (req, res) => {
     const orc_id = parseInt(req.params.orc_id);
     db.prepare('UPDATE portal_tokens SET ativo = 0 WHERE orc_id = ?').run(orc_id);
     res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// POST /api/portal/aprovar/:token — aceite digital da proposta pelo cliente
+// ═══════════════════════════════════════════════════════════════════════════════
+router.post('/aprovar/:token', async (req, res) => {
+    const { token } = req.params;
+    const row = db.prepare(`
+        SELECT pt.orc_id, o.aprovado_em, o.cliente_nome
+        FROM portal_tokens pt
+        JOIN orcamentos o ON o.id = pt.orc_id
+        WHERE pt.token = ? AND pt.ativo = 1
+    `).get(token);
+
+    if (!row) return res.status(404).json({ error: 'Link inválido ou expirado' });
+
+    // Já aprovado?
+    if (row.aprovado_em) return res.json({ ok: true, aprovado_em: row.aprovado_em, ja_aprovado: true });
+
+    const agora = new Date().toISOString();
+    db.prepare('UPDATE orcamentos SET aprovado_em = ?, aprovado_por = ?, status = ? WHERE id = ?')
+        .run(agora, 'cliente_digital', 'ok', row.orc_id);
+
+    // Notificar a marcenaria
+    try {
+        const orc = db.prepare('SELECT user_id, numero FROM orcamentos WHERE id = ?').get(row.orc_id);
+        if (orc) {
+            createNotification(
+                'orcamento_aprovado',
+                'Proposta aprovada pelo cliente!',
+                `${row.cliente_nome || 'Cliente'} aprovou digitalmente a proposta ${orc.numero ? `Nº ${orc.numero}` : `#${row.orc_id}`}.`,
+                row.orc_id, 'orcamento', row.cliente_nome || '', null
+            );
+        }
+    } catch (_) {}
+
+    res.json({ ok: true, aprovado_em: agora });
 });
 
 export default router;

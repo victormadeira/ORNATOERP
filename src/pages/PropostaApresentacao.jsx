@@ -579,13 +579,13 @@ export default function PropostaApresentacao({ token }) {
     const cnt1 = useCountUp(100, 2000, statsVisible);
     const cnt2 = useCountUp(5, 1500, statsVisible);
     const cnt3 = useCountUp(5, 1800, statsVisible);
-    const cnt4 = useCountUp(60, 2000, statsVisible);
+    // cnt4 removido (garantia)
 
     if (loading) return <LoadingScreen c1={c1} c2={c2} />;
     if (error) return <ErrorScreen error={error} />;
     if (!data) return null;
 
-    const { cliente_nome, empresa, portfolio, proposta_token, validade } = data;
+    const { cliente_nome, empresa, portfolio, depoimentos, proposta_token, validade } = data;
 
     return (
         <>
@@ -626,7 +626,6 @@ export default function PropostaApresentacao({ token }) {
                             <StatCard label="Projetos Entregues" value={`${cnt1}+`} color={c2} reveal={reveal} delay={0} />
                             <StatCard label="Anos de Experiência" value={cnt2} color={c2} reveal={reveal} delay={1} />
                             <StatCard label="Máquinas Industriais" value={`${cnt3}+`} color={c2} reveal={reveal} delay={2} desc="Centro Nesting, Centro de Furação, Coladeira Industrial e Cabine de Pintura" />
-                            <StatCard label="Meses de Garantia" value={`até ${cnt4}`} color={c2} reveal={reveal} delay={3} />
                         </div>
                     </div>
                 </section>
@@ -732,17 +731,58 @@ export default function PropostaApresentacao({ token }) {
                     </div>
                 </section>
 
-                {/* ═══ A2: TESTIMONIAL ANTES DO CTA ═══ */}
-                <section style={{ background: darkBg, padding: '48px 0 0' }}>
-                    <div className="ap-container" style={{ textAlign: 'center' }}>
-                        <div ref={reveal} className="ap-reveal" style={{ maxWidth: 600, margin: '0 auto', padding: '28px 32px', borderRadius: 12, border: `1px solid ${c2}25`, background: `${c2}08` }}>
-                            <p style={{ fontSize: 17, lineHeight: 1.8, color: `${cream}D0`, fontStyle: 'italic', margin: '0 0 12px' }}>
-                                "Atendimento impecável do início ao fim. O resultado superou todas as nossas expectativas."
-                            </p>
-                            <p style={{ fontSize: 13, color: c2, fontWeight: 600, margin: 0 }}>— Cliente {empresa.nome || 'Ornato'}</p>
+                {/* ═══ A2: DEPOIMENTOS ═══ */}
+                {depoimentos && depoimentos.length > 0 && (
+                <section style={{ background: darkBg, padding: '56px 0 0' }}>
+                    <div className="ap-container">
+                        <div ref={reveal} className="ap-reveal" style={{ textAlign: 'center', marginBottom: 32 }}>
+                            <p className="ap-section-tag" style={{ color: c2 }}>DEPOIMENTOS</p>
+                            <h2 className="ap-section-title" style={{ color: cream, fontSize: 24 }}>
+                                O que nossos clientes dizem
+                            </h2>
+                        </div>
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: depoimentos.length === 1 ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))',
+                            gap: 20, maxWidth: depoimentos.length === 1 ? 680 : 900,
+                            margin: '0 auto',
+                        }}>
+                            {depoimentos.map((dep, idx) => (
+                                <div key={dep.id || idx} ref={reveal} className="ap-reveal" style={{
+                                    position: 'relative', padding: '36px 32px 28px', borderRadius: 16,
+                                    border: `1px solid ${c2}20`,
+                                    background: `linear-gradient(135deg, ${c2}0A 0%, ${c2}04 100%)`,
+                                    overflow: 'hidden', textAlign: 'center',
+                                    transitionDelay: `${idx * 0.1}s`,
+                                }}>
+                                    {/* Decorative quotation mark */}
+                                    <svg width="60" height="48" viewBox="0 0 80 64" fill="none" style={{ position: 'absolute', top: 12, left: 20, opacity: 0.1 }}>
+                                        <path d="M0 40.96C0 26.88 4.48 16.64 13.44 10.24C18.56 6.72 23.36 4.48 27.84 3.52L30.72 9.6C23.36 12.16 18.24 16 15.36 21.12C14.08 23.36 13.44 25.28 13.44 26.88C13.44 27.52 13.6 28 13.92 28.32C14.56 28 15.52 27.84 16.8 27.84C20 27.84 22.72 28.96 24.96 31.2C27.2 33.44 28.32 36.32 28.32 39.84C28.32 43.36 27.04 46.4 24.48 48.96C21.92 51.52 18.88 52.8 15.36 52.8C11.2 52.8 7.68 51.04 4.8 47.52C1.6 43.68 0 39.04 0 33.6V40.96ZM44.16 40.96C44.16 26.88 48.64 16.64 57.6 10.24C62.72 6.72 67.52 4.48 72 3.52L74.88 9.6C67.52 12.16 62.4 16 59.52 21.12C58.24 23.36 57.6 25.28 57.6 26.88C57.6 27.52 57.76 28 58.08 28.32C58.72 28 59.68 27.84 60.96 27.84C64.16 27.84 66.88 28.96 69.12 31.2C71.36 33.44 72.48 36.32 72.48 39.84C72.48 43.36 71.2 46.4 68.64 48.96C66.08 51.52 63.04 52.8 59.52 52.8C55.36 52.8 51.84 51.04 48.96 47.52C45.76 43.68 44.16 39.04 44.16 33.6V40.96Z" fill={c2} />
+                                    </svg>
+                                    {/* Stars */}
+                                    <div style={{ display: 'flex', justifyContent: 'center', gap: 3, marginBottom: 16 }}>
+                                        {[...Array(5)].map((_, i) => (
+                                            <svg key={i} width="18" height="18" viewBox="0 0 24 24" fill={i < (dep.estrelas || 5) ? c2 : `${c2}30`}>
+                                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                                            </svg>
+                                        ))}
+                                    </div>
+                                    {/* Quote */}
+                                    <p style={{ fontSize: 16, lineHeight: 1.8, color: `${cream}D0`, fontStyle: 'italic', fontWeight: 300, margin: '0 0 20px', position: 'relative', zIndex: 1 }}>
+                                        &ldquo;{dep.texto}&rdquo;
+                                    </p>
+                                    {/* Divider */}
+                                    <div style={{ width: 40, height: 2, background: `linear-gradient(90deg, transparent, ${c2}, transparent)`, margin: '0 auto 14px', borderRadius: 1 }} />
+                                    {/* Name */}
+                                    <p style={{ fontSize: 13, color: c2, fontWeight: 600, margin: 0, letterSpacing: '0.03em' }}>
+                                        {dep.nome_cliente || 'Cliente'}
+                                    </p>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </section>
+                )}
 
                 {/* ═══ SEÇÃO 5: CTA ═══ */}
                 <section className="ap-cta" style={{ background: darkBg }}>

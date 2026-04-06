@@ -250,7 +250,7 @@ export function buildPropostaHtml({
     const txtGarantia = empresa?.proposta_garantia || DEFAULT_GARANTIA;
     const txtConsideracoes = empresa?.proposta_consideracoes || DEFAULT_CONSIDERACOES;
     const txtRodape = empresa?.proposta_rodape || '';
-    const txtIncluso = empresa?.proposta_incluso || 'Projeto 3D personalizado;Produção própria com maquinário industrial;Entrega e instalação no local;Acabamento premium e ferragens de primeira linha;Garantia de fábrica';
+    const txtIncluso = empresa?.proposta_incluso || 'Projeto 3D personalizado com caderno técnico;Produção própria com maquinário industrial;Entrega e instalação no local;Acabamento premium e ferragens de primeira linha;Garantia de fábrica';
 
     const empresaNome = empresa?.nome || '';
     const empresaCnpj = empresa?.cnpj || '';
@@ -1030,9 +1030,6 @@ export function buildPropostaHtml({
 
     <!-- ═══ PAGAMENTO (facilidade — como pagar) ═══ -->
     ${pagamentoHtml}
-
-    <!-- ═══ GARANTIA (segurança — proteção) ═══ -->
-    ${garantiaHtml}
 
     <!-- ═══ INFO PROJETO (prazo, validade, local) ═══ -->
     ${infoProjetoHtml}

@@ -1172,91 +1172,116 @@ export default function PortalCliente({ token, isPreview = false }) {
 
             <div className="portal-card">
 
-                {/* ─── Cabeçalho empresa ──────────────────────── */}
+                {/* ─── Cabeçalho ──────────────────────────────── */}
                 <div style={{
-                    background: '#fff',
-                    borderRadius: '16px 16px 0 0', padding: '28px 32px',
-                    borderBottom: `3px solid ${primary}`,
+                    background: '#fff', borderRadius: '16px 16px 0 0',
+                    padding: '28px 32px 24px', borderBottom: '1px solid #e2e8f0',
                 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                            {empresa.logo_header_path ? (
-                                <>
-                                    <img src={empresa.logo_header_path} alt={empresa.nome} style={{ height: 52, maxWidth: 180, objectFit: 'contain', flexShrink: 0 }} />
-                                    {(empresa.cidade || empresa.telefone) && (
-                                        <div style={{ fontSize: 12, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', borderLeft: '1px solid #e2e8f0', paddingLeft: 14 }}>
-                                            {empresa.cidade && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={11} /> {empresa.cidade}{empresa.estado ? `, ${empresa.estado}` : ''}</span>}
-                                            {empresa.telefone && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={11} /> {empresa.telefone}</span>}
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                <>
-                                    <div style={{
-                                        width: 48, height: 48, background: `${primary}12`,
-                                        borderRadius: 12, display: 'flex', alignItems: 'center',
-                                        justifyContent: 'center', fontWeight: 800, fontSize: 22, flexShrink: 0, color: primary,
-                                        border: `1.5px solid ${primary}30`,
-                                    }}>
-                                        {(empresa.nome || 'M')[0]}
-                                    </div>
-                                    <div>
-                                        <div style={{ fontWeight: 700, fontSize: 20, color: '#1e293b' }}>{empresa.nome || 'Marcenaria'}</div>
-                                        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                                            {empresa.cidade && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={11} /> {empresa.cidade}{empresa.estado ? `, ${empresa.estado}` : ''}</span>}
-                                            {empresa.telefone && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={11} /> {empresa.telefone}</span>}
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                            <div style={{
-                                fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em',
-                                color: accent, marginBottom: 6,
-                            }}>
-                                Portal do Cliente
+                    {/* Logo + nome empresa */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+                        {empresa.logo_header_path ? (
+                            <img src={empresa.logo_header_path} alt={empresa.nome} style={{ height: 40, maxWidth: 160, objectFit: 'contain' }} />
+                        ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{
+                                    width: 36, height: 36, background: primary, borderRadius: 8,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontWeight: 800, fontSize: 16, color: '#fff',
+                                }}>
+                                    {(empresa.nome || 'M')[0]}
+                                </div>
+                                <span style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>{empresa.nome || 'Marcenaria'}</span>
                             </div>
-                            <div style={{ fontWeight: 700, fontSize: 16, color: primary }}>{projeto.nome}</div>
+                        )}
+                    </div>
+
+                    {/* Saudação personalizada */}
+                    <h1 style={{ color: '#0f172a', fontSize: 22, fontWeight: 800, margin: '0 0 4px', lineHeight: 1.3 }}>
+                        Olá, {(projeto.cliente_nome || '').split(' ')[0] || 'Cliente'}!
+                    </h1>
+                    <p style={{ color: '#64748b', fontSize: 13, margin: '0 0 18px' }}>
+                        {concluidasPct >= 100 ? 'Seu projeto foi concluído!' :
+                         concluidasPct > 0 ? `Seu projeto está ${concluidasPct}% concluído` :
+                         'Acompanhe o progresso do seu projeto'}
+                    </p>
+
+                    {/* Barra de progresso */}
+                    <div style={{ marginBottom: 18 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Progresso geral</span>
+                            <span style={{ color: primary, fontSize: 16, fontWeight: 800 }}>{concluidasPct}%</span>
+                        </div>
+                        <div style={{ background: '#f1f5f9', borderRadius: 99, height: 8, overflow: 'hidden' }}>
+                            <div className={concluidasPct < 100 ? 'gantt-progress-active' : ''} style={{ width: `${concluidasPct}%`, height: '100%', background: accent, borderRadius: 99, transition: 'width 0.8s ease' }} />
                         </div>
                     </div>
-                </div>
 
-                {/* ─── Info do projeto ─────────────────────────── */}
-                <div style={{ background: '#fff', padding: '24px 32px', borderBottom: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px,1fr))', gap: 20 }}>
-                        <div>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Cliente</div>
-                            <div style={{ fontWeight: 700, fontSize: 17, color: '#0f172a' }}>{projeto.cliente_nome || '—'}</div>
+                    {/* Info grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+                        <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Projeto</div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{projeto.nome || '—'}</div>
                         </div>
-                        <div>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Status</div>
+                        <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Status</div>
                             <span style={{
                                 background: `${statusProj.color}15`, color: statusProj.color,
-                                border: `1px solid ${statusProj.color}40`,
-                                fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 99
+                                fontSize: 12, fontWeight: 700, padding: '2px 10px', borderRadius: 99,
+                                border: `1px solid ${statusProj.color}30`,
                             }}>{statusProj.label}</span>
                         </div>
                         {projeto.data_inicio && (
-                            <div>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Período</div>
-                                <div style={{ fontSize: 14, color: '#334155' }}>
+                            <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Período</div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
                                     {dtFmt(projeto.data_inicio)} → {dtFmt(projeto.data_vencimento)}
                                 </div>
                             </div>
                         )}
-                        <div>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Progresso</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <div style={{ flex: 1, background: '#e2e8f0', borderRadius: 99, height: 8, overflow: 'hidden' }}>
-                                    <div className={concluidasPct < 100 ? 'gantt-progress-active' : ''} style={{ width: `${concluidasPct}%`, height: '100%', background: accent, borderRadius: 99, transition: 'width 0.5s' }} />
-                                </div>
-                                <span style={{ fontWeight: 700, color: accent, fontSize: 14 }}>{concluidasPct}%</span>
+                    </div>
+                </div>
+
+                {/* ─── Banner última atualização (opção B) ─────── */}
+                {(() => {
+                    // Encontrar a atividade ou etapa concluída mais recente
+                    const ultimaAtividade = atividades.length > 0 ? atividades[0] : null;
+                    const ultimaEtapaConcluida = etapas.find(e => e.status === 'concluida' && e.data_fim);
+                    const ultimaData = ultimaAtividade?.criado_em || ultimaEtapaConcluida?.data_fim;
+                    if (!ultimaData) return null;
+
+                    const agora = new Date();
+                    const dataUlt = new Date(ultimaData);
+                    const diasAtras = Math.floor((agora - dataUlt) / (1000 * 60 * 60 * 24));
+
+                    // Opção B: < 7 dias = destaque verde, 7-30 dias = neutro, > 30 dias = não mostra
+                    if (diasAtras > 30) return null;
+
+                    const isRecente = diasAtras < 7;
+                    const texto = ultimaAtividade?.descricao || `Etapa "${ultimaEtapaConcluida?.nome}" foi concluída`;
+                    const tempoLabel = diasAtras === 0 ? 'Hoje' : diasAtras === 1 ? 'Ontem' : `Há ${diasAtras} dias`;
+
+                    return (
+                        <div style={{
+                            background: isRecente ? `${accent}10` : '#f8fafc',
+                            padding: '12px 32px',
+                            borderBottom: '1px solid #e2e8f0',
+                            display: 'flex', alignItems: 'center', gap: 10,
+                        }}>
+                            <div style={{
+                                width: 8, height: 8, borderRadius: '50%',
+                                background: isRecente ? '#22c55e' : '#94a3b8',
+                                flexShrink: 0,
+                                ...(isRecente ? { animation: 'pulse 2s infinite' } : {}),
+                            }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <span style={{ fontSize: 13, color: '#334155', fontWeight: 500 }}>
+                                    <strong style={{ color: isRecente ? accent : '#64748b' }}>{tempoLabel}:</strong>{' '}
+                                    {texto.length > 80 ? texto.slice(0, 80) + '…' : texto}
+                                </span>
                             </div>
                         </div>
-                    </div>
-
-                </div>
+                    );
+                })()}
 
                 {/* ─── Tab Navigation ──────────────────────────── */}
                 <div className="no-print" style={{
@@ -1333,49 +1358,114 @@ export default function PortalCliente({ token, isPreview = false }) {
                                 <div style={{ height: '100%', width: `${total > 0 ? (done / total) * 100 : 0}%`, background: accent, borderRadius: 6, transition: 'width 0.3s' }} />
                             </div>
 
-                            <div style={{ display: 'grid', gap: 10 }}>
+                            <div style={{ display: 'grid', gap: 12 }}>
                                 {ambs.map((amb, i) => {
                                     const st = stMap[amb.status] || stMap.aguardando;
                                     const StIcon = st.icon;
                                     const currentIdx = stIdx(amb.status);
+                                    const pct = Math.round((currentIdx / (AMB_ST.length - 1)) * 100);
 
                                     return (
                                         <div key={amb.id || i} style={{
-                                            padding: '14px 18px', borderRadius: 10,
-                                            background: amb.status === 'concluido' ? '#f0fdf4' : '#f8fafc',
-                                            border: `1px solid ${st.color}30`,
+                                            padding: '16px 20px', borderRadius: 12,
+                                            background: amb.status === 'concluido' ? '#f0fdf4' : '#fff',
+                                            border: '1px solid #f1f5f9',
+                                            borderLeft: `3px solid ${st.color}`,
+                                            boxShadow: '0 1px 4px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02)',
+                                            transition: 'box-shadow 0.2s, transform 0.2s',
                                         }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                    <span style={{
-                                                        background: primary, color: 'white', borderRadius: 6,
-                                                        padding: '2px 8px', fontSize: 11, fontWeight: 700, minWidth: 24, textAlign: 'center',
-                                                    }}>{String(i + 1).padStart(2, '0')}</span>
-                                                    <span style={{ fontWeight: 600, fontSize: 14, color: '#0f172a' }}>{amb.nome}</span>
-                                                </div>
-                                                <span style={{
-                                                    fontSize: 11, padding: '3px 10px', borderRadius: 20,
-                                                    background: st.color + '18', color: st.color, fontWeight: 600,
-                                                    display: 'flex', alignItems: 'center', gap: 4,
+                                            {/* Top row: icon + name + status pill + percentage */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
+                                                {/* Status icon with circular background */}
+                                                <div style={{
+                                                    width: 38, height: 38, borderRadius: '50%',
+                                                    background: st.color + '15',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    flexShrink: 0,
                                                 }}>
-                                                    <StIcon size={12} /> {st.label}
+                                                    <StIcon size={20} style={{ color: st.color }} />
+                                                </div>
+
+                                                {/* Name and number */}
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        <span style={{
+                                                            background: primary, color: 'white', borderRadius: 6,
+                                                            padding: '1px 7px', fontSize: 10, fontWeight: 700,
+                                                            lineHeight: '18px', minWidth: 22, textAlign: 'center',
+                                                        }}>{String(i + 1).padStart(2, '0')}</span>
+                                                        <span style={{
+                                                            fontWeight: 600, fontSize: 14, color: '#0f172a',
+                                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                        }}>{amb.nome}</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Percentage */}
+                                                <span style={{
+                                                    fontSize: 13, fontWeight: 700, color: st.color,
+                                                    minWidth: 38, textAlign: 'right', flexShrink: 0,
+                                                }}>{pct}%</span>
+
+                                                {/* Status pill */}
+                                                <span style={{
+                                                    fontSize: 11, padding: '4px 12px', borderRadius: 20,
+                                                    background: st.color + '14', color: st.color, fontWeight: 600,
+                                                    display: 'flex', alignItems: 'center', gap: 4,
+                                                    whiteSpace: 'nowrap', flexShrink: 0,
+                                                }}>
+                                                    <StIcon size={11} /> {st.label}
                                                 </span>
                                             </div>
 
-                                            {/* Mini pipeline visual */}
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                {AMB_ST.map((s, si) => (
-                                                    <div key={s.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                                        <div style={{
-                                                            height: 4, width: '100%', borderRadius: 2,
-                                                            background: si <= currentIdx ? st.color : '#e2e8f0',
-                                                            transition: 'background 0.2s',
-                                                        }} />
-                                                        <span style={{ fontSize: 9, color: si <= currentIdx ? st.color : '#cbd5e1', marginTop: 3, whiteSpace: 'nowrap' }}>
-                                                            {s.label}
-                                                        </span>
-                                                    </div>
-                                                ))}
+                                            {/* Mini pipeline with connected dots */}
+                                            <div style={{ display: 'flex', alignItems: 'center', position: 'relative', padding: '0 4px' }}>
+                                                {AMB_ST.map((s, si) => {
+                                                    const isActive = si <= currentIdx;
+                                                    const isCurrent = si === currentIdx;
+                                                    return (
+                                                        <div key={s.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                                                            {/* Connecting line (not on first item) */}
+                                                            {si > 0 && (
+                                                                <div style={{
+                                                                    position: 'absolute', top: 7, right: '50%', width: '100%', height: 2,
+                                                                    background: si <= currentIdx ? st.color : '#e2e8f0',
+                                                                    transition: 'background 0.3s',
+                                                                    zIndex: 0,
+                                                                }} />
+                                                            )}
+                                                            {/* Dot */}
+                                                            <div style={{
+                                                                position: 'relative', zIndex: 1,
+                                                                width: isCurrent ? 16 : 10,
+                                                                height: isCurrent ? 16 : 10,
+                                                                borderRadius: '50%',
+                                                                background: isActive ? st.color : '#e2e8f0',
+                                                                border: isCurrent ? `3px solid ${st.color}30` : 'none',
+                                                                boxShadow: isCurrent ? `0 0 0 4px ${st.color}18` : 'none',
+                                                                transition: 'all 0.3s',
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                            }}>
+                                                                {isCurrent && (
+                                                                    <div style={{
+                                                                        width: 6, height: 6, borderRadius: '50%',
+                                                                        background: '#fff',
+                                                                    }} />
+                                                                )}
+                                                            </div>
+                                                            {/* Label */}
+                                                            <span style={{
+                                                                fontSize: 9, marginTop: 5,
+                                                                color: isActive ? st.color : '#cbd5e1',
+                                                                fontWeight: isCurrent ? 700 : 500,
+                                                                whiteSpace: 'nowrap',
+                                                                transition: 'color 0.3s',
+                                                            }}>
+                                                                {s.label}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     );

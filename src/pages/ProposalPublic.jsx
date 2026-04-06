@@ -8,6 +8,9 @@ export default function ProposalPublic({ token, isPreview = false }) {
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
     const [copied, setCopied] = useState(false);
+    const [aprovado, setAprovado] = useState(false);
+    const [aprovando, setAprovando] = useState(false);
+    const [aprovadoEm, setAprovadoEm] = useState(null);
     const iframeRef = useRef(null);
     const heartbeatRef = useRef(null);
     const startTime = useRef(Date.now());
@@ -25,6 +28,7 @@ export default function ProposalPublic({ token, isPreview = false }) {
                 if (d.error) { setError(d.error); return; }
                 setHtml(d.html_proposta || '');
                 setMeta({ empresa_nome: d.empresa_nome, numero: d.numero, cliente_nome: d.cliente_nome, cor_primaria: d.cor_primaria || '#1B2A4A', cor_accent: d.cor_accent || '#C9A96E' });
+                if (d.aprovado_em) { setAprovado(true); setAprovadoEm(d.aprovado_em); }
             })
             .catch(() => setError('Não foi possível carregar a proposta'))
             .finally(() => setLoading(false));
@@ -412,6 +416,70 @@ export default function ProposalPublic({ token, isPreview = false }) {
                     }}
                 />
             </div>
+
+            {/* ─── Aceite Digital ─────────────────────────────────── */}
+            {!isPreview && (
+                <div className="no-print" style={{ maxWidth: 900, margin: '0 auto 16px', padding: '0 8px' }}>
+                    {aprovado ? (
+                        <div style={{
+                            background: '#f0fdf4', border: '1px solid #bbf7d0',
+                            borderRadius: 12, padding: '24px 28px', textAlign: 'center',
+                            boxShadow: '0 2px 12px rgba(34,197,94,0.08)',
+                        }}>
+                            <div style={{
+                                width: 48, height: 48, borderRadius: '50%', background: '#22c55e',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                margin: '0 auto 12px',
+                            }}>
+                                <CheckCircle2 size={24} color="#fff" />
+                            </div>
+                            <h3 style={{ color: '#15803d', fontSize: 18, fontWeight: 700, margin: '0 0 6px' }}>
+                                Proposta Aprovada
+                            </h3>
+                            <p style={{ color: '#4ade80', fontSize: 13, margin: 0 }}>
+                                Aprovada em {aprovadoEm ? new Date(aprovadoEm).toLocaleString('pt-BR') : '—'}
+                            </p>
+                        </div>
+                    ) : (
+                        <div style={{
+                            background: '#fff', border: `2px solid ${meta?.cor_primaria || '#1B2A4A'}20`,
+                            borderRadius: 12, padding: '28px 28px', textAlign: 'center',
+                            boxShadow: '0 2px 16px rgba(0,0,0,0.06)',
+                        }}>
+                            <h3 style={{ color: '#1e293b', fontSize: 18, fontWeight: 700, margin: '0 0 8px' }}>
+                                Aprovar Proposta
+                            </h3>
+                            <p style={{ color: '#64748b', fontSize: 13, margin: '0 0 20px', maxWidth: 500, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>
+                                Ao clicar no botão abaixo, você confirma que revisou e aceita os termos desta proposta comercial.
+                            </p>
+                            <button
+                                disabled={aprovando}
+                                onClick={async () => {
+                                    setAprovando(true);
+                                    try {
+                                        const r = await fetch(`/api/portal/aprovar/${token}`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+                                        const d = await r.json();
+                                        if (d.ok) { setAprovado(true); setAprovadoEm(d.aprovado_em || new Date().toISOString()); }
+                                    } catch {}
+                                    setAprovando(false);
+                                }}
+                                style={{
+                                    background: aprovando ? '#94a3b8' : '#22c55e',
+                                    color: '#fff', border: 'none', padding: '14px 40px',
+                                    borderRadius: 10, fontSize: 15, fontWeight: 700,
+                                    cursor: aprovando ? 'wait' : 'pointer',
+                                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                                    transition: 'all 0.2s',
+                                    boxShadow: '0 4px 12px rgba(34,197,94,0.3)',
+                                }}
+                            >
+                                <CheckCircle2 size={18} />
+                                {aprovando ? 'Processando...' : 'Aprovar Proposta'}
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Rodapé */}
             <div className="no-print" style={{ textAlign: 'center', padding: '16px 0 32px', fontSize: 11, color: '#94a3b8' }}>

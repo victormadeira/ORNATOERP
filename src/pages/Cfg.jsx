@@ -208,6 +208,8 @@ export default function Cfg({ taxas, reload, notify }) {
     const [portfolio, setPortfolio] = useState([]);
     const [portEdit, setPortEdit] = useState(null); // { titulo, designer, descricao, imagem } or null
     const portImgRef = useRef();
+    const [depoimentos, setDepoimentos] = useState([]);
+    const [depEdit, setDepEdit] = useState(null); // { nome_cliente, texto, estrelas } or null
 
     useEffect(() => {
         api.get('/config/empresa').then(d => {
@@ -278,9 +280,11 @@ export default function Cfg({ taxas, reload, notify }) {
             });
         }).catch(e => notify(e.error || 'Erro ao carregar configurações'));
         api.get('/portfolio').then(setPortfolio).catch(e => notify(e.error || 'Erro ao carregar portfolio'));
+        api.get('/depoimentos').then(setDepoimentos).catch(() => {});
     }, []);
 
     const loadPortfolio = () => api.get('/portfolio').then(setPortfolio).catch(e => notify(e.error || 'Erro ao carregar portfolio'));
+    const loadDepoimentos = () => api.get('/depoimentos').then(setDepoimentos).catch(() => {});
 
     const totalTaxas = (tx.imp || 0) + (tx.com || 0) + (tx.mont || 0) + (tx.lucro || 0) + (tx.frete || 0) + (tx.inst || 0);
 
@@ -442,6 +446,7 @@ export default function Cfg({ taxas, reload, notify }) {
                 {sectionBtn('ia', 'Inteligência Artificial', <Ic.Sparkles />)}
                 {sectionBtn('landing', 'Landing Page', <Ic.Star />)}
                 {sectionBtn('portfolio', 'Portfolio', <Images size={16} />)}
+                {sectionBtn('depoimentos', 'Depoimentos', <Ic.Star />)}
                 {sectionBtn('etapas', 'Etapas do Projeto', <CheckCircle2 size={16} />)}
                 {sectionBtn('custos', 'Centro de Custo', <Ic.Dollar />)}
                 {sectionBtn('backup', 'Backup', <Database size={16} />)}
@@ -2277,6 +2282,160 @@ export default function Cfg({ taxas, reload, notify }) {
                         <div className="mt-4 p-3 rounded-lg text-xs" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
                             Estas fotos aparecem na <strong>apresentação da proposta</strong> (link de experiência completa).
                             Recomendamos de 3 a 6 projetos com fotos de alta qualidade.
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══ SEÇÃO: Depoimentos ═══ */}
+            {activeSection === 'depoimentos' && (
+                <div className="max-w-3xl">
+                    <div className={Z.card}>
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
+                                    <Ic.Star style={{ color: 'var(--primary)' }} />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Depoimentos</h3>
+                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Depoimentos de clientes que aparecem na apresentação da proposta</p>
+                                </div>
+                            </div>
+                            {isGerente && !depEdit && (
+                                <button
+                                    onClick={() => setDepEdit({ nome_cliente: '', texto: '', estrelas: 5 })}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                                    style={{ background: 'var(--primary)' }}
+                                >
+                                    <Plus size={14} /> Adicionar
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Form add/edit */}
+                        {depEdit && (
+                            <div className="p-4 rounded-xl mb-4" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                    <div>
+                                        <label className={Z.lbl}>Nome do Cliente</label>
+                                        <input className={Z.inp} value={depEdit.nome_cliente} onChange={e => setDepEdit({ ...depEdit, nome_cliente: e.target.value })} placeholder="Ex: Maria e João Silva" />
+                                    </div>
+                                    <div>
+                                        <label className={Z.lbl}>Estrelas (1 a 5)</label>
+                                        <div className="flex items-center gap-1 mt-1">
+                                            {[1,2,3,4,5].map(n => (
+                                                <button key={n} type="button" onClick={() => setDepEdit({ ...depEdit, estrelas: n })}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+                                                    <svg width="24" height="24" viewBox="0 0 24 24" fill={n <= (depEdit.estrelas || 5) ? '#f59e0b' : '#e2e8f0'}>
+                                                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                                                    </svg>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mb-3">
+                                    <label className={Z.lbl}>Depoimento</label>
+                                    <textarea className={Z.inp} rows={3} value={depEdit.texto} onChange={e => setDepEdit({ ...depEdit, texto: e.target.value })} placeholder="O texto do depoimento do cliente..." />
+                                </div>
+                                <div className="flex gap-2 mt-3">
+                                    <button
+                                        onClick={async () => {
+                                            if (!depEdit.texto?.trim()) { notify?.('Escreva o depoimento'); return; }
+                                            try {
+                                                if (depEdit.id) {
+                                                    await api.put(`/depoimentos/${depEdit.id}`, depEdit);
+                                                } else {
+                                                    await api.post('/depoimentos', depEdit);
+                                                }
+                                                notify?.('Depoimento salvo!');
+                                                setDepEdit(null);
+                                                loadDepoimentos();
+                                            } catch (ex) { notify?.(ex.error || 'Erro ao salvar'); }
+                                        }}
+                                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white"
+                                        style={{ background: 'var(--primary)' }}
+                                    >
+                                        <Check size={14} /> {depEdit.id ? 'Atualizar' : 'Salvar'}
+                                    </button>
+                                    <button
+                                        onClick={() => setDepEdit(null)}
+                                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold"
+                                        style={{ color: 'var(--text-muted)' }}
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* List */}
+                        {depoimentos.length === 0 && !depEdit ? (
+                            <div className="py-10 text-center text-xs rounded-lg" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                                <Ic.Star className="mx-auto mb-2 opacity-40" />
+                                Nenhum depoimento cadastrado.<br />
+                                <span className="opacity-70">Adicione depoimentos de clientes para exibir na apresentação.</span>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-3">
+                                {depoimentos.map((dep, i) => (
+                                    <div key={dep.id} className="flex items-start gap-3 p-3 rounded-xl" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <div className="flex gap-0.5">
+                                                    {[1,2,3,4,5].map(n => (
+                                                        <svg key={n} width="14" height="14" viewBox="0 0 24 24" fill={n <= dep.estrelas ? '#f59e0b' : '#e2e8f0'}>
+                                                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                                                        </svg>
+                                                    ))}
+                                                </div>
+                                                <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{dep.nome_cliente || 'Cliente'}</span>
+                                            </div>
+                                            <p className="text-xs" style={{ color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
+                                                &ldquo;{dep.texto.length > 120 ? dep.texto.slice(0, 120) + '...' : dep.texto}&rdquo;
+                                            </p>
+                                        </div>
+                                        {isGerente && (
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <button onClick={async () => {
+                                                    if (i === 0) return;
+                                                    const ids = depoimentos.map(x => x.id);
+                                                    [ids[i], ids[i - 1]] = [ids[i - 1], ids[i]];
+                                                    await api.put('/depoimentos/reorder', { ids });
+                                                    loadDepoimentos();
+                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }} title="Mover para cima">
+                                                    <ArrowUp size={14} />
+                                                </button>
+                                                <button onClick={async () => {
+                                                    if (i === depoimentos.length - 1) return;
+                                                    const ids = depoimentos.map(x => x.id);
+                                                    [ids[i], ids[i + 1]] = [ids[i + 1], ids[i]];
+                                                    await api.put('/depoimentos/reorder', { ids });
+                                                    loadDepoimentos();
+                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }} title="Mover para baixo">
+                                                    <ArrowDown size={14} />
+                                                </button>
+                                                <button onClick={() => setDepEdit({ ...dep })} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--primary)' }} title="Editar">
+                                                    <Pencil size={14} />
+                                                </button>
+                                                <button onClick={async () => {
+                                                    if (!confirm('Remover este depoimento?')) return;
+                                                    await api.del(`/depoimentos/${dep.id}`);
+                                                    notify?.('Depoimento removido');
+                                                    loadDepoimentos();
+                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: '#ef4444' }} title="Excluir">
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="mt-4 p-3 rounded-lg text-xs" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                            Os depoimentos aparecem na <strong>apresentação da proposta</strong> (link de experiência completa).
+                            Se nenhum depoimento estiver cadastrado, a seção não aparecerá.
                         </div>
                     </div>
                 </div>
