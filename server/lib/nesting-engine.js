@@ -1229,6 +1229,70 @@ export function compactBin(bin, binW, binH, kerf, spacing, splitDir) {
             }
         }
     }
+
+    // Phase 4: Post-compaction safety — verify no overlaps or out-of-bounds
+    verifyAndRepairBin(bin, binW, binH, kerf, spacing);
+}
+
+// ─── Verificação e reparo de sobreposição pós-nesting ────────────
+// Detecta peças sobrepostas ou fora dos limites e corrige
+export function verifyAndRepairBin(bin, binW, binH, kerf, spacing) {
+    if (!bin.usedRects || bin.usedRects.length <= 1) return;
+    const pieces = bin.usedRects;
+    const k = Math.max(kerf || 0, spacing || 0);
+
+    // 1. Clamp — garantir que nenhuma peça saia da chapa
+    for (const p of pieces) {
+        const pw = p.realW || p.w, ph = p.realH || p.h;
+        if (p.x < 0) p.x = 0;
+        if (p.y < 0) p.y = 0;
+        if (p.x + pw > binW) p.x = Math.max(0, binW - pw);
+        if (p.y + ph > binH) p.y = Math.max(0, binH - ph);
+    }
+
+    // 2. Detectar e resolver sobreposições (iterativo, max 30 passadas)
+    for (let pass = 0; pass < 30; pass++) {
+        let hadOverlap = false;
+        for (let i = 0; i < pieces.length; i++) {
+            const a = pieces[i];
+            const aw = a.realW || a.w, ah = a.realH || a.h;
+            for (let j = i + 1; j < pieces.length; j++) {
+                const b = pieces[j];
+                const bw = b.realW || b.w, bh = b.realH || b.h;
+                // Checar sobreposição (com tolerância de kerf)
+                const overlapX = Math.min(a.x + aw, b.x + bw) - Math.max(a.x, b.x);
+                const overlapY = Math.min(a.y + ah, b.y + bh) - Math.max(a.y, b.y);
+                if (overlapX > 0.5 && overlapY > 0.5) {
+                    hadOverlap = true;
+                    // Empurrar a peça menor (por área)
+                    const areaA = aw * ah, areaB = bw * bh;
+                    const mover = areaA <= areaB ? a : b;
+                    const fixa = areaA <= areaB ? b : a;
+                    const fixaW = fixa === a ? aw : bw;
+                    const fixaH = fixa === a ? ah : bh;
+                    const moverW = mover === a ? aw : bw;
+                    const moverH = mover === a ? ah : bh;
+                    // Tentar empurrar no eixo com menos overlap
+                    if (overlapX <= overlapY) {
+                        // Empurrar horizontalmente
+                        if (mover.x < fixa.x) {
+                            mover.x = Math.max(0, fixa.x - moverW - k);
+                        } else {
+                            mover.x = Math.min(binW - moverW, fixa.x + fixaW + k);
+                        }
+                    } else {
+                        // Empurrar verticalmente
+                        if (mover.y < fixa.y) {
+                            mover.y = Math.max(0, fixa.y - moverH - k);
+                        } else {
+                            mover.y = Math.min(binH - moverH, fixa.y + fixaH + k);
+                        }
+                    }
+                }
+            }
+        }
+        if (!hadOverlap) break;
+    }
 }
 
 // ─── Nesting pass genérico (4 tipos de bin) ──────────────────────

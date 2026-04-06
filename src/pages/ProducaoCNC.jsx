@@ -9076,6 +9076,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                             const isSelected = selectedPieces.includes(pi);
                             const isDragging = dragging?.pecaIdx === pi;
                             const isLocked = p.locked || chapa.locked;
+                            const pieceClipId = `piece-clip-${idx}-${pi}`;
 
                             // Dynamic colors during drag
                             let fillColor = color, strokeClr = color, strokeW = isHovered ? 2.5 : 1;
@@ -9105,26 +9106,13 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
 
                                         // Case 1: nesting contour from optimizer
                                         if (p.contour && p.contour.length >= 3) {
-                                            // Detect contour coordinate space mismatch:
-                                            // If contour max dimensions don't match p.w/p.h, auto-correct
-                                            let contPts = p.contour;
-                                            let maxCX = Math.max(...contPts.map(v => v.x));
-                                            let maxCY = Math.max(...contPts.map(v => v.y));
-                                            // Check if contour axes are swapped relative to piece dimensions
-                                            if (maxCX > 0 && maxCY > 0) {
-                                                const ratioNormal = Math.max(maxCX / p.w, maxCY / p.h);
-                                                const ratioSwapped = Math.max(maxCY / p.w, maxCX / p.h);
-                                                if (ratioSwapped < ratioNormal * 0.7 && ratioNormal > 1.3) {
-                                                    // Axes are swapped — swap x/y to fix
-                                                    contPts = contPts.map(v => ({ x: v.y, y: v.x }));
-                                                    const tmp = maxCX; maxCX = maxCY; maxCY = tmp;
-                                                }
-                                            }
-                                            // Use contour's own extent for normalization so the shape
-                                            // fills the piece bounding box realistically (contour coords
-                                            // may differ from p.w/p.h which include fita de borda)
-                                            const extX = maxCX || p.w;
-                                            const extY = maxCY || p.h;
+                                            // Contour is in piece LOCAL coords: x=comprimento, y=largura (y=0 at bottom)
+                                            const extX = Math.max(...p.contour.map(v => v.x)) || p.w;
+                                            const extY = Math.max(...p.contour.map(v => v.y)) || p.h;
+                                            // Detect rotation by comparing placed dims with contour extent
+                                            const cRotMatchW = Math.abs(p.w - extY) <= 2;
+                                            const cRotMatchH = Math.abs(p.w - extX) <= 2;
+                                            const cIsRot = (cRotMatchW && !cRotMatchH) ? true : (cRotMatchH && !cRotMatchW) ? false : p.rotated;
                                             return (
                                                 <>
                                                     <defs>
@@ -9136,7 +9124,15 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                                         fill={fillColor} fillOpacity={isDragging ? 0.15 : 0.25}
                                                         stroke="#999" strokeWidth={0.4} strokeDasharray="3 2" />
                                                     <polygon clipPath={`url(#${pieceClipId})`}
-                                                        points={contPts.map(v => `${px + (v.x / extX) * pw},${py + (p.rotated ? (v.y / extY) * ph : (1 - v.y / extY) * ph)}`).join(' ')}
+                                                        points={p.contour.map(v => {
+                                                            if (cIsRot) {
+                                                                // Rotation: swap axes + same transform as toSvg
+                                                                // Contour Y → screen X, Contour X → screen Y (inverted)
+                                                                return `${px + (v.y / extY) * pw},${py + (1 - v.x / extX) * ph}`;
+                                                            }
+                                                            // Non-rotated: Y-flip (contour Y=0 is bottom, SVG Y=0 is top)
+                                                            return `${px + (v.x / extX) * pw},${py + (1 - v.y / extY) * ph}`;
+                                                        }).join(' ')}
                                                         fill={fillColor} fillOpacity={isDragging ? 0.3 : isHovered ? 0.85 : 0.65}
                                                         stroke={strokeC} strokeWidth={isDragging ? strokeW : isHovered ? 2.5 : 2} />
                                                 </>
@@ -9175,17 +9171,21 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                                         // buildOutlineWithCuts works in shape space [0..SX, 0..SZ]
                                                         // Use piece original dimensions as shape space
                                                         const outline = buildMillingOutline(compOrig, largOrig, openPaths);
-                                                        // Scale from piece original dimensions to pixel space
-                                                        // Use original dimensions (not p.w/p.h which may include fita)
-                                                        const sX = pw / compOrig, sY = ph / largOrig;
+                                                        // Detect rotation by comparing placed dimensions with original
+                                                        const wMatchC = Math.abs(p.w - compOrig) <= 1;
+                                                        const wMatchL = Math.abs(p.w - largOrig) <= 1;
+                                                        const isRot = (wMatchL && !wMatchC) ? true : (wMatchC && !wMatchL) ? false : p.rotated;
                                                         const svgPts = outline.map(pt => {
                                                             let svgX, svgY;
-                                                            if (p.rotated) {
-                                                                svgX = pt[1] * sX;
-                                                                svgY = (largOrig - pt[0]) * sY;
+                                                            if (isRot) {
+                                                                // Rotation: outline Y→screen X, outline X→screen Y (inverted)
+                                                                // Same transform as toSvg: lx=my, ly=comp-mx
+                                                                svgX = pt[1] * (pw / largOrig);
+                                                                svgY = (compOrig - pt[0]) * (ph / compOrig);
                                                             } else {
-                                                                svgX = pt[0] * sX;
-                                                                svgY = (largOrig - pt[1]) * sY;
+                                                                // Non-rotated: Y-flip (outline Y=0 is bottom, SVG Y=0 is top)
+                                                                svgX = pt[0] * (pw / compOrig);
+                                                                svgY = (largOrig - pt[1]) * (ph / largOrig);
                                                             }
                                                             return `${px + svgX},${py + svgY}`;
                                                         }).join(' ');
@@ -9277,163 +9277,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                             style={{ pointerEvents: 'none' }} />
                                     )}
 
-                                    {/* ══ Machining operations visualization ══ */}
-                                    {piece?.machining_json && piece.machining_json !== '{}' && pw > 20 && ph > 20 && (() => {
-                                        try {
-                                            const mach = JSON.parse(piece.machining_json);
-                                            if (!mach.workers) return null;
-                                            const wArr = Array.isArray(mach.workers) ? mach.workers : Object.values(mach.workers);
-                                            if (wArr.length === 0) return null;
-
-                                            const sX = pw / p.w, sY = ph / p.h;
-                                            const cX = v => Math.max(0, Math.min(v, pw));
-                                            const cY = v => Math.max(0, Math.min(v, ph));
-                                            const clipId = `mclip-${idx}-${pi}`;
-
-                                            return (
-                                                <g style={{ pointerEvents: 'none' }}>
-                                                    <defs>
-                                                        <clipPath id={clipId}>
-                                                            <rect x={px} y={py} width={pw} height={ph} />
-                                                        </clipPath>
-                                                    </defs>
-                                                    <g clipPath={`url(#${clipId})`}>
-                                                        {wArr.map((w, wi) => {
-                                                            // Skip edge operations (left/right/front/rear)
-                                                            const face = (w.face || w.quadrant || '').toLowerCase();
-                                                            if (['left', 'right', 'front', 'rear', 'back'].includes(face)) return null;
-                                                            if (w.is_edge_operation) return null;
-                                                            // Skip ghost workers (sem posição)
-                                                            if (w._no_position) return null;
-
-                                                            // Color by side: blue = side A (top), orange = side B (bottom)
-                                                            const isTopFace = face === 'top' || face === 'side_a' || !face;
-                                                            const opColor = isTopFace ? '#2563eb' : '#f59e0b';
-                                                            const opColorStroke = isTopFace ? '#1d4ed8' : '#d97706';
-
-                                                            // Calculate position
-                                                            let wx = 0, wy = 0;
-                                                            if (w.x != null || w.position_x != null) {
-                                                                const rawX = w.x ?? w.position_x ?? 0;
-                                                                const rawY = w.y ?? w.position_y ?? 0;
-                                                                if (p.rotated) {
-                                                                    // Rotated 90° CW: Y→X (same dir, no flip), X→Y (inverted)
-                                                                    wx = cX(rawY * sX);
-                                                                    wy = cY((p.h - rawX) * sY);
-                                                                } else {
-                                                                    // Non-rotated: Y-axis flip (WPS Y=0 bottom → SVG Y=0 top)
-                                                                    wx = cX(rawX * sX);
-                                                                    wy = cY((p.h - rawY) * sY);
-                                                                }
-                                                            } else {
-                                                                return null; // No position data
-                                                            }
-
-                                                            const cat = (w.category || '').toLowerCase();
-                                                            const tc = (w.tool_code || w.tool || '').toLowerCase();
-
-                                                            // Saw cut (rasgo) — line with pos_start/end
-                                                            if ((cat.includes('saw_cut') || tc === 'r_f') && w.pos_start_for_line) {
-                                                                let sx2, sy2, ex2, ey2;
-                                                                const spx = w.pos_start_for_line.position_x ?? w.pos_start_for_line.x ?? 0;
-                                                                const spy = w.pos_start_for_line.position_y ?? w.pos_start_for_line.y ?? 0;
-                                                                const epx = w.pos_end_for_line?.position_x ?? w.pos_end_for_line?.x ?? spx;
-                                                                const epy = w.pos_end_for_line?.position_y ?? w.pos_end_for_line?.y ?? spy;
-                                                                if (p.rotated) {
-                                                                    // Rotated 90° CW: Y→X (no flip), X→Y (inverted)
-                                                                    sx2 = cX(spy * sX);
-                                                                    sy2 = cY((p.h - spx) * sY);
-                                                                    ex2 = cX(epy * sX);
-                                                                    ey2 = cY((p.h - epx) * sY);
-                                                                } else {
-                                                                    // Non-rotated: Y-flip
-                                                                    sx2 = cX(spx * sX);
-                                                                    sy2 = cY((p.h - spy) * sY);
-                                                                    ex2 = cX(epx * sX);
-                                                                    ey2 = cY((p.h - epy) * sY);
-                                                                }
-                                                                const lineW = Math.max(1, (w.width_line || w.width || 3) * Math.min(sX, sY));
-                                                                return (
-                                                                    <line key={wi} x1={px + sx2} y1={py + sy2} x2={px + ex2} y2={py + ey2}
-                                                                        stroke={opColor} strokeWidth={Math.max(lineW, 1.5)} opacity={0.8} />
-                                                                );
-                                                            }
-
-                                                            // Saw cut/rasgo with x/y + length (simple format)
-                                                            if ((cat.includes('saw_cut') || tc === 'r_f') && w.length) {
-                                                                const rawX = w.x ?? w.position_x ?? 0;
-                                                                const rawY = w.y ?? w.position_y ?? 0;
-                                                                const grooveLen = Number(w.length);
-                                                                const endX = rawX + grooveLen;
-                                                                let sx2, sy2, ex2, ey2;
-                                                                if (p.rotated) {
-                                                                    // Rotated 90° CW: Y→X (no flip), X→Y (inverted)
-                                                                    sx2 = cX(rawY * sX);
-                                                                    sy2 = cY((p.h - rawX) * sY);
-                                                                    ex2 = cX(rawY * sX);
-                                                                    ey2 = cY((p.h - endX) * sY);
-                                                                } else {
-                                                                    // Non-rotated: Y-flip
-                                                                    sx2 = cX(rawX * sX);
-                                                                    sy2 = cY((p.h - rawY) * sY);
-                                                                    ex2 = cX(endX * sX);
-                                                                    ey2 = cY((p.h - rawY) * sY);
-                                                                }
-                                                                const lineW = Math.max(1, (w.width_line || w.width || 3) * Math.min(sX, sY));
-                                                                return (
-                                                                    <line key={wi} x1={px + sx2} y1={py + sy2} x2={px + ex2} y2={py + ey2}
-                                                                        stroke={opColor} strokeWidth={Math.max(lineW, 1.5)} opacity={0.8} />
-                                                                );
-                                                            }
-
-                                                            // Groove/rasgo with path
-                                                            if (w.path && w.path.length >= 2) {
-                                                                const pts = w.path.map(pt => {
-                                                                    // Rotated: Y→X (no flip), X→Y (inverted). Non-rotated: Y-flip.
-                                                                    const gx = p.rotated ? cX(pt.y * sX) : cX(pt.x * sX);
-                                                                    const gy = p.rotated ? cY((p.h - pt.x) * sY) : cY((p.h - pt.y) * sY);
-                                                                    return `${px + gx},${py + gy}`;
-                                                                }).join(' ');
-                                                                const lineW = Math.max(1.5, (w.width || w.diameter || 3) * Math.min(sX, sY));
-                                                                return (
-                                                                    <polyline key={wi} points={pts}
-                                                                        fill="none" stroke={opColor} strokeWidth={lineW}
-                                                                        opacity={0.75} strokeLinecap="round" />
-                                                                );
-                                                            }
-
-                                                            // Pocket/rebaixo — rectangle
-                                                            if (cat.includes('pocket') || cat.includes('rebaixo') || cat.includes('milling') || tc.includes('rb_') || tc.includes('pocket')) {
-                                                                const rw = Math.max(4, (w.width || w.length || w.diameter || 10) * Math.min(sX, sY));
-                                                                const rh = Math.max(4, (w.height || w.depth || w.diameter || 10) * Math.min(sX, sY));
-                                                                return (
-                                                                    <rect key={wi} x={px + wx - rw/2} y={py + wy - rh/2}
-                                                                        width={rw} height={rh}
-                                                                        fill="#f97316" fillOpacity={0.35}
-                                                                        stroke="#ea580c" strokeWidth={1.2}
-                                                                        strokeDasharray="3 1.5" />
-                                                                );
-                                                            }
-
-                                                            // Default: hole/drill — circle (exclude millings with diameter from width_tool)
-                                                            if (w.diameter && !cat.includes('milling')) {
-                                                                // Tamanho real: raio = (diâmetro/2) * escala
-                                                                const holeScale = Math.min(sX, sY);
-                                                                const r = Math.max(0.8, (w.diameter / 2) * holeScale);
-                                                                return (
-                                                                    <circle key={wi} cx={px + wx} cy={py + wy} r={r}
-                                                                        fill={opColor} fillOpacity={0.6}
-                                                                        stroke={opColorStroke} strokeWidth={0.8} />
-                                                                );
-                                                            }
-
-                                                            return null;
-                                                        })}
-                                                    </g>
-                                                </g>
-                                            );
-                                        } catch { return null; }
-                                    })()}
+                                    {/* Machining operations rendered by renderMachining() below with smart rotation detection */}
 
                                     {/* Lado ativo indicator — A↑ or B↑ */}
                                     {pw > 30 && ph > 22 && piece?.machining_json && piece.machining_json !== '{}' && (() => {
