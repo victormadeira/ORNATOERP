@@ -1155,6 +1155,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                     animation: ganttBarShine 2.4s ease-in-out infinite;
                 }
                 .portal-card { animation: fadeUp 0.4s ease; max-width: 800px; margin: 0 auto; }
+                .portal-card button { border: 0; outline: none; box-shadow: none; }
                 @media print { body { background: white !important; } .no-print { display: none !important; } }
             `}</style>
 
@@ -1263,9 +1264,9 @@ export default function PortalCliente({ token, isPreview = false }) {
                     // Opção B: < 7 dias = destaque verde, 7-30 dias = neutro, > 30 dias = não mostra
                     if (diasAtras > 30) return null;
 
-                    const isRecente = diasAtras < 7;
+                    const isRecente = diasAtras >= 0 && diasAtras < 7;
                     const texto = ultimaAtividade?.descricao || `Etapa "${ultimaEtapaConcluida?.nome}" foi concluída`;
-                    const tempoLabel = diasAtras === 0 ? 'Hoje' : diasAtras === 1 ? 'Ontem' : `Há ${diasAtras} dias`;
+                    const tempoLabel = diasAtras < 0 ? 'Hoje' : diasAtras === 0 ? 'Hoje' : diasAtras === 1 ? 'Ontem' : `Há ${diasAtras} dias`;
 
                     return (
                         <div style={{
@@ -1293,7 +1294,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                 {/* ─── Tab Navigation ──────────────────────────── */}
                 <div className="no-print" style={{
                     background: '#fff', borderBottom: '2px solid #e2e8f0',
-                    display: 'flex', gap: 0, overflowX: 'auto',
+                    display: 'flex', gap: 0,
                     position: 'sticky', top: 0, zIndex: 10,
                 }}>
                     {[
@@ -1304,7 +1305,8 @@ export default function PortalCliente({ token, isPreview = false }) {
                         { id: 'docs', label: 'Documentos', icon: FileText },
                     ].map(t => (
                         <button key={t.id} onClick={() => setTab(t.id)} style={{
-                            padding: '14px 20px', border: 'none', background: 'none',
+                            padding: '14px 20px', border: 0, borderTop: 0, borderLeft: 0, borderRight: 0,
+                            background: 'none', outline: 'none',
                             cursor: 'pointer', fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
                             color: tab === t.id ? primary : '#64748b',
                             borderBottom: tab === t.id ? `2px solid ${primary}` : '2px solid transparent',
