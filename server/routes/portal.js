@@ -237,7 +237,7 @@ router.get('/landing/:token', (req, res) => {
     const portalToken = db.prepare('SELECT * FROM portal_tokens WHERE token = ? AND ativo = 1 AND (expira_em IS NULL OR expira_em > datetime(\'now\'))').get(token);
     if (!portalToken) return res.status(404).json({ error: 'Link inválido ou expirado' });
 
-    const orc = db.prepare('SELECT id, cliente_nome, numero, mods, criado_em FROM orcamentos WHERE id = ?').get(portalToken.orc_id);
+    const orc = db.prepare('SELECT id, cliente_nome, numero, mods_json, criado_em FROM orcamentos WHERE id = ?').get(portalToken.orc_id);
     if (!orc) return res.status(404).json({ error: 'Proposta não encontrada' });
 
     const emp = db.prepare(`
@@ -254,7 +254,7 @@ router.get('/landing/:token', (req, res) => {
     // Calcular data de validade da proposta
     let validade = null;
     try {
-        const mods = orc.mods ? JSON.parse(orc.mods) : {};
+        const mods = orc.mods_json ? JSON.parse(orc.mods_json) : {};
         const dias = mods.validade_dias || parseInt(mods.validade_proposta) || 15;
         const base = orc.criado_em ? new Date(orc.criado_em) : new Date();
         base.setDate(base.getDate() + dias);
