@@ -2839,13 +2839,22 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
         if (!lote.plano_json) return res.status(400).json({ error: 'Lote sem plano de corte' });
 
         const plano = JSON.parse(lote.plano_json);
-        if (!plano.transferencia) plano.transferencia = []; // Área de transferência
+        if (!plano.bandeja) plano.bandeja = {}; // Bandeja por material { "MAT_KEY": [peças...] }
+        // Migrar transferencia antiga para bandeja (retrocompatibilidade)
+        if (plano.transferencia && plano.transferencia.length > 0) {
+            for (const t of plano.transferencia) {
+                const mk = t.fromMaterial || 'unknown';
+                if (!plano.bandeja[mk]) plano.bandeja[mk] = [];
+                plano.bandeja[mk].push(t);
+            }
+            delete plano.transferencia;
+        }
         const { chapaIdx, pecaIdx, action, x, y, targetChapaIdx, force } = req.body;
         const kerf = plano.config?.kerf || 4;
         const moveSpacing = Math.max(kerf, plano.config?.spacing || 0); // Espaçamento efetivo para movimentação
 
         // ── Snapshot transacional antes de ações críticas ──
-        const SNAPSHOT_ACTIONS = ['move_to_sheet', 'from_transfer', 'reoptimize_unlocked',
+        const SNAPSHOT_ACTIONS = ['move_to_sheet', 'from_transfer', 'from_bandeja', 'reoptimize_unlocked',
             'lock_sheet', 'unlock_sheet', 'compact', 're_optimize', 'ajustar_sobra',
             'marcar_refugo', 'merge_sobras', 'recalc_sobras', 'flip'];
         if (SNAPSHOT_ACTIONS.includes(action)) {
@@ -2857,13 +2866,13 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
         }
 
         // ── Gate de trava por chapa ──
-        const SHEET_GATED_ACTIONS = ['move', 'rotate', 'flip', 'to_transfer', 'compact', 're_optimize', 'ajustar_sobra', 'marcar_refugo', 'merge_sobras'];
+        const SHEET_GATED_ACTIONS = ['move', 'rotate', 'flip', 'to_transfer', 'to_bandeja', 'compact', 're_optimize', 'ajustar_sobra', 'marcar_refugo', 'merge_sobras'];
         if (SHEET_GATED_ACTIONS.includes(action) && chapaIdx != null) {
             const lockErr = assertSheetUnlocked(plano, chapaIdx, action);
             if (lockErr) return res.status(423).json(lockErr);
         }
         // Gate para ações com destino
-        if (['move_to_sheet', 'from_transfer'].includes(action) && targetChapaIdx != null) {
+        if (['move_to_sheet', 'from_transfer', 'from_bandeja'].includes(action) && targetChapaIdx != null) {
             const lockErrDest = assertSheetUnlocked(plano, targetChapaIdx, 'receber peça');
             if (lockErrDest) return res.status(423).json(lockErrDest);
         }
@@ -2996,8 +3005,8 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
             peca.y = testPeca.y;
             targetChapa.pecas.push(peca);
 
-        // ═══ ACTION: to_transfer ═══════════════════════════════════════
-        } else if (action === 'to_transfer') {
+        // ═══ ACTION: to_transfer / to_bandeja ═══════════════════════════
+        } else if (action === 'to_transfer' || action === 'to_bandeja') {
             const chapa = plano.chapas[chapaIdx];
             if (!chapa) return res.status(400).json({ error: 'Chapa inválida' });
             const peca = chapa.pecas[pecaIdx];
@@ -3007,34 +3016,29 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
             peca.fromMaterial = chapa.material_code || chapa.material;
             peca.espessura = chapa.espessura;
             peca.veio = chapa.veio;
-            plano.transferencia.push(peca);
+            const matKey = peca.fromMaterial;
+            if (!plano.bandeja[matKey]) plano.bandeja[matKey] = [];
+            plano.bandeja[matKey].push(peca);
 
-        // ═══ ACTION: from_transfer ════════════════════════════════════
-        } else if (action === 'from_transfer') {
-            const { transferIdx } = req.body;
-            if (transferIdx == null || !plano.transferencia[transferIdx]) {
-                return res.status(400).json({ error: 'Peça não encontrada na transferência' });
-            }
+        // ═══ ACTION: from_transfer / from_bandeja ════════════════════════
+        } else if (action === 'from_transfer' || action === 'from_bandeja') {
+            const { transferIdx, bandejaIdx, materialKey } = req.body;
             const targetChapa = plano.chapas[targetChapaIdx];
             if (!targetChapa) return res.status(400).json({ error: 'Chapa destino inválida' });
-            const peca = plano.transferencia[transferIdx];
 
-            // ══ Compatibilidade de material (material_code + espessura + veio) ══
-            const pieceMeta = { material_code: peca.fromMaterial, espessura: peca.espessura, veio: peca.veio || 'sem_veio' };
-            const targetMeta = { material_code: targetChapa.material_code || targetChapa.material, espessura: targetChapa.espessura, veio: targetChapa.veio };
-            if (!isPieceSheetCompatible(pieceMeta, targetMeta)) {
-                return res.status(400).json({
-                    error: `Material incompatível: peça de ${peca.fromMaterial} não pode ir para ${targetChapa.material || targetChapa.material_code}`,
-                    materialMismatch: true
-                });
+            // Determinar material key e índice da peça na bandeja
+            const matKey = materialKey || targetChapa.material_code || targetChapa.material;
+            const bIdx = bandejaIdx ?? transferIdx;
+            if (bIdx == null || !plano.bandeja[matKey] || !plano.bandeja[matKey][bIdx]) {
+                return res.status(400).json({ error: 'Peça não encontrada na bandeja' });
             }
+            const peca = plano.bandeja[matKey][bIdx];
 
             const ref = targetChapa.refilo || 0;
             const targetX = x ?? 0, targetY = y ?? 0;
             const testPeca = { ...peca, x: targetX, y: targetY };
 
             if (!checkBounds(testPeca, targetChapa)) {
-                // Auto-posicionar
                 const pos = findNonCollidingPosition(testPeca, targetChapa.pecas, -1, targetChapa.comprimento, targetChapa.largura, ref, 0);
                 if (!pos) return res.status(409).json({ error: 'Sem espaço na chapa destino' });
                 testPeca.x = pos.x; testPeca.y = pos.y;
@@ -3047,12 +3051,24 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
                 }
             }
 
-            plano.transferencia.splice(transferIdx, 1);
+            plano.bandeja[matKey].splice(bIdx, 1);
+            if (plano.bandeja[matKey].length === 0) delete plano.bandeja[matKey];
             delete peca.fromChapaIdx;
             delete peca.fromMaterial;
             peca.x = testPeca.x;
             peca.y = testPeca.y;
             targetChapa.pecas.push(peca);
+
+        // ═══ ACTION: rotate_bandeja ═══════════════════════════════════
+        } else if (action === 'rotate_bandeja') {
+            const { bandejaIdx, materialKey } = req.body;
+            const matKey = materialKey;
+            if (!matKey || !plano.bandeja[matKey] || !plano.bandeja[matKey][bandejaIdx]) {
+                return res.status(400).json({ error: 'Peça não encontrada na bandeja' });
+            }
+            const bp = plano.bandeja[matKey][bandejaIdx];
+            const tmp = bp.w; bp.w = bp.h; bp.h = tmp;
+            bp.rotated = !bp.rotated;
 
         // ═══ ACTION: lock / unlock (peça individual) ═══════════════════
         } else if (action === 'lock' || action === 'unlock') {
@@ -3207,9 +3223,12 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
                 if (!piecesByMaterial[matKey]) piecesByMaterial[matKey] = { pieces: [], chapa: c };
                 for (const p of c.pecas) piecesByMaterial[matKey].pieces.push(p);
             }
-            for (const t of (plano.transferencia || [])) {
-                const matKey = t.fromMaterial;
-                if (matKey && piecesByMaterial[matKey]) piecesByMaterial[matKey].pieces.push(t);
+            // Incluir peças da bandeja na reotimização
+            for (const [bMatKey, bPieces] of Object.entries(plano.bandeja || {})) {
+                for (const t of bPieces) {
+                    const matKey = t.fromMaterial || bMatKey;
+                    if (matKey && piecesByMaterial[matKey]) piecesByMaterial[matKey].pieces.push(t);
+                }
             }
 
             // Chamar Python para cada grupo de material
@@ -3282,7 +3301,7 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
             // Recompor plano: chapas travadas intactas + resultado novo
             const lockedSheets = plano.chapas.filter(c => c.locked);
             plano.chapas = [...lockedSheets, ...newSheets];
-            plano.transferencia = []; // Peças realocadas
+            plano.bandeja = {}; // Peças realocadas
 
         // ═══ ACTION: merge_sobras ═══════════════════════════════════
         } else if (action === 'merge_sobras') {
@@ -3380,7 +3399,16 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
             const { planoData } = req.body;
             if (!planoData) return res.status(400).json({ error: 'Missing plano data' });
             const restored = typeof planoData === 'string' ? JSON.parse(planoData) : planoData;
-            if (!restored.transferencia) restored.transferencia = [];
+            if (!restored.bandeja) restored.bandeja = {};
+            // Migrar transferencia antiga em snapshots de undo
+            if (restored.transferencia) {
+                for (const t of restored.transferencia) {
+                    const mk = t.fromMaterial || 'unknown';
+                    if (!restored.bandeja[mk]) restored.bandeja[mk] = [];
+                    restored.bandeja[mk].push(t);
+                }
+                delete restored.transferencia;
+            }
             const avgAprov = recalcOccupancy(restored);
             db.prepare('UPDATE cnc_lotes SET plano_json = ?, aproveitamento = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?')
                 .run(JSON.stringify(restored), avgAprov, lote.id);

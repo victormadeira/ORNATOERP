@@ -2531,8 +2531,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
     const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
     // Transfer area + undo/redo + selection
-    const [transferArea, setTransferArea] = useState([]);
-    const [transferOpen, setTransferOpen] = useState(false);
+    const [bandeja, setBandeja] = useState({}); // { materialKey: [peças...] }
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [expandedMats, setExpandedMats] = useState(new Set());
     const [matAction, setMatAction] = useState(null); // { grpKey, action } — tracks open sub-panel per material
@@ -3266,11 +3265,11 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                 try {
                     parsedPlano = JSON.parse(d.plano_json);
                     setPlano(parsedPlano);
-                    setTransferArea(parsedPlano.transferencia || []);
-                } catch (_) { setPlano(null); setTransferArea([]); }
+                    setBandeja(parsedPlano.bandeja || {});
+                } catch (_) { setPlano(null); setBandeja({}); }
             } else {
                 setPlano(null);
-                setTransferArea([]);
+                setBandeja({});
             }
             const map = {};
             for (const p of (d.pecas || [])) map[p.id] = p;
@@ -3991,15 +3990,15 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
             return;
         }
 
-        // ═══ Optimistic local update for to_transfer ═══
-        if (params.action === 'to_transfer' && params.chapaIdx != null && params.pecaIdx != null) {
-            // Capture piece data BEFORE any state updates to avoid stale closure
+        // ═══ Optimistic local update for to_transfer/to_bandeja ═══
+        if ((params.action === 'to_transfer' || params.action === 'to_bandeja') && params.chapaIdx != null && params.pecaIdx != null) {
             const srcChapa = plano.chapas[params.chapaIdx];
             if (!srcChapa || !srcChapa.pecas[params.pecaIdx]) return;
+            const matKey = srcChapa.material_code || srcChapa.material || 'unknown';
             const transferPeca = {
                 ...srcChapa.pecas[params.pecaIdx],
                 fromChapaIdx: params.chapaIdx,
-                fromMaterial: srcChapa.material_code || srcChapa.material,
+                fromMaterial: matKey,
                 espessura: srcChapa.espessura,
                 veio: srcChapa.veio,
             };
@@ -4010,23 +4009,28 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                     if (ci !== params.chapaIdx) return ch;
                     return { ...ch, pecas: ch.pecas.filter((_, pi) => pi !== params.pecaIdx) };
                 });
-                const transferencia = [...(prev.transferencia || []), transferPeca];
-                return { ...prev, chapas, transferencia };
+                const newBandeja = { ...(prev.bandeja || {}) };
+                if (!newBandeja[matKey]) newBandeja[matKey] = [];
+                newBandeja[matKey] = [...newBandeja[matKey], transferPeca];
+                return { ...prev, chapas, bandeja: newBandeja };
             });
-            setTransferArea(prev => [...prev, transferPeca]);
-            setTransferOpen(true); // Auto-abrir painel de transferência
+            setBandeja(prev => {
+                const nb = { ...prev };
+                if (!nb[matKey]) nb[matKey] = [];
+                nb[matKey] = [...nb[matKey], transferPeca];
+                return nb;
+            });
             setPendingChanges(prev => prev + 1);
             api.put(`/cnc/plano/${loteAtual.id}/ajustar`, params).then(r => {
-                // Sync with server state to ensure consistency
                 if (r?.ok && r.plano) {
                     setPlano(r.plano);
-                    setTransferArea(r.plano.transferencia || []);
+                    setBandeja(r.plano.bandeja || {});
                 }
             }).catch(err => {
-                notify('Erro ao enviar para transferência: ' + (err.error || err.message));
+                notify('Erro ao enviar para bandeja: ' + (err.error || err.message));
                 setUndoStack(prev => {
                     const last = prev[prev.length - 1];
-                    if (last) { const restored = JSON.parse(last); setPlano(restored); setTransferArea(restored.transferencia || []); }
+                    if (last) { const restored = JSON.parse(last); setPlano(restored); setBandeja(restored.bandeja || {}); }
                     return prev.slice(0, -1);
                 });
             });
@@ -4037,18 +4041,18 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
         const mainEl = document.querySelector('main');
         const savedScroll = mainEl?.scrollTop ?? 0;
         const restoreScroll = () => {
-            // Use setTimeout to wait for React re-render cycle to complete
+            // Use multiple rAF + timeout to survive React re-render cycles
             const doRestore = () => { if (mainEl) mainEl.scrollTop = savedScroll; };
-            requestAnimationFrame(() => {
-                setTimeout(doRestore, 50);
-            });
+            doRestore();
+            requestAnimationFrame(doRestore);
+            requestAnimationFrame(() => { setTimeout(doRestore, 30); setTimeout(doRestore, 80); setTimeout(doRestore, 150); });
         };
 
         try {
             const r = await api.put(`/cnc/plano/${loteAtual.id}/ajustar`, params);
             if (r.ok) {
                 setPlano(r.plano);
-                setTransferArea(r.plano.transferencia || []);
+                setBandeja(r.plano.bandeja || {});
                 setPendingChanges(prev => prev + 1);
                 if (r.aproveitamento != null) {
                     setLoteAtual(prev => prev ? { ...prev, aproveitamento: r.aproveitamento, total_chapas: r.plano?.chapas?.length || prev.total_chapas } : prev);
@@ -4080,7 +4084,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
         setUndoStack(prev => prev.slice(0, -1));
         const restored = JSON.parse(prevState);
         setPlano(restored);
-        setTransferArea(restored.transferencia || []);
+        setBandeja(restored.bandeja || {});
         setPendingChanges(prev => prev + 1);
         requestAnimationFrame(() => { requestAnimationFrame(() => { if (mainEl) mainEl.scrollTop = savedScroll; }); });
         // Sync to server silently (no re-fetch)
@@ -4100,7 +4104,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
         const restored = JSON.parse(nextState);
         setPlano(restored);
         requestAnimationFrame(() => { requestAnimationFrame(() => { if (mainEl) mainEl.scrollTop = savedScroll; }); });
-        setTransferArea(restored.transferencia || []);
+        setBandeja(restored.bandeja || {});
         setPendingChanges(prev => prev + 1);
         // Sync to server silently (no re-fetch)
         try {
@@ -4615,17 +4619,19 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                                                             <div style={{ display: 'flex', gap: 6 }}>
                                                                                 <button
                                                                                     onClick={() => {
-                                                                                        // Move pieces to transfer area and remove chapas
+                                                                                        // Move pieces to bandeja and remove chapas
                                                                                         const chapaIdxsToRemove = grp.chapas.map(c => c.ci).sort((a, b) => b - a);
-                                                                                        const newTransfer = [...transferArea];
+                                                                                        const newBandeja = { ...bandeja };
                                                                                         chapaIdxsToRemove.forEach(ci => {
                                                                                             const ch = plano.chapas[ci];
                                                                                             if (ch) {
+                                                                                                const mk = ch.material_code || ch.material || 'unknown';
+                                                                                                if (!newBandeja[mk]) newBandeja[mk] = [];
                                                                                                 ch.pecas.forEach(p => {
-                                                                                                    newTransfer.push({
+                                                                                                    newBandeja[mk].push({
                                                                                                         pecaId: p.pecaId || p.id,
                                                                                                         w: p.w, h: p.h,
-                                                                                                        fromMaterial: ch.material_code || ch.material,
+                                                                                                        fromMaterial: mk,
                                                                                                         espessura: ch.espessura,
                                                                                                         veio: ch.veio,
                                                                                                     });
@@ -4633,11 +4639,11 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                                                                             }
                                                                                         });
                                                                                         const newChapas = plano.chapas.filter((_, i) => !chapaIdxsToRemove.includes(i));
-                                                                                        setTransferArea(newTransfer);
-                                                                                        setPlano({ ...plano, chapas: newChapas });
+                                                                                        setBandeja(newBandeja);
+                                                                                        setPlano({ ...plano, chapas: newChapas, bandeja: newBandeja });
                                                                                         setSelectedChapa(Math.min(selectedChapa, Math.max(0, newChapas.length - 1)));
                                                                                         setMatAction(null);
-                                                                                        notify(`${grp.label} removido — ${grpPecas} peças na transferência`, 'info');
+                                                                                        notify(`${grp.label} removido — ${grpPecas} peças na bandeja`, 'info');
                                                                                     }}
                                                                                     style={{ flex: 1, padding: '6px', borderRadius: 5, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>
                                                                                     Confirmar remoção
@@ -4913,6 +4919,11 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                             onPrintSingleLabel={(piece) => setPrintLabelPeca(piece)}
                                             sobraMinW={sobraMinW}
                                             sobraMinH={sobraMinH}
+                                            bandejaPieces={(() => {
+                                                const ch = plano.chapas[selectedChapa];
+                                                const mk = ch?.material_code || ch?.material || '';
+                                                return (bandeja[mk] || []);
+                                            })()}
                                             loteAtual={loteAtual}
                                             onPrintFolha={(chapaIdx) => printFolhaProducao(plano.chapas[chapaIdx], chapaIdx, pecasMap, loteAtual, getModColor, kerf, refilo, plano.chapas.length)}
                                             onSaveRetalhos={async (chapaIdx, retalhos, refugos) => {
@@ -5029,146 +5040,7 @@ function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab })
                                     </div>
                                 )}
 
-                                {/* ═══ PAINEL DE TRANSFERÊNCIA (inline à direita da chapa) ═══ */}
-                                {transferArea.length > 0 && plano && (() => {
-                                    const currentChapa = plano.chapas[selectedChapa];
-                                    const currentMat = currentChapa?.material_code || currentChapa?.material || '';
-                                    const currentEsp = currentChapa?.espessura || 0;
-                                    const currentVeio = currentChapa?.veio || 'sem_veio';
-
-                                    const compatItems = transferArea.map((tp, ti) => {
-                                        const tpMat = tp.fromMaterial || '';
-                                        const tpEsp = tp.espessura || 0;
-                                        const tpVeio = tp.veio || 'sem_veio';
-                                        const compatible = tpMat === currentMat
-                                            && Math.abs(tpEsp - currentEsp) <= 0.1
-                                            && (tpVeio === 'sem_veio' || currentVeio === 'sem_veio' || tpVeio === currentVeio);
-                                        return { ...tp, _idx: ti, _compatible: compatible };
-                                    });
-                                    const compatCount = compatItems.filter(c => c._compatible).length;
-                                    const incompatCount = transferArea.length - compatCount;
-
-                                    return (
-                                        <div style={{
-                                            width: transferOpen ? 220 : 36,
-                                            minWidth: transferOpen ? 220 : 36,
-                                            transition: 'width .2s, min-width .2s',
-                                            borderLeft: '1px solid var(--border)',
-                                            background: 'var(--bg-card)',
-                                            display: 'flex', flexDirection: 'column',
-                                            overflow: 'hidden', borderRadius: '0 8px 8px 0',
-                                        }}>
-                                            {!transferOpen ? (
-                                                <button
-                                                    onClick={() => setTransferOpen(true)}
-                                                    style={{
-                                                        background: 'none', border: 'none', cursor: 'pointer',
-                                                        padding: '12px 0', display: 'flex', flexDirection: 'column',
-                                                        alignItems: 'center', gap: 6, color: 'var(--text-muted)',
-                                                    }}
-                                                    title="Abrir painel de transferência"
-                                                >
-                                                    <ArrowLeftRight size={14} />
-                                                    <span style={{
-                                                        background: compatCount > 0 ? '#1e40af' : '#64748b',
-                                                        color: '#fff', borderRadius: 10,
-                                                        padding: '1px 6px', fontSize: 9, fontWeight: 800,
-                                                        minWidth: 16, textAlign: 'center',
-                                                    }}>{transferArea.length}</span>
-                                                    {compatCount > 0 && (
-                                                        <span style={{ fontSize: 8, color: '#16a34a', fontWeight: 700 }}>
-                                                            {compatCount}✓
-                                                        </span>
-                                                    )}
-                                                </button>
-                                            ) : (
-                                                <>
-                                                    <div style={{
-                                                        padding: '8px 10px', borderBottom: '1px solid var(--border)',
-                                                        background: '#1e293b', color: '#fff',
-                                                        display: 'flex', alignItems: 'center', gap: 6,
-                                                    }}>
-                                                        <ArrowLeftRight size={12} />
-                                                        <span style={{ fontSize: 10, fontWeight: 700, flex: 1 }}>
-                                                            Transferência
-                                                        </span>
-                                                        <button onClick={() => setTransferOpen(false)}
-                                                            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2, display: 'flex' }}
-                                                            title="Minimizar">
-                                                            <X size={13} />
-                                                        </button>
-                                                    </div>
-
-                                                    <div style={{
-                                                        padding: '4px 10px', fontSize: 9, color: 'var(--text-muted)',
-                                                        background: 'var(--bg-muted)', borderBottom: '1px solid var(--border)',
-                                                    }}>
-                                                        {compatCount > 0 ? (
-                                                            <span><b style={{ color: '#16a34a' }}>{compatCount}</b> compatíve{compatCount === 1 ? 'l' : 'is'} c/ esta chapa</span>
-                                                        ) : (
-                                                            <span style={{ color: '#dc2626' }}>Nenhuma compatível c/ esta chapa</span>
-                                                        )}
-                                                        {incompatCount > 0 && (
-                                                            <span style={{ marginLeft: 4, color: '#94a3b8' }}>
-                                                                · {incompatCount} outra{incompatCount > 1 ? 's' : ''}
-                                                            </span>
-                                                        )}
-                                                    </div>
-
-                                                    <div style={{ flex: 1, overflow: 'auto', padding: 6 }}>
-                                                        {compatItems.filter(c => c._compatible).map(tp => {
-                                                            const piece = pecasMap[tp.pecaId];
-                                                            return (
-                                                                <div key={tp._idx} style={{
-                                                                    padding: 6, marginBottom: 4, background: '#f0f9ff',
-                                                                    border: '1px solid #bae6fd', borderRadius: 4, fontSize: 10,
-                                                                }}>
-                                                                    <div style={{ fontWeight: 700, fontSize: 10, color: '#0c4a6e', marginBottom: 1 }}>
-                                                                        {piece?.descricao?.substring(0, 22) || `#${tp.pecaId}`}
-                                                                    </div>
-                                                                    <div style={{ color: '#64748b', fontSize: 9, marginBottom: 4 }}>
-                                                                        {Math.round(tp.w)}×{Math.round(tp.h)}mm
-                                                                    </div>
-                                                                    <button
-                                                                        onClick={() => handleAdjust({ action: 'from_transfer', transferIdx: tp._idx, targetChapaIdx: selectedChapa })}
-                                                                        style={{
-                                                                            padding: '3px 10px', fontSize: 9, fontWeight: 700, borderRadius: 4,
-                                                                            background: '#1e40af', color: '#fff',
-                                                                            border: 'none', cursor: 'pointer', width: '100%',
-                                                                        }}>
-                                                                        ↓ Colocar nesta chapa
-                                                                    </button>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                        {compatItems.filter(c => !c._compatible).length > 0 && (
-                                                            <div style={{ fontSize: 9, color: '#94a3b8', padding: '6px 2px 3px', fontWeight: 600, borderTop: '1px solid var(--border)', marginTop: 4 }}>
-                                                                Incompatíveis (cor/espessura)
-                                                            </div>
-                                                        )}
-                                                        {compatItems.filter(c => !c._compatible).map(tp => {
-                                                            const piece = pecasMap[tp.pecaId];
-                                                            return (
-                                                                <div key={tp._idx} style={{
-                                                                    padding: 5, marginBottom: 3, background: 'var(--bg-muted)',
-                                                                    border: '1px solid var(--border)', borderRadius: 4, fontSize: 10,
-                                                                    opacity: 0.5,
-                                                                }}>
-                                                                    <div style={{ fontWeight: 600, fontSize: 9, color: 'var(--text-muted)' }}>
-                                                                        {piece?.descricao?.substring(0, 22) || `#${tp.pecaId}`}
-                                                                    </div>
-                                                                    <div style={{ color: '#94a3b8', fontSize: 8 }}>
-                                                                        {Math.round(tp.w)}×{Math.round(tp.h)}mm · {tp.fromMaterial || '?'} · {tp.espessura || '?'}mm
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    );
-                                })()}
+                                {/* Sidebar de transferência removida — peças ficam na bandeja visual da chapa */}
                                     </div>
                                     {/* ══ BOTTOM CAROUSEL: Thumbnails das chapas (estilo UPMOBB) ══ */}
                                     <div style={{
@@ -8074,12 +7946,13 @@ function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, pieceH, 
 }
 
 // ─── SVG visualization with collision detection, magnetic snap, kerf, lock, context menu ──
-function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, espacoPecas = 7, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, onGerarGcodePeca, gcodeLoading, onView3D, onPrintLabel, onPrintSingleLabel, onPrintFolha, onSaveRetalhos, setTab, sobraMinW = 300, sobraMinH = 600, validationConflicts = [], machineArea, timerInfo, loteAtual }) {
+function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, espacoPecas = 7, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, onGerarGcodePeca, gcodeLoading, onView3D, onPrintLabel, onPrintSingleLabel, onPrintFolha, onSaveRetalhos, setTab, sobraMinW = 300, sobraMinH = 600, validationConflicts = [], machineArea, timerInfo, loteAtual, bandejaPieces = [] }) {
     const [hovered, setHovered] = useState(null);
     const [showCuts, setShowCuts] = useState(false);
     const [showMachining, setShowMachining] = useState(true);
     const [machTip, setMachTip] = useState(null);
     const [dragging, setDragging] = useState(null);
+    const [draggingBandeja, setDraggingBandeja] = useState(null); // { bandejaIdx, materialKey, w, h, newX, newY }
     const [dragCollision, setDragCollision] = useState(false);
     const [snapGuides, setSnapGuides] = useState([]);
     const [ctxMenu, setCtxMenu] = useState(null);
@@ -8151,10 +8024,9 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
 
     // ─── Transfer tray (bandeja) dimensions ───
     const trayGap = 24; // gap between sheet and tray
-    const trayW = 160; // width of the tray area
+    const trayW = bandejaPieces.length > 0 ? 240 : 160; // wider when pieces present
     const trayX = svgW + trayGap; // X position of tray in SVG coords
     const [trayHover, setTrayHover] = useState(false);
-    const transferPieces = chapa._transferPieces || []; // pieces currently in transfer for this view
 
     // ─── Client-side AABB collision check (com kerf, igual ao backend) ───
     const isColliding = useCallback((tx, ty, tw, th, exIdx) => {
@@ -8396,7 +8268,7 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
         const draggedMM = dragging.newX;
         if (trayHover || draggedMM > chapa.comprimento) {
             // Dropped in tray → send to transfer
-            if (onAdjust) onAdjust({ action: 'to_transfer', chapaIdx: idx, pecaIdx: dragging.pecaIdx });
+            if (onAdjust) onAdjust({ action: 'to_bandeja', chapaIdx: idx, pecaIdx: dragging.pecaIdx });
             setDragging(null); setDragCollision(false); setSnapGuides([]); setTrayHover(false);
             return;
         }
@@ -8420,6 +8292,82 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
     const handleRotate = (pecaIdx) => {
         if (hasVeio || chapa.pecas[pecaIdx]?.locked) return;
         if (onAdjust) onAdjust({ action: 'rotate', chapaIdx: idx, pecaIdx });
+    };
+
+    // ─── Bandeja drag: arrastar peça da bandeja de volta para a chapa ───
+    const handleBandejaDragStart = (e, bi, bp) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const mm = pixelToMM(e.clientX, e.clientY);
+        // Centro da peça = mouse, offset = metade da peça
+        setDraggingBandeja({
+            bandejaIdx: bi,
+            materialKey: bp.fromMaterial || chapa.material_code || chapa.material,
+            w: bp.w, h: bp.h, pecaId: bp.pecaId,
+            // Posição do mouse em mm (centro do ghost)
+            mouseX: mm.x, mouseY: mm.y,
+            newX: mm.x - bp.w / 2, newY: mm.y - bp.h / 2,
+            inSheet: false,
+        });
+        setDragCollision(false);
+        setSnapGuides([]);
+    };
+
+    const handleBandejaDragMove = (e) => {
+        if (!draggingBandeja) return;
+        const mm = pixelToMM(e.clientX, e.clientY);
+        const ref = chapa.refilo || 0;
+        const uW = chapa.comprimento - 2 * ref;
+        const uH = chapa.largura - 2 * ref;
+        const pw = draggingBandeja.w, ph = draggingBandeja.h;
+        // Peça centralizada no mouse
+        let rx = mm.x - pw / 2;
+        let ry = mm.y - ph / 2;
+
+        // Se o CENTRO da peça ainda está fora da chapa, mostrar ghost flutuante (sem snap/colisão)
+        if (mm.x > uW) {
+            setDraggingBandeja(prev => ({ ...prev, mouseX: mm.x, mouseY: mm.y, newX: rx, newY: ry, inSheet: false }));
+            setDragCollision(false);
+            setSnapGuides([]);
+            return;
+        }
+
+        // Dentro da chapa — clamp, snap, collision
+        const maxX = uW - pw, maxY = uH - ph;
+        rx = Math.max(0, Math.min(maxX, rx));
+        ry = Math.max(0, Math.min(maxY, ry));
+        const snap = magneticSnap(rx, ry, pw, ph, -1);
+        rx = Math.round(Math.max(0, Math.min(maxX, snap.x)));
+        ry = Math.round(Math.max(0, Math.min(maxY, snap.y)));
+        setSnapGuides(snap.guides);
+        const collision = isColliding(rx, ry, pw, ph, -1);
+        setDragCollision(collision);
+        setDraggingBandeja(prev => ({ ...prev, mouseX: mm.x, mouseY: mm.y, newX: rx, newY: ry, inSheet: true }));
+    };
+
+    const handleBandejaDragEnd = () => {
+        if (!draggingBandeja) return;
+        const db = draggingBandeja;
+        setDraggingBandeja(null);
+        setDragCollision(false);
+        setSnapGuides([]);
+
+        // Se não está sobre a chapa, cancela
+        if (!db.inSheet) return;
+
+        // Force-snap para posição válida
+        const snapped = forceSnap(db.newX, db.newY, db.w, db.h, -1);
+        if (!snapped.valid) return;
+
+        if (onAdjust) onAdjust({
+            action: 'from_bandeja',
+            materialKey: db.materialKey,
+            bandejaIdx: db.bandejaIdx,
+            targetChapaIdx: idx,
+            x: snapped.x,
+            y: snapped.y,
+        });
     };
 
     // ─── Right-click context menu ───
@@ -8819,13 +8767,13 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
             )}
 
             {/* SVG Canvas with zoom/pan */}
-            <div style={{ overflow: 'hidden', border: `2px solid ${dragCollision ? '#ef4444' : dragging ? '#2563eb' : 'var(--border)'}`, background: '#f8f7f5', position: 'relative', cursor: dragging ? 'grabbing' : isPanningCursor(zoomLevel), transition: 'border-color .15s' }}
+            <div style={{ overflow: 'hidden', border: `2px solid ${dragCollision ? '#ef4444' : (dragging || draggingBandeja) ? '#2563eb' : 'var(--border)'}`, background: '#f8f7f5', position: 'relative', cursor: (dragging || draggingBandeja) ? 'grabbing' : isPanningCursor(zoomLevel), transition: 'border-color .15s' }}
                 onWheel={onWheel}
-                onMouseDown={dragging ? undefined : onPanStart}
-                onMouseMove={dragging ? handleDragMove : onPanMove}
-                onMouseUp={dragging ? handleDragEnd : onPanEnd}
-                onMouseLeave={dragging ? handleDragEnd : onPanEnd}
-                onContextMenu={(e) => { if (!dragging) return; e.preventDefault(); }}>
+                onMouseDown={(dragging || draggingBandeja) ? undefined : onPanStart}
+                onMouseMove={draggingBandeja ? handleBandejaDragMove : dragging ? handleDragMove : onPanMove}
+                onMouseUp={draggingBandeja ? handleBandejaDragEnd : dragging ? handleDragEnd : onPanEnd}
+                onMouseLeave={draggingBandeja ? handleBandejaDragEnd : dragging ? handleDragEnd : onPanEnd}
+                onContextMenu={(e) => { if (dragging || draggingBandeja) { e.preventDefault(); return; } }}>
                 <div style={{
                     transform: `scale(${zoomLevel}) translate(${panOffset.x / zoomLevel}px, ${panOffset.y / zoomLevel}px)`,
                     transformOrigin: 'top left', transition: zoomLevel === 1 ? 'transform .2s' : 'none',
@@ -9556,33 +9504,34 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                             return handles;
                         })()}
 
-                        {/* ═══ TRANSFER TRAY (bandeja) ═══ */}
+                        {/* ═══ BANDEJA (tray) — peças ficam aqui visualmente ═══ */}
                         <g>
                             <rect x={trayX} y={0} width={trayW} height={svgH}
                                 rx={6}
-                                fill={trayHover ? 'rgba(37,99,235,0.08)' : 'rgba(148,163,184,0.06)'}
+                                fill={trayHover ? 'rgba(37,99,235,0.08)' : 'rgba(148,163,184,0.04)'}
                                 stroke={trayHover ? '#2563eb' : '#94a3b8'}
                                 strokeWidth={trayHover ? 2 : 1}
                                 strokeDasharray={trayHover ? 'none' : '6 3'}
                                 style={{ transition: 'fill .15s, stroke .15s' }} />
-                            {/* Tray label */}
-                            <text x={trayX + trayW / 2} y={16} textAnchor="middle"
-                                fontSize={9} fontWeight={700} fill={trayHover ? '#2563eb' : '#94a3b8'}
-                                style={{ transition: 'fill .15s' }}>
-                                Bandeja
+                            {/* Tray label + count */}
+                            <text x={trayX + trayW / 2} y={14} textAnchor="middle"
+                                fontSize={9} fontWeight={700} fill={trayHover ? '#2563eb' : '#64748b'}>
+                                Bandeja {bandejaPieces.length > 0 ? `(${bandejaPieces.length})` : ''}
                             </text>
-                            {/* Tray hint */}
-                            {!trayHover && (
+
+                            {/* Empty state hint */}
+                            {bandejaPieces.length === 0 && !trayHover && (
                                 <text x={trayX + trayW / 2} y={svgH / 2} textAnchor="middle"
-                                    fontSize={8} fill="#94a3b8" opacity={0.7}>
-                                    <tspan x={trayX + trayW / 2} dy={0}>Arraste</tspan>
+                                    fontSize={8} fill="#94a3b8" opacity={0.6}>
+                                    <tspan x={trayX + trayW / 2} dy={0}>Arraste pecas</tspan>
                                     <tspan x={trayX + trayW / 2} dy={12}>aqui</tspan>
                                 </text>
                             )}
+
                             {/* Drop indicator when hovering */}
                             {trayHover && (
                                 <>
-                                    <rect x={trayX + 6} y={24} width={trayW - 12} height={svgH - 32}
+                                    <rect x={trayX + 4} y={20} width={trayW - 8} height={svgH - 28}
                                         rx={4} fill="none"
                                         stroke="#2563eb" strokeWidth={1.5} strokeDasharray="4 2" opacity={0.5} />
                                     <text x={trayX + trayW / 2} y={svgH / 2} textAnchor="middle"
@@ -9591,7 +9540,123 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                                     </text>
                                 </>
                             )}
+
+                            {/* ── Bandeja pieces — tamanho real proporcional ── */}
+                            {bandejaPieces.length > 0 && (() => {
+                                const pad = 6;
+                                const gap = 5;
+                                const availW = trayW - pad * 2;
+                                // Calcular escala para caber peças proporcionalmente na bandeja
+                                const maxPieceDim = Math.max(...bandejaPieces.map(bp => Math.max(bp.w, bp.h)), 1);
+                                const trayScale = Math.min(availW / maxPieceDim, scale * 0.9);
+                                let curY = 22;
+                                const hasVeioChapa = chapa.veio && chapa.veio !== 'sem_veio';
+                                return bandejaPieces.map((bp, bi) => {
+                                    if (curY > svgH - 8) return null;
+                                    const piece = pecasMap[bp.pecaId];
+                                    const label = piece?.descricao?.substring(0, 18) || `#${bp.pecaId}`;
+                                    const dims = `${Math.round(bp.w)}x${Math.round(bp.h)}`;
+                                    // Escala proporcional real
+                                    let rw = bp.w * trayScale;
+                                    let rh = bp.h * trayScale;
+                                    // Garantir mínimo visível
+                                    if (rw < 20) { const f = 20 / rw; rw = 20; rh *= f; }
+                                    if (rh < 16) { const f = 16 / rh; rh = 16; rw *= f; }
+                                    // Limitar ao espaço disponível
+                                    if (rw > availW) { const f = availW / rw; rw = availW; rh *= f; }
+                                    const rx = trayX + pad + (availW - rw) / 2;
+                                    const ry = curY;
+                                    const itemH = rh + 14;
+                                    curY += itemH + gap;
+                                    const canRotate = !hasVeioChapa && (bp.veio === 'sem_veio' || !bp.veio);
+                                    const isBeingDragged = draggingBandeja && draggingBandeja.bandejaIdx === bi;
+                                    return (
+                                        <g key={`bp-${bi}`}
+                                            style={{ cursor: 'grab', opacity: isBeingDragged ? 0.3 : 1 }}
+                                            onMouseDown={e => handleBandejaDragStart(e, bi, bp)}>
+                                            {/* Piece rect — cor mais forte */}
+                                            <rect x={rx} y={ry} width={rw} height={rh}
+                                                rx={3} fill="#bfdbfe" stroke="#2563eb" strokeWidth={1.2} />
+                                            {/* Dimensões dentro do rect */}
+                                            <text x={rx + rw / 2} y={ry + rh / 2 + 3} textAnchor="middle"
+                                                fontSize={Math.min(9, rh * 0.45)} fill="#1e3a5f" fontWeight={700}>
+                                                {dims}
+                                            </text>
+                                            {/* Label abaixo */}
+                                            <text x={rx + rw / 2} y={ry + rh + 10} textAnchor="middle"
+                                                fontSize={8} fontWeight={600} fill="#1e40af">
+                                                {label}
+                                            </text>
+                                            {/* Rotation button for non-grain */}
+                                            {canRotate && (
+                                                <g onClick={e => {
+                                                    e.stopPropagation();
+                                                    e.preventDefault();
+                                                    if (onAdjust) onAdjust({
+                                                        action: 'rotate_bandeja',
+                                                        materialKey: bp.fromMaterial || chapa.material_code || chapa.material,
+                                                        bandejaIdx: bi,
+                                                    });
+                                                }}
+                                                onMouseDown={e => e.stopPropagation()}
+                                                style={{ cursor: 'pointer' }}>
+                                                    <circle cx={rx + rw - 5} cy={ry + 5} r={6}
+                                                        fill="#7c3aed" opacity={0.9} />
+                                                    <text x={rx + rw - 5} y={ry + 8} textAnchor="middle"
+                                                        fontSize={7} fill="#fff" fontWeight={800}>R</text>
+                                                </g>
+                                            )}
+                                            <title>{`${label} — ${dims}mm\nArraste para a chapa`}</title>
+                                        </g>
+                                    );
+                                });
+                            })()}
+
+                            {/* Overflow indicator */}
+                            {bandejaPieces.length > 0 && (() => {
+                                const maxPieceDim = Math.max(...bandejaPieces.map(bp => Math.max(bp.w, bp.h)), 1);
+                                const trayScale = Math.min((trayW - 12) / maxPieceDim, scale * 0.9);
+                                let curY = 22;
+                                let hidden = 0;
+                                for (const bp of bandejaPieces) {
+                                    let rh = bp.h * trayScale;
+                                    if (rh < 16) rh = 16;
+                                    curY += rh + 14 + 5;
+                                    if (curY > svgH - 8) hidden++;
+                                }
+                                if (hidden > 0) return (
+                                    <text x={trayX + trayW / 2} y={svgH - 4} textAnchor="middle"
+                                        fontSize={8} fill="#94a3b8" fontWeight={600}>
+                                        +{hidden} oculta(s)
+                                    </text>
+                                );
+                                return null;
+                            })()}
                         </g>
+
+                        {/* ── Ghost piece: bandeja drag preview (sempre visível) ── */}
+                        {draggingBandeja && (() => {
+                            const gx = draggingBandeja.inSheet
+                                ? (draggingBandeja.newX + refiloVal) * scale
+                                : (draggingBandeja.newX + refiloVal) * scale;
+                            const gy = draggingBandeja.inSheet
+                                ? (draggingBandeja.newY + refiloVal) * scale
+                                : (draggingBandeja.newY + refiloVal) * scale;
+                            const gw = draggingBandeja.w * scale;
+                            const gh = draggingBandeja.h * scale;
+                            const inSheet = draggingBandeja.inSheet;
+                            return (
+                                <rect
+                                    x={gx} y={gy} width={gw} height={gh}
+                                    rx={2}
+                                    fill={inSheet ? (dragCollision ? 'rgba(239,68,68,0.2)' : 'rgba(37,99,235,0.2)') : 'rgba(148,163,184,0.15)'}
+                                    stroke={inSheet ? (dragCollision ? '#ef4444' : '#2563eb') : '#94a3b8'}
+                                    strokeWidth={2}
+                                    strokeDasharray="6 3"
+                                    style={{ pointerEvents: 'none' }}
+                                />
+                            );
+                        })()}
                     </svg>
                 </div>
 
@@ -9795,8 +9860,8 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                             <Sep label="Organização" />
                             <MI icon={isLocked ? Unlock : Lock} label={isLocked ? 'Desbloquear posição' : 'Bloquear posição'} color="#fbbf24"
                                 onClick={() => onAdjust({ action: isLocked ? 'unlock' : 'lock', chapaIdx: idx, pecaIdx: ctxMenu.pecaIdx })} />
-                            <MI icon={ArrowLeftRight} label="Enviar p/ Transferência" color="#06b6d4"
-                                onClick={() => onAdjust({ action: 'to_transfer', chapaIdx: idx, pecaIdx: ctxMenu.pecaIdx })} />
+                            <MI icon={ArrowLeftRight} label="Enviar p/ Bandeja" color="#06b6d4"
+                                onClick={() => onAdjust({ action: 'to_bandeja', chapaIdx: idx, pecaIdx: ctxMenu.pecaIdx })} />
 
                             {/* Navegação */}
                             <Sep label="Navegação" />
@@ -9886,16 +9951,27 @@ function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffs
                 })()}
 
                 {/* Drag collision feedback bar */}
-                {dragging && (
+                {(dragging || draggingBandeja) && (
                     <div style={{
                         position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
                         padding: '4px 14px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                        background: trayHover ? colorBg('#2563eb') : dragCollision ? colorBg('#ef4444') : colorBg('#22c55e'),
-                        color: trayHover ? '#2563eb' : dragCollision ? '#ef4444' : '#2563eb',
-                        border: `1px solid ${trayHover ? colorBorder('#2563eb') : dragCollision ? colorBorder('#ef4444') : colorBorder('#22c55e')}`,
+                        background: draggingBandeja
+                            ? (draggingBandeja.inSheet ? (dragCollision ? colorBg('#ef4444') : colorBg('#22c55e')) : colorBg('#64748b'))
+                            : (trayHover ? colorBg('#2563eb') : dragCollision ? colorBg('#ef4444') : colorBg('#22c55e')),
+                        color: draggingBandeja
+                            ? (draggingBandeja.inSheet ? (dragCollision ? '#ef4444' : '#16a34a') : '#64748b')
+                            : (trayHover ? '#2563eb' : dragCollision ? '#ef4444' : '#16a34a'),
+                        border: `1px solid ${draggingBandeja
+                            ? (draggingBandeja.inSheet ? (dragCollision ? colorBorder('#ef4444') : colorBorder('#22c55e')) : colorBorder('#64748b'))
+                            : (trayHover ? colorBorder('#2563eb') : dragCollision ? colorBorder('#ef4444') : colorBorder('#22c55e'))}`,
                         zIndex: 10, whiteSpace: 'nowrap',
                     }}>
-                        {trayHover ? 'Solte para enviar à bandeja' : dragCollision ? 'Colisao! Solte para cancelar' : 'Posicao valida'}
+                        {draggingBandeja
+                            ? (draggingBandeja.inSheet
+                                ? (dragCollision ? 'Colisao! Solte para cancelar' : 'Solte para posicionar')
+                                : 'Arraste para a chapa')
+                            : (trayHover ? 'Solte para enviar à bandeja' : dragCollision ? 'Colisao! Solte para cancelar' : 'Posicao valida')
+                        }
                     </div>
                 )}
             </div>
