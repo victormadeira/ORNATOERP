@@ -3804,9 +3804,25 @@ if (caixaCount.c === 0) {
     insU.run('furacao_dobradica', 'Furação Dobradiça',     'hole,transfer_hole', 35, 5, 'interna', 'f_35mm_dob', 13, null);
     insU.run('furacao_cavilha',   'Furação Cavilha',       'hole,transfer_hole', 8, 6, 'interna', 'f_8mm_cavilha', 12, null);
     insU.run('furacao_generica',  'Furação Genérica',      'hole,transfer_hole', null, 6, 'interna', '', null, null);
+    insU.run('fresamento_caminho', 'Fresamento de Caminho', 'transfer_milling', null, 3, 'interna', '', null, null);
+    insU.run('chanfro',           'Chanfro 45°',           'chanfro', null, 7, 'interna', 'chanfro_45', null, null);
     insU.run('contorno_peca',     'Contorno da Peça',      'contorno,contorno_peca', null, 8, 'contorno', '', null, null);
     insU.run('contorno_sobra',    'Contorno de Sobra',     'contorno_sobra', null, 9, 'contorno', '', null, null);
-    console.log('[OK] CNC: 11 tipos de usinagem criados');
+    console.log('[OK] CNC: 13 tipos de usinagem criados');
+  }
+
+  // Migração: adicionar tipos de usinagem faltantes (transfer_milling, chanfro) em DBs existentes
+  {
+    const insIfMissing = (codigo, nome, catMatch, diamMatch, prio, fase, tcPadrao, profPadrao, largPadrao) => {
+      const exists = db.prepare('SELECT COUNT(*) as c FROM cnc_usinagem_tipos WHERE codigo = ?').get(codigo);
+      if (exists.c === 0) {
+        db.prepare('INSERT INTO cnc_usinagem_tipos (codigo, nome, categoria_match, diametro_match, prioridade, fase, tool_code_padrao, profundidade_padrao, largura_padrao) VALUES (?,?,?,?,?,?,?,?,?)')
+          .run(codigo, nome, catMatch, diamMatch, prio, fase, tcPadrao, profPadrao, largPadrao);
+        console.log(`[OK] CNC: tipo usinagem '${codigo}' adicionado`);
+      }
+    };
+    insIfMissing('fresamento_caminho', 'Fresamento de Caminho', 'transfer_milling', null, 3, 'interna', '', null, null);
+    insIfMissing('chanfro', 'Chanfro 45°', 'chanfro', null, 7, 'interna', 'chanfro_45', null, null);
   }
 
   // Migração: vincular ferramentas órfãs à máquina padrão

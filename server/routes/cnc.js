@@ -179,9 +179,25 @@ export function parsePluginJSON(json) {
         const modulo = entities[modIdx];
         if (!modulo || !modulo.entities) continue;
 
-        for (const entIdx of Object.keys(modulo.entities)) {
-            const ent = modulo.entities[entIdx];
-            if (!ent || !ent.upmpiece) continue;
+        // Coletar todas as entidades com upmpiece=true, incluindo sub-entidades aninhadas
+        // Ex: Porta de giro (sem upmpiece) → Chapa porta vertical (upmpiece=true, nível 3)
+        const collectPieces = (parentEntities, parentCtx) => {
+            const result = [];
+            for (const idx of Object.keys(parentEntities)) {
+                const e = parentEntities[idx];
+                if (!e) continue;
+                if (e.upmpiece) {
+                    result.push({ ent: e, ctx: parentCtx });
+                } else if (e.entities) {
+                    // Descer recursivamente para encontrar sub-peças
+                    result.push(...collectPieces(e.entities, { ...parentCtx, parentDesc: e.upmdescription || parentCtx.parentDesc }));
+                }
+            }
+            return result;
+        };
+        const allPieces = collectPieces(modulo.entities, { parentDesc: modulo.upmdescription || '' });
+
+        for (const { ent, ctx } of allPieces) {
 
             // Extract piece info
             const peca = {
@@ -209,22 +225,26 @@ export function parsePluginJSON(json) {
                 observacao: '',
             };
 
-            // Extract dimensions — use panel sub-entity if available
+            // Extract dimensions — busca recursiva pelo painel de matéria-prima (upmfeedstockpanel)
             let panelFound = false;
-            if (ent.entities) {
-                for (const subIdx of Object.keys(ent.entities)) {
-                    const sub = ent.entities[subIdx];
-                    if (sub && sub.upmfeedstockpanel) {
+            const findPanel = (ents) => {
+                if (!ents || panelFound) return;
+                for (const subIdx of Object.keys(ents)) {
+                    const sub = ents[subIdx];
+                    if (!sub) continue;
+                    if (sub.upmfeedstockpanel) {
                         peca.material_code = sub.upmmaterialcode || sub.upmcode || '';
                         peca.material = sub.upmdescription || sub.upmmaterialcode || '';
                         peca.espessura = sub.upmcutthickness || sub.upmrealthickness || sub.upmthickness || 0;
                         peca.comprimento = sub.upmcutlength || sub.upmlength || 0;
                         peca.largura = sub.upmcutwidth || sub.upmwidth || 0;
                         panelFound = true;
-                        break;
+                        return;
                     }
+                    if (sub.entities) findPanel(sub.entities);
                 }
-            }
+            };
+            if (ent.entities) findPanel(ent.entities);
 
             // Fallback: use piece dimensions directly
             if (!panelFound) {
@@ -547,7 +567,7 @@ router.post('/lotes/importar', requireAuth, (req, res) => {
                     'rb_av':            { nome: 'Fresa rebaixo avesso', tipo: 'fresa', diametro: 6, tipo_corte: 'fresa_reta' },
                     'usi_line':         { nome: 'Fresa contorno', tipo: 'fresa', diametro: 6, tipo_corte: 'fresa_compressao' },
                     'usi_point_to_point': { nome: 'Fresa ponto-a-ponto', tipo: 'fresa', diametro: 6, tipo_corte: 'fresa_reta' },
-                    'chanfro_45':       { nome: 'Fresa chanfro 45°', tipo: 'fresa', diametro: 6, tipo_corte: 'fresa_chanfro' },
+                    'chanfro_45':       { nome: 'Fresa chanfro 45°', tipo: 'fresa', diametro: 45, tipo_corte: 'fresa_chanfro' },
                 };
 
                 const insertTool = db.prepare(`
@@ -3726,7 +3746,14 @@ function calcularPassadas(depthTotal, doc) {
 // ─── Helper: Mapear worker → tipo de usinagem ──────────
 function mapWorkerToTipo(worker, usinagemTipos) {
     const cat = (worker.type || worker.category || '').toLowerCase();
+    const tc = (worker.tool_code || worker.tool || '').toLowerCase();
     const diam = Number(worker.diameter || 0);
+    // 0) Match por tool_code (mais específico — ex: chanfro_45 → tipo chanfro)
+    for (const t of usinagemTipos) {
+        if (!t.categoria_match) continue;
+        const cats = t.categoria_match.toLowerCase().split(',').map(s => s.trim());
+        if (cats.some(c => tc.includes(c))) return t;
+    }
     // 1) Match por categoria + diâmetro (mais específico)
     for (const t of usinagemTipos) {
         if (!t.categoria_match || t.diametro_match == null) continue;
@@ -4181,6 +4208,21 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const absX2 = wx2 !== undefined ? refilo + pX + wx2 : undefined;
             const absY2 = wy2 !== undefined ? refilo + pY + wy2 : undefined;
 
+            // ─── Transformar path completo de fresamento (transfer_milling, usi_line, chanfro) ───
+            let millingPath = null;
+            if (w.path && Array.isArray(w.path) && w.path.length >= 2) {
+                millingPath = w.path.map(pt => {
+                    let px = Number(pt.x ?? 0), py = Number(pt.y ?? 0);
+                    if (ladoAtivo === 'B') { px = compOrig - px; }
+                    if (rotated) {
+                        const t = transformRotated(px, py, compOrig);
+                        px = t.x; py = t.y;
+                    }
+                    return { x: refilo + pX + px, y: refilo + pY + py };
+                });
+            }
+            const millingClosed = String(w.close) === '1';
+
             // ─── Tool-Agnostic Machining com Estratégias ───
             let effectiveTool = tool;
             let toolAdapted = false;
@@ -4220,6 +4262,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const isHole = tipo.includes('hole') || tipo === 'transfer_hole';
             const isCut = tipo.includes('saw') || tipo.includes('cut') || tipo === 'transfer_vertical_saw_cut';
             const isPocket = tipo.includes('pocket') || tipo.includes('rebaixo');
+            const isMillingPath = millingPath && millingPath.length >= 2;
+            const isChanfro = tc.includes('chanfro') || tipo.includes('chanfro');
 
             // 3) Override de método (se configurado no painel de ferramentas)
             if (ovMetodo && ovMetodo !== '' && ovMetodo !== 'desativado') {
@@ -4230,7 +4274,9 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             if (resolvedMetodo === 'auto' && effectiveTool) {
                 const effDiam = ovDiam ?? Number(w.diameter || 0);
                 const toolD = effectiveTool.diametro || 0;
-                if (isHole && effDiam > 0 && Math.abs(toolD - effDiam) < 1) {
+                if (isMillingPath) {
+                    resolvedMetodo = 'milling_path';
+                } else if (isHole && effDiam > 0 && Math.abs(toolD - effDiam) < 1) {
                     resolvedMetodo = 'drill';
                 } else if (isHole && effDiam > 0 && toolD < effDiam) {
                     resolvedMetodo = 'helical';
@@ -4283,8 +4329,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             allOps.push({
                 pecaId: pp.pecaId, pecaDesc: pDb.descricao, moduloDesc: pDb.modulo_desc,
                 absX, absY, absX2, absY2,
-                opType: isHole ? 'hole' : isCut ? 'groove' : isPocket ? 'pocket' : 'generic',
-                fase: usiTipo.fase === 'contorno' ? 1 : 0,
+                opType: isMillingPath ? 'milling_path' : isHole ? 'hole' : isCut ? 'groove' : isPocket ? 'pocket' : 'generic',
+                fase: isChanfro ? 0.5 : usiTipo.fase === 'contorno' ? 1 : 0,  // chanfro: entre internas e contorno
                 prioridade: usiTipo.prioridade, tipoNome: usiTipo.nome,
                 toolCode: effectiveTool?.tool_code || effectiveToolCode || tc,
                 toolCodigo: effectiveTool?.codigo || '', toolNome: effectiveTool?.nome || tc,
@@ -4299,6 +4345,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 resolvedMetodo, holeDiameter: effHoleDiam,
                 // Overrides aplicados (para referência)
                 hasOverride: !!(groupOv || pecaOv),
+                // Fresamento de caminho (transfer_milling, chanfro, usi_line com path)
+                millingPath, millingClosed, isChanfro,
             });
         }
 
@@ -4598,7 +4646,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
     for (const op of sortedOps) {
         // Separador de fase
         if (op.fase !== lastFase) {
-            const fn = op.fase === 0 ? 'USINAGENS INTERNAS' : op.fase === 1 ? 'CONTORNOS DE PECAS' : 'CONTORNOS DE SOBRAS';
+            const fn = op.fase === 0 ? 'USINAGENS INTERNAS' : op.fase === 0.5 ? 'CHANFROS E FRESAMENTOS DE BORDA' : op.fase === 1 ? 'CONTORNOS DE PECAS' : 'CONTORNOS DE SOBRAS';
             L.push('', `${cmt} ════════════════════════════════════════`);
             L.push(`${cmt} FASE ${op.fase}: ${fn}`);
             L.push(`${cmt} ════════════════════════════════════════`, '');
@@ -5277,6 +5325,69 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     emit(`G0 Z${fmt(zSafe())}`);
                 }
             }
+            L.push('');
+
+        // ─── FRESAMENTO DE CAMINHO (transfer_milling, chanfro, usi_line com path) ───
+        } else if (op.opType === 'milling_path' && op.millingPath && op.millingPath.length >= 2) {
+            const path = op.millingPath;
+            const isClosed = op.millingClosed;
+            const pathLen = path.reduce((sum, pt, i) => {
+                if (i === 0) return 0;
+                return sum + Math.sqrt((pt.x - path[i - 1].x) ** 2 + (pt.y - path[i - 1].y) ** 2);
+            }, 0);
+
+            L.push(`${cmt} ${op.isChanfro ? 'CHANFRO 45°' : 'Fresamento'}${isClosed ? ' FECHADO' : ''}: ${op.pecaDesc}${op.moduloDesc ? ' (' + op.moduloDesc + ')' : ''}`);
+            L.push(`${cmt}   ${path.length} pontos | Comprimento: ${fmt(pathLen)}mm | Prof: ${fmt(op.depthTotal)}mm`);
+            if (op.isChanfro) L.push(`${cmt}   Fresa chanfro D${op.toolDiam}mm`);
+            if (op.isPequena) L.push(`${cmt}   PECA PEQUENA -- Feed ${feedPct}%`);
+
+            for (let pi = 0; pi < op.passes.length; pi++) {
+                const pd = op.passes[pi];
+                const zTarget = zCut(pd);
+                if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)}`);
+
+                // Posicionar no primeiro ponto
+                emit(`G0 ${XY(path[0].x, path[0].y)}`);
+                emit(`G0 Z${fmt(zApproach())}`);
+
+                // Mergulho: rampa ao longo do primeiro segmento se disponível
+                if (useRampa && path.length > 1) {
+                    const dx = path[1].x - path[0].x;
+                    const dy = path[1].y - path[0].y;
+                    const segLen = Math.sqrt(dx * dx + dy * dy);
+                    const rampLen = Math.min(segLen * 0.4, 50);
+                    if (rampLen > 5) {
+                        const frac = rampLen / segLen;
+                        L.push(`${cmt}   Rampa ${fmt(rampLen)}mm ao longo primeiro segmento`);
+                        emit(`G1 ${XY(path[0].x + dx * frac, path[0].y + dy * frac)} Z${fmt(zTarget)} F${velMergulho}`);
+                        // Voltar ao ponto inicial na profundidade de corte
+                        emit(`G1 ${XY(path[0].x, path[0].y)} F${op.velCorte}`);
+                    } else {
+                        emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
+                    }
+                } else {
+                    emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
+                }
+
+                // Percorrer todos os pontos do caminho
+                for (let i = 1; i < path.length; i++) {
+                    emit(`G1 ${XY(path[i].x, path[i].y)} F${op.velCorte}`);
+                }
+
+                // Fechar o caminho se close=1 (contorno interior / recorte)
+                if (isClosed) {
+                    emit(`G1 ${XY(path[0].x, path[0].y)} F${op.velCorte}`);
+                }
+
+                // Retração entre passadas
+                if (pi < op.passes.length - 1) {
+                    emit(`G0 Z${fmt(zApproach())}`);
+                }
+            }
+            // Retração final
+            const nextOpM = sortedOps[sortedOps.indexOf(op) + 1];
+            const fastRetractM = nextOpM && nextOpM.opType === 'milling_path' && nextOpM.toolCode === op.toolCode;
+            emit(`G0 Z${fmt(fastRetractM ? zRapid() : zSafe())}`);
             L.push('');
 
         } else {

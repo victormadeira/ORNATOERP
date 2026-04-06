@@ -7761,8 +7761,11 @@ function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, pieceH, 
         // Skip ghost workers (no position data — transfer_milling sem coordenadas)
         if (w._no_position) continue;
         // Skip passante milling (contour cuts) — already shown as piece shape
+        // BUT keep closed contours (close='1') — interior cutouts like porta provençal
         const espVal = Number(piece.espessura) || 18;
-        if (cat.includes('milling') && (w.depth || w.usedepth || 0) >= espVal * 0.9 && w.positions) continue;
+        const isPassanteMilling = cat.includes('milling') && (w.depth || w.usedepth || 0) >= espVal * 0.9 && w.positions;
+        const isClosedInterior = String(w.close) === '1';
+        if (isPassanteMilling && !isClosedInterior) continue;
 
         // ── Determine if this worker is on the OPPOSITE side ──
         // Active side = what user is looking at. Opposite = the other face.
@@ -7830,19 +7833,84 @@ function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, pieceH, 
                 targetArr.push(wrapHoverLine(lineEl, tipData, px + p1.sx, py + p1.sy, px + p2.sx, py + p2.sy, Math.max(1.5, grooveW)));
             }
 
-        // ── Rebaixos / Pockets ──
+        // ── Contornos interiores fechados (porta provençal, cutouts) ──
+        } else if (isPassanteMilling && isClosedInterior && w.positions) {
+            const positions = w.positions;
+            const keys = Object.keys(positions).sort((a, b) => Number(a) - Number(b));
+            if (keys.length >= 2) {
+                const svgPts = keys.map(ky => {
+                    const pt = positions[ky];
+                    const ptx = Array.isArray(pt) ? pt[0] : Number(pt.x ?? pt.position_x ?? 0);
+                    const pty = Array.isArray(pt) ? pt[1] : Number(pt.y ?? pt.position_y ?? 0);
+                    const s = toSvg(ptx, pty);
+                    return `${px + s.sx},${py + s.sy}`;
+                }).join(' ');
+                const depth = w.depth || w.usedepth || 0;
+                const isThrough = depth >= espVal * 0.9;
+                const tipData = { ...baseTip, tipo: isThrough ? 'Contorno interior passante' : 'Contorno interior', profundidade: depth || '-', vertices: keys.length };
+                if (isGhost) {
+                    const pathEl = <polygon key={`ic${k}`} points={svgPts}
+                        fill={ghostColor} fillOpacity={ghostOpacity * 0.5} stroke={ghostColor}
+                        strokeWidth={1} strokeDasharray={ghostDash} />;
+                    targetArr.push(pathEl);
+                } else {
+                    // Interior cutout: fundo escuro para indicar recorte vazado
+                    const pathEl = <polygon key={`ic${k}`} points={svgPts}
+                        fill="#1e293b" fillOpacity={isThrough ? 0.6 : 0.3}
+                        stroke="#ef4444" strokeWidth={1.5}
+                        strokeDasharray={isThrough ? 'none' : '4,2'} />;
+                    targetArr.push(wrapHoverRect(pathEl, tipData, px, py, pw, ph));
+                }
+            }
+
+        // ── Rebaixos / Pockets (simples — sem contorno complexo) ──
         } else if (cat.includes('pocket') || cat.includes('rebaixo') || cat.includes('milling')) {
-            const rw = (w.pocket_width || w.width || w.length || 20) * (pw / pieceW);
-            const rh = (w.pocket_height || w.height || 20) * (ph / pieceH);
-            const tipData = { ...baseTip, tipo: 'Rebaixo / Pocket', largura: w.pocket_width || w.width || w.length || 20, altura: w.pocket_height || w.height || 20, profundidade: w.depth || '-' };
-            if (isGhost) {
-                const rectEl = <rect key={`p${k}`} x={px + p1.sx - rw / 2} y={py + p1.sy - rh / 2} width={rw} height={rh}
-                        fill={ghostColor} opacity={ghostOpacity} stroke={ghostColor} strokeWidth={1} strokeDasharray={ghostDash} rx={1} />;
-                targetArr.push(wrapHoverRect(rectEl, tipData, px + p1.sx - rw / 2, py + p1.sy - rh / 2, rw, rh));
+            // Se tem positions com vértices, renderizar como polígono (pocket com forma)
+            if (w.positions && typeof w.positions === 'object') {
+                const positions = w.positions;
+                const keys = Object.keys(positions).sort((a, b) => Number(a) - Number(b));
+                if (keys.length >= 3) {
+                    const svgPts = keys.map(ky => {
+                        const pt = positions[ky];
+                        const ptx = Array.isArray(pt) ? pt[0] : Number(pt.x ?? pt.position_x ?? 0);
+                        const pty = Array.isArray(pt) ? pt[1] : Number(pt.y ?? pt.position_y ?? 0);
+                        const s = toSvg(ptx, pty);
+                        return `${px + s.sx},${py + s.sy}`;
+                    }).join(' ');
+                    const tipData = { ...baseTip, tipo: 'Rebaixo / Pocket', profundidade: w.depth || '-', vertices: keys.length };
+                    if (isGhost) {
+                        const pathEl = <polygon key={`p${k}`} points={svgPts}
+                            fill={ghostColor} fillOpacity={ghostOpacity} stroke={ghostColor}
+                            strokeWidth={0.8} strokeDasharray={ghostDash} />;
+                        targetArr.push(pathEl);
+                    } else {
+                        const pathEl = <polygon key={`p${k}`} points={svgPts}
+                            fill="#f97316" fillOpacity={0.3} stroke="#ea580c"
+                            strokeWidth={1.2} strokeDasharray="3,1.5" />;
+                        targetArr.push(wrapHoverRect(pathEl, tipData, px, py, pw, ph));
+                    }
+                } else {
+                    // Poucos vértices — fallback para retângulo
+                    const rw = (w.pocket_width || w.width || w.length || 20) * (pw / pieceW);
+                    const rh = (w.pocket_height || w.height || 20) * (ph / pieceH);
+                    const tipData = { ...baseTip, tipo: 'Rebaixo / Pocket', largura: w.pocket_width || w.width || w.length || 20, altura: w.pocket_height || w.height || 20, profundidade: w.depth || '-' };
+                    const rectEl = <rect key={`p${k}`} x={px + p1.sx - rw / 2} y={py + p1.sy - rh / 2} width={rw} height={rh}
+                            fill={isGhost ? ghostColor : '#f97316'} opacity={isGhost ? ghostOpacity : 0.35} stroke={isGhost ? ghostColor : '#ea580c'} strokeWidth={isGhost ? 1 : 1.2} strokeDasharray={isGhost ? ghostDash : '3,1.5'} rx={1} />;
+                    targetArr.push(wrapHoverRect(rectEl, tipData, px + p1.sx - rw / 2, py + p1.sy - rh / 2, rw, rh));
+                }
             } else {
-                const rectEl = <rect key={`p${k}`} x={px + p1.sx - rw / 2} y={py + p1.sy - rh / 2} width={rw} height={rh}
-                        fill="#f97316" opacity={0.35} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="3,1.5" rx={1} />;
-                targetArr.push(wrapHoverRect(rectEl, tipData, px + p1.sx - rw / 2, py + p1.sy - rh / 2, rw, rh));
+                const rw = (w.pocket_width || w.width || w.length || 20) * (pw / pieceW);
+                const rh = (w.pocket_height || w.height || 20) * (ph / pieceH);
+                const tipData = { ...baseTip, tipo: 'Rebaixo / Pocket', largura: w.pocket_width || w.width || w.length || 20, altura: w.pocket_height || w.height || 20, profundidade: w.depth || '-' };
+                if (isGhost) {
+                    const rectEl = <rect key={`p${k}`} x={px + p1.sx - rw / 2} y={py + p1.sy - rh / 2} width={rw} height={rh}
+                            fill={ghostColor} opacity={ghostOpacity} stroke={ghostColor} strokeWidth={1} strokeDasharray={ghostDash} rx={1} />;
+                    targetArr.push(wrapHoverRect(rectEl, tipData, px + p1.sx - rw / 2, py + p1.sy - rh / 2, rw, rh));
+                } else {
+                    const rectEl = <rect key={`p${k}`} x={px + p1.sx - rw / 2} y={py + p1.sy - rh / 2} width={rw} height={rh}
+                            fill="#f97316" opacity={0.35} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="3,1.5" rx={1} />;
+                    targetArr.push(wrapHoverRect(rectEl, tipData, px + p1.sx - rw / 2, py + p1.sy - rh / 2, rw, rh));
+                }
             }
 
         // ── Slots / Fresagens ──
