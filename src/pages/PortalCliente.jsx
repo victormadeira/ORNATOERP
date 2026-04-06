@@ -1390,7 +1390,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                                         <span style={{
-                                                            background: primary, color: 'white', borderRadius: 6,
+                                                            background: accent, color: 'white', borderRadius: 6,
                                                             padding: '1px 7px', fontSize: 10, fontWeight: 700,
                                                             lineHeight: '18px', minWidth: 22, textAlign: 'center',
                                                         }}>{String(i + 1).padStart(2, '0')}</span>
@@ -1419,53 +1419,50 @@ export default function PortalCliente({ token, isPreview = false }) {
                                             </div>
 
                                             {/* Mini pipeline with connected dots */}
-                                            <div style={{ display: 'flex', alignItems: 'center', position: 'relative', padding: '0 4px' }}>
-                                                {AMB_ST.map((s, si) => {
-                                                    const isActive = si <= currentIdx;
-                                                    const isCurrent = si === currentIdx;
-                                                    return (
-                                                        <div key={s.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
-                                                            {/* Connecting line (not on first item) */}
-                                                            {si > 0 && (
+                                            <div style={{ position: 'relative', padding: '0 4px' }}>
+                                                {/* Background line — centered at dot midpoint (6px from top) */}
+                                                <div style={{
+                                                    position: 'absolute', top: 5, left: 20, right: 20,
+                                                    height: 2, background: '#e2e8f0', borderRadius: 1,
+                                                }} />
+                                                {/* Active line overlay */}
+                                                {currentIdx > 0 && (
+                                                    <div style={{
+                                                        position: 'absolute', top: 5, left: 20,
+                                                        width: `calc(${(currentIdx / (AMB_ST.length - 1)) * 100}% - 40px * ${currentIdx / (AMB_ST.length - 1)})`,
+                                                        height: 2, background: st.color, borderRadius: 1,
+                                                        transition: 'width 0.3s',
+                                                    }} />
+                                                )}
+                                                {/* Dots + labels */}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', position: 'relative' }}>
+                                                    {AMB_ST.map((s, si) => {
+                                                        const isActive = si <= currentIdx;
+                                                        const isCurrent = si === currentIdx;
+                                                        return (
+                                                            <div key={s.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 0, flex: 1 }}>
                                                                 <div style={{
-                                                                    position: 'absolute', top: 7, right: '50%', width: '100%', height: 2,
-                                                                    background: si <= currentIdx ? st.color : '#e2e8f0',
-                                                                    transition: 'background 0.3s',
-                                                                    zIndex: 0,
+                                                                    width: 12, height: 12, borderRadius: '50%',
+                                                                    background: isActive ? st.color : '#d1d5db',
+                                                                    border: isCurrent ? '2.5px solid #fff' : '2px solid #fff',
+                                                                    boxShadow: isCurrent
+                                                                        ? `0 0 0 2.5px ${st.color}, 0 0 8px ${st.color}40`
+                                                                        : isActive ? `0 0 0 1.5px ${st.color}50` : '0 0 0 1.5px #e2e8f0',
+                                                                    transition: 'all 0.3s',
+                                                                    flexShrink: 0,
                                                                 }} />
-                                                            )}
-                                                            {/* Dot */}
-                                                            <div style={{
-                                                                position: 'relative', zIndex: 1,
-                                                                width: isCurrent ? 16 : 10,
-                                                                height: isCurrent ? 16 : 10,
-                                                                borderRadius: '50%',
-                                                                background: isActive ? st.color : '#e2e8f0',
-                                                                border: isCurrent ? `3px solid ${st.color}30` : 'none',
-                                                                boxShadow: isCurrent ? `0 0 0 4px ${st.color}18` : 'none',
-                                                                transition: 'all 0.3s',
-                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                            }}>
-                                                                {isCurrent && (
-                                                                    <div style={{
-                                                                        width: 6, height: 6, borderRadius: '50%',
-                                                                        background: '#fff',
-                                                                    }} />
-                                                                )}
+                                                                <span style={{
+                                                                    fontSize: 9, marginTop: 5,
+                                                                    color: isActive ? st.color : '#cbd5e1',
+                                                                    fontWeight: isCurrent ? 700 : 400,
+                                                                    whiteSpace: 'nowrap',
+                                                                }}>
+                                                                    {s.label}
+                                                                </span>
                                                             </div>
-                                                            {/* Label */}
-                                                            <span style={{
-                                                                fontSize: 9, marginTop: 5,
-                                                                color: isActive ? st.color : '#cbd5e1',
-                                                                fontWeight: isCurrent ? 700 : 500,
-                                                                whiteSpace: 'nowrap',
-                                                                transition: 'color 0.3s',
-                                                            }}>
-                                                                {s.label}
-                                                            </span>
-                                                        </div>
-                                                    );
-                                                })}
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
                                         </div>
                                     );
