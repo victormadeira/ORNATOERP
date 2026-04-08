@@ -844,38 +844,43 @@ router.delete('/revoke/:orc_id', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // POST /api/portal/aprovar/:token — aceite digital da proposta pelo cliente
 // ═══════════════════════════════════════════════════════════════════════════════
-router.post('/aprovar/:token', async (req, res) => {
-    const { token } = req.params;
-    const row = db.prepare(`
-        SELECT pt.orc_id, o.aprovado_em, o.cliente_nome
-        FROM portal_tokens pt
-        JOIN orcamentos o ON o.id = pt.orc_id
-        WHERE pt.token = ? AND pt.ativo = 1
-    `).get(token);
-
-    if (!row) return res.status(404).json({ error: 'Link inválido ou expirado' });
-
-    // Já aprovado?
-    if (row.aprovado_em) return res.json({ ok: true, aprovado_em: row.aprovado_em, ja_aprovado: true });
-
-    const agora = new Date().toISOString();
-    db.prepare('UPDATE orcamentos SET aprovado_em = ?, aprovado_por = ?, status = ? WHERE id = ?')
-        .run(agora, 'cliente_digital', 'ok', row.orc_id);
-
-    // Notificar a marcenaria
+router.post('/aprovar/:token', (req, res) => {
     try {
-        const orc = db.prepare('SELECT user_id, numero FROM orcamentos WHERE id = ?').get(row.orc_id);
-        if (orc) {
-            createNotification(
-                'orcamento_aprovado',
-                'Proposta aprovada pelo cliente!',
-                `${row.cliente_nome || 'Cliente'} aprovou digitalmente a proposta ${orc.numero ? `Nº ${orc.numero}` : `#${row.orc_id}`}.`,
-                row.orc_id, 'orcamento', row.cliente_nome || '', null
-            );
-        }
-    } catch (_) {}
+        const { token } = req.params;
+        const row = db.prepare(`
+            SELECT pt.orc_id, o.aprovado_em, o.cliente_nome
+            FROM portal_tokens pt
+            JOIN orcamentos o ON o.id = pt.orc_id
+            WHERE pt.token = ? AND pt.ativo = 1
+        `).get(token);
 
-    res.json({ ok: true, aprovado_em: agora });
+        if (!row) return res.status(404).json({ error: 'Link inválido ou expirado' });
+
+        // Já aprovado?
+        if (row.aprovado_em) return res.json({ ok: true, aprovado_em: row.aprovado_em, ja_aprovado: true });
+
+        const agora = new Date().toISOString();
+        db.prepare('UPDATE orcamentos SET aprovado_em = ?, aprovado_por = ?, status = ? WHERE id = ?')
+            .run(agora, 'cliente_digital', 'ok', row.orc_id);
+
+        // Notificar a marcenaria
+        try {
+            const orc = db.prepare('SELECT user_id, numero FROM orcamentos WHERE id = ?').get(row.orc_id);
+            if (orc) {
+                createNotification(
+                    'orcamento_aprovado',
+                    'Proposta aprovada pelo cliente!',
+                    `${row.cliente_nome || 'Cliente'} aprovou digitalmente a proposta ${orc.numero ? `Nº ${orc.numero}` : `#${row.orc_id}`}.`,
+                    row.orc_id, 'orcamento', row.cliente_nome || '', null
+                );
+            }
+        } catch (_) {}
+
+        res.json({ ok: true, aprovado_em: agora });
+    } catch (err) {
+        console.error('[portal/aprovar] Erro:', err.message);
+        res.status(500).json({ error: 'Erro ao processar aprovação' });
+    }
 });
 
 export default router;

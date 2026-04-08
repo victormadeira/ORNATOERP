@@ -1427,45 +1427,49 @@ export default function PortalCliente({ token, isPreview = false }) {
                                                 </span>
                                             </div>
 
-                                            {/* Mini pipeline — dots + lines inline no mesmo flex */}
-                                            <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-                                                {AMB_ST.map((s, si) => {
-                                                    const isActive = si <= currentIdx;
-                                                    const isCurrent = si === currentIdx;
-                                                    const isLast = si === AMB_ST.length - 1;
-                                                    const nextActive = (si + 1) <= currentIdx;
-                                                    return (
-                                                        <Fragment key={s.key}>
-                                                            {/* Dot + label column */}
-                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                                            {/* Mini pipeline — dots + lines row, labels row */}
+                                            <div>
+                                                {/* Track: dots connected by lines */}
+                                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                    {AMB_ST.map((s, si) => {
+                                                        const isActive = si <= currentIdx;
+                                                        const isCurrent = si === currentIdx;
+                                                        const isLast = si === AMB_ST.length - 1;
+                                                        const nextActive = (si + 1) <= currentIdx;
+                                                        return (
+                                                            <Fragment key={s.key}>
                                                                 <div style={{
                                                                     width: 12, height: 12, borderRadius: '50%',
                                                                     background: isActive ? st.color : '#d1d5db',
                                                                     border: isCurrent ? '2.5px solid #fff' : 'none',
-                                                                    boxShadow: isCurrent
-                                                                        ? `0 0 0 2.5px ${st.color}`
-                                                                        : 'none',
+                                                                    boxShadow: isCurrent ? `0 0 0 2.5px ${st.color}` : 'none',
+                                                                    flexShrink: 0,
                                                                 }} />
-                                                                <span style={{
-                                                                    fontSize: 9, marginTop: 4,
-                                                                    color: isActive ? st.color : '#cbd5e1',
-                                                                    fontWeight: isCurrent ? 700 : 400,
-                                                                    whiteSpace: 'nowrap',
-                                                                }}>
-                                                                    {s.label}
-                                                                </span>
-                                                            </div>
-                                                            {/* Connecting line between dots */}
-                                                            {!isLast && (
-                                                                <div style={{
-                                                                    flex: 1, height: 2, marginTop: 5,
-                                                                    background: nextActive ? st.color : '#e2e8f0',
-                                                                    borderRadius: 1,
-                                                                }} />
-                                                            )}
-                                                        </Fragment>
-                                                    );
-                                                })}
+                                                                {!isLast && (
+                                                                    <div style={{ flex: 1, height: 2, background: nextActive ? st.color : '#e2e8f0', borderRadius: 1 }} />
+                                                                )}
+                                                            </Fragment>
+                                                        );
+                                                    })}
+                                                </div>
+                                                {/* Labels row */}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                                                    {AMB_ST.map((s, si) => {
+                                                        const isActive = si <= currentIdx;
+                                                        const isCurrent = si === currentIdx;
+                                                        return (
+                                                            <span key={s.key} style={{
+                                                                fontSize: 9, color: isActive ? st.color : '#cbd5e1',
+                                                                fontWeight: isCurrent ? 700 : 400,
+                                                                textAlign: si === 0 ? 'left' : si === AMB_ST.length - 1 ? 'right' : 'center',
+                                                                width: si === 0 || si === AMB_ST.length - 1 ? 'auto' : 0,
+                                                                whiteSpace: 'nowrap',
+                                                            }}>
+                                                                {s.label}
+                                                            </span>
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
                                         </div>
                                     );

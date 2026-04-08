@@ -11,6 +11,7 @@ export default function ProposalPublic({ token, isPreview = false }) {
     const [aprovado, setAprovado] = useState(false);
     const [aprovando, setAprovando] = useState(false);
     const [aprovadoEm, setAprovadoEm] = useState(null);
+    const [erroAprovacao, setErroAprovacao] = useState(null);
     const iframeRef = useRef(null);
     const heartbeatRef = useRef(null);
     const startTime = useRef(Date.now());
@@ -452,15 +453,24 @@ export default function ProposalPublic({ token, isPreview = false }) {
                             <p style={{ color: '#64748b', fontSize: 13, margin: '0 0 20px', maxWidth: 500, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>
                                 Ao clicar no botão abaixo, você confirma que revisou e aceita os termos desta proposta comercial.
                             </p>
+                            {erroAprovacao && (
+                                <p style={{ color: '#ef4444', fontSize: 13, margin: '0 0 12px', fontWeight: 500 }}>
+                                    {erroAprovacao}
+                                </p>
+                            )}
                             <button
                                 disabled={aprovando}
                                 onClick={async () => {
                                     setAprovando(true);
+                                    setErroAprovacao(null);
                                     try {
                                         const r = await fetch(`/api/portal/aprovar/${token}`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
                                         const d = await r.json();
                                         if (d.ok) { setAprovado(true); setAprovadoEm(d.aprovado_em || new Date().toISOString()); }
-                                    } catch {}
+                                        else { setErroAprovacao(d.error || 'Não foi possível aprovar. Tente novamente.'); }
+                                    } catch {
+                                        setErroAprovacao('Erro de conexão. Verifique sua internet e tente novamente.');
+                                    }
                                     setAprovando(false);
                                 }}
                                 style={{
