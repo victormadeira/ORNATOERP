@@ -28,6 +28,7 @@ const MENU_SECTIONS = [
     ]},
     { label: 'Gestão', items: [
         { id: 'financeiro',     label: 'Financeiro',            desc: 'Contas a pagar/receber e fluxo de caixa' },
+        { id: 'ponto',          label: 'Controle de Ponto',     desc: 'Registro de jornada e banco de horas' },
         { id: 'relatorios',     label: 'Relatórios',            desc: 'Relatórios e análises gerenciais' },
     ]},
     { label: 'Sistema', items: [

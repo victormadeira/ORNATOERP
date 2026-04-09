@@ -38,6 +38,7 @@ import pluginRoutes from './routes/plugin.js';
 import bibliotecaSkpRoutes from './routes/biblioteca-skp.js';
 import searchRoutes from './routes/search.js';
 import depoimentosRoutes from './routes/depoimentos.js';
+import pontoRoutes from './routes/ponto.js';
 
 // Inicializa DB (efeito colateral — cria tabelas e seed)
 import './db.js';
@@ -140,6 +141,7 @@ app.use('/api/plugin', pluginRoutes);
 app.use('/api/biblioteca-skp', bibliotecaSkpRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/depoimentos', depoimentosRoutes);
+app.use('/api/ponto', pontoRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));

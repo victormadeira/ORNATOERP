@@ -643,7 +643,75 @@ db.exec(`
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_plano_versions_lote ON cnc_plano_versions(lote_id);
+
+  -- ═══ Ponto / RH ═══
+  CREATE TABLE IF NOT EXISTS funcionarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    cpf TEXT,
+    cargo TEXT,
+    data_admissao TEXT,
+    salario_base REAL DEFAULT 0,
+    ativo INTEGER DEFAULT 1,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS ponto_config (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    jornada_json TEXT DEFAULT '{}',
+    tolerancia_min INTEGER DEFAULT 5,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS ponto_registros (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    funcionario_id INTEGER NOT NULL,
+    data TEXT NOT NULL,
+    entrada TEXT,
+    saida_almoco TEXT,
+    volta_almoco TEXT,
+    saida TEXT,
+    tipo TEXT DEFAULT 'normal',
+    obs TEXT,
+    horas_trabalhadas REAL DEFAULT 0,
+    horas_previstas REAL DEFAULT 0,
+    saldo_minutos INTEGER DEFAULT 0,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id),
+    UNIQUE(funcionario_id, data)
+  );
+
+  CREATE TABLE IF NOT EXISTS ponto_feriados (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    data TEXT NOT NULL UNIQUE,
+    descricao TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_ponto_registros_func ON ponto_registros(funcionario_id, data);
+  CREATE INDEX IF NOT EXISTS idx_ponto_feriados_data ON ponto_feriados(data);
 `);
+
+// ═══ Ponto: default config + feriados nacionais ═══
+db.exec(`INSERT OR IGNORE INTO ponto_config (id, jornada_json, tolerancia_min) VALUES (1, '{"seg":{"entrada":"07:30","saida_almoco":"12:00","volta_almoco":"13:00","saida":"17:30"},"ter":{"entrada":"07:30","saida_almoco":"12:00","volta_almoco":"13:00","saida":"17:30"},"qua":{"entrada":"07:30","saida_almoco":"12:00","volta_almoco":"13:00","saida":"17:30"},"qui":{"entrada":"07:30","saida_almoco":"12:00","volta_almoco":"13:00","saida":"17:30"},"sex":{"entrada":"07:30","saida_almoco":"12:00","volta_almoco":"13:00","saida":"16:30"},"sab":null,"dom":null}', 5)`);
+
+// Feriados nacionais fixos (inserir para o ano corrente e próximo)
+const feriadosNacionais = [
+  { data: '01-01', descricao: 'Confraternização Universal' },
+  { data: '04-21', descricao: 'Tiradentes' },
+  { data: '05-01', descricao: 'Dia do Trabalho' },
+  { data: '09-07', descricao: 'Independência do Brasil' },
+  { data: '10-12', descricao: 'Nossa Senhora Aparecida' },
+  { data: '11-02', descricao: 'Finados' },
+  { data: '11-15', descricao: 'Proclamação da República' },
+  { data: '12-25', descricao: 'Natal' },
+];
+const anoAtual = new Date().getFullYear();
+const insertFeriado = db.prepare('INSERT OR IGNORE INTO ponto_feriados (data, descricao) VALUES (?, ?)');
+for (const f of feriadosNacionais) {
+  insertFeriado.run(`${anoAtual}-${f.data}`, f.descricao);
+  insertFeriado.run(`${anoAtual + 1}-${f.data}`, f.descricao);
+}
 
 // ═══════════════════════════════════════════════════════
 // MIGRAÇÕES — Colunas novas em tabelas existentes

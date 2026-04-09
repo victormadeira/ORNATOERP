@@ -34,6 +34,7 @@ const GestaoAvancada = lazy(() => import('./pages/GestaoAvancada'));
 const ProducaoTV = lazy(() => import('./pages/ProducaoTV'));
 const Produtividade = lazy(() => import('./pages/Produtividade'));
 const PluginDownload = lazy(() => import('./pages/PluginDownload'));
+const Ponto = lazy(() => import('./pages/Ponto'));
 
 // ── Skeleton Fallback ──────────────────────────────────────────
 const LazyFallback = () => (
@@ -111,7 +112,7 @@ class ErrorBoundary extends Component {
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
     // ── Roteamento com History API ──────────────────────────────────────────
-    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download'];
+    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download','ponto'];
     const [pg, setPg] = useState(() => {
         const rawPath = window.location.pathname.replace(/^\/+/, '');
         const parts = rawPath.split('/');
@@ -500,6 +501,7 @@ export default function App() {
         { id: 'gestao', label: 'Gestão', icon: Ic.LineChart, items: [
             { id: "financeiro", lb: "Financeiro", ic: Ic.Dollar },
             { id: "compras", lb: "Compras & NF", ic: Ic.ShoppingCart },
+            { id: "ponto", lb: "Ponto", ic: Ic.Clock },
             { id: "gestao", lb: "Gestão Avançada", ic: Ic.BarChart },
             { id: "relatorios", lb: "Relatórios", ic: Ic.PieChart },
         ]},
@@ -588,6 +590,7 @@ export default function App() {
             case "producao_tv": return <ProducaoTV />;
             case "produtividade": return <Produtividade notify={notify} />;
             case "plugin_download": return <PluginDownload notify={notify} />;
+            case "ponto": return <Ponto notify={notify} />;
             default: return <Dash nav={nav} notify={notify} />;
         }
     };
