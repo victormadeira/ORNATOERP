@@ -576,16 +576,19 @@ export default function PropostaApresentacao({ token }) {
     const darkBg = c1;
 
     // Counter values
-    const cnt1 = useCountUp(100, 2000, statsVisible);
-    const cnt2 = useCountUp(5, 1500, statsVisible);
-    const cnt3 = useCountUp(5, 1800, statsVisible);
-    // cnt4 removido (garantia)
+    const statProjetos = data?.empresa?.projetos_entregues || 100;
+    const statAnos = data?.empresa?.anos_experiencia || 5;
+    const statMaquinas = data?.empresa?.maquinas_industriais || 5;
+    const descMaquinas = data?.empresa?.desc_maquinas || '';
+    const cnt1 = useCountUp(statProjetos, 2000, statsVisible);
+    const cnt2 = useCountUp(statAnos, 1500, statsVisible);
+    const cnt3 = useCountUp(statMaquinas, 1800, statsVisible);
 
     if (loading) return <LoadingScreen c1={c1} c2={c2} />;
     if (error) return <ErrorScreen error={error} />;
     if (!data) return null;
 
-    const { cliente_nome, empresa, portfolio, depoimentos, proposta_token, validade } = data;
+    const { cliente_nome, empresa, portfolio, depoimentos, proposta_token, validade, criado_em } = data;
 
     return (
         <>
@@ -619,13 +622,13 @@ export default function PropostaApresentacao({ token }) {
                                 Transformamos espaços em experiências únicas.
                             </h2>
                             <p className="ap-about-text" style={{ color: `${c1}B0` }}>
-                                Somos especialistas em móveis planejados sob medida, unindo a precisão e a agilidade da tecnologia de ponta ao capricho e à essência da marcenaria fina tradicional. Trabalhamos com materiais de mais alta qualidade e processos modernos para garantir qualidade superior em cada entrega. Cada projeto é desenvolvido para refletir a personalidade e o estilo de vida de nossos clientes, com acabamento impecável e atenção absoluta aos detalhes.
+                                {empresa.texto_institucional || 'Somos especialistas em móveis planejados sob medida, unindo a precisão e a agilidade da tecnologia de ponta ao capricho e à essência da marcenaria fina tradicional. Trabalhamos com materiais de mais alta qualidade e processos modernos para garantir qualidade superior em cada entrega. Cada projeto é desenvolvido para refletir a personalidade e o estilo de vida de nossos clientes, com acabamento impecável e atenção absoluta aos detalhes.'}
                             </p>
                         </div>
                         <div className="ap-stats" ref={statsRef}>
                             <StatCard label="Projetos Entregues" value={`${cnt1}+`} color={c2} reveal={reveal} delay={0} />
                             <StatCard label="Anos de Experiência" value={cnt2} color={c2} reveal={reveal} delay={1} />
-                            <StatCard label="Máquinas Industriais" value={`${cnt3}+`} color={c2} reveal={reveal} delay={2} desc="Centro Nesting, Centro de Furação, Coladeira Industrial e Cabine de Pintura" />
+                            <StatCard label="Máquinas Industriais" value={`${cnt3}+`} color={c2} reveal={reveal} delay={2} desc={descMaquinas || undefined} />
                         </div>
                     </div>
                 </section>
@@ -797,19 +800,55 @@ export default function PropostaApresentacao({ token }) {
                                 Preparamos uma proposta personalizada com todos os detalhes do seu projeto.
                                 Clique abaixo para visualizar.
                             </p>
-                            {validade && (
-                                <div style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: 8,
-                                    padding: '8px 16px', borderRadius: 6,
-                                    background: 'rgba(255,255,255,0.08)',
-                                    border: '1px solid rgba(255,255,255,0.12)',
-                                    fontSize: 13, color: 'rgba(255,255,255,0.7)',
-                                    marginBottom: 24,
-                                }}>
-                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: c2, animation: 'pulse 2s infinite' }} />
-                                    Condições válidas até {new Date(validade + 'T12:00:00').toLocaleDateString('pt-BR')}
-                                </div>
-                            )}
+                            {validade && (() => {
+                                const now = new Date();
+                                const end = new Date(validade + 'T23:59:59');
+                                const start = criado_em ? new Date(criado_em) : new Date(end.getTime() - 15 * 86400000);
+                                const total = Math.max(1, end - start);
+                                const remaining = Math.max(0, end - now);
+                                const pctUsado = Math.min(100, ((total - remaining) / total) * 100);
+                                const pctRestante = 100 - pctUsado;
+                                const diasRestantes = Math.ceil(remaining / 86400000);
+                                const expirada = diasRestantes <= 0;
+                                const urgente = diasRestantes <= 3 && !expirada;
+                                const barColor = expirada ? '#ef4444' : urgente ? '#f59e0b' : c2;
+                                return (
+                                    <div style={{
+                                        maxWidth: 380, margin: '0 auto 28px', padding: '16px 20px',
+                                        borderRadius: 12, background: 'rgba(255,255,255,0.06)',
+                                        border: `1px solid ${barColor}30`,
+                                    }}>
+                                        {/* Header: ícone relógio + texto */}
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={barColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                                </svg>
+                                                <span style={{ fontSize: 13, fontWeight: 600, color: `${cream}D0` }}>
+                                                    {expirada ? 'Proposta expirada' : `Válida até ${new Date(validade + 'T12:00:00').toLocaleDateString('pt-BR')}`}
+                                                </span>
+                                            </div>
+                                            <span style={{ fontSize: 12, fontWeight: 700, color: barColor }}>
+                                                {expirada ? 'Expirada' : diasRestantes === 1 ? 'Último dia!' : `${diasRestantes}d`}
+                                            </span>
+                                        </div>
+                                        {/* Barra de progresso — mostra tempo restante */}
+                                        <div style={{ height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden' }}>
+                                            <div style={{
+                                                height: '100%', borderRadius: 3,
+                                                width: `${pctRestante}%`,
+                                                background: `linear-gradient(90deg, ${barColor}, ${barColor}90)`,
+                                                transition: 'width 0.6s ease',
+                                            }} />
+                                        </div>
+                                        {!expirada && (
+                                            <p style={{ fontSize: 11, color: `${cream}60`, margin: '8px 0 0', textAlign: 'center' }}>
+                                                {diasRestantes === 1 ? 'Aproveite — condições especiais expiram hoje!' : `${diasRestantes} dias restantes para aproveitar estas condições`}
+                                            </p>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                             <br />
                             <a
                                 href={`/proposta/${proposta_token}`}

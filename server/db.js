@@ -1475,8 +1475,20 @@ const migrations = [
   "ALTER TABLE empresa_config ADD COLUMN facebook TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN proposta_incluso TEXT DEFAULT 'Projeto 3D personalizado;Produção própria com maquinário industrial;Entrega e instalação no local;Acabamento premium e ferragens de primeira linha;Garantia de fábrica'",
   "ALTER TABLE empresa_config ADD COLUMN anos_experiencia INTEGER DEFAULT 0",
+  // ═══ Apresentação: stats + texto institucional ═══
+  "ALTER TABLE empresa_config ADD COLUMN projetos_entregues INTEGER DEFAULT 0",
+  "ALTER TABLE empresa_config ADD COLUMN maquinas_industriais INTEGER DEFAULT 0",
+  "ALTER TABLE empresa_config ADD COLUMN texto_institucional TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN desc_maquinas TEXT DEFAULT ''",
   // ═══ Portal: toggle pagamento ═══
   "ALTER TABLE empresa_config ADD COLUMN portal_mostrar_pagamento INTEGER DEFAULT 0",
+  // ═══ Aprovação digital — colunas em orcamentos ═══
+  "ALTER TABLE orcamentos ADD COLUMN aprovado_em DATETIME",
+  "ALTER TABLE orcamentos ADD COLUMN aprovado_por TEXT DEFAULT ''",
+  // ═══ Responsável legal + assinatura da empresa ═══
+  "ALTER TABLE empresa_config ADD COLUMN responsavel_legal_nome TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN responsavel_legal_cpf TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN assinatura_empresa_img TEXT DEFAULT ''",
 
   // ═══════════════════════════════════════════════════════
   // EXPEDIÇÃO CNC — Checkpoints e Scans

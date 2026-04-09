@@ -254,6 +254,7 @@ export function buildContratoHtml({
     empresa, cliente, orcamento, ambientes,
     pagamento, pvComDesconto, template,
     prazoEntrega, enderecoObra, propostaHtml,
+    assinaturaEmpresaImg, responsavelLegal, assinaturaClienteImg, assinaturaDigital,
 }) {
     const descontoR = (pagamento?.desconto?.valor || 0) > 0
         ? (pagamento.desconto.tipo === '%' ? pvComDesconto / (1 - pagamento.desconto.valor / 100) * (pagamento.desconto.valor / 100) : pagamento.desconto.valor)
@@ -481,10 +482,11 @@ export function buildContratoHtml({
         margin-bottom: 40px;
     }
     .sig-grid {
-        display: flex; justify-content: space-between;
-        gap: 60px;
+        display: table; width: 100%; table-layout: fixed;
     }
-    .sig-block { flex: 1; text-align: center; }
+    .sig-block { display: table-cell; width: 50%; text-align: center; vertical-align: bottom; padding: 0 20px; }
+    .sig-img-area { height: 80px; width: 100%; position: relative; }
+    .sig-img-area img { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); }
     .sig-line { border-top: 1px solid #555; padding-top: 5px; }
     .sig-name { font-size: 11px; font-weight: 700; color: #222; }
     .sig-role { font-size: 9px; color: #888; margin-top: 1px; }
@@ -550,18 +552,39 @@ export function buildContratoHtml({
         ${conteudoHtml}
     </div>
 
+    <!-- CLAUSULA ASSINATURA ELETRONICA -->
+    ${(assinaturaDigital || assinaturaEmpresaImg || assinaturaClienteImg) ? `
+    <div class="content" style="margin-top:20px;">
+        <p class="clausula-titulo">CLÁUSULA DE ASSINATURA ELETRÔNICA</p>
+        <p style="text-align:justify;line-height:1.8;font-size:11px;">
+            As partes declaram e concordam que este contrato é assinado eletronicamente, nos termos da
+            <strong>Lei nº 14.063/2020</strong> e da <strong>Medida Provisória nº 2.200-2/2001</strong>,
+            sendo válido e eficaz como instrumento particular assinado de próprio punho. As assinaturas
+            eletrônicas apostas neste documento possuem plena validade jurídica e força probatória,
+            dispensando a necessidade de testemunhas. As partes reconhecem a autenticidade e integridade
+            deste documento eletrônico e renunciam ao direito de impugnar sua validade com base exclusivamente
+            no meio eletrônico utilizado para sua celebração.
+        </p>
+    </div>` : ''}
+
     <!-- ASSINATURAS -->
     <div class="sig-section">
         <div class="sig-date"><strong>${empresa?.cidade || ''}${empresa?.estado ? '/' + empresa.estado : ''}</strong>, ${fmtDataExtenso()}.</div>
         <div class="sig-grid">
             <div class="sig-block">
+                <div class="sig-img-area">
+                    ${assinaturaEmpresaImg ? `<img src="${assinaturaEmpresaImg}" style="max-height:60px;max-width:180px;" />` : ''}
+                </div>
                 <div class="sig-line">
-                    <div class="sig-name">${empresaNome || 'CONTRATADA'}</div>
-                    <div class="sig-role">CONTRATADA</div>
-                    ${empresaCnpj ? `<div class="sig-doc">CNPJ: ${empresaCnpj}</div>` : ''}
+                    <div class="sig-name">${responsavelLegal?.nome || empresaNome || 'CONTRATADA'}</div>
+                    <div class="sig-role">CONTRATADA — ${empresaNome || ''}</div>
+                    ${responsavelLegal?.cpf ? `<div class="sig-doc">CPF: ${responsavelLegal.cpf}</div>` : empresaCnpj ? `<div class="sig-doc">CNPJ: ${empresaCnpj}</div>` : ''}
                 </div>
             </div>
             <div class="sig-block">
+                <div class="sig-img-area">
+                    ${assinaturaClienteImg ? `<img src="${assinaturaClienteImg}" style="max-height:60px;max-width:180px;" />` : ''}
+                </div>
                 <div class="sig-line">
                     <div class="sig-name">${cliente?.nome || 'CONTRATANTE'}</div>
                     <div class="sig-role">CONTRATANTE</div>
@@ -571,7 +594,8 @@ export function buildContratoHtml({
         </div>
     </div>
 
-    <!-- TESTEMUNHAS -->
+    <!-- TESTEMUNHAS (apenas para contratos sem assinatura digital) -->
+    ${!(assinaturaDigital || assinaturaEmpresaImg || assinaturaClienteImg) ? `
     <div class="test-section">
         <div class="test-label">TESTEMUNHAS:</div>
         <div class="test-grid">
@@ -588,7 +612,7 @@ export function buildContratoHtml({
                 </div>
             </div>
         </div>
-    </div>
+    </div>` : ''}
 
     <!-- FOOTER -->
     <div class="footer">

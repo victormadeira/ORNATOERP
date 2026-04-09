@@ -4,7 +4,7 @@ import api from '../api';
 import { useAuth } from '../auth';
 import { applyPrimaryColor } from '../theme';
 import { DEFAULT_CONTRATO_TEMPLATE } from './ContratoHtml';
-import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus } from 'lucide-react';
+import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield } from 'lucide-react';
 
 const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
@@ -153,6 +153,8 @@ export default function Cfg({ taxas, reload, notify }) {
         proposta_cor_primaria: '#1B2A4A', proposta_cor_accent: '#C9A96E',
         proposta_sobre: '', proposta_garantia: '', proposta_consideracoes: '', proposta_rodape: '', proposta_incluso: '',
         instagram: '', facebook: '', anos_experiencia: 0,
+        projetos_entregues: 0, maquinas_industriais: 0, texto_institucional: '', desc_maquinas: '',
+        responsavel_legal_nome: '', responsavel_legal_cpf: '', assinatura_empresa_img: '',
         portal_mostrar_pagamento: 0,
         gdrive_credentials: '', gdrive_folder_id: '',
         gdrive_client_id: '', gdrive_client_secret: '',
@@ -233,6 +235,13 @@ export default function Cfg({ taxas, reload, notify }) {
                 instagram: d.instagram || '',
                 facebook: d.facebook || '',
                 anos_experiencia: d.anos_experiencia || 0,
+                projetos_entregues: d.projetos_entregues || 0,
+                maquinas_industriais: d.maquinas_industriais || 0,
+                texto_institucional: d.texto_institucional || '',
+                desc_maquinas: d.desc_maquinas || '',
+                responsavel_legal_nome: d.responsavel_legal_nome || '',
+                responsavel_legal_cpf: d.responsavel_legal_cpf || '',
+                assinatura_empresa_img: d.assinatura_empresa_img || '',
                 portal_mostrar_pagamento: d.portal_mostrar_pagamento ?? 0,
                 gdrive_credentials: d.gdrive_credentials || '',
                 gdrive_folder_id: d.gdrive_folder_id || '',
@@ -317,6 +326,13 @@ export default function Cfg({ taxas, reload, notify }) {
                 instagram: emp.instagram,
                 facebook: emp.facebook,
                 anos_experiencia: emp.anos_experiencia,
+                projetos_entregues: emp.projetos_entregues,
+                maquinas_industriais: emp.maquinas_industriais,
+                texto_institucional: emp.texto_institucional,
+                desc_maquinas: emp.desc_maquinas,
+                responsavel_legal_nome: emp.responsavel_legal_nome,
+                responsavel_legal_cpf: emp.responsavel_legal_cpf,
+                assinatura_empresa_img: emp.assinatura_empresa_img,
                 portal_mostrar_pagamento: emp.portal_mostrar_pagamento,
                 gdrive_credentials: emp.gdrive_credentials,
                 gdrive_folder_id: emp.gdrive_folder_id,
@@ -949,20 +965,236 @@ export default function Cfg({ taxas, reload, notify }) {
                                         className={Z.inp}
                                     />
                                 </div>
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div>
+                                        <label className={Z.lbl}>Anos de Experiência</label>
+                                        <input
+                                            type="number"
+                                            value={emp.anos_experiencia}
+                                            onChange={e => setEmp({ ...emp, anos_experiencia: parseInt(e.target.value) || 0 })}
+                                            disabled={!isGerente}
+                                            placeholder="0"
+                                            className={Z.inp}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={Z.lbl}>Projetos Entregues</label>
+                                        <input
+                                            type="number"
+                                            value={emp.projetos_entregues}
+                                            onChange={e => setEmp({ ...emp, projetos_entregues: parseInt(e.target.value) || 0 })}
+                                            disabled={!isGerente}
+                                            placeholder="0"
+                                            className={Z.inp}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={Z.lbl}>Máquinas Industriais</label>
+                                        <input
+                                            type="number"
+                                            value={emp.maquinas_industriais}
+                                            onChange={e => setEmp({ ...emp, maquinas_industriais: parseInt(e.target.value) || 0 })}
+                                            disabled={!isGerente}
+                                            placeholder="0"
+                                            className={Z.inp}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                    Estes números aparecem nos stats da apresentação da proposta.
+                                </div>
                                 <div>
-                                    <label className={Z.lbl}>Anos de Experiência</label>
+                                    <label className={Z.lbl}>Descrição das Máquinas (opcional)</label>
                                     <input
-                                        type="number"
-                                        value={emp.anos_experiencia}
-                                        onChange={e => setEmp({ ...emp, anos_experiencia: parseInt(e.target.value) || 0 })}
+                                        value={emp.desc_maquinas}
+                                        onChange={e => setEmp({ ...emp, desc_maquinas: e.target.value })}
                                         disabled={!isGerente}
-                                        placeholder="0"
+                                        placeholder="Ex: Centro Nesting, Centro de Furação, Coladeira Industrial..."
                                         className={Z.inp}
                                     />
                                     <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                                        Aparece nos stats da landing page e na apresentação.
+                                        Texto complementar exibido abaixo do número de máquinas na apresentação.
                                     </div>
                                 </div>
+                                <div>
+                                    <label className={Z.lbl}>Texto Institucional — Quem Somos</label>
+                                    <textarea
+                                        value={emp.texto_institucional}
+                                        onChange={e => setEmp({ ...emp, texto_institucional: e.target.value })}
+                                        disabled={!isGerente}
+                                        rows={3}
+                                        placeholder="Somos especialistas em móveis planejados sob medida, unindo a precisão da tecnologia de ponta ao capricho da marcenaria fina tradicional..."
+                                        style={{
+                                            width: '100%', fontSize: 12, lineHeight: 1.6, padding: 12, borderRadius: 8,
+                                            resize: 'vertical', background: 'var(--bg-muted)', color: 'var(--text-primary)',
+                                            border: '1px solid var(--border)',
+                                        }}
+                                    />
+                                    <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                        Texto da seção "Quem Somos" na apresentação da proposta. Deixe vazio para usar o texto padrão.
+                                    </div>
+                                </div>
+
+                                {/* ── Responsável Legal & Assinatura Digital ── */}
+                                <div style={{ marginTop: 16, padding: 16, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                                        <Shield size={16} style={{ color: 'var(--primary)' }} />
+                                        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>Responsável Legal — Assinatura Digital</span>
+                                    </div>
+                                    <div className="text-[10px] mb-3" style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                                        Dados do responsável legal para assinatura digital de contratos (Lei 14.063/2020). A assinatura desenhada abaixo será pré-aplicada como CONTRATADA nos contratos enviados para assinatura.
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                                        <div>
+                                            <label className={Z.lbl}>Nome Completo</label>
+                                            <input
+                                                type="text"
+                                                value={emp.responsavel_legal_nome}
+                                                onChange={e => setEmp({ ...emp, responsavel_legal_nome: e.target.value })}
+                                                disabled={!isGerente}
+                                                placeholder="Nome do responsável legal"
+                                                style={{
+                                                    width: '100%', fontSize: 12, padding: '8px 12px', borderRadius: 8,
+                                                    background: 'var(--bg-primary)', color: 'var(--text-primary)',
+                                                    border: '1px solid var(--border)',
+                                                }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={Z.lbl}>CPF</label>
+                                            <input
+                                                type="text"
+                                                value={emp.responsavel_legal_cpf}
+                                                onChange={e => {
+                                                    const d = e.target.value.replace(/\D/g, '').slice(0, 11);
+                                                    let f = d;
+                                                    if (d.length > 9) f = d.slice(0,3)+'.'+d.slice(3,6)+'.'+d.slice(6,9)+'-'+d.slice(9);
+                                                    else if (d.length > 6) f = d.slice(0,3)+'.'+d.slice(3,6)+'.'+d.slice(6);
+                                                    else if (d.length > 3) f = d.slice(0,3)+'.'+d.slice(3);
+                                                    setEmp({ ...emp, responsavel_legal_cpf: f });
+                                                }}
+                                                disabled={!isGerente}
+                                                placeholder="000.000.000-00"
+                                                style={{
+                                                    width: '100%', fontSize: 12, padding: '8px 12px', borderRadius: 8,
+                                                    background: 'var(--bg-primary)', color: 'var(--text-primary)',
+                                                    border: '1px solid var(--border)',
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className={Z.lbl} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <PenTool size={13} /> Assinatura da Empresa
+                                        </label>
+
+                                        {/* Preview da assinatura digital */}
+                                        {emp.assinatura_empresa_img ? (
+                                            <div style={{ marginBottom: 8 }}>
+                                                <div style={{
+                                                    background: '#fff', borderRadius: 10, padding: '12px 16px',
+                                                    border: '1px solid var(--border)', display: 'inline-block',
+                                                }}>
+                                                    <img src={emp.assinatura_empresa_img} alt="Assinatura" style={{ maxHeight: 80, maxWidth: '100%' }} />
+                                                </div>
+                                                <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <CheckCircle2 size={14} style={{ color: '#16a34a' }} />
+                                                    <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 500 }}>Assinatura digital gerada</span>
+                                                    {isGerente && (
+                                                        <button
+                                                            onClick={() => setEmp({ ...emp, assinatura_empresa_img: '' })}
+                                                            style={{
+                                                                marginLeft: 8, fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer',
+                                                                background: 'none', border: 'none', textDecoration: 'underline',
+                                                            }}
+                                                        >
+                                                            Refazer
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                {/* Preview ao vivo da assinatura digital */}
+                                                <div style={{
+                                                    background: '#fff', borderRadius: 10, padding: '20px 24px',
+                                                    border: '2px solid var(--border)', textAlign: 'center', marginBottom: 10,
+                                                    minHeight: 80, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                }}>
+                                                    {emp.responsavel_legal_nome ? (
+                                                        <span style={{
+                                                            fontFamily: "'Dancing Script', 'Brush Script MT', 'Segoe Script', cursive",
+                                                            fontSize: 28, color: '#1a1a2e', fontWeight: 700,
+                                                            letterSpacing: 1,
+                                                        }}>
+                                                            {emp.responsavel_legal_nome}
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{ fontSize: 12, color: '#9ca3af', fontStyle: 'italic' }}>
+                                                            Preencha o nome do responsavel legal acima
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <button
+                                                    onClick={() => {
+                                                        const nome = emp.responsavel_legal_nome?.trim();
+                                                        if (!nome) { notify('Preencha o nome do responsavel legal primeiro'); return; }
+                                                        // Gerar assinatura digital via canvas oculto
+                                                        const canvas = document.createElement('canvas');
+                                                        const W = 400, H = 100;
+                                                        const dpr = window.devicePixelRatio || 1;
+                                                        canvas.width = W * dpr; canvas.height = H * dpr;
+                                                        const ctx = canvas.getContext('2d');
+                                                        ctx.scale(dpr, dpr);
+                                                        // Fundo transparente
+                                                        ctx.clearRect(0, 0, W, H);
+                                                        // Texto com fonte cursiva
+                                                        ctx.fillStyle = '#1a1a2e';
+                                                        ctx.textAlign = 'center';
+                                                        ctx.textBaseline = 'middle';
+                                                        // Tentar fontes cursivas em ordem
+                                                        const fontes = ["'Dancing Script'", "'Brush Script MT'", "'Segoe Script'", "cursive"];
+                                                        let fontSize = 36;
+                                                        // Ajustar tamanho se nome muito longo
+                                                        if (nome.length > 20) fontSize = 28;
+                                                        if (nome.length > 30) fontSize = 22;
+                                                        ctx.font = `700 ${fontSize}px ${fontes.join(', ')}`;
+                                                        ctx.fillText(nome, W / 2, H / 2);
+                                                        // Linha sutil embaixo
+                                                        ctx.strokeStyle = '#1a1a2e';
+                                                        ctx.lineWidth = 0.5;
+                                                        ctx.globalAlpha = 0.3;
+                                                        ctx.beginPath();
+                                                        ctx.moveTo(W * 0.15, H * 0.75);
+                                                        ctx.lineTo(W * 0.85, H * 0.75);
+                                                        ctx.stroke();
+                                                        ctx.globalAlpha = 1;
+                                                        const dataUrl = canvas.toDataURL('image/png');
+                                                        setEmp(prev => ({ ...prev, assinatura_empresa_img: dataUrl }));
+                                                        notify('Assinatura digital gerada! Salve as configuracoes para persistir.');
+                                                    }}
+                                                    disabled={!isGerente || !emp.responsavel_legal_nome?.trim()}
+                                                    style={{
+                                                        width: '100%', padding: '8px 16px', borderRadius: 8, border: 'none',
+                                                        background: emp.responsavel_legal_nome?.trim() ? 'var(--primary)' : '#d1d5db',
+                                                        color: '#fff', fontSize: 12, fontWeight: 600,
+                                                        cursor: emp.responsavel_legal_nome?.trim() ? 'pointer' : 'not-allowed',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                                    }}
+                                                >
+                                                    <Check size={14} /> Gerar Assinatura Digital
+                                                </button>
+                                                <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                                    Assinatura gerada automaticamente a partir do nome. Validade juridica conforme Lei 14.063/2020.
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
                                     <label style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: isGerente ? 'pointer' : 'default' }}>
                                         <input

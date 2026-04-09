@@ -243,7 +243,9 @@ router.get('/landing/:token', (req, res) => {
     const emp = db.prepare(`
         SELECT nome, telefone, email, site, instagram,
                proposta_cor_primaria, proposta_cor_accent,
-               logo_sistema
+               logo_sistema,
+               anos_experiencia, projetos_entregues, maquinas_industriais,
+               texto_institucional, desc_maquinas
         FROM empresa_config WHERE id = 1
     `).get();
 
@@ -269,6 +271,7 @@ router.get('/landing/:token', (req, res) => {
         cliente_nome: orc.cliente_nome || '',
         numero: orc.numero || '',
         validade,
+        criado_em: orc.criado_em || null,
         empresa: {
             nome: emp?.nome || 'Marcenaria',
             telefone: emp?.telefone || '',
@@ -278,6 +281,11 @@ router.get('/landing/:token', (req, res) => {
             logo: emp?.logo_sistema || '',
             cor_primaria: emp?.proposta_cor_primaria || '#1B2A4A',
             cor_accent: emp?.proposta_cor_accent || '#C9A96E',
+            anos_experiencia: emp?.anos_experiencia || 0,
+            projetos_entregues: emp?.projetos_entregues || 0,
+            maquinas_industriais: emp?.maquinas_industriais || 0,
+            texto_institucional: emp?.texto_institucional || '',
+            desc_maquinas: emp?.desc_maquinas || '',
         },
         portfolio,
         depoimentos,
@@ -360,6 +368,16 @@ router.get('/public/:token', optionalAuth, async (req, res) => {
         }
     }
 
+    // Calcular validade
+    let validade = null;
+    try {
+        const mods = orc.mods_json ? JSON.parse(orc.mods_json) : {};
+        const dias = mods.validade_dias || parseInt(mods.validade_proposta) || 15;
+        const base = orc.criado_em ? new Date(orc.criado_em) : new Date();
+        base.setDate(base.getDate() + dias);
+        validade = base.toISOString().split('T')[0];
+    } catch (_) {}
+
     // Retornar dados (single query para empresa_config)
     const emp = db.prepare('SELECT nome, proposta_cor_primaria, proposta_cor_accent FROM empresa_config WHERE id = 1').get();
     res.json({
@@ -371,6 +389,8 @@ router.get('/public/:token', optionalAuth, async (req, res) => {
         numero: orc.numero || '',
         cliente_nome: orc.cliente_nome || '',
         aprovado_em: orc.aprovado_em || null,
+        validade,
+        criado_em: orc.criado_em || null,
     });
 });
 

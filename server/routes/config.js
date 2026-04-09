@@ -114,6 +114,8 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         landing_servicos_json, landing_diferenciais_json, landing_etapas_json,
         centro_custo_json, centro_custo_dias_uteis,
         instagram, facebook, proposta_incluso, anos_experiencia,
+        projetos_entregues, maquinas_industriais, texto_institucional, desc_maquinas,
+        responsavel_legal_nome, responsavel_legal_cpf, assinatura_empresa_img,
         portal_mostrar_pagamento,
     } = req.body;
     db.prepare(`
@@ -146,6 +148,8 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
       landing_servicos_json=?, landing_diferenciais_json=?, landing_etapas_json=?,
       centro_custo_json=?, centro_custo_dias_uteis=?,
       instagram=?, facebook=?, proposta_incluso=?, anos_experiencia=?,
+      projetos_entregues=?, maquinas_industriais=?, texto_institucional=?, desc_maquinas=?,
+      responsavel_legal_nome=?, responsavel_legal_cpf=?, assinatura_empresa_img=?,
       portal_mostrar_pagamento=?,
       atualizado_em=CURRENT_TIMESTAMP
     WHERE id=1
@@ -202,6 +206,13 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         facebook !== undefined ? facebook : '',
         proposta_incluso !== undefined ? proposta_incluso : '',
         anos_experiencia ?? 0,
+        projetos_entregues ?? 0,
+        maquinas_industriais ?? 0,
+        texto_institucional !== undefined ? texto_institucional : '',
+        desc_maquinas !== undefined ? desc_maquinas : '',
+        responsavel_legal_nome !== undefined ? responsavel_legal_nome : '',
+        responsavel_legal_cpf !== undefined ? responsavel_legal_cpf : '',
+        assinatura_empresa_img !== undefined ? assinatura_empresa_img : '',
         portal_mostrar_pagamento ?? 0,
     );
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();

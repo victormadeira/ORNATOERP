@@ -33,10 +33,6 @@ function SignatureCanvas({ onSignature, width = 600, height = 200 }) {
         const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
         ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, rect.width, rect.height);
         ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        // Linha de referência
-        ctx.setLineDash([4, 4]); ctx.strokeStyle = '#d1d5db'; ctx.beginPath();
-        ctx.moveTo(20, rect.height - 30); ctx.lineTo(rect.width - 20, rect.height - 30); ctx.stroke();
-        ctx.setLineDash([]); ctx.strokeStyle = '#1a1a2e';
     }, [dpr]);
 
     const getPos = useCallback((e) => {
@@ -69,9 +65,7 @@ function SignatureCanvas({ onSignature, width = 600, height = 200 }) {
         const canvas = canvasRef.current; const ctx = canvas.getContext('2d');
         const rect = canvas.getBoundingClientRect();
         ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, rect.width, rect.height);
-        ctx.setLineDash([4, 4]); ctx.strokeStyle = '#d1d5db'; ctx.beginPath();
-        ctx.moveTo(20, rect.height - 30); ctx.lineTo(rect.width - 20, rect.height - 30); ctx.stroke();
-        ctx.setLineDash([]); setHasStrokes(false); onSignature(null);
+        setHasStrokes(false); onSignature(null);
     };
 
     const save = () => {
@@ -81,9 +75,13 @@ function SignatureCanvas({ onSignature, width = 600, height = 200 }) {
 
     return (
         <div>
-            <canvas ref={canvasRef} style={{ width: '100%', height, border: '2px solid #e5e7eb', borderRadius: 12, touchAction: 'none', userSelect: 'none', cursor: 'crosshair', background: '#fff' }}
-                onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
-                onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw} />
+            <div style={{ position: 'relative' }}>
+                <canvas ref={canvasRef} style={{ width: '100%', height, border: '2px solid #e5e7eb', borderRadius: 12, touchAction: 'none', userSelect: 'none', cursor: 'crosshair', background: '#fff' }}
+                    onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
+                    onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw} />
+                {/* Linha de referência visual (não aparece no export) */}
+                <div style={{ position: 'absolute', bottom: 30, left: 20, right: 20, borderBottom: '2px dashed #d1d5db', pointerEvents: 'none' }} />
+            </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <button onClick={clear} style={{ padding: '6px 16px', borderRadius: 8, border: '1px solid #e5e7eb', background: '#f9fafb', fontSize: 13, cursor: 'pointer' }}>Limpar</button>
                 <button onClick={save} disabled={!hasStrokes} style={{ padding: '6px 16px', borderRadius: 8, border: 'none', background: hasStrokes ? '#2563eb' : '#94a3b8', color: '#fff', fontSize: 13, fontWeight: 600, cursor: hasStrokes ? 'pointer' : 'not-allowed', flex: 1 }}>
@@ -209,16 +207,22 @@ export default function AssinaturaPublic({ token }) {
                     </div>
                 )}
 
-                {/* Step 2: Documento */}
+                {/* Step 2: Documento (fullscreen) */}
                 {step === 2 && (
-                    <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                        <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5e7eb' }}>
-                            <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1f2937' }}>Leia o documento</h3>
-                            <p style={{ fontSize: 11, color: '#6b7280' }}>Leia integralmente antes de assinar</p>
+                    <div style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50,
+                        display: 'flex', flexDirection: 'column', background: '#fff',
+                    }}>
+                        <div style={{ padding: '10px 20px', borderBottom: '1px solid #e5e7eb', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                            <div>
+                                <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1f2937', margin: 0 }}>Leia o documento</h3>
+                                <p style={{ fontSize: 10, color: '#6b7280', margin: 0 }}>Leia integralmente antes de assinar</p>
+                            </div>
+                            <span style={{ fontSize: 10, color: '#9ca3af' }}>{nomeDoc} — {data.proposta.numero}</span>
                         </div>
-                        <iframe ref={iframeRef} srcDoc={data.documento.html} style={{ width: '100%', height: 500, border: 'none' }} title="Documento" />
-                        <div style={{ padding: 16, borderTop: '1px solid #e5e7eb' }}>
-                            <button onClick={() => setStep(3)} style={{ width: '100%', padding: '12px', borderRadius: 12, border: 'none', background: cor1, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+                        <iframe ref={iframeRef} srcDoc={`<div style="padding:0 20px">${data.documento.html}</div>`} style={{ flex: 1, width: '100%', border: 'none' }} title="Documento" />
+                        <div style={{ padding: '12px 20px', borderTop: '1px solid #e5e7eb', background: '#fff', flexShrink: 0 }}>
+                            <button onClick={() => setStep(3)} style={{ width: '100%', padding: '14px', borderRadius: 12, border: 'none', background: cor1, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
                                 Li o documento — Continuar
                             </button>
                         </div>
@@ -275,36 +279,78 @@ export default function AssinaturaPublic({ token }) {
 
                 {/* Step 5: Sucesso */}
                 {step === 5 && resultado && (
-                    <div style={{ background: '#fff', borderRadius: 16, padding: 32, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', textAlign: 'center' }}>
-                        <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                            <CheckCircle2 size={36} color="#22c55e" />
+                    <div style={{ background: '#fff', borderRadius: 12, padding: '24px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', textAlign: 'center' }}>
+                        <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg, #dcfce7, #bbf7d0)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', animation: 'popIn 0.5s ease' }}>
+                            <CheckCircle2 size={36} color="#16a34a" />
                         </div>
-                        <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1f2937' }}>Documento Assinado!</h2>
-                        <p style={{ fontSize: 13, color: '#6b7280', marginTop: 8 }}>Sua assinatura foi registrada com sucesso.</p>
+                        <h2 style={{ fontSize: 20, fontWeight: 800, color: '#1f2937', margin: 0 }}>Contrato Assinado com Sucesso!</h2>
+                        <p style={{ fontSize: 13, color: '#6b7280', marginTop: 6, lineHeight: 1.5 }}>
+                            Sua assinatura digital foi registrada e o documento possui validade juridica.<br />
+                            <strong style={{ color: '#374151' }}>Guarde o codigo abaixo</strong> para consulta futura.
+                        </p>
 
-                        <div style={{ background: '#f0fdf4', borderRadius: 12, padding: 20, marginTop: 24 }}>
-                            <div style={{ fontSize: 11, color: '#6b7280' }}>Código de verificação</div>
-                            <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: 4, color: '#166534', fontFamily: 'monospace', marginTop: 4 }}>{resultado.codigo_verificacao}</div>
-                            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 8 }}>
-                                Verifique em: <a href={`/verificar/${resultado.codigo_verificacao}`} style={{ color: cor1 }}>{window.location.origin}/verificar/{resultado.codigo_verificacao}</a>
+                        <div style={{ background: '#f0fdf4', borderRadius: 10, padding: '16px 14px', marginTop: 16 }}>
+                            <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 500, textTransform: 'uppercase', letterSpacing: 1 }}>Codigo de verificacao</div>
+                            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: 5, color: '#166534', fontFamily: 'monospace', marginTop: 4 }}>{resultado.codigo_verificacao}</div>
+                        </div>
+
+                        {/* Botao Download */}
+                        <button
+                            onClick={async () => {
+                                try {
+                                    const r = await fetch(`/api/assinaturas/comprovante-publico/${resultado.codigo_verificacao}`);
+                                    if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Erro ao baixar'); return; }
+                                    const blob = await r.blob();
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url; a.download = `Contrato-Assinado-${resultado.codigo_verificacao}.pdf`;
+                                    a.click(); URL.revokeObjectURL(url);
+                                } catch { alert('Erro ao baixar contrato'); }
+                            }}
+                            style={{
+                                width: '100%', marginTop: 14, padding: '12px 16px', borderRadius: 10,
+                                border: 'none', background: cor1 || '#1B2A4A', color: '#fff',
+                                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                            }}
+                        >
+                            <FileText size={16} /> Baixar Contrato Assinado (PDF)
+                        </button>
+
+                        {/* Dados da assinatura */}
+                        <div style={{ background: '#f8fafc', borderRadius: 8, padding: 12, marginTop: 14, textAlign: 'left' }}>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Dados da sua assinatura</div>
+                            <div style={{ display: 'grid', gap: 3, fontSize: 11, color: '#6b7280' }}>
+                                <div><span style={{ color: '#9ca3af' }}>Assinante:</span> <strong style={{ color: '#374151' }}>{resultado.nome || data?.nome || ''}</strong></div>
+                                <div><span style={{ color: '#9ca3af' }}>Data/hora:</span> <strong style={{ color: '#374151' }}>{new Date().toLocaleString('pt-BR')}</strong></div>
+                                <div style={{ fontFamily: 'monospace', fontSize: 8, color: '#9ca3af', wordBreak: 'break-all', marginTop: 2 }}>
+                                    Hash: {resultado.hash_assinatura}
+                                </div>
                             </div>
                         </div>
 
-                        <div style={{ background: '#f8fafc', borderRadius: 12, padding: 16, marginTop: 16, textAlign: 'left' }}>
-                            <div style={{ fontSize: 10, color: '#9ca3af', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                                Hash da assinatura: {resultado.hash_assinatura}
-                            </div>
+                        {/* Proximos passos */}
+                        <div style={{ background: '#fefce8', borderRadius: 8, padding: 12, marginTop: 10, textAlign: 'left' }}>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: '#92400e', marginBottom: 4 }}>Proximos passos</div>
+                            <ul style={{ fontSize: 11, color: '#78716c', lineHeight: 1.7, margin: 0, paddingLeft: 16 }}>
+                                <li>A empresa sera notificada da sua assinatura</li>
+                                <li>Verifique o documento a qualquer momento pelo codigo acima</li>
+                                <li>O PDF acima serve como comprovante legal</li>
+                            </ul>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', marginTop: 20, color: '#9ca3af', fontSize: 10 }}>
-                            <Shield size={12} />
-                            <span>Assinatura eletrônica — Lei 14.063/2020</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'center', marginTop: 16, color: '#9ca3af', fontSize: 9 }}>
+                            <Shield size={11} />
+                            <span>Assinatura eletronica simples — Lei 14.063/2020, Art. 4, I</span>
                         </div>
                     </div>
                 )}
             </div>
 
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            <style>{`
+                @keyframes spin { to { transform: rotate(360deg); } }
+                @keyframes popIn { 0% { transform: scale(0.3); opacity: 0; } 50% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
+            `}</style>
         </div>
     );
 }

@@ -4,6 +4,7 @@ import db from '../db.js';
 import { requireAuth, optionalAuth } from '../auth.js';
 import { createNotification } from '../services/notificacoes.js';
 import { parseUA, geolocateIP, getClientIP, validarCPF } from '../lib/tracking-utils.js';
+import { htmlToPdf } from '../pdf.js';
 
 const router = Router();
 
@@ -240,8 +241,10 @@ router.post('/public/:signerToken/assinar', async (req, res) => {
         res.json({
             success: true,
             status: novoStatus,
+            documento_id: doc.id,
             codigo_verificacao: doc.codigo_verificacao,
             hash_assinatura: hashSig,
+            nome: signer.nome,
         });
     } catch (err) {
         console.error('Assinatura assinar erro:', err.message);
@@ -290,5 +293,226 @@ router.get('/verificar/:codigo', (req, res) => {
         lei: 'Assinatura eletrônica simples — Lei 14.063/2020, Art. 4º, I',
     });
 });
+
+// ═══════════════════════════════════════════════════════
+// GET /api/assinaturas/comprovante-publico/:codigo — PDF via código de verificação (sem auth)
+// ═══════════════════════════════════════════════════════
+
+router.get('/comprovante-publico/:codigo', async (req, res) => {
+    try {
+        const doc = db.prepare('SELECT * FROM documento_assinaturas WHERE codigo_verificacao = ?').get(req.params.codigo.toUpperCase());
+        if (!doc) return res.status(404).json({ error: 'Documento não encontrado' });
+        if (doc.status !== 'concluido') return res.status(400).json({ error: 'Documento ainda não foi assinado' });
+        // Gerar HTML do comprovante via handler interno
+        const fakeRes = {
+            _json: null,
+            _status: 200,
+            json(data) { this._json = data; return this; },
+            status(code) { this._status = code; return this; },
+        };
+        req.params.docId = String(doc.id);
+        comprovanteHandler(req, fakeRes);
+        if (!fakeRes._json?.html) return res.status(500).json({ error: 'Erro ao gerar HTML' });
+        // Converter HTML para PDF
+        const pdfBuffer = await htmlToPdf(fakeRes._json.html, {});
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Length': pdfBuffer.length,
+            'Content-Disposition': `inline; filename="Contrato-Assinado-${doc.codigo_verificacao}.pdf"`,
+        });
+        res.send(pdfBuffer);
+    } catch (err) {
+        console.error('[assinaturas/comprovante-publico] Erro:', err.message);
+        res.status(500).json({ error: 'Erro ao gerar comprovante' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// GET /api/assinaturas/comprovante/:docId — HTML para PDF comprovante
+// ═══════════════════════════════════════════════════════
+
+function comprovanteHandler(req, res) {
+    try {
+        const doc = db.prepare('SELECT * FROM documento_assinaturas WHERE id = ?').get(req.params.docId);
+        if (!doc) return res.status(404).json({ error: 'Documento não encontrado' });
+
+        const orc = db.prepare('SELECT numero, cliente_nome FROM orcamentos WHERE id = ?').get(doc.orc_id);
+        const emp = db.prepare('SELECT nome, cnpj, telefone, logo_sistema, proposta_cor_primaria, proposta_cor_accent FROM empresa_config WHERE id = 1').get();
+
+        const signatarios = db.prepare(`
+            SELECT papel, nome, cpf, status, assinado_em, hash_assinatura, ip_assinatura, user_agent, dispositivo, navegador, os_name, cidade, estado, pais, assinatura_img
+            FROM assinatura_signatarios WHERE documento_id = ? ORDER BY ordem
+        `).all(doc.id);
+
+        const cor1 = emp?.proposta_cor_primaria || '#1B2A4A';
+        const cor2 = emp?.proposta_cor_accent || '#C9A96E';
+        const baseUrl = process.env.BASE_URL || '';
+
+        const sigHtml = signatarios.map(s => {
+            const cpfMask = mascaraCPF(s.cpf);
+            const ipMask = mascaraIP(s.ip_assinatura);
+            const local = [s.cidade, s.estado, s.pais].filter(Boolean).join(', ');
+            const assinadoEm = s.assinado_em ? new Date(s.assinado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—';
+            const sigImg = s.assinatura_img ? `<div style="margin:12px 0;text-align:center"><img src="data:image/png;base64,${s.assinatura_img}" style="max-width:280px;max-height:80px;border:1px solid #e5e7eb;border-radius:8px" /></div>` : '';
+
+            return `
+            <div style="border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:12px;${s.status === 'assinado' ? 'border-left:4px solid #22c55e' : 'border-left:4px solid #fbbf24'}">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                    <div>
+                        <strong style="font-size:14px">${s.nome}</strong>
+                        <span style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-left:8px">${s.papel}</span>
+                    </div>
+                    <span style="font-size:11px;font-weight:700;color:${s.status === 'assinado' ? '#166534' : '#854d0e'};background:${s.status === 'assinado' ? '#dcfce7' : '#fef9c3'};padding:2px 10px;border-radius:6px">
+                        ${s.status === 'assinado' ? 'ASSINADO' : 'PENDENTE'}
+                    </span>
+                </div>
+                ${s.status === 'assinado' ? `
+                ${sigImg}
+                <table style="width:100%;font-size:11px;color:#374151;border-collapse:collapse">
+                    <tr><td style="padding:3px 0;color:#6b7280;width:140px">Data/Hora:</td><td><strong>${assinadoEm}</strong></td></tr>
+                    <tr><td style="padding:3px 0;color:#6b7280">CPF:</td><td style="font-family:monospace">${cpfMask}</td></tr>
+                    <tr><td style="padding:3px 0;color:#6b7280">IP:</td><td style="font-family:monospace">${ipMask}</td></tr>
+                    <tr><td style="padding:3px 0;color:#6b7280">Dispositivo:</td><td>${s.dispositivo || ''} — ${s.navegador || ''} — ${s.os_name || ''}</td></tr>
+                    ${local ? `<tr><td style="padding:3px 0;color:#6b7280">Localização:</td><td>${local}</td></tr>` : ''}
+                    <tr><td style="padding:3px 0;color:#6b7280">Hash assinatura:</td><td style="font-family:monospace;font-size:9px;word-break:break-all">${s.hash_assinatura || '—'}</td></tr>
+                </table>` : '<p style="font-size:12px;color:#6b7280;margin:8px 0 0">Aguardando assinatura</p>'}
+            </div>`;
+        }).join('');
+
+        const criadoEm = doc.criado_em ? new Date(doc.criado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—';
+        const concluidoEm = doc.concluido_em ? new Date(doc.concluido_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—';
+        const verificarUrl = `${baseUrl}/verificar/${doc.codigo_verificacao}`;
+
+        // Extrair o conteúdo do body do contrato original (remover <html>, <head>, <body> wrappers)
+        let contratoBody = doc.html_documento || '';
+        const bodyMatch = contratoBody.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+        if (bodyMatch) contratoBody = bodyMatch[1];
+        // Extrair estilos do contrato original para preservar formatação
+        let contratoStyles = '';
+        const styleMatches = (doc.html_documento || '').match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
+        if (styleMatches) contratoStyles = styleMatches.map(s => s.replace(/<\/?style[^>]*>/gi, '')).join('\n');
+
+        // Injetar assinatura do cliente na sig-img-area do CONTRATANTE
+        const sigAssinado = signatarios.find(s => s.papel === 'contratante' && s.status === 'assinado' && s.assinatura_img);
+        if (sigAssinado) {
+            // Novo formato: sig-img-area vazia antes do sig-line do CONTRATANTE
+            contratoBody = contratoBody.replace(
+                /(<div class="sig-img-area">\s*<\/div>\s*<div class="sig-line">\s*<div class="sig-name">[^<]*<\/div>\s*<div class="sig-role">CONTRATANTE<\/div>)/i,
+                `<div class="sig-img-area"><img src="data:image/png;base64,${sigAssinado.assinatura_img}" style="max-height:60px;max-width:180px" /></div><div class="sig-line"><div class="sig-name">${sigAssinado.nome}</div><div class="sig-role">CONTRATANTE</div>`
+            );
+            // Fallback: formato antigo sem sig-img-area
+            if (!contratoBody.includes(`base64,${sigAssinado.assinatura_img.slice(0, 20)}`)) {
+                contratoBody = contratoBody.replace(
+                    /(<div class="sig-block">\s*)(<div class="sig-line">\s*<div class="sig-name">[^<]*<\/div>\s*<div class="sig-role">CONTRATANTE<\/div>)/i,
+                    `$1<div style="height:70px;display:flex;align-items:flex-end;justify-content:center"><img src="data:image/png;base64,${sigAssinado.assinatura_img}" style="max-height:60px;max-width:180px" /></div>$2`
+                );
+            }
+        }
+
+        // Namespace CSS do contrato para evitar conflito com comprovante
+        const nsContratoStyles = contratoStyles
+            .replace(/@page\s*\{[^}]*\}/g, '') // remover @page do contrato
+            .replace(/\bbody\s*\{/g, '.doc-contrato {') // body → .doc-contrato
+            .replace(/\.wm\b/g, '.doc-contrato .wm')
+            .replace(/\.header\b/g, '.doc-contrato .c-header')
+            .replace(/\.content\b/g, '.doc-contrato .c-content');
+
+        // Namespace body do contrato (renomear classes para não conflitar)
+        let nsContratoBody = contratoBody
+            .replace(/class="header"/g, 'class="c-header"')
+            .replace(/class="content"/g, 'class="c-content"');
+
+        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+            @page { size: A4; margin: 18mm 16mm; }
+            body { font-family: 'Inter', 'Segoe UI', sans-serif; color: #1f2937; margin: 0; padding: 0; font-size: 12px; line-height: 1.5; }
+            /* ── Comprovante (Parte 1) ── */
+            .comp-header { background: ${cor1}; color: #fff; padding: 20px 28px; display: flex; align-items: center; gap: 16px; }
+            .comp-header img { height: 36px; }
+            .comp-content { padding: 28px; }
+            .comp-section { margin-bottom: 20px; }
+            .comp-section-title { font-size: 13px; font-weight: 700; color: ${cor1}; border-bottom: 2px solid ${cor2}; padding-bottom: 5px; margin-bottom: 12px; }
+            .comp-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+            .comp-info-item { font-size: 11px; }
+            .comp-info-label { color: #6b7280; }
+            .comp-info-value { font-weight: 600; }
+            .comp-footer { margin-top: 28px; padding-top: 14px; border-top: 2px solid ${cor2}; text-align: center; font-size: 10px; color: #6b7280; }
+            .comp-verify-box { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 14px; text-align: center; margin-top: 18px; }
+            .comp-verify-code { font-size: 22px; font-weight: 800; letter-spacing: 4px; color: ${cor1}; font-family: monospace; }
+            .page-break { page-break-before: always; }
+            /* ── Barra + Footer do contrato ── */
+            .contrato-bar { background: ${cor1}; color: #fff; padding: 6px 20px; display: flex; align-items: center; gap: 8px; font-size: 9px; margin: 0; }
+            .contrato-bar svg { flex-shrink: 0; }
+            .contrato-footer { border-top: 1.5px solid ${cor2}; padding: 8px 20px; text-align: center; font-size: 8px; color: #6b7280; }
+            /* ── Contrato embutido (namespaced) ── */
+            .doc-contrato { margin: 0; padding: 0; }
+            .doc-contrato .wm { display: none; }
+            ${nsContratoStyles}
+        </style></head><body>
+            <!-- ═══ PARTE 1: COMPROVANTE DE ASSINATURA ═══ -->
+            <div class="comp-header">
+                ${emp?.logo_sistema ? `<img src="${emp.logo_sistema}" alt="" />` : ''}
+                <div>
+                    <div style="font-size:15px;font-weight:700">${emp?.nome || 'Empresa'}</div>
+                    <div style="font-size:10px;opacity:0.8">Comprovante de Assinatura Eletrônica</div>
+                </div>
+            </div>
+            <div class="comp-content">
+                <div class="comp-section">
+                    <div class="comp-section-title">Dados do Documento</div>
+                    <div class="comp-info-grid">
+                        <div class="comp-info-item"><span class="comp-info-label">Tipo:</span> <span class="comp-info-value">${doc.tipo_documento === 'contrato' ? 'Contrato' : doc.tipo_documento}</span></div>
+                        <div class="comp-info-item"><span class="comp-info-label">Proposta:</span> <span class="comp-info-value">${orc?.numero || '—'} — ${orc?.cliente_nome || '—'}</span></div>
+                        <div class="comp-info-item"><span class="comp-info-label">Criado em:</span> <span class="comp-info-value">${criadoEm}</span></div>
+                        <div class="comp-info-item"><span class="comp-info-label">Concluído em:</span> <span class="comp-info-value">${concluidoEm}</span></div>
+                        <div class="comp-info-item"><span class="comp-info-label">Status:</span> <span class="comp-info-value" style="color:${doc.status === 'concluido' ? '#166534' : '#854d0e'}">${doc.status === 'concluido' ? 'ASSINADO' : doc.status.toUpperCase()}</span></div>
+                        <div class="comp-info-item"><span class="comp-info-label">Código:</span> <span class="comp-info-value" style="font-family:monospace">${doc.codigo_verificacao}</span></div>
+                    </div>
+                    <div style="margin-top:8px;font-size:10px">
+                        <span class="comp-info-label">Hash SHA-256:</span>
+                        <span style="font-family:monospace;font-size:8px;word-break:break-all;margin-left:4px">${doc.hash_documento}</span>
+                    </div>
+                </div>
+
+                <div class="comp-section">
+                    <div class="comp-section-title">Signatários</div>
+                    ${sigHtml}
+                </div>
+
+                <div class="comp-verify-box">
+                    <div style="font-size:10px;color:#6b7280;margin-bottom:3px">Código de Verificação</div>
+                    <div class="comp-verify-code">${doc.codigo_verificacao}</div>
+                    <div style="font-size:9px;color:#6b7280;margin-top:6px">
+                        Verifique a autenticidade em: <strong>${verificarUrl}</strong>
+                    </div>
+                </div>
+
+                <div class="comp-footer">
+                    <p style="margin:0 0 3px"><strong>Assinatura eletrônica simples</strong> — Lei 14.063/2020, Art. 4º, I</p>
+                    <p style="margin:0;font-size:9px">Este documento possui validade jurídica conforme legislação brasileira. Integridade verificável pelo hash SHA-256.</p>
+                </div>
+            </div>
+
+            <!-- ═══ PARTE 2: CONTRATO ORIGINAL ═══ -->
+            <div class="page-break"></div>
+            <div class="contrato-bar">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <span>Documento assinado eletronicamente · Código: <strong>${doc.codigo_verificacao}</strong> · Hash: ${doc.hash_documento.slice(0, 16)}…</span>
+            </div>
+            <div class="doc-contrato">
+                ${nsContratoBody}
+            </div>
+            <div class="contrato-footer">
+                <p style="margin:0">Documento assinado eletronicamente — Lei 14.063/2020 — Código: <strong style="letter-spacing:1px">${doc.codigo_verificacao}</strong> — ${concluidoEm}</p>
+            </div>
+        </body></html>`;
+
+        res.json({ html });
+    } catch (err) {
+        console.error('[assinaturas/comprovante] Erro:', err.message);
+        res.status(500).json({ error: 'Erro ao gerar comprovante' });
+    }
+}
+
+router.get('/comprovante/:docId', requireAuth, comprovanteHandler);
 
 export default router;

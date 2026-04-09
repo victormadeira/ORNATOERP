@@ -9,7 +9,7 @@ import {
     FileText, BarChart3, FileSignature, Plus, ChevronDown, ChevronRight, Trash2, Copy,
     FolderOpen, Package, Settings, Layers, X, RefreshCw, Wrench, AlertTriangle, Box, Search,
     ToggleLeft, ToggleRight, Info, CreditCard, Eye, Globe, Monitor, Smartphone, Clock, ExternalLink, Share2,
-    Lock, Unlock, ShieldAlert, FilePlus2, CheckCircle, Upload, Brain, Sparkles,
+    Lock, Unlock, Shield, ShieldAlert, FilePlus2, CheckCircle, Upload, Brain, Sparkles,
     PanelTop, UtensilsCrossed, BedDouble, Bath, Shirt, Flame, WashingMachine, Armchair, PenTool, Briefcase,
     Square, Sofa, RectangleHorizontal, GlassWater, Shapes,
     GitBranch, Star, ArrowRight, ArrowUpDown, Tag, ArrowUp, ArrowDown, GripVertical, MapPin,
@@ -1251,6 +1251,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [propostaModal, setPropostaModal] = useState(false);
     const [viewsData, setViewsData] = useState(null);
     const [showViews, setShowViews] = useState(false);
+    const [assinaturas, setAssinaturas] = useState([]);
     const [viewMapId, setViewMapId] = useState(null);
     const [showAllViews, setShowAllViews] = useState(false);
 
@@ -1305,6 +1306,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 if (data.versoes && data.versoes.length > 1) setVersoes(data.versoes);
             }).catch(e => notify(e.error || 'Erro ao carregar orçamento'));
             api.get(`/portal/views/${editOrc.id}`).then(setViewsData).catch(() => { /* views opcional */ });
+            api.get(`/assinaturas/documento/${editOrc.id}`).then(setAssinaturas).catch(() => {});
         }
     }, [editOrc?.id]);
 
@@ -3747,7 +3749,74 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     const blob = await api.postBlob('/pdf/generate', { html });
                                     window.open(URL.createObjectURL(blob), '_blank');
                                 } catch (ex) { notify(ex.detail || ex.error || 'Erro ao gerar contrato'); }
-                            }} className={`${Z.btn2} w-full py-2 text-xs`}><FileSignature size={13} /> Gerar Contrato</button>
+                            }} className={`${Z.btn2} w-full py-2 text-xs`}><FileSignature size={13} /> Gerar Contrato (PDF)</button>
+                            <button onClick={async () => {
+                                if (!editOrc?.id) { notify('Salve o orçamento antes de enviar para assinatura'); return; }
+                                if (pagamento.blocos.length === 0) { notify('Defina as condições de pagamento antes de gerar o contrato'); return; }
+                                try {
+                                    notify('Gerando contrato para assinatura...');
+                                    let emp = empresa;
+                                    if (!emp) { emp = await api.get('/config/empresa'); setEmpresa(emp); }
+                                    const cl = clis.find(c => c.id === parseInt(cid));
+                                    if (!cl?.cpf) { notify('Cadastre o CPF do cliente antes de enviar para assinatura'); return; }
+                                    const propHtml = buildPropostaHtml({
+                                        empresa: emp, cliente: cl,
+                                        orcamento: { numero, projeto, obs },
+                                        ambientes, tot, taxas, pagamento, pvComDesconto, bib, padroes,
+                                        nivel: 'ambiente', prazoEntrega, enderecoObra, validadeProposta,
+                                    });
+                                    const html = buildContratoHtml({
+                                        empresa: emp, cliente: cl,
+                                        orcamento: { numero, projeto, validadeProposta },
+                                        ambientes, pagamento, pvComDesconto,
+                                        template: emp?.contrato_template || '',
+                                        prazoEntrega, enderecoObra,
+                                        propostaHtml: propHtml,
+                                        assinaturaDigital: true,
+                                        assinaturaEmpresaImg: emp?.assinatura_empresa_img || null,
+                                        responsavelLegal: (emp?.responsavel_legal_nome || emp?.responsavel_legal_cpf) ? {
+                                            nome: emp.responsavel_legal_nome,
+                                            cpf: emp.responsavel_legal_cpf,
+                                        } : null,
+                                    });
+                                    const res = await api.post('/assinaturas/criar', {
+                                        orc_id: editOrc.id,
+                                        tipo_documento: 'contrato',
+                                        html_documento: html,
+                                        signatarios: [
+                                            { papel: 'contratante', nome: cl.nome, cpf: cl.cpf, email: cl.email || '', telefone: cl.tel || '' },
+                                        ],
+                                    });
+                                    const sigUrl = res.signatarios?.[0]?.signing_url || `/assinar/${res.signatarios?.[0]?.token}`;
+                                    const fullUrl = `${window.location.origin}${sigUrl}`;
+                                    const waText = encodeURIComponent(`Olá ${cl.nome}! Segue o link para assinatura do contrato${emp?.nome ? ` da ${emp.nome}` : ''}: ${fullUrl}`);
+                                    const waLink = cl.tel ? `https://wa.me/55${cl.tel.replace(/\D/g, '')}?text=${waText}` : null;
+                                    // Copiar link automaticamente
+                                    try { await navigator.clipboard.writeText(fullUrl); } catch {}
+                                    notify(
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            <span><strong>Contrato gerado!</strong> Link copiado.</span>
+                                            <div style={{ display: 'flex', gap: 6 }}>
+                                                <button onClick={() => window.open(fullUrl, '_blank')} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', fontSize: 11, cursor: 'pointer' }}>
+                                                    Abrir link
+                                                </button>
+                                                {waLink && <a href={waLink} target="_blank" rel="noreferrer" style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: '#22c55e', color: '#fff', fontSize: 11, textDecoration: 'none', cursor: 'pointer' }}>
+                                                    Enviar WhatsApp
+                                                </a>}
+                                            </div>
+                                        </div>
+                                    );
+                                } catch (ex) { notify(ex.detail || ex.error || 'Erro ao gerar assinatura'); }
+                            }} className={`${Z.btn2} w-full py-2 text-xs`} style={
+                                assinaturas.some(d => d.status === 'concluido')
+                                    ? { background: '#dcfce7', borderColor: '#22c55e', color: '#166534', cursor: 'default' }
+                                    : { background: 'var(--accent-bg)', borderColor: 'var(--accent)' }
+                            } disabled={assinaturas.some(d => d.status === 'concluido')}>
+                                {assinaturas.some(d => d.status === 'concluido')
+                                    ? <><CheckCircle size={13} /> Contrato Assinado</>
+                                    : <><PenTool size={13} /> Enviar Contrato p/ Assinatura</>
+                                }
+                            </button>
                             <button onClick={async () => {
                                 try {
                                     let emp = empresa;
@@ -3768,6 +3837,121 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     </div>
                 </div>
             </div>
+
+            {/* ── Assinaturas Digitais ── */}
+            {editOrc?.id && assinaturas.length > 0 && (
+                <div className={`${Z.card} mt-5`}>
+                    <h2 className="text-sm font-semibold flex items-center gap-2 mb-3" style={{ color: 'var(--text-primary)' }}>
+                        <PenTool size={14} /> Assinaturas Digitais
+                    </h2>
+                    {assinaturas.map(doc => (
+                        <div key={doc.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 10, background: 'var(--bg-muted)' }}>
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                    <span style={{
+                                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                                        background: doc.status === 'concluido' ? '#dcfce7' : doc.status === 'cancelado' ? '#fef2f2' : '#fef9c3',
+                                        color: doc.status === 'concluido' ? '#166534' : doc.status === 'cancelado' ? '#991b1b' : '#854d0e',
+                                    }}>
+                                        {doc.status === 'concluido' ? 'ASSINADO' : doc.status === 'cancelado' ? 'CANCELADO' : 'PENDENTE'}
+                                    </span>
+                                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                        {doc.tipo_documento === 'contrato' ? 'Contrato' : doc.tipo_documento}
+                                    </span>
+                                </div>
+                                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                    {doc.codigo_verificacao}
+                                </span>
+                            </div>
+
+                            {/* Signatários */}
+                            {doc.signatarios?.map(sig => (
+                                <div key={sig.id} style={{
+                                    background: '#fff', borderRadius: 8, padding: '10px 12px', marginTop: 8,
+                                    border: `1px solid ${sig.status === 'assinado' ? '#bbf7d0' : '#e5e7eb'}`,
+                                }}>
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{sig.nome}</span>
+                                            <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 6, textTransform: 'uppercase' }}>{sig.papel}</span>
+                                        </div>
+                                        {sig.status === 'assinado' ? (
+                                            <CheckCircle size={14} color="#22c55e" />
+                                        ) : (
+                                            <Clock size={14} color="#94a3b8" />
+                                        )}
+                                    </div>
+                                    {sig.status === 'assinado' && (
+                                        <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-muted)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 12px' }}>
+                                            <span>Assinado: {new Date(sig.assinado_em).toLocaleString('pt-BR')}</span>
+                                            <span>CPF: {sig.cpf_masked}</span>
+                                            {sig.cidade && <span>Local: {sig.cidade}{sig.estado ? `/${sig.estado}` : ''}</span>}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+
+                            {/* Dados de auditoria */}
+                            <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '2px 6px', borderRadius: 4 }}>
+                                    Hash: {doc.hash_documento?.slice(0, 16)}...
+                                </span>
+                                <span style={{ fontSize: 9, color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '2px 6px', borderRadius: 4 }}>
+                                    Criado: {new Date(doc.criado_em).toLocaleString('pt-BR')}
+                                </span>
+                                {doc.concluido_em && (
+                                    <span style={{ fontSize: 9, color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '2px 6px', borderRadius: 4 }}>
+                                        Concluído: {new Date(doc.concluido_em).toLocaleString('pt-BR')}
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Ações */}
+                            <div style={{ marginTop: 10, display: 'flex', gap: 6 }}>
+                                {doc.status === 'concluido' && (
+                                    <button onClick={async () => {
+                                        try {
+                                            notify('Gerando comprovante...');
+                                            const res = await api.get(`/assinaturas/comprovante/${doc.id}`);
+                                            const blob = await api.postBlob('/pdf/generate', { html: res.html });
+                                            window.open(URL.createObjectURL(blob), '_blank');
+                                        } catch (ex) { notify(ex.error || 'Erro ao gerar comprovante'); }
+                                    }} className={Z.btn2} style={{ fontSize: 10, padding: '4px 10px' }}>
+                                        <FileText size={11} /> Comprovante PDF
+                                    </button>
+                                )}
+                                <button onClick={() => window.open(`/verificar/${doc.codigo_verificacao}`, '_blank')} className={Z.btn2} style={{ fontSize: 10, padding: '4px 10px' }}>
+                                    <Shield size={11} /> Verificar
+                                </button>
+                                {doc.signatarios?.find(s => s.status === 'pendente') && (
+                                    <button onClick={() => {
+                                        const sig = doc.signatarios.find(s => s.status === 'pendente');
+                                        if (sig) {
+                                            const url = `${window.location.origin}/assinar/${sig.token}`;
+                                            navigator.clipboard.writeText(url).then(() => notify('Link copiado!')).catch(() => {});
+                                        }
+                                    }} className={Z.btn2} style={{ fontSize: 10, padding: '4px 10px' }}>
+                                        <Copy size={11} /> Copiar Link
+                                    </button>
+                                )}
+                                {(doc.status === 'pendente' || doc.status === 'parcial') && (
+                                    <button onClick={async () => {
+                                        if (!confirm('Cancelar esta sessão de assinatura?')) return;
+                                        try {
+                                            await api.post(`/assinaturas/${doc.id}/cancelar`, { motivo: 'Cancelado pelo operador' });
+                                            setAssinaturas(prev => prev.map(d => d.id === doc.id ? { ...d, status: 'cancelado' } : d));
+                                            notify('Sessão cancelada');
+                                        } catch (ex) { notify(ex.error || 'Erro ao cancelar'); }
+                                    }} style={{ fontSize: 10, padding: '4px 10px', borderRadius: 6, border: '1px solid #fca5a5', background: '#fff', color: '#dc2626', cursor: 'pointer' }}>
+                                        <X size={11} /> Cancelar
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* ── Link Público + Visualizações ── */}
             {editOrc?.id && (
