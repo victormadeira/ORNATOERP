@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth } from '../auth.js';
+import { htmlToPdf } from '../pdf.js';
 
 const router = Router();
 
@@ -567,6 +568,418 @@ router.get('/banco-horas', requireAuth, (req, res) => {
 
     res.json(result);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+// RELATÓRIO PDF
+// ═══════════════════════════════════════════════════════
+
+router.get('/relatorio-pdf', requireAuth, async (req, res) => {
+  try {
+    const { mes } = req.query;
+    if (!mes) return res.status(400).json({ error: 'Parâmetro "mes" obrigatório (ex: 2026-04)' });
+
+    const [ano, mesNum] = mes.split('-').map(Number);
+    const ultimoDia = new Date(ano, mesNum, 0).getDate();
+    const inicioMes = `${mes}-01`;
+    const fimMes = `${mes}-${String(ultimoDia).padStart(2, '0')}`;
+    const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const nomeMes = `${meses[mesNum - 1]} ${ano}`;
+    const diasSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+    const cfg = getConfig();
+    const funcionarios = db.prepare('SELECT * FROM funcionarios WHERE ativo = 1 ORDER BY nome').all();
+    const feriados = db.prepare("SELECT * FROM ponto_feriados WHERE data >= ? AND data <= ?").all(inicioMes, fimMes);
+    const feriadoSet = new Set(feriados.map(f => f.data));
+
+    // Build data per employee
+    const empData = funcionarios.map(func => {
+      const registros = db.prepare(
+        'SELECT * FROM ponto_registros WHERE funcionario_id = ? AND data >= ? AND data <= ? ORDER BY data'
+      ).all(func.id, inicioMes, fimMes);
+
+      const regMap = {};
+      registros.forEach(r => { regMap[r.data] = r; });
+
+      // Banco horas anterior
+      const bhAnterior = db.prepare(
+        'SELECT COALESCE(SUM(saldo_minutos), 0) as total FROM ponto_registros WHERE funcionario_id = ? AND data < ?'
+      ).get(func.id, inicioMes).total || 0;
+
+      let trabalhadas = 0, previstas = 0, atrasos = 0, faltas = 0, atestados = 0, feriasDias = 0;
+      const diasDetail = []; // all days
+      const atrasosDetail = [];
+
+      for (let d = 1; d <= ultimoDia; d++) {
+        const dataStr = `${mes}-${String(d).padStart(2, '0')}`;
+        const dateObj = new Date(dataStr + 'T12:00:00');
+        const dow = dateObj.getDay();
+        const jornadaDia = getJornadaDia(cfg.jornada, dataStr);
+        const ehFeriado = feriadoSet.has(dataStr);
+        const reg = regMap[dataStr];
+
+        const isOff = !jornadaDia || ehFeriado;
+        const hp = isOff ? 0 : getHorasPrevistas(jornadaDia);
+        let ht = 0;
+        let tipo = 'folga';
+        let status = 'folga';
+
+        if (reg) {
+          tipo = reg.tipo || 'normal';
+          if (tipo === 'normal' || tipo === 'compensacao') {
+            ht = calcHorasTrabalhadas(reg.entrada, reg.saida_almoco, reg.volta_almoco, reg.saida);
+            if (jornadaDia && reg.entrada) {
+              const diff = timeToMinutes(reg.entrada) - timeToMinutes(jornadaDia.entrada);
+              if (diff > (cfg.tolerancia_min || 5)) {
+                atrasos++;
+                status = 'atraso';
+                atrasosDetail.push({ data: dataStr, min: diff });
+              } else {
+                status = 'normal';
+              }
+            } else {
+              status = 'normal';
+            }
+          } else if (tipo === 'atestado') {
+            ht = hp; atestados++; status = 'atestado';
+          } else if (tipo === 'ferias') {
+            feriasDias++; status = 'ferias';
+          } else if (tipo === 'falta') {
+            faltas++; status = 'falta';
+          } else if (tipo === 'feriado') {
+            status = 'feriado';
+          } else {
+            status = tipo;
+          }
+        } else if (ehFeriado) {
+          status = 'feriado'; tipo = 'feriado';
+        } else if (!jornadaDia) {
+          status = 'folga'; tipo = 'folga';
+        } else {
+          // Dia útil sem registro no passado = falta
+          const hoje = new Date().toISOString().split('T')[0];
+          if (dataStr <= hoje) { faltas++; status = 'falta'; tipo = 'falta'; }
+          else { status = 'futuro'; tipo = 'futuro'; }
+        }
+
+        trabalhadas += ht;
+        if (!['feriado', 'folga', 'ferias', 'futuro'].includes(status)) previstas += hp;
+
+        diasDetail.push({
+          dia: d, dow, dataStr, status, tipo,
+          entrada: reg?.entrada || '', saida: reg?.saida || '',
+          ht: Math.round(ht * 100) / 100,
+          hp: Math.round(hp * 100) / 100,
+        });
+      }
+
+      const saldoMes = Math.round((trabalhadas - previstas) * 60);
+      const bancoTotal = bhAnterior + saldoMes;
+
+      return {
+        func, trabalhadas, previstas, atrasos, faltas, atestados, feriasDias,
+        saldoMes, bhAnterior, bancoTotal,
+        diasDetail, atrasosDetail,
+      };
+    });
+
+    // Totals
+    const totals = { trabalhadas: 0, previstas: 0, atrasos: 0, faltas: 0, atestados: 0 };
+    empData.forEach(e => { totals.trabalhadas += e.trabalhadas; totals.previstas += e.previstas; totals.atrasos += e.atrasos; totals.faltas += e.faltas; totals.atestados += e.atestados; });
+    totals.saldo = Math.round((totals.trabalhadas - totals.previstas) * 60);
+
+    const fmtH = (hrs) => { const m = Math.round(hrs * 60); const s = m < 0 ? '-' : ''; const a = Math.abs(m); return `${s}${Math.floor(a/60)}h${String(a%60).padStart(2,'0')}`; };
+    const fmtMin = (mins) => { const s = mins < 0 ? '-' : ''; const a = Math.abs(mins); return `${s}${Math.floor(a/60)}h${String(a%60).padStart(2,'0')}`; };
+
+    const statusColor = { normal:'#22c55e', atraso:'#f59e0b', falta:'#ef4444', atestado:'#3b82f6', ferias:'#818cf8', feriado:'#9ca3af', folga:'#d1d5db', compensacao:'#a855f7', futuro:'#e5e7eb' };
+    const statusLabel = { normal:'Normal', atraso:'Atraso', falta:'Falta', atestado:'Atestado', ferias:'Férias', feriado:'Feriado', folga:'Folga', compensacao:'Comp.', futuro:'' };
+
+    // ── Build HTML ──
+    let html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
+<style>
+  @page { size: A4 portrait; margin: 12mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; color: #1a1a2e; background: #fff; }
+  .page { page-break-after: always; padding: 0; position: relative; }
+  .page:last-child { page-break-after: auto; }
+
+  /* Header */
+  .hdr { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: linear-gradient(135deg, #1379F0 0%, #0f5fc2 100%); color: #fff; border-radius: 10px; margin-bottom: 16px; }
+  .hdr h1 { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; }
+  .hdr .sub { font-size: 11px; opacity: 0.85; margin-top: 2px; }
+  .hdr .periodo { font-size: 13px; font-weight: 700; text-align: right; }
+  .hdr .empresa { font-size: 10px; opacity: 0.7; }
+
+  /* Cards */
+  .cards { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .card { flex: 1 1 0; min-width: 80px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 8px; text-align: center; }
+  .card .val { font-size: 20px; font-weight: 800; line-height: 1; }
+  .card .lbl { font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-top: 4px; }
+
+  /* Table */
+  .tbl { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+  .tbl th { background: #f1f5f9; padding: 6px 8px; font-size: 9px; font-weight: 700; text-align: left; border-bottom: 2px solid #e2e8f0; color: #334155; text-transform: uppercase; letter-spacing: 0.3px; }
+  .tbl td { padding: 6px 8px; font-size: 10px; border-bottom: 1px solid #f1f5f9; }
+  .tbl tr:nth-child(even) { background: #fafbfc; }
+
+  /* Employee page */
+  .emp-hdr { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: #fff; border-radius: 10px; margin-bottom: 14px; }
+  .emp-hdr h2 { font-size: 16px; font-weight: 800; }
+  .emp-hdr .cargo { font-size: 10px; opacity: 0.7; margin-top: 2px; }
+  .emp-hdr .banco-box { text-align: right; }
+  .emp-hdr .banco-label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.6; }
+  .emp-hdr .banco-val { font-size: 22px; font-weight: 900; line-height: 1; margin-top: 2px; }
+
+  /* Stats row */
+  .stats { display: flex; gap: 6px; margin-bottom: 12px; }
+  .stat { flex: 1 1 0; padding: 8px 6px; border-radius: 8px; text-align: center; }
+  .stat .sv { font-size: 16px; font-weight: 800; line-height: 1; }
+  .stat .sl { font-size: 7px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; margin-top: 3px; }
+
+  /* Progress bar */
+  .prog-wrap { margin-bottom: 12px; }
+  .prog-label { display: flex; justify-content: space-between; font-size: 8px; color: #64748b; margin-bottom: 3px; font-weight: 600; }
+  .prog-bar { height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden; position: relative; }
+  .prog-fill { height: 100%; border-radius: 5px; transition: width 0.3s; }
+
+  /* Calendar grid */
+  .cal { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+  .cal th { padding: 4px 2px; font-size: 8px; font-weight: 700; text-align: center; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; }
+  .cal td { padding: 3px 2px; font-size: 8px; text-align: center; border: 1px solid #f1f5f9; height: 22px; }
+  .cal .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+
+  /* Delays box */
+  .delays { padding: 10px 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; margin-bottom: 12px; }
+  .delays h4 { font-size: 10px; font-weight: 700; color: #92400e; margin-bottom: 6px; }
+  .delay-item { display: inline-block; padding: 2px 8px; margin: 2px; font-size: 9px; background: #fff; border-radius: 4px; border: 1px solid #fde68a; }
+
+  /* Day table */
+  .dtbl { width: 100%; border-collapse: collapse; font-size: 8px; }
+  .dtbl th { padding: 4px 4px; font-weight: 700; text-align: center; background: #f1f5f9; border: 1px solid #e2e8f0; color: #334155; }
+  .dtbl td { padding: 3px 4px; text-align: center; border: 1px solid #f1f5f9; }
+  .dtbl .weekend { background: #f8fafc; color: #94a3b8; }
+  .dtbl .today { background: #eff6ff; }
+
+  /* Badge */
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 8px; font-weight: 700; }
+
+  /* Banco decomposition */
+  .banco-detail { display: flex; gap: 10px; padding: 10px 14px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; margin-bottom: 12px; align-items: center; }
+  .banco-detail .bd-item { text-align: center; flex: 1; }
+  .banco-detail .bd-val { font-size: 14px; font-weight: 800; }
+  .banco-detail .bd-lbl { font-size: 7px; color: #64748b; text-transform: uppercase; font-weight: 600; }
+  .banco-detail .bd-sep { font-size: 16px; color: #94a3b8; font-weight: 300; }
+
+  .footer { position: absolute; bottom: 0; left: 0; right: 0; text-align: center; font-size: 7px; color: #94a3b8; padding: 6px; }
+</style></head><body>`;
+
+    // ══════════════════════════════════════════════════════
+    // PAGE 1: RESUMO GERAL
+    // ══════════════════════════════════════════════════════
+    html += `<div class="page">
+      <div class="hdr">
+        <div><h1>Relatório de Ponto</h1><div class="sub">Resumo geral de todos os colaboradores</div></div>
+        <div><div class="periodo">${nomeMes}</div><div class="empresa">Ornato ERP</div></div>
+      </div>
+
+      <div class="cards">
+        <div class="card"><div class="val" style="color:#1379F0">${funcionarios.length}</div><div class="lbl">Colaboradores</div></div>
+        <div class="card"><div class="val" style="color:#334155">${fmtH(totals.trabalhadas)}</div><div class="lbl">Horas Trabalhadas</div></div>
+        <div class="card"><div class="val" style="color:${totals.saldo >= 0 ? '#22c55e' : '#ef4444'}">${fmtMin(totals.saldo)}</div><div class="lbl">Saldo Geral</div></div>
+        <div class="card"><div class="val" style="color:#f59e0b">${totals.atrasos}</div><div class="lbl">Atrasos</div></div>
+        <div class="card"><div class="val" style="color:#ef4444">${totals.faltas}</div><div class="lbl">Faltas</div></div>
+        <div class="card"><div class="val" style="color:#3b82f6">${totals.atestados}</div><div class="lbl">Atestados</div></div>
+      </div>
+
+      <table class="tbl">
+        <thead><tr>
+          <th>Colaborador</th><th>Cargo</th><th style="text-align:center">Trab.</th><th style="text-align:center">Prev.</th>
+          <th style="text-align:center">Saldo Mês</th><th style="text-align:center">Banco Acum.</th>
+          <th style="text-align:center">Atrasos</th><th style="text-align:center">Faltas</th><th style="text-align:center">Atestados</th>
+        </tr></thead>
+        <tbody>`;
+
+    empData.forEach(e => {
+      const sColor = e.saldoMes >= 0 ? '#22c55e' : '#ef4444';
+      const bColor = e.bancoTotal >= 0 ? '#22c55e' : '#ef4444';
+      html += `<tr>
+        <td style="font-weight:600">${e.func.nome}</td>
+        <td style="color:#64748b">${e.func.cargo || '—'}</td>
+        <td style="text-align:center;font-weight:600">${fmtH(e.trabalhadas)}</td>
+        <td style="text-align:center;color:#64748b">${fmtH(e.previstas)}</td>
+        <td style="text-align:center;font-weight:700;color:${sColor}">${e.saldoMes >= 0 ? '+' : ''}${fmtMin(e.saldoMes)}</td>
+        <td style="text-align:center;font-weight:800;color:${bColor}">${e.bancoTotal >= 0 ? '+' : ''}${fmtMin(e.bancoTotal)}</td>
+        <td style="text-align:center;color:${e.atrasos ? '#f59e0b' : '#94a3b8'};font-weight:600">${e.atrasos || '—'}</td>
+        <td style="text-align:center;color:${e.faltas ? '#ef4444' : '#94a3b8'};font-weight:600">${e.faltas || '—'}</td>
+        <td style="text-align:center;color:${e.atestados ? '#3b82f6' : '#94a3b8'};font-weight:600">${e.atestados || '—'}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table>
+
+      <!-- Mini gráfico de barras comparativo -->
+      <div style="margin-top:8px">
+        <div style="font-size:9px;font-weight:700;color:#334155;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Horas Trabalhadas vs Previstas</div>`;
+
+    const maxH = Math.max(...empData.map(e => Math.max(e.trabalhadas, e.previstas)), 1);
+    empData.forEach(e => {
+      const pctT = Math.round((e.trabalhadas / maxH) * 100);
+      const pctP = Math.round((e.previstas / maxH) * 100);
+      const firstName = e.func.nome.split(' ')[0];
+      html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <div style="width:70px;font-size:9px;font-weight:600;text-align:right;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${firstName}</div>
+        <div style="flex:1;position:relative;height:14px">
+          <div style="position:absolute;top:0;left:0;height:7px;width:${pctP}%;background:#e2e8f0;border-radius:3px"></div>
+          <div style="position:absolute;top:0;left:0;height:7px;width:${pctT}%;background:${e.trabalhadas >= e.previstas ? '#22c55e' : '#f59e0b'};border-radius:3px;opacity:0.85"></div>
+          <div style="position:absolute;bottom:0;left:0;height:5px;line-height:5px;font-size:7px;color:#64748b">${fmtH(e.trabalhadas)} / ${fmtH(e.previstas)}</div>
+        </div>
+      </div>`;
+    });
+
+    html += `</div>
+      <div class="footer">Relatório gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})} — Ornato ERP</div>
+    </div>`;
+
+    // ══════════════════════════════════════════════════════
+    // PAGES 2+: UMA POR FUNCIONÁRIO
+    // ══════════════════════════════════════════════════════
+    empData.forEach((e, idx) => {
+      const pctTrab = e.previstas > 0 ? Math.min(Math.round((e.trabalhadas / e.previstas) * 100), 150) : 0;
+      const barColor = pctTrab > 100 ? '#22c55e' : pctTrab > 90 ? '#3b82f6' : '#f59e0b';
+      const extras = e.trabalhadas > e.previstas ? (e.trabalhadas - e.previstas) : 0;
+      const deficit = e.previstas > e.trabalhadas ? (e.previstas - e.trabalhadas) : 0;
+
+      html += `<div class="page">
+        <!-- Employee header -->
+        <div class="emp-hdr">
+          <div>
+            <h2>${e.func.nome}</h2>
+            <div class="cargo">${e.func.cargo || 'Sem cargo definido'} ${e.func.cpf ? '| CPF: ' + e.func.cpf : ''}</div>
+          </div>
+          <div class="banco-box">
+            <div class="banco-label">Banco de Horas</div>
+            <div class="banco-val" style="color:${e.bancoTotal >= 0 ? '#4ade80' : '#f87171'}">${e.bancoTotal >= 0 ? '+' : ''}${fmtMin(e.bancoTotal)}</div>
+          </div>
+        </div>
+
+        <!-- Banco decomposition -->
+        <div class="banco-detail">
+          <div class="bd-item">
+            <div class="bd-val" style="color:${e.bhAnterior >= 0 ? '#22c55e' : '#ef4444'}">${e.bhAnterior >= 0 ? '+' : ''}${fmtMin(e.bhAnterior)}</div>
+            <div class="bd-lbl">Meses Anteriores</div>
+          </div>
+          <div class="bd-sep">+</div>
+          <div class="bd-item">
+            <div class="bd-val" style="color:${e.saldoMes >= 0 ? '#22c55e' : '#ef4444'}">${e.saldoMes >= 0 ? '+' : ''}${fmtMin(e.saldoMes)}</div>
+            <div class="bd-lbl">Saldo ${meses[mesNum-1]}</div>
+          </div>
+          <div class="bd-sep">=</div>
+          <div class="bd-item">
+            <div class="bd-val" style="color:${e.bancoTotal >= 0 ? '#22c55e' : '#ef4444'};font-size:18px">${e.bancoTotal >= 0 ? '+' : ''}${fmtMin(e.bancoTotal)}</div>
+            <div class="bd-lbl">Acumulado Total</div>
+          </div>
+        </div>
+
+        <!-- Stats cards -->
+        <div class="stats">
+          <div class="stat" style="background:#f0fdf4;border:1px solid #bbf7d0">
+            <div class="sv" style="color:#16a34a">${fmtH(e.trabalhadas)}</div>
+            <div class="sl" style="color:#16a34a">Trabalhadas</div>
+          </div>
+          <div class="stat" style="background:#f8fafc;border:1px solid #e2e8f0">
+            <div class="sv" style="color:#475569">${fmtH(e.previstas)}</div>
+            <div class="sl" style="color:#64748b">Previstas</div>
+          </div>
+          ${extras > 0 ? `<div class="stat" style="background:#f0fdf4;border:1px solid #bbf7d0">
+            <div class="sv" style="color:#22c55e">+${fmtH(extras)}</div>
+            <div class="sl" style="color:#16a34a">Extras</div>
+          </div>` : ''}
+          ${deficit > 0 ? `<div class="stat" style="background:#fef2f2;border:1px solid #fecaca">
+            <div class="sv" style="color:#ef4444">-${fmtH(deficit)}</div>
+            <div class="sl" style="color:#dc2626">Deficit</div>
+          </div>` : ''}
+          <div class="stat" style="background:#fffbeb;border:1px solid #fde68a">
+            <div class="sv" style="color:#d97706">${e.atrasos}</div>
+            <div class="sl" style="color:#92400e">Atrasos</div>
+          </div>
+          <div class="stat" style="background:#fef2f2;border:1px solid #fecaca">
+            <div class="sv" style="color:#ef4444">${e.faltas}</div>
+            <div class="sl" style="color:#dc2626">Faltas</div>
+          </div>
+          <div class="stat" style="background:#eff6ff;border:1px solid #bfdbfe">
+            <div class="sv" style="color:#2563eb">${e.atestados}</div>
+            <div class="sl" style="color:#1d4ed8">Atestados</div>
+          </div>
+        </div>
+
+        <!-- Progress bar -->
+        <div class="prog-wrap">
+          <div class="prog-label">
+            <span>Progresso: ${pctTrab}%</span>
+            <span>${fmtH(e.trabalhadas)} / ${fmtH(e.previstas)}</span>
+          </div>
+          <div class="prog-bar">
+            <div class="prog-fill" style="width:${Math.min(pctTrab, 100)}%;background:${barColor}"></div>
+          </div>
+        </div>`;
+
+      // Atrasos detail
+      if (e.atrasosDetail.length > 0) {
+        html += `<div class="delays"><h4>Detalhamento de Atrasos (${e.atrasos})</h4><div>`;
+        e.atrasosDetail.forEach(a => {
+          const [,, dd] = a.data.split('-');
+          html += `<span class="delay-item">${dd}/${String(mesNum).padStart(2,'0')} <strong style="color:#d97706">+${a.min}min</strong></span>`;
+        });
+        html += `</div></div>`;
+      }
+
+      // Day-by-day table
+      html += `<table class="dtbl"><thead><tr>
+        <th style="width:26px">Dia</th><th style="width:26px">DS</th><th>Status</th>
+        <th>Entrada</th><th>Saída</th><th>Trab.</th><th>Prev.</th><th>Saldo</th>
+      </tr></thead><tbody>`;
+
+      e.diasDetail.forEach(dd => {
+        if (dd.status === 'futuro') return;
+        const isWe = dd.dow === 0 || dd.dow === 6;
+        const cls = isWe ? ' class="weekend"' : '';
+        const saldoD = dd.ht - dd.hp;
+        const saldoDColor = saldoD >= 0 ? '#22c55e' : '#ef4444';
+        const sc = statusColor[dd.status] || '#d1d5db';
+        html += `<tr${cls}>
+          <td style="font-weight:600">${String(dd.dia).padStart(2,'0')}</td>
+          <td>${diasSemana[dd.dow]}</td>
+          <td><span class="badge" style="background:${sc}20;color:${sc};border:1px solid ${sc}40">${statusLabel[dd.status] || dd.status}</span></td>
+          <td>${dd.entrada || '—'}</td>
+          <td>${dd.saida || '—'}</td>
+          <td style="font-weight:600">${dd.ht ? fmtH(dd.ht) : '—'}</td>
+          <td style="color:#64748b">${dd.hp ? fmtH(dd.hp) : '—'}</td>
+          <td style="font-weight:700;color:${saldoDColor}">${dd.ht || dd.hp ? (saldoD >= 0 ? '+' : '') + fmtH(saldoD) : '—'}</td>
+        </tr>`;
+      });
+
+      html += `</tbody></table>
+        <div class="footer">Pág. ${idx + 2} — ${e.func.nome} — ${nomeMes} — Ornato ERP</div>
+      </div>`;
+    });
+
+    html += `</body></html>`;
+
+    const pdfBuf = await htmlToPdf(html, {
+      format: 'A4',
+      margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
+    });
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="relatorio_ponto_${mes}.pdf"`,
+      'Content-Length': pdfBuf.length,
+    });
+    res.send(pdfBuf);
+  } catch (err) {
+    console.error('Erro ao gerar relatório PDF:', err);
     res.status(500).json({ error: err.message });
   }
 });

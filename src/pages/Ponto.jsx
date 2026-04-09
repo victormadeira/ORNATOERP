@@ -875,7 +875,21 @@ export default function Ponto({ notify }) {
                     <CalendarDays size={13} /> Preencher Mês
                 </button>
                 <button className={Z.btn2Sm} onClick={() => setShowRelatorio(true)} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <FileText size={13} /> Relatório
+                    <FileText size={13} /> Painel
+                </button>
+                <button className={Z.btnSm} onClick={async () => {
+                    notify?.('Gerando relatório PDF...', 'info');
+                    try {
+                        const token = localStorage.getItem('erp_token');
+                        const r = await fetch(`/api/ponto/relatorio-pdf?mes=${mesKey}`, { headers: { Authorization: `Bearer ${token}` } });
+                        if (!r.ok) throw { error: 'Erro ao gerar PDF' };
+                        const blob = await r.blob();
+                        const url = URL.createObjectURL(blob);
+                        window.open(url, '_blank');
+                        notify?.('Relatório PDF gerado', 'success');
+                    } catch (e) { notify?.(e.error || 'Erro ao gerar PDF', 'error'); }
+                }} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, background: '#dc2626', borderColor: '#dc2626', color: '#fff' }}>
+                    <FileText size={13} /> PDF
                 </button>
                 <button className={Z.btn2Sm} onClick={exportCSV} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
                     <Download size={13} /> CSV
