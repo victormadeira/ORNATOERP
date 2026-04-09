@@ -833,10 +833,14 @@ export default function Ponto({ notify }) {
     }, [daysCount, ano, mes, regMap, jornada, tolerancia, feriados]);
 
     // Exportar CSV
-    // Export CSV (formato reimportável)
+    // Export CSV (formato reimportável — respeita feriados e folgas)
     const exportCSV = () => {
         const hdr = ['Funcionario', 'Data', 'Entrada', 'Saida Almoco', 'Volta Almoco', 'Saida', 'Tipo', 'Obs'];
         const rows = [hdr.join(';')];
+        const ferSet = new Set(feriados.map(f => f.data));
+        const ferDesc = {};
+        feriados.forEach(f => { ferDesc[f.data] = f.descricao; });
+
         funcionarios.forEach(func => {
             for (let d = 1; d <= daysCount; d++) {
                 const dateStr = fmtD(ano, mes, d);
@@ -844,17 +848,29 @@ export default function Ponto({ notify }) {
                 const reg = regMap[`${func.id}_${dateStr}`];
                 const j = jornada ? (jornada[dayOfWeek] || jornada[['dom','seg','ter','qua','qui','sex','sab'][dayOfWeek]]) : null;
                 const isOff = !j || (j.ativo !== undefined && !j.ativo);
-                // Incluir dias úteis mesmo sem registro (para preencher no Excel)
-                if (isOff && !reg) continue;
+                const isFer = ferSet.has(dateStr);
+
+                // Pular fim de semana sem registro
+                if (isOff && !isFer && !reg) continue;
+
+                // Determinar tipo correto
+                let tipo = reg?.tipo || 'normal';
+                let obs = reg?.obs || '';
+                if (isFer && (!reg || reg.tipo === 'normal')) {
+                    tipo = 'feriado';
+                    if (!obs && ferDesc[dateStr]) obs = ferDesc[dateStr];
+                }
+                if (isOff && !isFer && !reg) tipo = 'folga';
+
                 rows.push([
                     `"${func.nome}"`,
                     dateStr,
-                    reg?.entrada || '',
-                    reg?.saida_almoco || '',
-                    reg?.volta_almoco || '',
-                    reg?.saida || '',
-                    reg?.tipo || 'normal',
-                    `"${(reg?.obs || '').replace(/"/g, '""')}"`,
+                    (tipo === 'feriado' || tipo === 'folga') ? '' : (reg?.entrada || ''),
+                    (tipo === 'feriado' || tipo === 'folga') ? '' : (reg?.saida_almoco || ''),
+                    (tipo === 'feriado' || tipo === 'folga') ? '' : (reg?.volta_almoco || ''),
+                    (tipo === 'feriado' || tipo === 'folga') ? '' : (reg?.saida || ''),
+                    tipo,
+                    `"${obs.replace(/"/g, '""')}"`,
                 ].join(';'));
             }
         });

@@ -704,7 +704,7 @@ router.get('/relatorio-pdf', requireAuth, async (req, res) => {
     // ── Build HTML ──
     let html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
 <style>
-  @page { size: A4 portrait; margin: 12mm; }
+  @page { size: A4 portrait; margin: 8mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; color: #1a1a2e; background: #fff; }
   .page { page-break-after: always; padding: 0; position: relative; }
@@ -824,7 +824,7 @@ router.get('/relatorio-pdf', requireAuth, async (req, res) => {
     // ══════════════════════════════════════════════════════
     empData.forEach((e, idx) => {
       const pctTrab = e.previstas > 0 ? Math.min(Math.round((e.trabalhadas / e.previstas) * 100), 150) : 0;
-      const barColor = pctTrab > 100 ? '#22c55e' : pctTrab > 90 ? '#3b82f6' : '#f59e0b';
+      const barColor = pctTrab > 100 ? '#22c55e' : COR;
       const extras = e.trabalhadas > e.previstas ? (e.trabalhadas - e.previstas) : 0;
       const deficit = e.previstas > e.trabalhadas ? (e.previstas - e.trabalhadas) : 0;
 
@@ -946,7 +946,7 @@ router.get('/relatorio-pdf', requireAuth, async (req, res) => {
 
     const pdfBuf = await htmlToPdf(html, {
       format: 'A4',
-      margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
+      margin: { top: '6mm', right: '6mm', bottom: '6mm', left: '6mm' },
     });
 
     res.set({
