@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     Clock, ChevronLeft, ChevronRight, Users, Settings, CalendarDays,
-    Plus, Trash2, Edit2, X, Save, Search, Download, Check, FileText
+    Plus, Trash2, Edit2, X, Save, Search, Download, Check, FileText, Upload
 } from 'lucide-react';
 import { Z, Modal, PageHeader, Spinner, EmptyState } from '../ui';
 import api from '../api';
@@ -833,20 +833,49 @@ export default function Ponto({ notify }) {
     }, [daysCount, ano, mes, regMap, jornada, tolerancia, feriados]);
 
     // Exportar CSV
+    // Export CSV (formato reimportável)
     const exportCSV = () => {
-        const hdr = ['Funcionário', 'Data', 'Dia', 'Entrada', 'S.Almoço', 'V.Almoço', 'Saída', 'Tipo', 'Horas', 'Obs'];
+        const hdr = ['Funcionario', 'Data', 'Entrada', 'Saida Almoco', 'Volta Almoco', 'Saida', 'Tipo', 'Obs'];
         const rows = [hdr.join(';')];
         funcionarios.forEach(func => {
             for (let d = 1; d <= daysCount; d++) {
                 const dateStr = fmtD(ano, mes, d);
+                const dayOfWeek = dow(ano, mes, d);
                 const reg = regMap[`${func.id}_${dateStr}`];
-                if (!reg) continue;
-                rows.push([`"${func.nome}"`, fmtBR(dateStr), DS[dow(ano, mes, d)], reg.entrada || '', reg.saida_almoco || '', reg.volta_almoco || '', reg.saida || '', reg.tipo, fmtH(calcWork(reg)), `"${(reg.obs || '').replace(/"/g, '""')}"`].join(';'));
+                const j = jornada ? (jornada[dayOfWeek] || jornada[['dom','seg','ter','qua','qui','sex','sab'][dayOfWeek]]) : null;
+                const isOff = !j || (j.ativo !== undefined && !j.ativo);
+                // Incluir dias úteis mesmo sem registro (para preencher no Excel)
+                if (isOff && !reg) continue;
+                rows.push([
+                    `"${func.nome}"`,
+                    dateStr,
+                    reg?.entrada || '',
+                    reg?.saida_almoco || '',
+                    reg?.volta_almoco || '',
+                    reg?.saida || '',
+                    reg?.tipo || 'normal',
+                    `"${(reg?.obs || '').replace(/"/g, '""')}"`,
+                ].join(';'));
             }
         });
         const blob = new Blob(['\uFEFF' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `ponto_${mesKey}.csv`; a.click();
-        notify?.('Relatório exportado', 'success');
+        notify?.('CSV exportado — preencha no Excel e reimporte', 'success');
+    };
+
+    // Import CSV
+    const fileInputRef = useRef(null);
+    const importCSV = async (file) => {
+        try {
+            const text = await file.text();
+            const r = await api.post('/ponto/registros/importar', { csv: text });
+            let msg = `${r.importados} registro(s) importado(s)`;
+            if (r.ignorados > 0) msg += `, ${r.ignorados} ignorado(s)`;
+            if (r.erros?.length) msg += `\n${r.erros.join('\n')}`;
+            notify?.(msg, r.importados > 0 ? 'success' : 'error');
+            loadData();
+        } catch (e) { notify?.(e.error || 'Erro ao importar CSV', 'error'); }
+        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -894,6 +923,10 @@ export default function Ponto({ notify }) {
                 <button className={Z.btn2Sm} onClick={exportCSV} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
                     <Download size={13} /> CSV
                 </button>
+                <button className={Z.btn2Sm} onClick={() => fileInputRef.current?.click()} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Upload size={13} /> Importar
+                </button>
+                <input ref={fileInputRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) importCSV(e.target.files[0]); }} />
             </PageHeader>
 
             {/* Nav mês */}

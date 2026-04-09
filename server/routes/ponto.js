@@ -589,6 +589,11 @@ router.get('/relatorio-pdf', requireAuth, async (req, res) => {
     const nomeMes = `${meses[mesNum - 1]} ${ano}`;
     const diasSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
+    // Cor do sistema
+    const empresa = db.prepare('SELECT nome, sistema_cor_primaria FROM empresa_config WHERE id = 1').get();
+    const COR = empresa?.sistema_cor_primaria || '#1379F0';
+    const nomeEmpresa = empresa?.nome || '${nomeEmpresa}';
+
     const cfg = getConfig();
     const funcionarios = db.prepare('SELECT * FROM funcionarios WHERE ativo = 1 ORDER BY nome').all();
     const feriados = db.prepare("SELECT * FROM ponto_feriados WHERE data >= ? AND data <= ?").all(inicioMes, fimMes);
@@ -704,74 +709,46 @@ router.get('/relatorio-pdf', requireAuth, async (req, res) => {
   body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; color: #1a1a2e; background: #fff; }
   .page { page-break-after: always; padding: 0; position: relative; }
   .page:last-child { page-break-after: auto; }
-
-  /* Header */
-  .hdr { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: linear-gradient(135deg, #1379F0 0%, #0f5fc2 100%); color: #fff; border-radius: 10px; margin-bottom: 16px; }
+  .hdr { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: linear-gradient(135deg, ${COR} 0%, ${COR}dd 100%); color: #fff; border-radius: 10px; margin-bottom: 16px; }
   .hdr h1 { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; }
   .hdr .sub { font-size: 11px; opacity: 0.85; margin-top: 2px; }
   .hdr .periodo { font-size: 13px; font-weight: 700; text-align: right; }
   .hdr .empresa { font-size: 10px; opacity: 0.7; }
-
-  /* Cards */
   .cards { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
   .card { flex: 1 1 0; min-width: 80px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 8px; text-align: center; }
   .card .val { font-size: 20px; font-weight: 800; line-height: 1; }
   .card .lbl { font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-top: 4px; }
-
-  /* Table */
   .tbl { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
-  .tbl th { background: #f1f5f9; padding: 6px 8px; font-size: 9px; font-weight: 700; text-align: left; border-bottom: 2px solid #e2e8f0; color: #334155; text-transform: uppercase; letter-spacing: 0.3px; }
+  .tbl th { background: ${COR}12; padding: 6px 8px; font-size: 9px; font-weight: 700; text-align: left; border-bottom: 2px solid ${COR}30; color: #334155; text-transform: uppercase; letter-spacing: 0.3px; }
   .tbl td { padding: 6px 8px; font-size: 10px; border-bottom: 1px solid #f1f5f9; }
   .tbl tr:nth-child(even) { background: #fafbfc; }
-
-  /* Employee page */
-  .emp-hdr { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: #fff; border-radius: 10px; margin-bottom: 14px; }
+  .emp-hdr { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: linear-gradient(135deg, ${COR} 0%, ${COR}cc 100%); color: #fff; border-radius: 10px; margin-bottom: 14px; }
   .emp-hdr h2 { font-size: 16px; font-weight: 800; }
-  .emp-hdr .cargo { font-size: 10px; opacity: 0.7; margin-top: 2px; }
+  .emp-hdr .cargo { font-size: 10px; opacity: 0.8; margin-top: 2px; }
   .emp-hdr .banco-box { text-align: right; }
-  .emp-hdr .banco-label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.6; }
+  .emp-hdr .banco-label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7; }
   .emp-hdr .banco-val { font-size: 22px; font-weight: 900; line-height: 1; margin-top: 2px; }
-
-  /* Stats row */
   .stats { display: flex; gap: 6px; margin-bottom: 12px; }
   .stat { flex: 1 1 0; padding: 8px 6px; border-radius: 8px; text-align: center; }
   .stat .sv { font-size: 16px; font-weight: 800; line-height: 1; }
   .stat .sl { font-size: 7px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; margin-top: 3px; }
-
-  /* Progress bar */
   .prog-wrap { margin-bottom: 12px; }
   .prog-label { display: flex; justify-content: space-between; font-size: 8px; color: #64748b; margin-bottom: 3px; font-weight: 600; }
-  .prog-bar { height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden; position: relative; }
-  .prog-fill { height: 100%; border-radius: 5px; transition: width 0.3s; }
-
-  /* Calendar grid */
-  .cal { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-  .cal th { padding: 4px 2px; font-size: 8px; font-weight: 700; text-align: center; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; }
-  .cal td { padding: 3px 2px; font-size: 8px; text-align: center; border: 1px solid #f1f5f9; height: 22px; }
-  .cal .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
-
-  /* Delays box */
+  .prog-bar { height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden; }
+  .prog-fill { height: 100%; border-radius: 5px; }
   .delays { padding: 10px 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; margin-bottom: 12px; }
   .delays h4 { font-size: 10px; font-weight: 700; color: #92400e; margin-bottom: 6px; }
   .delay-item { display: inline-block; padding: 2px 8px; margin: 2px; font-size: 9px; background: #fff; border-radius: 4px; border: 1px solid #fde68a; }
-
-  /* Day table */
   .dtbl { width: 100%; border-collapse: collapse; font-size: 8px; }
-  .dtbl th { padding: 4px 4px; font-weight: 700; text-align: center; background: #f1f5f9; border: 1px solid #e2e8f0; color: #334155; }
+  .dtbl th { padding: 4px 4px; font-weight: 700; text-align: center; background: ${COR}10; border: 1px solid ${COR}20; color: #334155; }
   .dtbl td { padding: 3px 4px; text-align: center; border: 1px solid #f1f5f9; }
   .dtbl .weekend { background: #f8fafc; color: #94a3b8; }
-  .dtbl .today { background: #eff6ff; }
-
-  /* Badge */
   .badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 8px; font-weight: 700; }
-
-  /* Banco decomposition */
-  .banco-detail { display: flex; gap: 10px; padding: 10px 14px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; margin-bottom: 12px; align-items: center; }
+  .banco-detail { display: flex; gap: 10px; padding: 10px 14px; background: ${COR}08; border: 1px solid ${COR}25; border-radius: 8px; margin-bottom: 12px; align-items: center; }
   .banco-detail .bd-item { text-align: center; flex: 1; }
   .banco-detail .bd-val { font-size: 14px; font-weight: 800; }
   .banco-detail .bd-lbl { font-size: 7px; color: #64748b; text-transform: uppercase; font-weight: 600; }
   .banco-detail .bd-sep { font-size: 16px; color: #94a3b8; font-weight: 300; }
-
   .footer { position: absolute; bottom: 0; left: 0; right: 0; text-align: center; font-size: 7px; color: #94a3b8; padding: 6px; }
 </style></head><body>`;
 
@@ -781,11 +758,11 @@ router.get('/relatorio-pdf', requireAuth, async (req, res) => {
     html += `<div class="page">
       <div class="hdr">
         <div><h1>Relatório de Ponto</h1><div class="sub">Resumo geral de todos os colaboradores</div></div>
-        <div><div class="periodo">${nomeMes}</div><div class="empresa">Ornato ERP</div></div>
+        <div><div class="periodo">${nomeMes}</div><div class="empresa">${nomeEmpresa}</div></div>
       </div>
 
       <div class="cards">
-        <div class="card"><div class="val" style="color:#1379F0">${funcionarios.length}</div><div class="lbl">Colaboradores</div></div>
+        <div class="card"><div class="val" style="color:${COR}">${funcionarios.length}</div><div class="lbl">Colaboradores</div></div>
         <div class="card"><div class="val" style="color:#334155">${fmtH(totals.trabalhadas)}</div><div class="lbl">Horas Trabalhadas</div></div>
         <div class="card"><div class="val" style="color:${totals.saldo >= 0 ? '#22c55e' : '#ef4444'}">${fmtMin(totals.saldo)}</div><div class="lbl">Saldo Geral</div></div>
         <div class="card"><div class="val" style="color:#f59e0b">${totals.atrasos}</div><div class="lbl">Atrasos</div></div>
@@ -839,7 +816,7 @@ router.get('/relatorio-pdf', requireAuth, async (req, res) => {
     });
 
     html += `</div>
-      <div class="footer">Relatório gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})} — Ornato ERP</div>
+      <div class="footer">Relatório gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})} — ${nomeEmpresa}</div>
     </div>`;
 
     // ══════════════════════════════════════════════════════
@@ -961,7 +938,7 @@ router.get('/relatorio-pdf', requireAuth, async (req, res) => {
       });
 
       html += `</tbody></table>
-        <div class="footer">Pág. ${idx + 2} — ${e.func.nome} — ${nomeMes} — Ornato ERP</div>
+        <div class="footer">Pág. ${idx + 2} — ${e.func.nome} — ${nomeMes} — ${nomeEmpresa}</div>
       </div>`;
     });
 
@@ -980,6 +957,91 @@ router.get('/relatorio-pdf', requireAuth, async (req, res) => {
     res.send(pdfBuf);
   } catch (err) {
     console.error('Erro ao gerar relatório PDF:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+// IMPORTAR CSV
+// ═══════════════════════════════════════════════════════
+
+// POST /api/ponto/registros/importar — importa CSV de ponto
+// Formato: Funcionario;Data;Entrada;Saida Almoco;Volta Almoco;Saida;Tipo;Obs
+// Data formato: YYYY-MM-DD
+router.post('/registros/importar', requireAuth, (req, res) => {
+  try {
+    const { csv } = req.body;
+    if (!csv) return res.status(400).json({ error: 'Campo "csv" é obrigatório' });
+
+    const lines = csv.split('\n').map(l => l.trim()).filter(l => l);
+    if (lines.length < 2) return res.status(400).json({ error: 'CSV deve ter pelo menos header + 1 linha' });
+
+    // Pular header
+    const header = lines[0].toLowerCase();
+    const sep = header.includes(';') ? ';' : ',';
+
+    // Carregar funcionários
+    const funcs = db.prepare('SELECT * FROM funcionarios WHERE ativo = 1').all();
+    const funcMap = {};
+    funcs.forEach(f => { funcMap[f.nome.toLowerCase().trim()] = f; });
+
+    const cfg = getConfig();
+    let importados = 0, ignorados = 0, erros = [];
+
+    const upsertStmt = db.prepare(`INSERT INTO ponto_registros
+      (funcionario_id, data, entrada, saida_almoco, volta_almoco, saida, tipo, obs, horas_trabalhadas, horas_previstas, saldo_minutos)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(funcionario_id, data) DO UPDATE SET
+      entrada=excluded.entrada, saida_almoco=excluded.saida_almoco,
+      volta_almoco=excluded.volta_almoco, saida=excluded.saida,
+      tipo=excluded.tipo, obs=excluded.obs,
+      horas_trabalhadas=excluded.horas_trabalhadas, horas_previstas=excluded.horas_previstas,
+      saldo_minutos=excluded.saldo_minutos, atualizado_em=CURRENT_TIMESTAMP`);
+
+    const transaction = db.transaction(() => {
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(sep).map(c => c.replace(/^"|"$/g, '').trim());
+        if (cols.length < 6) { ignorados++; continue; }
+
+        const [nome, dataStr, entrada, saidaAlm, voltaAlm, saida, tipoRaw, obsRaw] = cols;
+
+        // Match funcionário
+        const func = funcMap[nome.toLowerCase().trim()];
+        if (!func) { erros.push(`Linha ${i + 1}: funcionário "${nome}" não encontrado`); ignorados++; continue; }
+
+        // Validar data (YYYY-MM-DD)
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dataStr)) { erros.push(`Linha ${i + 1}: data inválida "${dataStr}"`); ignorados++; continue; }
+
+        const tipo = (tipoRaw || 'normal').toLowerCase().trim();
+        const obs = obsRaw || null;
+        const isTime = tipo === 'normal' || tipo === 'compensacao';
+
+        const ent = isTime && entrada ? entrada : null;
+        const sa = isTime && saidaAlm ? saidaAlm : null;
+        const va = isTime && voltaAlm ? voltaAlm : null;
+        const sd = isTime && saida ? saida : null;
+
+        let ht = 0, hp = 0;
+        if (isTime) ht = calcHorasTrabalhadas(ent, sa, va, sd);
+
+        const tiposSemPrevista = ['feriado', 'folga', 'ferias'];
+        if (!tiposSemPrevista.includes(tipo) && !isFeriado(dataStr)) {
+          const jd = getJornadaDia(cfg.jornada, dataStr);
+          hp = getHorasPrevistas(jd);
+        }
+        if (tipo === 'atestado' || tipo === 'compensacao') ht = hp;
+
+        const saldoMin = Math.round((ht - hp) * 60);
+
+        upsertStmt.run(func.id, dataStr, ent, sa, va, sd, tipo, obs, ht, hp, saldoMin);
+        importados++;
+      }
+    });
+
+    transaction();
+
+    res.json({ ok: true, importados, ignorados, erros: erros.slice(0, 20) });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
