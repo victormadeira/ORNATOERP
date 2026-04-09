@@ -77,7 +77,9 @@ function getJornadaDia(jornada, dayOfWeek) {
     return jornada[dayOfWeek] || jornada[dias[dayOfWeek]] || null;
 }
 
-function cellStatus(reg, dayOfWeek, jornada, tol, feriados, dateStr) {
+function cellStatus(reg, dayOfWeek, jornada, tol, feriados, dateStr, dataAdmissao) {
+    // Antes da admissão = não existia, ignorar
+    if (dataAdmissao && dateStr < dataAdmissao) return null;
     if (feriados.some(f => f.data === dateStr)) return 'feriado';
     if (reg) {
         if (reg.tipo && reg.tipo !== 'normal') return reg.tipo;
@@ -564,7 +566,7 @@ function RelatorioModal({ funcionarios, registros, jornada, tolerancia, feriados
                 if (dateStr > todayStr) continue;
 
                 const reg = registros.find(r => r.funcionario_id === func.id && r.data === dateStr);
-                const status = cellStatus(reg, dayOfWeek, jornada, tolerancia, feriados, dateStr);
+                const status = cellStatus(reg, dayOfWeek, jornada, tolerancia, feriados, dateStr, func.data_admissao);
                 if (!status) continue;
 
                 const exp = calcExp(jornada, dayOfWeek);
@@ -816,12 +818,14 @@ export default function Ponto({ notify }) {
 
     // Summary per employee
     const getSummary = useCallback((funcId) => {
+        const func = funcionarios.find(f => f.id === funcId);
+        const admissao = func?.data_admissao || null;
         let tw = 0, te = 0, faltas = 0;
         for (let d = 1; d <= daysCount; d++) {
             const dateStr = fmtD(ano, mes, d);
             const dayOfWeek = dow(ano, mes, d);
             const reg = regMap[`${funcId}_${dateStr}`];
-            const status = cellStatus(reg, dayOfWeek, jornada, tolerancia, feriados, dateStr);
+            const status = cellStatus(reg, dayOfWeek, jornada, tolerancia, feriados, dateStr, admissao);
             if (!status) continue;
             const exp = calcExp(jornada, dayOfWeek);
             if (status === 'normal' || status === 'atraso' || status === 'compensacao') { tw += (reg ? calcWork(reg) : 0); te += exp; }
@@ -830,7 +834,7 @@ export default function Ponto({ notify }) {
             else { te += exp; } // atestado, ferias
         }
         return { tw, te, faltas, saldo: tw - te };
-    }, [daysCount, ano, mes, regMap, jornada, tolerancia, feriados]);
+    }, [daysCount, ano, mes, regMap, jornada, tolerancia, feriados, funcionarios]);
 
     // Exportar CSV
     // Export CSV (formato reimportável — respeita feriados e folgas)
@@ -1012,7 +1016,7 @@ export default function Ponto({ notify }) {
                                             const isWe = dw === 0 || dw === 6;
                                             const isToday = dateStr === todayStr;
                                             const reg = regMap[`${func.id}_${dateStr}`];
-                                            const status = cellStatus(reg, dw, jornada, tolerancia, feriados, dateStr);
+                                            const status = cellStatus(reg, dw, jornada, tolerancia, feriados, dateStr, func.data_admissao);
                                             return (
                                                 <td key={d} onClick={() => setPlanilhaFunc(func)} style={{ padding: '3px 0', textAlign: 'center', cursor: 'pointer', borderLeft: '1px solid var(--border)', background: isToday ? 'rgba(19,121,240,0.05)' : isWe ? 'var(--bg-muted)' : 'transparent' }}>
                                                     <Dot status={status} />

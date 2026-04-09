@@ -263,6 +263,7 @@ router.post('/registros/lote', requireAuth, (req, res) => {
     if (!funcionario_id || !mes) return res.status(400).json({ error: 'funcionario_id e mes são obrigatórios' });
 
     const cfg = getConfig();
+    const func = db.prepare('SELECT * FROM funcionarios WHERE id = ?').get(funcionario_id);
     const [anoStr, mesStr] = mes.split('-');
     const ano = parseInt(anoStr);
     const mesNum = parseInt(mesStr);
@@ -291,6 +292,8 @@ router.post('/registros/lote', requireAuth, (req, res) => {
 
         // Não preencher datas futuras
         if (dateObj > hoje) { ignorados++; continue; }
+        // Não preencher antes da admissão
+        if (func?.data_admissao && dataStr < func.data_admissao) { ignorados++; continue; }
 
         const dow = dias[dateObj.getDay()];
         const jornadaDia = cfg.jornada[dow];
@@ -353,7 +356,7 @@ router.post('/registros/lote-todos', requireAuth, (req, res) => {
     const { mes, sobrescrever } = req.body;
     if (!mes) return res.status(400).json({ error: 'mes é obrigatório' });
 
-    const funcs = db.prepare('SELECT id FROM funcionarios WHERE ativo = 1').all();
+    const funcs = db.prepare('SELECT id, data_admissao FROM funcionarios WHERE ativo = 1').all();
     const cfg = getConfig();
     const [anoStr, mesStr] = mes.split('-');
     const ano = parseInt(anoStr);
@@ -382,6 +385,8 @@ router.post('/registros/lote-todos', requireAuth, (req, res) => {
           const dataStr = `${ano}-${String(mesNum).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
           const dateObj = new Date(dataStr + 'T12:00:00');
           if (dateObj > hoje) continue;
+          // Pular antes da admissão
+          if (func.data_admissao && dataStr < func.data_admissao) continue;
 
           const dow = dias[dateObj.getDay()];
           const jornadaDia = cfg.jornada[dow];
@@ -464,6 +469,8 @@ router.get('/resumo', requireAuth, (req, res) => {
       // Iterar todos os dias do mês
       for (let dia = 1; dia <= ultimoDia; dia++) {
         const dataStr = `${mes}-${String(dia).padStart(2, '0')}`;
+        // Pular dias antes da admissão
+        if (func.data_admissao && dataStr < func.data_admissao) continue;
         const jornadaDia = getJornadaDia(cfg.jornada, dataStr);
         const feriado = isFeriado(dataStr);
         const reg = registroMap[dataStr];
@@ -543,9 +550,10 @@ router.get('/banco-horas', requireAuth, (req, res) => {
     const funcionarios = db.prepare('SELECT * FROM funcionarios WHERE ativo = 1 ORDER BY nome').all();
 
     const result = funcionarios.map(func => {
-      // Saldo acumulado de TODOS os meses anteriores
+      // Saldo acumulado de TODOS os meses anteriores (respeitando data de admissão)
+      const admFilt = func.data_admissao ? ` AND data >= '${func.data_admissao}'` : '';
       const anterior = db.prepare(
-        'SELECT COALESCE(SUM(saldo_minutos), 0) as total FROM ponto_registros WHERE funcionario_id = ? AND data < ?'
+        `SELECT COALESCE(SUM(saldo_minutos), 0) as total FROM ponto_registros WHERE funcionario_id = ? AND data < ?${admFilt}`
       ).get(func.id, inicioMes);
 
       // Saldo do mês atual
@@ -619,6 +627,8 @@ router.get('/relatorio-pdf', requireAuth, async (req, res) => {
 
       for (let d = 1; d <= ultimoDia; d++) {
         const dataStr = `${mes}-${String(d).padStart(2, '0')}`;
+        // Pular dias antes da admissão
+        if (func.data_admissao && dataStr < func.data_admissao) continue;
         const dateObj = new Date(dataStr + 'T12:00:00');
         const dow = dateObj.getDay();
         const jornadaDia = getJornadaDia(cfg.jornada, dataStr);
