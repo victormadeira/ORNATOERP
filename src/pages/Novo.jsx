@@ -2023,6 +2023,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             custoMdo, totChapas, totFita, totFerragens, totAcabamentos, totAcessorios,
             ambTotals, totalAjustes, pvFinal, manualTotal, totalItemCP, itemCostList,
             breakdown: pvResult.breakdown,
+            custoReal: pvResult.custoReal || 0,
+            pisoMinimo: pvResult.pisoMinimo || 0,
             cb: cp, // compatibilidade
             chapasInteiras, chapasFrac, chapasEconomia,
             // Fase 3: estimativa de corte real
@@ -3258,29 +3260,40 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 {(() => {
                                     const bd = tot.breakdown || {};
                                     const mdoVal = bd.mdo || 0;
-                                    // Margem geral: média ponderada de TODOS os markups
-                                    const allMks = [
+                                    const temCustoHora = taxas.custo_hora_ativo && tot.custoHoraResult?.custoMdo > 0;
+                                    // Margem fabricados: média ponderada mk_chapas, mk_fita, mk_acabamentos
+                                    const fabMks = [
                                         [taxas.mk_chapas ?? 1.45, bd.chapasAdj || 0],
                                         [taxas.mk_fita ?? 1.45, bd.fitaAdj || 0],
                                         [taxas.mk_acabamentos ?? 1.30, bd.acabAdj || 0],
+                                    ];
+                                    const fabPeso = fabMks.reduce((s, [, p]) => s + p, 0);
+                                    const margemFabMk = fabPeso > 0 ? fabMks.reduce((s, [mk, p]) => s + mk * p, 0) / fabPeso : (taxas.mk_chapas ?? 1.45);
+                                    const margemFabPct = Math.round((margemFabMk - 1) * 100);
+                                    // Margem comprados: média ponderada mk_ferragens, mk_acessorios
+                                    const compMks = [
                                         [taxas.mk_ferragens ?? 1.15, bd.ferrVal || 0],
                                         [taxas.mk_acessorios ?? 1.20, bd.acessVal || 0],
                                     ];
-                                    const totalPeso = allMks.reduce((s, [, p]) => s + p, 0);
-                                    const margemGeralMk = totalPeso > 0
-                                        ? allMks.reduce((s, [mk, p]) => s + mk * p, 0) / totalPeso
-                                        : (taxas.mk_chapas ?? 1.45);
-                                    const margemGeralPct = Math.round((margemGeralMk - 1) * 100);
+                                    const compPeso = compMks.reduce((s, [, p]) => s + p, 0);
+                                    const margemCompMk = compPeso > 0 ? compMks.reduce((s, [mk, p]) => s + mk * p, 0) / compPeso : (taxas.mk_ferragens ?? 1.15);
+                                    const margemCompPct = Math.round((margemCompMk - 1) * 100);
                                     const mdoPct = Math.round((taxas.mk_mdo ?? 0.80) * 100);
+                                    // Valores em R$ para contexto
+                                    const fabTotal = (bd.chapasAdj || 0) + (bd.fitaAdj || 0) + (bd.acabAdj || 0);
+                                    const compTotal = (bd.ferrVal || 0) + (bd.acessVal || 0);
+                                    const fabMargemR = fabTotal * (margemFabMk - 1);
+                                    const compMargemR = compTotal * (margemCompMk - 1);
                                     // Taxas sobre PV
                                     const totalTaxasPct = (taxas.imp || 0) + (taxas.com || 0) + (taxas.lucro || 0) + (taxas.inst ?? 5) + (taxas.frete || 0) + (taxas.mont || 0);
                                     // Setters
-                                    const setMargemGeral = (pct) => {
+                                    const setMargemFab = (pct) => {
                                         const mk = 1 + (pct / 100);
-                                        // Proporcionalmente: fabricados recebem mk direto, revenda recebe mk com offset menor
-                                        const mkRev = Math.max(1, 1 + (pct / 100) * 0.75); // revenda = 75% da margem fabricados
                                         setTaxa('mk_chapas', mk); setTaxa('mk_fita', mk); setTaxa('mk_acabamentos', mk);
-                                        setTaxa('mk_ferragens', mkRev); setTaxa('mk_acessorios', mkRev);
+                                    };
+                                    const setMargemComp = (pct) => {
+                                        const mk = 1 + (pct / 100);
+                                        setTaxa('mk_ferragens', mk); setTaxa('mk_acessorios', mk);
                                     };
                                     const setMdoPct = (pct) => setTaxa('mk_mdo', pct / 100);
                                     const coefMedioVal = tot.itemCostList ? (() => {
@@ -3293,14 +3306,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         {/* ── Presets rápidos ── */}
                                         <div className="flex gap-1 mb-2">
                                             {[
-                                                { label: 'Competitivo', mk: 30, mdo: 60, lucro: 8, cor: '#3b82f6' },
-                                                { label: 'Padrão', mk: 45, mdo: 80, lucro: 12, cor: '#22c55e' },
-                                                { label: 'Premium', mk: 65, mdo: 100, lucro: 18, cor: '#f59e0b' },
+                                                { label: 'Competitivo', fab: 25, comp: 15, lucro: 8, cor: '#3b82f6' },
+                                                { label: 'Padrão', fab: 45, comp: 20, lucro: 12, cor: '#22c55e' },
+                                                { label: 'Premium', fab: 65, comp: 30, lucro: 18, cor: '#f59e0b' },
                                             ].map(p => {
-                                                const isActive = Math.abs(margemGeralPct - p.mk) < 3 && Math.abs(mdoPct - p.mdo) < 5;
+                                                const isActive = Math.abs(margemFabPct - p.fab) < 5 && Math.abs(margemCompPct - p.comp) < 5;
                                                 return (
                                                     <button key={p.label} onClick={() => {
-                                                        setMargemGeral(p.mk); setMdoPct(p.mdo); setTaxa('lucro', p.lucro);
+                                                        setMargemFab(p.fab); setMargemComp(p.comp); setTaxa('lucro', p.lucro);
                                                     }}
                                                         className="flex-1 py-1.5 rounded text-[9px] font-bold transition-all"
                                                         style={isActive
@@ -3313,42 +3326,75 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             })}
                                         </div>
 
-                                        {/* Margem Geral */}
-                                        <div className="rounded-lg px-3 py-2 mb-2" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                        {/* Margem Fabricados */}
+                                        <div className="rounded-lg px-3 py-2 mb-1.5" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
                                             <div className="flex items-center justify-between gap-2">
                                                 <div>
-                                                    <span className="text-[11px] font-semibold" style={{ color: 'var(--text-primary)' }}>Margem sobre materiais</span>
+                                                    <span className="text-[10px] font-semibold" style={{ color: 'var(--text-primary)' }}>Fabricados</span>
+                                                    <span className="text-[8px] block" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>chapas, fita, acabamento</span>
                                                 </div>
                                                 <div className="flex items-center gap-1">
                                                     <input type="range" min="10" max="100" step="5"
-                                                        value={margemGeralPct}
-                                                        onChange={e => setMargemGeral(+e.target.value)}
-                                                        className="w-20 h-1.5 accent-[var(--primary)]"
+                                                        value={margemFabPct}
+                                                        onChange={e => setMargemFab(+e.target.value)}
+                                                        className="w-16 h-1.5 accent-[var(--primary)]"
                                                         style={{ cursor: 'pointer' }} />
                                                     <input type="number" step="5" min="0" max="500"
-                                                        value={margemGeralPct} onChange={e => setMargemGeral(+e.target.value || 0)}
+                                                        value={margemFabPct} onChange={e => setMargemFab(+e.target.value || 0)}
                                                         className="w-12 text-xs px-1 py-0.5 rounded border text-center input-glass font-bold" />
                                                     <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>%</span>
                                                 </div>
                                             </div>
+                                            {fabMargemR > 0 && <div className="text-[8px] text-right mt-0.5" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>+{R$(fabMargemR)} sobre {R$(fabTotal)}</div>}
                                         </div>
 
-                                        {/* Mão de Obra */}
-                                        <div className="flex items-center justify-between gap-2 mb-1.5 px-1">
-                                            <div>
-                                                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Mão de Obra</span>
-                                                {mdoVal > 0 && <span className="text-[9px] ml-1" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>{R$(mdoVal)}</span>}
+                                        {/* Margem Comprados */}
+                                        <div className="rounded-lg px-3 py-2 mb-2" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div>
+                                                    <span className="text-[10px] font-semibold" style={{ color: 'var(--text-primary)' }}>Comprados</span>
+                                                    <span className="text-[8px] block" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>ferragens, acessórios</span>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                    <input type="range" min="5" max="80" step="5"
+                                                        value={margemCompPct}
+                                                        onChange={e => setMargemComp(+e.target.value)}
+                                                        className="w-16 h-1.5 accent-[var(--primary)]"
+                                                        style={{ cursor: 'pointer' }} />
+                                                    <input type="number" step="5" min="0" max="500"
+                                                        value={margemCompPct} onChange={e => setMargemComp(+e.target.value || 0)}
+                                                        className="w-12 text-xs px-1 py-0.5 rounded border text-center input-glass font-bold" />
+                                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>%</span>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-1">
-                                                <input type="number" step="5" min="0" max="500"
-                                                    value={mdoPct} onChange={e => setMdoPct(+e.target.value || 0)}
-                                                    className="w-12 text-xs px-1 py-0.5 rounded border text-center input-glass" />
-                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>%</span>
-                                            </div>
+                                            {compMargemR > 0 && <div className="text-[8px] text-right mt-0.5" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>+{R$(compMargemR)} sobre {R$(compTotal)}</div>}
                                         </div>
 
-                                        {/* Impostos + Lucro (os 2 mais importantes) */}
-                                        {[['Impostos', 'imp'], ['Lucro', 'lucro']].map(([l, k]) => (
+                                        {/* MDO — só mostra input manual se custo-hora NÃO está ativo */}
+                                        {temCustoHora ? (
+                                            <div className="flex items-center justify-between gap-2 mb-1.5 px-1">
+                                                <div>
+                                                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>MDO (custo-hora)</span>
+                                                </div>
+                                                <span className="text-[11px] font-semibold" style={{ color: '#22c55e' }}>{R$(mdoVal)}</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-between gap-2 mb-1.5 px-1">
+                                                <div>
+                                                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Mão de Obra</span>
+                                                    {mdoVal > 0 && <span className="text-[9px] ml-1" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>{R$(mdoVal)}</span>}
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                    <input type="number" step="5" min="0" max="500"
+                                                        value={mdoPct} onChange={e => setMdoPct(+e.target.value || 0)}
+                                                        className="w-12 text-xs px-1 py-0.5 rounded border text-center input-glass" />
+                                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>%</span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Taxas essenciais */}
+                                        {[['Impostos', 'imp'], ['Comissão', 'com'], ['Lucro', 'lucro']].map(([l, k]) => (
                                             <div key={k} className="flex items-center justify-between gap-2 mb-1 px-1">
                                                 <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{l}</span>
                                                 <div className="flex items-center gap-1">
@@ -3372,7 +3418,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             <button onClick={() => setMkExpanded(!mkExpanded)}
                                                 className="flex items-center gap-1 cursor-pointer text-[9px] w-full" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>
                                                 <span>{mkExpanded ? '▾' : '▸'}</span>
-                                                <span>Modo avançado</span>
+                                                <span>Ajuste fino</span>
                                             </button>
                                             {mkExpanded && (
                                                 <div className="mt-2 flex flex-col gap-3 ml-1 pl-2" style={{ borderLeft: '2px solid var(--border)' }}>
@@ -3385,7 +3431,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                             ['Acabamentos', 'mk_acabamentos'],
                                                             ['Ferragens', 'mk_ferragens'],
                                                             ['Acessórios', 'mk_acessorios'],
-                                                            ['Fator MDO', 'mk_mdo'],
+                                                            ...(!temCustoHora ? [['Fator MDO', 'mk_mdo']] : []),
                                                         ].map(([l, k]) => (
                                                             <div key={k} className="flex items-center justify-between gap-2 mb-0.5">
                                                                 <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{l}</span>
@@ -3523,6 +3569,31 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         )}
                                     </div>
                                 </div>
+                                {/* Piso — preço mínimo (custo real + impostos obrigatórios) */}
+                                {tot.pisoMinimo > 0 && pvComDesconto > 0 && (() => {
+                                    const abaixoPiso = pvComDesconto < tot.pisoMinimo;
+                                    const folga = pvComDesconto - tot.pisoMinimo;
+                                    const folgaPct = tot.pisoMinimo > 0 ? (folga / tot.pisoMinimo * 100) : 0;
+                                    return (
+                                        <div className="mt-1.5 rounded px-2.5 py-1.5 flex items-center justify-between"
+                                            style={{ background: abaixoPiso ? 'rgba(239,68,68,0.10)' : 'rgba(34,197,94,0.06)', border: `1px solid ${abaixoPiso ? 'rgba(239,68,68,0.25)' : 'rgba(34,197,94,0.15)'}` }}>
+                                            <div className="flex flex-col">
+                                                <span className="text-[9px] font-semibold" style={{ color: abaixoPiso ? '#ef4444' : '#22c55e' }}>
+                                                    {abaixoPiso ? 'ABAIXO DO PISO' : 'Piso (custo real)'}
+                                                </span>
+                                                <span className="text-[8px]" style={{ color: 'var(--text-muted)' }}>
+                                                    material + MDO + impostos
+                                                </span>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-[10px] font-bold" style={{ color: abaixoPiso ? '#ef4444' : 'var(--text-secondary)' }}>{R$(tot.pisoMinimo)}</span>
+                                                <span className="text-[8px] block" style={{ color: abaixoPiso ? '#ef4444' : '#22c55e' }}>
+                                                    {folga >= 0 ? '+' : ''}{R$(folga)} ({folga >= 0 ? '+' : ''}{N(folgaPct, 0)}%)
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                                 {descontoR > 0 && (
                                     <div className="mt-1.5 text-[10px] flex justify-between items-center px-2 py-1 rounded" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--text-muted)' }}>
                                         <span>Antes do desconto:</span>
