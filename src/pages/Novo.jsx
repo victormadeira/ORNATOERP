@@ -3236,37 +3236,35 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 </div>
                             )}
 
-                            {/* ── Formação de Preço (simplificado) ── */}
+                            {/* ── Formação de Preço (modo simples + avançado) ── */}
                             <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
                                 <div className="text-[9px] font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>FORMAÇÃO DE PREÇO</div>
                                 {(() => {
                                     const bd = tot.breakdown || {};
-                                    const matFab = (bd.chapasAdj || 0) + (bd.fitaAdj || 0) + (bd.acabAdj || 0);
-                                    const matComp = (bd.ferrVal || 0) + (bd.acessVal || 0);
                                     const mdoVal = bd.mdo || 0;
-                                    // Margem fabricados: média ponderada dos markups de chapas/fita/acabamento
-                                    const avgMkFab = (() => {
-                                        const c = bd.chapasAdj || 0, f = bd.fitaAdj || 0, a = bd.acabAdj || 0;
-                                        const total = c + f + a;
-                                        if (total === 0) return (taxas.mk_chapas ?? 1.45);
-                                        return (c * (taxas.mk_chapas ?? 1.45) + f * (taxas.mk_fita ?? 1.45) + a * (taxas.mk_acabamentos ?? 1.30)) / total;
-                                    })();
-                                    const avgMkRev = (() => {
-                                        const fe = bd.ferrVal || 0, ac = bd.acessVal || 0;
-                                        const total = fe + ac;
-                                        if (total === 0) return (taxas.mk_ferragens ?? 1.15);
-                                        return (fe * (taxas.mk_ferragens ?? 1.15) + ac * (taxas.mk_acessorios ?? 1.20)) / total;
-                                    })();
-                                    const margemFabPct = ((avgMkFab - 1) * 100);
-                                    const margemRevPct = ((avgMkRev - 1) * 100);
-                                    const mdoPct = ((taxas.mk_mdo ?? 0.80) * 100);
-                                    const setMargemFab = (pct) => {
+                                    // Margem geral: média ponderada de TODOS os markups
+                                    const allMks = [
+                                        [taxas.mk_chapas ?? 1.45, bd.chapasAdj || 0],
+                                        [taxas.mk_fita ?? 1.45, bd.fitaAdj || 0],
+                                        [taxas.mk_acabamentos ?? 1.30, bd.acabAdj || 0],
+                                        [taxas.mk_ferragens ?? 1.15, bd.ferrVal || 0],
+                                        [taxas.mk_acessorios ?? 1.20, bd.acessVal || 0],
+                                    ];
+                                    const totalPeso = allMks.reduce((s, [, p]) => s + p, 0);
+                                    const margemGeralMk = totalPeso > 0
+                                        ? allMks.reduce((s, [mk, p]) => s + mk * p, 0) / totalPeso
+                                        : (taxas.mk_chapas ?? 1.45);
+                                    const margemGeralPct = Math.round((margemGeralMk - 1) * 100);
+                                    const mdoPct = Math.round((taxas.mk_mdo ?? 0.80) * 100);
+                                    // Taxas sobre PV
+                                    const totalTaxasPct = (taxas.imp || 0) + (taxas.com || 0) + (taxas.lucro || 0) + (taxas.inst ?? 5) + (taxas.frete || 0) + (taxas.mont || 0);
+                                    // Setters
+                                    const setMargemGeral = (pct) => {
                                         const mk = 1 + (pct / 100);
+                                        // Proporcionalmente: fabricados recebem mk direto, revenda recebe mk com offset menor
+                                        const mkRev = Math.max(1, 1 + (pct / 100) * 0.75); // revenda = 75% da margem fabricados
                                         setTaxa('mk_chapas', mk); setTaxa('mk_fita', mk); setTaxa('mk_acabamentos', mk);
-                                    };
-                                    const setMargemRev = (pct) => {
-                                        const mk = 1 + (pct / 100);
-                                        setTaxa('mk_ferragens', mk); setTaxa('mk_acessorios', mk);
+                                        setTaxa('mk_ferragens', mkRev); setTaxa('mk_acessorios', mkRev);
                                     };
                                     const setMdoPct = (pct) => setTaxa('mk_mdo', pct / 100);
                                     const coefMedioVal = tot.itemCostList ? (() => {
@@ -3276,105 +3274,118 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     })() : 0;
 
                                     return (<>
-                                        {/* MDO */}
-                                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                                        {/* ── Modo Simples: 3 controles essenciais ── */}
+
+                                        {/* Margem Geral */}
+                                        <div className="rounded-lg px-3 py-2 mb-2" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div>
+                                                    <span className="text-[11px] font-semibold" style={{ color: 'var(--text-primary)' }}>Margem sobre materiais</span>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                    <input type="range" min="10" max="100" step="5"
+                                                        value={margemGeralPct}
+                                                        onChange={e => setMargemGeral(+e.target.value)}
+                                                        className="w-20 h-1.5 accent-[var(--primary)]"
+                                                        style={{ cursor: 'pointer' }} />
+                                                    <input type="number" step="5" min="0" max="500"
+                                                        value={margemGeralPct} onChange={e => setMargemGeral(+e.target.value || 0)}
+                                                        className="w-12 text-xs px-1 py-0.5 rounded border text-center input-glass font-bold" />
+                                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>%</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Mão de Obra */}
+                                        <div className="flex items-center justify-between gap-2 mb-1.5 px-1">
                                             <div>
                                                 <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Mão de Obra</span>
                                                 {mdoVal > 0 && <span className="text-[9px] ml-1" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>{R$(mdoVal)}</span>}
                                             </div>
                                             <div className="flex items-center gap-1">
                                                 <input type="number" step="5" min="0" max="500"
-                                                    value={Math.round(mdoPct)} onChange={e => setMdoPct(+e.target.value || 0)}
-                                                    className="w-14 text-xs px-1.5 py-0.5 rounded border text-center input-glass" />
+                                                    value={mdoPct} onChange={e => setMdoPct(+e.target.value || 0)}
+                                                    className="w-12 text-xs px-1 py-0.5 rounded border text-center input-glass" />
                                                 <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>%</span>
                                             </div>
                                         </div>
-                                        {/* Margem Fabricados */}
-                                        <div className="flex items-center justify-between gap-2 mb-1.5">
-                                            <div>
-                                                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Margem Fabricados</span>
-                                                {matFab > 0 && <span className="text-[9px] ml-1" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>{R$(matFab * (avgMkFab - 1))}</span>}
+
+                                        {/* Impostos + Lucro (os 2 mais importantes) */}
+                                        {[['Impostos', 'imp'], ['Lucro', 'lucro']].map(([l, k]) => (
+                                            <div key={k} className="flex items-center justify-between gap-2 mb-1 px-1">
+                                                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{l}</span>
+                                                <div className="flex items-center gap-1">
+                                                    <input type="number" step="0.5" value={taxas[k]} onChange={e => setTaxa(k, e.target.value)}
+                                                        className="w-12 text-xs px-1 py-0.5 rounded border text-center input-glass" />
+                                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>%</span>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-1">
-                                                <input type="number" step="5" min="0" max="500"
-                                                    value={Math.round(margemFabPct)} onChange={e => setMargemFab(+e.target.value || 0)}
-                                                    className="w-14 text-xs px-1.5 py-0.5 rounded border text-center input-glass" />
-                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>%</span>
-                                            </div>
-                                        </div>
-                                        {/* Margem Revenda */}
-                                        <div className="flex items-center justify-between gap-2 mb-1.5">
-                                            <div>
-                                                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Margem Revenda</span>
-                                                {matComp > 0 && <span className="text-[9px] ml-1" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>{R$(matComp * (avgMkRev - 1))}</span>}
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                <input type="number" step="5" min="0" max="500"
-                                                    value={Math.round(margemRevPct)} onChange={e => setMargemRev(+e.target.value || 0)}
-                                                    className="w-14 text-xs px-1.5 py-0.5 rounded border text-center input-glass" />
-                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>%</span>
-                                            </div>
-                                        </div>
+                                        ))}
+
                                         {/* Coef médio (info) */}
                                         {coefMedioVal > 0 && (
-                                            <div className="flex justify-between text-[10px] mt-1 pt-1" style={{ borderTop: '1px dashed var(--border)' }}>
+                                            <div className="flex justify-between text-[10px] mt-1 pt-1 px-1" style={{ borderTop: '1px dashed var(--border)' }}>
                                                 <span style={{ color: 'var(--text-muted)' }} title="Média ponderada do coeficiente de dificuldade dos módulos">Dificuldade média</span>
                                                 <span style={{ color: 'var(--warning)', fontWeight: 600 }}>+{(coefMedioVal * 100).toFixed(0)}%</span>
                                             </div>
                                         )}
-                                        {/* Personalizar por categoria */}
+
+                                        {/* ── Modo Avançado (expandível) ── */}
                                         <div className="mt-2">
                                             <button onClick={() => setMkExpanded(!mkExpanded)}
-                                                className="flex items-center gap-1 cursor-pointer text-[9px]" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>
+                                                className="flex items-center gap-1 cursor-pointer text-[9px] w-full" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>
                                                 <span>{mkExpanded ? '▾' : '▸'}</span>
-                                                <span>Personalizar por categoria</span>
+                                                <span>Modo avançado</span>
                                             </button>
                                             {mkExpanded && (
-                                                <div className="flex flex-col gap-1 mt-1.5 ml-2 pl-2" style={{ borderLeft: '2px solid var(--border)' }}>
-                                                    {[
-                                                        ['Chapas', 'mk_chapas', 'Margem sobre chapas MDF/MDP'],
-                                                        ['Fita de Borda', 'mk_fita', 'Margem sobre fita de borda'],
-                                                        ['Acabamentos', 'mk_acabamentos', 'Margem sobre acabamentos'],
-                                                        ['Ferragens', 'mk_ferragens', 'Margem sobre ferragens'],
-                                                        ['Acessórios', 'mk_acessorios', 'Margem sobre acessórios'],
-                                                        ['Fator MDO', 'mk_mdo', 'MDO = custo chapa × este fator'],
-                                                    ].map(([l, k, tip]) => (
-                                                        <div key={k} className="flex items-center justify-between gap-2">
-                                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }} title={tip}>{l}</span>
-                                                            <div className="flex items-center gap-1">
-                                                                <input type="number" step="0.05" min="0.1" value={taxas[k]}
-                                                                    onChange={e => setTaxa(k, e.target.value)}
-                                                                    className="w-14 text-[10px] px-1.5 py-0.5 rounded border text-center input-glass" />
-                                                                <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>×</span>
+                                                <div className="mt-2 flex flex-col gap-3 ml-1 pl-2" style={{ borderLeft: '2px solid var(--border)' }}>
+                                                    {/* Markups por categoria */}
+                                                    <div>
+                                                        <div className="text-[8px] uppercase tracking-widest font-bold mb-1.5" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>Margens por categoria</div>
+                                                        {[
+                                                            ['Chapas (MDF/MDP)', 'mk_chapas'],
+                                                            ['Fita de Borda', 'mk_fita'],
+                                                            ['Acabamentos', 'mk_acabamentos'],
+                                                            ['Ferragens', 'mk_ferragens'],
+                                                            ['Acessórios', 'mk_acessorios'],
+                                                            ['Fator MDO', 'mk_mdo'],
+                                                        ].map(([l, k]) => (
+                                                            <div key={k} className="flex items-center justify-between gap-2 mb-0.5">
+                                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{l}</span>
+                                                                <div className="flex items-center gap-1">
+                                                                    <input type="number" step="0.05" min="0.1" value={taxas[k]}
+                                                                        onChange={e => setTaxa(k, e.target.value)}
+                                                                        className="w-14 text-[10px] px-1.5 py-0.5 rounded border text-center input-glass" />
+                                                                    <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>×</span>
+                                                                </div>
                                                             </div>
+                                                        ))}
+                                                    </div>
+                                                    {/* Todas as taxas sobre PV */}
+                                                    <div>
+                                                        <div className="text-[8px] uppercase tracking-widest font-bold mb-1.5" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>Taxas sobre PV</div>
+                                                        {[['Impostos', 'imp'], ['Comissão', 'com'], ['Lucro', 'lucro'], ['Instalação', 'inst'], ['Frete', 'frete'], ['Montagem', 'mont']].map(([l, k]) => (
+                                                            <div key={k} className="flex items-center justify-between gap-2 mb-0.5">
+                                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{l}</span>
+                                                                <div className="flex items-center gap-1">
+                                                                    <input type="number" step="0.5" value={taxas[k]} onChange={e => setTaxa(k, e.target.value)}
+                                                                        className="w-14 text-[10px] px-1.5 py-0.5 rounded border text-center input-glass" />
+                                                                    <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>%</span>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                        <div className="flex justify-between pt-1 mt-1 font-semibold text-[10px]" style={{ borderTop: '1px solid var(--border)' }}>
+                                                            <span style={{ color: 'var(--text-muted)' }}>Σ Taxas</span>
+                                                            <span className={totalTaxasPct >= 100 ? 'text-red-500' : ''} style={totalTaxasPct < 100 ? { color: 'var(--text-secondary)' } : {}}>
+                                                                {totalTaxasPct.toFixed(1)}%
+                                                            </span>
                                                         </div>
-                                                    ))}
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
                                     </>);
                                 })()}
-                            </div>
-
-                            {/* Taxas sobre PV */}
-                            <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
-                                <div className="text-[9px] font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>TAXAS SOBRE PV (%)</div>
-                                {[['Impostos', 'imp'], ['Comissão', 'com'], ['Lucro', 'lucro'], ['Frete', 'frete'], ['Instalação', 'inst'], ['Montagem', 'mont']].map(([l, k]) => (
-                                    <div key={k} className="flex items-center justify-between gap-2 mb-1">
-                                        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{l}</span>
-                                        <div className="flex items-center gap-1">
-                                            <input type="number" step="0.5" value={taxas[k]} onChange={e => setTaxa(k, e.target.value)}
-                                                className="w-14 text-xs px-1.5 py-0.5 rounded border text-center input-glass" />
-                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>%</span>
-                                        </div>
-                                    </div>
-                                ))}
-                                <div className="flex justify-between pt-1 mt-1 font-semibold text-[11px]" style={{ borderTop: '1px solid var(--border)' }}>
-                                    <span style={{ color: 'var(--text-muted)' }}>Σ Taxas</span>
-                                    <span className={((taxas.imp ?? 0) + (taxas.com ?? 0) + (taxas.mont ?? 0) + (taxas.lucro ?? 0) + (taxas.frete ?? 0) + (taxas.inst ?? 0)) >= 100 ? 'text-red-500' : ''}>
-                                        {((taxas.imp ?? 0) + (taxas.com ?? 0) + (taxas.mont ?? 0) + (taxas.lucro ?? 0) + (taxas.frete ?? 0) + (taxas.inst ?? 0)).toFixed(1)}%
-                                    </span>
-                                </div>
                             </div>
 
                             {/* Padrões de Ferragens — substituição global */}
@@ -3488,6 +3499,91 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         </span>
                                     </div>
                                 )}
+
+                                {/* ── Diagnóstico de Preço ── */}
+                                {pvComDesconto > 0 && tot.cm > 0 && (() => {
+                                    const pv = pvComDesconto;
+                                    const custoMat = tot.cm || 0;
+                                    const cp = tot.cb || 0;
+                                    const mult = custoMat > 0 ? pv / custoMat : 0;
+                                    const lucroPerc = taxas.lucro || 0;
+                                    const lucroR = pv * (lucroPerc / 100);
+                                    const totalTaxasPerc = (taxas.imp || 0) + (taxas.com || 0) + (taxas.lucro || 0) + (taxas.inst ?? 5) + (taxas.frete || 0) + (taxas.mont || 0);
+                                    const taxasR = pv * (totalTaxasPerc / 100);
+                                    const margemBrutaR = pv - custoMat;
+                                    const margemBrutaPct = pv > 0 ? (margemBrutaR / pv * 100) : 0;
+                                    // Indicador: movelaria sob medida tipicamente 2.5× a 3.5×
+                                    const faixa = mult < 2.2 ? 'baixo' : mult <= 3.5 ? 'saudavel' : 'alto';
+                                    const faixaCor = faixa === 'baixo' ? '#ef4444' : faixa === 'saudavel' ? '#22c55e' : '#f59e0b';
+                                    const faixaLabel = faixa === 'baixo' ? 'Abaixo do mercado' : faixa === 'saudavel' ? 'Faixa saudável' : 'Acima do mercado';
+                                    // Barra visual: posição do multiplicador entre 1× e 5×
+                                    const barPos = Math.min(100, Math.max(0, ((mult - 1) / 4) * 100));
+                                    // PV por m² de área (se tiver área)
+                                    const pvM2 = tot.at > 0 ? pv / tot.at : null;
+
+                                    return (
+                                        <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                                            <div className="text-[9px] font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>DIAGNÓSTICO DE PREÇO</div>
+
+                                            {/* Multiplicador total */}
+                                            <div className="rounded-lg px-3 py-2.5 mb-2" style={{ background: 'var(--bg-muted)', border: `1px solid ${faixaCor}30` }}>
+                                                <div className="flex justify-between items-center mb-1.5">
+                                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Multiplicador</span>
+                                                    <span className="font-bold text-sm" style={{ color: faixaCor }}>{N(mult, 2)}×</span>
+                                                </div>
+                                                {/* Barra visual */}
+                                                <div className="relative h-2 rounded-full mb-1" style={{ background: 'var(--bg-card)' }}>
+                                                    {/* Faixa saudável: 2.5× a 3.5× → 37.5% a 62.5% */}
+                                                    <div className="absolute h-full rounded-full" style={{ left: '37.5%', width: '25%', background: '#22c55e20' }} />
+                                                    <div className="absolute h-3 w-1.5 rounded-full" style={{ left: `${barPos}%`, top: '-2px', background: faixaCor, transform: 'translateX(-50%)' }} />
+                                                </div>
+                                                <div className="flex justify-between text-[8px]" style={{ color: 'var(--text-muted)', opacity: 0.5 }}>
+                                                    <span>1×</span>
+                                                    <span>2.5×</span>
+                                                    <span>3.5×</span>
+                                                    <span>5×</span>
+                                                </div>
+                                                <div className="text-center mt-1">
+                                                    <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full" style={{ background: `${faixaCor}15`, color: faixaCor }}>{faixaLabel}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Resumo financeiro rápido */}
+                                            <div className="flex flex-col gap-1 text-[10px]">
+                                                <div className="flex justify-between">
+                                                    <span style={{ color: 'var(--text-muted)' }}>Custo material</span>
+                                                    <span style={{ color: 'var(--text-secondary)' }}>{R$(custoMat)}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span style={{ color: 'var(--text-muted)' }}>Custo produção</span>
+                                                    <span style={{ color: 'var(--text-secondary)' }}>{R$(cp)}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span style={{ color: 'var(--text-muted)' }}>Taxas sobre PV ({N(totalTaxasPerc, 1)}%)</span>
+                                                    <span style={{ color: 'var(--text-secondary)' }}>{R$(taxasR)}</span>
+                                                </div>
+                                                <div className="flex justify-between pt-1 mt-0.5" style={{ borderTop: '1px dashed var(--border)' }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>Margem bruta</span>
+                                                    <span className="font-semibold" style={{ color: margemBrutaPct > 40 ? '#22c55e' : margemBrutaPct > 25 ? 'var(--warning)' : '#ef4444' }}>
+                                                        {R$(margemBrutaR)} ({N(margemBrutaPct, 1)}%)
+                                                    </span>
+                                                </div>
+                                                {lucroR > 0 && (
+                                                    <div className="flex justify-between">
+                                                        <span style={{ color: 'var(--text-muted)' }}>Lucro líquido ({lucroPerc}%)</span>
+                                                        <span className="font-semibold" style={{ color: '#22c55e' }}>{R$(lucroR)}</span>
+                                                    </div>
+                                                )}
+                                                {pvM2 && (
+                                                    <div className="flex justify-between mt-0.5 pt-0.5" style={{ borderTop: '1px dashed var(--border)' }}>
+                                                        <span style={{ color: 'var(--text-muted)' }}>PV por m²</span>
+                                                        <span style={{ color: 'var(--text-secondary)' }}>{R$(pvM2)}/m²</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* ── Prazo de Execução (interno) ── */}
                                 <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
