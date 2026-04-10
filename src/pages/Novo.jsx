@@ -2629,7 +2629,19 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 )}
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <span className="font-bold text-xs" style={{ color: 'var(--primary)' }}>{R$(precoItemFinal)}</span>
+                                                <div className="flex flex-col items-end">
+                                                    <span className="font-bold text-xs" style={{ color: 'var(--primary)' }}>{R$(precoItemFinal)}</span>
+                                                    {itemCPData?.custoItem > 0 && (() => {
+                                                        const custoIt = itemCPData.custoItem;
+                                                        const margemIt = precoItemFinal - custoIt;
+                                                        const margemPct = precoItemFinal > 0 ? (margemIt / precoItemFinal * 100) : 0;
+                                                        return (
+                                                            <span className="text-[8px] leading-none" style={{ color: margemPct > 40 ? '#22c55e' : margemPct > 25 ? 'var(--warning)' : '#ef4444', opacity: 0.8 }}>
+                                                                {N(margemPct, 0)}% margem
+                                                            </span>
+                                                        );
+                                                    })()}
+                                                </div>
                                                 {!readOnly && !inGroup && hasGrupos && (
                                                     <select value="" onChange={e => { e.stopPropagation(); if (e.target.value) moveToGrupo(amb.id, item.id, e.target.value); }}
                                                         onClick={e => e.stopPropagation()}
@@ -3187,17 +3199,21 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             <h3 className="font-semibold text-sm mb-4" style={{ color: 'var(--text-primary)' }}>Resumo Financeiro</h3>
                             {ambientes.length > 0 && (
                                 <div className="flex flex-col gap-1 mb-3 pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
-                                    {ambientes.map(a => (
-                                        <div key={a.id} className="flex justify-between text-xs">
-                                            <span className="truncate" style={{ color: 'var(--text-muted)' }}>{a.nome}</span>
-                                            <span style={{ color: 'var(--text-secondary)' }}>{R$((() => {
-                                                const d = tot.ambTotals.find(x => x.id === a.id);
-                                                if (!d) return 0;
-                                                if (d.manual) return d.custo || 0;
-                                                return (tot.totalItemCP > 0 ? (d.cp || 0) / tot.totalItemCP * tot.pv : (d.custo || 0)) + (d.avulso || 0);
-                                            })())}</span>
-                                        </div>
-                                    ))}
+                                    {ambientes.map(a => {
+                                        const d = tot.ambTotals.find(x => x.id === a.id);
+                                        const ambPvVal = d ? (d.manual ? (d.custo || 0) : (tot.totalItemCP > 0 ? (d.cp || 0) / tot.totalItemCP * tot.pv : (d.custo || 0)) + (d.avulso || 0)) : 0;
+                                        const ambCustoVal = d?.custo || 0;
+                                        const ambMargemPct = ambPvVal > 0 && ambCustoVal > 0 ? ((ambPvVal - ambCustoVal) / ambPvVal * 100) : 0;
+                                        return (
+                                            <div key={a.id} className="flex justify-between text-xs items-center">
+                                                <span className="truncate" style={{ color: 'var(--text-muted)' }}>{a.nome}</span>
+                                                <div className="flex items-center gap-1.5">
+                                                    {ambMargemPct > 0 && <span className="text-[8px]" style={{ color: ambMargemPct > 40 ? '#22c55e' : ambMargemPct > 25 ? 'var(--warning)' : '#ef4444', opacity: 0.7 }}>{N(ambMargemPct, 0)}%</span>}
+                                                    <span style={{ color: 'var(--text-secondary)' }}>{R$(ambPvVal)}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             )}
                             <div className="flex flex-col gap-1.5 text-xs">
@@ -3274,7 +3290,28 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     })() : 0;
 
                                     return (<>
-                                        {/* ── Modo Simples: 3 controles essenciais ── */}
+                                        {/* ── Presets rápidos ── */}
+                                        <div className="flex gap-1 mb-2">
+                                            {[
+                                                { label: 'Competitivo', mk: 30, mdo: 60, lucro: 8, cor: '#3b82f6' },
+                                                { label: 'Padrão', mk: 45, mdo: 80, lucro: 12, cor: '#22c55e' },
+                                                { label: 'Premium', mk: 65, mdo: 100, lucro: 18, cor: '#f59e0b' },
+                                            ].map(p => {
+                                                const isActive = Math.abs(margemGeralPct - p.mk) < 3 && Math.abs(mdoPct - p.mdo) < 5;
+                                                return (
+                                                    <button key={p.label} onClick={() => {
+                                                        setMargemGeral(p.mk); setMdoPct(p.mdo); setTaxa('lucro', p.lucro);
+                                                    }}
+                                                        className="flex-1 py-1.5 rounded text-[9px] font-bold transition-all"
+                                                        style={isActive
+                                                            ? { background: `${p.cor}20`, color: p.cor, border: `1.5px solid ${p.cor}` }
+                                                            : { background: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border)' }
+                                                        }>
+                                                        {p.label}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
 
                                         {/* Margem Geral */}
                                         <div className="rounded-lg px-3 py-2 mb-2" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
@@ -3574,12 +3611,33 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         <span className="font-semibold" style={{ color: '#22c55e' }}>{R$(lucroR)}</span>
                                                     </div>
                                                 )}
-                                                {pvM2 && (
-                                                    <div className="flex justify-between mt-0.5 pt-0.5" style={{ borderTop: '1px dashed var(--border)' }}>
-                                                        <span style={{ color: 'var(--text-muted)' }}>PV por m²</span>
-                                                        <span style={{ color: 'var(--text-secondary)' }}>{R$(pvM2)}/m²</span>
-                                                    </div>
-                                                )}
+                                                {/* Métricas de referência */}
+                                                <div className="mt-1 pt-1 flex flex-col gap-0.5" style={{ borderTop: '1px dashed var(--border)' }}>
+                                                    {pvM2 && (
+                                                        <div className="flex justify-between">
+                                                            <span style={{ color: 'var(--text-muted)' }}>PV por m² chapa</span>
+                                                            <span style={{ color: 'var(--text-secondary)' }}>{R$(pvM2)}/m²</span>
+                                                        </div>
+                                                    )}
+                                                    {tot.ft > 0 && (
+                                                        <div className="flex justify-between">
+                                                            <span style={{ color: 'var(--text-muted)' }}>PV por metro linear</span>
+                                                            <span style={{ color: 'var(--text-secondary)' }}>{R$(pv / tot.ft)}/ml</span>
+                                                        </div>
+                                                    )}
+                                                    {Object.values(tot.ca || {}).length > 0 && (
+                                                        <div className="flex justify-between">
+                                                            <span style={{ color: 'var(--text-muted)' }}>Chapas no projeto</span>
+                                                            <span style={{ color: 'var(--text-secondary)' }}>{Object.values(tot.ca).reduce((s, c) => s + (c.n || 0), 0)} un</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {/* Dica contextual */}
+                                                <div className="mt-2 rounded px-2 py-1.5 text-[9px] leading-relaxed" style={{ background: `${faixaCor}08`, border: `1px solid ${faixaCor}15`, color: 'var(--text-muted)' }}>
+                                                    {faixa === 'baixo' && 'Preço abaixo da média do mercado de móveis sob medida. Verifique se as margens cobrem seus custos fixos (aluguel, folha, etc).'}
+                                                    {faixa === 'saudavel' && 'Preço dentro da faixa praticada pelo mercado de móveis sob medida (2.5× a 3.5× sobre material).'}
+                                                    {faixa === 'alto' && 'Preço acima da média. Justificável para projetos alto padrão, materiais premium ou alta complexidade.'}
+                                                </div>
                                             </div>
                                         </div>
                                     );
