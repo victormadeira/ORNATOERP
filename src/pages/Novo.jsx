@@ -615,12 +615,13 @@ function RelatorioItem({ res, chapasDB, fitasDB, coef, qtd }) {
 }
 
 // ── PainelCard — painel ripado/muxarabi inline no orçamento ──────────────────
-function PainelCard({ painel, bibItems, onUpdate, onRemove }) {
+function PainelCard({ painel, bibItems, onUpdate, onRemove, precoVenda }) {
     const [exp, setExp] = useState(false);
     const materiais = (bibItems || []).filter(m => m.tipo === 'material');
     const calc = useMemo(() => calcPainelRipado(painel, bibItems || []), [painel, bibItems]);
     const coef = painel.coefDificuldade ?? (painel.tipo === 'muxarabi' ? 1.5 : 1.3);
-    const custo = (calc?.custoMaterial || 0) * coef * (painel.qtd || 1);
+    const custoBase = (calc?.custoMaterial || 0) * coef * (painel.qtd || 1);
+    const custo = precoVenda != null ? precoVenda : custoBase;
     const up = (patch) => onUpdate({ ...painel, ...patch });
 
     return (
@@ -754,9 +755,17 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove }) {
                                 <div><span style={{ color: 'var(--text-muted)' }}>Fita borda: </span><strong>{R$(calc.custoFita)}</strong></div>
                                 <div><span style={{ color: 'var(--text-muted)' }}>Custo mat.: </span><strong>{R$(calc.custoMaterial)}</strong></div>
                             </div>
-                            <div className="mt-2 pt-2 flex justify-between text-xs" style={{ borderTop: '1px solid var(--border)' }}>
-                                <span style={{ color: 'var(--text-muted)' }}>Custo c/ dificuldade (×{N(coef, 2)}):</span>
-                                <strong style={{ color: 'var(--warning)' }}>{R$(calc.custoMaterial * coef)}</strong>
+                            <div className="mt-2 pt-2 flex flex-col gap-1 text-xs" style={{ borderTop: '1px solid var(--border)' }}>
+                                <div className="flex justify-between">
+                                    <span style={{ color: 'var(--text-muted)' }}>Custo c/ dificuldade (×{N(coef, 2)}):</span>
+                                    <strong style={{ color: 'var(--text-muted)' }}>{R$(custoBase)}</strong>
+                                </div>
+                                {precoVenda != null && (
+                                    <div className="flex justify-between">
+                                        <span style={{ color: 'var(--text-muted)' }}>Preço de venda (c/ taxas):</span>
+                                        <strong style={{ color: 'var(--warning)' }}>{R$(precoVenda)}</strong>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -3114,11 +3123,15 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     <div className="text-[10px] uppercase tracking-widest font-bold mb-2 flex items-center gap-1.5" style={{ color: 'var(--warning)' }}>
                                                         <Layers size={10} /> Painéis ({amb.paineis.length})
                                                     </div>
-                                                    {amb.paineis.map(painel => (
-                                                        <PainelCard key={painel.id} painel={painel} bibItems={bibItems}
+                                                    {amb.paineis.map(painel => {
+                                                        const pCPData = (tot.itemCostList || []).find(x => x.itemId === painel.id);
+                                                        const pCP = pCPData?.itemCP || 0;
+                                                        const pPreco = tot.totalItemCP > 0 ? (pCP / tot.totalItemCP) * tot.pv : undefined;
+                                                        return <PainelCard key={painel.id} painel={painel} bibItems={bibItems}
+                                                            precoVenda={pPreco}
                                                             onUpdate={newP => upPainel(amb.id, painel.id, newP)}
-                                                            onRemove={() => removePainel(amb.id, painel.id)} />
-                                                    ))}
+                                                            onRemove={() => removePainel(amb.id, painel.id)} />;
+                                                    })}
                                                 </div>
                                             )}
 
