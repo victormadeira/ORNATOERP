@@ -47,6 +47,17 @@ function matLabel(id, chapas) {
     return chapas.find(c => c.id === id)?.nome || id || '—';
 }
 
+/** Resolve materiais efetivos de um item, herdando do ambiente se não customizado */
+function resolveItemMats(item, amb) {
+    if (item._matCustom) return item.mats; // item explicitamente customizado
+    // Ambiente só tem material se matInt foi definido (campo não existe em orçamentos antigos)
+    if (!amb?.matInt) return item.mats;
+    return {
+        matInt: amb.matInt,
+        matExt: amb.matExt ?? item.mats?.matExt ?? '',
+    };
+}
+
 // ── Componente: dropdown estilizado para puxadores ──────────────────────────
 function PuxadorSelect({ puxadores, value, onChange }) {
     const [open, setOpen] = useState(false);
@@ -1126,7 +1137,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [templateNome, setTemplateNome] = useState('');
     const [templateCategoria, setTemplateCategoria] = useState('');
     const [mkExpanded, setMkExpanded] = useState(false);
-    const [compExpanded, setCompExpanded] = useState(false);
+    const [compExpanded, setCompExpanded] = useState(true);
     const [showImportModal, setShowImportModal] = useState(false);
     const [importJson, setImportJson] = useState('');
     const [importLoading, setImportLoading] = useState(false);
@@ -1441,6 +1452,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         }
         setAmbientes([...ambientes, base]);
         setExpandedAmb(base.id);
+        // Auto-scroll para o novo ambiente
+        setTimeout(() => {
+            const el = document.getElementById(`amb-${base.id}`);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 150);
     };
     const removeAmb = id => {
         const amb = ambientes.find(a => a.id === id);
@@ -1475,6 +1491,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         setAmbientes(newAmbs);
         setExpandedAmb(clone.id);
         notify('Ambiente duplicado');
+        // Auto-scroll para o ambiente duplicado
+        setTimeout(() => {
+            const el = document.getElementById(`amb-${clone.id}`);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 150);
     };
 
     // ── Reordenar ambientes ──
@@ -1770,7 +1791,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     return;
                 }
                 try {
-                    const res = calcItemV2(item.caixaDef, item.dims, item.mats, item.componentes.map(ci => ({
+                    const res = calcItemV2(item.caixaDef, item.dims, resolveItemMats(item, amb), item.componentes.map(ci => ({
                         compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},
                         matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
                         dimL: ci.dimL || 0, dimA: ci.dimA || 0, dimP: ci.dimP || 0,
@@ -1895,7 +1916,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 if (item.tipo === 'avulso') return;
                 const qtd = item.qtd || 1;
                 try {
-                    const res = calcItemV2(item.caixaDef, item.dims, item.mats, item.componentes.map(ci => ({
+                    const res = calcItemV2(item.caixaDef, item.dims, resolveItemMats(item, amb), item.componentes.map(ci => ({
                         compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},
                         matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
                         dimL: ci.dimL || 0, dimA: ci.dimA || 0, dimP: ci.dimP || 0,
@@ -2017,8 +2038,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         const chapasFrac = Object.values(ca).reduce((s, c) => s + (c.frac || 0), 0);
         const chapasEconomia = Object.values(ca).reduce((s, c) => s + (c.n - (c.frac || 0)) * c.mat.preco, 0);
 
+        // cmCalculado = custo material apenas dos itens calculados (exclui avulso/manual)
+        const cmCalculado = cm - manualTotal;
+
         return {
-            cm, at, ft, ca, fa, pv, cp,
+            cm, cmCalculado, at, ft, ca, fa, pv, cp,
             pvErro: pvResult.erro, pvMsg: pvResult.msg,
             custoMdo, totChapas, totFita, totFerragens, totAcabamentos, totAcessorios,
             ambTotals, totalAjustes, pvFinal, manualTotal, totalItemCP, itemCostList,
@@ -2036,7 +2060,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     (amb.itens || []).forEach(item => {
                         if (item.tipo === 'avulso') return;
                         try {
-                            const res = calcItemV2(item.caixaDef, item.dims, item.mats, item.componentes.map(ci => ({
+                            const res = calcItemV2(item.caixaDef, item.dims, resolveItemMats(item, amb), item.componentes.map(ci => ({
                                 compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},
                                 matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
                                 dimL: ci.dimL || 0, dimA: ci.dimA || 0, dimP: ci.dimP || 0,
@@ -2530,15 +2554,15 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 // ── Item Avulso ──
                                 if (item.tipo === 'avulso') {
                                     return (
-                                        <div key={item.id} className="rounded-lg border overflow-hidden mb-2"
+                                        <div key={item.id} className="rounded-lg overflow-hidden mb-2"
                                             draggable={canDrag}
                                             onDragStart={e => handleDragStart(e, amb.id, item.id)}
                                             onDragEnd={handleDragEnd}
-                                            style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', borderLeft: '3px solid #10b981', cursor: canDrag ? 'grab' : 'default' }}>
+                                            style={{ border: '1.5px dashed #10b98180', background: 'rgba(16,185,129,0.03)', borderLeft: '3px solid #10b981', cursor: canDrag ? 'grab' : 'default' }}>
                                             <div className="flex items-center gap-2 px-3 py-2">
                                                 {canDrag && <GripVertical size={12} style={{ color: 'var(--text-muted)', opacity: 0.4, flexShrink: 0 }} />}
                                                 <Tag size={13} style={{ color: '#10b981', flexShrink: 0 }} />
-                                                <input type="text" placeholder="Nome do item (ex: Bancada granito)"
+                                                <input type="text" placeholder="Nome do item avulso (ex: Bancada granito)"
                                                     value={item.nome} onChange={e => upItem(amb.id, item.id, it => it.nome = e.target.value)}
                                                     className="bg-transparent font-medium text-sm outline-none flex-1 min-w-0"
                                                     style={{ color: 'var(--text-primary)' }} readOnly={readOnly} />
@@ -2568,8 +2592,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         className="p-0.5 rounded hover:bg-[var(--bg-hover)]" title="Remover do grupo"
                                                         style={{ color: 'var(--text-muted)' }}><X size={10} /></button>
                                                 )}
-                                                {!readOnly && <button onClick={() => copyItem(amb.id, item.id)} className="p-1 rounded hover:bg-[var(--bg-hover)]"><Copy size={12} /></button>}
-                                                {!readOnly && <button onClick={() => removeItem(amb.id, item.id)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>}
+                                                {!readOnly && <button onClick={() => copyItem(amb.id, item.id)} className="p-1 rounded hover:bg-[var(--bg-hover)]" title="Duplicar item"><Copy size={12} /></button>}
+                                                {!readOnly && <button onClick={() => removeItem(amb.id, item.id)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Remover item"><Trash2 size={12} /></button>}
                                             </div>
                                             {!readOnly && (
                                                 <div className="px-3 pb-2 pt-0">
@@ -2586,7 +2610,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 const coef = item.caixaDef?.coef || 0;
                                 let res = null;
                                 try {
-                                    res = calcItemV2(item.caixaDef, item.dims, item.mats, item.componentes.map(ci => ({
+                                    res = calcItemV2(item.caixaDef, item.dims, resolveItemMats(item, amb), item.componentes.map(ci => ({
                                         compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},
                                         matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
                                         dimL: ci.dimL || 0, dimA: ci.dimA || 0, dimP: ci.dimP || 0,
@@ -2638,7 +2662,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         const margemIt = precoItemFinal - custoIt;
                                                         const margemPct = precoItemFinal > 0 ? (margemIt / precoItemFinal * 100) : 0;
                                                         return (
-                                                            <span className="text-[8px] leading-none" style={{ color: margemPct > 40 ? '#22c55e' : margemPct > 25 ? 'var(--warning)' : '#ef4444', opacity: 0.8 }}>
+                                                            <span className="text-[8px] leading-none" style={{ color: margemPct > 50 ? '#8b5cf6' : margemPct > 35 ? '#22c55e' : margemPct > 20 ? 'var(--warning)' : '#ef4444', opacity: 0.8 }}>
                                                                 {N(margemPct, 0)}% margem
                                                             </span>
                                                         );
@@ -2657,8 +2681,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         className="p-0.5 rounded hover:bg-[var(--bg-hover)]" title="Remover do grupo"
                                                         style={{ color: 'var(--text-muted)' }}><X size={11} /></button>
                                                 )}
-                                                {!readOnly && <button onClick={e => { e.stopPropagation(); copyItem(amb.id, item.id); }} className="p-1 rounded hover:bg-[var(--bg-hover)]"><Copy size={12} /></button>}
-                                                {!readOnly && <button onClick={e => { e.stopPropagation(); removeItem(amb.id, item.id); }} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>}
+                                                {!readOnly && <button onClick={e => { e.stopPropagation(); copyItem(amb.id, item.id); }} className="p-1 rounded hover:bg-[var(--bg-hover)]" title="Duplicar item"><Copy size={12} /></button>}
+                                                {!readOnly && <button onClick={e => { e.stopPropagation(); removeItem(amb.id, item.id); }} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Remover item"><Trash2 size={12} /></button>}
                                             </div>
                                         </div>
 
@@ -2761,36 +2785,83 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 })()}
 
                                                 {/* Materiais */}
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                                    <div>
-                                                        <label className={Z.lbl}>Material Interno (chapas)</label>
-                                                        <SearchableSelect
-                                                            value={item.mats.matInt}
-                                                            onChange={val => upItem(amb.id, item.id, it => it.mats.matInt = val)}
-                                                            groups={[
-                                                                ...(bib?.topChapas?.length > 0 ? [{ label: 'Mais usados', options: bib.topChapas.map(c => ({ value: c.id, label: c.nome })) }] : []),
-                                                                { label: 'Todas as chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
-                                                            ]}
-                                                            placeholder="Buscar chapa..."
-                                                            className={Z.inp}
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className={Z.lbl}>Material Externo (tamponamento)</label>
-                                                        <SearchableSelect
-                                                            value={item.mats.matExt}
-                                                            onChange={val => upItem(amb.id, item.id, it => it.mats.matExt = val)}
-                                                            groups={[
-                                                                ...(bib?.topChapas?.length > 0 || bib?.topAcab?.length > 0 ? [{ label: 'Mais usados', options: [...(bib?.topChapas || []), ...(bib?.topAcab || [])].map(c => ({ value: c.id, label: c.nome })) }] : []),
-                                                                { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
-                                                                { label: 'Acabamentos premium', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) },
-                                                            ]}
-                                                            emptyOption="Sem tamponamento"
-                                                            placeholder="Buscar material..."
-                                                            className={Z.inp}
-                                                        />
-                                                    </div>
-                                                </div>
+                                                {(() => {
+                                                    const hasAmbMat = !!(amb.matInt || amb.matExt);
+                                                    const isCustom = item._matCustom;
+                                                    const effectiveMats = resolveItemMats(item, amb);
+                                                    const allMatsDB = [...chapasDB, ...acabDB.filter(a => a.preco > 0)];
+                                                    const matIntNome = allMatsDB.find(m => m.id === effectiveMats.matInt)?.nome || effectiveMats.matInt || '—';
+                                                    const matExtNome = effectiveMats.matExt ? (allMatsDB.find(m => m.id === effectiveMats.matExt)?.nome || effectiveMats.matExt) : 'Sem tamponamento';
+
+                                                    // Se o ambiente tem material definido e este item NÃO foi customizado, mostrar resumo compacto
+                                                    if (hasAmbMat && !isCustom) {
+                                                        return (
+                                                            <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(19,121,240,0.04)', border: '1px dashed rgba(19,121,240,0.2)' }}>
+                                                                <div className="flex items-center justify-between">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Layers size={11} style={{ color: 'var(--primary)', opacity: 0.6 }} />
+                                                                        <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                                                            Herdando do ambiente: <strong style={{ color: 'var(--text-secondary)' }}>{matIntNome}</strong>
+                                                                            {effectiveMats.matExt ? <> + <strong style={{ color: 'var(--text-secondary)' }}>{matExtNome}</strong></> : ''}
+                                                                        </span>
+                                                                    </div>
+                                                                    <button onClick={() => upItem(amb.id, item.id, it => { it._matCustom = true; it.mats = { ...effectiveMats }; })}
+                                                                        className="text-[9px] px-2 py-0.5 rounded cursor-pointer"
+                                                                        style={{ color: 'var(--primary)', background: 'rgba(19,121,240,0.08)', border: '1px solid rgba(19,121,240,0.2)' }}>
+                                                                        Customizar
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
+
+                                                    // Modo completo: seletores de material (padrão ou customizado)
+                                                    return (
+                                                        <>
+                                                            {hasAmbMat && isCustom && (
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: '#f59e0b15', color: 'var(--warning)', border: '1px solid #f59e0b30' }}>Material customizado</span>
+                                                                    <button onClick={() => upItem(amb.id, item.id, it => { it._matCustom = false; })}
+                                                                        className="text-[9px] px-2 py-0.5 rounded cursor-pointer"
+                                                                        style={{ color: 'var(--text-muted)', background: 'var(--bg-muted)', border: '1px solid var(--border)' }}
+                                                                        title="Voltar a herdar material do ambiente">
+                                                                        Herdar do ambiente
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                                <div>
+                                                                    <label className={Z.lbl}>Material Interno (chapas)</label>
+                                                                    <SearchableSelect
+                                                                        value={item.mats.matInt}
+                                                                        onChange={val => upItem(amb.id, item.id, it => it.mats.matInt = val)}
+                                                                        groups={[
+                                                                            ...(bib?.topChapas?.length > 0 ? [{ label: 'Mais usados', options: bib.topChapas.map(c => ({ value: c.id, label: c.nome })) }] : []),
+                                                                            { label: 'Todas as chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                                                        ]}
+                                                                        placeholder="Buscar chapa..."
+                                                                        className={Z.inp}
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className={Z.lbl}>Material Externo (tamponamento)</label>
+                                                                    <SearchableSelect
+                                                                        value={item.mats.matExt}
+                                                                        onChange={val => upItem(amb.id, item.id, it => it.mats.matExt = val)}
+                                                                        groups={[
+                                                                            ...(bib?.topChapas?.length > 0 || bib?.topAcab?.length > 0 ? [{ label: 'Mais usados', options: [...(bib?.topChapas || []), ...(bib?.topAcab || [])].map(c => ({ value: c.id, label: c.nome })) }] : []),
+                                                                            { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                                                            { label: 'Acabamentos premium', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) },
+                                                                        ]}
+                                                                        emptyOption="Sem tamponamento"
+                                                                        placeholder="Buscar material..."
+                                                                        className={Z.inp}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    );
+                                                })()}
 
                                                 {/* Componentes */}
                                                 <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
@@ -2871,7 +2942,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             };
 
                             return (
-                                <div key={amb.id} className="glass-card !p-0 overflow-hidden border-l-[3px] border-l-[var(--primary)] mb-3">
+                                <div key={amb.id} id={`amb-${amb.id}`} className="glass-card !p-0 overflow-hidden border-l-[3px] border-l-[var(--primary)] mb-3">
                                     {/* Header do ambiente */}
                                     <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[var(--bg-hover)]" onClick={() => setExpandedAmb(isExpAmb ? null : amb.id)}>
                                         <div className="flex items-center gap-3">
@@ -2888,6 +2959,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 }
                                             </span>
                                             {amb.tipo === 'manual' && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: '#f59e0b18', color: 'var(--warning)', border: '1px solid #f59e0b30' }}>Manual</span>}
+                                            {amb.matInt && <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(19,121,240,0.06)', color: 'var(--primary)', border: '1px solid rgba(19,121,240,0.15)' }} title={`Interno: ${chapasDB.find(c=>c.id===amb.matInt)?.nome || amb.matInt}${amb.matExt ? ` · Externo: ${[...chapasDB, ...acabDB].find(c=>c.id===amb.matExt)?.nome || amb.matExt}` : ''}`}>{chapasDB.find(c=>c.id===amb.matInt)?.nome || amb.matInt}</span>}
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <span className="font-bold text-sm" style={{ color: 'var(--primary)' }}>{R$(ambPv)}</span>
@@ -2897,7 +2969,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     {ambIdx < ambientes.length - 1 && <button onClick={e => { e.stopPropagation(); moveAmbDown(amb.id); }} className="p-1 rounded hover:bg-blue-500/10 text-blue-400/40 hover:text-blue-400 cursor-pointer" title="Mover para baixo"><ArrowDown size={13} /></button>}
                                                     <button onClick={e => { e.stopPropagation(); setShowSaveTemplateModal(amb.id); setTemplateNome(amb.nome); setTemplateCategoria(''); }} className="p-1 rounded hover:bg-green-500/10 text-green-400/50 hover:text-green-400 cursor-pointer" title="Salvar como template"><FilePlus2 size={13} /></button>
                                                     <button onClick={e => { e.stopPropagation(); duplicarAmbiente(amb.id); }} className="p-1 rounded hover:bg-violet-500/10 text-violet-400/50 hover:text-violet-400 cursor-pointer" title="Duplicar ambiente"><Copy size={13} /></button>
-                                                    <button onClick={e => { e.stopPropagation(); removeAmb(amb.id); }} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400 cursor-pointer"><Trash2 size={14} /></button>
+                                                    <button onClick={e => { e.stopPropagation(); removeAmb(amb.id); }} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400 cursor-pointer" title="Remover ambiente"><Trash2 size={14} /></button>
                                                 </>
                                             )}
                                         </div>
@@ -3022,6 +3094,66 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
                                     {isExpAmb && amb.tipo !== 'manual' && (
                                         <div className="px-4 pb-4" style={{ borderTop: '1px solid var(--border)' }}>
+                                            {/* ── Material Global do Ambiente ── */}
+                                            {!readOnly && (
+                                                <div className="py-3 pb-2 mb-1" style={{ borderBottom: '1px dashed var(--border)' }}>
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <Layers size={12} style={{ color: 'var(--primary)' }} />
+                                                        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--primary)' }}>Material do Ambiente</span>
+                                                        {(amb.matInt || amb.matExt) && (
+                                                            <button onClick={() => upAmb(amb.id, a => { a.matInt = ''; a.matExt = ''; })}
+                                                                className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer"
+                                                                style={{ color: 'var(--text-muted)', background: 'var(--bg-muted)', border: '1px solid var(--border)' }}
+                                                                title="Limpar materiais do ambiente (cada módulo usará seu próprio)">
+                                                                Limpar
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <div>
+                                                            <label className="text-[9px] mb-0.5 block" style={{ color: 'var(--text-muted)' }}>Interno (corpo + fundo)</label>
+                                                            <SearchableSelect
+                                                                value={amb.matInt || ''}
+                                                                onChange={val => upAmb(amb.id, a => { a.matInt = val; })}
+                                                                groups={[
+                                                                    ...(bib?.topChapas?.length > 0 ? [{ label: 'Mais usados', options: bib.topChapas.map(c => ({ value: c.id, label: c.nome })) }] : []),
+                                                                    { label: 'Todas as chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                                                ]}
+                                                                emptyOption="Sem padrão (por módulo)"
+                                                                placeholder="Selecionar..."
+                                                                className={Z.inp}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[9px] mb-0.5 block" style={{ color: 'var(--text-muted)' }}>Externo (tamponamento)</label>
+                                                            <SearchableSelect
+                                                                value={amb.matExt ?? ''}
+                                                                onChange={val => upAmb(amb.id, a => { a.matExt = val; })}
+                                                                groups={[
+                                                                    ...(bib?.topChapas?.length > 0 || bib?.topAcab?.length > 0 ? [{ label: 'Mais usados', options: [...(bib?.topChapas || []), ...(bib?.topAcab || [])].map(c => ({ value: c.id, label: c.nome })) }] : []),
+                                                                    { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                                                    { label: 'Acabamentos premium', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) },
+                                                                ]}
+                                                                emptyOption="Sem tamponamento"
+                                                                placeholder="Selecionar..."
+                                                                className={Z.inp}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    {(amb.matInt || amb.matExt) && (() => {
+                                                        const nItens = (amb.itens || []).filter(i => i.tipo !== 'avulso').length;
+                                                        const nCustom = (amb.itens || []).filter(i => i.tipo !== 'avulso' && i._matCustom).length;
+                                                        return (
+                                                            <div className="mt-1.5 text-[9px]" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>
+                                                                {nCustom > 0
+                                                                    ? `${nItens - nCustom} de ${nItens} módulos herdando · ${nCustom} customizado${nCustom > 1 ? 's' : ''}`
+                                                                    : `Todos os ${nItens} módulos herdam este material`
+                                                                }
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            )}
                                             {/* Selector de caixa com busca */}
                                             {!readOnly && (
                                                 <div className="py-3">
@@ -3196,8 +3328,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
                 {/* ── Resumo Financeiro ── */}
                 <div className="lg:col-span-1">
-                    <div className="glass-card sticky top-[68px] overflow-hidden" style={{ borderTop: '2px solid var(--primary)' }}>
-                        <div className="p-4">
+                    <div className="glass-card sticky top-[68px] overflow-hidden flex flex-col" style={{ borderTop: '2px solid var(--primary)', maxHeight: 'calc(100vh - 84px)' }}>
+                        <div className="p-4 overflow-y-auto flex-1" style={{ scrollbarWidth: 'thin' }}>
                             <h3 className="font-semibold text-sm mb-4" style={{ color: 'var(--text-primary)' }}>Resumo Financeiro</h3>
                             {ambientes.length > 0 && (
                                 <div className="flex flex-col gap-1 mb-3 pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -3210,7 +3342,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             <div key={a.id} className="flex justify-between text-xs items-center">
                                                 <span className="truncate" style={{ color: 'var(--text-muted)' }}>{a.nome}</span>
                                                 <div className="flex items-center gap-1.5">
-                                                    {ambMargemPct > 0 && <span className="text-[8px]" style={{ color: ambMargemPct > 40 ? '#22c55e' : ambMargemPct > 25 ? 'var(--warning)' : '#ef4444', opacity: 0.7 }}>{N(ambMargemPct, 0)}%</span>}
+                                                    {ambMargemPct > 0 && <span className="text-[8px]" title={`Margem ${N(ambMargemPct, 1)}%`} style={{ color: ambMargemPct > 50 ? '#8b5cf6' : ambMargemPct > 35 ? '#22c55e' : ambMargemPct > 20 ? 'var(--warning)' : '#ef4444', opacity: 0.8 }}>{N(ambMargemPct, 0)}%</span>}
                                                     <span style={{ color: 'var(--text-secondary)' }}>{R$(ambPvVal)}</span>
                                                 </div>
                                             </div>
@@ -3313,6 +3445,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 const isActive = Math.abs(margemFabPct - p.fab) < 5 && Math.abs(margemCompPct - p.comp) < 5;
                                                 return (
                                                     <button key={p.label} onClick={() => {
+                                                        if (isActive) return;
+                                                        if (!confirm(`Aplicar preset "${p.label}"?\nFabricados: ${p.fab}% · Comprados: ${p.comp}% · Lucro: ${p.lucro}%`)) return;
                                                         setMargemFab(p.fab); setMargemComp(p.comp); setTaxa('lucro', p.lucro);
                                                     }}
                                                         className="flex-1 py-1.5 rounded text-[9px] font-bold transition-all"
@@ -3408,7 +3542,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         {/* Coef médio (info) */}
                                         {coefMedioVal > 0 && (
                                             <div className="flex justify-between text-[10px] mt-1 pt-1 px-1" style={{ borderTop: '1px dashed var(--border)' }}>
-                                                <span style={{ color: 'var(--text-muted)' }} title="Média ponderada do coeficiente de dificuldade dos módulos">Dificuldade média</span>
+                                                <span style={{ color: 'var(--text-muted)' }} title="Média ponderada do coeficiente de dificuldade dos módulos. Acresce sobre o custo de material.">Dificuldade média <span style={{ opacity: 0.5 }}>(sobre material)</span></span>
                                                 <span style={{ color: 'var(--warning)', fontWeight: 600 }}>+{(coefMedioVal * 100).toFixed(0)}%</span>
                                             </div>
                                         )}
@@ -3609,25 +3743,27 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 )}
 
                                 {/* ── Diagnóstico de Preço ── */}
-                                {pvComDesconto > 0 && tot.cm > 0 && (() => {
+                                {pvComDesconto > 0 && tot.cmCalculado > 0 && (() => {
                                     const pv = pvComDesconto;
-                                    const custoMat = tot.cm || 0;
+                                    // Usar apenas custo material calculado (sem avulso/manual) para métricas reais
+                                    const pvCalc = pv - (tot.manualTotal || 0); // PV só dos itens calculados
+                                    const custoMat = tot.cmCalculado || 0;
                                     const cp = tot.cb || 0;
-                                    const mult = custoMat > 0 ? pv / custoMat : 0;
+                                    const mult = custoMat > 0 ? pvCalc / custoMat : 0;
                                     const lucroPerc = taxas.lucro || 0;
-                                    const lucroR = pv * (lucroPerc / 100);
+                                    const lucroR = pvCalc * (lucroPerc / 100);
                                     const totalTaxasPerc = (taxas.imp || 0) + (taxas.com || 0) + (taxas.lucro || 0) + (taxas.inst ?? 5) + (taxas.frete || 0) + (taxas.mont || 0);
-                                    const taxasR = pv * (totalTaxasPerc / 100);
-                                    const margemBrutaR = pv - custoMat;
-                                    const margemBrutaPct = pv > 0 ? (margemBrutaR / pv * 100) : 0;
+                                    const taxasR = pvCalc * (totalTaxasPerc / 100);
+                                    const margemBrutaR = pvCalc - custoMat;
+                                    const margemBrutaPct = pvCalc > 0 ? (margemBrutaR / pvCalc * 100) : 0;
                                     // Indicador: movelaria sob medida tipicamente 2.5× a 3.5×
                                     const faixa = mult < 2.2 ? 'baixo' : mult <= 3.5 ? 'saudavel' : 'alto';
                                     const faixaCor = faixa === 'baixo' ? '#ef4444' : faixa === 'saudavel' ? '#22c55e' : '#f59e0b';
                                     const faixaLabel = faixa === 'baixo' ? 'Abaixo do mercado' : faixa === 'saudavel' ? 'Faixa saudável' : 'Acima do mercado';
                                     // Barra visual: posição do multiplicador entre 1× e 5×
                                     const barPos = Math.min(100, Math.max(0, ((mult - 1) / 4) * 100));
-                                    // PV por m² de área (se tiver área)
-                                    const pvM2 = tot.at > 0 ? pv / tot.at : null;
+                                    // PV por m² de área (se tiver área) — usa pvCalc (sem avulso)
+                                    const pvM2 = tot.at > 0 ? pvCalc / tot.at : null;
 
                                     return (
                                         <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
@@ -3693,7 +3829,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     {tot.ft > 0 && (
                                                         <div className="flex justify-between">
                                                             <span style={{ color: 'var(--text-muted)' }}>PV por metro linear</span>
-                                                            <span style={{ color: 'var(--text-secondary)' }}>{R$(pv / tot.ft)}/ml</span>
+                                                            <span style={{ color: 'var(--text-secondary)' }}>{R$(pvCalc / tot.ft)}/ml</span>
                                                         </div>
                                                     )}
                                                     {Object.values(tot.ca || {}).length > 0 && (
@@ -3708,6 +3844,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     {faixa === 'baixo' && 'Preço abaixo da média do mercado de móveis sob medida. Verifique se as margens cobrem seus custos fixos (aluguel, folha, etc).'}
                                                     {faixa === 'saudavel' && 'Preço dentro da faixa praticada pelo mercado de móveis sob medida (2.5× a 3.5× sobre material).'}
                                                     {faixa === 'alto' && 'Preço acima da média. Justificável para projetos alto padrão, materiais premium ou alta complexidade.'}
+                                                    {(tot.manualTotal || 0) > 0 && (
+                                                        <div className="mt-1 pt-1" style={{ borderTop: '1px dashed var(--border)', opacity: 0.7 }}>
+                                                            Itens avulsos/manuais ({R$(tot.manualTotal)}) excluídos desta análise.
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -3926,7 +4067,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 <button
                                     onClick={() => setShowAprovarModal(true)}
                                     className="w-full py-2.5 text-xs font-bold rounded-lg cursor-pointer flex items-center justify-center gap-1.5 transition-all"
-                                    style={{ background: 'var(--primary)', color: '#fff', boxShadow: '0 2px 8px var(--primary-ring, rgba(19,121,240,0.3))' }}
+                                    style={{ background: '#16a34a', color: '#fff', boxShadow: '0 2px 8px rgba(22,163,74,0.3)' }}
                                 >
                                     <CheckCircle size={14} /> Aprovar Orçamento
                                 </button>
