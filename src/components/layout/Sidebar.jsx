@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Ic } from '../../ui';
-import { ChevronDown, ChevronsLeft, ChevronsRight, Search, User, FileText, FolderKanban, Box, X, Star, Clock } from 'lucide-react';
+import { ChevronDown, ChevronsLeft, ChevronsRight, Search, User, FileText, FolderKanban, Box, X } from 'lucide-react';
 import api from '../../api';
 
 const LS_RECENT = 'erp_recent_pages';
@@ -367,7 +367,7 @@ export default function Sidebar({
     user, logout, logoSistema, empNome, setShowPerfil,
     notifs, waUnread, isMobile, mobileOpen, setMobileOpen,
 }) {
-    const { recents, favorites, menuMap, toggleFavorite, isFavorite } = useRecentAndFavorites(pg, MENU_GROUPS);
+    const { menuMap } = useRecentAndFavorites(pg, MENU_GROUPS);
 
     return (
         <>
@@ -405,71 +405,8 @@ export default function Sidebar({
                         )}
                     </div>
 
-                    {/* Favorites */}
-                    {favorites.length > 0 && (
-                        <div className="px-2 pt-2" style={{ borderBottom: favorites.length ? '1px solid var(--border)' : undefined, paddingBottom: 6 }}>
-                            {sidebarExpanded ? (
-                                <div className="flex items-center gap-1 flex-wrap px-1">
-                                    {favorites.map(fid => {
-                                        const m = menuMap[fid];
-                                        if (!m) return null;
-                                        const FavIc = m.ic;
-                                        return (
-                                            <button key={fid} onClick={() => nav(fid)} title={m.lb}
-                                                className="p-1.5 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
-                                                style={{ color: pg === fid ? 'var(--primary)' : 'var(--text-muted)' }}>
-                                                <FavIc />
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center gap-0.5">
-                                    {favorites.map(fid => {
-                                        const m = menuMap[fid];
-                                        if (!m) return null;
-                                        const FavIc = m.ic;
-                                        return (
-                                            <button key={fid} onClick={() => nav(fid)} title={m.lb}
-                                                className="sidebar-item p-1.5 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
-                                                style={{ color: pg === fid ? 'var(--primary)' : 'var(--text-muted)' }}>
-                                                <FavIc />
-                                                <span className="sidebar-tooltip">{m.lb}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
                     {/* Search */}
-                    <SidebarSearch sidebarExpanded={sidebarExpanded} nav={nav} isMobile={false} />
-
-                    {/* Recent Pages */}
-                    {sidebarExpanded && recents.length > 0 && (
-                        <div className="px-2 pb-1">
-                            <div className="flex items-center gap-1.5 px-2.5 pt-1 pb-1">
-                                <Clock size={10} style={{ color: 'var(--text-muted)' }} />
-                                <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Recentes</span>
-                            </div>
-                            {recents.map(rid => {
-                                const m = menuMap[rid];
-                                if (!m) return null;
-                                const RecIc = m.ic;
-                                return (
-                                    <button key={rid} onClick={() => nav(rid)}
-                                        className="w-full flex items-center gap-2 px-2.5 py-1 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
-                                        style={{ color: pg === rid ? 'var(--primary)' : 'var(--text-muted)' }}>
-                                        <span className="shrink-0" style={{ width: 14, display: 'flex', justifyContent: 'center' }}>
-                                            <RecIc />
-                                        </span>
-                                        <span className="text-[11px] truncate">{m.lb}</span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
+                    <SidebarSearch sidebarExpanded={sidebarExpanded} nav={nav} isMobile={false} />}
 
                     {/* Nav Items */}
                     <nav className="flex-1 overflow-y-auto py-2 px-2" style={{ scrollbarWidth: 'thin' }}>
@@ -549,19 +486,6 @@ export default function Sidebar({
                                                                 <span className="sidebar-tooltip">{m.lb}</span>
                                                             )}
                                                         </button>
-                                                        {sidebarExpanded && (
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); toggleFavorite(m.id); }}
-                                                                className={`absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded cursor-pointer transition-all hover:bg-[var(--bg-hover)] ${isFavorite(m.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-60'}`}
-                                                                style={{
-                                                                    color: isFavorite(m.id) ? '#f59e0b' : 'var(--text-muted)',
-                                                                    background: 'none', border: 'none',
-                                                                }}
-                                                                title={isFavorite(m.id) ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
-                                                            >
-                                                                <Star size={12} fill={isFavorite(m.id) ? '#f59e0b' : 'none'} />
-                                                            </button>
-                                                        )}
                                                     </div>
                                                 );
                                             })}
@@ -635,53 +559,8 @@ export default function Sidebar({
                         </div>
                     </div>
 
-                    {/* Favorites (mobile) */}
-                    {favorites.length > 0 && (
-                        <div className="px-2 pt-2" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>
-                            <div className="flex items-center gap-1 flex-wrap px-1">
-                                {favorites.map(fid => {
-                                    const m = menuMap[fid];
-                                    if (!m) return null;
-                                    const FavIc = m.ic;
-                                    return (
-                                        <button key={fid} onClick={() => { nav(fid); setMobileOpen(false); }} title={m.lb}
-                                            className="p-1.5 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
-                                            style={{ color: pg === fid ? 'var(--primary)' : 'var(--text-muted)' }}>
-                                            <FavIc />
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-
                     {/* Search (mobile) */}
                     <SidebarSearch sidebarExpanded={true} nav={nav} isMobile={true} setMobileOpen={setMobileOpen} />
-
-                    {/* Recent Pages (mobile) */}
-                    {recents.length > 0 && (
-                        <div className="px-2 pb-1">
-                            <div className="flex items-center gap-1.5 px-2.5 pt-1 pb-1">
-                                <Clock size={10} style={{ color: 'var(--text-muted)' }} />
-                                <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Recentes</span>
-                            </div>
-                            {recents.map(rid => {
-                                const m = menuMap[rid];
-                                if (!m) return null;
-                                const RecIc = m.ic;
-                                return (
-                                    <button key={rid} onClick={() => { nav(rid); setMobileOpen(false); }}
-                                        className="w-full flex items-center gap-2 px-2.5 py-1 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
-                                        style={{ color: pg === rid ? 'var(--primary)' : 'var(--text-muted)' }}>
-                                        <span className="shrink-0" style={{ width: 14, display: 'flex', justifyContent: 'center' }}>
-                                            <RecIc />
-                                        </span>
-                                        <span className="text-[11px] truncate">{m.lb}</span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
 
                     <nav className="flex-1 overflow-y-auto py-2 px-2">
                         {MENU_GROUPS.map(g => {
