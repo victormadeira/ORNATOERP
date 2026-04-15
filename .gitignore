@@ -4,11 +4,17 @@ node_modules/
 # Build output
 dist/
 
-# Database files
+# Database files — NUNCA commitar bancos de dados
 *.db
 *.db-shm
 *.db-wal
 *.db-journal
+*.sqlite
+*.sqlite3
+server/marcenaria.db
+server/database.sqlite
+server/database.db
+server/.jwt_secret
 
 # Environment variables
 .env
