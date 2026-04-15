@@ -39,17 +39,12 @@ router.post('/whatsapp', async (req, res) => {
 
 // ═══ Processar mensagem recebida ═══
 async function handleIncomingMessage(data) {
-    console.log('[Webhook] handleIncomingMessage data keys:', data ? Object.keys(data).join(',') : 'null');
-    const msg = data?.message || data;
-    if (!msg || !msg.key) {
-        console.log('[Webhook] Sem msg.key — msg keys:', msg ? Object.keys(msg).join(',') : 'null');
-        return;
-    }
+    if (!data || !data.key) return;
 
     // Ignorar mensagens enviadas por nós
-    if (msg.key.fromMe) return;
+    if (data.key.fromMe) return;
 
-    const remoteJid = msg.key.remoteJid || '';
+    const remoteJid = data.key.remoteJid || '';
     // Ignorar grupos por enquanto
     if (remoteJid.includes('@g.us')) return;
 
@@ -57,16 +52,16 @@ async function handleIncomingMessage(data) {
     if (!phone) return;
 
     // Extrair conteúdo da mensagem
-    const messageContent = msg.message?.conversation
-        || msg.message?.extendedTextMessage?.text
-        || msg.message?.imageMessage?.caption
+    const messageContent = data.message?.conversation
+        || data.message?.extendedTextMessage?.text
+        || data.message?.imageMessage?.caption
         || '';
-    const messageType = msg.message?.imageMessage ? 'imagem'
-        : msg.message?.audioMessage ? 'audio'
-        : msg.message?.documentMessage ? 'documento'
+    const messageType = data.message?.imageMessage ? 'imagem'
+        : data.message?.audioMessage ? 'audio'
+        : data.message?.documentMessage ? 'documento'
         : 'texto';
-    const pushName = msg.pushName || '';
-    const waMessageId = msg.key.id || '';
+    const pushName = data.pushName || '';
+    const waMessageId = data.key.id || '';
 
     // Ignorar mensagens de texto vazias
     if (!messageContent && messageType === 'texto') return;
