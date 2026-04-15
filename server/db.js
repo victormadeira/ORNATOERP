@@ -2027,6 +2027,9 @@ const migrations = [
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, material_code_importado)
   )`,
+
+  // ═══ WhatsApp: guardar remoteJid original (@lid ou @s.whatsapp.net) ═══
+  "ALTER TABLE chat_conversas ADD COLUMN wa_jid TEXT DEFAULT ''",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

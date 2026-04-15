@@ -84,8 +84,9 @@ router.post('/conversas/:id/enviar', requireAuth, async (req, res) => {
     if (!conversa) return res.status(404).json({ error: 'Conversa não encontrada' });
 
     try {
-        // Enviar via Evolution API
-        const result = await evolution.sendText(conversa.wa_phone, conteudo);
+        // Enviar via Evolution API — usar wa_jid (remoteJid completo) se disponível
+        const dest = conversa.wa_jid || conversa.wa_phone;
+        const result = await evolution.sendText(dest, conteudo);
         const waMessageId = result?.key?.id || '';
 
         // Armazenar mensagem

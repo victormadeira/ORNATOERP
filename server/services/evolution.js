@@ -22,7 +22,8 @@ export function getWebhookToken() {
 }
 
 // ═══ Enviar mensagem de texto ═══
-export async function sendText(phone, text) {
+// Aceita phone (número puro) ou jid completo (ex: 279...@lid, 5598...@s.whatsapp.net)
+export async function sendText(phoneOrJid, text) {
     const cfg = getConfig();
     if (!isConfigured()) throw new Error('WhatsApp não configurado');
 
@@ -34,7 +35,7 @@ export async function sendText(phone, text) {
             'apikey': cfg.wa_api_key,
         },
         body: JSON.stringify({
-            number: phone,
+            number: phoneOrJid,
             text: text,
         }),
     });

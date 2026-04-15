@@ -67,26 +67,29 @@ async function handleIncomingMessage(data) {
     // Ignorar mensagens de texto vazias
     if (!messageContent && messageType === 'texto') return;
 
-    // Buscar ou criar conversa
-    let conversa = db.prepare('SELECT * FROM chat_conversas WHERE wa_phone = ?').get(phone);
+    // Buscar conversa por jid (preferido) ou por phone (fallback)
+    let conversa = db.prepare('SELECT * FROM chat_conversas WHERE wa_jid = ? OR wa_phone = ?').get(remoteJid, phone);
 
     if (!conversa) {
         // Tentar vincular por telefone do cliente (últimos 8 dígitos)
         const lastDigits = phone.slice(-8);
         let clienteId = null;
-        const cli = db.prepare("SELECT id FROM clientes WHERE REPLACE(REPLACE(REPLACE(REPLACE(tel, '(', ''), ')', ''), '-', ''), ' ', '') LIKE ?").get(`%${lastDigits}%`);
-        if (cli) clienteId = cli.id;
+        // Só buscar cliente se o phone parece um número real (não @lid)
+        if (!remoteJid.includes('@lid')) {
+            const cli = db.prepare("SELECT id FROM clientes WHERE REPLACE(REPLACE(REPLACE(REPLACE(tel, '(', ''), ')', ''), '-', ''), ' ', '') LIKE ?").get(`%${lastDigits}%`);
+            if (cli) clienteId = cli.id;
+        }
 
         const result = db.prepare(
-            'INSERT INTO chat_conversas (cliente_id, wa_phone, wa_name, status, nao_lidas, ultimo_msg_em) VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)'
-        ).run(clienteId, phone, pushName, 'ia');
+            'INSERT INTO chat_conversas (cliente_id, wa_phone, wa_jid, wa_name, status, nao_lidas, ultimo_msg_em) VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)'
+        ).run(clienteId, phone, remoteJid, pushName, 'ia');
 
         conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(result.lastInsertRowid);
     } else {
-        // Atualizar conversa
+        // Atualizar conversa (garantir que wa_jid está preenchido)
         db.prepare(
-            'UPDATE chat_conversas SET nao_lidas = nao_lidas + 1, ultimo_msg_em = CURRENT_TIMESTAMP, wa_name = COALESCE(NULLIF(?, \'\'), wa_name) WHERE id = ?'
-        ).run(pushName, conversa.id);
+            'UPDATE chat_conversas SET nao_lidas = nao_lidas + 1, ultimo_msg_em = CURRENT_TIMESTAMP, wa_name = COALESCE(NULLIF(?, \'\'), wa_name), wa_jid = COALESCE(NULLIF(?, \'\'), wa_jid) WHERE id = ?'
+        ).run(pushName, remoteJid, conversa.id);
         conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(conversa.id);
     }
 
@@ -103,6 +106,7 @@ async function handleIncomingMessage(data) {
     `).run(conversa.id, waMessageId, messageType, messageContent || `[${messageType}]`);
 
     // Se conversa está em modo IA, auto-responder
+    const dest = conversa.wa_jid || remoteJid || phone;
     if (conversa.status === 'ia' && messageContent) {
         try {
             const result = await ai.processIncomingMessage(conversa, messageContent);
@@ -115,7 +119,7 @@ async function handleIncomingMessage(data) {
                 // Enviar mensagem de transição
                 const transMsg = 'Um momento! Vou transferir seu atendimento para nossa equipe. Já já alguém vai te responder!';
                 try {
-                    await evolution.sendText(phone, transMsg);
+                    await evolution.sendText(dest, transMsg);
                     db.prepare(`
                         INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, criado_em)
                         VALUES (?, 'saida', 'texto', ?, 'ia', CURRENT_TIMESTAMP)
@@ -123,7 +127,7 @@ async function handleIncomingMessage(data) {
                 } catch (_) { /* silencioso */ }
             } else if (result.text) {
                 // Enviar resposta da IA via WhatsApp
-                await evolution.sendText(phone, result.text);
+                await evolution.sendText(dest, result.text);
                 // Armazenar resposta
                 db.prepare(`
                     INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, criado_em)
