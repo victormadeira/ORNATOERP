@@ -397,10 +397,42 @@ export default function Mensagens({ notify }) {
                                                         {m.usuario_nome}
                                                     </div>
                                                 )}
-                                                {/* Conteúdo */}
-                                                <div style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                                    {m.conteudo}
-                                                </div>
+                                                {/* Mídia */}
+                                                {m.media_url && (m.tipo === 'imagem' || m.tipo === 'sticker') && (
+                                                    <img
+                                                        src={m.media_url}
+                                                        alt="Imagem"
+                                                        style={{ maxWidth: '100%', borderRadius: 8, marginBottom: m.conteudo && !m.conteudo.startsWith('[') ? 6 : 0, cursor: 'pointer' }}
+                                                        onClick={() => window.open(m.media_url, '_blank')}
+                                                    />
+                                                )}
+                                                {m.media_url && m.tipo === 'video' && (
+                                                    <video controls style={{ maxWidth: '100%', borderRadius: 8, marginBottom: m.conteudo && !m.conteudo.startsWith('[') ? 6 : 0 }}>
+                                                        <source src={m.media_url} type="video/mp4" />
+                                                    </video>
+                                                )}
+                                                {m.media_url && m.tipo === 'audio' && (
+                                                    <audio controls style={{ maxWidth: '100%', marginBottom: 4 }}>
+                                                        <source src={m.media_url} type="audio/ogg" />
+                                                    </audio>
+                                                )}
+                                                {m.media_url && m.tipo === 'documento' && (
+                                                    <a href={m.media_url} target="_blank" rel="noopener noreferrer"
+                                                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'rgba(0,0,0,0.08)', borderRadius: 6, marginBottom: 4, color: 'inherit', textDecoration: 'none', fontSize: 13 }}>
+                                                        📄 Documento
+                                                    </a>
+                                                )}
+                                                {/* Conteúdo texto */}
+                                                {m.conteudo && !m.conteudo.startsWith('[') && (
+                                                    <div style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                                        {m.conteudo}
+                                                    </div>
+                                                )}
+                                                {m.conteudo && m.conteudo.startsWith('[') && !m.media_url && (
+                                                    <div style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontStyle: 'italic', opacity: 0.7 }}>
+                                                        {m.conteudo}
+                                                    </div>
+                                                )}
                                                 {/* Hora */}
                                                 <div style={{ fontSize: 10, marginTop: 4, opacity: 0.6, textAlign: 'right' }}>
                                                     {formatTime(m.criado_em)}

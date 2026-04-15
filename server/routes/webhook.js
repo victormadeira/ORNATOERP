@@ -1,7 +1,14 @@
 import { Router } from 'express';
+import { writeFileSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import db from '../db.js';
 import evolution from '../services/evolution.js';
 import ai from '../services/ai.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const UPLOADS_DIR = join(__dirname, '..', 'uploads', 'whatsapp');
+mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const router = Router();
 
@@ -58,8 +65,10 @@ async function handleIncomingMessage(data) {
         || data.message?.imageMessage?.caption
         || '';
     const messageType = data.message?.imageMessage ? 'imagem'
+        : data.message?.videoMessage ? 'video'
         : data.message?.audioMessage ? 'audio'
         : data.message?.documentMessage ? 'documento'
+        : data.message?.stickerMessage ? 'sticker'
         : 'texto';
     const pushName = data.pushName || '';
     const waMessageId = data.key.id || '';
@@ -99,11 +108,21 @@ async function handleIncomingMessage(data) {
         if (exists) return; // Mensagem duplicada
     }
 
+    // Baixar mídia se não for texto puro
+    let mediaUrl = '';
+    if (messageType !== 'texto' && waMessageId) {
+        try {
+            mediaUrl = await downloadMedia(data.key, messageType);
+        } catch (err) {
+            console.error('[Webhook] Erro ao baixar mídia:', err.message);
+        }
+    }
+
     // Armazenar mensagem recebida
     db.prepare(`
-        INSERT INTO chat_mensagens (conversa_id, wa_message_id, direcao, tipo, conteudo, remetente, criado_em)
-        VALUES (?, ?, 'entrada', ?, ?, 'cliente', CURRENT_TIMESTAMP)
-    `).run(conversa.id, waMessageId, messageType, messageContent || `[${messageType}]`);
+        INSERT INTO chat_mensagens (conversa_id, wa_message_id, direcao, tipo, conteudo, media_url, remetente, criado_em)
+        VALUES (?, ?, 'entrada', ?, ?, ?, 'cliente', CURRENT_TIMESTAMP)
+    `).run(conversa.id, waMessageId, messageType, messageContent || `[${messageType}]`, mediaUrl);
 
     // Se conversa está em modo IA, auto-responder
     const dest = conversa.wa_jid || remoteJid || phone;
@@ -138,6 +157,35 @@ async function handleIncomingMessage(data) {
             console.error('[Webhook] Erro no processamento IA:', err.message);
         }
     }
+}
+
+// ═══ Baixar mídia via Evolution API ═══
+async function downloadMedia(messageKey, messageType) {
+    const cfg = db.prepare(
+        'SELECT wa_instance_url, wa_instance_name, wa_api_key FROM empresa_config WHERE id = 1'
+    ).get();
+    if (!cfg?.wa_instance_url) return '';
+
+    const url = `${cfg.wa_instance_url}/chat/getBase64FromMediaMessage/${cfg.wa_instance_name}`;
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': cfg.wa_api_key },
+        body: JSON.stringify({
+            message: { key: messageKey },
+            convertToMp4: false,
+        }),
+    });
+    if (!res.ok) throw new Error(`Evolution media API: ${res.status}`);
+
+    const data = await res.json();
+    if (!data.base64) return '';
+
+    const ext = { imagem: 'jpg', video: 'mp4', audio: 'ogg', documento: 'pdf', sticker: 'webp' }[messageType] || 'bin';
+    const filename = `${messageKey.id}.${ext}`;
+    const filepath = join(UPLOADS_DIR, filename);
+
+    writeFileSync(filepath, Buffer.from(data.base64, 'base64'));
+    return `/uploads/whatsapp/${filename}`;
 }
 
 // ═══ Atualizar status de entrega/leitura ═══
