@@ -160,7 +160,7 @@ export default function Cfg({ taxas, reload, notify }) {
         gdrive_client_id: '', gdrive_client_secret: '',
         wa_instance_url: '', wa_instance_name: '', wa_api_key: '', wa_webhook_token: '', wa_owner_phone: '',
         ia_provider: 'anthropic', ia_api_key: '', ia_model: 'claude-sonnet-4',
-        ia_system_prompt: '', ia_temperatura: 0.7, ia_ativa: 0,
+        ia_system_prompt: '', ia_temperatura: 0.7, ia_ativa: 0, ia_blocked_phones: '',
         upmobb_ativo: 0,
         etapas_template_json: '[]',
         landing_ativo: 1,
@@ -258,6 +258,7 @@ export default function Cfg({ taxas, reload, notify }) {
                 ia_system_prompt: d.ia_system_prompt || '',
                 ia_temperatura: d.ia_temperatura ?? 0.7,
                 ia_ativa: d.ia_ativa ?? 0,
+                ia_blocked_phones: d.ia_blocked_phones || '',
                 upmobb_ativo: d.upmobb_ativo ?? 0,
                 etapas_template_json: d.etapas_template_json || '[]',
                 landing_ativo: d.landing_ativo ?? 1,
@@ -350,6 +351,7 @@ export default function Cfg({ taxas, reload, notify }) {
                 ia_system_prompt: emp.ia_system_prompt,
                 ia_temperatura: emp.ia_temperatura,
                 ia_ativa: emp.ia_ativa,
+                ia_blocked_phones: emp.ia_blocked_phones,
                 upmobb_ativo: emp.upmobb_ativo,
                 etapas_template_json: emp.etapas_template_json,
                 landing_ativo: emp.landing_ativo,
@@ -1870,6 +1872,25 @@ export default function Cfg({ taxas, reload, notify }) {
                                     />
                                     <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
                                         Esse prompt é adicionado ao contexto base da IA junto com os dados da empresa e a base de conhecimento.
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className={Z.lbl}>Números Bloqueados (não recebem IA)</label>
+                                    <textarea
+                                        value={emp.ia_blocked_phones}
+                                        onChange={e => setEmp({ ...emp, ia_blocked_phones: e.target.value })}
+                                        disabled={!isGerente}
+                                        rows={3}
+                                        placeholder="5598991234567, 5598987654321"
+                                        style={{
+                                            width: '100%', fontSize: 12, lineHeight: 1.6, padding: 12, borderRadius: 8,
+                                            resize: 'vertical', background: 'var(--bg-muted)', color: 'var(--text-primary)',
+                                            border: '1px solid var(--border)', fontFamily: 'monospace',
+                                        }}
+                                    />
+                                    <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                        Números separados por vírgula no formato internacional (55 + DDD + número). Funcionários, fornecedores e família que não devem receber resposta da IA. Grupos já são ignorados automaticamente.
                                     </div>
                                 </div>
 

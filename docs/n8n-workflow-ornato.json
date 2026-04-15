@@ -1,5 +1,5 @@
 {
-  "name": "Studio Ornato | WhatsApp IA Vendas",
+  "name": "Studio Ornato | Sofia IA v2",
   "nodes": [
     {
       "parameters": {
@@ -25,40 +25,71 @@
       "name": "✅ Responder OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [280, 200]
+      "position": [300, 200]
     },
     {
       "parameters": {
-        "jsCode": "// ============================================================\n// FILTRO DE MENSAGENS — só processa o que interessa\n// ============================================================\nconst body = $input.first().json;\nconst payload = body.body ?? body;\n\nif (payload.event !== 'messages.upsert') return [];\n\nconst data = payload.data;\nif (!data?.key) return [];\nif (data.key.fromMe === true) return [];\nif (data.key.remoteJid.includes('@g.us')) return [];\nif (data.key.remoteJid.includes('@broadcast')) return [];\n\nlet messageText = '';\nconst msg = data.message ?? {};\n\nif (msg.conversation) {\n  messageText = msg.conversation;\n} else if (msg.extendedTextMessage?.text) {\n  messageText = msg.extendedTextMessage.text;\n} else if (msg.imageMessage) {\n  messageText = '[Cliente enviou uma imagem' + (msg.imageMessage.caption ? ': ' + msg.imageMessage.caption : '') + ']';\n} else if (msg.audioMessage) {\n  messageText = '[Cliente enviou um áudio — responder pedindo que envie mensagem de texto por enquanto]';\n} else if (msg.documentMessage) {\n  messageText = '[Cliente enviou um documento/arquivo]';\n} else {\n  return [];\n}\n\nif (!messageText.trim()) return [];\n\nconst phone = data.key.remoteJid.replace('@s.whatsapp.net', '');\n\nreturn [{\n  json: {\n    phone,\n    remoteJid: data.key.remoteJid,\n    pushName: data.pushName ?? 'Cliente',\n    messageText: messageText.trim()\n  }\n}];"
+        "jsCode": "// ============================================================\n// FILTRO — extrai mensagem e detecta tipo de mídia\n// ============================================================\nconst body = $input.first().json;\nconst payload = body.body ?? body;\n\nif (payload.event !== 'messages.upsert') return [];\n\nconst data = payload.data;\nif (!data?.key) return [];\nif (data.key.fromMe === true) return [];\nif (data.key.remoteJid.includes('@g.us')) return [];\nif (data.key.remoteJid.includes('@broadcast')) return [];\n\nlet messageText = '';\nlet mediaType = 'text';\nconst msg = data.message ?? {};\n\nif (msg.conversation) {\n  messageText = msg.conversation;\n} else if (msg.extendedTextMessage?.text) {\n  messageText = msg.extendedTextMessage.text;\n} else if (msg.imageMessage) {\n  mediaType = 'image';\n  messageText = msg.imageMessage.caption\n    ? '[Foto com legenda: ' + msg.imageMessage.caption + ']'\n    : '[Cliente enviou uma foto do ambiente]';\n} else if (msg.videoMessage) {\n  mediaType = 'video';\n  messageText = msg.videoMessage.caption\n    ? '[Video com legenda: ' + msg.videoMessage.caption + ']'\n    : '[Cliente enviou um video]';\n} else if (msg.audioMessage) {\n  mediaType = 'audio';\n  const secs = msg.audioMessage.seconds || 0;\n  messageText = '[Audio de ' + secs + ' segundos]';\n} else if (msg.documentMessage) {\n  mediaType = 'document';\n  const fname = msg.documentMessage.fileName || 'documento';\n  const mime = msg.documentMessage.mimetype || '';\n  if (mime.includes('pdf')) {\n    messageText = '[PDF recebido: ' + fname + ']';\n  } else {\n    messageText = '[Documento recebido: ' + fname + ']';\n  }\n} else if (msg.stickerMessage || msg.reactionMessage) {\n  return [];\n} else if (msg.contactMessage || msg.contactsArrayMessage) {\n  mediaType = 'contact';\n  messageText = '[Cliente compartilhou um contato]';\n} else if (msg.locationMessage || msg.liveLocationMessage) {\n  mediaType = 'location';\n  messageText = '[Cliente enviou uma localizacao]';\n} else {\n  return [];\n}\n\nif (!messageText.trim()) return [];\n\nconst phone = data.key.remoteJid.replace('@s.whatsapp.net', '');\n\nreturn [{\n  json: {\n    phone,\n    remoteJid: data.key.remoteJid,\n    pushName: data.pushName ?? 'Cliente',\n    messageText: messageText.trim(),\n    mediaType\n  }\n}];"
       },
       "id": "node-03",
       "name": "🔍 Filtrar e Extrair",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [280, 400]
+      "position": [300, 400]
     },
     {
       "parameters": {
-        "url": "http://localhost:3001/api/config/n8n",
+        "jsCode": "// ============================================================\n// DEBOUNCE — acumula mensagens do mesmo remetente\n// Espera 4s antes de processar para juntar mensagens seguidas\n// ============================================================\nconst { phone, messageText, pushName, remoteJid, mediaType } = $input.first().json;\n\nconst db = $getWorkflowStaticData('global');\nif (!db.msgBuffer) db.msgBuffer = {};\n\nconst batchId = Date.now().toString() + '_' + Math.random().toString(36).substr(2, 6);\n\nif (!db.msgBuffer[phone]) {\n  db.msgBuffer[phone] = { messages: [], pushName, remoteJid };\n}\n\ndb.msgBuffer[phone].messages.push({ text: messageText, mediaType });\ndb.msgBuffer[phone].batchId = batchId;\ndb.msgBuffer[phone].pushName = pushName;\ndb.msgBuffer[phone].remoteJid = remoteJid;\n\nreturn [{ json: { phone, batchId } }];"
+      },
+      "id": "node-buf",
+      "name": "📦 Buffer Mensagens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [520, 400]
+    },
+    {
+      "parameters": {
+        "amount": 4,
+        "unit": "seconds"
+      },
+      "id": "node-wait-db",
+      "name": "⏳ Aguardar Lote (4s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [740, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// DEBOUNCE CHECK — só processa o lote mais recente\n// Se o cliente mandou mais msgs nos últimos 4s, aborta\n// ============================================================\nconst { phone, batchId } = $input.first().json;\n\nconst db = $getWorkflowStaticData('global');\nif (!db.msgBuffer || !db.msgBuffer[phone]) return [];\n\n// Lote mais novo chegou? Aborta esta execução silenciosamente\nif (db.msgBuffer[phone].batchId !== batchId) return [];\n\n// Somos o mais recente — coletar todas as mensagens acumuladas\nconst buf = db.msgBuffer[phone];\nconst texts = buf.messages.map(m => m.text);\nconst combined = texts.join('\\n');\nconst hasAudio = buf.messages.some(m => m.mediaType === 'audio');\nconst hasDoc = buf.messages.some(m => m.mediaType === 'document');\nconst hasImage = buf.messages.some(m => m.mediaType === 'image' || m.mediaType === 'video');\nconst hasLocation = buf.messages.some(m => m.mediaType === 'location');\nconst hasContact = buf.messages.some(m => m.mediaType === 'contact');\nconst count = buf.messages.length;\n\n// Limpar buffer deste telefone\ndelete db.msgBuffer[phone];\n\nreturn [{\n  json: {\n    phone,\n    remoteJid: buf.remoteJid,\n    pushName: buf.pushName,\n    messageText: combined,\n    hasAudio,\n    hasDocument: hasDoc,\n    hasImage,\n    hasLocation,\n    hasContact,\n    messageCount: count\n  }\n}];"
+      },
+      "id": "node-check",
+      "name": "🔄 Verificar Lote",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3001/api/config/n8n",
         "options": {
           "timeout": 5000
         }
       },
       "id": "node-00",
-      "name": "⚙️ Buscar Config do Sistema",
+      "name": "⚙️ Buscar Config",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [500, 400]
+      "position": [1180, 400]
     },
     {
       "parameters": {
-        "jsCode": "// ============================================================\n// MEMÓRIA DE CONVERSAS — carrega histórico do cliente\n// ============================================================\nconst filtered = $('🔍 Filtrar e Extrair').first().json;\nconst { phone, pushName, messageText, remoteJid } = filtered;\n\nconst db = $getWorkflowStaticData('global');\nif (!db.conversations) db.conversations = {};\n\nlet conv = db.conversations[phone];\nif (!conv) {\n  conv = {\n    history: [],\n    stage: 'new',\n    name: pushName,\n    phone,\n    createdAt: new Date().toISOString(),\n    lastActivity: new Date().toISOString()\n  };\n}\n\nconv.name = pushName;\nconv.lastActivity = new Date().toISOString();\n\nconv.history.push({\n  role: 'user',\n  content: messageText\n});\n\nif (conv.history.length > 30) {\n  conv.history = conv.history.slice(-30);\n}\n\ndb.conversations[phone] = conv;\n\nreturn [{\n  json: {\n    phone,\n    remoteJid,\n    pushName,\n    messageText,\n    history: conv.history,\n    stage: conv.stage,\n    conv\n  }\n}];"
+        "jsCode": "// ============================================================\n// MEMÓRIA — histórico + contexto temporal + reset humano\n// ============================================================\n\n// ── Controles: IA ligada? Número bloqueado? ──\nconst cfg = $input.first().json;\nif (!cfg.ia_enabled) return []; // IA desligada no painel\n\nconst configData = $('🔄 Verificar Lote').first().json;\nconst { phone, pushName, messageText, remoteJid, hasAudio, hasDocument, hasImage, hasLocation, hasContact, messageCount } = configData;\n\nconst blocked = (cfg.blocked_phones || '').split(',').map(p => p.trim()).filter(Boolean);\nif (blocked.includes(phone)) return []; // Número na lista de bloqueio\n\nconst db = $getWorkflowStaticData('global');\nif (!db.conversations) db.conversations = {};\n\nconst TWO_HOURS = 2 * 60 * 60 * 1000;\nlet conv = db.conversations[phone];\n\nif (!conv) {\n  conv = {\n    history: [],\n    stage: 'new',\n    name: pushName,\n    phone,\n    createdAt: new Date().toISOString(),\n    lastActivity: new Date().toISOString()\n  };\n}\n\n// Reset automático: se estava em atendimento humano há mais de 2h, volta para IA\nif (conv.stage === 'human') {\n  const last = new Date(conv.lastActivity).getTime();\n  if (Date.now() - last > TWO_HOURS) {\n    conv.stage = 'active';\n  }\n}\n\nconv.name = pushName;\nconv.lastActivity = new Date().toISOString();\nconv.history.push({ role: 'user', content: messageText });\n\n// Manter últimas 40 mensagens para contexto\nif (conv.history.length > 40) {\n  conv.history = conv.history.slice(-40);\n}\n\ndb.conversations[phone] = conv;\n\n// Hora de São Luís (UTC-3)\nconst now = new Date();\nconst brTime = new Date(now.getTime() - 3 * 3600000);\nconst h = brTime.getUTCHours();\nconst m = brTime.getUTCMinutes();\nconst dias = ['domingo','segunda','terca','quarta','quinta','sexta','sabado'];\nconst dia = dias[brTime.getUTCDay()];\n\nlet periodo = 'madrugada';\nif (h >= 6 && h < 12) periodo = 'manha';\nelse if (h >= 12 && h < 18) periodo = 'tarde';\nelse if (h >= 18 && h < 23) periodo = 'noite';\n\nconst bizDay = brTime.getUTCDay() >= 1 && brTime.getUTCDay() <= 5;\nconst bizHour = h >= 8 && h < 18;\nconst satMorning = brTime.getUTCDay() === 6 && h >= 8 && h < 13;\nconst horarioComercial = (bizDay && bizHour) || satMorning;\n\nreturn [{\n  json: {\n    phone, remoteJid, pushName, messageText,\n    history: conv.history,\n    stage: conv.stage,\n    hasAudio, hasDocument, hasImage, hasLocation, hasContact, messageCount,\n    hora: h.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0'),\n    periodo, dia, horarioComercial,\n    totalExchanges: conv.history.length\n  }\n}];"
       },
       "id": "node-04",
       "name": "💾 Carregar Histórico",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [720, 400]
+      "position": [1400, 400]
     },
     {
       "parameters": {
@@ -77,41 +108,41 @@
         "options": {}
       },
       "id": "node-05",
-      "name": "👤 Já é Atendimento Humano?",
+      "name": "👤 Atendimento Humano?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [940, 400]
+      "position": [1620, 400]
     },
     {
       "parameters": {
-        "url": "={{ 'http://localhost:8080/chat/sendPresence/' + $('⚙️ Buscar Config do Sistema').first().json.evolution_instance }}",
+        "url": "={{ 'http://evolution_api:8080/chat/sendPresence/' + $('⚙️ Buscar Config').first().json.evolution_instance }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{ $('⚙️ Buscar Config do Sistema').first().json.evolution_key }}" },
+            { "name": "apikey", "value": "={{ $('⚙️ Buscar Config').first().json.evolution_key }}" },
             { "name": "Content-Type", "value": "application/json" }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $json.remoteJid }}\",\n  \"options\": {\n    \"presence\": \"composing\",\n    \"delay\": 1200\n  }\n}",
+        "jsonBody": "={\n  \"number\": \"{{ $json.remoteJid }}\",\n  \"options\": {\n    \"presence\": \"composing\",\n    \"delay\": 1500\n  }\n}",
         "options": {}
       },
       "id": "node-06",
-      "name": "⌨️ Indicador Digitando",
+      "name": "⌨️ Digitando...",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1160, 520]
+      "position": [1840, 520]
     },
     {
       "parameters": {
-        "jsCode": "// ============================================================\n// SYSTEM PROMPT — personalidade e regras da Sofia\n// ============================================================\nconst SYSTEM_PROMPT = `\nVocê é Sofia, a assistente de vendas do Studio Ornato — uma marcenaria premium em São Luís, Maranhão.\n\nSUA MISSÃO:\nQualificar leads, entender o projeto do cliente, avançar para visita técnica ou proposta, e encaminhar para fechamento.\n\nSOBRE O STUDIO ORNATO:\n- Produção 100% própria com CNC de alta precisão em São Luís\n- Não terceiriza nenhuma etapa — tudo sai da nossa fábrica\n- Especialidades: cozinhas, closets, quartos, home office, áreas de serviço, projetos completos\n- Orçamento técnico detalhado em até 48h após receber o projeto\n- Conferência peça por peça antes da instalação\n- Contrato com cláusula de penalidade por atraso\n- Atende São Luís, Paço do Lumiar, São José de Ribamar e Raposa\n\nCOMO SE COMUNICAR:\n- Tom profissional, direto e humano — como alguém que domina o que faz\n- Mensagens curtas: máximo 3 frases por parágrafo, no máximo 2 parágrafos\n- Sem bullet points, sem listas numeradas, sem formatação de e-mail\n- Use o nome do cliente quando souber\n- Sempre termine com uma pergunta ou próximo passo claro\n\nO QUE COLETAR NA QUALIFICAÇÃO:\n1. Qual ambiente precisa de móveis\n2. Se tem projeto do arquiteto ou designer\n3. Se o imóvel está pronto ou em obra e qual o prazo\n4. Prazo desejado para entrega\n5. Faixa de investimento prevista\n\nCOMO RESPONDER ÀS PRINCIPAIS OBJEÇÕES:\n\n\"Está caro\" ou \"Vi mais barato\":\nEntendo. A diferença existe e faz sentido querer entender o porquê. A outra proposta inclui o mesmo escopo — mesma espessura de chapa, mesmas ferragens, prazo garantido em contrato?\n\n\"Vou pensar\":\nClaro, faz sentido. Ficou alguma dúvida específica sobre a proposta ou é uma questão de prazo para decidir?\n\n\"Já tive problema com marcenaria antes\":\nEntendo sua preocupação. Pode me contar o que aconteceu? Quero mostrar como nosso processo é diferente — e se não conseguir te convencer, é melhor saber antes.\n\n\"Preciso falar com meu marido/esposa\":\nCom certeza, essa decisão é de dois. O que posso fazer para facilitar? Posso preparar um resumo visual do projeto ou vocês preferem uma reunião rápida juntos.\n\n\"O prazo está longo\":\nEntendo a urgência. Me conta: tem alguma data específica que precisa respeitar — uma mudança marcada, por exemplo? Assim consigo verificar o que é possível adiantar na produção.\n\n\"Ainda não tenho o projeto\":\nSem problema. O ideal então é uma visita técnica sem compromisso — a gente vai ao imóvel, levanta as medidas e você já tem base para decidir. Você tem disponibilidade essa semana?\n\nNUNCA FAÇA:\n- Inventar preços ou prazos específicos — sempre diga que vai preparar o orçamento\n- Dar desconto sem antes entender a objeção real\n- Escrever mensagens longas — WhatsApp não é e-mail\n- Pressionar o cliente\n\nQUANDO ENCAMINHAR PARA HUMANO:\n- Cliente quer fechar, assinar ou confirmar o projeto\n- Cliente pede para falar com alguém da equipe\n- Situação complexa que vai além de qualificação\n- Reclamação ou insatisfação grave\n- Cliente está claramente pronto para comprar\n\nAo encaminhar para humano, responda:\n\"Perfeito! Vou acionar nossa equipe agora para dar continuidade com você. Em instantes alguém entra em contato.\"\nE adicione exatamente [HANDOFF] no final da sua resposta (não aparece para o cliente).\n`;\n\nconst { history, pushName } = $input.first().json;\nconst cfg = $('⚙️ Buscar Config do Sistema').first().json;\n\nconst claudeRequest = {\n  model: cfg.ai_model || 'claude-haiku-4-5-20251001',\n  max_tokens: 500,\n  system: SYSTEM_PROMPT.trim(),\n  messages: history\n};\n\nreturn [{\n  json: {\n    ...$input.first().json,\n    claudeRequest\n  }\n}];"
+        "jsCode": "// ============================================================\n// PROMPT SOFIA v2 — qualificação inteligente para marcenaria\n// ============================================================\nconst input = $('💾 Carregar Histórico').first().json;\nconst { history, pushName, messageCount, hora, periodo, dia, horarioComercial, hasAudio, hasDocument, hasImage, hasLocation, hasContact, totalExchanges } = input;\nconst cfg = $('⚙️ Buscar Config').first().json;\n\nconst media = [];\nif (hasAudio) media.push('audio');\nif (hasDocument) media.push('documento/PDF');\nif (hasImage) media.push('foto ou video');\nif (hasLocation) media.push('localizacao');\nif (hasContact) media.push('contato');\n\nconst SYSTEM = `Você é Sofia, consultora de vendas do Studio Ornato — marcenaria premium em São Luís, MA.\n\nCONTEXTO AGORA:\n- ${dia}, ${hora} (${periodo})${!horarioComercial ? ' — FORA do horário comercial' : ''}\n- Cliente: ${pushName}\n- Mensagens neste lote: ${messageCount}${media.length > 0 ? '\\n- Mídia recebida: ' + media.join(', ') : ''}\n- Total de trocas na conversa: ${totalExchanges}\n\nSTUDIO ORNATO:\n- Fábrica própria com CNC de alta precisão em São Luís\n- Produção 100% interna — zero terceirização\n- Especialidades: cozinhas planejadas, closets, home offices, quartos, banheiros, áreas de serviço\n- Materiais premium com ferragens de alta qualidade\n- Processo: Visita técnica → Projeto 3D → Orçamento detalhado (até 48h) → Produção → Instalação\n- Contrato com cláusula de penalidade por atraso\n- Conferência peça a peça antes da instalação\n- Atende: São Luís, Paço do Lumiar, São José de Ribamar e Raposa\n\nESTILO DE COMUNICAÇÃO:\n- Profissional, direta e calorosa — como uma expert que se importa de verdade\n- Máximo 2 parágrafos curtos (3 frases cada)\n- NUNCA use bullet points, listas numeradas, emojis excessivos ou formatação de e-mail\n- Use *negrito* com moderação (1-2 palavras por mensagem no máximo)\n- Use o nome do cliente quando souber\n- Sempre termine com uma pergunta ou próximo passo claro\n- Se o cliente mandou várias mensagens seguidas, responda tudo em UMA única resposta coesa\n- Saudação: adapte ao horário (bom dia / boa tarde / boa noite)\n\nQUALIFICAÇÃO — colete naturalmente ao longo da conversa:\n1. Qual ambiente precisa de móveis planejados\n2. Tem projeto de arquiteto ou designer de interiores?\n3. Imóvel pronto ou em obra? Qual o prazo da obra?\n4. Prazo desejado para entrega dos móveis\n5. Faixa de investimento prevista (pergunte com tato, sem pressão)\n\nNão siga a lista rigidamente — seja natural, colete conforme a conversa flui.\n\nCOMO LIDAR COM MÍDIA:\n- Áudio: \"Recebi seu áudio! No momento consigo te atender melhor por texto. Pode me enviar por escrito? Assim garanto uma resposta mais completa.\"\n- Foto/vídeo do ambiente: Agradeça, faça um comentário positivo sobre o espaço, pergunte mais detalhes sobre o que precisa ali\n- PDF/documento/projeto: \"Recebi o arquivo! Vou encaminhar para nossa equipe técnica analisar com atenção. Te retorno em breve. Enquanto isso, pode me contar mais sobre sua expectativa para esse projeto?\"\n- Localização: Entenda como o endereço do imóvel e agradeça por compartilhar\n- Contato: Pergunte se é o arquiteto ou designer do projeto para que possam alinhar detalhes\n\nOBJEÇÕES — como responder:\n- \"Está caro\" / \"Vi mais barato\": Pergunte se a outra proposta tem o mesmo escopo — mesma espessura de chapa, mesmas ferragens, prazo garantido em contrato com penalidade.\n- \"Vou pensar\": Pergunte se ficou alguma dúvida específica sobre a proposta ou se é questão de prazo para decidir.\n- \"Já tive problema com marcenaria\": Peça para contar o que houve. Mostre como o processo do Ornato é diferente (produção própria, contrato, conferência peça a peça).\n- \"Preciso falar com marido/esposa\": Ofereça preparar um resumo visual do projeto ou uma reunião rápida para os dois juntos.\n- \"O prazo está longo\": Pergunte se tem data específica que precisa respeitar (mudança, evento). Assim pode verificar o que dá para adiantar.\n- \"Ainda não tenho projeto\": Sugira uma visita técnica gratuita e sem compromisso — levantam medidas e o cliente já tem base para decidir.\n- \"Quanto custa um metro de MDF?\": Explique que cada projeto é único e o valor depende de ferragens, acabamentos e design. Sugira uma visita técnica para orçamento preciso.\n\n${!horarioComercial ? 'FORA DO HORÁRIO COMERCIAL: Responda normalmente mas mencione que detalhes técnicos e orçamentos serão tratados no próximo dia útil.' : ''}${totalExchanges > 16 ? '\\nCONVERSA LONGA: Já são muitas trocas de mensagem. Se faz sentido no contexto, sugira uma ligação rápida ou visita técnica para agilizar.' : ''}\n\nNUNCA:\n- Inventar preços, valores ou prazos específicos\n- Dar desconto sem antes entender a objeção real do cliente\n- Escrever mensagens longas (WhatsApp não é e-mail)\n- Pressionar ou ser insistente\n- Falar sobre assuntos fora do escopo (redirecione gentilmente para marcenaria)\n- Usar linguagem robotizada ou genérica\n\nENCARREGAR PARA HUMANO quando:\n- Cliente quer fechar, assinar contrato ou confirmar projeto\n- Pede para falar com alguém da equipe ou dono\n- Reclamação ou insatisfação grave\n- Negociação específica de preço ou desconto\n- Situação complexa que vai além de qualificação\n- Cliente claramente pronto para comprar\n\nAo encaminhar, diga algo como:\n\"Perfeito! Vou acionar nossa equipe agora para dar continuidade com você. Em instantes alguém entra em contato.\"\nE adicione exatamente [HANDOFF] no final da sua resposta (isso é invisível para o cliente).`;\n\nconst claudeRequest = {\n  model: cfg.ai_model || 'claude-haiku-4-5-20251001',\n  max_tokens: 500,\n  system: SYSTEM,\n  messages: history\n};\n\nreturn [{ json: { ...input, claudeRequest } }];"
       },
       "id": "node-07",
-      "name": "📝 Montar Prompt Claude",
+      "name": "📝 Montar Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1380, 520]
+      "position": [2060, 520]
     },
     {
       "parameters": {
@@ -119,7 +150,7 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "x-api-key", "value": "={{ $('⚙️ Buscar Config do Sistema').first().json.anthropic_key }}" },
+            { "name": "x-api-key", "value": "={{ $('⚙️ Buscar Config').first().json.anthropic_key }}" },
             { "name": "anthropic-version", "value": "2023-06-01" },
             { "name": "content-type", "value": "application/json" }
           ]
@@ -132,20 +163,20 @@
         }
       },
       "id": "node-08",
-      "name": "🤖 Chamar Claude API",
+      "name": "🤖 Chamar Claude",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1600, 520]
+      "position": [2280, 520]
     },
     {
       "parameters": {
-        "jsCode": "// ============================================================\n// PROCESSAR RESPOSTA DA IA\n// ============================================================\nconst claudeResponse = $input.first().json;\nconst prevData = $('💾 Carregar Histórico').first().json;\n\nlet aiText = '';\nif (claudeResponse.content && claudeResponse.content.length > 0) {\n  aiText = claudeResponse.content[0].text ?? '';\n} else if (claudeResponse.error) {\n  aiText = 'Desculpe, tive um problema técnico. Em instantes nossa equipe entra em contato.';\n}\n\nconst isHandoff = aiText.includes('[HANDOFF]');\nconst cleanText = aiText.replace('[HANDOFF]', '').trim();\n\nconst phone = prevData.phone;\nconst db = $getWorkflowStaticData('global');\nif (!db.conversations) db.conversations = {};\nif (!db.conversations[phone]) db.conversations[phone] = { history: [], stage: 'new' };\n\nif (isHandoff) {\n  db.conversations[phone].stage = 'human';\n}\n\ndb.conversations[phone].history.push({\n  role: 'assistant',\n  content: cleanText\n});\n\nconst typingDelayMs = Math.min(Math.max(cleanText.length * 30, 1200), 5000);\n\nreturn [{\n  json: {\n    phone,\n    remoteJid: prevData.remoteJid,\n    pushName: prevData.pushName,\n    userText: prevData.messageText,\n    aiText: cleanText,\n    isHandoff,\n    typingDelayMs\n  }\n}];"
+        "jsCode": "// ============================================================\n// PROCESSAR RESPOSTA — salvar no histórico + detectar handoff\n// ============================================================\nconst claudeResponse = $input.first().json;\nconst prevData = $('💾 Carregar Histórico').first().json;\n\nlet aiText = '';\nif (claudeResponse.content && claudeResponse.content.length > 0) {\n  aiText = claudeResponse.content[0].text ?? '';\n} else if (claudeResponse.error) {\n  aiText = 'Desculpe, tive um problema técnico. Em instantes nossa equipe entra em contato com você.';\n}\n\nconst isHandoff = aiText.includes('[HANDOFF]');\nconst cleanText = aiText.replace('[HANDOFF]', '').trim();\n\nconst phone = prevData.phone;\nconst db = $getWorkflowStaticData('global');\nif (!db.conversations) db.conversations = {};\nif (!db.conversations[phone]) db.conversations[phone] = { history: [], stage: 'new' };\n\nif (isHandoff) {\n  db.conversations[phone].stage = 'human';\n}\n\ndb.conversations[phone].history.push({\n  role: 'assistant',\n  content: cleanText\n});\n\n// Delay proporcional ao tamanho da resposta (parece humano)\nconst typingDelayMs = Math.min(Math.max(cleanText.length * 25, 1500), 5000);\n\nreturn [{\n  json: {\n    phone,\n    remoteJid: prevData.remoteJid,\n    pushName: prevData.pushName,\n    userText: prevData.messageText,\n    aiText: cleanText,\n    isHandoff,\n    typingDelayMs\n  }\n}];"
       },
       "id": "node-09",
       "name": "⚙️ Processar Resposta",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1820, 520]
+      "position": [2500, 520]
     },
     {
       "parameters": {
@@ -153,10 +184,10 @@
         "unit": "milliseconds"
       },
       "id": "node-10",
-      "name": "⏱️ Aguardar (simular digitação)",
+      "name": "⏱️ Simular Digitação",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [2040, 520]
+      "position": [2720, 520]
     },
     {
       "parameters": {
@@ -175,18 +206,18 @@
         "options": {}
       },
       "id": "node-11",
-      "name": "🔀 Precisa de Humano?",
+      "name": "🔀 Precisa Humano?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [2260, 520]
+      "position": [2940, 520]
     },
     {
       "parameters": {
-        "url": "={{ 'http://localhost:8080/message/sendText/' + $('⚙️ Buscar Config do Sistema').first().json.evolution_instance }}",
+        "url": "={{ 'http://evolution_api:8080/message/sendText/' + $('⚙️ Buscar Config').first().json.evolution_instance }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{ $('⚙️ Buscar Config do Sistema').first().json.evolution_key }}" },
+            { "name": "apikey", "value": "={{ $('⚙️ Buscar Config').first().json.evolution_key }}" },
             { "name": "Content-Type", "value": "application/json" }
           ]
         },
@@ -196,18 +227,18 @@
         "options": {}
       },
       "id": "node-12",
-      "name": "📤 Enviar Resposta Normal",
+      "name": "📤 Enviar Resposta",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2480, 400]
+      "position": [3160, 400]
     },
     {
       "parameters": {
-        "url": "={{ 'http://localhost:8080/message/sendText/' + $('⚙️ Buscar Config do Sistema').first().json.evolution_instance }}",
+        "url": "={{ 'http://evolution_api:8080/message/sendText/' + $('⚙️ Buscar Config').first().json.evolution_instance }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{ $('⚙️ Buscar Config do Sistema').first().json.evolution_key }}" },
+            { "name": "apikey", "value": "={{ $('⚙️ Buscar Config').first().json.evolution_key }}" },
             { "name": "Content-Type", "value": "application/json" }
           ]
         },
@@ -217,32 +248,32 @@
         "options": {}
       },
       "id": "node-13",
-      "name": "🤝 Enviar Mensagem Handoff",
+      "name": "🤝 Enviar + Handoff",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2480, 640]
+      "position": [3160, 640]
     },
     {
       "parameters": {
-        "url": "={{ 'http://localhost:8080/message/sendText/' + $('⚙️ Buscar Config do Sistema').first().json.evolution_instance }}",
+        "url": "={{ 'http://evolution_api:8080/message/sendText/' + $('⚙️ Buscar Config').first().json.evolution_instance }}",
         "method": "POST",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             { "name": "Content-Type", "value": "application/json" },
-            { "name": "apikey", "value": "={{ $('⚙️ Buscar Config do Sistema').first().json.evolution_key }}" }
+            { "name": "apikey", "value": "={{ $('⚙️ Buscar Config').first().json.evolution_key }}" }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $('⚙️ Buscar Config do Sistema').first().json.owner_phone }}\",\n  \"text\": \"🔔 *LEAD PARA ATENDIMENTO HUMANO*\\n\\nNome: {{ $json.pushName }}\\nTelefone: {{ $json.phone }}\\n\\nÚltima mensagem do lead:\\n_{{ $json.userText }}_\\n\\nAbra o WhatsApp para assumir o atendimento.\"\n}",
+        "jsonBody": "={\n  \"number\": \"{{ $('⚙️ Buscar Config').first().json.owner_phone }}\",\n  \"text\": \"🔔 *LEAD PARA ATENDIMENTO*\\n\\nNome: {{ $json.pushName }}\\nTelefone: {{ $json.phone }}\\n\\nÚltima mensagem:\\n_{{ $json.userText }}_\\n\\nAbra o WhatsApp para assumir.\"\n}",
         "options": {}
       },
       "id": "node-14",
       "name": "🔔 Notificar Equipe",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2700, 640]
+      "position": [3380, 640]
     }
   ],
   "connections": {
@@ -256,57 +287,72 @@
     },
     "🔍 Filtrar e Extrair": {
       "main": [
-        [{ "node": "⚙️ Buscar Config do Sistema", "type": "main", "index": 0 }]
+        [{ "node": "📦 Buffer Mensagens", "type": "main", "index": 0 }]
       ]
     },
-    "⚙️ Buscar Config do Sistema": {
+    "📦 Buffer Mensagens": {
+      "main": [
+        [{ "node": "⏳ Aguardar Lote (4s)", "type": "main", "index": 0 }]
+      ]
+    },
+    "⏳ Aguardar Lote (4s)": {
+      "main": [
+        [{ "node": "🔄 Verificar Lote", "type": "main", "index": 0 }]
+      ]
+    },
+    "🔄 Verificar Lote": {
+      "main": [
+        [{ "node": "⚙️ Buscar Config", "type": "main", "index": 0 }]
+      ]
+    },
+    "⚙️ Buscar Config": {
       "main": [
         [{ "node": "💾 Carregar Histórico", "type": "main", "index": 0 }]
       ]
     },
     "💾 Carregar Histórico": {
       "main": [
-        [{ "node": "👤 Já é Atendimento Humano?", "type": "main", "index": 0 }]
+        [{ "node": "👤 Atendimento Humano?", "type": "main", "index": 0 }]
       ]
     },
-    "👤 Já é Atendimento Humano?": {
+    "👤 Atendimento Humano?": {
       "main": [
         [],
-        [{ "node": "⌨️ Indicador Digitando", "type": "main", "index": 0 }]
+        [{ "node": "⌨️ Digitando...", "type": "main", "index": 0 }]
       ]
     },
-    "⌨️ Indicador Digitando": {
+    "⌨️ Digitando...": {
       "main": [
-        [{ "node": "📝 Montar Prompt Claude", "type": "main", "index": 0 }]
+        [{ "node": "📝 Montar Prompt", "type": "main", "index": 0 }]
       ]
     },
-    "📝 Montar Prompt Claude": {
+    "📝 Montar Prompt": {
       "main": [
-        [{ "node": "🤖 Chamar Claude API", "type": "main", "index": 0 }]
+        [{ "node": "🤖 Chamar Claude", "type": "main", "index": 0 }]
       ]
     },
-    "🤖 Chamar Claude API": {
+    "🤖 Chamar Claude": {
       "main": [
         [{ "node": "⚙️ Processar Resposta", "type": "main", "index": 0 }]
       ]
     },
     "⚙️ Processar Resposta": {
       "main": [
-        [{ "node": "⏱️ Aguardar (simular digitação)", "type": "main", "index": 0 }]
+        [{ "node": "⏱️ Simular Digitação", "type": "main", "index": 0 }]
       ]
     },
-    "⏱️ Aguardar (simular digitação)": {
+    "⏱️ Simular Digitação": {
       "main": [
-        [{ "node": "🔀 Precisa de Humano?", "type": "main", "index": 0 }]
+        [{ "node": "🔀 Precisa Humano?", "type": "main", "index": 0 }]
       ]
     },
-    "🔀 Precisa de Humano?": {
+    "🔀 Precisa Humano?": {
       "main": [
-        [{ "node": "🤝 Enviar Mensagem Handoff", "type": "main", "index": 0 }],
-        [{ "node": "📤 Enviar Resposta Normal", "type": "main", "index": 0 }]
+        [{ "node": "🤝 Enviar + Handoff", "type": "main", "index": 0 }],
+        [{ "node": "📤 Enviar Resposta", "type": "main", "index": 0 }]
       ]
     },
-    "🤝 Enviar Mensagem Handoff": {
+    "🤝 Enviar + Handoff": {
       "main": [
         [{ "node": "🔔 Notificar Equipe", "type": "main", "index": 0 }]
       ]

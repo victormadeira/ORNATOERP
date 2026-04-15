@@ -96,7 +96,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         gdrive_credentials, gdrive_folder_id,
         gdrive_client_id, gdrive_client_secret,
         wa_instance_url, wa_instance_name, wa_api_key, wa_webhook_token, wa_owner_phone,
-        ia_provider, ia_api_key, ia_model, ia_system_prompt, ia_temperatura, ia_ativa,
+        ia_provider, ia_api_key, ia_model, ia_system_prompt, ia_temperatura, ia_ativa, ia_blocked_phones,
         upmobb_ativo,
         etapas_template_json,
         sistema_cor_primaria,
@@ -130,7 +130,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
       gdrive_credentials=?, gdrive_folder_id=?,
       gdrive_client_id=?, gdrive_client_secret=?,
       wa_instance_url=?, wa_instance_name=?, wa_api_key=?, wa_webhook_token=?, wa_owner_phone=?,
-      ia_provider=?, ia_api_key=?, ia_model=?, ia_system_prompt=?, ia_temperatura=?, ia_ativa=?,
+      ia_provider=?, ia_api_key=?, ia_model=?, ia_system_prompt=?, ia_temperatura=?, ia_ativa=?, ia_blocked_phones=?,
       upmobb_ativo=?,
       etapas_template_json=?,
       sistema_cor_primaria=?,
@@ -172,6 +172,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         wa_instance_url || '', wa_instance_name || '', wa_api_key || '', wa_webhook_token || '', wa_owner_phone || '',
         ia_provider || 'anthropic', ia_api_key || '', ia_model || 'claude-sonnet-4',
         ia_system_prompt !== undefined ? ia_system_prompt : '', ia_temperatura ?? 0.7, ia_ativa ?? 0,
+        ia_blocked_phones !== undefined ? ia_blocked_phones : '',
         upmobb_ativo ?? 0,
         etapas_template_json !== undefined ? etapas_template_json : '[]',
         sistema_cor_primaria || '#1379F0',
@@ -224,7 +225,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
 // Autenticado por header x-n8n-token (valor configurado no sistema)
 // ═══════════════════════════════════════════════════════
 router.get('/n8n', (req, res) => {
-    const emp = db.prepare('SELECT wa_instance_url, wa_instance_name, wa_api_key, wa_owner_phone, ia_api_key, ia_model FROM empresa_config WHERE id = 1').get();
+    const emp = db.prepare('SELECT wa_instance_url, wa_instance_name, wa_api_key, wa_owner_phone, ia_api_key, ia_model, ia_ativa, ia_blocked_phones FROM empresa_config WHERE id = 1').get();
     if (!emp) return res.status(404).json({ error: 'Config não encontrada' });
     res.json({
         evolution_url: emp.wa_instance_url || '',
@@ -233,6 +234,8 @@ router.get('/n8n', (req, res) => {
         owner_phone: emp.wa_owner_phone || '',
         anthropic_key: emp.ia_api_key || '',
         ai_model: emp.ia_model || 'claude-haiku-4-5-20251001',
+        ia_enabled: emp.ia_ativa === 1,
+        blocked_phones: emp.ia_blocked_phones || '',
     });
 });
 

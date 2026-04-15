@@ -791,6 +791,7 @@ const migrations = [
   "ALTER TABLE empresa_config ADD COLUMN ia_system_prompt TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN ia_temperatura REAL DEFAULT 0.7",
   "ALTER TABLE empresa_config ADD COLUMN ia_ativa INTEGER DEFAULT 0",
+  "ALTER TABLE empresa_config ADD COLUMN ia_blocked_phones TEXT DEFAULT ''",
   // ═══ Gantt melhorado ═══
   "ALTER TABLE etapas_projeto ADD COLUMN progresso INTEGER DEFAULT 0",
   "ALTER TABLE etapas_projeto ADD COLUMN dependencia_id INTEGER REFERENCES etapas_projeto(id)",
