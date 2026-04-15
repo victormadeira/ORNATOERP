@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
+import { backupToDrive, listBackups } from '../services/backup.js';
 
 const router = Router();
 
@@ -524,6 +525,32 @@ router.post('/backup', requireAuth, requireRole('admin'), (req, res) => {
     } catch (err) {
         console.error('Erro ao importar backup:', err);
         res.status(500).json({ error: `Erro ao importar: ${err.message}` });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// POST /api/config/backup-drive — Backup manual para Google Drive
+// ═══════════════════════════════════════════════════════
+router.post('/backup-drive', requireAuth, requireRole('admin'), async (req, res) => {
+    try {
+        const result = await backupToDrive();
+        res.json(result);
+    } catch (err) {
+        console.error('Erro no backup Drive:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// GET /api/config/backup-drive — Listar backups no Drive
+// ═══════════════════════════════════════════════════════
+router.get('/backup-drive', requireAuth, requireRole('admin'), async (req, res) => {
+    try {
+        const backups = await listBackups();
+        res.json(backups);
+    } catch (err) {
+        console.error('Erro ao listar backups:', err);
+        res.status(500).json({ error: err.message });
     }
 });
 

@@ -44,6 +44,7 @@ import leadsRoutes from './routes/leads.js';
 // Inicializa DB (efeito colateral — cria tabelas e seed)
 import './db.js';
 import { iniciarAutomacoes } from './services/automacoes.js';
+import { iniciarBackupDiario } from './services/backup.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -199,6 +200,8 @@ const server = app.listen(PORT, () => {
 
     // Iniciar automações de follow-up
     iniciarAutomacoes();
+    // Backup diário do banco para Google Drive (3h da manhã)
+    iniciarBackupDiario();
 });
 
 const wss = new WebSocketServer({ server, path: '/ws' });

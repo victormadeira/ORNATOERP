@@ -207,6 +207,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [backupLoading, setBackupLoading] = useState(false);
     const [backupResult, setBackupResult] = useState(null);
     const backupInputRef = useRef();
+    const [driveBackups, setDriveBackups] = useState([]);
+    const [driveBackupLoading, setDriveBackupLoading] = useState(false);
     const [portfolio, setPortfolio] = useState([]);
     const [portEdit, setPortEdit] = useState(null); // { titulo, designer, descricao, imagem } or null
     const portImgRef = useRef();
@@ -3334,6 +3336,101 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 <span>Estoque + movimentacoes</span><span>Chat + mensagens</span>
                                 <span>Usuarios (sem senhas)</span><span>Configuracoes IA/WhatsApp</span>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* ── Backup Google Drive ── */}
+                    <div className={Z.card} style={{ marginTop: 16 }}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#e8f5e9' }}>
+                                <Database size={20} style={{ color: '#4caf50' }} />
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Backup Automatico — Google Drive</h3>
+                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Backup diario do banco completo, comprimido e enviado ao Drive (3h da manha)</p>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-4">
+                            {/* Disparar backup manual */}
+                            <div className="p-4 rounded-xl" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Upload size={16} style={{ color: '#4caf50' }} />
+                                            <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Backup Manual</span>
+                                        </div>
+                                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                            Envia uma copia do banco de dados para a pasta Backups no Google Drive agora.
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={async () => {
+                                            setDriveBackupLoading(true); setBackupResult(null);
+                                            try {
+                                                const resp = await api.post('/config/backup-drive');
+                                                setBackupResult({ ok: true, msg: `Backup enviado: ${resp.fileName} (${resp.sizeMB} MB)` });
+                                                // Recarregar lista
+                                                api.get('/config/backup-drive').then(setDriveBackups).catch(() => {});
+                                            } catch (e) {
+                                                setBackupResult({ ok: false, msg: e.error || e.message || 'Erro ao fazer backup' });
+                                            }
+                                            setDriveBackupLoading(false);
+                                        }}
+                                        disabled={driveBackupLoading}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white shrink-0"
+                                        style={{ background: '#4caf50' }}
+                                    >
+                                        {driveBackupLoading ? <RefreshCw size={14} className="animate-spin" /> : <Upload size={14} />}
+                                        Fazer Backup
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Lista de backups no Drive */}
+                            <div className="p-4 rounded-xl" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <Database size={16} style={{ color: 'var(--primary)' }} />
+                                        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Backups no Drive</span>
+                                    </div>
+                                    <button
+                                        onClick={() => api.get('/config/backup-drive').then(setDriveBackups).catch(() => setDriveBackups([]))}
+                                        className="text-xs px-2 py-1 rounded flex items-center gap-1"
+                                        style={{ color: 'var(--primary)', background: 'var(--bg-hover)' }}
+                                    >
+                                        <RefreshCw size={12} /> Atualizar
+                                    </button>
+                                </div>
+                                {driveBackups.length === 0 ? (
+                                    <p className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>
+                                        Clique em "Atualizar" para carregar os backups do Drive.
+                                    </p>
+                                ) : (
+                                    <div className="space-y-1 max-h-60 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+                                        {driveBackups.map((b, i) => (
+                                            <div key={b.id} className="flex items-center justify-between px-3 py-2 rounded-lg text-xs" style={{
+                                                background: i === 0 ? '#dcfce7' : 'transparent',
+                                                border: i === 0 ? '1px solid #bbf7d0' : '1px solid transparent',
+                                            }}>
+                                                <div className="flex items-center gap-2">
+                                                    <Database size={12} style={{ color: i === 0 ? '#16a34a' : 'var(--text-muted)' }} />
+                                                    <span style={{ color: 'var(--text-primary)', fontWeight: i === 0 ? 600 : 400 }}>{b.name}</span>
+                                                    {i === 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: '#16a34a', color: '#fff' }}>MAIS RECENTE</span>}
+                                                </div>
+                                                <div className="flex items-center gap-3" style={{ color: 'var(--text-muted)' }}>
+                                                    <span>{b.sizeMB} MB</span>
+                                                    <span>{new Date(b.date).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="mt-3 p-3 rounded-lg text-xs" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                            Backup automatico roda diariamente as 3h. Mantem os ultimos 30 backups. O arquivo e o banco completo comprimido (.db.gz).
                         </div>
                     </div>
                 </div>
