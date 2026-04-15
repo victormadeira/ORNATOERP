@@ -25,12 +25,13 @@ router.post('/whatsapp', async (req, res) => {
         const body = req.body;
         const event = body.event || '';
 
+        console.log('[Webhook] Evento recebido:', event, '| keys:', Object.keys(body).join(','));
+
         if (event === 'messages.upsert') {
             await handleIncomingMessage(body.data || body);
         } else if (event === 'messages.update') {
             await handleMessageStatusUpdate(body.data || body);
         }
-        // connection.update — log apenas, sem ação
     } catch (err) {
         console.error('[Webhook] Erro ao processar:', err.message);
     }
@@ -38,8 +39,12 @@ router.post('/whatsapp', async (req, res) => {
 
 // ═══ Processar mensagem recebida ═══
 async function handleIncomingMessage(data) {
+    console.log('[Webhook] handleIncomingMessage data keys:', data ? Object.keys(data).join(',') : 'null');
     const msg = data?.message || data;
-    if (!msg || !msg.key) return;
+    if (!msg || !msg.key) {
+        console.log('[Webhook] Sem msg.key — msg keys:', msg ? Object.keys(msg).join(',') : 'null');
+        return;
+    }
 
     // Ignorar mensagens enviadas por nós
     if (msg.key.fromMe) return;
