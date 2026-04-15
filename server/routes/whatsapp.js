@@ -1,8 +1,24 @@
 import { Router } from 'express';
+import { readFileSync, mkdirSync } from 'fs';
+import { join, dirname, extname } from 'path';
+import { fileURLToPath } from 'url';
+import multer from 'multer';
 import db from '../db.js';
 import { requireAuth } from '../auth.js';
 import evolution from '../services/evolution.js';
 import ai from '../services/ai.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const UPLOADS_DIR = join(__dirname, '..', 'uploads', 'whatsapp');
+mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const upload = multer({
+    storage: multer.diskStorage({
+        destination: (_, __, cb) => cb(null, UPLOADS_DIR),
+        filename: (_, file, cb) => cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${extname(file.originalname)}`),
+    }),
+    limits: { fileSize: 64 * 1024 * 1024 }, // 64MB
+});
 
 const router = Router();
 
@@ -148,6 +164,69 @@ router.put('/conversas/:id/vincular', requireAuth, (req, res) => {
         WHERE cc.id = ?
     `).get(id);
     res.json(conversa);
+});
+
+// ═══════════════════════════════════════════════════════
+// POST /api/whatsapp/conversas/:id/enviar-midia — enviar imagem/audio/doc
+// ═══════════════════════════════════════════════════════
+router.post('/conversas/:id/enviar-midia', requireAuth, upload.single('file'), async (req, res) => {
+    const id = parseInt(req.params.id);
+    const caption = req.body.caption || '';
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'Arquivo obrigatório' });
+
+    const conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(id);
+    if (!conversa) return res.status(404).json({ error: 'Conversa não encontrada' });
+
+    const dest = conversa.wa_jid || conversa.wa_phone;
+    const mime = file.mimetype || '';
+    const mediaUrl = `/uploads/whatsapp/${file.filename}`;
+
+    // Determinar tipo
+    let tipo = 'documento';
+    let mediatype = 'document';
+    if (mime.startsWith('image/')) { tipo = 'imagem'; mediatype = 'image'; }
+    else if (mime.startsWith('video/')) { tipo = 'video'; mediatype = 'video'; }
+    else if (mime.startsWith('audio/')) { tipo = 'audio'; mediatype = 'audio'; }
+
+    try {
+        // Converter para base64 para enviar via Evolution API
+        const fileBuffer = readFileSync(file.path);
+        const base64 = fileBuffer.toString('base64');
+        const dataUri = `data:${mime};base64,${base64}`;
+
+        const cfg = db.prepare('SELECT wa_instance_url, wa_instance_name, wa_api_key FROM empresa_config WHERE id = 1').get();
+        const url = `${cfg.wa_instance_url}/message/sendMedia/${cfg.wa_instance_name}`;
+        const evoRes = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': cfg.wa_api_key },
+            body: JSON.stringify({
+                number: dest,
+                mediatype,
+                media: dataUri,
+                caption: caption || '',
+                fileName: file.originalname,
+            }),
+        });
+        if (!evoRes.ok) {
+            const err = await evoRes.json().catch(() => ({}));
+            throw new Error(err.message || `Evolution API error: ${evoRes.status}`);
+        }
+        const result = await evoRes.json();
+        const waMessageId = result?.key?.id || '';
+
+        // Armazenar mensagem
+        const r = db.prepare(`
+            INSERT INTO chat_mensagens (conversa_id, wa_message_id, direcao, tipo, conteudo, media_url, remetente, remetente_id, criado_em)
+            VALUES (?, ?, 'saida', ?, ?, ?, 'usuario', ?, CURRENT_TIMESTAMP)
+        `).run(id, waMessageId, tipo, caption || `[${tipo}]`, mediaUrl, req.user.id);
+
+        db.prepare('UPDATE chat_conversas SET ultimo_msg_em = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+        const msg = db.prepare('SELECT cm.*, u.nome as usuario_nome FROM chat_mensagens cm LEFT JOIN users u ON cm.remetente_id = u.id WHERE cm.id = ?').get(r.lastInsertRowid);
+        res.json(msg);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // ═══════════════════════════════════════════════════════

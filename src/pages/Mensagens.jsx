@@ -5,7 +5,8 @@ import api from '../api';
 import { useAuth } from '../auth';
 import {
     MessageCircle, Send, Lock, Bot, Sparkles, User, Phone,
-    Search, MoreVertical, ArrowLeft, Link2, RefreshCw, Check, CheckCheck
+    Search, MoreVertical, ArrowLeft, Link2, RefreshCw, Check, CheckCheck,
+    Paperclip, Mic, Square, Image, X, FileText, Download
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════
@@ -22,17 +23,20 @@ const STATUS_COLORS = {
 
 function timeAgo(dateStr) {
     if (!dateStr) return '';
-    const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+    const d = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+    const diff = (Date.now() - new Date(d).getTime()) / 1000;
     if (diff < 60) return 'agora';
     if (diff < 3600) return `${Math.floor(diff / 60)}min`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
     if (diff < 604800) return `${Math.floor(diff / 86400)}d`;
-    return new Date(dateStr).toLocaleDateString('pt-BR');
+    return new Date(d).toLocaleDateString('pt-BR');
 }
 
 function formatTime(dateStr) {
     if (!dateStr) return '';
-    return new Date(dateStr).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    // SQLite salva em UTC sem 'Z' — adicionamos para interpretar corretamente
+    const d = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+    return new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
 export default function Mensagens({ notify }) {
@@ -49,8 +53,13 @@ export default function Mensagens({ notify }) {
     const [showVincular, setShowVincular] = useState(false);
     const [clientes, setClientes] = useState([]);
     const [mobileShowChat, setMobileShowChat] = useState(false);
+    const [recording, setRecording] = useState(false);
+    const [lightbox, setLightbox] = useState(null);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
+    const fileInputRef = useRef(null);
+    const mediaRecorderRef = useRef(null);
+    const audioChunksRef = useRef([]);
 
     // ═══ Carregar conversas ═══
     const loadConversas = useCallback(async () => {
@@ -129,6 +138,54 @@ export default function Mensagens({ notify }) {
         } catch {
             notify?.('Erro na sugestão da IA');
         } finally { setSuggesting(false); }
+    };
+
+    // ═══ Enviar arquivo (imagem/video/doc) ═══
+    const enviarArquivo = async (file) => {
+        if (!file || !activeConv) return;
+        setSending(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch(`/api/whatsapp/conversas/${activeConv}/enviar-midia`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                body: formData,
+            });
+            if (!res.ok) { const e = await res.json(); throw e; }
+            await loadMensagens(activeConv);
+            loadConversas();
+        } catch (e) {
+            notify?.(e.error || 'Erro ao enviar arquivo');
+        } finally { setSending(false); }
+    };
+
+    // ═══ Gravar áudio ═══
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            audioChunksRef.current = [];
+            mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+            mediaRecorder.onstop = async () => {
+                stream.getTracks().forEach(t => t.stop());
+                const blob = new Blob(audioChunksRef.current, { type: 'audio/ogg; codecs=opus' });
+                const file = new File([blob], `audio-${Date.now()}.ogg`, { type: 'audio/ogg' });
+                await enviarArquivo(file);
+            };
+            mediaRecorder.start();
+            setRecording(true);
+        } catch {
+            notify?.('Permissão de microfone negada');
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+        }
+        setRecording(false);
     };
 
     // ═══ Vincular a cliente ═══
@@ -402,8 +459,8 @@ export default function Mensagens({ notify }) {
                                                     <img
                                                         src={m.media_url}
                                                         alt="Imagem"
-                                                        style={{ maxWidth: '100%', borderRadius: 8, marginBottom: m.conteudo && !m.conteudo.startsWith('[') ? 6 : 0, cursor: 'pointer' }}
-                                                        onClick={() => window.open(m.media_url, '_blank')}
+                                                        style={{ maxWidth: '100%', maxHeight: 300, borderRadius: 8, marginBottom: m.conteudo && !m.conteudo.startsWith('[') ? 6 : 0, cursor: 'pointer', objectFit: 'contain' }}
+                                                        onClick={() => setLightbox(m.media_url)}
                                                     />
                                                 )}
                                                 {m.media_url && m.tipo === 'video' && (
@@ -499,7 +556,30 @@ export default function Mensagens({ notify }) {
                                 </div>
 
                                 {/* Input + Send */}
-                                <div style={{ display: 'flex', gap: 8 }}>
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                                    {/* Anexar arquivo */}
+                                    {!interno && (
+                                        <>
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
+                                                style={{ display: 'none' }}
+                                                onChange={e => { if (e.target.files[0]) { enviarArquivo(e.target.files[0]); e.target.value = ''; } }}
+                                            />
+                                            <button
+                                                onClick={() => fileInputRef.current?.click()}
+                                                disabled={sending}
+                                                style={{
+                                                    background: 'none', border: '1px solid var(--border)', borderRadius: 8,
+                                                    padding: 10, cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0,
+                                                }}
+                                                title="Anexar arquivo"
+                                            >
+                                                <Paperclip size={18} />
+                                            </button>
+                                        </>
+                                    )}
                                     <textarea
                                         ref={inputRef}
                                         className={Z.inp}
@@ -516,19 +596,35 @@ export default function Mensagens({ notify }) {
                                             background: interno ? '#fef3c705' : undefined,
                                         }}
                                     />
-                                    <button
-                                        onClick={enviar}
-                                        disabled={!input.trim() || sending}
-                                        className={Z.btn}
-                                        style={{
-                                            padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 6,
-                                            opacity: !input.trim() || sending ? 0.5 : 1,
-                                            background: interno ? 'var(--warning)' : undefined,
-                                        }}
-                                        title="Enviar"
-                                    >
-                                        <Send size={16} />
-                                    </button>
+                                    {/* Mic / Send */}
+                                    {!interno && !input.trim() ? (
+                                        <button
+                                            onClick={recording ? stopRecording : startRecording}
+                                            disabled={sending}
+                                            className={Z.btn}
+                                            style={{
+                                                padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                                                background: recording ? '#ef4444' : undefined,
+                                            }}
+                                            title={recording ? 'Parar gravação' : 'Gravar áudio'}
+                                        >
+                                            {recording ? <Square size={16} /> : <Mic size={16} />}
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={enviar}
+                                            disabled={!input.trim() || sending}
+                                            className={Z.btn}
+                                            style={{
+                                                padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                                                opacity: !input.trim() || sending ? 0.5 : 1,
+                                                background: interno ? 'var(--warning)' : undefined,
+                                            }}
+                                            title="Enviar"
+                                        >
+                                            <Send size={16} />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </>
@@ -537,6 +633,35 @@ export default function Mensagens({ notify }) {
             </div>
 
             {/* ═══ Modal: Vincular Cliente ═══ */}
+            {/* ═══ Lightbox: Preview de imagem ═══ */}
+            {lightbox && (
+                <div
+                    onClick={() => setLightbox(null)}
+                    style={{
+                        position: 'fixed', inset: 0, zIndex: 9999,
+                        background: 'rgba(0,0,0,0.85)', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out',
+                    }}
+                >
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setLightbox(null); }}
+                        style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', padding: 8, cursor: 'pointer', color: '#fff' }}
+                    >
+                        <X size={24} />
+                    </button>
+                    <a
+                        href={lightbox}
+                        download
+                        onClick={e => e.stopPropagation()}
+                        style={{ position: 'absolute', top: 16, right: 64, background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', padding: 8, cursor: 'pointer', color: '#fff', display: 'flex' }}
+                        title="Baixar"
+                    >
+                        <Download size={24} />
+                    </a>
+                    <img src={lightbox} style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8, objectFit: 'contain' }} />
+                </div>
+            )}
+
             {showVincular && (
                 <Modal title="Vincular a Cliente" close={() => setShowVincular(false)} w={400}>
                     <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
