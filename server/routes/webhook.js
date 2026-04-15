@@ -25,7 +25,7 @@ router.post('/whatsapp', async (req, res) => {
         const body = req.body;
         const event = body.event || '';
 
-        console.log('[Webhook] Evento recebido:', event, '| keys:', Object.keys(body).join(','), '| body:', JSON.stringify(body).slice(0, 300));
+        console.log('[Webhook] Evento recebido:', event, '| sender:', body.sender, '| data.key:', JSON.stringify(body.data?.key), '| participant:', body.data?.participant);
 
         if (event === 'messages.upsert') {
             await handleIncomingMessage(body.data || body);
