@@ -95,7 +95,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         proposta_sobre, proposta_garantia, proposta_consideracoes, proposta_rodape,
         gdrive_credentials, gdrive_folder_id,
         gdrive_client_id, gdrive_client_secret,
-        wa_instance_url, wa_instance_name, wa_api_key, wa_webhook_token,
+        wa_instance_url, wa_instance_name, wa_api_key, wa_webhook_token, wa_owner_phone,
         ia_provider, ia_api_key, ia_model, ia_system_prompt, ia_temperatura, ia_ativa,
         upmobb_ativo,
         etapas_template_json,
@@ -129,7 +129,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
       proposta_sobre=?, proposta_garantia=?, proposta_consideracoes=?, proposta_rodape=?,
       gdrive_credentials=?, gdrive_folder_id=?,
       gdrive_client_id=?, gdrive_client_secret=?,
-      wa_instance_url=?, wa_instance_name=?, wa_api_key=?, wa_webhook_token=?,
+      wa_instance_url=?, wa_instance_name=?, wa_api_key=?, wa_webhook_token=?, wa_owner_phone=?,
       ia_provider=?, ia_api_key=?, ia_model=?, ia_system_prompt=?, ia_temperatura=?, ia_ativa=?,
       upmobb_ativo=?,
       etapas_template_json=?,
@@ -169,7 +169,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         gdrive_folder_id !== undefined ? gdrive_folder_id : '',
         gdrive_client_id !== undefined ? gdrive_client_id : '',
         gdrive_client_secret !== undefined ? gdrive_client_secret : '',
-        wa_instance_url || '', wa_instance_name || '', wa_api_key || '', wa_webhook_token || '',
+        wa_instance_url || '', wa_instance_name || '', wa_api_key || '', wa_webhook_token || '', wa_owner_phone || '',
         ia_provider || 'anthropic', ia_api_key || '', ia_model || 'claude-sonnet-4',
         ia_system_prompt !== undefined ? ia_system_prompt : '', ia_temperatura ?? 0.7, ia_ativa ?? 0,
         upmobb_ativo ?? 0,
@@ -217,6 +217,23 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
     );
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
     res.json(emp);
+});
+
+// ═══════════════════════════════════════════════════════
+// GET /api/config/n8n — config usada pelo workflow n8n
+// Autenticado por header x-n8n-token (valor configurado no sistema)
+// ═══════════════════════════════════════════════════════
+router.get('/n8n', (req, res) => {
+    const emp = db.prepare('SELECT wa_instance_url, wa_instance_name, wa_api_key, wa_owner_phone, ia_api_key, ia_model FROM empresa_config WHERE id = 1').get();
+    if (!emp) return res.status(404).json({ error: 'Config não encontrada' });
+    res.json({
+        evolution_url: emp.wa_instance_url || '',
+        evolution_instance: emp.wa_instance_name || '',
+        evolution_key: emp.wa_api_key || '',
+        owner_phone: emp.wa_owner_phone || '',
+        anthropic_key: emp.ia_api_key || '',
+        ai_model: emp.ia_model || 'claude-haiku-4-5-20251001',
+    });
 });
 
 // ═══════════════════════════════════════════════════════

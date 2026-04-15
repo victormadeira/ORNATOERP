@@ -158,7 +158,7 @@ export default function Cfg({ taxas, reload, notify }) {
         portal_mostrar_pagamento: 0,
         gdrive_credentials: '', gdrive_folder_id: '',
         gdrive_client_id: '', gdrive_client_secret: '',
-        wa_instance_url: '', wa_instance_name: '', wa_api_key: '', wa_webhook_token: '',
+        wa_instance_url: '', wa_instance_name: '', wa_api_key: '', wa_webhook_token: '', wa_owner_phone: '',
         ia_provider: 'anthropic', ia_api_key: '', ia_model: 'claude-sonnet-4',
         ia_system_prompt: '', ia_temperatura: 0.7, ia_ativa: 0,
         upmobb_ativo: 0,
@@ -251,6 +251,7 @@ export default function Cfg({ taxas, reload, notify }) {
                 wa_instance_name: d.wa_instance_name || '',
                 wa_api_key: d.wa_api_key || '',
                 wa_webhook_token: d.wa_webhook_token || '',
+                wa_owner_phone: d.wa_owner_phone || '',
                 ia_provider: d.ia_provider || 'anthropic',
                 ia_api_key: d.ia_api_key || '',
                 ia_model: d.ia_model || 'claude-sonnet-4',
@@ -342,6 +343,7 @@ export default function Cfg({ taxas, reload, notify }) {
                 wa_instance_name: emp.wa_instance_name,
                 wa_api_key: emp.wa_api_key,
                 wa_webhook_token: emp.wa_webhook_token,
+                wa_owner_phone: emp.wa_owner_phone,
                 ia_provider: emp.ia_provider,
                 ia_api_key: emp.ia_api_key,
                 ia_model: emp.ia_model,
@@ -1610,6 +1612,21 @@ export default function Cfg({ taxas, reload, notify }) {
                                     />
                                     <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
                                         Defina um token secreto. Configure o mesmo valor no webhook da Evolution API.
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className={Z.lbl}>Número para Notificações (Handoff)</label>
+                                    <input
+                                        value={emp.wa_owner_phone}
+                                        onChange={e => setEmp({ ...emp, wa_owner_phone: e.target.value })}
+                                        disabled={!isGerente}
+                                        placeholder="5598991234567"
+                                        className={Z.inp}
+                                        style={{ fontFamily: 'monospace', fontSize: 12 }}
+                                    />
+                                    <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                        Seu número pessoal no formato internacional (55 + DDD + número). Quando a IA precisar chamar um humano, você receberá um aviso aqui.
                                     </div>
                                 </div>
 

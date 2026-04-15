@@ -1,0 +1,323 @@
+{
+  "name": "Studio Ornato | WhatsApp IA Vendas",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-01",
+      "name": "📱 Receber Mensagem",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [80, 400],
+      "webhookId": "ornato-whatsapp"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "ok",
+        "options": {}
+      },
+      "id": "node-02",
+      "name": "✅ Responder OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [280, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// FILTRO DE MENSAGENS — só processa o que interessa\n// ============================================================\nconst body = $input.first().json;\nconst payload = body.body ?? body;\n\nif (payload.event !== 'messages.upsert') return [];\n\nconst data = payload.data;\nif (!data?.key) return [];\nif (data.key.fromMe === true) return [];\nif (data.key.remoteJid.includes('@g.us')) return [];\nif (data.key.remoteJid.includes('@broadcast')) return [];\n\nlet messageText = '';\nconst msg = data.message ?? {};\n\nif (msg.conversation) {\n  messageText = msg.conversation;\n} else if (msg.extendedTextMessage?.text) {\n  messageText = msg.extendedTextMessage.text;\n} else if (msg.imageMessage) {\n  messageText = '[Cliente enviou uma imagem' + (msg.imageMessage.caption ? ': ' + msg.imageMessage.caption : '') + ']';\n} else if (msg.audioMessage) {\n  messageText = '[Cliente enviou um áudio — responder pedindo que envie mensagem de texto por enquanto]';\n} else if (msg.documentMessage) {\n  messageText = '[Cliente enviou um documento/arquivo]';\n} else {\n  return [];\n}\n\nif (!messageText.trim()) return [];\n\nconst phone = data.key.remoteJid.replace('@s.whatsapp.net', '');\n\nreturn [{\n  json: {\n    phone,\n    remoteJid: data.key.remoteJid,\n    pushName: data.pushName ?? 'Cliente',\n    messageText: messageText.trim()\n  }\n}];"
+      },
+      "id": "node-03",
+      "name": "🔍 Filtrar e Extrair",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [280, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3001/api/config/n8n",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "node-00",
+      "name": "⚙️ Buscar Config do Sistema",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// MEMÓRIA DE CONVERSAS — carrega histórico do cliente\n// ============================================================\nconst filtered = $('🔍 Filtrar e Extrair').first().json;\nconst { phone, pushName, messageText, remoteJid } = filtered;\n\nconst db = $getWorkflowStaticData('global');\nif (!db.conversations) db.conversations = {};\n\nlet conv = db.conversations[phone];\nif (!conv) {\n  conv = {\n    history: [],\n    stage: 'new',\n    name: pushName,\n    phone,\n    createdAt: new Date().toISOString(),\n    lastActivity: new Date().toISOString()\n  };\n}\n\nconv.name = pushName;\nconv.lastActivity = new Date().toISOString();\n\nconv.history.push({\n  role: 'user',\n  content: messageText\n});\n\nif (conv.history.length > 30) {\n  conv.history = conv.history.slice(-30);\n}\n\ndb.conversations[phone] = conv;\n\nreturn [{\n  json: {\n    phone,\n    remoteJid,\n    pushName,\n    messageText,\n    history: conv.history,\n    stage: conv.stage,\n    conv\n  }\n}];"
+      },
+      "id": "node-04",
+      "name": "💾 Carregar Histórico",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-human",
+              "leftValue": "={{ $json.stage }}",
+              "rightValue": "human",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-05",
+      "name": "👤 Já é Atendimento Humano?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [940, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{ 'http://localhost:8080/chat/sendPresence/' + $('⚙️ Buscar Config do Sistema').first().json.evolution_instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $('⚙️ Buscar Config do Sistema').first().json.evolution_key }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.remoteJid }}\",\n  \"options\": {\n    \"presence\": \"composing\",\n    \"delay\": 1200\n  }\n}",
+        "options": {}
+      },
+      "id": "node-06",
+      "name": "⌨️ Indicador Digitando",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// SYSTEM PROMPT — personalidade e regras da Sofia\n// ============================================================\nconst SYSTEM_PROMPT = `\nVocê é Sofia, a assistente de vendas do Studio Ornato — uma marcenaria premium em São Luís, Maranhão.\n\nSUA MISSÃO:\nQualificar leads, entender o projeto do cliente, avançar para visita técnica ou proposta, e encaminhar para fechamento.\n\nSOBRE O STUDIO ORNATO:\n- Produção 100% própria com CNC de alta precisão em São Luís\n- Não terceiriza nenhuma etapa — tudo sai da nossa fábrica\n- Especialidades: cozinhas, closets, quartos, home office, áreas de serviço, projetos completos\n- Orçamento técnico detalhado em até 48h após receber o projeto\n- Conferência peça por peça antes da instalação\n- Contrato com cláusula de penalidade por atraso\n- Atende São Luís, Paço do Lumiar, São José de Ribamar e Raposa\n\nCOMO SE COMUNICAR:\n- Tom profissional, direto e humano — como alguém que domina o que faz\n- Mensagens curtas: máximo 3 frases por parágrafo, no máximo 2 parágrafos\n- Sem bullet points, sem listas numeradas, sem formatação de e-mail\n- Use o nome do cliente quando souber\n- Sempre termine com uma pergunta ou próximo passo claro\n\nO QUE COLETAR NA QUALIFICAÇÃO:\n1. Qual ambiente precisa de móveis\n2. Se tem projeto do arquiteto ou designer\n3. Se o imóvel está pronto ou em obra e qual o prazo\n4. Prazo desejado para entrega\n5. Faixa de investimento prevista\n\nCOMO RESPONDER ÀS PRINCIPAIS OBJEÇÕES:\n\n\"Está caro\" ou \"Vi mais barato\":\nEntendo. A diferença existe e faz sentido querer entender o porquê. A outra proposta inclui o mesmo escopo — mesma espessura de chapa, mesmas ferragens, prazo garantido em contrato?\n\n\"Vou pensar\":\nClaro, faz sentido. Ficou alguma dúvida específica sobre a proposta ou é uma questão de prazo para decidir?\n\n\"Já tive problema com marcenaria antes\":\nEntendo sua preocupação. Pode me contar o que aconteceu? Quero mostrar como nosso processo é diferente — e se não conseguir te convencer, é melhor saber antes.\n\n\"Preciso falar com meu marido/esposa\":\nCom certeza, essa decisão é de dois. O que posso fazer para facilitar? Posso preparar um resumo visual do projeto ou vocês preferem uma reunião rápida juntos.\n\n\"O prazo está longo\":\nEntendo a urgência. Me conta: tem alguma data específica que precisa respeitar — uma mudança marcada, por exemplo? Assim consigo verificar o que é possível adiantar na produção.\n\n\"Ainda não tenho o projeto\":\nSem problema. O ideal então é uma visita técnica sem compromisso — a gente vai ao imóvel, levanta as medidas e você já tem base para decidir. Você tem disponibilidade essa semana?\n\nNUNCA FAÇA:\n- Inventar preços ou prazos específicos — sempre diga que vai preparar o orçamento\n- Dar desconto sem antes entender a objeção real\n- Escrever mensagens longas — WhatsApp não é e-mail\n- Pressionar o cliente\n\nQUANDO ENCAMINHAR PARA HUMANO:\n- Cliente quer fechar, assinar ou confirmar o projeto\n- Cliente pede para falar com alguém da equipe\n- Situação complexa que vai além de qualificação\n- Reclamação ou insatisfação grave\n- Cliente está claramente pronto para comprar\n\nAo encaminhar para humano, responda:\n\"Perfeito! Vou acionar nossa equipe agora para dar continuidade com você. Em instantes alguém entra em contato.\"\nE adicione exatamente [HANDOFF] no final da sua resposta (não aparece para o cliente).\n`;\n\nconst { history, pushName } = $input.first().json;\nconst cfg = $('⚙️ Buscar Config do Sistema').first().json;\n\nconst claudeRequest = {\n  model: cfg.ai_model || 'claude-haiku-4-5-20251001',\n  max_tokens: 500,\n  system: SYSTEM_PROMPT.trim(),\n  messages: history\n};\n\nreturn [{\n  json: {\n    ...$input.first().json,\n    claudeRequest\n  }\n}];"
+      },
+      "id": "node-07",
+      "name": "📝 Montar Prompt Claude",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1380, 520]
+    },
+    {
+      "parameters": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{ $('⚙️ Buscar Config do Sistema').first().json.anthropic_key }}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.claudeRequest) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "node-08",
+      "name": "🤖 Chamar Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// PROCESSAR RESPOSTA DA IA\n// ============================================================\nconst claudeResponse = $input.first().json;\nconst prevData = $('💾 Carregar Histórico').first().json;\n\nlet aiText = '';\nif (claudeResponse.content && claudeResponse.content.length > 0) {\n  aiText = claudeResponse.content[0].text ?? '';\n} else if (claudeResponse.error) {\n  aiText = 'Desculpe, tive um problema técnico. Em instantes nossa equipe entra em contato.';\n}\n\nconst isHandoff = aiText.includes('[HANDOFF]');\nconst cleanText = aiText.replace('[HANDOFF]', '').trim();\n\nconst phone = prevData.phone;\nconst db = $getWorkflowStaticData('global');\nif (!db.conversations) db.conversations = {};\nif (!db.conversations[phone]) db.conversations[phone] = { history: [], stage: 'new' };\n\nif (isHandoff) {\n  db.conversations[phone].stage = 'human';\n}\n\ndb.conversations[phone].history.push({\n  role: 'assistant',\n  content: cleanText\n});\n\nconst typingDelayMs = Math.min(Math.max(cleanText.length * 30, 1200), 5000);\n\nreturn [{\n  json: {\n    phone,\n    remoteJid: prevData.remoteJid,\n    pushName: prevData.pushName,\n    userText: prevData.messageText,\n    aiText: cleanText,\n    isHandoff,\n    typingDelayMs\n  }\n}];"
+      },
+      "id": "node-09",
+      "name": "⚙️ Processar Resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1820, 520]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.typingDelayMs }}",
+        "unit": "milliseconds"
+      },
+      "id": "node-10",
+      "name": "⏱️ Aguardar (simular digitação)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2040, 520]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-handoff",
+              "leftValue": "={{ $json.isHandoff }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-11",
+      "name": "🔀 Precisa de Humano?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2260, 520]
+    },
+    {
+      "parameters": {
+        "url": "={{ 'http://localhost:8080/message/sendText/' + $('⚙️ Buscar Config do Sistema').first().json.evolution_instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $('⚙️ Buscar Config do Sistema').first().json.evolution_key }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.remoteJid }}\",\n  \"text\": {{ JSON.stringify($json.aiText) }}\n}",
+        "options": {}
+      },
+      "id": "node-12",
+      "name": "📤 Enviar Resposta Normal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2480, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{ 'http://localhost:8080/message/sendText/' + $('⚙️ Buscar Config do Sistema').first().json.evolution_instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $('⚙️ Buscar Config do Sistema').first().json.evolution_key }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.remoteJid }}\",\n  \"text\": {{ JSON.stringify($json.aiText) }}\n}",
+        "options": {}
+      },
+      "id": "node-13",
+      "name": "🤝 Enviar Mensagem Handoff",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2480, 640]
+    },
+    {
+      "parameters": {
+        "url": "={{ 'http://localhost:8080/message/sendText/' + $('⚙️ Buscar Config do Sistema').first().json.evolution_instance }}",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "apikey", "value": "={{ $('⚙️ Buscar Config do Sistema').first().json.evolution_key }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('⚙️ Buscar Config do Sistema').first().json.owner_phone }}\",\n  \"text\": \"🔔 *LEAD PARA ATENDIMENTO HUMANO*\\n\\nNome: {{ $json.pushName }}\\nTelefone: {{ $json.phone }}\\n\\nÚltima mensagem do lead:\\n_{{ $json.userText }}_\\n\\nAbra o WhatsApp para assumir o atendimento.\"\n}",
+        "options": {}
+      },
+      "id": "node-14",
+      "name": "🔔 Notificar Equipe",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2700, 640]
+    }
+  ],
+  "connections": {
+    "📱 Receber Mensagem": {
+      "main": [
+        [
+          { "node": "✅ Responder OK", "type": "main", "index": 0 },
+          { "node": "🔍 Filtrar e Extrair", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "🔍 Filtrar e Extrair": {
+      "main": [
+        [{ "node": "⚙️ Buscar Config do Sistema", "type": "main", "index": 0 }]
+      ]
+    },
+    "⚙️ Buscar Config do Sistema": {
+      "main": [
+        [{ "node": "💾 Carregar Histórico", "type": "main", "index": 0 }]
+      ]
+    },
+    "💾 Carregar Histórico": {
+      "main": [
+        [{ "node": "👤 Já é Atendimento Humano?", "type": "main", "index": 0 }]
+      ]
+    },
+    "👤 Já é Atendimento Humano?": {
+      "main": [
+        [],
+        [{ "node": "⌨️ Indicador Digitando", "type": "main", "index": 0 }]
+      ]
+    },
+    "⌨️ Indicador Digitando": {
+      "main": [
+        [{ "node": "📝 Montar Prompt Claude", "type": "main", "index": 0 }]
+      ]
+    },
+    "📝 Montar Prompt Claude": {
+      "main": [
+        [{ "node": "🤖 Chamar Claude API", "type": "main", "index": 0 }]
+      ]
+    },
+    "🤖 Chamar Claude API": {
+      "main": [
+        [{ "node": "⚙️ Processar Resposta", "type": "main", "index": 0 }]
+      ]
+    },
+    "⚙️ Processar Resposta": {
+      "main": [
+        [{ "node": "⏱️ Aguardar (simular digitação)", "type": "main", "index": 0 }]
+      ]
+    },
+    "⏱️ Aguardar (simular digitação)": {
+      "main": [
+        [{ "node": "🔀 Precisa de Humano?", "type": "main", "index": 0 }]
+      ]
+    },
+    "🔀 Precisa de Humano?": {
+      "main": [
+        [{ "node": "🤝 Enviar Mensagem Handoff", "type": "main", "index": 0 }],
+        [{ "node": "📤 Enviar Resposta Normal", "type": "main", "index": 0 }]
+      ]
+    },
+    "🤝 Enviar Mensagem Handoff": {
+      "main": [
+        [{ "node": "🔔 Notificar Equipe", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "tags": [{ "name": "ornato" }, { "name": "whatsapp" }, { "name": "vendas" }]
+}

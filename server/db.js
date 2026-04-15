@@ -783,6 +783,7 @@ const migrations = [
   "ALTER TABLE empresa_config ADD COLUMN wa_instance_name TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN wa_api_key TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN wa_webhook_token TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN wa_owner_phone TEXT DEFAULT ''",
   // ═══ IA config ═══
   "ALTER TABLE empresa_config ADD COLUMN ia_provider TEXT DEFAULT 'anthropic'",
   "ALTER TABLE empresa_config ADD COLUMN ia_api_key TEXT DEFAULT ''",
