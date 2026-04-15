@@ -142,7 +142,7 @@ function LogoUploader({ logo, onChange, disabled }) {
     return <ImageUploader label="Logo da Empresa" image={logo} onChange={onChange} disabled={disabled} />;
 }
 
-export default function Cfg({ taxas, reload, notify }) {
+export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos, onMenusChange }) {
     const { isGerente } = useAuth();
     const [tx, st] = useState(taxas);
     const [emp, setEmp] = useState({
@@ -469,6 +469,7 @@ export default function Cfg({ taxas, reload, notify }) {
                 {sectionBtn('depoimentos', 'Depoimentos', <Ic.Star />)}
                 {sectionBtn('etapas', 'Etapas do Projeto', <CheckCircle2 size={16} />)}
                 {sectionBtn('custos', 'Centro de Custo', <Ic.Dollar />)}
+                {sectionBtn('modulos', 'Módulos', <Shield size={16} />)}
                 {sectionBtn('backup', 'Backup', <Database size={16} />)}
             </div>
 
@@ -3109,6 +3110,105 @@ export default function Cfg({ taxas, reload, notify }) {
                     </div>
                 );
             })()}
+
+            {activeSection === 'modulos' && (
+                <div className="max-w-2xl">
+                    <div className={Z.card}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
+                                <Shield size={20} style={{ color: 'var(--primary)' }} />
+                            </div>
+                            <div>
+                                <div className="text-base font-bold text-[var(--text-primary)]">Módulos do Sistema</div>
+                                <div className="text-xs text-[var(--text-muted)]">Ative ou desative módulos do menu para todos os usuários</div>
+                            </div>
+                        </div>
+
+                        <div className="text-[11px] text-[var(--text-muted)] mb-4 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-muted)' }}>
+                            Módulos desativados ficam ocultos no menu lateral. Você pode reativá-los a qualquer momento. Itens essenciais (Dashboard, Configurações, Usuários) não podem ser desativados.
+                        </div>
+
+                        {(allMenuItems || []).map(group => {
+                            if (!group.label) return null; // skip top/projetos_hub (no group label)
+                            const PROTECTED = ['dash', 'cfg', 'users'];
+                            return (
+                                <div key={group.id} style={{ marginBottom: 16 }}>
+                                    <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 flex items-center gap-2">
+                                        {group.label}
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                        {group.items.map(item => {
+                                            const isProtected = PROTECTED.includes(item.id);
+                                            const isHidden = (menusOcultos || []).includes(item.id);
+                                            const ItemIcon = item.ic;
+                                            return (
+                                                <div key={item.id} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{
+                                                    background: isHidden ? 'var(--bg-muted)' : 'transparent',
+                                                    opacity: isHidden ? 0.5 : 1,
+                                                    border: '1px solid var(--border)',
+                                                }}>
+                                                    <div className="flex items-center gap-3">
+                                                        {ItemIcon && <ItemIcon size={16} style={{ color: isHidden ? 'var(--text-muted)' : 'var(--primary)' }} />}
+                                                        <span className="text-sm font-medium" style={{ color: isHidden ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+                                                            {item.lb}
+                                                        </span>
+                                                        {isProtected && <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--bg-muted)] text-[var(--text-muted)] font-semibold">ESSENCIAL</span>}
+                                                    </div>
+                                                    <button
+                                                        disabled={isProtected}
+                                                        onClick={async () => {
+                                                            const current = menusOcultos || [];
+                                                            const next = isHidden
+                                                                ? current.filter(id => id !== item.id)
+                                                                : [...current, item.id];
+                                                            try {
+                                                                await api.put('/config/menus', { menus_ocultos_json: JSON.stringify(next) });
+                                                                onMenusChange?.();
+                                                                notify?.(isHidden ? `${item.lb} ativado` : `${item.lb} desativado`);
+                                                            } catch { notify?.('Erro ao salvar'); }
+                                                        }}
+                                                        className="relative w-10 h-5 rounded-full transition-colors"
+                                                        style={{
+                                                            background: isProtected ? 'var(--primary)' : (isHidden ? 'var(--border)' : 'var(--primary)'),
+                                                            cursor: isProtected ? 'not-allowed' : 'pointer',
+                                                            opacity: isProtected ? 0.6 : 1,
+                                                        }}
+                                                        title={isProtected ? 'Módulo essencial — não pode ser desativado' : (isHidden ? 'Clique para ativar' : 'Clique para desativar')}
+                                                    >
+                                                        <span className="absolute top-0.5 rounded-full w-4 h-4 bg-white shadow transition-all"
+                                                            style={{ left: (isProtected || !isHidden) ? 22 : 2 }}
+                                                        />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {/* Itens top-level protegidos */}
+                        <div style={{ marginBottom: 16 }}>
+                            <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">
+                                Fixos
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {[{ id: 'dash', lb: 'Dashboard' }, { id: 'proj', lb: 'Projetos' }].map(item => (
+                                    <div key={item.id} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ border: '1px solid var(--border)' }}>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm font-medium text-[var(--text-primary)]">{item.lb}</span>
+                                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--bg-muted)] text-[var(--text-muted)] font-semibold">ESSENCIAL</span>
+                                        </div>
+                                        <div className="relative w-10 h-5 rounded-full" style={{ background: 'var(--primary)', opacity: 0.6, cursor: 'not-allowed' }}>
+                                            <span className="absolute top-0.5 rounded-full w-4 h-4 bg-white shadow" style={{ left: 22 }} />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {activeSection === 'backup' && (
                 <div className="max-w-2xl">

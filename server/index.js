@@ -39,6 +39,7 @@ import bibliotecaSkpRoutes from './routes/biblioteca-skp.js';
 import searchRoutes from './routes/search.js';
 import depoimentosRoutes from './routes/depoimentos.js';
 import pontoRoutes from './routes/ponto.js';
+import leadsRoutes from './routes/leads.js';
 
 // Inicializa DB (efeito colateral — cria tabelas e seed)
 import './db.js';
@@ -61,8 +62,8 @@ const sensitiveLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: { er
 // ═══ Webhook ANTES do CORS (Evolution API envia de origem externa) ═══
 app.use('/api/webhook', express.json(), webhookRoutes);
 
-// ═══ Landing/Leads ANTES do CORS (endpoints públicos com rate limit) ═══
-app.use('/api/leads', publicLimiter, express.json(), landingRoutes);
+// ═══ Landing endpoints públicos (sem CORS, com rate limit) ═══
+app.use('/api/landing', publicLimiter, express.json(), landingRoutes);
 
 const corsOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
@@ -142,6 +143,7 @@ app.use('/api/biblioteca-skp', bibliotecaSkpRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/depoimentos', depoimentosRoutes);
 app.use('/api/ponto', pontoRoutes);
+app.use('/api/leads', leadsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));

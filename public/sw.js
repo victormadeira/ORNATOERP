@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ornato-erp-v1';
+const CACHE_NAME = 'ornato-erp-v2';
 const SHELL_ASSETS = [
   '/',
   '/index.html',

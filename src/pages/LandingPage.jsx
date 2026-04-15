@@ -49,7 +49,7 @@ const ETAPAS_DEFAULT = [
 
 const PORTFOLIO_PLACEHOLDER = [
     { id: 'ph1', titulo: 'Cozinha Planejada', designer: '', descricao: 'Design funcional com acabamento premium', imagem: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&h=400&fit=crop&q=80' },
-    { id: 'ph2', titulo: 'Closet Sob Medida', designer: '', descricao: 'Organização e elegância em cada detalhe', imagem: 'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=600&h=400&fit=crop&q=80' },
+    { id: 'ph2', titulo: 'Closet Sob Medida', designer: '', descricao: 'Organização e elegância em cada detalhe', imagem: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=600&h=400&fit=crop&q=80' },
     { id: 'ph3', titulo: 'Home Office', designer: '', descricao: 'Espaço de trabalho planejado para produtividade', imagem: 'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=600&h=400&fit=crop&q=80' },
     { id: 'ph4', titulo: 'Sala de Estar', designer: '', descricao: 'Ambiente acolhedor com marcenaria de alto padrão', imagem: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=600&h=400&fit=crop&q=80' },
     { id: 'ph5', titulo: 'Área Gourmet', designer: '', descricao: 'Espaço perfeito para receber com sofisticação', imagem: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&h=400&fit=crop&q=80' },
@@ -115,7 +115,7 @@ export default function LandingPage() {
     const timelineLineRef = useRef(null);
 
     useEffect(() => {
-        fetch('/api/leads/config')
+        fetch('/api/landing/config')
             .then(r => r.json())
             .then(cfg => {
                 setConfig(cfg);
@@ -136,7 +136,7 @@ export default function LandingPage() {
             .catch(() => setConfig({ nome: 'Marcenaria Ornato' }));
 
         fetch('/api/portfolio').then(r => r.json()).then(d => setPortfolio(Array.isArray(d) ? d : [])).catch(() => setPortfolio([]));
-        fetch('/api/leads/stats').then(r => r.json()).then(setStats).catch(() => setStats(null));
+        fetch('/api/landing/stats').then(r => r.json()).then(setStats).catch(() => setStats(null));
     }, []);
 
     // Stats observer
@@ -244,7 +244,7 @@ export default function LandingPage() {
     // ── Vars ─────────────────────────────────────────────────────────────────
     const acc = config?.landing_cor_destaque || '#B7654A';
     const empNome = config?.nome || 'Ornato';
-    const portfolioItems = portfolio.length > 0 ? portfolio : PORTFOLIO_PLACEHOLDER;
+    const portfolioItems = portfolio.length >= 6 ? portfolio : [...portfolio, ...PORTFOLIO_PLACEHOLDER.slice(0, 6 - portfolio.length)];
     const heroTitulo = config?.landing_titulo || 'Ambientes sob medida, feitos para durar e encantar.';
     const heroDesc = config?.landing_descricao || 'Projetamos, produzimos e instalamos ambientes sob medida com acabamento premium e atendimento consultivo.';
     const heroImage = config?.landing_hero_imagem || '';
@@ -271,7 +271,7 @@ export default function LandingPage() {
         if (!form.nome.trim() || !form.telefone.trim()) { setErro('Preencha nome e WhatsApp.'); return; }
         setEnviando(true); setErro('');
         try {
-            const resp = await fetch('/api/leads/captura', {
+            const resp = await fetch('/api/landing/captura', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...form, faixa_investimento: '', possui_projeto: '', email: '', ...utm }),
             });
@@ -469,17 +469,11 @@ export default function LandingPage() {
                             <div
                                 key={item.id}
                                 className={`lp-project-card${i === 0 ? ' featured' : ''}`}
-                                onMouseMove={handleTilt}
-                                onMouseLeave={resetTilt}
-                                style={{ '--accent-rgb': '201, 169, 110' }}
                             >
                                 <div className="lp-project-img-wrap">
                                     <img src={item.imagem} alt={item.titulo || 'Projeto'} loading="lazy" />
                                 </div>
                                 <div className="lp-project-info">
-                                    <div className="lp-project-meta">
-                                        <span className="lp-project-company">{item.designer || empNome}</span>
-                                    </div>
                                     <h3 className="lp-project-title">{item.titulo || 'Projeto Ornato'}</h3>
                                     {item.descricao && <p className="lp-project-desc">{item.descricao}</p>}
                                 </div>
@@ -791,32 +785,24 @@ function buildCSS(acc) {
 .lp-timeline-desc { color:rgba(255,255,255,0.6); font-size:0.95rem; line-height:1.6; font-weight:300; }
 
 /* ── PORTFOLIO SECTION ── */
-.lp-portfolio-sec { position:relative; padding:8rem 2rem 12rem; background:#0a0806; overflow:hidden; perspective:2000px; }
+.lp-portfolio-sec { position:relative; padding:8rem 2rem 12rem; background:#0a0806; overflow:hidden; }
 .lp-portfolio-sec::before { content:""; position:absolute; top:0; left:0; right:0; height:200px; background:linear-gradient(to bottom, #060504, #0a0806); z-index:0; pointer-events:none; }
 .lp-proj-bg { position:absolute; inset:0; z-index:1; pointer-events:none; background:radial-gradient(ellipse 80% 60% at 20% 80%, ${acc}0a 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 80% 20%, ${acc}06 0%, transparent 50%); }
 .lp-portfolio-container { max-width:1200px; margin:0 auto; position:relative; z-index:5; }
 
-.lp-projects-grid { display:grid; grid-template-columns:repeat(12,1fr); gap:2rem; margin-top:4rem; }
-.lp-project-card { position:relative; grid-column:span 6; aspect-ratio:16/10; background:rgba(10,10,15,0.8); backdrop-filter:blur(25px); -webkit-backdrop-filter:blur(25px); border:1px solid rgba(255,255,255,0.1); border-radius:2rem; overflow:hidden; display:flex; flex-direction:column; transition:transform 0.1s ease-out, box-shadow 0.5s ease, border-color 0.5s ease; cursor:pointer; transform-style:preserve-3d; opacity:0; transform:translateY(30px); }
+.lp-projects-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1.5rem; margin-top:4rem; }
+.lp-project-card { border-radius:1.2rem; overflow:hidden; cursor:pointer; opacity:0; transform:translateY(30px); transition:transform 0.4s ease, box-shadow 0.4s ease; }
 .lp-project-card.active { opacity:1; transform:translateY(0); }
-.lp-project-card.featured { grid-column:span 12; aspect-ratio:21/9; }
+.lp-project-card.featured { }
+.lp-project-card:hover { transform:translateY(-6px); box-shadow:0 20px 50px rgba(0,0,0,0.6); }
 
-.lp-project-card::before { content:""; position:absolute; inset:0; background:radial-gradient(800px circle at var(--mouse-x,50%) var(--mouse-y,50%), rgba(var(--accent-rgb),0.15), transparent 40%); z-index:3; pointer-events:none; opacity:0; transition:opacity 0.5s ease; }
-.lp-project-card::after { content:""; position:absolute; inset:0; border-radius:inherit; padding:1px; background:linear-gradient(135deg,rgba(255,255,255,0.2) 0%,transparent 50%,rgba(255,255,255,0.1) 100%); -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none; z-index:4; }
-.lp-project-card:hover { border-color:rgba(255,255,255,0.3); box-shadow:0 40px 80px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.05); }
-.lp-project-card:hover::before { opacity:1; }
+.lp-project-img-wrap { aspect-ratio:4/3; overflow:hidden; }
+.lp-project-img-wrap img { width:100%; height:100%; object-fit:cover; transition:transform 0.6s ease; display:block; }
+.lp-project-card:hover .lp-project-img-wrap img { transform:scale(1.06); }
 
-/* inner-grid removed — clean card */
-.lp-project-img-wrap { position:absolute; top:50%; right:-5%; width:60%; height:120%; transform:translateY(-50%) skew(-5deg) rotate(5deg); z-index:1; border-radius:2rem; overflow:hidden; box-shadow:-20px 20px 60px rgba(0,0,0,0.5); transition:transform 0.8s cubic-bezier(0.16,1,0.3,1); }
-.lp-project-card:hover .lp-project-img-wrap { transform:translateY(-55%) skew(0deg) rotate(0deg) scale(1.05); }
-.lp-project-img-wrap img { width:100%; height:100%; object-fit:cover; transition:transform 0.8s ease; }
-.lp-project-card:hover .lp-project-img-wrap img { transform:scale(1.1); }
-
-.lp-project-info { position:relative; z-index:10; padding:2.5rem; height:100%; display:flex; flex-direction:column; justify-content:center; max-width:50%; }
-.lp-project-meta { display:flex; gap:1.5rem; margin-bottom:1.5rem; font-size:0.75rem; color:rgba(255,255,255,0.7); text-transform:uppercase; letter-spacing:0.2em; }
-.lp-project-company { color:${acc}; font-weight:700; }
-.lp-project-title { font-family:'Oswald',sans-serif; font-size:clamp(1.8rem,3vw,3rem); font-weight:600; margin-bottom:1rem; line-height:0.95; letter-spacing:-0.03em; text-transform:uppercase; }
-.lp-project-desc { font-size:0.95rem; color:rgba(255,255,255,0.5); line-height:1.4; font-weight:400; max-width:400px; border-top:1px solid rgba(255,255,255,0.1); padding-top:1rem; }
+.lp-project-info { padding:1rem 1.2rem 1.2rem; }
+.lp-project-title { font-size:1rem; font-weight:600; margin-bottom:0.3rem; line-height:1.2; color:rgba(255,255,255,0.9); }
+.lp-project-desc { font-size:0.8rem; color:rgba(255,255,255,0.5); line-height:1.4; font-weight:400; }
 
 /* ── TESTIMONIALS MARQUEE ── */
 .lp-testimonials-sec { position:relative; padding:8rem 0; background:#050403; overflow:hidden; }
@@ -908,9 +894,8 @@ function buildCSS(acc) {
     .lp-timeline-year { position:static !important; transform:none !important; font-size:1.2rem !important; margin-bottom:0.5rem; display:block; }
 
     /* Portfolio mobile */
-    .lp-project-card, .lp-project-card.featured { grid-column:span 12; aspect-ratio:auto; min-height:400px; }
-    .lp-project-info { max-width:100%; padding:2rem; }
-    .lp-project-img-wrap { opacity:0.3; width:100%; height:100%; right:0; top:0; transform:none; }
+    .lp-projects-grid { grid-template-columns:repeat(2,1fr); gap:1rem; }
+    .lp-project-card, .lp-project-card.featured { aspect-ratio:3/4; }
 
     .lp-form-grid { grid-template-columns:1fr; }
     .lp-cta-card { padding:4rem 2rem; border-radius:2rem; }
@@ -941,6 +926,7 @@ function buildCSS(acc) {
     .lp-cta-group { gap:1rem; }
     .lp-btn-copper { width:100%; }
     .lp-btn-outline { width:100%; }
+    .lp-projects-grid { grid-template-columns:1fr; }
     .lp-timeline-card { padding:1.5rem; }
     .lp-timeline-title { font-size:1.3rem; }
     .lp-cta-card { padding:3rem 1.5rem; }

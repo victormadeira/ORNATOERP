@@ -221,6 +221,21 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
 });
 
 // ═══════════════════════════════════════════════════════
+// PUT /api/config/menus — atualizar menus ocultos (admin only)
+// ═══════════════════════════════════════════════════════
+router.put('/menus', requireAuth, requireRole('admin'), (req, res) => {
+    const { menus_ocultos_json } = req.body;
+    if (menus_ocultos_json === undefined) return res.status(400).json({ error: 'menus_ocultos_json obrigatório' });
+    try {
+        db.prepare('UPDATE empresa_config SET menus_ocultos_json = ? WHERE id = 1').run(menus_ocultos_json);
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('[Config] Erro ao salvar menus:', err.message);
+        res.status(500).json({ error: 'Erro ao salvar menus' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
 // GET /api/config/n8n — config usada pelo workflow n8n
 // Autenticado por header x-n8n-token (valor configurado no sistema)
 // ═══════════════════════════════════════════════════════

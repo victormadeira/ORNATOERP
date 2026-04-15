@@ -20,6 +20,14 @@ const STATUS_COLORS = {
     humano: { bg: colorBg('#22c55e'), color: '#22c55e', border: colorBorder('#22c55e') },
     fechado: { bg: colorBg('#64748b'), color: '#64748b', border: colorBorder('#64748b') },
 };
+const LEAD_LABELS = {
+    novo: 'Novo', em_qualificacao: 'Qualificando', qualificado: 'Qualificado',
+    desqualificado: 'Desqualificado', fora_area: 'Fora da Área',
+};
+const LEAD_COLORS = {
+    novo: '#64748b', em_qualificacao: '#f59e0b', qualificado: '#22c55e',
+    desqualificado: '#ef4444', fora_area: '#ef4444',
+};
 
 function timeAgo(dateStr) {
     if (!dateStr) return '';
@@ -66,6 +74,12 @@ export default function Mensagens({ notify }) {
         try {
             const data = await api.get('/whatsapp/conversas');
             setConversas(data);
+            // Atualizar activeConvData se a conversa ativa mudou (lead score, status, etc.)
+            setActiveConvData(prev => {
+                if (!prev) return prev;
+                const updated = data.find(c => c.id === prev.id);
+                return updated || prev;
+            });
         } catch { /* silencioso */ }
     }, []);
 
@@ -316,6 +330,15 @@ export default function Mensagens({ notify }) {
                                                     }}>
                                                         {STATUS_ICONS[c.status] || <User size={10} />}
                                                     </span>
+                                                    {c.lead_qualificacao && c.lead_qualificacao !== 'novo' && (
+                                                        <span style={{
+                                                            fontSize: 8, padding: '1px 5px', borderRadius: 99, fontWeight: 600,
+                                                            background: colorBg(LEAD_COLORS[c.lead_qualificacao] || '#64748b'),
+                                                            color: LEAD_COLORS[c.lead_qualificacao] || '#64748b',
+                                                        }}>
+                                                            {c.lead_score > 0 && `${c.lead_score}%`}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -361,8 +384,8 @@ export default function Mensagens({ notify }) {
                                     <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
                                         {activeConvData?.cliente_nome || activeConvData?.wa_name || activeConvData?.wa_phone}
                                     </div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 8, alignItems: 'center' }}>
-                                        <Phone size={10} /> {activeConvData?.wa_phone}
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Phone size={10} /> {activeConvData?.wa_phone}</span>
                                         {!activeConvData?.cliente_id && (
                                             <button
                                                 onClick={() => setShowVincular(true)}
@@ -374,6 +397,17 @@ export default function Mensagens({ notify }) {
                                             >
                                                 <Link2 size={9} /> Vincular cliente
                                             </button>
+                                        )}
+                                        {activeConvData?.lead_qualificacao && (
+                                            <span style={{
+                                                fontSize: 10, padding: '1px 8px', borderRadius: 99, fontWeight: 600,
+                                                background: colorBg(LEAD_COLORS[activeConvData.lead_qualificacao] || '#64748b'),
+                                                color: LEAD_COLORS[activeConvData.lead_qualificacao] || '#64748b',
+                                                border: `1px solid ${colorBorder(LEAD_COLORS[activeConvData.lead_qualificacao] || '#64748b')}`,
+                                            }}>
+                                                {LEAD_LABELS[activeConvData.lead_qualificacao] || activeConvData.lead_qualificacao}
+                                                {activeConvData.lead_score > 0 && ` ${activeConvData.lead_score}%`}
+                                            </span>
                                         )}
                                     </div>
                                 </div>

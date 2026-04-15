@@ -135,8 +135,8 @@ async function handleIncomingMessage(data) {
             if (result.action === 'escalate') {
                 // Escalar para humano
                 db.prepare('UPDATE chat_conversas SET status = ? WHERE id = ?').run('humano', conversa.id);
-                // Enviar mensagem de transição
-                const transMsg = 'Um momento! Vou transferir seu atendimento para nossa equipe. Já já alguém vai te responder!';
+                // Enviar mensagem de transição — usar mensagem da Sofia se disponível
+                const transMsg = result.text || 'Um momento! Vou transferir seu atendimento para nossa equipe. Já já alguém vai te responder!';
                 try {
                     await evolution.sendText(dest, transMsg);
                     db.prepare(`

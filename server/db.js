@@ -2030,6 +2030,57 @@ const migrations = [
 
   // ═══ WhatsApp: guardar remoteJid original (@lid ou @s.whatsapp.net) ═══
   "ALTER TABLE chat_conversas ADD COLUMN wa_jid TEXT DEFAULT ''",
+
+  // ═══ Lead qualification ═══
+  "ALTER TABLE chat_conversas ADD COLUMN lead_qualificacao TEXT DEFAULT 'novo'",
+  "ALTER TABLE chat_conversas ADD COLUMN lead_score INTEGER DEFAULT 0",
+  "ALTER TABLE chat_conversas ADD COLUMN lead_dados TEXT DEFAULT '{}'",
+
+  // ═══ Funil de Leads — tabelas ═══
+  `CREATE TABLE IF NOT EXISTS lead_colunas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    cor TEXT DEFAULT '#64748b',
+    ordem INTEGER DEFAULT 0,
+    ativo INTEGER DEFAULT 1
+  )`,
+  `CREATE TABLE IF NOT EXISTS leads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cliente_id INTEGER REFERENCES clientes(id),
+    conversa_id INTEGER REFERENCES chat_conversas(id),
+    nome TEXT NOT NULL DEFAULT '',
+    telefone TEXT DEFAULT '',
+    email TEXT DEFAULT '',
+    cidade TEXT DEFAULT '',
+    bairro TEXT DEFAULT '',
+    projeto TEXT DEFAULT '',
+    origem TEXT DEFAULT '',
+    coluna_id INTEGER REFERENCES lead_colunas(id),
+    score INTEGER DEFAULT 0,
+    dados TEXT DEFAULT '{}',
+    motivo_perda TEXT DEFAULT '',
+    responsavel_id INTEGER REFERENCES users(id),
+    ultimo_contato_em DATETIME,
+    proximo_followup_em DATETIME,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS lead_historico (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lead_id INTEGER NOT NULL REFERENCES leads(id),
+    user_id INTEGER REFERENCES users(id),
+    acao TEXT NOT NULL,
+    de_coluna TEXT DEFAULT '',
+    para_coluna TEXT DEFAULT '',
+    obs TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // lead_colunas v2 — coluna protegida (não pode ser excluída)
+  "ALTER TABLE lead_colunas ADD COLUMN protegida INTEGER DEFAULT 0",
+  // Vincular orçamento ao lead
+  "ALTER TABLE orcamentos ADD COLUMN lead_id INTEGER REFERENCES leads(id)",
+  // Menus ocultos do sistema
+  "ALTER TABLE empresa_config ADD COLUMN menus_ocultos_json TEXT DEFAULT '[]'",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
@@ -2154,6 +2205,13 @@ const indexes = [
   // NPS
   "CREATE INDEX IF NOT EXISTS idx_nps_projeto ON pesquisa_nps(projeto_id)",
   "CREATE INDEX IF NOT EXISTS idx_nps_token ON pesquisa_nps(token)",
+  // Funil de Leads
+  "CREATE INDEX IF NOT EXISTS idx_leads_coluna ON leads(coluna_id)",
+  "CREATE INDEX IF NOT EXISTS idx_leads_cliente ON leads(cliente_id)",
+  "CREATE INDEX IF NOT EXISTS idx_leads_conversa ON leads(conversa_id)",
+  "CREATE INDEX IF NOT EXISTS idx_leads_criado ON leads(criado_em)",
+  "CREATE INDEX IF NOT EXISTS idx_leads_followup ON leads(proximo_followup_em)",
+  "CREATE INDEX IF NOT EXISTS idx_lead_hist_lead ON lead_historico(lead_id)",
 ];
 for (const sql of indexes) {
   try { db.exec(sql); } catch (_) { }
@@ -2321,6 +2379,35 @@ try {
 const empExists = db.prepare('SELECT id FROM empresa_config WHERE id = 1').get();
 if (!empExists) {
   db.prepare("INSERT INTO empresa_config (id, nome) VALUES (1, 'Minha Marcenaria')").run();
+}
+
+// Seed lead_colunas padrão
+{
+  const colsExist = db.prepare('SELECT COUNT(*) as c FROM lead_colunas').get();
+  if (colsExist.c === 0) {
+    const cols = [
+      ['Novo Lead', '#64748b', 0, 1],
+      ['Contato Feito', '#3b82f6', 1, 0],
+      ['Visita Agendada', '#f59e0b', 2, 0],
+      ['Visita Realizada', '#8b5cf6', 3, 0],
+      ['Proposta Enviada', '#06b6d4', 4, 0],
+      ['Negociação', '#ec4899', 5, 0],
+      ['Convertido', '#22c55e', 6, 0],
+      ['Perdido', '#ef4444', 7, 0],
+    ];
+    const stmt = db.prepare('INSERT INTO lead_colunas (nome, cor, ordem, protegida) VALUES (?, ?, ?, ?)');
+    for (const [nome, cor, ordem, protegida] of cols) stmt.run(nome, cor, ordem, protegida);
+    console.log('[OK] Colunas padrão do funil de leads criadas');
+  } else {
+    // Garantir que pelo menos a primeira coluna seja protegida
+    const temProtegida = db.prepare('SELECT id FROM lead_colunas WHERE protegida = 1 LIMIT 1').get();
+    if (!temProtegida) {
+      const primeira = db.prepare('SELECT id FROM lead_colunas WHERE ativo = 1 ORDER BY ordem ASC LIMIT 1').get();
+      if (primeira) {
+        db.prepare('UPDATE lead_colunas SET protegida = 1 WHERE id = ?').run(primeira.id);
+      }
+    }
+  }
 }
 
 // Seed checkpoint padrão de Expedição

@@ -35,6 +35,7 @@ const ProducaoTV = lazy(() => import('./pages/ProducaoTV'));
 const Produtividade = lazy(() => import('./pages/Produtividade'));
 const PluginDownload = lazy(() => import('./pages/PluginDownload'));
 const Ponto = lazy(() => import('./pages/Ponto'));
+const FunilLeads = lazy(() => import('./pages/FunilLeads'));
 
 // ── Skeleton Fallback ──────────────────────────────────────────
 const LazyFallback = () => (
@@ -112,7 +113,7 @@ class ErrorBoundary extends Component {
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
     // ── Roteamento com History API ──────────────────────────────────────────
-    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download','ponto'];
+    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download','ponto','funil'];
     const [pg, setPg] = useState(() => {
         const rawPath = window.location.pathname.replace(/^\/+/, '');
         const parts = rawPath.split('/');
@@ -169,6 +170,10 @@ export default function App() {
         if (stored) try { return JSON.parse(stored); } catch {}
         // Primeira vez: colapsa todos os grupos (exceto top/projetos_hub que não têm label)
         return { comercial: true, producao: true, cadastros: true, gestao: true, sistema: true };
+    });
+    // Menus ocultos (carregado da empresa_config)
+    const [menusOcultos, setMenusOcultos] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('menus_ocultos') || '[]'); } catch { return []; }
     });
     // Command palette (Ctrl+K)
     const [cmdOpen, setCmdOpen] = useState(false);
@@ -317,6 +322,12 @@ export default function App() {
             localStorage.setItem('logo_sistema', ls);
             localStorage.setItem('emp_nome', nm);
             if (d.sistema_cor_primaria) applyPrimaryColor(d.sistema_cor_primaria);
+            // Menus ocultos
+            try {
+                const ocultos = JSON.parse(d.menus_ocultos_json || '[]');
+                setMenusOcultos(Array.isArray(ocultos) ? ocultos : []);
+                localStorage.setItem('menus_ocultos', d.menus_ocultos_json || '[]');
+            } catch { setMenusOcultos([]); }
         }).catch(err => console.warn('loadEmpresa:', err));
     }, [user]);
 
@@ -459,6 +470,7 @@ export default function App() {
         { id: "proj", lb: "Projetos", ic: Ic.Briefcase },
         { id: "estoque", lb: "Gestao de Recursos", ic: Ic.Warehouse },
         { id: "financeiro", lb: "Financeiro", ic: Ic.Dollar },
+        { id: "funil", lb: "Funil de Leads", ic: Ic.Target },
         { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
         { id: "relatorios", lb: "Relatorios", ic: Ic.PieChart },
@@ -484,6 +496,7 @@ export default function App() {
         { id: 'top', items: [{ id: "dash", lb: "Dashboard", ic: Ic.Dash }] },
         { id: 'projetos_hub', items: [{ id: "proj", lb: "Projetos", ic: Ic.Briefcase }] },
         { id: 'comercial', label: 'Comercial', icon: Ic.Handshake, items: [
+            { id: "funil", lb: "Funil de Leads", ic: Ic.Target },
             { id: "cli", lb: "Clientes", ic: Ic.Usr },
             { id: "orcs", lb: "Orçamentos", ic: Ic.File },
             { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
@@ -513,12 +526,22 @@ export default function App() {
         ]},
     ];
 
+    // Itens protegidos — nunca ocultar (evita admin se trancar)
+    const PROTECTED_MENUS = ['dash', 'cfg', 'users'];
+
+    // Filtrar menus ocultos
+    const VISIBLE_MENU_GROUPS = MENU_GROUPS.map(group => ({
+        ...group,
+        items: group.items.filter(item => PROTECTED_MENUS.includes(item.id) || !menusOcultos.includes(item.id)),
+    })).filter(group => group.items.length > 0);
+
     // Todas as páginas (para command palette Ctrl+K) — inclui as que saíram do sidebar
     const ALL_PAGES = [
         { id: "dash", lb: "Dashboard", ic: Ic.Dash },
         { id: "proj", lb: "Projetos", ic: Ic.Briefcase },
         { id: "cli", lb: "Clientes", ic: Ic.Usr },
         { id: "orcs", lb: "Orçamentos", ic: Ic.File },
+        { id: "funil", lb: "Funil de Leads", ic: Ic.Target },
         { id: "kb", lb: "Pipeline CRM", ic: Ic.Kb },
         { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         { id: "industrializacao", lb: "Ordens de Produção", ic: Ic.ClipList },
@@ -580,7 +603,7 @@ export default function App() {
             case "relatorios": return <Relatorios notify={notify} />;
             case "plano_corte": return <PlanoCorte notify={notify} />;
             case "cnc": return <ProducaoCNC notify={notify} />;
-            case "cfg": return <Cfg taxas={taxas} reload={loadTaxas} notify={notify} />;
+            case "cfg": return <Cfg taxas={taxas} reload={loadTaxas} notify={notify} allMenuItems={MENU_GROUPS} menusOcultos={menusOcultos} onMenusChange={() => loadEmpresa()} />;
             case "users": return isAdmin ? <Users notify={notify} meUser={user} /> : <Dash nav={nav} notify={notify} />;
             case "industrializacao": return <Industrializacao notify={notify} nav={nav} />;
             case "producao_fabrica": return <ProducaoFabrica notify={notify} user={user} />;
@@ -591,6 +614,7 @@ export default function App() {
             case "produtividade": return <Produtividade notify={notify} />;
             case "plugin_download": return <PluginDownload notify={notify} />;
             case "ponto": return <Ponto notify={notify} />;
+            case "funil": return <FunilLeads notify={notify} nav={nav} />;
             default: return <Dash nav={nav} notify={notify} />;
         }
     };
@@ -629,7 +653,7 @@ export default function App() {
             <Sidebar
                 sb={sb} setSb={setSb} sidebarHover={sidebarHover} setSidebarHover={setSidebarHover}
                 sidebarExpanded={sidebarExpanded} dark={dark} setDark={setDark}
-                pg={pg} nav={nav} MENU_GROUPS={MENU_GROUPS} canSee={canSee}
+                pg={pg} nav={nav} MENU_GROUPS={VISIBLE_MENU_GROUPS} canSee={canSee}
                 collapsed={collapsed} toggleGroup={toggleGroup}
                 user={user} logout={logout} logoSistema={logoSistema} empNome={empNome}
                 setShowPerfil={setShowPerfil} notifs={notifs} waUnread={waUnread}
