@@ -25,7 +25,7 @@ router.post('/whatsapp', async (req, res) => {
         const body = req.body;
         const event = body.event || '';
 
-        console.log('[Webhook] Evento recebido:', event, '| keys:', Object.keys(body).join(','));
+        console.log('[Webhook] Evento recebido:', event, '| keys:', Object.keys(body).join(','), '| body:', JSON.stringify(body).slice(0, 300));
 
         if (event === 'messages.upsert') {
             await handleIncomingMessage(body.data || body);
@@ -45,10 +45,11 @@ async function handleIncomingMessage(data) {
     if (data.key.fromMe) return;
 
     const remoteJid = data.key.remoteJid || '';
-    // Ignorar grupos por enquanto
+    // Ignorar grupos
     if (remoteJid.includes('@g.us')) return;
+    if (remoteJid.includes('@broadcast')) return;
 
-    const phone = remoteJid.replace('@s.whatsapp.net', '').replace('@g.us', '');
+    const phone = remoteJid.replace('@s.whatsapp.net', '').replace('@lid', '').replace('@g.us', '');
     if (!phone) return;
 
     // Extrair conteúdo da mensagem
