@@ -99,7 +99,8 @@ function calcAmbCustos(ambientes, bib, padroes, taxas) {
                 }
                 ambCm += cc;
                 itemDetails.push({
-                    nome: item.desc || item.caixaDef?.nome || 'Item',
+                    nome: item.caixaDef?.nome || 'Item',
+                    desc: item.desc || '',
                     dims: item.dims,
                     qtd: item.qtd || 1,
                     custo: cc,
@@ -338,10 +339,12 @@ export function buildPropostaHtml({
                 : '';
 
             const dimsLine = descParts.length > 1 ? ` <span class="dims">(${descParts[1]})</span>` : '';
+            const descHtml = it.desc ? `<div class="item-acab">${it.desc}</div>` : '';
 
             return `<tr>
                     <td class="td-desc">
                         <span class="item-name">${descParts[0]}</span>${dimsLine}
+                        ${descHtml}
                         ${acabHtml}
                         ${detailsHtml}
                     </td>
