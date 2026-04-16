@@ -87,14 +87,25 @@ async function handleIncomingMessage(data) {
     let finalPhone = '';
 
     if (remoteJid.includes('@lid')) {
-        // Verificar se já temos conversa existente com este LID e número real salvo
-        const existing = db.prepare('SELECT wa_phone FROM chat_conversas WHERE wa_jid = ?').get(remoteJid);
-        if (existing?.wa_phone && /^55\d{10,11}$/.test(existing.wa_phone)) {
-            // Já temos número real — usar JID real para envio
-            finalPhone = existing.wa_phone;
+        // 1. Verificar se já temos conversa existente com este LID e número real salvo
+        const existingByJid = db.prepare('SELECT wa_phone FROM chat_conversas WHERE wa_jid = ?').get(remoteJid);
+        if (existingByJid?.wa_phone && /^55\d{10,11}$/.test(existingByJid.wa_phone)) {
+            finalPhone = existingByJid.wa_phone;
             finalJid = `${finalPhone}@s.whatsapp.net`;
+        } else if (data.pushName) {
+            // 2. Tentar casar com conversa existente pelo pushName (nome do contato no WhatsApp)
+            // Muito útil quando o mesmo contato chega 1x como @s.whatsapp.net e depois como @lid
+            const byName = db.prepare(
+                "SELECT wa_phone, wa_jid FROM chat_conversas WHERE wa_name = ? AND wa_jid LIKE '%@s.whatsapp.net' LIMIT 1"
+            ).get(data.pushName);
+            if (byName?.wa_phone && /^55\d{10,11}$/.test(byName.wa_phone)) {
+                finalPhone = byName.wa_phone;
+                finalJid = byName.wa_jid;
+                console.log(`[WH] LID ${remoteJid} casado com conversa existente via pushName="${data.pushName}" → ${finalJid}`);
+            } else {
+                finalPhone = remoteJid.replace('@lid', '');
+            }
         } else {
-            // Sem número real — manter LID como identificador (usuário vincula depois)
             finalPhone = remoteJid.replace('@lid', '');
         }
     } else {
