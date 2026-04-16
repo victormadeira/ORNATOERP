@@ -2545,7 +2545,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             const isExpAmb = expandedAmb === amb.id;
                             const ambData = tot.ambTotals.find(a => a.id === amb.id) || {};
                             const ambAvulso = ambData.avulso || 0;
-                            const ambPv = amb.tipo === 'manual' ? (ambData.custo || 0) : (tot.totalItemCP > 0 ? (ambData.cp || 0) / tot.totalItemCP * tot.pv + ambAvulso : (ambData.custo || 0));
+                            // Somar ajustes dos itens deste ambiente
+                            const ambAjustes = (tot.itemCostList || []).filter(x => x.ambId === amb.id).reduce((s, { itemCP, ajuste }) => {
+                                if (!ajuste || !ajuste.valor) return s;
+                                const precoBase = tot.totalItemCP > 0 ? (itemCP / tot.totalItemCP) * tot.pv : 0;
+                                return s + (ajuste.tipo === 'R' ? ajuste.valor : precoBase * (ajuste.valor / 100));
+                            }, 0);
+                            const ambPv = amb.tipo === 'manual' ? (ambData.custo || 0) : (tot.totalItemCP > 0 ? (ambData.cp || 0) / tot.totalItemCP * tot.pv + ambAjustes + ambAvulso : (ambData.custo || 0));
 
                             // ── Função de renderização reutilizável para item (avulso ou módulo) ──
                             const renderItemCard = (item, { inGroup = false } = {}) => {
@@ -3335,7 +3341,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 <div className="flex flex-col gap-1 mb-3 pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
                                     {ambientes.map(a => {
                                         const d = tot.ambTotals.find(x => x.id === a.id);
-                                        const ambPvVal = d ? (d.manual ? (d.custo || 0) : (tot.totalItemCP > 0 ? (d.cp || 0) / tot.totalItemCP * tot.pv : (d.custo || 0)) + (d.avulso || 0)) : 0;
+                                        const ambAjVal = d ? (tot.itemCostList || []).filter(x => x.ambId === a.id).reduce((s, { itemCP, ajuste }) => {
+                                            if (!ajuste || !ajuste.valor) return s;
+                                            const pb = tot.totalItemCP > 0 ? (itemCP / tot.totalItemCP) * tot.pv : 0;
+                                            return s + (ajuste.tipo === 'R' ? ajuste.valor : pb * (ajuste.valor / 100));
+                                        }, 0) : 0;
+                                        const ambPvVal = d ? (d.manual ? (d.custo || 0) : (tot.totalItemCP > 0 ? (d.cp || 0) / tot.totalItemCP * tot.pv + ambAjVal : (d.custo || 0)) + (d.avulso || 0)) : 0;
                                         const ambCustoVal = d?.custo || 0;
                                         const ambMargemPct = ambPvVal > 0 && ambCustoVal > 0 ? ((ambPvVal - ambCustoVal) / ambPvVal * 100) : 0;
                                         return (
