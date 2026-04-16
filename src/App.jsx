@@ -494,7 +494,7 @@ export default function App() {
     // Menu agrupado (enxuto — páginas extras acessíveis via Ctrl+K)
     const MENU_GROUPS = [
         { id: 'top', items: [{ id: "dash", lb: "Dashboard", ic: Ic.Dash }] },
-        { id: 'projetos_hub', items: [{ id: "proj", lb: "Projetos", ic: Ic.Briefcase }] },
+        { id: 'projetos_hub', label: 'Projetos', icon: Ic.Briefcase, items: [{ id: "proj", lb: "Projetos", ic: Ic.Briefcase }] },
         { id: 'comercial', label: 'Comercial', icon: Ic.Handshake, items: [
             { id: "funil", lb: "Funil de Leads", ic: Ic.Target },
             { id: "cli", lb: "Clientes", ic: Ic.Usr },

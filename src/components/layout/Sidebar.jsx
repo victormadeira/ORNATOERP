@@ -406,7 +406,7 @@ export default function Sidebar({
                     </div>
 
                     {/* Search */}
-                    <SidebarSearch sidebarExpanded={sidebarExpanded} nav={nav} isMobile={false} />}
+                    <SidebarSearch sidebarExpanded={sidebarExpanded} nav={nav} isMobile={false} />
 
                     {/* Nav Items */}
                     <nav className="flex-1 overflow-y-auto py-2 px-2" style={{ scrollbarWidth: 'thin' }}>
