@@ -868,4 +868,68 @@ ${materiais.filter(m => m.tipo === 'acessorio').map(m => `| \`"${m.cod}"\` | ${m
     }
 });
 
+// ═══════════════════════════════════════════════════════
+// GET /api/ia/uso — estatísticas de consumo da IA
+// ═══════════════════════════════════════════════════════
+router.get('/uso', requireAuth, (req, res) => {
+    try {
+        // Totais gerais
+        const total = db.prepare(`
+            SELECT
+                COUNT(*) as chamadas,
+                COALESCE(SUM(input_tokens), 0) as input_tokens,
+                COALESCE(SUM(output_tokens), 0) as output_tokens,
+                COALESCE(SUM(custo_usd), 0) as custo_usd
+            FROM ia_uso_log
+        `).get();
+
+        // Hoje
+        const hoje = db.prepare(`
+            SELECT
+                COUNT(*) as chamadas,
+                COALESCE(SUM(input_tokens), 0) as input_tokens,
+                COALESCE(SUM(output_tokens), 0) as output_tokens,
+                COALESCE(SUM(custo_usd), 0) as custo_usd
+            FROM ia_uso_log
+            WHERE date(criado_em) = date('now', 'localtime')
+        `).get();
+
+        // Mês atual
+        const mes = db.prepare(`
+            SELECT
+                COUNT(*) as chamadas,
+                COALESCE(SUM(input_tokens), 0) as input_tokens,
+                COALESCE(SUM(output_tokens), 0) as output_tokens,
+                COALESCE(SUM(custo_usd), 0) as custo_usd
+            FROM ia_uso_log
+            WHERE strftime('%Y-%m', criado_em) = strftime('%Y-%m', 'now', 'localtime')
+        `).get();
+
+        // Últimos 30 dias (agrupado por dia)
+        const porDia = db.prepare(`
+            SELECT
+                date(criado_em) as dia,
+                COUNT(*) as chamadas,
+                COALESCE(SUM(input_tokens + output_tokens), 0) as tokens,
+                COALESCE(SUM(custo_usd), 0) as custo_usd
+            FROM ia_uso_log
+            WHERE criado_em >= date('now', '-30 days')
+            GROUP BY date(criado_em)
+            ORDER BY dia DESC
+        `).all();
+
+        // Últimas 20 chamadas
+        const recentes = db.prepare(`
+            SELECT modelo, input_tokens, output_tokens, custo_usd, contexto, criado_em
+            FROM ia_uso_log
+            ORDER BY id DESC
+            LIMIT 20
+        `).all();
+
+        res.json({ total, hoje, mes, porDia, recentes });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 export default router;

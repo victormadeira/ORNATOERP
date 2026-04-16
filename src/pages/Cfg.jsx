@@ -196,6 +196,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [waChecking, setWaChecking] = useState(false);
     const [iaTestResult, setIaTestResult] = useState(null);
     const [iaTesting, setIaTesting] = useState(false);
+    const [iaUso, setIaUso] = useState(null);
+    const [iaUsoLoading, setIaUsoLoading] = useState(false);
     const [kbPrompt, setKbPrompt] = useState('');
     const [kbStats, setKbStats] = useState(null);
     const [kbLoading, setKbLoading] = useState(false);
@@ -414,6 +416,20 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         } catch (e) { setIaTestResult({ ok: false, msg: e.error || 'Erro ao conectar com IA' }); }
         setIaTesting(false);
     };
+
+    const loadIaUso = async () => {
+        setIaUsoLoading(true);
+        try {
+            const d = await api.get('/ia/uso');
+            setIaUso(d);
+        } catch (e) { /* silencioso */ }
+        setIaUsoLoading(false);
+    };
+
+    useEffect(() => {
+        if (activeSection === 'ia') loadIaUso();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeSection]);
 
     const gerarBaseConhecimento = async () => {
         setKbLoading(true); setKbCopied(false);
@@ -1908,6 +1924,86 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         </span>
                                     )}
                                 </div>
+                            </div>
+
+                            {/* ═══ Consumo / Gasto da IA ═══ */}
+                            <div className="mt-5 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>Consumo da IA</h3>
+                                    <button onClick={loadIaUso} disabled={iaUsoLoading} className={Z.btn2} style={{ fontSize: 11 }}>
+                                        <RefreshCw size={11} className={iaUsoLoading ? 'animate-spin' : ''} style={{ display: 'inline', marginRight: 4 }} />
+                                        Atualizar
+                                    </button>
+                                </div>
+
+                                {iaUso ? (
+                                    <>
+                                        <div className="grid grid-cols-3 gap-3 mb-4">
+                                            {[
+                                                { lb: 'Hoje', d: iaUso.hoje, cor: '#22c55e' },
+                                                { lb: 'Este mês', d: iaUso.mes, cor: '#3b82f6' },
+                                                { lb: 'Total geral', d: iaUso.total, cor: 'var(--primary)' },
+                                            ].map(({ lb, d, cor }) => (
+                                                <div key={lb} className="p-3 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                                    <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: 'var(--text-muted)' }}>{lb}</div>
+                                                    <div className="text-lg font-bold" style={{ color: cor }}>
+                                                        US$ {(d?.custo_usd || 0).toFixed(4)}
+                                                    </div>
+                                                    <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                                        ≈ R$ {((d?.custo_usd || 0) * 5.5).toFixed(2)}
+                                                    </div>
+                                                    <div className="text-[10px] mt-1 flex gap-3" style={{ color: 'var(--text-secondary)' }}>
+                                                        <span>{d?.chamadas || 0} chamadas</span>
+                                                        <span>{((d?.input_tokens || 0) + (d?.output_tokens || 0)).toLocaleString('pt-BR')} tokens</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {iaUso.recentes?.length > 0 && (
+                                            <div>
+                                                <div className="text-[11px] font-semibold mb-2" style={{ color: 'var(--text-secondary)' }}>Últimas chamadas</div>
+                                                <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)', maxHeight: 260, overflowY: 'auto' }}>
+                                                    <table className="w-full text-[11px]">
+                                                        <thead style={{ background: 'var(--bg-muted)' }}>
+                                                            <tr>
+                                                                <th className="text-left px-2 py-1.5" style={{ color: 'var(--text-muted)' }}>Data</th>
+                                                                <th className="text-left px-2 py-1.5" style={{ color: 'var(--text-muted)' }}>Modelo</th>
+                                                                <th className="text-right px-2 py-1.5" style={{ color: 'var(--text-muted)' }}>In</th>
+                                                                <th className="text-right px-2 py-1.5" style={{ color: 'var(--text-muted)' }}>Out</th>
+                                                                <th className="text-right px-2 py-1.5" style={{ color: 'var(--text-muted)' }}>Custo</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {iaUso.recentes.map((r, i) => (
+                                                                <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
+                                                                    <td className="px-2 py-1.5" style={{ color: 'var(--text-secondary)' }}>
+                                                                        {new Date(r.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                                                    </td>
+                                                                    <td className="px-2 py-1.5 truncate" style={{ color: 'var(--text-secondary)', maxWidth: 140 }}>{(r.modelo || '').split('-').slice(0, 3).join('-')}</td>
+                                                                    <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{(r.input_tokens || 0).toLocaleString('pt-BR')}</td>
+                                                                    <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{(r.output_tokens || 0).toLocaleString('pt-BR')}</td>
+                                                                    <td className="px-2 py-1.5 text-right font-semibold" style={{ color: 'var(--text-primary)' }}>${(r.custo_usd || 0).toFixed(5)}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                <div className="text-[10px] mt-2" style={{ color: 'var(--text-muted)' }}>
+                                                    Preços estimados baseados na tabela oficial do provedor. Conversão R$ aproximada (1 USD ≈ R$ 5,50).
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {iaUso.total?.chamadas === 0 && (
+                                            <div className="text-center py-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+                                                Nenhuma chamada registrada ainda. O consumo será exibido aqui conforme a IA for usada.
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="text-center py-4 text-xs" style={{ color: 'var(--text-muted)' }}>Carregando...</div>
+                                )}
                             </div>
 
                             {isGerente && (

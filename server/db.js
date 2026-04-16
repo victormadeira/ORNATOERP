@@ -293,6 +293,19 @@ db.exec(`
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  -- ═══ IA: Log de Uso (tokens e custo estimado) ═══
+  CREATE TABLE IF NOT EXISTS ia_uso_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider TEXT DEFAULT '',
+    modelo TEXT DEFAULT '',
+    input_tokens INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
+    custo_usd REAL DEFAULT 0,
+    contexto TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_ia_uso_log_criado ON ia_uso_log(criado_em);
+
   -- ═══ IA: Follow-ups Inteligentes ═══
   CREATE TABLE IF NOT EXISTS ia_followups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

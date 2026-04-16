@@ -27,9 +27,15 @@ export async function sendText(phoneOrJid, text) {
     const cfg = getConfig();
     if (!isConfigured()) throw new Error('WhatsApp não configurado');
 
-    // Rejeitar @lid — nunca deveria chegar aqui, mas por segurança
-    if (phoneOrJid.includes('@lid')) {
-        throw new Error('Formato @lid não suportado. Número real do contato necessário.');
+    // Se vier @lid, tentar resolver para número real via banco (wa_phone da conversa)
+    let dest = phoneOrJid;
+    if (dest.includes('@lid')) {
+        const conv = db.prepare('SELECT wa_phone FROM chat_conversas WHERE wa_jid = ?').get(dest);
+        if (conv?.wa_phone && /^55\d{10,11}$/.test(conv.wa_phone)) {
+            dest = conv.wa_phone;
+        } else {
+            throw new Error('Número real do contato não encontrado. Vincule o telefone a esta conversa e tente novamente.');
+        }
     }
 
     const url = `${cfg.wa_instance_url}/message/sendText/${cfg.wa_instance_name}`;
@@ -40,7 +46,7 @@ export async function sendText(phoneOrJid, text) {
             'apikey': cfg.wa_api_key,
         },
         body: JSON.stringify({
-            number: phoneOrJid,
+            number: dest,
             textMessage: { text },
         }),
     });

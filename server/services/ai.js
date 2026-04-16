@@ -272,6 +272,41 @@ function buildSystemPrompt(customInstructions = '') {
     return system;
 }
 
+// ═══ Tabela de preços por modelo (USD por 1M tokens) ═══
+// Fonte: https://www.anthropic.com/pricing e https://openai.com/pricing
+const PRECOS_MTOK = {
+    // Anthropic
+    'claude-haiku-4-5-20251001':   { in: 1.00, out: 5.00 },
+    'claude-3-5-haiku-20241022':   { in: 1.00, out: 5.00 },
+    'claude-3-5-sonnet-20241022':  { in: 3.00, out: 15.00 },
+    'claude-sonnet-4-5':           { in: 3.00, out: 15.00 },
+    'claude-sonnet-4-20250514':    { in: 3.00, out: 15.00 },
+    'claude-opus-4':               { in: 15.00, out: 75.00 },
+    'claude-3-haiku-20240307':     { in: 0.25, out: 1.25 },
+    // OpenAI
+    'gpt-4o-mini':                 { in: 0.15, out: 0.60 },
+    'gpt-4o':                      { in: 2.50, out: 10.00 },
+    'gpt-4-turbo':                 { in: 10.00, out: 30.00 },
+    'gpt-3.5-turbo':               { in: 0.50, out: 1.50 },
+};
+
+function calcularCusto(modelo, inputTokens, outputTokens) {
+    const precos = PRECOS_MTOK[modelo] || { in: 1.00, out: 5.00 }; // fallback genérico
+    return (inputTokens / 1_000_000) * precos.in + (outputTokens / 1_000_000) * precos.out;
+}
+
+function logarUso(provider, modelo, inputTokens, outputTokens, contexto = '') {
+    try {
+        const custo = calcularCusto(modelo, inputTokens, outputTokens);
+        db.prepare(
+            'INSERT INTO ia_uso_log (provider, modelo, input_tokens, output_tokens, custo_usd, contexto) VALUES (?, ?, ?, ?, ?, ?)'
+        ).run(provider, modelo, inputTokens, outputTokens, custo, contexto);
+    } catch (e) {
+        // Falha ao logar não deve quebrar o fluxo
+        console.error('[IA] Erro ao logar uso:', e.message);
+    }
+}
+
 // ═══ Chamada unificada para IA (Anthropic ou OpenAI) ═══
 export async function callAI(messages, systemPrompt, options = {}) {
     const cfg = getConfig();
@@ -279,11 +314,13 @@ export async function callAI(messages, systemPrompt, options = {}) {
 
     const temperature = options.temperature ?? cfg.ia_temperatura ?? 0.7;
     const maxTokens = options.maxTokens ?? 1024;
+    const contexto = options.contexto || '';
 
     if (cfg.ia_provider === 'openai') {
+        const modelo = cfg.ia_model || 'gpt-4o-mini';
         const openai = new OpenAI({ apiKey: cfg.ia_api_key });
         const response = await openai.chat.completions.create({
-            model: cfg.ia_model || 'gpt-4o-mini',
+            model: modelo,
             messages: [
                 { role: 'system', content: systemPrompt },
                 ...messages,
@@ -291,13 +328,16 @@ export async function callAI(messages, systemPrompt, options = {}) {
             temperature,
             max_tokens: maxTokens,
         });
+        const usage = response.usage || {};
+        logarUso('openai', modelo, usage.prompt_tokens || 0, usage.completion_tokens || 0, contexto);
         return response.choices[0]?.message?.content || '';
     }
 
     // Default: Anthropic
+    const modelo = cfg.ia_model || 'claude-haiku-4-5-20251001';
     const anthropic = new Anthropic({ apiKey: cfg.ia_api_key });
     const response = await anthropic.messages.create({
-        model: cfg.ia_model || 'claude-haiku-4-5-20251001',
+        model: modelo,
         max_tokens: maxTokens,
         system: systemPrompt,
         messages: messages.map(m => ({
@@ -306,6 +346,8 @@ export async function callAI(messages, systemPrompt, options = {}) {
         })),
         temperature,
     });
+    const usage = response.usage || {};
+    logarUso('anthropic', modelo, usage.input_tokens || 0, usage.output_tokens || 0, contexto);
     return response.content[0]?.text || '';
 }
 

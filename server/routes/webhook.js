@@ -76,18 +76,32 @@ async function handleIncomingMessage(data) {
     if (remoteJid.includes('@g.us')) return;              // Ignorar grupos
     if (remoteJid.includes('@broadcast')) return;         // Ignorar broadcast
 
-    // ── 2. IGNORAR @lid completamente ──
-    // A Evolution envia o mesmo evento 2x: uma com @s.whatsapp.net e outra com @lid
-    // Processamos APENAS a versão @s.whatsapp.net (que é o número real para envio)
-    if (remoteJid.includes('@lid')) {
-        return; // Silenciosamente ignorar — a versão @s.whatsapp.net já será processada
-    }
-
-    // ── 3. Dedup em memória (Evolution envia o mesmo evento duplicado) ──
+    // ── 2. Dedup em memória (Evolution envia o mesmo evento 2-4x) ──
+    // Se chegar primeiro com @s.whatsapp.net, o @lid subsequente será descartado aqui
     if (alreadyProcessed(msgId)) return;
 
-    // ── 4. Extrair dados ──
-    const phone = remoteJid.replace('@s.whatsapp.net', '');
+    // ── 3. Resolver formato (@lid ou @s.whatsapp.net) ──
+    // Estratégia: se já temos uma conversa com esse @lid, reusar o wa_phone salvo.
+    // Caso contrário, aceitar o @lid (usuário pode vincular o número manualmente depois).
+    let finalJid = remoteJid;
+    let finalPhone = '';
+
+    if (remoteJid.includes('@lid')) {
+        // Verificar se já temos conversa existente com este LID e número real salvo
+        const existing = db.prepare('SELECT wa_phone FROM chat_conversas WHERE wa_jid = ?').get(remoteJid);
+        if (existing?.wa_phone && /^55\d{10,11}$/.test(existing.wa_phone)) {
+            // Já temos número real — usar JID real para envio
+            finalPhone = existing.wa_phone;
+            finalJid = `${finalPhone}@s.whatsapp.net`;
+        } else {
+            // Sem número real — manter LID como identificador (usuário vincula depois)
+            finalPhone = remoteJid.replace('@lid', '');
+        }
+    } else {
+        finalPhone = remoteJid.replace('@s.whatsapp.net', '');
+    }
+
+    const phone = finalPhone;
     if (!phone || phone.length < 8) return;
 
     const messageContent = data.message?.conversation
@@ -106,30 +120,35 @@ async function handleIncomingMessage(data) {
     if (!messageContent && messageType === 'texto') return;
 
     // ── 5. Buscar ou criar conversa ──
+    // Busca pelo remoteJid original OU pelo finalJid (caso o LID tenha sido resolvido) OU pelo phone
     let conversa = db.prepare(
-        'SELECT * FROM chat_conversas WHERE wa_jid = ? OR wa_phone = ?'
-    ).get(remoteJid, phone);
+        'SELECT * FROM chat_conversas WHERE wa_jid = ? OR wa_jid = ? OR wa_phone = ?'
+    ).get(remoteJid, finalJid, phone);
 
     if (!conversa) {
         // Tentar vincular a cliente existente (últimos 8 dígitos do telefone)
         const lastDigits = phone.slice(-8);
         let clienteId = null;
-        const cli = db.prepare(
-            "SELECT id FROM clientes WHERE REPLACE(REPLACE(REPLACE(REPLACE(tel, '(', ''), ')', ''), '-', ''), ' ', '') LIKE ?"
-        ).get(`%${lastDigits}%`);
-        if (cli) clienteId = cli.id;
+        // Só procurar cliente se o phone parece um número real (começa com 55)
+        if (/^55\d{10,11}$/.test(phone)) {
+            const cli = db.prepare(
+                "SELECT id FROM clientes WHERE REPLACE(REPLACE(REPLACE(REPLACE(tel, '(', ''), ')', ''), '-', ''), ' ', '') LIKE ?"
+            ).get(`%${lastDigits}%`);
+            if (cli) clienteId = cli.id;
+        }
 
         const result = db.prepare(
             'INSERT INTO chat_conversas (cliente_id, wa_phone, wa_jid, wa_name, status, nao_lidas, ultimo_msg_em) VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)'
-        ).run(clienteId, phone, remoteJid, pushName, 'ia');
+        ).run(clienteId, phone, finalJid, pushName, 'ia');
 
         conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(result.lastInsertRowid);
-        console.log(`[WH] Nova conversa #${conversa.id} | ${pushName} | ${phone}`);
+        console.log(`[WH] Nova conversa #${conversa.id} | ${pushName} | ${phone} | jid=${finalJid}`);
     } else {
-        // Atualizar conversa
+        // Atualizar conversa — preferir JID real (@s.whatsapp.net) se disponível
+        const keepJid = (!finalJid.includes('@lid')) ? finalJid : (conversa.wa_jid && !conversa.wa_jid.includes('@lid') ? conversa.wa_jid : finalJid);
         db.prepare(
             'UPDATE chat_conversas SET nao_lidas = nao_lidas + 1, ultimo_msg_em = CURRENT_TIMESTAMP, wa_name = COALESCE(NULLIF(?, \'\'), wa_name), wa_jid = ? WHERE id = ?'
-        ).run(pushName, remoteJid, conversa.id);
+        ).run(pushName, keepJid, conversa.id);
         conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(conversa.id);
     }
 
