@@ -61,7 +61,8 @@ const publicLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, message: { error
 const sensitiveLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: 'Muitas requisições. Tente novamente em 1 minuto.' }, standardHeaders: true, legacyHeaders: false });
 
 // ═══ Webhook ANTES do CORS (Evolution API envia de origem externa) ═══
-app.use('/api/webhook', express.json(), webhookRoutes);
+// Limite maior pois Evolution pode enviar payloads com base64 de mídia
+app.use('/api/webhook', express.json({ limit: '50mb' }), webhookRoutes);
 
 // ═══ Landing endpoints públicos (sem CORS, com rate limit) ═══
 app.use('/api/landing', publicLimiter, express.json(), landingRoutes);
