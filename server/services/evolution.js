@@ -23,22 +23,13 @@ export function getWebhookToken() {
 
 // ═══ Enviar mensagem de texto ═══
 // Aceita phone (número puro) ou jid completo (ex: 5598...@s.whatsapp.net)
-// NOTA: Evolution v1.8 NÃO suporta @lid — converter para número antes de chamar
 export async function sendText(phoneOrJid, text) {
     const cfg = getConfig();
     if (!isConfigured()) throw new Error('WhatsApp não configurado');
 
-    // Se recebeu um @lid, tentar buscar o phone real na conversa
-    let dest = phoneOrJid;
-    if (dest.includes('@lid')) {
-        const conv = db.prepare('SELECT wa_phone FROM chat_conversas WHERE wa_jid = ?').get(dest);
-        if (conv?.wa_phone && !conv.wa_phone.includes('@lid')) {
-            dest = conv.wa_phone;
-            console.log(`[Evolution] LID convertido: ${phoneOrJid} → ${dest}`);
-        } else {
-            console.error(`[Evolution] Não é possível enviar para LID: ${dest} — número real não encontrado`);
-            throw new Error('Número real do contato não encontrado (formato LID). Peça ao cliente enviar nova mensagem.');
-        }
+    // Rejeitar @lid — nunca deveria chegar aqui, mas por segurança
+    if (phoneOrJid.includes('@lid')) {
+        throw new Error('Formato @lid não suportado. Número real do contato necessário.');
     }
 
     const url = `${cfg.wa_instance_url}/message/sendText/${cfg.wa_instance_name}`;

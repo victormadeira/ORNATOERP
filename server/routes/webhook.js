@@ -12,29 +12,31 @@ mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const router = Router();
 
-// ═══ Dedup em memória (Evolution v1.8 envia messages.upsert duplicado) ═══
-const _processedMsgIds = new Set();
-function isDuplicate(msgId) {
+// ═══ Dedup em memória ═══════════════════════════════════
+// Evolution v1.8 envia messages.upsert 2-4x para a mesma mensagem
+// (1x com @s.whatsapp.net, 1x com @lid, cada uma duplicada)
+// Usar Set em memória para filtrar por wa_message_id
+const _processedIds = new Set();
+function alreadyProcessed(msgId) {
     if (!msgId) return false;
-    if (_processedMsgIds.has(msgId)) return true;
-    _processedMsgIds.add(msgId);
-    // Limpar IDs antigos a cada 1000 entradas para não vazar memória
-    if (_processedMsgIds.size > 1000) {
-        const arr = [..._processedMsgIds];
-        arr.splice(0, 500).forEach(id => _processedMsgIds.delete(id));
+    if (_processedIds.has(msgId)) return true;
+    _processedIds.add(msgId);
+    // Limpar para não vazar memória (manter últimos 500)
+    if (_processedIds.size > 1000) {
+        const arr = [..._processedIds];
+        for (let i = 0; i < 500; i++) _processedIds.delete(arr[i]);
     }
     return false;
 }
 
 // ═══════════════════════════════════════════════════════
-// POST /api/webhook/whatsapp — recebe mensagens do Evolution API
+// POST /api/webhook/whatsapp — recebe eventos do Evolution API
 // PÚBLICO (sem auth JWT) — validado via webhook token
 // ═══════════════════════════════════════════════════════
 router.post('/whatsapp', async (req, res) => {
-    // Validar webhook token
+    // Validar webhook token (opcional — só valida se configurado)
     const expectedToken = evolution.getWebhookToken();
     const receivedToken = req.headers['apikey'] || req.query.token || '';
-
     if (expectedToken && receivedToken !== expectedToken) {
         return res.status(401).json({ error: 'Invalid webhook token' });
     }
@@ -45,117 +47,49 @@ router.post('/whatsapp', async (req, res) => {
     try {
         const body = req.body;
         const event = body.event || '';
-        // sender contém o número real da instância (ex: 559887015547@s.whatsapp.net)
-        // body.sender é quem é o dono da instância, não quem enviou
-        const senderInstance = body.sender || '';
 
-        console.log('[Webhook] Evento recebido:', event, '| sender:', senderInstance, '| data.key:', JSON.stringify(body.data?.key), '| participant:', body.data?.participant);
+        // Log compacto
+        const keyInfo = body.data?.key ? `${body.data.key.remoteJid} id=${body.data.key.id} fromMe=${body.data.key.fromMe}` : '-';
+        console.log(`[WH] ${event} | ${keyInfo}`);
 
         if (event === 'messages.upsert') {
-            await handleIncomingMessage(body.data || body, senderInstance);
+            await handleIncomingMessage(body.data || body);
         } else if (event === 'messages.update') {
             await handleMessageStatusUpdate(body.data || body);
         }
     } catch (err) {
-        console.error('[Webhook] Erro ao processar:', err.message);
+        console.error('[WH] Erro:', err.message);
     }
 });
 
-// ═══ Processar mensagem recebida ═══
-async function handleIncomingMessage(data, senderInstance) {
-    if (!data || !data.key) return;
+// ═══════════════════════════════════════════════════════
+// PROCESSAR MENSAGEM RECEBIDA
+// ═══════════════════════════════════════════════════════
+async function handleIncomingMessage(data) {
+    if (!data?.key) return;
 
-    // Dedup rápido em memória (Evolution v1.8 envia o mesmo evento 2x)
-    if (isDuplicate(data.key.id)) return;
-
-    // Ignorar mensagens enviadas por nós
-    if (data.key.fromMe) return;
-
+    const msgId = data.key.id;
     const remoteJid = data.key.remoteJid || '';
-    // Ignorar grupos
-    if (remoteJid.includes('@g.us')) return;
-    if (remoteJid.includes('@broadcast')) return;
 
-    // ═══ Resolver LID → número real ═══
-    // WhatsApp agora envia remoteJid como @lid (Linked ID) em vez de @s.whatsapp.net
-    // Evolution v1.8 não consegue enviar para @lid, precisa do número real
-    let realPhone = '';
-    let realJid = remoteJid;
+    // ── 1. Filtros básicos ──
+    if (data.key.fromMe) return;                         // Ignorar nossas próprias msgs
+    if (remoteJid.includes('@g.us')) return;              // Ignorar grupos
+    if (remoteJid.includes('@broadcast')) return;         // Ignorar broadcast
 
+    // ── 2. IGNORAR @lid completamente ──
+    // A Evolution envia o mesmo evento 2x: uma com @s.whatsapp.net e outra com @lid
+    // Processamos APENAS a versão @s.whatsapp.net (que é o número real para envio)
     if (remoteJid.includes('@lid')) {
-        // O WhatsApp usa LID (Linked ID) internamente — Evolution v1.8 não suporta envio para @lid
-        // Estratégia: buscar o número real via API de contatos da Evolution
-        try {
-            const cfg = db.prepare('SELECT wa_instance_url, wa_instance_name, wa_api_key FROM empresa_config WHERE id = 1').get();
-            if (cfg?.wa_instance_url) {
-                // 1. Buscar contato pelo LID
-                const contactRes = await fetch(`${cfg.wa_instance_url}/chat/findContacts/${cfg.wa_instance_name}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'apikey': cfg.wa_api_key },
-                    body: JSON.stringify({ where: { id: remoteJid } }),
-                });
-                if (contactRes.ok) {
-                    const contacts = await contactRes.json();
-                    const contact = contacts[0];
-                    // Se o contato retornar um number real
-                    if (contact?.number) {
-                        realPhone = contact.number.replace(/\D/g, '');
-                        realJid = `${realPhone}@s.whatsapp.net`;
-                        console.log(`[Webhook] LID ${remoteJid} resolvido para ${realJid} via contact.number`);
-                    }
-                }
-
-                // 2. Se não resolveu, tentar via profilePicture/whatsapp check com o pushName
-                if (!realPhone && data.pushName) {
-                    // Buscar todos contatos e encontrar o que tem @s.whatsapp.net com mesmo pushName
-                    const allRes = await fetch(`${cfg.wa_instance_url}/chat/findContacts/${cfg.wa_instance_name}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'apikey': cfg.wa_api_key },
-                        body: JSON.stringify({ where: {} }),
-                    });
-                    if (allRes.ok) {
-                        const allContacts = await allRes.json();
-                        // Procurar contato com mesmo pushName que tenha @s.whatsapp.net
-                        const match = allContacts.find(c =>
-                            c.pushName === data.pushName &&
-                            c.id.includes('@s.whatsapp.net') &&
-                            c.id !== remoteJid
-                        );
-                        if (match) {
-                            realPhone = match.id.replace('@s.whatsapp.net', '');
-                            realJid = match.id;
-                            console.log(`[Webhook] LID ${remoteJid} resolvido para ${realJid} via pushName match`);
-                        }
-                    }
-                }
-            }
-        } catch (err) {
-            console.log('[Webhook] Erro ao resolver LID:', err.message);
-        }
-
-        // 3. Verificar se já temos o número real salvo no banco para este LID
-        if (!realPhone || realPhone === remoteJid.replace('@lid', '')) {
-            const existingConv = db.prepare('SELECT wa_phone FROM chat_conversas WHERE wa_jid = ? OR wa_jid = ?').get(remoteJid, remoteJid);
-            if (existingConv?.wa_phone && existingConv.wa_phone.match(/^55\d{10,11}$/)) {
-                realPhone = existingConv.wa_phone;
-                realJid = `${realPhone}@s.whatsapp.net`;
-                console.log(`[Webhook] LID ${remoteJid} resolvido para ${realJid} via banco`);
-            }
-        }
-
-        // Fallback: usar o LID como identificador
-        if (!realPhone) {
-            realPhone = remoteJid.replace('@lid', '');
-            console.log(`[Webhook] LID ${remoteJid} NÃO resolvido — mensagens não poderão ser enviadas até o número ser vinculado manualmente`);
-        }
-    } else {
-        realPhone = remoteJid.replace('@s.whatsapp.net', '');
+        return; // Silenciosamente ignorar — a versão @s.whatsapp.net já será processada
     }
 
-    const phone = realPhone;
-    if (!phone) return;
+    // ── 3. Dedup em memória (Evolution envia o mesmo evento duplicado) ──
+    if (alreadyProcessed(msgId)) return;
 
-    // Extrair conteúdo da mensagem
+    // ── 4. Extrair dados ──
+    const phone = remoteJid.replace('@s.whatsapp.net', '');
+    if (!phone || phone.length < 8) return;
+
     const messageContent = data.message?.conversation
         || data.message?.extendedTextMessage?.text
         || data.message?.imageMessage?.caption
@@ -167,73 +101,72 @@ async function handleIncomingMessage(data, senderInstance) {
         : data.message?.stickerMessage ? 'sticker'
         : 'texto';
     const pushName = data.pushName || '';
-    const waMessageId = data.key.id || '';
 
-    // Ignorar mensagens de texto vazias
+    // Ignorar mensagens de texto vazias (mas processar mídia sem caption)
     if (!messageContent && messageType === 'texto') return;
 
-    // Buscar conversa por jid original (@lid ou @s.whatsapp.net), jid real, ou phone
-    let conversa = db.prepare('SELECT * FROM chat_conversas WHERE wa_jid = ? OR wa_jid = ? OR wa_phone = ?').get(remoteJid, realJid, phone);
+    // ── 5. Buscar ou criar conversa ──
+    let conversa = db.prepare(
+        'SELECT * FROM chat_conversas WHERE wa_jid = ? OR wa_phone = ?'
+    ).get(remoteJid, phone);
 
     if (!conversa) {
-        // Tentar vincular por telefone do cliente (últimos 8 dígitos)
+        // Tentar vincular a cliente existente (últimos 8 dígitos do telefone)
         const lastDigits = phone.slice(-8);
         let clienteId = null;
-        // Buscar cliente pelo phone real (não pelo LID)
-        if (realPhone && !realPhone.match(/^\d{15,}$/)) {
-            const cli = db.prepare("SELECT id FROM clientes WHERE REPLACE(REPLACE(REPLACE(REPLACE(tel, '(', ''), ')', ''), '-', ''), ' ', '') LIKE ?").get(`%${lastDigits}%`);
-            if (cli) clienteId = cli.id;
-        }
+        const cli = db.prepare(
+            "SELECT id FROM clientes WHERE REPLACE(REPLACE(REPLACE(REPLACE(tel, '(', ''), ')', ''), '-', ''), ' ', '') LIKE ?"
+        ).get(`%${lastDigits}%`);
+        if (cli) clienteId = cli.id;
 
         const result = db.prepare(
             'INSERT INTO chat_conversas (cliente_id, wa_phone, wa_jid, wa_name, status, nao_lidas, ultimo_msg_em) VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)'
-        ).run(clienteId, phone, realJid, pushName, 'ia');
+        ).run(clienteId, phone, remoteJid, pushName, 'ia');
 
         conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(result.lastInsertRowid);
+        console.log(`[WH] Nova conversa #${conversa.id} | ${pushName} | ${phone}`);
     } else {
-        // Atualizar conversa — se era @lid e agora temos o real, atualizar para @s.whatsapp.net
-        const updateJid = (realJid !== remoteJid && !realJid.includes('@lid')) ? realJid : conversa.wa_jid;
+        // Atualizar conversa
         db.prepare(
-            'UPDATE chat_conversas SET nao_lidas = nao_lidas + 1, ultimo_msg_em = CURRENT_TIMESTAMP, wa_name = COALESCE(NULLIF(?, \'\'), wa_name), wa_jid = ?, wa_phone = COALESCE(NULLIF(?, \'\'), wa_phone) WHERE id = ?'
-        ).run(pushName, updateJid, phone, conversa.id);
+            'UPDATE chat_conversas SET nao_lidas = nao_lidas + 1, ultimo_msg_em = CURRENT_TIMESTAMP, wa_name = COALESCE(NULLIF(?, \'\'), wa_name), wa_jid = ? WHERE id = ?'
+        ).run(pushName, remoteJid, conversa.id);
         conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(conversa.id);
     }
 
-    // Verificar duplicata (mesmo wa_message_id)
-    if (waMessageId) {
-        const exists = db.prepare('SELECT id FROM chat_mensagens WHERE wa_message_id = ?').get(waMessageId);
-        if (exists) return; // Mensagem duplicada
+    // ── 6. Verificar duplicata no banco (fallback do dedup em memória) ──
+    if (msgId) {
+        const exists = db.prepare('SELECT id FROM chat_mensagens WHERE wa_message_id = ?').get(msgId);
+        if (exists) return;
     }
 
-    // Baixar mídia se não for texto puro
+    // ── 7. Baixar mídia se necessário ──
     let mediaUrl = '';
-    if (messageType !== 'texto' && waMessageId) {
+    if (messageType !== 'texto' && msgId) {
         try {
             mediaUrl = await downloadMedia(data.key, messageType);
         } catch (err) {
-            console.error('[Webhook] Erro ao baixar mídia:', err.message);
+            console.error('[WH] Erro mídia:', err.message);
         }
     }
 
-    // Armazenar mensagem recebida
+    // ── 8. Salvar mensagem ──
     db.prepare(`
         INSERT INTO chat_mensagens (conversa_id, wa_message_id, direcao, tipo, conteudo, media_url, remetente, criado_em)
         VALUES (?, ?, 'entrada', ?, ?, ?, 'cliente', CURRENT_TIMESTAMP)
-    `).run(conversa.id, waMessageId, messageType, messageContent || `[${messageType}]`, mediaUrl);
+    `).run(conversa.id, msgId, messageType, messageContent || `[${messageType}]`, mediaUrl);
 
-    // Se conversa está em modo IA, auto-responder
-    // Usar realJid (@s.whatsapp.net) para envio — Evolution v1.8 não envia para @lid
-    const dest = (conversa.wa_jid && !conversa.wa_jid.includes('@lid')) ? conversa.wa_jid : (realJid || phone);
+    console.log(`[WH] Msg salva | conv #${conversa.id} | ${messageType} | ${pushName}`);
+
+    // ── 9. Resposta automática da IA (se ativo) ──
     if (conversa.status === 'ia' && messageContent) {
         try {
             const result = await ai.processIncomingMessage(conversa, messageContent);
+            if (!result) return;
 
-            if (!result) return; // IA não configurada/ativa
+            const dest = conversa.wa_jid || remoteJid;
 
             if (result.action === 'escalate') {
-                // Escalar para humano
                 db.prepare('UPDATE chat_conversas SET status = ? WHERE id = ?').run('humano', conversa.id);
-                // Enviar mensagem de transição — usar mensagem da Sofia se disponível
                 const transMsg = result.text || 'Um momento! Vou transferir seu atendimento para nossa equipe. Já já alguém vai te responder!';
                 try {
                     await evolution.sendText(dest, transMsg);
@@ -243,16 +176,14 @@ async function handleIncomingMessage(data, senderInstance) {
                     `).run(conversa.id, transMsg);
                 } catch (_) { /* silencioso */ }
             } else if (result.text) {
-                // Enviar resposta da IA via WhatsApp
                 await evolution.sendText(dest, result.text);
-                // Armazenar resposta
                 db.prepare(`
                     INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, criado_em)
                     VALUES (?, 'saida', 'texto', ?, 'ia', CURRENT_TIMESTAMP)
                 `).run(conversa.id, result.text);
             }
         } catch (err) {
-            console.error('[Webhook] Erro no processamento IA:', err.message);
+            console.error('[WH] Erro IA:', err.message);
         }
     }
 }
@@ -288,7 +219,7 @@ async function downloadMedia(messageKey, messageType) {
 
 // ═══ Atualizar status de entrega/leitura ═══
 async function handleMessageStatusUpdate(data) {
-    if (!data || !data.key?.id) return;
+    if (!data?.key?.id) return;
     const statusMap = { 3: 'lido', 2: 'entregue', 1: 'enviado' };
     const status = statusMap[data.status] || 'enviado';
     db.prepare('UPDATE chat_mensagens SET status_envio = ? WHERE wa_message_id = ?').run(status, data.key.id);
