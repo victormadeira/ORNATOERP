@@ -346,7 +346,7 @@ export function buildPropostaHtml({
             let nameHtml, descHtml;
             if (it.tipo === 'modulo' && it.desc) {
                 nameHtml = `<span class="item-name">${it.desc}</span>${dimsLine}`;
-                descHtml = `<div class="item-acab">${descParts[0]}</div>`;
+                descHtml = '';
             } else {
                 nameHtml = `<span class="item-name">${descParts[0]}</span>${dimsLine}`;
                 descHtml = it.desc ? `<div class="item-acab">${it.desc}</div>` : '';
