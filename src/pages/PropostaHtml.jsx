@@ -394,7 +394,7 @@ export function buildPropostaHtml({
 
     // ── Resumo ──────────────────────────────────────────────────────────────
     const numAmbientes = ambValores.length;
-    const custoDiario = pvComDesconto > 0 ? (pvComDesconto / (10 * 365)).toFixed(2) : null;
+    // custoDiario removido
     const resumoHtml = `
         <div class="invest-section" data-section="resumo" data-section-nome="Resumo Financeiro">
             <div class="invest-header">Investimento</div>
@@ -414,7 +414,6 @@ export function buildPropostaHtml({
                 </tr>
             </table>
             ${descontoR > 0 ? `<div class="invest-savings">Você economiza ${R$(descontoR)} nesta proposta</div>` : ''}
-            ${custoDiario ? `<div class="invest-daily">Apenas R$ ${custoDiario}/dia ao longo de 10 anos de uso</div>` : ''}
         </div>`;
 
     // ── Pagamento (reframing: facilidade, não condição) ─────────────────────
