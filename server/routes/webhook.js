@@ -31,11 +31,14 @@ router.post('/whatsapp', async (req, res) => {
     try {
         const body = req.body;
         const event = body.event || '';
+        // sender contém o número real da instância (ex: 559887015547@s.whatsapp.net)
+        // body.sender é quem é o dono da instância, não quem enviou
+        const senderInstance = body.sender || '';
 
-        console.log('[Webhook] Evento recebido:', event, '| sender:', body.sender, '| data.key:', JSON.stringify(body.data?.key), '| participant:', body.data?.participant);
+        console.log('[Webhook] Evento recebido:', event, '| sender:', senderInstance, '| data.key:', JSON.stringify(body.data?.key), '| participant:', body.data?.participant);
 
         if (event === 'messages.upsert') {
-            await handleIncomingMessage(body.data || body);
+            await handleIncomingMessage(body.data || body, senderInstance);
         } else if (event === 'messages.update') {
             await handleMessageStatusUpdate(body.data || body);
         }
@@ -45,7 +48,7 @@ router.post('/whatsapp', async (req, res) => {
 });
 
 // ═══ Processar mensagem recebida ═══
-async function handleIncomingMessage(data) {
+async function handleIncomingMessage(data, senderInstance) {
     if (!data || !data.key) return;
 
     // Ignorar mensagens enviadas por nós
@@ -56,7 +59,83 @@ async function handleIncomingMessage(data) {
     if (remoteJid.includes('@g.us')) return;
     if (remoteJid.includes('@broadcast')) return;
 
-    const phone = remoteJid.replace('@s.whatsapp.net', '').replace('@lid', '').replace('@g.us', '');
+    // ═══ Resolver LID → número real ═══
+    // WhatsApp agora envia remoteJid como @lid (Linked ID) em vez de @s.whatsapp.net
+    // Evolution v1.8 não consegue enviar para @lid, precisa do número real
+    let realPhone = '';
+    let realJid = remoteJid;
+
+    if (remoteJid.includes('@lid')) {
+        // O WhatsApp usa LID (Linked ID) internamente — Evolution v1.8 não suporta envio para @lid
+        // Estratégia: buscar o número real via API de contatos da Evolution
+        try {
+            const cfg = db.prepare('SELECT wa_instance_url, wa_instance_name, wa_api_key FROM empresa_config WHERE id = 1').get();
+            if (cfg?.wa_instance_url) {
+                // 1. Buscar contato pelo LID
+                const contactRes = await fetch(`${cfg.wa_instance_url}/chat/findContacts/${cfg.wa_instance_name}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'apikey': cfg.wa_api_key },
+                    body: JSON.stringify({ where: { id: remoteJid } }),
+                });
+                if (contactRes.ok) {
+                    const contacts = await contactRes.json();
+                    const contact = contacts[0];
+                    // Se o contato retornar um number real
+                    if (contact?.number) {
+                        realPhone = contact.number.replace(/\D/g, '');
+                        realJid = `${realPhone}@s.whatsapp.net`;
+                        console.log(`[Webhook] LID ${remoteJid} resolvido para ${realJid} via contact.number`);
+                    }
+                }
+
+                // 2. Se não resolveu, tentar via profilePicture/whatsapp check com o pushName
+                if (!realPhone && data.pushName) {
+                    // Buscar todos contatos e encontrar o que tem @s.whatsapp.net com mesmo pushName
+                    const allRes = await fetch(`${cfg.wa_instance_url}/chat/findContacts/${cfg.wa_instance_name}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'apikey': cfg.wa_api_key },
+                        body: JSON.stringify({ where: {} }),
+                    });
+                    if (allRes.ok) {
+                        const allContacts = await allRes.json();
+                        // Procurar contato com mesmo pushName que tenha @s.whatsapp.net
+                        const match = allContacts.find(c =>
+                            c.pushName === data.pushName &&
+                            c.id.includes('@s.whatsapp.net') &&
+                            c.id !== remoteJid
+                        );
+                        if (match) {
+                            realPhone = match.id.replace('@s.whatsapp.net', '');
+                            realJid = match.id;
+                            console.log(`[Webhook] LID ${remoteJid} resolvido para ${realJid} via pushName match`);
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            console.log('[Webhook] Erro ao resolver LID:', err.message);
+        }
+
+        // 3. Verificar se já temos o número real salvo no banco para este LID
+        if (!realPhone || realPhone === remoteJid.replace('@lid', '')) {
+            const existingConv = db.prepare('SELECT wa_phone FROM chat_conversas WHERE wa_jid = ? OR wa_jid = ?').get(remoteJid, remoteJid);
+            if (existingConv?.wa_phone && existingConv.wa_phone.match(/^55\d{10,11}$/)) {
+                realPhone = existingConv.wa_phone;
+                realJid = `${realPhone}@s.whatsapp.net`;
+                console.log(`[Webhook] LID ${remoteJid} resolvido para ${realJid} via banco`);
+            }
+        }
+
+        // Fallback: usar o LID como identificador
+        if (!realPhone) {
+            realPhone = remoteJid.replace('@lid', '');
+            console.log(`[Webhook] LID ${remoteJid} NÃO resolvido — mensagens não poderão ser enviadas até o número ser vinculado manualmente`);
+        }
+    } else {
+        realPhone = remoteJid.replace('@s.whatsapp.net', '');
+    }
+
+    const phone = realPhone;
     if (!phone) return;
 
     // Extrair conteúdo da mensagem
@@ -76,29 +155,30 @@ async function handleIncomingMessage(data) {
     // Ignorar mensagens de texto vazias
     if (!messageContent && messageType === 'texto') return;
 
-    // Buscar conversa por jid (preferido) ou por phone (fallback)
-    let conversa = db.prepare('SELECT * FROM chat_conversas WHERE wa_jid = ? OR wa_phone = ?').get(remoteJid, phone);
+    // Buscar conversa por jid original (@lid ou @s.whatsapp.net), jid real, ou phone
+    let conversa = db.prepare('SELECT * FROM chat_conversas WHERE wa_jid = ? OR wa_jid = ? OR wa_phone = ?').get(remoteJid, realJid, phone);
 
     if (!conversa) {
         // Tentar vincular por telefone do cliente (últimos 8 dígitos)
         const lastDigits = phone.slice(-8);
         let clienteId = null;
-        // Só buscar cliente se o phone parece um número real (não @lid)
-        if (!remoteJid.includes('@lid')) {
+        // Buscar cliente pelo phone real (não pelo LID)
+        if (realPhone && !realPhone.match(/^\d{15,}$/)) {
             const cli = db.prepare("SELECT id FROM clientes WHERE REPLACE(REPLACE(REPLACE(REPLACE(tel, '(', ''), ')', ''), '-', ''), ' ', '') LIKE ?").get(`%${lastDigits}%`);
             if (cli) clienteId = cli.id;
         }
 
         const result = db.prepare(
             'INSERT INTO chat_conversas (cliente_id, wa_phone, wa_jid, wa_name, status, nao_lidas, ultimo_msg_em) VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)'
-        ).run(clienteId, phone, remoteJid, pushName, 'ia');
+        ).run(clienteId, phone, realJid, pushName, 'ia');
 
         conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(result.lastInsertRowid);
     } else {
-        // Atualizar conversa (garantir que wa_jid está preenchido)
+        // Atualizar conversa — se era @lid e agora temos o real, atualizar para @s.whatsapp.net
+        const updateJid = (realJid !== remoteJid && !realJid.includes('@lid')) ? realJid : conversa.wa_jid;
         db.prepare(
-            'UPDATE chat_conversas SET nao_lidas = nao_lidas + 1, ultimo_msg_em = CURRENT_TIMESTAMP, wa_name = COALESCE(NULLIF(?, \'\'), wa_name), wa_jid = COALESCE(NULLIF(?, \'\'), wa_jid) WHERE id = ?'
-        ).run(pushName, remoteJid, conversa.id);
+            'UPDATE chat_conversas SET nao_lidas = nao_lidas + 1, ultimo_msg_em = CURRENT_TIMESTAMP, wa_name = COALESCE(NULLIF(?, \'\'), wa_name), wa_jid = ?, wa_phone = COALESCE(NULLIF(?, \'\'), wa_phone) WHERE id = ?'
+        ).run(pushName, updateJid, phone, conversa.id);
         conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(conversa.id);
     }
 
@@ -125,7 +205,8 @@ async function handleIncomingMessage(data) {
     `).run(conversa.id, waMessageId, messageType, messageContent || `[${messageType}]`, mediaUrl);
 
     // Se conversa está em modo IA, auto-responder
-    const dest = conversa.wa_jid || remoteJid || phone;
+    // Usar realJid (@s.whatsapp.net) para envio — Evolution v1.8 não envia para @lid
+    const dest = (conversa.wa_jid && !conversa.wa_jid.includes('@lid')) ? conversa.wa_jid : (realJid || phone);
     if (conversa.status === 'ia' && messageContent) {
         try {
             const result = await ai.processIncomingMessage(conversa, messageContent);
