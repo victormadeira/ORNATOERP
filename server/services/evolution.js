@@ -40,7 +40,7 @@ export async function sendText(phoneOrJid, text) {
             'apikey': cfg.wa_api_key,
         },
         body: JSON.stringify({
-            number: dest,
+            number: phoneOrJid,
             textMessage: { text },
         }),
     });
