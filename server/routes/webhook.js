@@ -12,6 +12,20 @@ mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const router = Router();
 
+// ═══ Dedup em memória (Evolution v1.8 envia messages.upsert duplicado) ═══
+const _processedMsgIds = new Set();
+function isDuplicate(msgId) {
+    if (!msgId) return false;
+    if (_processedMsgIds.has(msgId)) return true;
+    _processedMsgIds.add(msgId);
+    // Limpar IDs antigos a cada 1000 entradas para não vazar memória
+    if (_processedMsgIds.size > 1000) {
+        const arr = [..._processedMsgIds];
+        arr.splice(0, 500).forEach(id => _processedMsgIds.delete(id));
+    }
+    return false;
+}
+
 // ═══════════════════════════════════════════════════════
 // POST /api/webhook/whatsapp — recebe mensagens do Evolution API
 // PÚBLICO (sem auth JWT) — validado via webhook token
@@ -50,6 +64,9 @@ router.post('/whatsapp', async (req, res) => {
 // ═══ Processar mensagem recebida ═══
 async function handleIncomingMessage(data, senderInstance) {
     if (!data || !data.key) return;
+
+    // Dedup rápido em memória (Evolution v1.8 envia o mesmo evento 2x)
+    if (isDuplicate(data.key.id)) return;
 
     // Ignorar mensagens enviadas por nós
     if (data.key.fromMe) return;
