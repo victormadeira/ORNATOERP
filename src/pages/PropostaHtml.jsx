@@ -339,11 +339,22 @@ export function buildPropostaHtml({
                 : '';
 
             const dimsLine = descParts.length > 1 ? ` <span class="dims">(${descParts[1]})</span>` : '';
-            const descHtml = it.desc ? `<div class="item-acab">${it.desc}</div>` : '';
+
+            // Módulo com descrição: desc em destaque, nome da biblioteca como secundário
+            // Módulo sem descrição: nome da biblioteca em destaque (comportamento padrão)
+            // Avulso: sempre nome em destaque + desc abaixo (já vem no campo desc do push)
+            let nameHtml, descHtml;
+            if (it.tipo === 'modulo' && it.desc) {
+                nameHtml = `<span class="item-name">${it.desc}</span>${dimsLine}`;
+                descHtml = `<div class="item-acab">${descParts[0]}</div>`;
+            } else {
+                nameHtml = `<span class="item-name">${descParts[0]}</span>${dimsLine}`;
+                descHtml = it.desc ? `<div class="item-acab">${it.desc}</div>` : '';
+            }
 
             return `<tr>
                     <td class="td-desc">
-                        <span class="item-name">${descParts[0]}</span>${dimsLine}
+                        ${nameHtml}
                         ${descHtml}
                         ${acabHtml}
                         ${detailsHtml}
