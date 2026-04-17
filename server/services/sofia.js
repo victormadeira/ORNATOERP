@@ -502,6 +502,23 @@ const GATILHOS_ABUSO = [
     /\b(troll|zoar)\b.*\bn[aã]o\s+quero\s+(fechar|nada)\b/i,
 ];
 
+// Palavrões / insultos / agressão — bloqueio imediato
+const PALAVROES_AGRESSAO = [
+    /\bseu?\s+(bosta|merda|lixo|cuz[ãa]o|otari[oa]|idiota|imbecil|babaca|trouxa|arrombad[oa]|corno|viad[oa]|porra)\b/i,
+    /\bsua?\s+(merda|lixo|idiota|imbecil|babaca|vadia|puta|otaria|arrombada)\b/i,
+    /\b(vai|va)\s+(se|tomar|pra)\s+(fud|foder|caralh|merda|pqp|puta\s*que)/i,
+    /\b(vai|va)\s+(tomar\s+no\s+cu|a\s+merda|se\s+lascar|se\s+ferrar)\b/i,
+    /\bfilh[oa]\s+da?\s+(puta|mae|egua)\b/i,
+    /\bporra\s+(nenhuma|dessa|de\s+ia)\b/i,
+    /\b(te\s+odeio|odeio\s+voc[êe])\b/i,
+    /^\s*(merda|lixo|bosta|idiota|babaca|imbecil|otario|arrombado|corno|viado|puta|caralho|porra)\s*[.!?]*\s*$/i,
+    /\bcala\s+a\s+boca\b/i,
+    /\bfecha\s+a\s+matraca\b/i,
+    /\b(burr[oa]|estupid[oa]|inutil|in[úu]til)\s+(demais|pra\s+caramba|mesmo)\b/i,
+    /\bvoc[êe]\s+(é|e)\s+(burr[oa]|estupid[oa]|lix[oa]|merda|in[úu]til)\b/i,
+    /\bque\s+(merda|porra|bosta|lixo)\s+(de|é|e)\b/i,
+];
+
 // Padrões de "risada spam" / troll não-verbal
 const PADROES_TROLL_NAO_VERBAL = [
     /^k{4,}$/i,                      // kkkkk, KKKKKK
@@ -533,6 +550,10 @@ function isTrollNaoVerbal(texto) {
  */
 export function detectarAbuso(texto) {
     if (!texto || typeof texto !== 'string') return null;
+    for (const re of PALAVROES_AGRESSAO) {
+        const m = texto.match(re);
+        if (m) return `agressao:"${m[0].trim()}"`;
+    }
     for (const re of GATILHOS_ABUSO) {
         const m = texto.match(re);
         if (m) return `gatilho_abuso:"${m[0]}"`;

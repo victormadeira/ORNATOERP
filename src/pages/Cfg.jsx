@@ -210,6 +210,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [simSending, setSimSending] = useState(false);
     const [simDossie, setSimDossie] = useState({});
     const [simScore, setSimScore] = useState(null); // { score, classificacao, tags, violations, detalhes }
+    const [simBloqueado, setSimBloqueado] = useState(null); // { motivo } — uma vez bloqueada, nada mais vai pra API
     const [simOpen, setSimOpen] = useState(false);
     const [kbPrompt, setKbPrompt] = useState('');
     const [kbStats, setKbStats] = useState(null);
@@ -466,6 +467,14 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         if (!simInput.trim() || simSending) return;
         const texto = simInput.trim();
         const newHistory = [...simHistory, { role: 'user', content: texto }];
+
+        // Uma vez bloqueada, nada mais vai pra API — cliente real nem veria resposta
+        if (simBloqueado) {
+            setSimHistory(newHistory);
+            setSimInput('');
+            return;
+        }
+
         setSimHistory(newHistory);
         setSimInput('');
         setSimSending(true);
@@ -475,17 +484,35 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 message: texto,
                 dossie_acumulado: simDossie,
             });
-            setSimHistory([...newHistory, { role: 'assistant', content: r.text }]);
-            setSimDossie(r.dossie_acumulado || {});
-            setSimScore({
-                score: r.score,
-                classificacao: r.classificacao,
-                tags: r.tags,
-                violations: r.violations,
-                detalhes: r.score_detalhes,
-                intencao: r.intencao,
-                sanitized: r.sanitized,
-            });
+            if (r.bloqueado) {
+                setSimBloqueado({ motivo: r.bloqueio_motivo });
+                // NÃO adiciona bolha — em produção o cliente não recebe nada
+                setSimScore({
+                    score: 0,
+                    classificacao: 'frio',
+                    tags: r.tags || [],
+                    violations: [],
+                    detalhes: r.score_detalhes || [],
+                    intencao: null,
+                    sanitized: false,
+                });
+            } else {
+                setSimHistory([...newHistory, { role: 'assistant', content: r.text }]);
+                setSimDossie(r.dossie_acumulado || {});
+                setSimScore({
+                    score: r.score,
+                    classificacao: r.classificacao,
+                    tags: r.tags,
+                    violations: r.violations,
+                    detalhes: r.score_detalhes,
+                    intencao: r.intencao,
+                    sanitized: r.sanitized,
+                });
+                // IA decidiu silenciar via dossiê (troll detectado pela própria IA)
+                if (r.dossie_acumulado?.ia_deve_silenciar) {
+                    setSimBloqueado({ motivo: 'ia_silenciou_troll' });
+                }
+            }
         } catch (e) {
             setSimHistory([...newHistory, { role: 'assistant', content: `[erro: ${e.error || e.message}]` }]);
         }
@@ -497,6 +524,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         setSimDossie({});
         setSimScore(null);
         setSimInput('');
+        setSimBloqueado(null);
     };
 
     const resetIaPrompt = async () => {
@@ -2176,17 +2204,30 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                         Sofia está digitando...
                                                     </div>
                                                 )}
+                                                {simBloqueado && (
+                                                    <div className="text-[10px] italic mt-2" style={{ color: '#94a3b8', alignSelf: 'center', textAlign: 'center' }}>
+                                                        · · · IA silenciada (sem gasto de tokens) · · ·
+                                                    </div>
+                                                )}
                                             </div>
+
+                                            {simBloqueado && (
+                                                <div className="px-3 py-2 text-[11px] flex items-center gap-2" style={{ background: '#ef444415', borderTop: '1px solid #ef444440', color: '#ef4444' }}>
+                                                    <span>🚫</span>
+                                                    <span className="flex-1"><strong>IA silenciada.</strong> Motivo: <code style={{ fontFamily: 'monospace' }}>{simBloqueado.motivo}</code> — próximas mensagens do cliente NÃO chamam a API.</span>
+                                                    <button onClick={simResetar} className="underline" style={{ color: '#ef4444' }}>resetar</button>
+                                                </div>
+                                            )}
 
                                             <div className="p-2 flex gap-2" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
                                                 <input
                                                     value={simInput}
                                                     onChange={e => setSimInput(e.target.value)}
                                                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); simEnviar(); } }}
-                                                    placeholder="Digite como cliente e pressione Enter..."
+                                                    placeholder={simBloqueado ? 'Cliente continua mandando... (API não é chamada)' : 'Digite como cliente e pressione Enter...'}
                                                     disabled={simSending}
                                                     className={Z.inp}
-                                                    style={{ fontSize: 12, flex: 1 }}
+                                                    style={{ fontSize: 12, flex: 1, opacity: simBloqueado ? 0.7 : 1 }}
                                                 />
                                                 <button onClick={simEnviar} disabled={simSending || !simInput.trim()} className={Z.btn} style={{ fontSize: 11 }}>
                                                     Enviar
