@@ -68,6 +68,47 @@ function formatTime(dateStr) {
     return new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+// Retorna rótulo do dia para separadores (estilo WhatsApp)
+function formatDayLabel(dateStr) {
+    if (!dateStr) return '';
+    const d = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+    const msg = new Date(d);
+    const hoje = new Date();
+    const ontem = new Date(); ontem.setDate(hoje.getDate() - 1);
+    const sameDay = (a, b) => a.toDateString() === b.toDateString();
+    if (sameDay(msg, hoje)) return 'Hoje';
+    if (sameDay(msg, ontem)) return 'Ontem';
+    const diffDias = Math.floor((hoje - msg) / 86400000);
+    if (diffDias < 7) {
+        return msg.toLocaleDateString('pt-BR', { weekday: 'long' }).replace(/^./, c => c.toUpperCase());
+    }
+    return msg.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: msg.getFullYear() !== hoje.getFullYear() ? 'numeric' : undefined });
+}
+
+// Chave do dia pra comparar mensagens consecutivas
+function dayKey(dateStr) {
+    if (!dateStr) return '';
+    const d = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+    return new Date(d).toDateString();
+}
+
+// Gera iniciais p/ avatar fallback
+function initials(name) {
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// Gera cor estável pra avatar baseada no nome
+function avatarColor(name) {
+    if (!name) return '#64748b';
+    const palette = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316'];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return palette[Math.abs(hash) % palette.length];
+}
+
 export default function Mensagens({ notify }) {
     const { user } = useAuth();
     const isGerente = user?.role === 'admin' || user?.role === 'gerente';
@@ -499,33 +540,53 @@ export default function Mensagens({ notify }) {
                         {filtered.map(c => {
                             const isActive = activeConv === c.id;
                             const sc = STATUS_COLORS[c.status] || STATUS_COLORS.humano;
+                            const displayName = c.cliente_nome || c.wa_name || c.wa_phone;
+                            const avColor = avatarColor(displayName);
                             return (
                                 <div
                                     key={c.id}
                                     onClick={() => selectConv(c)}
                                     style={{
-                                        padding: '12px 16px', cursor: 'pointer',
+                                        padding: '11px 14px 11px 18px', cursor: 'pointer',
                                         borderBottom: '1px solid var(--border)',
                                         background: isActive ? 'var(--bg-muted)' : 'transparent',
                                         transition: 'background 0.15s',
+                                        position: 'relative',
                                     }}
                                     onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--bg-hover)'; }}
                                     onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
                                 >
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                                        {/* Avatar + prioridade */}
+                                    {isActive && (
+                                        <span style={{
+                                            position: 'absolute', left: 0, top: 6, bottom: 6,
+                                            width: 3, borderRadius: '0 3px 3px 0',
+                                            background: 'var(--primary)',
+                                        }} />
+                                    )}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        {/* Avatar com iniciais + indicador de status */}
                                         <div style={{ position: 'relative', flexShrink: 0 }}>
                                             <div style={{
-                                                width: 40, height: 40, borderRadius: '50%',
-                                                background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                border: `2px solid ${sc.border}`,
+                                                width: 48, height: 48, borderRadius: '50%',
+                                                background: `linear-gradient(135deg, ${avColor}, ${avColor}cc)`,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                color: '#fff', fontSize: 15, fontWeight: 700,
+                                                letterSpacing: 0.3,
+                                                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
                                             }}>
-                                                <User size={18} style={{ color: 'var(--text-muted)' }} />
+                                                {initials(displayName)}
                                             </div>
+                                            {/* Status dot (IA/humano/fechado) */}
+                                            <span style={{
+                                                position: 'absolute', bottom: 0, right: 0,
+                                                width: 13, height: 13, borderRadius: '50%',
+                                                background: sc.color,
+                                                border: '2px solid var(--bg-card)',
+                                            }} />
                                             {c.prioridade === 'urgente' && (
                                                 <span style={{
-                                                    position: 'absolute', top: -2, right: -2,
-                                                    fontSize: 10,
+                                                    position: 'absolute', top: -4, right: -4,
+                                                    fontSize: 11,
                                                 }}>🔥</span>
                                             )}
                                             {c.prioridade === 'alta' && (
@@ -625,19 +686,45 @@ export default function Mensagens({ notify }) {
                 </div>
 
                 {/* ═══ Painel Direito: Chat ═══ */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-body)' }}>
+                <div style={{
+                    flex: 1, display: 'flex', flexDirection: 'column',
+                    background: 'var(--bg-body)',
+                    borderLeft: '3px solid var(--primary)',
+                }}>
                     {!activeConv ? (
-                        // Nenhuma conversa selecionada
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, color: 'var(--text-muted)' }}>
-                            <MessageCircle size={48} style={{ opacity: 0.3 }} />
-                            <p style={{ fontSize: 15 }}>Selecione uma conversa para começar</p>
+                        // Nenhuma conversa selecionada — estilo WA Web splash
+                        <div style={{
+                            flex: 1, display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center',
+                            gap: 14, color: 'var(--text-muted)', padding: 40,
+                            background: `radial-gradient(circle at 30% 20%, ${colorBg('#C9A96E')} 0, transparent 50%), radial-gradient(circle at 70% 80%, ${colorBg('#1379F0')} 0, transparent 55%)`,
+                        }}>
+                            <div style={{
+                                width: 120, height: 120, borderRadius: '50%',
+                                background: `linear-gradient(135deg, ${colorBg('#1379F0')}, ${colorBg('#C9A96E')})`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+                                marginBottom: 8,
+                            }}>
+                                <MessageCircle size={56} style={{ color: 'var(--primary)', opacity: 0.85 }} />
+                            </div>
+                            <h3 style={{ fontSize: 22, fontWeight: 400, color: 'var(--text-primary)', margin: 0, letterSpacing: -0.3 }}>
+                                Inbox Ornato
+                            </h3>
+                            <p style={{ fontSize: 13.5, maxWidth: 420, textAlign: 'center', lineHeight: 1.55, margin: 0, color: 'var(--text-muted)' }}>
+                                Selecione uma conversa à esquerda para começar. Todas as mensagens do WhatsApp passam por aqui, com suporte a IA, notas internas, atribuição e categorias.
+                            </p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)', marginTop: 12, opacity: 0.7 }}>
+                                <Lock size={11} /> Comunicação criptografada via Evolution API
+                            </div>
                         </div>
                     ) : (
                         <>
                             {/* Header do chat */}
                             <div style={{
-                                padding: '12px 20px', borderBottom: '1px solid var(--border)',
+                                padding: '10px 20px', borderBottom: '1px solid var(--border)',
                                 background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: 12,
+                                boxShadow: '0 1px 0 rgba(0,0,0,0.02)',
                             }}>
                                 <button
                                     onClick={() => { setMobileShowChat(false); setActiveConv(null); }}
@@ -648,12 +735,21 @@ export default function Mensagens({ notify }) {
                                     <ArrowLeft size={18} style={{ color: 'var(--text-muted)' }} />
                                 </button>
 
-                                <div style={{
-                                    width: 36, height: 36, borderRadius: '50%',
-                                    background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                }}>
-                                    <User size={16} style={{ color: 'var(--text-muted)' }} />
-                                </div>
+                                {(() => {
+                                    const hdrName = activeConvData?.cliente_nome || activeConvData?.wa_name || activeConvData?.wa_phone || '';
+                                    const hdrColor = avatarColor(hdrName);
+                                    return (
+                                        <div style={{
+                                            width: 42, height: 42, borderRadius: '50%',
+                                            background: `linear-gradient(135deg, ${hdrColor}, ${hdrColor}cc)`,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            color: '#fff', fontSize: 14, fontWeight: 700,
+                                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)', flexShrink: 0,
+                                        }}>
+                                            {initials(hdrName)}
+                                        </div>
+                                    );
+                                })()}
 
                                 <div style={{ flex: 1 }}>
                                     <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
@@ -907,109 +1003,190 @@ export default function Mensagens({ notify }) {
                             </div>
 
                             {/* Mensagens */}
-                            <div style={{
-                                flex: 1, overflowY: 'auto', padding: '16px 20px',
-                                display: 'flex', flexDirection: 'column', gap: 8,
-                            }}>
+                            <div
+                                className="wa-chat-area"
+                                style={{
+                                    flex: 1, overflowY: 'auto', padding: '14px 5% 10px',
+                                    display: 'flex', flexDirection: 'column', gap: 2,
+                                    background: 'var(--bg-body)',
+                                    backgroundImage: `radial-gradient(circle at 25% 15%, ${colorBg('#C9A96E')} 0, transparent 40%), radial-gradient(circle at 75% 85%, ${colorBg('#1379F0')} 0, transparent 45%)`,
+                                }}>
                                 {mensagens.length === 0 && (
-                                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: 32 }}>
-                                        Nenhuma mensagem nesta conversa.
+                                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: 32, margin: 'auto' }}>
+                                        <MessageCircle size={32} style={{ opacity: 0.25, marginBottom: 8 }} />
+                                        <div>Nenhuma mensagem nesta conversa.</div>
                                     </div>
                                 )}
                                 {mensagens.map((m, i) => {
                                     const isEntrada = m.direcao === 'entrada';
                                     const isInterno = m.interno === 1;
                                     const isIA = m.remetente === 'ia';
+                                    const prev = mensagens[i - 1];
+                                    const next = mensagens[i + 1];
 
-                                    let bubbleBg, bubbleColor, align, indicator;
+                                    // Separador de dia
+                                    const dayChanged = !prev || dayKey(prev.criado_em) !== dayKey(m.criado_em);
+
+                                    // Agrupamento: mesma direção + remetente + ≤ 5 min
+                                    const sameSenderAsPrev = prev && !dayChanged &&
+                                        prev.direcao === m.direcao &&
+                                        prev.remetente === m.remetente &&
+                                        (prev.interno === 1) === isInterno &&
+                                        Math.abs(new Date((m.criado_em || '').endsWith('Z') ? m.criado_em : m.criado_em + 'Z') - new Date((prev.criado_em || '').endsWith('Z') ? prev.criado_em : prev.criado_em + 'Z')) < 5 * 60 * 1000;
+                                    const sameSenderAsNext = next &&
+                                        dayKey(next.criado_em) === dayKey(m.criado_em) &&
+                                        next.direcao === m.direcao &&
+                                        next.remetente === m.remetente &&
+                                        (next.interno === 1) === isInterno &&
+                                        Math.abs(new Date((next.criado_em || '').endsWith('Z') ? next.criado_em : next.criado_em + 'Z') - new Date((m.criado_em || '').endsWith('Z') ? m.criado_em : m.criado_em + 'Z')) < 5 * 60 * 1000;
+
+                                    // Estilo de bolha
+                                    let bubbleBg, bubbleColor, align, indicator, metaColor;
                                     if (isEntrada) {
-                                        bubbleBg = 'var(--bg-muted)';
+                                        bubbleBg = 'var(--bg-card)';
                                         bubbleColor = 'var(--text-primary)';
                                         align = 'flex-start';
                                         indicator = null;
+                                        metaColor = 'var(--text-muted)';
                                     } else if (isInterno) {
                                         bubbleBg = '#fef3c7';
-                                        bubbleColor = '#92400e';
+                                        bubbleColor = '#78350f';
                                         align = 'flex-end';
-                                        indicator = <Lock size={10} style={{ opacity: 0.6 }} />;
+                                        indicator = <Lock size={10} style={{ opacity: 0.7 }} />;
+                                        metaColor = 'rgba(120,53,15,0.6)';
                                     } else if (isIA) {
                                         bubbleBg = 'linear-gradient(135deg, #8b5cf6, #6366f1)';
                                         bubbleColor = '#fff';
                                         align = 'flex-end';
                                         indicator = <Bot size={10} />;
+                                        metaColor = 'rgba(255,255,255,0.75)';
                                     } else {
                                         bubbleBg = 'var(--primary)';
                                         bubbleColor = '#fff';
                                         align = 'flex-end';
                                         indicator = null;
+                                        metaColor = 'rgba(255,255,255,0.75)';
                                     }
 
+                                    // Raio da bolha (com "tail" apenas na primeira/última do grupo)
+                                    const R = 12, r = 4;
+                                    const isFirst = !sameSenderAsPrev;
+                                    const isLast = !sameSenderAsNext;
+                                    const bubbleRadius = isEntrada
+                                        ? `${isFirst ? r : R}px ${R}px ${R}px ${R}px`
+                                        : `${R}px ${isFirst ? r : R}px ${R}px ${R}px`;
+
+                                    // Só mostra hora + ticks na última msg do grupo
+                                    const showMeta = isLast;
+                                    const hasText = !!(m.conteudo && !m.conteudo.startsWith('['));
+                                    const hasBracketNote = !!(m.conteudo && m.conteudo.startsWith('[') && !m.media_url);
+                                    const hasMedia = !!m.media_url;
+
                                     return (
-                                        <div key={m.id} style={{ display: 'flex', justifyContent: align }}>
+                                        <div key={m.id}>
+                                            {/* Separador de dia */}
+                                            {dayChanged && (
+                                                <div style={{ display: 'flex', justifyContent: 'center', margin: '14px 0 10px' }}>
+                                                    <span style={{
+                                                        fontSize: 11, fontWeight: 600,
+                                                        padding: '4px 12px', borderRadius: 99,
+                                                        background: 'var(--bg-card)',
+                                                        color: 'var(--text-muted)',
+                                                        boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                                                        border: '1px solid var(--border)',
+                                                        letterSpacing: 0.2,
+                                                    }}>
+                                                        {formatDayLabel(m.criado_em)}
+                                                    </span>
+                                                </div>
+                                            )}
+
                                             <div style={{
-                                                maxWidth: '70%', padding: '10px 14px', borderRadius: 12,
-                                                background: bubbleBg, color: bubbleColor,
-                                                borderTopLeftRadius: isEntrada ? 4 : 12,
-                                                borderTopRightRadius: isEntrada ? 12 : 4,
-                                                boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                                                display: 'flex', justifyContent: align,
+                                                marginTop: sameSenderAsPrev ? 2 : 8,
+                                                marginBottom: sameSenderAsNext ? 0 : 2,
                                             }}>
-                                                {/* Indicador */}
-                                                {(indicator || isInterno || isIA) && (
-                                                    <div style={{ fontSize: 10, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4, opacity: 0.8 }}>
-                                                        {indicator}
-                                                        {isInterno && 'Nota interna'}
-                                                        {isIA && !isInterno && 'IA'}
-                                                        {!isIA && !isInterno && m.usuario_nome && m.usuario_nome}
-                                                    </div>
-                                                )}
-                                                {!indicator && !isEntrada && !isIA && m.usuario_nome && (
-                                                    <div style={{ fontSize: 10, marginBottom: 4, opacity: 0.8 }}>
-                                                        {m.usuario_nome}
-                                                    </div>
-                                                )}
-                                                {/* Mídia */}
-                                                {m.media_url && (m.tipo === 'imagem' || m.tipo === 'sticker') && (
-                                                    <img
-                                                        src={m.media_url}
-                                                        alt="Imagem"
-                                                        style={{ maxWidth: '100%', maxHeight: 300, borderRadius: 8, marginBottom: m.conteudo && !m.conteudo.startsWith('[') ? 6 : 0, cursor: 'pointer', objectFit: 'contain' }}
-                                                        onClick={() => setLightbox(m.media_url)}
-                                                    />
-                                                )}
-                                                {m.media_url && m.tipo === 'video' && (
-                                                    <video controls style={{ maxWidth: '100%', borderRadius: 8, marginBottom: m.conteudo && !m.conteudo.startsWith('[') ? 6 : 0 }}>
-                                                        <source src={m.media_url} type="video/mp4" />
-                                                    </video>
-                                                )}
-                                                {m.media_url && m.tipo === 'audio' && (
-                                                    <audio controls style={{ maxWidth: '100%', marginBottom: 4 }}>
-                                                        <source src={m.media_url} type="audio/ogg" />
-                                                    </audio>
-                                                )}
-                                                {m.media_url && m.tipo === 'documento' && (
-                                                    <a href={m.media_url} target="_blank" rel="noopener noreferrer"
-                                                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'rgba(0,0,0,0.08)', borderRadius: 6, marginBottom: 4, color: 'inherit', textDecoration: 'none', fontSize: 13 }}>
-                                                        📄 Documento
-                                                    </a>
-                                                )}
-                                                {/* Conteúdo texto */}
-                                                {m.conteudo && !m.conteudo.startsWith('[') && (
-                                                    <div style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                                        {m.conteudo}
-                                                    </div>
-                                                )}
-                                                {m.conteudo && m.conteudo.startsWith('[') && !m.media_url && (
-                                                    <div style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontStyle: 'italic', opacity: 0.7 }}>
-                                                        {m.conteudo}
-                                                    </div>
-                                                )}
-                                                {/* Hora */}
-                                                <div style={{ fontSize: 10, marginTop: 4, opacity: 0.6, textAlign: 'right' }}>
-                                                    {formatTime(m.criado_em)}
-                                                    {m.direcao === 'saida' && !isInterno && (
-                                                        <span style={{ marginLeft: 4 }}>
-                                                            {m.status_envio === 'lido' ? <CheckCheck size={12} style={{ display: 'inline', color: '#53bdeb' }} /> : m.status_envio === 'entregue' ? <CheckCheck size={12} style={{ display: 'inline' }} /> : <Check size={12} style={{ display: 'inline' }} />}
-                                                        </span>
+                                                <div style={{
+                                                    maxWidth: '68%',
+                                                    padding: hasMedia && !hasText && !hasBracketNote ? '4px 4px 6px' : '7px 10px 8px',
+                                                    borderRadius: bubbleRadius,
+                                                    background: bubbleBg, color: bubbleColor,
+                                                    boxShadow: '0 1px 1.5px rgba(0,0,0,0.09)',
+                                                    position: 'relative',
+                                                    minWidth: 64,
+                                                }}>
+                                                    {/* Header de remetente (IA / nota interna / usuário) — só na primeira do grupo */}
+                                                    {isFirst && (indicator || isInterno || isIA) && (
+                                                        <div style={{ fontSize: 10.5, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4, opacity: 0.85, fontWeight: 700, letterSpacing: 0.2 }}>
+                                                            {indicator}
+                                                            {isInterno && 'Nota interna'}
+                                                            {isIA && !isInterno && 'Sofia · IA'}
+                                                            {!isIA && !isInterno && m.usuario_nome && m.usuario_nome}
+                                                        </div>
+                                                    )}
+                                                    {isFirst && !indicator && !isEntrada && !isIA && !isInterno && m.usuario_nome && (
+                                                        <div style={{ fontSize: 10.5, marginBottom: 3, opacity: 0.8, fontWeight: 700, letterSpacing: 0.2 }}>
+                                                            {m.usuario_nome}
+                                                        </div>
+                                                    )}
+                                                    {/* Mídia */}
+                                                    {m.media_url && (m.tipo === 'imagem' || m.tipo === 'sticker') && (
+                                                        <img
+                                                            src={m.media_url}
+                                                            alt="Imagem"
+                                                            style={{ maxWidth: 320, maxHeight: 320, borderRadius: 8, marginBottom: hasText ? 6 : 0, cursor: 'pointer', objectFit: 'cover', display: 'block' }}
+                                                            onClick={() => setLightbox(m.media_url)}
+                                                        />
+                                                    )}
+                                                    {m.media_url && m.tipo === 'video' && (
+                                                        <video controls style={{ maxWidth: 320, borderRadius: 8, marginBottom: hasText ? 6 : 0, display: 'block' }}>
+                                                            <source src={m.media_url} type="video/mp4" />
+                                                        </video>
+                                                    )}
+                                                    {m.media_url && m.tipo === 'audio' && (
+                                                        <audio controls style={{ minWidth: 240, marginBottom: 4, display: 'block' }}>
+                                                            <source src={m.media_url} type="audio/ogg" />
+                                                        </audio>
+                                                    )}
+                                                    {m.media_url && m.tipo === 'documento' && (
+                                                        <a href={m.media_url} target="_blank" rel="noopener noreferrer"
+                                                            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'rgba(0,0,0,0.08)', borderRadius: 6, marginBottom: hasText ? 6 : 0, color: 'inherit', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>
+                                                            <FileText size={16} /> Documento
+                                                        </a>
+                                                    )}
+                                                    {/* Texto com espaço pra timestamp inline (estilo WA) */}
+                                                    {hasText && (
+                                                        <div style={{ fontSize: 14.5, lineHeight: 1.4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                                            {m.conteudo}
+                                                            {showMeta && (
+                                                                <span style={{ display: 'inline-block', width: m.direcao === 'saida' && !isInterno ? 64 : 42, height: 1 }} />
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    {hasBracketNote && (
+                                                        <div style={{ fontSize: 13.5, lineHeight: 1.4, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontStyle: 'italic', opacity: 0.75 }}>
+                                                            {m.conteudo}
+                                                        </div>
+                                                    )}
+                                                    {/* Meta: hora + ticks (bottom-right inside bubble) */}
+                                                    {showMeta && (
+                                                        <div style={{
+                                                            position: 'absolute', right: 10, bottom: 5,
+                                                            fontSize: 10, color: metaColor,
+                                                            display: 'flex', alignItems: 'center', gap: 3,
+                                                            pointerEvents: 'none',
+                                                        }}>
+                                                            {formatTime(m.criado_em)}
+                                                            {m.direcao === 'saida' && !isInterno && (
+                                                                <>
+                                                                    {m.status_envio === 'lido'
+                                                                        ? <CheckCheck size={13} style={{ color: '#53bdeb' }} />
+                                                                        : m.status_envio === 'entregue'
+                                                                            ? <CheckCheck size={13} />
+                                                                            : <Check size={13} />}
+                                                                </>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
@@ -1021,15 +1198,15 @@ export default function Mensagens({ notify }) {
 
                             {/* Área de input */}
                             <div style={{
-                                padding: '12px 20px', borderTop: '1px solid var(--border)',
+                                padding: '10px 16px 14px', borderTop: '1px solid var(--border)',
                                 background: 'var(--bg-card)',
                             }}>
-                                {/* Toggle interno */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                {/* Toggle interno + sugerir (chips discretos) */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                                     <button
                                         onClick={() => setInterno(false)}
                                         style={{
-                                            fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
+                                            fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: 'pointer',
                                             background: !interno ? colorBg('#22c55e') : 'transparent',
                                             color: !interno ? 'var(--success)' : 'var(--text-muted)',
                                             border: `1px solid ${!interno ? colorBorder('#22c55e') : 'var(--border)'}`,
@@ -1041,7 +1218,7 @@ export default function Mensagens({ notify }) {
                                     <button
                                         onClick={() => setInterno(true)}
                                         style={{
-                                            fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
+                                            fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: 'pointer',
                                             background: interno ? '#fef3c7' : 'transparent',
                                             color: interno ? '#92400e' : 'var(--text-muted)',
                                             border: `1px solid ${interno ? colorBorder('#fbbf24') : 'var(--border)'}`,
@@ -1056,7 +1233,7 @@ export default function Mensagens({ notify }) {
                                         onClick={sugerir}
                                         disabled={suggesting}
                                         style={{
-                                            fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: suggesting ? 'wait' : 'pointer',
+                                            fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: suggesting ? 'wait' : 'pointer',
                                             background: colorBg('#8b5cf6'), color: '#8b5cf6',
                                             border: `1px solid ${colorBorder('#8b5cf6')}`, fontWeight: 600,
                                             marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4,
@@ -1068,9 +1245,16 @@ export default function Mensagens({ notify }) {
                                     </button>
                                 </div>
 
-                                {/* Input + Send */}
-                                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                                    {/* Anexar arquivo */}
+                                {/* Input + Send — pill-style */}
+                                <div style={{
+                                    display: 'flex', gap: 8, alignItems: 'center',
+                                    background: interno ? '#fef3c720' : 'var(--bg-muted)',
+                                    border: `1px solid ${interno ? colorBorder('#fbbf24') : 'var(--border)'}`,
+                                    borderRadius: 24,
+                                    padding: '4px 4px 4px 6px',
+                                    transition: 'border-color 0.15s',
+                                }}>
+                                    {/* Anexar arquivo (esquerda, redondo, sutil) */}
                                     {!interno && (
                                         <>
                                             <input
@@ -1084,58 +1268,77 @@ export default function Mensagens({ notify }) {
                                                 onClick={() => fileInputRef.current?.click()}
                                                 disabled={sending}
                                                 style={{
-                                                    background: 'none', border: '1px solid var(--border)', borderRadius: 8,
-                                                    padding: 10, cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0,
+                                                    background: 'transparent', border: 'none', borderRadius: '50%',
+                                                    width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0,
+                                                    transition: 'background 0.15s, color 0.15s',
                                                 }}
+                                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--primary)'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
                                                 title="Anexar arquivo"
                                             >
-                                                <Paperclip size={18} />
+                                                <Paperclip size={19} />
                                             </button>
                                         </>
                                     )}
                                     <textarea
                                         ref={inputRef}
-                                        className={Z.inp}
-                                        placeholder={interno ? 'Escrever nota interna...' : 'Digitar mensagem...'}
+                                        placeholder={interno ? 'Escrever nota interna...' : 'Digite uma mensagem'}
                                         value={input}
                                         onChange={e => setInput(e.target.value)}
                                         onKeyDown={e => {
                                             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(); }
                                         }}
-                                        rows={2}
+                                        rows={1}
                                         style={{
-                                            flex: 1, resize: 'none', fontSize: 14,
-                                            borderColor: interno ? colorBorder('#fbbf24') : undefined,
-                                            background: interno ? '#fef3c705' : undefined,
+                                            flex: 1, resize: 'none', fontSize: 14.5, lineHeight: 1.4,
+                                            border: 'none', outline: 'none',
+                                            background: 'transparent', color: 'var(--text-primary)',
+                                            padding: '8px 4px', fontFamily: 'inherit',
+                                            maxHeight: 120, minHeight: 20,
                                         }}
                                     />
-                                    {/* Mic / Send */}
+                                    {/* Mic / Send — circular à direita */}
                                     {!interno && !input.trim() ? (
                                         <button
                                             onClick={recording ? stopRecording : startRecording}
                                             disabled={sending}
-                                            className={Z.btn}
                                             style={{
-                                                padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-                                                background: recording ? '#ef4444' : undefined,
+                                                width: 40, height: 40, borderRadius: '50%',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                border: 'none', cursor: 'pointer', flexShrink: 0,
+                                                background: recording ? '#ef4444' : 'var(--primary)',
+                                                color: '#fff',
+                                                boxShadow: '0 2px 6px rgba(19,121,240,0.3)',
+                                                transition: 'transform 0.12s',
                                             }}
+                                            onMouseDown={e => e.currentTarget.style.transform = 'scale(0.92)'}
+                                            onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+                                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                                             title={recording ? 'Parar gravação' : 'Gravar áudio'}
                                         >
-                                            {recording ? <Square size={16} /> : <Mic size={16} />}
+                                            {recording ? <Square size={17} /> : <Mic size={18} />}
                                         </button>
                                     ) : (
                                         <button
                                             onClick={enviar}
                                             disabled={!input.trim() || sending}
-                                            className={Z.btn}
                                             style={{
-                                                padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                                                width: 40, height: 40, borderRadius: '50%',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                border: 'none', cursor: !input.trim() || sending ? 'not-allowed' : 'pointer', flexShrink: 0,
+                                                background: interno ? 'var(--warning)' : 'var(--primary)',
+                                                color: '#fff',
                                                 opacity: !input.trim() || sending ? 0.5 : 1,
-                                                background: interno ? 'var(--warning)' : undefined,
+                                                boxShadow: '0 2px 6px rgba(19,121,240,0.3)',
+                                                transition: 'transform 0.12s',
                                             }}
+                                            onMouseDown={e => { if (input.trim()) e.currentTarget.style.transform = 'scale(0.92)'; }}
+                                            onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+                                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                                             title="Enviar"
                                         >
-                                            <Send size={16} />
+                                            <Send size={17} style={{ marginLeft: -2 }} />
                                         </button>
                                     )}
                                 </div>
