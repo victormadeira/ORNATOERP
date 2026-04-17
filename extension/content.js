@@ -114,11 +114,11 @@
         fab.classList.remove('hidden');
         if (save) storage.set({ sidebarOpen: false });
     }
-    fab.addEventListener('click', () => openSidebar());
+    fab.addEventListener('click', () => { openSidebar(); setTimeout(() => onDOMChange(), 50); });
     closeBtn.addEventListener('click', () => closeSidebar());
     refreshBtn.addEventListener('click', () => {
         if (currentPhone) carregar(currentPhone);
-        else render();
+        else { tentouDrawerPara = null; onDOMChange(); }
     });
 
     tabs.forEach((t) => t.addEventListener('click', () => {
@@ -170,66 +170,144 @@
     // ═══════════════════════════════════════════════════════
     function digits(s) { return String(s || '').replace(/\D/g, ''); }
 
-    function extrairTelefoneAtivo() {
-        // 1) Header do chat — títulos e aria-labels
-        const headerSelectors = [
-            '#main header span[title]',
-            '#main header [aria-label]',
-            'div[data-testid="conversation-header"] span[title]',
-            'div[data-testid="conversation-header"] [aria-label]',
-            'header span[dir="auto"][title]',
+    function mainHeader() {
+        return document.querySelector('#main header')
+            || document.querySelector('div[data-testid="conversation-header"]')
+            || document.querySelector('[data-testid="conversation-info-header"]');
+    }
+
+    function drawerPanel() {
+        return document.querySelector('div[data-testid="drawer-right"]')
+            || document.querySelector('span[data-testid="drawer-right-title"]')?.closest('div[role="region"]')
+            || document.querySelector('section[data-testid="contact-info-drawer"]')
+            || document.querySelector('#app div[role="region"][tabindex="-1"]')
+            || null;
+    }
+
+    function buscarTelefoneEm(texto) {
+        if (!texto) return null;
+        // Padrões comuns: +55 11 99999-9999, +551199999999, etc.
+        // Também aceita BR local sem DDI: (11) 99999-9999
+        const patterns = [
+            /\+\d{1,3}[\s.]?\(?\d{2,4}\)?[\s.-]?\d{3,5}[\s.-]?\d{3,5}/g, // com +DDI
+            /\(?\d{2,3}\)?[\s.-]?\d{4,5}[\s.-]?\d{4}/g,                   // BR local
+            /\+?\d[\d\s\-().]{9,}/g,                                      // genérico
         ];
-        for (const sel of headerSelectors) {
-            const nodes = document.querySelectorAll(sel);
-            for (const el of nodes) {
-                const text = el.getAttribute('title') || el.getAttribute('aria-label') || '';
-                const m = text.match(/\+?\d[\d\s\-().]{8,}/);
-                if (m) {
-                    const d = digits(m[0]);
-                    if (d.length >= 10) return d;
-                }
+        for (const p of patterns) {
+            const matches = texto.match(p);
+            if (!matches) continue;
+            for (const m of matches) {
+                const d = digits(m);
+                if (d.length >= 10 && d.length <= 15) return d;
             }
         }
+        return null;
+    }
 
-        // 2) Chat list — item selecionado
-        const selected = document.querySelector('#pane-side [aria-selected="true"], #pane-side div[tabindex="-1"][aria-selected]');
-        if (selected) {
-            const m = (selected.textContent || '').match(/\+?\d[\d\s\-().]{8,}/);
-            if (m) { const d = digits(m[0]); if (d.length >= 10) return d; }
+    function extrairTelefoneAtivo() {
+        // 1) Header do chat — varre TODOS os spans/divs com title ou aria-label
+        const header = mainHeader();
+        if (header) {
+            // Primeiro tenta atributos title/aria-label diretamente
+            const attrs = header.querySelectorAll('[title], [aria-label]');
+            for (const el of attrs) {
+                const t = (el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '');
+                const p = buscarTelefoneEm(t);
+                if (p) return p;
+            }
+            // Depois o texto puro do header (alguns layouts mostram o número ali)
+            const p = buscarTelefoneEm(header.innerText || header.textContent || '');
+            if (p) return p;
         }
 
-        // 3) URL hash
+        // 2) Drawer (dados do contato) — se estiver aberto, tem o telefone
+        const drawer = drawerPanel();
+        if (drawer) {
+            const attrs = drawer.querySelectorAll('[title], [aria-label]');
+            for (const el of attrs) {
+                const t = (el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '');
+                const p = buscarTelefoneEm(t);
+                if (p) return p;
+            }
+            const p = buscarTelefoneEm(drawer.innerText || drawer.textContent || '');
+            if (p) return p;
+        }
+
+        // 3) Chat list — item selecionado
+        const selected = document.querySelector('#pane-side [aria-selected="true"], #pane-side [tabindex="-1"][aria-selected="true"], div[data-testid="cell-frame-container"][tabindex="-1"]');
+        if (selected) {
+            const attrs = selected.querySelectorAll('[title], [aria-label]');
+            for (const el of attrs) {
+                const t = (el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '');
+                const p = buscarTelefoneEm(t);
+                if (p) return p;
+            }
+            const p = buscarTelefoneEm(selected.textContent || '');
+            if (p) return p;
+        }
+
+        // 4) URL hash (alguns bridges expõem)
         const urlM = location.hash.match(/(\d{10,15})/);
         if (urlM) return urlM[1];
 
-        // 4) Drawer (dados do contato)
-        const drawer = document.querySelector('div[data-testid="drawer-right"], #app div[role="region"]');
-        if (drawer) {
-            const m = drawer.textContent.match(/\+?\d[\d\s\-().]{8,}/);
-            if (m) { const d = digits(m[0]); if (d.length >= 10) return d; }
+        // 5) Última tentativa: buscar no #main inteiro
+        const main = document.querySelector('#main');
+        if (main) {
+            const attrs = main.querySelectorAll('header [title], header [aria-label]');
+            for (const el of attrs) {
+                const t = (el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '');
+                const p = buscarTelefoneEm(t);
+                if (p) return p;
+            }
         }
 
         return null;
     }
 
     function extrairNomeAtivo() {
-        const sel = [
-            '#main header span[title]',
-            'div[data-testid="conversation-header"] span[title]',
-            'header span[dir="auto"][title]',
-        ];
-        for (const s of sel) {
-            const el = document.querySelector(s);
-            if (el) {
-                const t = (el.getAttribute('title') || el.textContent || '').trim();
-                if (t) return t;
-            }
+        const header = mainHeader();
+        if (!header) return '';
+        // Procura spans com title que NÃO são telefone (ou seja, é o nome)
+        const spans = header.querySelectorAll('span[title], span[dir="auto"]');
+        for (const el of spans) {
+            const t = (el.getAttribute('title') || el.textContent || '').trim();
+            if (!t) continue;
+            // Se for um telefone puro, ignora — queremos o nome
+            const d = digits(t);
+            if (d.length >= 10 && /^\+?[\d\s\-().+]+$/.test(t)) continue;
+            return t;
         }
         return '';
     }
 
     function temConversaAberta() {
-        return !!document.querySelector('#main header, div[data-testid="conversation-header"]');
+        return !!mainHeader();
+    }
+
+    // ─── Tenta abrir o drawer do contato para extrair telefone ───
+    async function abrirDrawerParaDetectar() {
+        const header = mainHeader();
+        if (!header) return null;
+        // Se drawer já está aberto, só extrai
+        if (drawerPanel()) return extrairTelefoneAtivo();
+
+        // Clica no header (área do nome) para abrir drawer
+        const clickable = header.querySelector('[role="button"]')
+            || header.querySelector('div[title]')
+            || header;
+        try { clickable.click(); } catch { return null; }
+
+        // Aguarda drawer abrir (até 2s)
+        for (let i = 0; i < 20; i++) {
+            await new Promise(r => setTimeout(r, 100));
+            if (drawerPanel()) break;
+        }
+        await new Promise(r => setTimeout(r, 200));
+        const tel = extrairTelefoneAtivo();
+        // Fecha drawer clicando no botão X
+        const closeBtn = drawerPanel()?.querySelector('button[aria-label*="Fechar" i], button[aria-label*="Close" i], div[role="button"][aria-label*="Fechar" i]');
+        try { closeBtn?.click(); } catch {}
+        return tel;
     }
 
     // ═══════════════════════════════════════════════════════
@@ -316,6 +394,61 @@
 
     function render() {
         if (!currentPhone) {
+            // Se temos nome mas não telefone, mostra UI de fallback (detectar/inserir manual)
+            if (currentName && temConversaAberta()) {
+                body.innerHTML = `
+                    <div class="ornato-card ornato-client-head">
+                        <div class="ornato-avatar">${escapeHtml(avatarInitials(currentName))}</div>
+                        <div class="ornato-client-info">
+                            <div class="name">${escapeHtml(currentName)}</div>
+                            <div class="phone">Número ainda não detectado</div>
+                        </div>
+                    </div>
+                    <div class="ornato-card">
+                        <div class="ornato-card-title">Detectar telefone</div>
+                        <div style="font-size:12px;color:var(--orn-text-soft);margin-bottom:10px;line-height:1.5">
+                            O WhatsApp esconde o número no header. Clique abaixo para abrir os dados do contato e detectar automaticamente, ou digite manualmente.
+                        </div>
+                        <button class="ornato-btn block" id="orn-btn-detect">🔍 Detectar pelo painel de contato</button>
+                        <div class="ornato-label" style="margin-top:14px">Ou digite o telefone (com DDD)</div>
+                        <div style="display:flex;gap:6px">
+                            <input id="orn-man-tel" class="ornato-input" placeholder="11999999999" autocomplete="off" style="flex:1" />
+                            <button class="ornato-btn accent" id="orn-btn-man">Buscar</button>
+                        </div>
+                    </div>`;
+                document.getElementById('orn-btn-detect')?.addEventListener('click', async () => {
+                    const btn = document.getElementById('orn-btn-detect');
+                    btn.disabled = true; btn.textContent = 'Detectando…';
+                    const tel = await abrirDrawerParaDetectar();
+                    if (tel) {
+                        currentPhone = tel;
+                        currentData = null;
+                        subtitleEl.textContent = currentName + ' · +' + tel;
+                        statusEl.textContent = 'Carregando dados…';
+                        carregar(tel);
+                    } else {
+                        btn.disabled = false; btn.textContent = '🔍 Tentar novamente';
+                        const msg = document.createElement('div');
+                        msg.style.cssText = 'font-size:11px;color:var(--orn-danger);margin-top:6px;text-align:center';
+                        msg.textContent = 'Não foi possível detectar. Clique no nome do contato no topo do chat e tente de novo, ou use entrada manual.';
+                        btn.parentNode.insertBefore(msg, btn.nextSibling);
+                    }
+                });
+                const manInput = document.getElementById('orn-man-tel');
+                const manBtn = document.getElementById('orn-btn-man');
+                const manGo = () => {
+                    const v = digits(manInput.value);
+                    if (v.length < 10) { manInput.style.borderColor = 'var(--orn-danger)'; return; }
+                    currentPhone = v;
+                    currentData = null;
+                    subtitleEl.textContent = currentName + ' · +' + v;
+                    statusEl.textContent = 'Carregando dados…';
+                    carregar(v);
+                };
+                manBtn?.addEventListener('click', manGo);
+                manInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') manGo(); });
+                return;
+            }
             body.innerHTML = emptyState('Nenhuma conversa aberta', 'Selecione uma conversa no WhatsApp para ver os dados do ERP.');
             return;
         }
@@ -706,14 +839,18 @@
     // OBSERVER DE MUDANÇA DE CHAT
     // ═══════════════════════════════════════════════════════
     let debounceTimer = null;
+    let ultimoNomeDetectado = null; // pra saber se trocou de chat
+    let tentouDrawerPara = null;   // evita abrir drawer em loop
+
     function onDOMChange() {
         clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
+        debounceTimer = setTimeout(async () => {
             if (!temConversaAberta()) {
-                if (currentPhone !== null) {
+                if (currentPhone !== null || currentName !== null) {
                     currentPhone = null;
                     currentName = null;
                     currentData = null;
+                    ultimoNomeDetectado = null;
                     dotEl.className = 'ornato-dot off';
                     statusEl.textContent = 'Nenhuma conversa selecionada';
                     subtitleEl.textContent = 'Aguardando conversa…';
@@ -723,6 +860,13 @@
             }
             const tel = extrairTelefoneAtivo();
             const nome = extrairNomeAtivo();
+
+            // Mudou de chat (nome diferente) → reseta flag de tentativa
+            if (nome && nome !== ultimoNomeDetectado) {
+                ultimoNomeDetectado = nome;
+                tentouDrawerPara = null;
+            }
+
             if (tel && tel !== currentPhone) {
                 currentPhone = tel;
                 currentName = nome;
@@ -731,11 +875,29 @@
                 statusEl.textContent = 'Carregando dados…';
                 dotEl.className = 'ornato-dot off';
                 carregar(tel);
-            } else if (!tel && currentPhone) {
-                statusEl.textContent = 'Detectando número…';
             } else if (!tel && !currentPhone && nome) {
                 subtitleEl.textContent = nome;
-                statusEl.textContent = 'Abra os dados do contato para detectar número';
+                currentName = nome;
+                // Não conseguimos detectar telefone pelo DOM visível.
+                // Se sidebar está aberta e ainda não tentou drawer para este chat, tenta abrir automaticamente
+                const aberto = !sidebar.classList.contains('ornato-collapsed');
+                if (aberto && tentouDrawerPara !== nome) {
+                    tentouDrawerPara = nome;
+                    statusEl.textContent = 'Detectando número pelo drawer…';
+                    const achou = await abrirDrawerParaDetectar();
+                    if (achou) {
+                        currentPhone = achou;
+                        currentName = nome;
+                        currentData = null;
+                        subtitleEl.textContent = nome || '+' + achou;
+                        statusEl.textContent = 'Carregando dados…';
+                        carregar(achou);
+                        return;
+                    }
+                }
+                statusEl.textContent = nome ? `Número não detectado — use entrada manual` : 'Aguardando…';
+                // Renderiza estado que permite entrada manual
+                if (!currentData) render();
             }
         }, 400);
     }
