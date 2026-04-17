@@ -192,19 +192,72 @@ export function extrairDossie(respostaBruta) {
 // SCORING de lead (0-100)
 // ═══════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════
+// INTENÇÃO — Detectar sinais comportamentais de compra
+// ═══════════════════════════════════════════════════════
+
+const INTENCAO_ALTA = [
+    /\bvou fechar\b/i, /\bquero fechar\b/i, /\bfechar com voc[êe]s?\b/i,
+    /\best(ou|amos) cert[oa]\b/i, /\bcerteza que\b.*\b(fechar|contrat)/i,
+    /\bdecidid[oa]\b/i, /\bcontratar voc[êe]s\b/i,
+];
+const INTENCAO_MEDIA = [
+    /\bmand(a|e|em) (a )?proposta\b/i, /\bmand(a|e|em) (o )?or[çc]amento\b/i,
+    /\bquando (voc[êe]s?|podemos|come[çc]a)\b/i, /\bpr[óo]ximo passo\b/i,
+    /\bquanto tempo\b.*\b(pra|para) come[çc]ar\b/i,
+    /\bvamos marcar\b/i, /\bagendar (visita|reuni[ãa]o)\b/i,
+];
+const INTENCAO_BAIXA = [
+    /\bme interess(o|ei|a)\b/i, /\bgostei\b/i, /\bqual o passo\b/i,
+    /\btenho interesse\b/i,
+];
+
+export function calcularIntencao(mensagensCliente = []) {
+    if (!Array.isArray(mensagensCliente) || mensagensCliente.length === 0) {
+        return { score: 0, sinais: [] };
+    }
+    const texto = mensagensCliente.join('\n');
+    const sinais = [];
+    let pts = 0;
+    for (const re of INTENCAO_ALTA) {
+        const m = texto.match(re);
+        if (m) { pts += 20; sinais.push(`alta:"${m[0]}":+20`); break; }
+    }
+    for (const re of INTENCAO_MEDIA) {
+        const m = texto.match(re);
+        if (m) { pts += 15; sinais.push(`media:"${m[0]}":+15`); break; }
+    }
+    for (const re of INTENCAO_BAIXA) {
+        const m = texto.match(re);
+        if (m) { pts += 5; sinais.push(`baixa:"${m[0]}":+5`); break; }
+    }
+    return { score: Math.min(30, pts), sinais };
+}
+
+// Detecta se dossiê novo indica mudança para casa completa
+function indicaCasaCompleta(dossie = {}) {
+    if (dossie.casa_completa === true) return true;
+    const ambs = (dossie.ambientes || []).map(a => String(a).toLowerCase());
+    if (ambs.some(a => /completa|casa\s*toda|apartamento\s*inteiro|casa\s*inteira|todos os ambientes|residencia\s*completa|obra toda/.test(a))) return true;
+    if (Number(dossie.quantidade_ambientes || 0) >= 5) return true;
+    return false;
+}
+
 /**
  * Calcula score do lead baseado em dados coletados.
- * Retorna { score: 0-100, classificacao: 'frio'|'morno'|'quente'|'muito_quente', detalhes: [] }
+ * opts: { mensagensCliente: string[] } — histórico p/ detectar intenção
+ * Retorna { score, classificacao, detalhes, intencao }
  */
-export function calcularScore(dossie = {}) {
+export function calcularScore(dossie = {}, opts = {}) {
     let score = 0;
     const detalhes = [];
 
     const qtdAmbientes = Number(dossie.quantidade_ambientes || (Array.isArray(dossie.ambientes) ? dossie.ambientes.length : 0));
     const ambs = (dossie.ambientes || []).map(a => String(a).toLowerCase());
+    const casaCompleta = indicaCasaCompleta(dossie);
 
     // Escopo (projeto residencial) — ambientes de maior ticket pontuam mais
-    if (qtdAmbientes >= 4 || ambs.some(a => /completo|residencia|apartamento\s*inteiro|casa\s*inteira/.test(a))) {
+    if (casaCompleta || qtdAmbientes >= 4 || ambs.some(a => /completo|residencia|apartamento\s*inteiro|casa\s*inteira/.test(a))) {
         score += 40; detalhes.push('residencia_completa:+40');
     } else if (qtdAmbientes >= 2) {
         score += 25; detalhes.push('multiplos_ambientes:+25');
@@ -246,9 +299,21 @@ export function calcularScore(dossie = {}) {
         score -= 10; detalhes.push('prazo_distante:-10');
     }
 
-    // Perguntas de preço (red flag)
+    // ═══ INTENÇÃO (via mensagens do cliente OU campo emitido pela IA) ═══
+    const intencao = calcularIntencao(opts.mensagensCliente || []);
+    const intencaoDaIA = Number(dossie.intencao_score || 0);
+    const intencaoFinal = Math.max(intencao.score, Math.min(30, intencaoDaIA));
+    if (intencaoFinal > 0) {
+        score += intencaoFinal;
+        detalhes.push(`intencao:+${intencaoFinal}`);
+    }
+
+    // Perguntas de preço (red flag) — decai 50% se houver intenção >= 15 (cliente virou a chave)
     const pp = Number(dossie.perguntas_preco || 0);
-    if (pp >= 2) { score -= 15; detalhes.push('pressao_preco:-15'); }
+    if (pp >= 2) {
+        const penal = intencaoFinal >= 15 ? -7 : -15;
+        score += penal; detalhes.push(`pressao_preco:${penal}`);
+    }
 
     // Red flags em geral
     if (Array.isArray(dossie.red_flags) && dossie.red_flags.length > 0) {
@@ -270,12 +335,29 @@ export function calcularScore(dossie = {}) {
 
     score = Math.max(0, Math.min(100, score));
 
+    // ═══ OVERRIDES (piso garantido por sinais óbvios) ═══
+    const cidadeLocal = dossie.dentro_whitelist === true
+        || (typeof dossie.cidade === 'string' && cidadeDentroWhitelist(dossie.cidade) === true);
+    const escopoViavel = dossie.escopo_viavel !== false;
+
+    if (escopoViavel && dossie.dentro_whitelist !== false) {
+        if (casaCompleta && cidadeLocal && intencaoFinal >= 20) {
+            if (score < 65) { score = 65; detalhes.push('override:casa_completa+local+intencao_alta=65'); }
+        } else if (casaCompleta && cidadeLocal) {
+            if (score < 50) { score = 50; detalhes.push('override:casa_completa+local=50'); }
+        } else if (intencaoFinal >= 20 && cidadeLocal) {
+            if (score < 40) { score = 40; detalhes.push('override:intencao_alta+local=40'); }
+        } else if (intencaoFinal >= 20 && casaCompleta) {
+            if (score < 45) { score = 45; detalhes.push('override:intencao_alta+casa_completa=45'); }
+        }
+    }
+
     let classificacao = 'frio';
     if (score >= 80) classificacao = 'muito_quente';
     else if (score >= 60) classificacao = 'quente';
     else if (score >= 30) classificacao = 'morno';
 
-    return { score, classificacao, detalhes };
+    return { score, classificacao, detalhes, intencao: { score: intencaoFinal, sinais: intencao.sinais } };
 }
 
 // ═══════════════════════════════════════════════════════
@@ -374,12 +456,28 @@ export function detectarTratamento(textoCliente) {
 
 export function mergeDossie(antigo = {}, novo = {}) {
     const merged = { ...(antigo || {}) };
+    const novoIndicaCompleta = indicaCasaCompleta(novo || {});
+
     for (const [k, v] of Object.entries(novo || {})) {
         if (v === null || v === undefined) continue;
         if (Array.isArray(v) && v.length === 0) continue;
         if (typeof v === 'string' && v === '') continue;
+
+        // Reset de ambientes em mudança de escopo para casa completa
+        if (k === 'ambientes' && novoIndicaCompleta && Array.isArray(v)) {
+            merged[k] = v; // substitui, não concatena
+            continue;
+        }
         merged[k] = v;
     }
+
+    if (novoIndicaCompleta) merged.casa_completa = true;
+
+    // Ao detectar sinal forte de intenção no dossiê novo, não regride
+    if (novo && typeof novo.intencao_score === 'number') {
+        merged.intencao_score = Math.max(Number(antigo?.intencao_score || 0), novo.intencao_score);
+    }
+
     return merged;
 }
 

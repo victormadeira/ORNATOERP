@@ -1031,8 +1031,12 @@ router.post('/simulate', requireAuth, async (req, res) => {
         // Merge dossiê
         const dossieFinal = sofia.mergeDossie(dossieAcum, dossie || {});
 
-        // Score + tags
-        const { score, classificacao, detalhes } = sofia.calcularScore(dossieFinal);
+        // Score + tags (inclui histórico do cliente p/ detecção de intenção)
+        const mensagensCliente = (history || [])
+            .filter(h => h.role !== 'assistant')
+            .map(h => String(h.content || ''))
+            .concat([message]);
+        const { score, classificacao, detalhes, intencao } = sofia.calcularScore(dossieFinal, { mensagensCliente });
         const tags = sofia.gerarTags(dossieFinal, score);
 
         res.json({
@@ -1043,6 +1047,7 @@ router.post('/simulate', requireAuth, async (req, res) => {
             score,
             classificacao,
             score_detalhes: detalhes,
+            intencao,
             tags,
             violations: validacao.violations,
             sanitized: !validacao.ok,

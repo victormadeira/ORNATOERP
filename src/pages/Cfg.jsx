@@ -483,6 +483,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 tags: r.tags,
                 violations: r.violations,
                 detalhes: r.score_detalhes,
+                intencao: r.intencao,
                 sanitized: r.sanitized,
             });
         } catch (e) {
@@ -2241,6 +2242,27 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                     <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>—</div>
                                                 )}
                                             </div>
+
+                                            {/* Intenção detectada */}
+                                            {simScore && simScore.intencao && (
+                                                <div className="rounded-lg p-3" style={{ border: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
+                                                    <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>Intenção de compra</div>
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="text-lg font-bold" style={{
+                                                            color: simScore.intencao.score >= 20 ? '#22c55e'
+                                                                : simScore.intencao.score >= 10 ? '#f59e0b' : '#94a3b8',
+                                                        }}>+{simScore.intencao.score}</div>
+                                                        <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>/ 30</div>
+                                                    </div>
+                                                    {simScore.intencao.sinais && simScore.intencao.sinais.length > 0 && (
+                                                        <div className="mt-2 flex flex-col gap-1">
+                                                            {simScore.intencao.sinais.map((s, i) => (
+                                                                <span key={i} className="text-[10px]" style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{s}</span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
 
                                             {/* Violações de guardrails */}
                                             {simScore && simScore.violations?.length > 0 && (
