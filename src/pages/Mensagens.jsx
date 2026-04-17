@@ -153,6 +153,17 @@ export default function Mensagens({ notify }) {
         notify?.(isBloqueada ? 'IA retomada nesta conversa' : 'IA pausada por 24h');
     };
 
+    // ═══ Aguardando cliente (pausa escalação) ═══
+    const toggleAguardandoCliente = async () => {
+        if (!activeConv) return;
+        const isAguardando = !!activeConvData?.aguardando_cliente;
+        const r = await api.put(`/whatsapp/conversas/${activeConv}/aguardando-cliente`, {
+            aguardando: !isAguardando,
+        });
+        setActiveConvData(r);
+        notify?.(isAguardando ? 'Escalação reativada' : 'Escalação pausada (aguardando cliente)');
+    };
+
     // ═══ Sugerir resposta via IA ═══
     const sugerir = async () => {
         if (!activeConv) return;
@@ -441,6 +452,40 @@ export default function Mensagens({ notify }) {
                                 >
                                     {activeConvData?.ia_bloqueada ? '🚫 IA pausada' : '⏸ Pausar IA'}
                                 </button>
+
+                                {/* Aguardando cliente (pausa escalação pós-handoff) */}
+                                {activeConvData?.status === 'humano' && (
+                                    <button
+                                        onClick={toggleAguardandoCliente}
+                                        title={activeConvData?.aguardando_cliente
+                                            ? 'Escalação pausada — Sofia não vai intervir enquanto você aguarda o cliente'
+                                            : 'Marcar como "aguardando cliente" para pausar a escalação automática'}
+                                        style={{
+                                            fontSize: 12, padding: '6px 10px', borderRadius: 8,
+                                            border: `1px solid ${activeConvData?.aguardando_cliente ? '#f59e0b' : 'var(--border)'}`,
+                                            background: activeConvData?.aguardando_cliente ? '#f59e0b20' : 'transparent',
+                                            color: activeConvData?.aguardando_cliente ? '#f59e0b' : 'var(--text-muted)',
+                                            cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
+                                        }}
+                                    >
+                                        {activeConvData?.aguardando_cliente ? '⏳ Aguardando cliente' : '⏳ Aguardar cliente'}
+                                    </button>
+                                )}
+
+                                {/* Badge de escalação ativa */}
+                                {activeConvData?.status === 'humano' && Number(activeConvData?.escalacao_nivel) > 0 && !activeConvData?.aguardando_cliente && (
+                                    <span
+                                        title={`Sofia já agiu neste handoff (nível ${activeConvData.escalacao_nivel})`}
+                                        style={{
+                                            fontSize: 11, padding: '4px 8px', borderRadius: 6,
+                                            background: activeConvData.escalacao_nivel >= 3 ? '#ef444420' : activeConvData.escalacao_nivel >= 2 ? '#f59e0b20' : '#3b82f620',
+                                            color: activeConvData.escalacao_nivel >= 3 ? '#ef4444' : activeConvData.escalacao_nivel >= 2 ? '#f59e0b' : '#3b82f6',
+                                            fontWeight: 600,
+                                        }}
+                                    >
+                                        {activeConvData.abandonada ? '💤 Abandonada' : `⚡ N${activeConvData.escalacao_nivel}`}
+                                    </span>
+                                )}
 
                                 {/* Status toggle */}
                                 <button

@@ -40,12 +40,15 @@ import searchRoutes from './routes/search.js';
 import depoimentosRoutes from './routes/depoimentos.js';
 import pontoRoutes from './routes/ponto.js';
 import leadsRoutes from './routes/leads.js';
+import extRoutes from './routes/ext.js';
+import templatesRoutes from './routes/templates.js';
 
 // Inicializa DB (efeito colateral — cria tabelas e seed)
 import './db.js';
 import { iniciarAutomacoes } from './services/automacoes.js';
 import { iniciarBackupDiario } from './services/backup.js';
 import { iniciarSofiaFollowup } from './services/sofia_followup.js';
+import { iniciarSofiaEscalacao } from './services/sofia_escalacao.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -147,6 +150,8 @@ app.use('/api/search', searchRoutes);
 app.use('/api/depoimentos', depoimentosRoutes);
 app.use('/api/ponto', pontoRoutes);
 app.use('/api/leads', leadsRoutes);
+app.use('/api/ext', extRoutes);
+app.use('/api/templates', templatesRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
@@ -206,6 +211,8 @@ const server = app.listen(PORT, () => {
     iniciarBackupDiario();
     // Sofia Follow-up (WhatsApp — 24h após cliente sumir, janela 9h-18h Seg-Sáb)
     iniciarSofiaFollowup();
+    // Sofia Escalação (pós-handoff: alerta → holding → retomada → abandono)
+    iniciarSofiaEscalacao(app);
 });
 
 const wss = new WebSocketServer({ server, path: '/ws' });

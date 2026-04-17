@@ -212,6 +212,19 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [simScore, setSimScore] = useState(null); // { score, classificacao, tags, violations, detalhes }
     const [simBloqueado, setSimBloqueado] = useState(null); // { motivo } — uma vez bloqueada, nada mais vai pra API
     const [simOpen, setSimOpen] = useState(false);
+    // Escalação pós-handoff
+    const [escCfg, setEscCfg] = useState({ ativa: true, sla: null });
+    const [escSaved, setEscSaved] = useState(false);
+    // Tokens da extensão Chrome
+    const [extTokens, setExtTokens] = useState([]);
+    const [extNovoTokenNome, setExtNovoTokenNome] = useState('');
+    const [extTokenRevelado, setExtTokenRevelado] = useState(null); // { id, token, nome }
+    const [extLogs, setExtLogs] = useState([]);
+    const [extLogsOpen, setExtLogsOpen] = useState(false);
+    // Templates
+    const [templates, setTemplates] = useState([]);
+    const [tplEdit, setTplEdit] = useState(null); // { id?, titulo, conteudo, atalho, categoria, ativo }
+    const [tplOpen, setTplOpen] = useState(false);
     const [kbPrompt, setKbPrompt] = useState('');
     const [kbStats, setKbStats] = useState(null);
     const [kbLoading, setKbLoading] = useState(false);
@@ -310,7 +323,96 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         }).catch(e => notify(e.error || 'Erro ao carregar configurações'));
         api.get('/portfolio').then(setPortfolio).catch(e => notify(e.error || 'Erro ao carregar portfolio'));
         api.get('/depoimentos').then(setDepoimentos).catch(() => {});
+        api.get('/config/escalacao').then(d => setEscCfg({ ativa: d.ativa !== false, sla: d.sla || null })).catch(() => {});
+        api.get('/ext/tokens').then(setExtTokens).catch(() => {});
+        api.get('/templates').then(setTemplates).catch(() => {});
     }, []);
+
+    const loadExtTokens = () => api.get('/ext/tokens').then(setExtTokens).catch(() => {});
+    const loadExtLogs = () => api.get('/ext/logs?limit=100').then(setExtLogs).catch(() => {});
+    const loadTemplates = () => api.get('/templates').then(setTemplates).catch(() => {});
+
+    const salvarTemplate = async () => {
+        if (!tplEdit || !tplEdit.titulo || !tplEdit.conteudo) {
+            notify('Preencha título e conteúdo');
+            return;
+        }
+        try {
+            if (tplEdit.id) {
+                await api.put(`/templates/${tplEdit.id}`, tplEdit);
+            } else {
+                await api.post('/templates', tplEdit);
+            }
+            setTplEdit(null);
+            loadTemplates();
+        } catch (e) {
+            notify(e.error || 'Erro ao salvar template');
+        }
+    };
+
+    const excluirTemplate = async (id) => {
+        if (!confirm('Excluir este template?')) return;
+        try {
+            await api.delete(`/templates/${id}`);
+            loadTemplates();
+        } catch (e) {
+            notify(e.error || 'Erro ao excluir');
+        }
+    };
+
+    const baixarExtensao = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch('/api/ext/download-extension', {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!r.ok) {
+                const d = await r.json().catch(() => ({}));
+                notify(d.error || 'Erro ao baixar');
+                return;
+            }
+            const blob = await r.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ornato-extension.zip';
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            notify('Erro: ' + e.message);
+        }
+    };
+
+    const criarExtToken = async () => {
+        try {
+            const r = await api.post('/ext/tokens', { nome: extNovoTokenNome || 'Minha extensão' });
+            setExtTokenRevelado({ id: r.id, token: r.token, nome: r.nome });
+            setExtNovoTokenNome('');
+            loadExtTokens();
+        } catch (e) {
+            notify(e.error || 'Erro ao criar token');
+        }
+    };
+
+    const revogarExtToken = async (id) => {
+        if (!confirm('Revogar este token? A extensão que o usa vai parar de funcionar.')) return;
+        try {
+            await api.delete(`/ext/tokens/${id}`);
+            loadExtTokens();
+        } catch (e) {
+            notify(e.error || 'Erro ao revogar');
+        }
+    };
+
+    const salvarEscCfg = async () => {
+        try {
+            await api.put('/config/escalacao', escCfg);
+            setEscSaved(true);
+            setTimeout(() => setEscSaved(false), 2000);
+        } catch (e) {
+            notify(e.error || 'Erro ao salvar config de escalação');
+        }
+    };
 
     const loadPortfolio = () => api.get('/portfolio').then(setPortfolio).catch(e => notify(e.error || 'Erro ao carregar portfolio'));
     const loadDepoimentos = () => api.get('/depoimentos').then(setDepoimentos).catch(() => {});
@@ -2148,6 +2250,309 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         )}
                                     </>
                                 ) : null}
+                            </div>
+
+                            {/* ═══ Escalação pós-handoff ═══ */}
+                            <div className="mt-5 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
+                                <div className="flex items-center justify-between mb-3">
+                                    <div>
+                                        <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>
+                                            ⏱ Escalação pós-handoff
+                                        </h3>
+                                        <div className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                            Sofia cuida do lead se o humano demorar: alerta → holding (template) → retomada (1 pergunta) → abandono. Tempos variam por temperatura.
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEscCfg({ ...escCfg, ativa: !escCfg.ativa })}
+                                        className="px-3 py-1.5 rounded-lg text-[11px] font-semibold"
+                                        style={{
+                                            background: escCfg.ativa ? '#22c55e20' : 'var(--bg-muted)',
+                                            color: escCfg.ativa ? '#22c55e' : 'var(--text-muted)',
+                                            border: `1px solid ${escCfg.ativa ? '#22c55e40' : 'var(--border)'}`,
+                                        }}
+                                    >
+                                        {escCfg.ativa ? '✓ Ativa' : 'Desligada'}
+                                    </button>
+                                </div>
+
+                                {escCfg.ativa && (
+                                    <div className="rounded-lg p-3 text-[11px]" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                                        <div className="grid grid-cols-5 gap-2 font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                                            <div>Temperatura</div>
+                                            <div>N1 alerta</div>
+                                            <div>N2 holding</div>
+                                            <div>N3 retomada</div>
+                                            <div>N4 abandono</div>
+                                        </div>
+                                        {[
+                                            ['muito_quente', 'Muito quente (≥80)', '30min', '4h', '12h', '24h'],
+                                            ['quente', 'Quente (60–79)', '1h', '8h', '18h', '30h'],
+                                            ['morno', 'Morno (30–59)', '2h', '12h', '24h', '36h'],
+                                            ['frio', 'Frio (<30)', '4h', '24h', '48h', '72h'],
+                                        ].map(([key, label, n1, n2, n3, n4]) => (
+                                            <div key={key} className="grid grid-cols-5 gap-2 py-1">
+                                                <div>{label}</div>
+                                                <div>{n1}</div>
+                                                <div>{n2}</div>
+                                                <div>{n3}</div>
+                                                <div>{n4}</div>
+                                            </div>
+                                        ))}
+                                        <div className="mt-3 pt-3 text-[10px]" style={{ borderTop: '1px solid var(--border)' }}>
+                                            <strong>N1</strong> = badge + WS (zero custo). <strong>N2</strong> = template fixo (zero LLM). <strong>N3</strong> = 1 mensagem pedindo prioridade (zero LLM). <strong>N4</strong> = marca abandonada pra relatório. Só envia entre 9h-18h Seg-Sáb.
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="flex items-center gap-2 mt-3">
+                                    <button onClick={salvarEscCfg} className={Z.btn2} style={{ fontSize: 11 }}>
+                                        Salvar configuração
+                                    </button>
+                                    {escSaved && <span className="text-[11px]" style={{ color: '#22c55e' }}>✓ Salvo</span>}
+                                </div>
+                            </div>
+
+                            {/* ═══ Extensão Chrome (tokens pessoais) ═══ */}
+                            <div className="mt-5 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
+                                <div className="mb-3 flex items-start justify-between gap-3">
+                                    <div>
+                                        <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>
+                                            🧩 Extensão Chrome — tokens de acesso
+                                        </h3>
+                                        <div className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                            Gere um token pessoal para a extensão se autenticar no ERP. Cada pessoa deve usar o seu próprio token — não compartilhe.
+                                        </div>
+                                    </div>
+                                    <button onClick={baixarExtensao} className={Z.btn2} style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
+                                        ⬇ Baixar extensão (.zip)
+                                    </button>
+                                </div>
+
+                                <div className="rounded-lg p-3 mb-3 text-[11px]" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                                    <div className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Como instalar:</div>
+                                    <ol style={{ paddingLeft: 16, lineHeight: 1.6 }}>
+                                        <li>Clique em <strong>⬇ Baixar extensão</strong> acima e descompacte o .zip em uma pasta.</li>
+                                        <li>Abra <code>chrome://extensions/</code> e ative <strong>Modo do desenvolvedor</strong> (canto superior direito).</li>
+                                        <li>Clique em <strong>"Carregar sem compactação"</strong> e selecione a pasta descompactada.</li>
+                                        <li>Gere um token abaixo, clique no ícone da extensão no Chrome e cole URL + token.</li>
+                                        <li>Abra <code>web.whatsapp.com</code> — a sidebar aparece no canto direito (botão ORN).</li>
+                                    </ol>
+                                </div>
+
+                                {extTokenRevelado && (
+                                    <div className="rounded-lg p-3 mb-3" style={{ background: '#f59e0b15', border: '1px solid #f59e0b40' }}>
+                                        <div className="text-[11px] font-semibold mb-2" style={{ color: '#f59e0b' }}>
+                                            ⚠ Copie agora — este token não será mostrado de novo:
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <code className="flex-1 text-[10px] p-2 rounded break-all" style={{ background: 'var(--bg)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                                                {extTokenRevelado.token}
+                                            </code>
+                                            <button
+                                                onClick={() => { navigator.clipboard.writeText(extTokenRevelado.token); notify?.('Token copiado'); }}
+                                                className={Z.btn2} style={{ fontSize: 11 }}
+                                            >Copiar</button>
+                                            <button onClick={() => setExtTokenRevelado(null)} className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Fechar</button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="flex items-center gap-2 mb-3">
+                                    <input
+                                        type="text"
+                                        placeholder="Nome (ex: Chrome Victor)"
+                                        value={extNovoTokenNome}
+                                        onChange={e => setExtNovoTokenNome(e.target.value)}
+                                        className="flex-1 px-3 py-1.5 rounded-lg text-xs"
+                                        style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                                    />
+                                    <button onClick={criarExtToken} className={Z.btn2} style={{ fontSize: 11 }}>
+                                        + Gerar token
+                                    </button>
+                                </div>
+
+                                <div className="rounded-lg" style={{ border: '1px solid var(--border)', overflow: 'hidden' }}>
+                                    {extTokens.length === 0 ? (
+                                        <div className="p-3 text-[11px] text-center" style={{ color: 'var(--text-muted)' }}>
+                                            Nenhum token gerado ainda.
+                                        </div>
+                                    ) : (
+                                        <table className="w-full text-[11px]">
+                                            <thead>
+                                                <tr style={{ background: 'var(--bg-muted)' }}>
+                                                    <th className="text-left p-2">Nome</th>
+                                                    <th className="text-left p-2">Token</th>
+                                                    <th className="text-left p-2">Último uso</th>
+                                                    <th className="text-left p-2">Status</th>
+                                                    <th className="p-2"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {extTokens.map(t => (
+                                                    <tr key={t.id} style={{ borderTop: '1px solid var(--border)' }}>
+                                                        <td className="p-2">{t.nome}</td>
+                                                        <td className="p-2"><code style={{ fontSize: 10 }}>{t.token_preview}</code></td>
+                                                        <td className="p-2" style={{ color: 'var(--text-muted)' }}>
+                                                            {t.ultimo_uso_em ? new Date(t.ultimo_uso_em).toLocaleString('pt-BR') : '—'}
+                                                        </td>
+                                                        <td className="p-2">
+                                                            {t.revogado
+                                                                ? <span style={{ color: '#ef4444' }}>Revogado</span>
+                                                                : <span style={{ color: '#22c55e' }}>Ativo</span>}
+                                                        </td>
+                                                        <td className="p-2 text-right">
+                                                            {!t.revogado && (
+                                                                <button onClick={() => revogarExtToken(t.id)} style={{ color: '#ef4444', fontSize: 11 }}>
+                                                                    Revogar
+                                                                </button>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    )}
+                                </div>
+
+                                {/* Logs de acesso */}
+                                <div className="mt-3 flex items-center justify-between">
+                                    <button
+                                        onClick={() => { const next = !extLogsOpen; setExtLogsOpen(next); if (next) loadExtLogs(); }}
+                                        className="text-[11px]"
+                                        style={{ color: 'var(--primary)' }}
+                                    >
+                                        {extLogsOpen ? '▼' : '▶'} Logs de acesso da extensão
+                                    </button>
+                                    {extLogsOpen && (
+                                        <button onClick={loadExtLogs} className="text-[11px]" style={{ color: 'var(--text-muted)' }}>↻ Atualizar</button>
+                                    )}
+                                </div>
+                                {extLogsOpen && (
+                                    <div className="mt-2 rounded-lg" style={{ border: '1px solid var(--border)', maxHeight: 260, overflowY: 'auto' }}>
+                                        {extLogs.length === 0 ? (
+                                            <div className="p-3 text-[11px] text-center" style={{ color: 'var(--text-muted)' }}>Sem registros ainda.</div>
+                                        ) : (
+                                            <table className="w-full text-[10px]">
+                                                <thead style={{ background: 'var(--bg-muted)', position: 'sticky', top: 0 }}>
+                                                    <tr>
+                                                        <th className="text-left p-2">Quando</th>
+                                                        <th className="text-left p-2">Usuário</th>
+                                                        <th className="text-left p-2">Tipo</th>
+                                                        <th className="text-left p-2">Endpoint</th>
+                                                        <th className="text-left p-2">IP</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {extLogs.map(l => (
+                                                        <tr key={l.id} style={{ borderTop: '1px solid var(--border)' }}>
+                                                            <td className="p-2" style={{ whiteSpace: 'nowrap' }}>{new Date(l.criado_em).toLocaleString('pt-BR')}</td>
+                                                            <td className="p-2">{l.user_nome || l.user_email || '—'}</td>
+                                                            <td className="p-2">
+                                                                <span style={{
+                                                                    padding: '2px 6px', borderRadius: 4, fontSize: 9,
+                                                                    background: l.tipo === 'login' ? '#22c55e20' : l.tipo === 'download' ? '#3b82f620' : 'var(--bg-muted)',
+                                                                    color: l.tipo === 'login' ? '#22c55e' : l.tipo === 'download' ? '#3b82f6' : 'var(--text-muted)',
+                                                                }}>{l.tipo}</span>
+                                                            </td>
+                                                            <td className="p-2" style={{ fontFamily: 'monospace' }}>{l.method} {l.endpoint}</td>
+                                                            <td className="p-2" style={{ color: 'var(--text-muted)' }}>{l.ip || '—'}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* ═══ Templates de mensagem ═══ */}
+                            <div className="mt-5 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
+                                <div className="flex items-center justify-between mb-3">
+                                    <div>
+                                        <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>
+                                            📋 Templates de mensagem
+                                        </h3>
+                                        <div className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                            Respostas rápidas para a equipe usar na extensão Chrome (atalho: digite <code>/atalho</code> no campo de busca).
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setTplEdit({ titulo: '', conteudo: '', atalho: '', categoria: 'geral', ativo: true })}
+                                        className={Z.btn2} style={{ fontSize: 11 }}
+                                    >+ Novo template</button>
+                                </div>
+
+                                {tplEdit && (
+                                    <div className="rounded-lg p-3 mb-3" style={{ background: 'var(--bg-muted)', border: '1px solid var(--primary)' }}>
+                                        <div className="grid grid-cols-3 gap-2 mb-2">
+                                            <input
+                                                type="text" placeholder="Título" value={tplEdit.titulo}
+                                                onChange={e => setTplEdit({ ...tplEdit, titulo: e.target.value })}
+                                                className="px-2 py-1.5 rounded text-[11px] col-span-2"
+                                                style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                                            />
+                                            <input
+                                                type="text" placeholder="Categoria" value={tplEdit.categoria}
+                                                onChange={e => setTplEdit({ ...tplEdit, categoria: e.target.value })}
+                                                className="px-2 py-1.5 rounded text-[11px]"
+                                                style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                                            />
+                                        </div>
+                                        <input
+                                            type="text" placeholder="Atalho (ex: saudacao)" value={tplEdit.atalho}
+                                            onChange={e => setTplEdit({ ...tplEdit, atalho: e.target.value.replace(/[^a-z0-9_-]/gi, '').toLowerCase() })}
+                                            className="w-full px-2 py-1.5 rounded text-[11px] mb-2"
+                                            style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                                        />
+                                        <textarea
+                                            placeholder="Conteúdo da mensagem… Pode usar {nome} para substituir pelo nome do cliente."
+                                            value={tplEdit.conteudo}
+                                            onChange={e => setTplEdit({ ...tplEdit, conteudo: e.target.value })}
+                                            rows={5}
+                                            className="w-full px-2 py-1.5 rounded text-[11px] mb-2"
+                                            style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', resize: 'vertical' }}
+                                        />
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={salvarTemplate} className={Z.btn2} style={{ fontSize: 11 }}>Salvar</button>
+                                            <button onClick={() => setTplEdit(null)} className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Cancelar</button>
+                                            <label className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                                                <input type="checkbox" checked={!!tplEdit.ativo} onChange={e => setTplEdit({ ...tplEdit, ativo: e.target.checked })} />
+                                                Ativo
+                                            </label>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="rounded-lg" style={{ border: '1px solid var(--border)' }}>
+                                    {templates.length === 0 ? (
+                                        <div className="p-3 text-[11px] text-center" style={{ color: 'var(--text-muted)' }}>Nenhum template ainda.</div>
+                                    ) : (
+                                        templates.map(t => (
+                                            <div key={t.id} className="p-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                                                <div className="flex items-start justify-between">
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <strong className="text-[12px]" style={{ color: 'var(--text-primary)' }}>{t.titulo}</strong>
+                                                            {t.atalho && <code style={{ fontSize: 10, color: 'var(--primary)', background: 'var(--bg-muted)', padding: '1px 5px', borderRadius: 3 }}>/{t.atalho}</code>}
+                                                            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t.categoria}</span>
+                                                            {t.usos > 0 && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>· {t.usos} usos</span>}
+                                                            {!t.ativo && <span style={{ fontSize: 10, color: '#ef4444' }}>inativo</span>}
+                                                        </div>
+                                                        <div className="text-[11px]" style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap', maxHeight: 60, overflow: 'hidden' }}>
+                                                            {t.conteudo}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-2 ml-2">
+                                                        <button onClick={() => setTplEdit({ ...t, ativo: !!t.ativo })} className="text-[11px]" style={{ color: 'var(--primary)' }}>Editar</button>
+                                                        <button onClick={() => excluirTemplate(t.id)} className="text-[11px]" style={{ color: '#ef4444' }}>Excluir</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
                             </div>
 
                             {/* ═══ Sandbox de Simulação ═══ */}

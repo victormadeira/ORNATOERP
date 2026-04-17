@@ -223,7 +223,7 @@ async function handleIncomingMessage(data) {
             const parts = (result.text || '').split(/\n\n+/).map(p => p.trim()).filter(Boolean);
 
             if (result.action === 'escalate') {
-                db.prepare('UPDATE chat_conversas SET status = ? WHERE id = ?').run('humano', conversa.id);
+                db.prepare(`UPDATE chat_conversas SET status = ?, handoff_em = COALESCE(handoff_em, CURRENT_TIMESTAMP), escalacao_nivel = 0, abandonada = 0 WHERE id = ?`).run('humano', conversa.id);
             }
 
             // Enviar cada parte com um pequeno delay de typing entre elas

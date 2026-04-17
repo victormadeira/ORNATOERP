@@ -2102,6 +2102,80 @@ const migrations = [
   "ALTER TABLE orcamentos ADD COLUMN lead_id INTEGER REFERENCES leads(id)",
   // Menus ocultos do sistema
   "ALTER TABLE empresa_config ADD COLUMN menus_ocultos_json TEXT DEFAULT '[]'",
+
+  // ═══ Sofia v3 — Escalação pós-handoff ═══
+  "ALTER TABLE chat_conversas ADD COLUMN handoff_em DATETIME DEFAULT NULL",
+  "ALTER TABLE chat_conversas ADD COLUMN aguardando_cliente INTEGER DEFAULT 0",
+  "ALTER TABLE chat_conversas ADD COLUMN escalacao_nivel INTEGER DEFAULT 0",
+  "ALTER TABLE chat_conversas ADD COLUMN escalacao_ultima_em DATETIME DEFAULT NULL",
+  "ALTER TABLE chat_conversas ADD COLUMN retomada_count INTEGER DEFAULT 0",
+  "ALTER TABLE chat_conversas ADD COLUMN abandonada INTEGER DEFAULT 0",
+  `CREATE TABLE IF NOT EXISTS sofia_escalacoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversa_id INTEGER REFERENCES chat_conversas(id),
+    nivel INTEGER NOT NULL,
+    status TEXT DEFAULT 'pendente',
+    temperatura TEXT DEFAULT '',
+    score INTEGER DEFAULT 0,
+    motivo TEXT DEFAULT '',
+    mensagem TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    executado_em DATETIME DEFAULT NULL
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_sofia_escalacoes_conv ON sofia_escalacoes(conversa_id)",
+  "CREATE INDEX IF NOT EXISTS idx_sofia_escalacoes_criado ON sofia_escalacoes(criado_em)",
+  // Config empresa — escalação
+  "ALTER TABLE empresa_config ADD COLUMN escalacao_ativa INTEGER DEFAULT 1",
+  "ALTER TABLE empresa_config ADD COLUMN escalacao_config_json TEXT DEFAULT '{}'",
+
+  // ═══ Extensão Chrome — tokens pessoais ═══
+  `CREATE TABLE IF NOT EXISTS ext_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    token TEXT NOT NULL UNIQUE,
+    nome TEXT DEFAULT 'Minha extensão',
+    revogado INTEGER DEFAULT 0,
+    ultimo_uso_em DATETIME DEFAULT NULL,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_ext_tokens_token ON ext_tokens(token)",
+  "CREATE INDEX IF NOT EXISTS idx_ext_tokens_user ON ext_tokens(user_id)",
+
+  // ═══ Templates de mensagem (Sofia / humano) ═══
+  `CREATE TABLE IF NOT EXISTS sofia_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    titulo TEXT NOT NULL,
+    conteudo TEXT NOT NULL,
+    atalho TEXT DEFAULT '',
+    categoria TEXT DEFAULT 'geral',
+    ativo INTEGER DEFAULT 1,
+    usos INTEGER DEFAULT 0,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_sofia_templates_ativo ON sofia_templates(ativo)",
+  "CREATE INDEX IF NOT EXISTS idx_sofia_templates_atalho ON sofia_templates(atalho)",
+
+  // ═══ Import histórico via extensão — flag e idempotência ═══
+  "ALTER TABLE chat_mensagens ADD COLUMN importado INTEGER DEFAULT 0",
+  "ALTER TABLE chat_mensagens ADD COLUMN hash_import TEXT DEFAULT NULL",
+  "CREATE INDEX IF NOT EXISTS idx_chat_mensagens_hash ON chat_mensagens(conversa_id, hash_import)",
+
+  // ═══ Log de acesso da extensão (auditoria) ═══
+  `CREATE TABLE IF NOT EXISTS ext_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token_id INTEGER REFERENCES ext_tokens(id),
+    user_id INTEGER REFERENCES users(id),
+    tipo TEXT DEFAULT 'api',
+    endpoint TEXT DEFAULT '',
+    method TEXT DEFAULT '',
+    ip TEXT DEFAULT '',
+    user_agent TEXT DEFAULT '',
+    detalhe TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_ext_logs_user ON ext_logs(user_id, criado_em)",
+  "CREATE INDEX IF NOT EXISTS idx_ext_logs_criado ON ext_logs(criado_em)",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

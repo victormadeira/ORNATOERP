@@ -1,0 +1,216 @@
+/* Ornato ERP Sidebar — injetada no web.whatsapp.com */
+
+#ornato-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 340px;
+    height: 100vh;
+    background: #111b21;
+    color: #e9edef;
+    border-left: 1px solid #2a3942;
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    z-index: 2147483647;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -4px 0 16px rgba(0,0,0,0.25);
+    transition: transform 0.2s ease-out;
+}
+
+#ornato-sidebar.ornato-collapsed {
+    transform: translateX(calc(100% - 36px));
+}
+
+#ornato-sidebar * { box-sizing: border-box; }
+
+#ornato-sidebar .ornato-toggle {
+    position: absolute;
+    left: -36px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 48px;
+    background: #C9A96E;
+    color: #111b21;
+    border: none;
+    border-radius: 8px 0 0 8px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: -2px 2px 6px rgba(0,0,0,0.2);
+}
+
+#ornato-sidebar .ornato-header {
+    padding: 10px 14px;
+    background: #1f2c33;
+    border-bottom: 1px solid #2a3942;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#ornato-sidebar .ornato-title {
+    font-weight: 700;
+    font-size: 13px;
+    color: #C9A96E;
+    letter-spacing: 0.5px;
+}
+
+#ornato-sidebar .ornato-close {
+    background: none;
+    border: none;
+    color: #8696a0;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 2px 6px;
+}
+
+#ornato-sidebar .ornato-tabs {
+    display: flex;
+    background: #1f2c33;
+    border-bottom: 1px solid #2a3942;
+}
+
+#ornato-sidebar .ornato-tab {
+    flex: 1;
+    padding: 10px 4px;
+    background: none;
+    border: none;
+    color: #8696a0;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    border-bottom: 2px solid transparent;
+}
+
+#ornato-sidebar .ornato-tab.active {
+    color: #C9A96E;
+    border-bottom-color: #C9A96E;
+}
+
+#ornato-sidebar .ornato-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+}
+
+#ornato-sidebar .ornato-chip {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    background: #2a3942;
+    color: #e9edef;
+    margin-right: 4px;
+    margin-bottom: 4px;
+}
+
+#ornato-sidebar .ornato-chip.hot { background: #dc262620; color: #ff7a7a; }
+#ornato-sidebar .ornato-chip.warm { background: #f59e0b20; color: #fbbf24; }
+#ornato-sidebar .ornato-chip.cool { background: #3b82f620; color: #93c5fd; }
+#ornato-sidebar .ornato-chip.cold { background: #64748b20; color: #94a3b8; }
+#ornato-sidebar .ornato-chip.ok   { background: #22c55e20; color: #86efac; }
+
+#ornato-sidebar .ornato-section {
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #2a3942;
+}
+#ornato-sidebar .ornato-section:last-child { border-bottom: none; }
+
+#ornato-sidebar .ornato-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #8696a0;
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+#ornato-sidebar .ornato-value {
+    font-size: 13px;
+    color: #e9edef;
+    margin-bottom: 8px;
+    word-break: break-word;
+}
+
+#ornato-sidebar .ornato-btn {
+    background: #C9A96E;
+    color: #111b21;
+    border: none;
+    padding: 7px 12px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 11px;
+    cursor: pointer;
+    margin-right: 6px;
+    margin-top: 6px;
+}
+#ornato-sidebar .ornato-btn:hover { filter: brightness(1.1); }
+#ornato-sidebar .ornato-btn.secondary { background: #2a3942; color: #e9edef; }
+#ornato-sidebar .ornato-btn.danger { background: #ef4444; color: #fff; }
+
+#ornato-sidebar .ornato-empty {
+    color: #8696a0;
+    font-style: italic;
+    text-align: center;
+    padding: 16px;
+    font-size: 12px;
+}
+
+#ornato-sidebar .ornato-orc {
+    padding: 8px;
+    border: 1px solid #2a3942;
+    border-radius: 6px;
+    margin-bottom: 6px;
+}
+
+#ornato-sidebar .ornato-orc-num {
+    color: #C9A96E;
+    font-weight: 700;
+    font-size: 11px;
+}
+#ornato-sidebar .ornato-orc-title {
+    font-size: 12px;
+    margin-top: 2px;
+}
+#ornato-sidebar .ornato-orc-val {
+    color: #22c55e;
+    font-weight: 600;
+    margin-top: 4px;
+    font-size: 12px;
+}
+
+#ornato-sidebar .ornato-error {
+    padding: 10px;
+    background: #7f1d1d20;
+    border: 1px solid #7f1d1d;
+    border-radius: 6px;
+    color: #fca5a5;
+    font-size: 11px;
+}
+
+#ornato-sidebar .ornato-score-bar {
+    height: 8px;
+    background: #2a3942;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+#ornato-sidebar .ornato-score-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, #f59e0b, #ef4444);
+    transition: width 0.3s;
+}
+
+#ornato-sidebar .ornato-link {
+    color: #53bdeb;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 11px;
+}

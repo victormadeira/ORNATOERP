@@ -237,6 +237,34 @@ router.put('/menus', requireAuth, requireRole('admin'), (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// GET /api/config/escalacao — config da escalação Sofia pós-handoff
+// ═══════════════════════════════════════════════════════
+router.get('/escalacao', requireAuth, (req, res) => {
+    const emp = db.prepare('SELECT escalacao_ativa, escalacao_config_json FROM empresa_config WHERE id = 1').get() || {};
+    let cfg = {};
+    try { cfg = JSON.parse(emp.escalacao_config_json || '{}'); } catch {}
+    res.json({
+        ativa: emp.escalacao_ativa !== 0,
+        sla: cfg.sla || null, // null = usa padrão por temperatura
+    });
+});
+
+// ═══════════════════════════════════════════════════════
+// PUT /api/config/escalacao — kill-switch + override de tempos
+// body: { ativa: bool, sla?: { muito_quente:{n1,n2,n3,n4}, ... } }
+// ═══════════════════════════════════════════════════════
+router.put('/escalacao', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
+    const { ativa, sla } = req.body || {};
+    const emp = db.prepare('SELECT escalacao_config_json FROM empresa_config WHERE id = 1').get() || {};
+    let cfg = {};
+    try { cfg = JSON.parse(emp.escalacao_config_json || '{}'); } catch {}
+    if (sla !== undefined) cfg.sla = sla;
+    db.prepare('UPDATE empresa_config SET escalacao_ativa = ?, escalacao_config_json = ? WHERE id = 1')
+        .run(ativa ? 1 : 0, JSON.stringify(cfg));
+    res.json({ ok: true, ativa: !!ativa, sla: cfg.sla || null });
+});
+
+// ═══════════════════════════════════════════════════════
 // GET /api/config/n8n — config usada pelo workflow n8n
 // Autenticado por header x-n8n-token (valor configurado no sistema)
 // ═══════════════════════════════════════════════════════

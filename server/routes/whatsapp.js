@@ -174,6 +174,39 @@ router.put('/conversas/:id/ia-bloqueio', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// PUT /api/whatsapp/conversas/:id/aguardando-cliente
+// Pausa escalação Sofia enquanto humano aguarda cliente ativamente
+// body: { aguardando: true|false }
+// ═══════════════════════════════════════════════════════
+router.put('/conversas/:id/aguardando-cliente', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    const { aguardando } = req.body || {};
+    const flag = aguardando ? 1 : 0;
+    db.prepare('UPDATE chat_conversas SET aguardando_cliente = ? WHERE id = ?').run(flag, id);
+    // Ao desligar, reseta escalação para recomeçar contagem
+    if (!aguardando) {
+        db.prepare('UPDATE chat_conversas SET escalacao_nivel = 0, escalacao_ultima_em = NULL WHERE id = ?').run(id);
+    }
+    const conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(id);
+    res.json(conversa);
+});
+
+// ═══════════════════════════════════════════════════════
+// POST /api/whatsapp/conversas/:id/processar-escalacao-manual
+// Dispara verificação de escalação numa conversa específica (útil para testes)
+// ═══════════════════════════════════════════════════════
+router.post('/conversas/:id/processar-escalacao-manual', requireAuth, async (req, res) => {
+    try {
+        const esc = await import('../services/sofia_escalacao.js');
+        await esc.processarEscalacoes(req.app.locals.wsBroadcast);
+        const conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(parseInt(req.params.id));
+        res.json({ ok: true, conversa });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
 // PUT /api/whatsapp/conversas/:id/vincular — vincular a cliente
 // ═══════════════════════════════════════════════════════
 router.put('/conversas/:id/vincular', requireAuth, (req, res) => {
