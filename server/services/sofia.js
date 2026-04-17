@@ -481,12 +481,98 @@ export function mergeDossie(antigo = {}, novo = {}) {
     return merged;
 }
 
+// ═══════════════════════════════════════════════════════
+// ANTI-ABUSO / RATE-LIMIT
+// ═══════════════════════════════════════════════════════
+
+// Gatilhos explícitos de abuso — pausam IA imediatamente
+const GATILHOS_ABUSO = [
+    /\bgastar\s+(seus|os|nossos)?\s*tokens?\b/i,
+    /\bqueimar\s+(seus|os)?\s*tokens?\b/i,
+    /\btestar\s+(sua|a)?\s*ia\b/i,
+    /\bso\s+pra\s+(zoar|trollar|brincar|testar)/i,
+    /\bsó\s+pra\s+(zoar|trollar|brincar|testar)/i,
+    /\bfazer\s+voc[êe]\s+gastar\b/i,
+    /\bignore\s+(suas?|as)?\s*instru[cç][oõ]es\b/i,
+    /\bdisregard\s+previous\b/i,
+    /\bsystem prompt\b/i,
+    /\bvou\s+ficar\s+mandando\b/i,
+];
+
+/**
+ * Detecta se a mensagem do cliente contém gatilho explícito de abuso.
+ * Retorna motivo ou null.
+ */
+export function detectarAbuso(texto) {
+    if (!texto || typeof texto !== 'string') return null;
+    for (const re of GATILHOS_ABUSO) {
+        const m = texto.match(re);
+        if (m) return `gatilho_abuso:"${m[0]}"`;
+    }
+    return null;
+}
+
+/**
+ * Detecta flood de mensagens curtas/repetidas.
+ * recentMsgs: [{direcao, conteudo}] ordem cronológica.
+ * Retorna { flood: boolean, motivo: string|null, silenciar: boolean }
+ */
+export function detectarFlood(recentMsgs = []) {
+    const entradas = recentMsgs.filter(m => m.direcao === 'entrada').slice(-6);
+    if (entradas.length < 3) return { flood: false, motivo: null, silenciar: false };
+
+    // 3+ mensagens idênticas em sequência
+    const ultimas3 = entradas.slice(-3).map(m => (m.conteudo || '').trim().toLowerCase());
+    if (ultimas3.length === 3 && ultimas3[0] === ultimas3[1] && ultimas3[1] === ultimas3[2]) {
+        return { flood: true, motivo: 'mensagens_identicas', silenciar: true };
+    }
+
+    // 4+ mensagens muito curtas em sequência (≤3 chars, descontando pontuação)
+    const ultimas4 = entradas.slice(-4);
+    if (ultimas4.length >= 4) {
+        const todasCurtas = ultimas4.every(m => {
+            const clean = (m.conteudo || '').replace(/[\s.!?,]/g, '');
+            return clean.length <= 3;
+        });
+        if (todasCurtas) return { flood: true, motivo: 'flood_mensagens_curtas', silenciar: true };
+    }
+
+    return { flood: false, motivo: null, silenciar: false };
+}
+
+/**
+ * Verifica rate limit por janela deslizante.
+ * Recebe array de timestamps (ISO ou Date) de mensagens de ENTRADA.
+ * Retorna { ok: boolean, motivo: string|null }
+ */
+export function verificarRateLimit(timestampsEntrada = []) {
+    const agora = Date.now();
+    const ts = timestampsEntrada.map(t => (t instanceof Date ? t.getTime() : new Date(t).getTime()));
+
+    const ultimas15min = ts.filter(t => agora - t < 15 * 60 * 1000).length;
+    if (ultimas15min > 15) {
+        return { ok: false, motivo: 'rate_limit_15min', minutosCooldown: 30 };
+    }
+
+    const ultimas24h = ts.filter(t => agora - t < 24 * 60 * 60 * 1000).length;
+    if (ultimas24h > 60) {
+        return { ok: false, motivo: 'rate_limit_24h', minutosCooldown: 60 * 12 };
+    }
+
+    return { ok: true, motivo: null };
+}
+
+// Limite de tokens/dia por conversa (entrada + saída combinados)
+export const BUDGET_TOKENS_CONVERSA_DIA = 30000;
+
 export default {
     CIDADES_WHITELIST, CIDADES_BLACKLIST, BAIRROS_PREMIUM,
     cidadeDentroWhitelist, bairroPremium,
     validarResposta, sanitizar,
     extrairDossie,
-    calcularScore, gerarTags,
+    calcularScore, calcularIntencao, gerarTags,
     saudacaoAtual, podeEnviarFollowup, horarioHumanoAtivo,
     detectarTratamento, mergeDossie,
+    detectarAbuso, detectarFlood, verificarRateLimit,
+    BUDGET_TOKENS_CONVERSA_DIA,
 };

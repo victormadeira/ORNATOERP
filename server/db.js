@@ -2052,6 +2052,11 @@ const migrations = [
   // ═══ Sofia v2 — Prompt customizável completo ═══
   "ALTER TABLE empresa_config ADD COLUMN ia_system_prompt_full TEXT DEFAULT ''",
 
+  // ═══ Sofia v2 — Anti-abuso / rate-limit ═══
+  "ALTER TABLE chat_conversas ADD COLUMN ia_bloqueada INTEGER DEFAULT 0",
+  "ALTER TABLE chat_conversas ADD COLUMN ia_bloqueio_ate DATETIME DEFAULT NULL",
+  "ALTER TABLE chat_conversas ADD COLUMN ia_bloqueio_motivo TEXT DEFAULT ''",
+
   // ═══ Funil de Leads — tabelas ═══
   `CREATE TABLE IF NOT EXISTS lead_colunas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

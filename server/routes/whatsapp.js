@@ -152,6 +152,28 @@ router.put('/conversas/:id/status', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// PUT /api/whatsapp/conversas/:id/ia-bloqueio — pausar/retomar IA manualmente
+// body: { bloqueada: true|false, minutos?: number, motivo?: string }
+// ═══════════════════════════════════════════════════════
+router.put('/conversas/:id/ia-bloqueio', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    const { bloqueada, minutos, motivo } = req.body || {};
+    if (bloqueada) {
+        const min = Number(minutos) > 0 ? Number(minutos) : 60 * 24;
+        const ate = new Date(Date.now() + min * 60 * 1000).toISOString();
+        db.prepare(
+            'UPDATE chat_conversas SET ia_bloqueada = 1, ia_bloqueio_ate = ?, ia_bloqueio_motivo = ? WHERE id = ?'
+        ).run(ate, motivo || 'manual', id);
+    } else {
+        db.prepare(
+            "UPDATE chat_conversas SET ia_bloqueada = 0, ia_bloqueio_ate = NULL, ia_bloqueio_motivo = '' WHERE id = ?"
+        ).run(id);
+    }
+    const conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(id);
+    res.json(conversa);
+});
+
+// ═══════════════════════════════════════════════════════
 // PUT /api/whatsapp/conversas/:id/vincular — vincular a cliente
 // ═══════════════════════════════════════════════════════
 router.put('/conversas/:id/vincular', requireAuth, (req, res) => {

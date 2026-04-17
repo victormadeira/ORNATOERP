@@ -140,6 +140,19 @@ export default function Mensagens({ notify }) {
         loadConversas();
     };
 
+    // ═══ Pausar/retomar IA manualmente (anti-abuso) ═══
+    const toggleIABloqueio = async () => {
+        if (!activeConv) return;
+        const isBloqueada = !!activeConvData?.ia_bloqueada;
+        const r = await api.put(`/whatsapp/conversas/${activeConv}/ia-bloqueio`, {
+            bloqueada: !isBloqueada,
+            minutos: 60 * 24,
+            motivo: 'manual',
+        });
+        setActiveConvData(r);
+        notify?.(isBloqueada ? 'IA retomada nesta conversa' : 'IA pausada por 24h');
+    };
+
     // ═══ Sugerir resposta via IA ═══
     const sugerir = async () => {
         if (!activeConv) return;
@@ -411,6 +424,23 @@ export default function Mensagens({ notify }) {
                                         )}
                                     </div>
                                 </div>
+
+                                {/* IA bloqueio toggle (anti-abuso) */}
+                                <button
+                                    onClick={toggleIABloqueio}
+                                    title={activeConvData?.ia_bloqueada
+                                        ? `IA pausada até ${activeConvData.ia_bloqueio_ate ? new Date(activeConvData.ia_bloqueio_ate).toLocaleString('pt-BR') : '?'} (${activeConvData.ia_bloqueio_motivo || 'manual'})`
+                                        : 'Pausar IA nesta conversa por 24h (anti-abuso)'}
+                                    style={{
+                                        fontSize: 12, padding: '6px 10px', borderRadius: 8,
+                                        border: `1px solid ${activeConvData?.ia_bloqueada ? '#ef4444' : 'var(--border)'}`,
+                                        background: activeConvData?.ia_bloqueada ? '#ef444420' : 'transparent',
+                                        color: activeConvData?.ia_bloqueada ? '#ef4444' : 'var(--text-muted)',
+                                        cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
+                                    }}
+                                >
+                                    {activeConvData?.ia_bloqueada ? '🚫 IA pausada' : '⏸ Pausar IA'}
+                                </button>
 
                                 {/* Status toggle */}
                                 <button

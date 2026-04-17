@@ -737,10 +737,74 @@ function autoCreateLead(conversa, leadData, clienteId, userId) {
     return r.lastInsertRowid;
 }
 
+// ═══ Bloquear IA em uma conversa (anti-abuso / manual) ═══
+function bloquearIA(conversaId, motivo, minutos) {
+    const ate = new Date(Date.now() + minutos * 60 * 1000).toISOString();
+    db.prepare(
+        'UPDATE chat_conversas SET ia_bloqueada = 1, ia_bloqueio_ate = ?, ia_bloqueio_motivo = ? WHERE id = ?'
+    ).run(ate, motivo, conversaId);
+    console.warn(`[Sofia][ANTI-ABUSO] conv=${conversaId} bloqueada por ${minutos}min — motivo: ${motivo}`);
+}
+
 // ═══ Processar mensagem recebida do WhatsApp via IA ═══
 export async function processIncomingMessage(conversa, messageText) {
     const cfg = getConfig();
     if (!cfg.ia_ativa || !cfg.ia_api_key) return null;
+
+    // ═══ ANTI-ABUSO: verifica bloqueio ativo ═══
+    if (conversa.ia_bloqueada) {
+        const ate = conversa.ia_bloqueio_ate ? new Date(conversa.ia_bloqueio_ate).getTime() : 0;
+        if (ate > Date.now()) {
+            console.log(`[Sofia] conv=${conversa.id} IA bloqueada até ${conversa.ia_bloqueio_ate} (${conversa.ia_bloqueio_motivo}) — silêncio`);
+            return null;
+        }
+        // Expirou — limpa flag
+        db.prepare('UPDATE chat_conversas SET ia_bloqueada = 0, ia_bloqueio_ate = NULL, ia_bloqueio_motivo = \'\' WHERE id = ?').run(conversa.id);
+    }
+
+    // ═══ ANTI-ABUSO: gatilho explícito na mensagem ═══
+    const abusoMotivo = sofia.detectarAbuso(messageText);
+    if (abusoMotivo) {
+        bloquearIA(conversa.id, abusoMotivo, 60 * 24); // 24h
+        return null;
+    }
+
+    // ═══ ANTI-FLOOD: mensagens curtas/repetidas ═══
+    const msgsParaFlood = db.prepare(`
+        SELECT direcao, conteudo FROM chat_mensagens
+        WHERE conversa_id = ? AND interno = 0
+        ORDER BY criado_em DESC LIMIT 10
+    `).all(conversa.id).reverse();
+    msgsParaFlood.push({ direcao: 'entrada', conteudo: messageText });
+    const flood = sofia.detectarFlood(msgsParaFlood);
+    if (flood.flood) {
+        bloquearIA(conversa.id, `flood:${flood.motivo}`, 60); // 1h
+        return null;
+    }
+
+    // ═══ ANTI-ABUSO: rate-limit por janela ═══
+    const tsEntradas = db.prepare(`
+        SELECT criado_em FROM chat_mensagens
+        WHERE conversa_id = ? AND direcao = 'entrada' AND interno = 0
+            AND criado_em >= datetime('now', '-1 day')
+        ORDER BY criado_em DESC LIMIT 100
+    `).all(conversa.id).map(r => r.criado_em);
+    const rateCheck = sofia.verificarRateLimit(tsEntradas);
+    if (!rateCheck.ok) {
+        bloquearIA(conversa.id, rateCheck.motivo, rateCheck.minutosCooldown);
+        return null;
+    }
+
+    // ═══ ANTI-ABUSO: budget de tokens/dia por conversa ═══
+    const tokensHoje = db.prepare(`
+        SELECT COALESCE(SUM(input_tokens + output_tokens), 0) AS total
+        FROM ia_uso_log
+        WHERE contexto = ? AND criado_em >= datetime('now', '-1 day')
+    `).get(`conversa=${conversa.id}`);
+    if ((tokensHoje?.total || 0) > sofia.BUDGET_TOKENS_CONVERSA_DIA) {
+        bloquearIA(conversa.id, `budget_estourado:${tokensHoje.total}tk`, 60 * 12);
+        return null;
+    }
 
     // Auto-criar lead no funil se ainda não existe
     const leadJaExiste = db.prepare('SELECT id FROM leads WHERE conversa_id = ?').get(conversa.id);
