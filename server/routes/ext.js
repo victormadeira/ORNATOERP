@@ -5,11 +5,10 @@
 
 import express from 'express';
 import { randomBytes } from 'crypto';
-import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import os from 'os';
+import AdmZip from 'adm-zip';
 import db from '../db.js';
 import { requireAuth } from '../auth.js';
 import sofiaEscalacao from '../services/sofia_escalacao.js';
@@ -328,23 +327,14 @@ router.get('/download-extension', requireAuth, (req, res) => {
     if (!fs.existsSync(EXT_DIR)) {
         return res.status(500).json({ error: 'Pasta da extensão não encontrada no servidor' });
     }
-    // Usa /usr/bin/zip (existe em macOS e Linux). Windows precisaria PowerShell — não suportado.
-    const tmp = path.join(os.tmpdir(), `ornato-ext-${Date.now()}.zip`);
-    const zip = spawn('zip', ['-r', '-q', tmp, '.'], { cwd: EXT_DIR });
-    zip.on('error', (e) => {
-        res.status(500).json({ error: 'Falha ao empacotar: ' + e.message });
-    });
-    zip.on('close', (code) => {
-        if (code !== 0) {
-            return res.status(500).json({ error: `zip retornou código ${code}` });
-        }
+    try {
+        const zip = new AdmZip();
+        zip.addLocalFolder(EXT_DIR);
+        const buf = zip.toBuffer();
         res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Disposition', 'attachment; filename="ornato-extension.zip"');
-        const stream = fs.createReadStream(tmp);
-        stream.pipe(res);
-        stream.on('close', () => {
-            fs.unlink(tmp, () => {});
-        });
+        res.setHeader('Content-Length', buf.length);
+        res.end(buf);
         // registra log de download
         try {
             db.prepare(`
@@ -358,7 +348,9 @@ router.get('/download-extension', requireAuth, (req, res) => {
                 (req.headers['user-agent'] || '').slice(0, 200),
             );
         } catch {}
-    });
+    } catch (e) {
+        res.status(500).json({ error: 'Falha ao empacotar: ' + e.message });
+    }
 });
 
 // GET /api/ext/logs — auditoria (admin vê todos; demais vêem só os próprios)
