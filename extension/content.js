@@ -123,20 +123,16 @@
             root.style.setProperty('--orn-accent', b.accent);
             root.style.setProperty('--orn-accent-dark', ajustarCor(b.accent, -20));
         }
-        // FAB também
+        // FAB usa só a cor primária — mantém texto "ORN" pra não distorcer logo em 44px
         if (b.primary) {
             fab.style.background = `linear-gradient(135deg, ${b.primary}, ${ajustarCor(b.primary, -20)})`;
-            fab.style.boxShadow = `0 8px 24px ${b.primary}59, 0 2px 6px rgba(0,0,0,0.12)`;
         }
-        // Logo
+        // Logo no header da sidebar (onde tem espaço suficiente)
         const logoEl = sidebar.querySelector('.ornato-logo');
-        const fabInner = fab;
         if (b.logo && logoEl) {
-            logoEl.innerHTML = `<img src="${escapeAttr(b.logo)}" alt="${escapeAttr(b.nome || '')}" style="width:100%;height:100%;object-fit:contain;border-radius:8px" />`;
-            // FAB também usa o logo (branco sobre o fundo azul/primary)
-            fab.innerHTML = `<img src="${escapeAttr(b.logo)}" alt="" style="width:32px;height:32px;object-fit:contain;filter:brightness(0) invert(1)" /><span class="orn-fab-badge hide" id="orn-fab-badge">0</span>`;
-            // re-referencia o badge
-            window.__orn_fabBadge = fab.querySelector('#orn-fab-badge');
+            logoEl.innerHTML = `<img src="${escapeAttr(b.logo)}" alt="${escapeAttr(b.nome || '')}" style="max-width:100%;max-height:100%;object-fit:contain" />`;
+            logoEl.style.background = '#fff';
+            logoEl.style.padding = '4px';
         } else if (logoEl) {
             // fallback: iniciais do nome
             const init = avatarInitials(b.nome || 'OR');

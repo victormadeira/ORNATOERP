@@ -42,40 +42,43 @@
 
 #ornato-sidebar * { box-sizing: border-box; }
 
-/* ─── FAB Toggle (fora do sidebar quando colapsado) ─── */
+/* ─── FAB Toggle (posicionado no meio-direito pra não colidir com o botão de enviar do WA) ─── */
 #ornato-fab {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--orn-primary), var(--orn-primary-hover));
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 52px;
+    border-radius: 10px 0 0 10px;
+    background: linear-gradient(135deg, #1379F0, #0f63c7);
     color: #fff;
     border: none;
     cursor: pointer;
     font-weight: 800;
-    font-size: 13px;
+    font-size: 12px;
     letter-spacing: 0.4px;
-    box-shadow: 0 8px 24px rgba(19, 121, 240, 0.35), 0 2px 6px rgba(0,0,0,0.12);
+    box-shadow: -4px 2px 14px rgba(0,0,0,0.18);
     z-index: 2147483646;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: width 0.2s, box-shadow 0.2s, background 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 0;
+    overflow: hidden;
 }
-#ornato-fab:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 12px 28px rgba(19, 121, 240, 0.45); }
-#ornato-fab:active { transform: scale(0.95); }
+#ornato-fab:hover { width: 54px; box-shadow: -6px 2px 18px rgba(0,0,0,0.28); }
+#ornato-fab:active { filter: brightness(0.95); }
 #ornato-fab.hidden { display: none; }
 #ornato-fab .orn-fab-badge {
     position: absolute;
-    top: -4px;
-    right: -4px;
-    min-width: 20px;
-    height: 20px;
+    top: 3px;
+    left: 3px;
+    min-width: 18px;
+    height: 18px;
     padding: 0 5px;
-    border-radius: 10px;
-    background: var(--orn-danger);
+    border-radius: 9px;
+    background: #dc2626;
     color: #fff;
     font-size: 10px;
     font-weight: 700;
