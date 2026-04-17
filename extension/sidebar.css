@@ -1,216 +1,581 @@
-/* Ornato ERP Sidebar — injetada no web.whatsapp.com */
+/* ═══════════════════════════════════════════════════════
+   Ornato ERP Sidebar — injetada no web.whatsapp.com
+   Design alinhado ao ERP: primary #1379F0, accent cobre #C9A96E
+   ═══════════════════════════════════════════════════════ */
 
 #ornato-sidebar {
+    --orn-bg: #ffffff;
+    --orn-bg-soft: #f7f9fc;
+    --orn-bg-alt: #eef2f7;
+    --orn-border: #e5e9f0;
+    --orn-text: #1a1f2e;
+    --orn-text-soft: #5c6b82;
+    --orn-text-dim: #8a94a6;
+    --orn-primary: #1379F0;
+    --orn-primary-hover: #0f63c7;
+    --orn-accent: #C9A96E;
+    --orn-accent-dark: #a88952;
+    --orn-success: #16a34a;
+    --orn-warn: #f59e0b;
+    --orn-danger: #dc2626;
+
     position: fixed;
     top: 0;
     right: 0;
-    width: 340px;
+    width: 380px;
     height: 100vh;
-    background: #111b21;
-    color: #e9edef;
-    border-left: 1px solid #2a3942;
-    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--orn-bg);
+    color: var(--orn-text);
+    border-left: 1px solid var(--orn-border);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     font-size: 13px;
     z-index: 2147483647;
     display: flex;
     flex-direction: column;
-    box-shadow: -4px 0 16px rgba(0,0,0,0.25);
-    transition: transform 0.2s ease-out;
+    box-shadow: -8px 0 32px rgba(15, 23, 42, 0.08);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #ornato-sidebar.ornato-collapsed {
-    transform: translateX(calc(100% - 36px));
+    transform: translateX(100%);
 }
 
 #ornato-sidebar * { box-sizing: border-box; }
 
-#ornato-sidebar .ornato-toggle {
-    position: absolute;
-    left: -36px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 36px;
-    height: 48px;
-    background: #C9A96E;
-    color: #111b21;
+/* ─── FAB Toggle (fora do sidebar quando colapsado) ─── */
+#ornato-fab {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--orn-primary), var(--orn-primary-hover));
+    color: #fff;
     border: none;
-    border-radius: 8px 0 0 8px;
     cursor: pointer;
-    font-weight: 700;
-    font-size: 14px;
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.4px;
+    box-shadow: 0 8px 24px rgba(19, 121, 240, 0.35), 0 2px 6px rgba(0,0,0,0.12);
+    z-index: 2147483646;
+    transition: transform 0.2s, box-shadow 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: -2px 2px 6px rgba(0,0,0,0.2);
+}
+#ornato-fab:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 12px 28px rgba(19, 121, 240, 0.45); }
+#ornato-fab:active { transform: scale(0.95); }
+#ornato-fab.hidden { display: none; }
+#ornato-fab .orn-fab-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 10px;
+    background: var(--orn-danger);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #fff;
 }
 
+/* ─── Header ─── */
 #ornato-sidebar .ornato-header {
-    padding: 10px 14px;
-    background: #1f2c33;
-    border-bottom: 1px solid #2a3942;
+    padding: 14px 16px;
+    background: var(--orn-bg);
+    border-bottom: 1px solid var(--orn-border);
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 10px;
+}
+
+#ornato-sidebar .ornato-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+#ornato-sidebar .ornato-logo {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--orn-primary), var(--orn-accent));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
 }
 
 #ornato-sidebar .ornato-title {
+    min-width: 0;
+}
+#ornato-sidebar .ornato-title .t1 {
     font-weight: 700;
     font-size: 13px;
-    color: #C9A96E;
-    letter-spacing: 0.5px;
+    color: var(--orn-text);
+    line-height: 1.2;
+}
+#ornato-sidebar .ornato-title .t2 {
+    font-size: 11px;
+    color: var(--orn-text-dim);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
 }
 
 #ornato-sidebar .ornato-close {
-    background: none;
+    background: var(--orn-bg-alt);
     border: none;
-    color: #8696a0;
+    color: var(--orn-text-soft);
     cursor: pointer;
     font-size: 16px;
-    padding: 2px 6px;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    flex-shrink: 0;
 }
+#ornato-sidebar .ornato-close:hover { background: var(--orn-border); color: var(--orn-text); }
 
+/* ─── Status bar (mostra telefone/status detectado) ─── */
+#ornato-sidebar .ornato-statusbar {
+    padding: 8px 16px;
+    background: var(--orn-bg-soft);
+    border-bottom: 1px solid var(--orn-border);
+    font-size: 11px;
+    color: var(--orn-text-soft);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+#ornato-sidebar .ornato-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--orn-text-dim);
+    flex-shrink: 0;
+}
+#ornato-sidebar .ornato-dot.on { background: var(--orn-success); box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15); }
+#ornato-sidebar .ornato-dot.off { background: var(--orn-warn); }
+
+/* ─── Tabs ─── */
 #ornato-sidebar .ornato-tabs {
     display: flex;
-    background: #1f2c33;
-    border-bottom: 1px solid #2a3942;
+    background: var(--orn-bg);
+    border-bottom: 1px solid var(--orn-border);
+    padding: 0 8px;
+    gap: 2px;
 }
 
 #ornato-sidebar .ornato-tab {
     flex: 1;
-    padding: 10px 4px;
+    padding: 11px 6px;
     background: none;
     border: none;
-    color: #8696a0;
+    color: var(--orn-text-soft);
     cursor: pointer;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
+    font-family: inherit;
     border-bottom: 2px solid transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    transition: color 0.15s, border-color 0.15s;
+    position: relative;
 }
-
+#ornato-sidebar .ornato-tab:hover { color: var(--orn-text); }
 #ornato-sidebar .ornato-tab.active {
-    color: #C9A96E;
-    border-bottom-color: #C9A96E;
+    color: var(--orn-primary);
+    border-bottom-color: var(--orn-primary);
+}
+#ornato-sidebar .ornato-tab svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+#ornato-sidebar .ornato-tab-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
 }
 
+/* ─── Body ─── */
 #ornato-sidebar .ornato-body {
     flex: 1;
     overflow-y: auto;
-    padding: 14px;
+    padding: 14px 16px;
+    background: var(--orn-bg-soft);
 }
+#ornato-sidebar .ornato-body::-webkit-scrollbar { width: 8px; }
+#ornato-sidebar .ornato-body::-webkit-scrollbar-track { background: transparent; }
+#ornato-sidebar .ornato-body::-webkit-scrollbar-thumb { background: var(--orn-border); border-radius: 4px; }
+#ornato-sidebar .ornato-body::-webkit-scrollbar-thumb:hover { background: var(--orn-text-dim); }
 
+/* ─── Chips ─── */
 #ornato-sidebar .ornato-chip {
-    display: inline-block;
-    padding: 3px 8px;
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
     border-radius: 999px;
     font-size: 10px;
     font-weight: 700;
-    background: #2a3942;
-    color: #e9edef;
-    margin-right: 4px;
-    margin-bottom: 4px;
+    background: var(--orn-bg-alt);
+    color: var(--orn-text-soft);
+    margin-right: 5px;
+    margin-bottom: 5px;
+    border: 1px solid var(--orn-border);
+    letter-spacing: 0.2px;
+}
+#ornato-sidebar .ornato-chip.hot  { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+#ornato-sidebar .ornato-chip.warm { background: #fef3c7; color: #b45309; border-color: #fde68a; }
+#ornato-sidebar .ornato-chip.cool { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
+#ornato-sidebar .ornato-chip.cold { background: #e0e7ff; color: #3730a3; border-color: #c7d2fe; }
+#ornato-sidebar .ornato-chip.ok   { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+
+/* ─── Cards / Sections ─── */
+#ornato-sidebar .ornato-card {
+    background: var(--orn-bg);
+    border: 1px solid var(--orn-border);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
 }
 
-#ornato-sidebar .ornato-chip.hot { background: #dc262620; color: #ff7a7a; }
-#ornato-sidebar .ornato-chip.warm { background: #f59e0b20; color: #fbbf24; }
-#ornato-sidebar .ornato-chip.cool { background: #3b82f620; color: #93c5fd; }
-#ornato-sidebar .ornato-chip.cold { background: #64748b20; color: #94a3b8; }
-#ornato-sidebar .ornato-chip.ok   { background: #22c55e20; color: #86efac; }
-
-#ornato-sidebar .ornato-section {
-    margin-bottom: 14px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #2a3942;
+#ornato-sidebar .ornato-card-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--orn-text-dim);
+    font-weight: 700;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
-#ornato-sidebar .ornato-section:last-child { border-bottom: none; }
 
 #ornato-sidebar .ornato-label {
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.6px;
-    color: #8696a0;
-    margin-bottom: 4px;
+    color: var(--orn-text-dim);
+    margin-bottom: 3px;
+    margin-top: 8px;
     font-weight: 600;
 }
+#ornato-sidebar .ornato-label:first-child { margin-top: 0; }
 
 #ornato-sidebar .ornato-value {
     font-size: 13px;
-    color: #e9edef;
-    margin-bottom: 8px;
+    color: var(--orn-text);
     word-break: break-word;
+    line-height: 1.4;
 }
+#ornato-sidebar .ornato-value strong { font-weight: 700; }
 
+/* ─── Buttons ─── */
 #ornato-sidebar .ornato-btn {
-    background: #C9A96E;
-    color: #111b21;
+    background: var(--orn-primary);
+    color: #fff;
     border: none;
-    padding: 7px 12px;
-    border-radius: 6px;
+    padding: 9px 14px;
+    border-radius: 8px;
     font-weight: 600;
-    font-size: 11px;
+    font-size: 12px;
+    font-family: inherit;
     cursor: pointer;
     margin-right: 6px;
     margin-top: 6px;
+    transition: background 0.15s, transform 0.1s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
-#ornato-sidebar .ornato-btn:hover { filter: brightness(1.1); }
-#ornato-sidebar .ornato-btn.secondary { background: #2a3942; color: #e9edef; }
-#ornato-sidebar .ornato-btn.danger { background: #ef4444; color: #fff; }
+#ornato-sidebar .ornato-btn:hover { background: var(--orn-primary-hover); }
+#ornato-sidebar .ornato-btn:active { transform: scale(0.98); }
+#ornato-sidebar .ornato-btn.secondary {
+    background: var(--orn-bg);
+    color: var(--orn-text);
+    border: 1px solid var(--orn-border);
+}
+#ornato-sidebar .ornato-btn.secondary:hover { background: var(--orn-bg-alt); }
+#ornato-sidebar .ornato-btn.accent { background: var(--orn-accent); color: #fff; }
+#ornato-sidebar .ornato-btn.accent:hover { background: var(--orn-accent-dark); }
+#ornato-sidebar .ornato-btn.danger { background: var(--orn-danger); color: #fff; }
+#ornato-sidebar .ornato-btn.block { width: 100%; justify-content: center; margin-right: 0; }
 
+/* ─── Empty / Error / Loading states ─── */
 #ornato-sidebar .ornato-empty {
-    color: #8696a0;
-    font-style: italic;
+    color: var(--orn-text-soft);
     text-align: center;
-    padding: 16px;
+    padding: 32px 16px;
     font-size: 12px;
+    line-height: 1.5;
 }
-
-#ornato-sidebar .ornato-orc {
-    padding: 8px;
-    border: 1px solid #2a3942;
-    border-radius: 6px;
-    margin-bottom: 6px;
+#ornato-sidebar .ornato-empty .icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 12px;
+    background: var(--orn-bg-alt);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--orn-text-dim);
 }
-
-#ornato-sidebar .ornato-orc-num {
-    color: #C9A96E;
-    font-weight: 700;
-    font-size: 11px;
-}
-#ornato-sidebar .ornato-orc-title {
-    font-size: 12px;
-    margin-top: 2px;
-}
-#ornato-sidebar .ornato-orc-val {
-    color: #22c55e;
-    font-weight: 600;
-    margin-top: 4px;
-    font-size: 12px;
-}
+#ornato-sidebar .ornato-empty .icon svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; }
+#ornato-sidebar .ornato-empty strong { color: var(--orn-text); display: block; margin-bottom: 4px; font-size: 13px; }
 
 #ornato-sidebar .ornato-error {
-    padding: 10px;
-    background: #7f1d1d20;
-    border: 1px solid #7f1d1d;
-    border-radius: 6px;
-    color: #fca5a5;
-    font-size: 11px;
+    padding: 12px 14px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 10px;
+    color: #991b1b;
+    font-size: 12px;
+    line-height: 1.5;
 }
 
+/* ─── Orçamento card ─── */
+#ornato-sidebar .ornato-orc {
+    padding: 12px;
+    background: var(--orn-bg);
+    border: 1px solid var(--orn-border);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+#ornato-sidebar .ornato-orc:hover { border-color: var(--orn-primary); box-shadow: 0 2px 8px rgba(19, 121, 240, 0.08); }
+
+#ornato-sidebar .ornato-orc-num {
+    color: var(--orn-primary);
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+}
+#ornato-sidebar .ornato-orc-title {
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 3px;
+    color: var(--orn-text);
+}
+#ornato-sidebar .ornato-orc-val {
+    color: var(--orn-success);
+    font-weight: 700;
+    margin-top: 6px;
+    font-size: 14px;
+}
+#ornato-sidebar .ornato-orc-meta {
+    font-size: 10px;
+    color: var(--orn-text-dim);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+/* ─── Score bar ─── */
+#ornato-sidebar .ornato-score-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0;
+}
 #ornato-sidebar .ornato-score-bar {
+    flex: 1;
     height: 8px;
-    background: #2a3942;
+    background: var(--orn-bg-alt);
     border-radius: 4px;
     overflow: hidden;
-    margin-bottom: 6px;
 }
 #ornato-sidebar .ornato-score-fill {
     height: 100%;
-    background: linear-gradient(90deg, #3b82f6, #f59e0b, #ef4444);
-    transition: width 0.3s;
+    background: linear-gradient(90deg, #3b82f6 0%, #f59e0b 60%, #ef4444 100%);
+    transition: width 0.4s ease-out;
+    border-radius: 4px;
+}
+#ornato-sidebar .ornato-score-num {
+    font-weight: 800;
+    font-size: 14px;
+    color: var(--orn-text);
+    min-width: 42px;
+    text-align: right;
 }
 
-#ornato-sidebar .ornato-link {
-    color: #53bdeb;
-    text-decoration: underline;
+/* ─── Dossie grid ─── */
+#ornato-sidebar .ornato-dossie-item {
+    display: flex;
+    gap: 8px;
+    font-size: 12px;
+    padding: 5px 0;
+    border-bottom: 1px dashed var(--orn-border);
+}
+#ornato-sidebar .ornato-dossie-item:last-child { border-bottom: none; }
+#ornato-sidebar .ornato-dossie-item .k {
+    color: var(--orn-text-dim);
+    min-width: 90px;
+    font-weight: 500;
+}
+#ornato-sidebar .ornato-dossie-item .v {
+    color: var(--orn-text);
+    flex: 1;
+    word-break: break-word;
+}
+
+/* ─── Input ─── */
+#ornato-sidebar .ornato-input {
+    width: 100%;
+    padding: 9px 12px;
+    background: var(--orn-bg);
+    color: var(--orn-text);
+    border: 1px solid var(--orn-border);
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+#ornato-sidebar .ornato-input:focus {
+    outline: none;
+    border-color: var(--orn-primary);
+    box-shadow: 0 0 0 3px rgba(19, 121, 240, 0.12);
+}
+
+/* ─── Skeleton loading ─── */
+@keyframes ornato-skeleton {
+    0% { background-position: -200px 0; }
+    100% { background-position: calc(200px + 100%) 0; }
+}
+#ornato-sidebar .ornato-skeleton {
+    background: linear-gradient(90deg, var(--orn-bg-alt) 0%, #f0f4f9 50%, var(--orn-bg-alt) 100%);
+    background-size: 200px 100%;
+    animation: ornato-skeleton 1.2s ease-in-out infinite;
+    border-radius: 6px;
+    height: 14px;
+    margin-bottom: 8px;
+}
+#ornato-sidebar .ornato-skeleton.lg { height: 20px; }
+#ornato-sidebar .ornato-skeleton.sm { height: 10px; width: 50%; }
+
+/* ─── Responsividade: ajusta WhatsApp para não sobrepor ─── */
+@media (min-width: 1000px) {
+    body:has(#ornato-sidebar:not(.ornato-collapsed)) #app { padding-right: 380px; }
+}
+
+/* ─── Resize handle ─── */
+#ornato-sidebar .ornato-resizer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 5px;
+    height: 100%;
+    cursor: ew-resize;
+    z-index: 10;
+    background: transparent;
+    transition: background 0.15s;
+}
+#ornato-sidebar .ornato-resizer:hover,
+#ornato-sidebar .ornato-resizer:active {
+    background: var(--orn-primary);
+    opacity: 0.4;
+}
+
+/* ─── Icon button (refresh) ─── */
+#ornato-sidebar .ornato-iconbtn {
+    background: var(--orn-bg-alt);
+    border: none;
+    color: var(--orn-text-soft);
     cursor: pointer;
-    font-size: 11px;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s, transform 0.3s;
+    flex-shrink: 0;
+}
+#ornato-sidebar .ornato-iconbtn:hover { background: var(--orn-border); color: var(--orn-primary); }
+#ornato-sidebar .ornato-iconbtn:active { transform: rotate(180deg); }
+#ornato-sidebar .ornato-iconbtn svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ─── Avatar ─── */
+#ornato-sidebar .ornato-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--orn-primary), var(--orn-accent));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 17px;
+    flex-shrink: 0;
+    letter-spacing: 0.3px;
+}
+
+/* ─── Client head card ─── */
+#ornato-sidebar .ornato-client-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+}
+#ornato-sidebar .ornato-client-info { flex: 1; min-width: 0; }
+#ornato-sidebar .ornato-client-info .name {
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--orn-text);
+    line-height: 1.2;
+    margin-bottom: 3px;
+}
+#ornato-sidebar .ornato-client-info .phone {
+    font-size: 12px;
+    color: var(--orn-text-soft);
+}
+
+/* ─── Helpers ─── */
+#ornato-sidebar .hide, #ornato-fab .hide { display: none !important; }
+.orn-fab-badge.hide { display: none !important; }
+
+/* ─── Botões de ícone com SVG inline ─── */
+#ornato-sidebar .ornato-btn svg {
+    width: 12px;
+    height: 12px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    margin-left: 3px;
+}
+
+/* ─── Scrollbar do pane-side do WhatsApp não afetado (reset seletivo) ─── */
+#ornato-sidebar input[type="text"],
+#ornato-sidebar input[type="search"],
+#ornato-sidebar input[type="email"],
+#ornato-sidebar input[type="password"] {
+    font-family: inherit;
 }

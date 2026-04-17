@@ -8,6 +8,7 @@ import { randomBytes } from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import bcrypt from 'bcryptjs';
 import AdmZip from 'adm-zip';
 import db from '../db.js';
 import { requireAuth } from '../auth.js';
@@ -318,6 +319,61 @@ router.get('/badge-count', requireExtToken, (req, res) => {
 
 // GET /api/ext/ping — health check
 router.get('/ping', (req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
+
+// ═══════════════════════════════════════════════════════
+// POST /api/ext/login — login direto via extensão
+// body: { email, senha, device_name }
+// Retorna token vinculado ao usuário autenticado
+// ═══════════════════════════════════════════════════════
+router.post('/login', (req, res) => {
+    const { email, senha, device_name } = req.body || {};
+    if (!email || !senha) {
+        return res.status(400).json({ error: 'Email e senha obrigatórios' });
+    }
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(String(email).toLowerCase().trim());
+    if (!user) return res.status(401).json({ error: 'Credenciais inválidas' });
+    if (!user.ativo) return res.status(401).json({ error: 'Usuário desativado' });
+    const valid = bcrypt.compareSync(senha, user.senha_hash);
+    if (!valid) return res.status(401).json({ error: 'Credenciais inválidas' });
+
+    // Nome do dispositivo (vem do user-agent se não enviado)
+    const ua = (req.headers['user-agent'] || '').slice(0, 120);
+    const nome = (device_name || `Chrome · ${new Date().toLocaleString('pt-BR')}`).slice(0, 60);
+
+    const token = randomBytes(32).toString('hex');
+    const r = db.prepare('INSERT INTO ext_tokens (user_id, token, nome) VALUES (?, ?, ?)')
+        .run(user.id, token, nome);
+
+    // Log do login via extensão
+    try {
+        db.prepare(`
+            INSERT INTO ext_logs (token_id, user_id, tipo, endpoint, method, ip, user_agent, detalhe)
+            VALUES (?, ?, 'login', '/api/ext/login', 'POST', ?, ?, ?)
+        `).run(
+            r.lastInsertRowid,
+            user.id,
+            (req.ip || '').toString().slice(0, 80),
+            ua,
+            `login direto ext: ${nome}`,
+        );
+    } catch {}
+
+    // Atualiza último acesso
+    db.prepare('UPDATE users SET ultimo_acesso = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);
+
+    res.json({
+        token,
+        user: { id: user.id, nome: user.nome, email: user.email, role: user.role },
+        device: nome,
+    });
+});
+
+// POST /api/ext/logout — revoga o token atual
+router.post('/logout', requireExtToken, (req, res) => {
+    db.prepare('UPDATE ext_tokens SET revogado = 1 WHERE id = ?').run(req.extTokenId);
+    registrarLog(req.extTokenId, req.extUser.id, req, 'logout', 'logout via extensão');
+    res.json({ ok: true });
+});
 
 // ═══════════════════════════════════════════════════════
 // DOWNLOAD DA EXTENSÃO (ZIP)

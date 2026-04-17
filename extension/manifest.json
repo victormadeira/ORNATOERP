@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Ornato ERP — WhatsApp Sidebar",
-  "version": "0.2.0",
-  "description": "Sidebar no WhatsApp Web com dados de cliente, orçamentos e status da Sofia (Ornato ERP).",
+  "version": "0.3.0",
+  "description": "Sidebar no WhatsApp Web com dados de cliente, orçamentos, templates e status da Sofia (Ornato ERP).",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": [
     "https://web.whatsapp.com/*",

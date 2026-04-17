@@ -10,8 +10,8 @@ async function getConfig() {
 
 async function apiCall({ method = 'GET', path, body }) {
     const { baseUrl, token } = await getConfig();
-    if (!baseUrl) return { ok: false, error: 'Configure a URL do ERP no popup da extensão.' };
-    if (!token) return { ok: false, error: 'Configure o token de acesso no popup da extensão.' };
+    if (!baseUrl) return { ok: false, error: 'Configure a URL do ERP no popup da extensão.', needsLogin: true };
+    if (!token) return { ok: false, error: 'Faça login no popup da extensão.', needsLogin: true };
     try {
         const r = await fetch(baseUrl + path, {
             method,
@@ -25,6 +25,11 @@ async function apiCall({ method = 'GET', path, body }) {
         let data = null;
         try { data = text ? JSON.parse(text) : null; } catch {}
         if (!r.ok) {
+            // token inválido/revogado → limpa e pede login
+            if (r.status === 401) {
+                await chrome.storage.local.remove(['token', 'user', 'device']);
+                return { ok: false, status: 401, error: 'Sessão expirada — faça login novamente.', needsLogin: true };
+            }
             return { ok: false, status: r.status, error: (data && data.error) || `HTTP ${r.status}` };
         }
         return { ok: true, data };

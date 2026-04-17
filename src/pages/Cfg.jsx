@@ -2319,10 +2319,10 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 <div className="mb-3 flex items-start justify-between gap-3">
                                     <div>
                                         <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>
-                                            🧩 Extensão Chrome — tokens de acesso
+                                            🧩 Extensão Chrome — WhatsApp Web Sidebar
                                         </h3>
                                         <div className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                                            Gere um token pessoal para a extensão se autenticar no ERP. Cada pessoa deve usar o seu próprio token — não compartilhe.
+                                            Cada pessoa faz <strong>login direto na extensão</strong> com o email e senha do ERP. O token é vinculado ao usuário e todas as ações ficam auditadas.
                                         </div>
                                     </div>
                                     <button onClick={baixarExtensao} className={Z.btn2} style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
@@ -2336,9 +2336,14 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         <li>Clique em <strong>⬇ Baixar extensão</strong> acima e descompacte o .zip em uma pasta.</li>
                                         <li>Abra <code>chrome://extensions/</code> e ative <strong>Modo do desenvolvedor</strong> (canto superior direito).</li>
                                         <li>Clique em <strong>"Carregar sem compactação"</strong> e selecione a pasta descompactada.</li>
-                                        <li>Gere um token abaixo, clique no ícone da extensão no Chrome e cole URL + token.</li>
-                                        <li>Abra <code>web.whatsapp.com</code> — a sidebar aparece no canto direito (botão ORN).</li>
+                                        <li>Clique no ícone da extensão no Chrome e faça <strong>login com seu email e senha do ERP</strong>.</li>
+                                        <li>Abra <code>web.whatsapp.com</code> — o botão flutuante <strong>ORN</strong> aparece no canto inferior direito.</li>
+                                        <li>Atalhos: <code>Ctrl+Shift+O</code> abre/fecha sidebar · digite <code>/atalho</code> + Tab no chat para inserir template.</li>
                                     </ol>
+                                </div>
+
+                                <div className="rounded-lg p-3 mb-3 text-[11px]" style={{ background: '#dcfce710', border: '1px solid #22c55e40', color: '#15803d' }}>
+                                    <strong>✓ Novidade:</strong> não é mais necessário gerar tokens manualmente — o login da extensão é feito com email + senha direto no popup. A tabela abaixo lista tokens ativos (sessões) para você revogar se perder acesso a algum dispositivo.
                                 </div>
 
                                 {extTokenRevelado && (
