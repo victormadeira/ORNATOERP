@@ -6,7 +6,9 @@ import { useAuth } from '../auth';
 import {
     MessageCircle, Send, Lock, Bot, Sparkles, User, Phone,
     Search, MoreVertical, ArrowLeft, Link2, RefreshCw, Check, CheckCheck,
-    Paperclip, Mic, Square, Image, X, FileText, Download
+    Paperclip, Mic, Square, Image, X, FileText, Download,
+    UserPlus, UserCheck, Tag, Archive, Inbox, Users as UsersIcon,
+    AlertCircle, History, ChevronDown, Flag
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════
@@ -29,6 +31,25 @@ const LEAD_COLORS = {
     desqualificado: '#ef4444', fora_area: '#ef4444',
 };
 
+const CATEGORIAS = [
+    { v: '', l: 'Sem categoria', c: '#94a3b8' },
+    { v: 'comercial', l: 'Comercial', c: '#3b82f6' },
+    { v: 'medicao', l: 'Medição', c: '#8b5cf6' },
+    { v: 'pos_venda', l: 'Pós-venda', c: '#22c55e' },
+    { v: 'financeiro', l: 'Financeiro', c: '#f59e0b' },
+    { v: 'suporte', l: 'Suporte', c: '#ec4899' },
+    { v: 'outros', l: 'Outros', c: '#64748b' },
+];
+const CAT_MAP = Object.fromEntries(CATEGORIAS.map(c => [c.v, c]));
+
+const PRIORIDADES = [
+    { v: 'baixa', l: 'Baixa', c: '#94a3b8', emoji: '⬇' },
+    { v: 'normal', l: 'Normal', c: '#64748b', emoji: '•' },
+    { v: 'alta', l: 'Alta', c: '#f59e0b', emoji: '⬆' },
+    { v: 'urgente', l: 'Urgente', c: '#ef4444', emoji: '🔥' },
+];
+const PRI_MAP = Object.fromEntries(PRIORIDADES.map(p => [p.v, p]));
+
 function timeAgo(dateStr) {
     if (!dateStr) return '';
     const d = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
@@ -49,6 +70,8 @@ function formatTime(dateStr) {
 
 export default function Mensagens({ notify }) {
     const { user } = useAuth();
+    const isGerente = user?.role === 'admin' || user?.role === 'gerente';
+
     const [conversas, setConversas] = useState([]);
     const [activeConv, setActiveConv] = useState(null);
     const [activeConvData, setActiveConvData] = useState(null);
@@ -63,6 +86,15 @@ export default function Mensagens({ notify }) {
     const [mobileShowChat, setMobileShowChat] = useState(false);
     const [recording, setRecording] = useState(false);
     const [lightbox, setLightbox] = useState(null);
+
+    // ─── Inbox: filtros, atribuição, categoria ───
+    const [filtroAba, setFiltroAba] = useState(() => localStorage.getItem('mens_filtro') || 'minhas');
+    const [filtroCategoria, setFiltroCategoria] = useState('');
+    const [contadores, setContadores] = useState({ minhas: 0, nao_atribuidas: 0, todas: 0, arquivadas: 0 });
+    const [usuarios, setUsuarios] = useState([]);
+    const [showAssignMenu, setShowAssignMenu] = useState(false);
+    const [showCategoriaMenu, setShowCategoriaMenu] = useState(false);
+    const [backfilling, setBackfilling] = useState(false);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -72,7 +104,9 @@ export default function Mensagens({ notify }) {
     // ═══ Carregar conversas ═══
     const loadConversas = useCallback(async () => {
         try {
-            const data = await api.get('/whatsapp/conversas');
+            const qs = new URLSearchParams({ filtro: filtroAba });
+            if (filtroCategoria) qs.set('categoria', filtroCategoria);
+            const data = await api.get('/whatsapp/conversas?' + qs.toString());
             setConversas(data);
             // Atualizar activeConvData se a conversa ativa mudou (lead score, status, etc.)
             setActiveConvData(prev => {
@@ -81,7 +115,22 @@ export default function Mensagens({ notify }) {
                 return updated || prev;
             });
         } catch { /* silencioso */ }
+    }, [filtroAba, filtroCategoria]);
+
+    const loadContadores = useCallback(async () => {
+        try {
+            const d = await api.get('/whatsapp/conversas/contadores');
+            setContadores(d);
+        } catch { /* silencioso */ }
     }, []);
+
+    // Lista de atendentes para atribuição
+    useEffect(() => {
+        api.get('/whatsapp/usuarios-disponiveis').then(setUsuarios).catch(() => { });
+    }, []);
+
+    // Persistir aba
+    useEffect(() => { localStorage.setItem('mens_filtro', filtroAba); }, [filtroAba]);
 
     // ═══ Carregar mensagens de uma conversa ═══
     const loadMensagens = useCallback(async (convId) => {
@@ -92,16 +141,17 @@ export default function Mensagens({ notify }) {
         } catch { notify?.('Erro ao carregar mensagens'); }
     }, [notify]);
 
-    useEffect(() => { loadConversas(); }, [loadConversas]);
+    useEffect(() => { loadConversas(); loadContadores(); }, [loadConversas, loadContadores]);
 
     // Polling: atualiza conversas e mensagens a cada 10s
     useEffect(() => {
         const interval = setInterval(() => {
             loadConversas();
+            loadContadores();
             if (activeConv) loadMensagens(activeConv);
         }, 10000);
         return () => clearInterval(interval);
-    }, [activeConv, loadConversas, loadMensagens]);
+    }, [activeConv, loadConversas, loadContadores, loadMensagens]);
 
     // ═══ Selecionar conversa ═══
     const selectConv = (conv) => {
@@ -226,6 +276,83 @@ export default function Mensagens({ notify }) {
         setRecording(false);
     };
 
+    // ═══ Atribuir conversa (puxar pra mim, largar, transferir — gerente) ═══
+    const atribuir = async (userId, motivo = '') => {
+        if (!activeConv) return;
+        try {
+            const updated = await api.put(`/whatsapp/conversas/${activeConv}/atribuir`, { user_id: userId, motivo });
+            setActiveConvData(updated);
+            setShowAssignMenu(false);
+            loadConversas();
+            loadContadores();
+            notify?.(userId === null ? 'Conversa liberada (fila pública)' : `Conversa atribuída a ${updated.atribuido_nome || 'atendente'}`);
+        } catch (e) {
+            notify?.(e.error || 'Erro ao atribuir');
+        }
+    };
+
+    const puxarPraMim = () => atribuir(user.id, 'puxou pra si');
+
+    // ═══ Categoria + prioridade ═══
+    const setCategoria = async (categoria) => {
+        if (!activeConv) return;
+        try {
+            const updated = await api.put(`/whatsapp/conversas/${activeConv}/categoria`, { categoria });
+            setActiveConvData(updated);
+            setShowCategoriaMenu(false);
+            loadConversas();
+            notify?.(categoria ? `Categoria: ${CAT_MAP[categoria]?.l || categoria}` : 'Categoria removida');
+        } catch (e) { notify?.(e.error || 'Erro'); }
+    };
+
+    const setPrioridade = async (prioridade) => {
+        if (!activeConv) return;
+        try {
+            const updated = await api.put(`/whatsapp/conversas/${activeConv}/categoria`, { prioridade });
+            setActiveConvData(updated);
+            loadConversas();
+        } catch (e) { notify?.(e.error || 'Erro'); }
+    };
+
+    // ═══ Arquivar/desarquivar ═══
+    const toggleArquivar = async () => {
+        if (!activeConv) return;
+        const arquivada = !activeConvData?.arquivada;
+        try {
+            await api.put(`/whatsapp/conversas/${activeConv}/arquivar`, { arquivada });
+            notify?.(arquivada ? 'Conversa arquivada' : 'Conversa desarquivada');
+            setActiveConv(null);
+            setActiveConvData(null);
+            loadConversas();
+            loadContadores();
+        } catch (e) { notify?.(e.error || 'Erro'); }
+    };
+
+    // ═══ Backfill (puxar histórico da Evolution) ═══
+    const rodarBackfill = async () => {
+        if (!confirm('Puxar histórico de conversas antigas da Evolution? Pode demorar alguns minutos.')) return;
+        setBackfilling(true);
+        try {
+            const r = await api.post('/whatsapp/backfill', { limit: 300 });
+            notify?.(`✓ ${r.chats_processados} chats | ${r.mensagens_inseridas} mensagens importadas`);
+            loadConversas();
+            loadContadores();
+        } catch (e) {
+            notify?.(e.error || 'Erro ao puxar histórico');
+        } finally { setBackfilling(false); }
+    };
+
+    const rodarBackfillConversa = async () => {
+        if (!activeConv) return;
+        setBackfilling(true);
+        try {
+            const r = await api.post(`/whatsapp/conversas/${activeConv}/backfill`);
+            notify?.(`✓ ${r.inseridas}/${r.total} mensagens importadas`);
+            loadMensagens(activeConv);
+        } catch (e) { notify?.(e.error || 'Erro'); }
+        finally { setBackfilling(false); }
+    };
+
     // ═══ Vincular a cliente ═══
     const vincular = async (clienteId) => {
         try {
@@ -266,14 +393,90 @@ export default function Mensagens({ notify }) {
                     className="conv-list-panel"
                 >
                     {/* Header */}
-                    <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid var(--border)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                            <MessageCircle size={22} style={{ color: 'var(--success)' }} />
-                            <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>WhatsApp</h2>
-                            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: colorBg('#22c55e'), color: 'var(--success)', fontWeight: 600 }}>
-                                {conversas.length}
-                            </span>
+                    <div style={{ padding: '14px 14px 10px', borderBottom: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                            <MessageCircle size={20} style={{ color: 'var(--success)' }} />
+                            <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0, flex: 1 }}>Inbox</h2>
+                            {isGerente && (
+                                <button
+                                    onClick={rodarBackfill}
+                                    disabled={backfilling}
+                                    title="Puxar histórico de conversas antigas da Evolution API"
+                                    style={{
+                                        fontSize: 11, padding: '4px 9px', borderRadius: 6,
+                                        border: `1px solid ${colorBorder('#8b5cf6')}`, background: colorBg('#8b5cf6'),
+                                        color: '#8b5cf6', cursor: 'pointer', fontWeight: 600,
+                                        display: 'flex', alignItems: 'center', gap: 4,
+                                    }}
+                                >
+                                    {backfilling ? <RefreshCw size={10} className="spin" /> : <History size={10} />}
+                                    {backfilling ? 'Puxando...' : 'Histórico'}
+                                </button>
+                            )}
                         </div>
+
+                        {/* Tabs de filtro */}
+                        <div style={{ display: 'flex', gap: 4, marginBottom: 10, fontSize: 11 }}>
+                            {[
+                                { v: 'minhas', l: 'Minhas', i: UserCheck, c: contadores.minhas },
+                                { v: 'nao_atribuidas', l: 'Fila', i: Inbox, c: contadores.nao_atribuidas },
+                                ...(isGerente ? [{ v: 'todas', l: 'Todas', i: UsersIcon, c: contadores.todas }] : []),
+                                { v: 'arquivadas', l: 'Arq.', i: Archive, c: contadores.arquivadas },
+                            ].map(t => {
+                                const Ic = t.i;
+                                const active = filtroAba === t.v;
+                                return (
+                                    <button
+                                        key={t.v}
+                                        onClick={() => setFiltroAba(t.v)}
+                                        style={{
+                                            flex: 1, padding: '6px 6px', borderRadius: 6,
+                                            border: '1px solid ' + (active ? 'var(--primary)' : 'var(--border)'),
+                                            background: active ? colorBg('#1379F0') : 'transparent',
+                                            color: active ? 'var(--primary)' : 'var(--text-muted)',
+                                            cursor: 'pointer', fontWeight: 600,
+                                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                                        }}
+                                    >
+                                        <Ic size={12} />
+                                        <span style={{ fontSize: 10 }}>{t.l}</span>
+                                        <span style={{ fontSize: 9, opacity: 0.7 }}>{t.c}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Filtro categoria */}
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
+                            <button
+                                onClick={() => setFiltroCategoria('')}
+                                style={{
+                                    fontSize: 10, padding: '3px 8px', borderRadius: 99,
+                                    border: `1px solid ${!filtroCategoria ? 'var(--primary)' : 'var(--border)'}`,
+                                    background: !filtroCategoria ? colorBg('#1379F0') : 'transparent',
+                                    color: !filtroCategoria ? 'var(--primary)' : 'var(--text-muted)',
+                                    cursor: 'pointer', fontWeight: 600,
+                                }}
+                            >
+                                Todas
+                            </button>
+                            {CATEGORIAS.filter(c => c.v).map(c => (
+                                <button
+                                    key={c.v}
+                                    onClick={() => setFiltroCategoria(filtroCategoria === c.v ? '' : c.v)}
+                                    style={{
+                                        fontSize: 10, padding: '3px 8px', borderRadius: 99,
+                                        border: `1px solid ${filtroCategoria === c.v ? c.c : 'var(--border)'}`,
+                                        background: filtroCategoria === c.v ? colorBg(c.c) : 'transparent',
+                                        color: filtroCategoria === c.v ? c.c : 'var(--text-muted)',
+                                        cursor: 'pointer', fontWeight: 600,
+                                    }}
+                                >
+                                    {c.l}
+                                </button>
+                            ))}
+                        </div>
+
                         <div style={{ position: 'relative' }}>
                             <Search size={14} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--text-muted)' }} />
                             <input
@@ -310,13 +513,28 @@ export default function Mensagens({ notify }) {
                                     onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                                        {/* Avatar */}
-                                        <div style={{
-                                            width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-                                            background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            border: `2px solid ${sc.border}`,
-                                        }}>
-                                            <User size={18} style={{ color: 'var(--text-muted)' }} />
+                                        {/* Avatar + prioridade */}
+                                        <div style={{ position: 'relative', flexShrink: 0 }}>
+                                            <div style={{
+                                                width: 40, height: 40, borderRadius: '50%',
+                                                background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                border: `2px solid ${sc.border}`,
+                                            }}>
+                                                <User size={18} style={{ color: 'var(--text-muted)' }} />
+                                            </div>
+                                            {c.prioridade === 'urgente' && (
+                                                <span style={{
+                                                    position: 'absolute', top: -2, right: -2,
+                                                    fontSize: 10,
+                                                }}>🔥</span>
+                                            )}
+                                            {c.prioridade === 'alta' && (
+                                                <span style={{
+                                                    position: 'absolute', top: -2, right: -2,
+                                                    width: 10, height: 10, borderRadius: '50%',
+                                                    background: '#f59e0b', border: '2px solid var(--bg-card)',
+                                                }} />
+                                            )}
                                         </div>
                                         {/* Info */}
                                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -365,6 +583,39 @@ export default function Mensagens({ notify }) {
                                                     )}
                                                 </div>
                                             </div>
+                                            {/* Tag de atribuição + categoria */}
+                                            {(c.atribuido_nome || c.categoria) && (
+                                                <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                                                    {c.atribuido_nome ? (
+                                                        <span style={{
+                                                            fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600,
+                                                            background: c.atribuido_user_id === user?.id ? colorBg('#22c55e') : 'var(--bg-muted)',
+                                                            color: c.atribuido_user_id === user?.id ? '#22c55e' : 'var(--text-muted)',
+                                                            display: 'flex', alignItems: 'center', gap: 3,
+                                                        }}>
+                                                            <UserCheck size={8} />
+                                                            {c.atribuido_user_id === user?.id ? 'Você' : c.atribuido_nome.split(' ')[0]}
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{
+                                                            fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600,
+                                                            background: colorBg('#f59e0b'), color: '#f59e0b',
+                                                            display: 'flex', alignItems: 'center', gap: 3,
+                                                        }}>
+                                                            <Inbox size={8} /> Na fila
+                                                        </span>
+                                                    )}
+                                                    {c.categoria && CAT_MAP[c.categoria] && (
+                                                        <span style={{
+                                                            fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600,
+                                                            background: colorBg(CAT_MAP[c.categoria].c),
+                                                            color: CAT_MAP[c.categoria].c,
+                                                        }}>
+                                                            {CAT_MAP[c.categoria].l}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -434,6 +685,159 @@ export default function Mensagens({ notify }) {
                                             </span>
                                         )}
                                     </div>
+                                </div>
+
+                                {/* ─── Atribuição ─── */}
+                                <div style={{ position: 'relative' }}>
+                                    {activeConvData?.atribuido_user_id ? (
+                                        <button
+                                            onClick={() => setShowAssignMenu(s => !s)}
+                                            title={`Atribuída a ${activeConvData.atribuido_nome}`}
+                                            style={{
+                                                fontSize: 12, padding: '6px 10px', borderRadius: 8,
+                                                border: `1px solid ${activeConvData.atribuido_user_id === user?.id ? colorBorder('#22c55e') : 'var(--border)'}`,
+                                                background: activeConvData.atribuido_user_id === user?.id ? colorBg('#22c55e') : 'var(--bg-muted)',
+                                                color: activeConvData.atribuido_user_id === user?.id ? '#22c55e' : 'var(--text-primary)',
+                                                cursor: 'pointer', fontWeight: 600,
+                                                display: 'flex', alignItems: 'center', gap: 5,
+                                            }}
+                                        >
+                                            <UserCheck size={12} />
+                                            {activeConvData.atribuido_user_id === user?.id ? 'Você' : activeConvData.atribuido_nome?.split(' ')[0]}
+                                            <ChevronDown size={10} />
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={puxarPraMim}
+                                            title="Puxar esta conversa pra você"
+                                            style={{
+                                                fontSize: 12, padding: '6px 10px', borderRadius: 8,
+                                                border: `1px solid ${colorBorder('#f59e0b')}`,
+                                                background: colorBg('#f59e0b'),
+                                                color: '#f59e0b', cursor: 'pointer', fontWeight: 600,
+                                                display: 'flex', alignItems: 'center', gap: 5,
+                                            }}
+                                        >
+                                            <UserPlus size={12} /> Puxar pra mim
+                                        </button>
+                                    )}
+                                    {showAssignMenu && (isGerente || activeConvData?.atribuido_user_id === user?.id) && (
+                                        <div
+                                            onMouseLeave={() => setShowAssignMenu(false)}
+                                            style={{
+                                                position: 'absolute', top: '100%', right: 0, marginTop: 4,
+                                                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                                                borderRadius: 8, boxShadow: '0 6px 20px rgba(0,0,0,0.12)',
+                                                minWidth: 220, zIndex: 50, overflow: 'hidden',
+                                            }}
+                                        >
+                                            <div style={{ padding: '8px 12px', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-muted)', fontWeight: 700, borderBottom: '1px solid var(--border)' }}>
+                                                Atribuir a
+                                            </div>
+                                            <button
+                                                onClick={() => atribuir(null, 'liberada pra fila')}
+                                                style={{ width: '100%', padding: '8px 12px', fontSize: 13, background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer', color: '#f59e0b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
+                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                            >
+                                                <Inbox size={12} /> Liberar pra fila (ninguém)
+                                            </button>
+                                            {isGerente && usuarios.map(u => (
+                                                <button
+                                                    key={u.id}
+                                                    onClick={() => atribuir(u.id)}
+                                                    style={{
+                                                        width: '100%', padding: '8px 12px', fontSize: 13,
+                                                        background: activeConvData?.atribuido_user_id === u.id ? colorBg('#22c55e') : 'transparent',
+                                                        border: 'none', textAlign: 'left', cursor: 'pointer',
+                                                        color: activeConvData?.atribuido_user_id === u.id ? '#22c55e' : 'var(--text-primary)',
+                                                        fontWeight: activeConvData?.atribuido_user_id === u.id ? 700 : 500,
+                                                        display: 'flex', alignItems: 'center', gap: 6,
+                                                    }}
+                                                    onMouseEnter={e => { if (activeConvData?.atribuido_user_id !== u.id) e.currentTarget.style.background = 'var(--bg-muted)'; }}
+                                                    onMouseLeave={e => { if (activeConvData?.atribuido_user_id !== u.id) e.currentTarget.style.background = 'transparent'; }}
+                                                >
+                                                    {activeConvData?.atribuido_user_id === u.id ? <Check size={12} /> : <User size={12} />}
+                                                    {u.nome}
+                                                    <span style={{ fontSize: 9, marginLeft: 'auto', opacity: 0.6, textTransform: 'uppercase' }}>{u.role}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ─── Categoria ─── */}
+                                <div style={{ position: 'relative' }}>
+                                    <button
+                                        onClick={() => setShowCategoriaMenu(s => !s)}
+                                        title="Definir categoria"
+                                        style={{
+                                            fontSize: 12, padding: '6px 10px', borderRadius: 8,
+                                            border: `1px solid ${activeConvData?.categoria ? colorBorder(CAT_MAP[activeConvData.categoria]?.c || '#64748b') : 'var(--border)'}`,
+                                            background: activeConvData?.categoria ? colorBg(CAT_MAP[activeConvData.categoria]?.c || '#64748b') : 'transparent',
+                                            color: activeConvData?.categoria ? CAT_MAP[activeConvData.categoria]?.c : 'var(--text-muted)',
+                                            cursor: 'pointer', fontWeight: 600,
+                                            display: 'flex', alignItems: 'center', gap: 5,
+                                        }}
+                                    >
+                                        <Tag size={12} />
+                                        {activeConvData?.categoria ? CAT_MAP[activeConvData.categoria]?.l : 'Categoria'}
+                                        <ChevronDown size={10} />
+                                    </button>
+                                    {showCategoriaMenu && (
+                                        <div
+                                            onMouseLeave={() => setShowCategoriaMenu(false)}
+                                            style={{
+                                                position: 'absolute', top: '100%', right: 0, marginTop: 4,
+                                                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                                                borderRadius: 8, boxShadow: '0 6px 20px rgba(0,0,0,0.12)',
+                                                minWidth: 200, zIndex: 50, overflow: 'hidden',
+                                            }}
+                                        >
+                                            <div style={{ padding: '8px 12px', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-muted)', fontWeight: 700, borderBottom: '1px solid var(--border)' }}>
+                                                Categoria
+                                            </div>
+                                            {CATEGORIAS.map(c => (
+                                                <button
+                                                    key={c.v || 'none'}
+                                                    onClick={() => setCategoria(c.v)}
+                                                    style={{
+                                                        width: '100%', padding: '8px 12px', fontSize: 13,
+                                                        background: activeConvData?.categoria === c.v ? colorBg(c.c) : 'transparent',
+                                                        border: 'none', textAlign: 'left', cursor: 'pointer',
+                                                        color: activeConvData?.categoria === c.v ? c.c : 'var(--text-primary)',
+                                                        fontWeight: activeConvData?.categoria === c.v ? 700 : 500,
+                                                        display: 'flex', alignItems: 'center', gap: 6,
+                                                    }}
+                                                    onMouseEnter={e => { if (activeConvData?.categoria !== c.v) e.currentTarget.style.background = 'var(--bg-muted)'; }}
+                                                    onMouseLeave={e => { if (activeConvData?.categoria !== c.v) e.currentTarget.style.background = 'transparent'; }}
+                                                >
+                                                    <span style={{ width: 8, height: 8, borderRadius: 2, background: c.c, display: 'inline-block' }} />
+                                                    {c.l}
+                                                </button>
+                                            ))}
+                                            <div style={{ borderTop: '1px solid var(--border)', padding: '8px 12px', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-muted)', fontWeight: 700 }}>
+                                                Prioridade
+                                            </div>
+                                            <div style={{ padding: '6px', display: 'flex', gap: 4 }}>
+                                                {PRIORIDADES.map(p => (
+                                                    <button
+                                                        key={p.v}
+                                                        onClick={() => setPrioridade(p.v)}
+                                                        style={{
+                                                            flex: 1, fontSize: 10, padding: '6px 4px', borderRadius: 5,
+                                                            border: `1px solid ${activeConvData?.prioridade === p.v ? p.c : 'var(--border)'}`,
+                                                            background: activeConvData?.prioridade === p.v ? colorBg(p.c) : 'transparent',
+                                                            color: activeConvData?.prioridade === p.v ? p.c : 'var(--text-muted)',
+                                                            cursor: 'pointer', fontWeight: 700,
+                                                        }}
+                                                    >
+                                                        {p.emoji} {p.l}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* IA bloqueio toggle (anti-abuso) */}

@@ -4,9 +4,10 @@ import { join, dirname, extname } from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import db from '../db.js';
-import { requireAuth } from '../auth.js';
+import { requireAuth, requireConversaAccess, canSeeAll, isGerente } from '../auth.js';
 import evolution from '../services/evolution.js';
 import ai from '../services/ai.js';
+import { backfillFromEvolution, backfillOneChat } from '../services/whatsapp_backfill.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads', 'whatsapp');
@@ -47,57 +48,157 @@ router.get('/qrcode', requireAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
-// GET /api/whatsapp/nao-lidas — total de mensagens não lidas
+// GET /api/whatsapp/nao-lidas — total de mensagens não lidas (só das minhas)
 // ═══════════════════════════════════════════════════════
 router.get('/nao-lidas', requireAuth, (req, res) => {
-    const result = db.prepare('SELECT COALESCE(SUM(nao_lidas), 0) as total FROM chat_conversas').get();
-    res.json({ total: result.total });
+    const u = req.user;
+    let total;
+    if (canSeeAll(u)) {
+        total = db.prepare('SELECT COALESCE(SUM(nao_lidas), 0) as total FROM chat_conversas WHERE arquivada = 0').get().total;
+    } else {
+        total = db.prepare(
+            'SELECT COALESCE(SUM(nao_lidas), 0) as total FROM chat_conversas WHERE arquivada = 0 AND (atribuido_user_id = ? OR atribuido_user_id IS NULL)'
+        ).get(u.id).total;
+    }
+    res.json({ total });
 });
 
 // ═══════════════════════════════════════════════════════
 // GET /api/whatsapp/conversas — listar conversas
+// Query: ?filtro=minhas|nao_atribuidas|todas|arquivadas&categoria=&q=
+// Regra de permissão:
+//   - admin/gerente veem tudo
+//   - vendedor vê apenas: atribuídas a ele + não atribuídas (fila pública)
 // ═══════════════════════════════════════════════════════
 router.get('/conversas', requireAuth, (req, res) => {
+    const u = req.user;
+    const { filtro = 'todas', categoria = '', q = '' } = req.query;
+
+    const where = [];
+    const params = [];
+
+    // Permissão — vendedor só vê dele ou não-atribuídas
+    if (!canSeeAll(u)) {
+        where.push('(cc.atribuido_user_id = ? OR cc.atribuido_user_id IS NULL)');
+        params.push(u.id);
+    }
+
+    // Filtro UI
+    if (filtro === 'minhas') {
+        where.push('cc.atribuido_user_id = ?');
+        params.push(u.id);
+    } else if (filtro === 'nao_atribuidas') {
+        where.push('cc.atribuido_user_id IS NULL');
+    } else if (filtro === 'arquivadas') {
+        where.push('cc.arquivada = 1');
+    } else {
+        where.push('cc.arquivada = 0');
+    }
+
+    if (categoria) {
+        where.push('cc.categoria = ?');
+        params.push(categoria);
+    }
+
+    if (q) {
+        where.push('(COALESCE(c.nome,\'\') LIKE ? OR cc.wa_name LIKE ? OR cc.wa_phone LIKE ?)');
+        const like = `%${q}%`;
+        params.push(like, like, like);
+    }
+
+    const whereSQL = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
     const conversas = db.prepare(`
         SELECT cc.*, c.nome as cliente_nome, c.tel as cliente_tel,
+               ua.nome as atribuido_nome, ua.role as atribuido_role,
                (SELECT conteudo FROM chat_mensagens WHERE conversa_id = cc.id ORDER BY criado_em DESC LIMIT 1) as ultima_msg,
                (SELECT remetente FROM chat_mensagens WHERE conversa_id = cc.id ORDER BY criado_em DESC LIMIT 1) as ultima_msg_remetente,
                (SELECT criado_em FROM chat_mensagens WHERE conversa_id = cc.id ORDER BY criado_em DESC LIMIT 1) as ultima_msg_em
         FROM chat_conversas cc
         LEFT JOIN clientes c ON cc.cliente_id = c.id
+        LEFT JOIN users ua ON cc.atribuido_user_id = ua.id
+        ${whereSQL}
         ORDER BY cc.ultimo_msg_em DESC
-    `).all();
+        LIMIT 500
+    `).all(...params);
     res.json(conversas);
+});
+
+// ═══════════════════════════════════════════════════════
+// GET /api/whatsapp/conversas/contadores — contadores por aba
+// Retorna { minhas, nao_atribuidas, todas, arquivadas }
+// ═══════════════════════════════════════════════════════
+router.get('/conversas/contadores', requireAuth, (req, res) => {
+    const u = req.user;
+    const base = canSeeAll(u) ? '1=1' : `(atribuido_user_id = ${Number(u.id)} OR atribuido_user_id IS NULL)`;
+    const contador = (sql) => db.prepare(`SELECT COUNT(*) as c FROM chat_conversas WHERE ${base} AND arquivada = 0 AND ${sql}`).get().c;
+    res.json({
+        minhas: contador(`atribuido_user_id = ${Number(u.id)}`),
+        nao_atribuidas: contador('atribuido_user_id IS NULL'),
+        todas: contador('1=1'),
+        arquivadas: db.prepare(`SELECT COUNT(*) as c FROM chat_conversas WHERE ${base} AND arquivada = 1`).get().c,
+    });
 });
 
 // ═══════════════════════════════════════════════════════
 // GET /api/whatsapp/conversas/:id/mensagens — mensagens de uma conversa
 // ═══════════════════════════════════════════════════════
-router.get('/conversas/:id/mensagens', requireAuth, (req, res) => {
-    const id = parseInt(req.params.id);
+router.get('/conversas/:id/mensagens', requireAuth, requireConversaAccess(db), (req, res) => {
+    const id = req.conversa.id;
+    // Paginação: ?before=ID retorna mensagens anteriores ao ID dado
+    const { before, limit = 200 } = req.query;
+    const lim = Math.min(parseInt(limit) || 200, 1000);
+
     // Marcar como lida
     db.prepare('UPDATE chat_conversas SET nao_lidas = 0 WHERE id = ?').run(id);
+    db.prepare(
+        'INSERT INTO chat_leituras (user_id, conversa_id, ultima_leitura_em) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(user_id, conversa_id) DO UPDATE SET ultima_leitura_em = CURRENT_TIMESTAMP'
+    ).run(req.user.id, id);
 
-    const mensagens = db.prepare(`
-        SELECT cm.*, u.nome as usuario_nome
-        FROM chat_mensagens cm
-        LEFT JOIN users u ON cm.remetente_id = u.id
-        WHERE cm.conversa_id = ?
-        ORDER BY cm.criado_em ASC
-    `).all(id);
+    let mensagens;
+    if (before) {
+        mensagens = db.prepare(`
+            SELECT cm.*, u.nome as usuario_nome
+            FROM chat_mensagens cm
+            LEFT JOIN users u ON cm.remetente_id = u.id
+            WHERE cm.conversa_id = ? AND cm.id < ?
+            ORDER BY cm.criado_em DESC LIMIT ?
+        `).all(id, parseInt(before), lim).reverse();
+    } else {
+        // Últimas N ordenadas cronologicamente
+        mensagens = db.prepare(`
+            SELECT * FROM (
+                SELECT cm.*, u.nome as usuario_nome
+                FROM chat_mensagens cm
+                LEFT JOIN users u ON cm.remetente_id = u.id
+                WHERE cm.conversa_id = ?
+                ORDER BY cm.criado_em DESC
+                LIMIT ?
+            ) ORDER BY criado_em ASC
+        `).all(id, lim);
+    }
     res.json(mensagens);
 });
 
 // ═══════════════════════════════════════════════════════
 // POST /api/whatsapp/conversas/:id/enviar — enviar mensagem ao cliente
 // ═══════════════════════════════════════════════════════
-router.post('/conversas/:id/enviar', requireAuth, async (req, res) => {
-    const id = parseInt(req.params.id);
+router.post('/conversas/:id/enviar', requireAuth, requireConversaAccess(db), async (req, res) => {
+    const id = req.conversa.id;
     const { conteudo, tipo } = req.body;
     if (!conteudo) return res.status(400).json({ error: 'Conteúdo obrigatório' });
 
-    const conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(id);
-    if (!conversa) return res.status(404).json({ error: 'Conversa não encontrada' });
+    const conversa = req.conversa;
+
+    // Auto-atribuir a si mesmo ao enviar 1ª mensagem (se ainda não atribuída)
+    if (!conversa.atribuido_user_id) {
+        db.prepare(
+            'UPDATE chat_conversas SET atribuido_user_id = ?, atribuido_em = CURRENT_TIMESTAMP, atribuido_por_id = ? WHERE id = ?'
+        ).run(req.user.id, req.user.id, id);
+        db.prepare(
+            'INSERT INTO chat_conversa_atribuicoes (conversa_id, de_user_id, para_user_id, por_user_id, motivo) VALUES (?, NULL, ?, ?, ?)'
+        ).run(id, req.user.id, req.user.id, 'auto-atribuição ao responder');
+    }
 
     try {
         // Enviar via Evolution API — usar wa_jid (remoteJid completo) se disponível
@@ -124,8 +225,8 @@ router.post('/conversas/:id/enviar', requireAuth, async (req, res) => {
 // ═══════════════════════════════════════════════════════
 // POST /api/whatsapp/conversas/:id/nota-interna — nota interna
 // ═══════════════════════════════════════════════════════
-router.post('/conversas/:id/nota-interna', requireAuth, (req, res) => {
-    const id = parseInt(req.params.id);
+router.post('/conversas/:id/nota-interna', requireAuth, requireConversaAccess(db), (req, res) => {
+    const id = req.conversa.id;
     const { conteudo } = req.body;
     if (!conteudo) return res.status(400).json({ error: 'Conteúdo obrigatório' });
 
@@ -141,8 +242,8 @@ router.post('/conversas/:id/nota-interna', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════════
 // PUT /api/whatsapp/conversas/:id/status — alterar status
 // ═══════════════════════════════════════════════════════
-router.put('/conversas/:id/status', requireAuth, (req, res) => {
-    const id = parseInt(req.params.id);
+router.put('/conversas/:id/status', requireAuth, requireConversaAccess(db), (req, res) => {
+    const id = req.conversa.id;
     const { status } = req.body;
     if (!['ia', 'humano', 'fechado'].includes(status)) {
         return res.status(400).json({ error: 'Status inválido' });
@@ -152,11 +253,139 @@ router.put('/conversas/:id/status', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// PUT /api/whatsapp/conversas/:id/atribuir — atribuir conversa a um atendente
+// body: { user_id: number|null, motivo?: string }
+// Regras:
+//   - Qualquer usuário autenticado pode PUXAR pra si (user_id = eu) se não-atribuída
+//   - Qualquer usuário pode LARGAR (user_id = null) uma conversa DELE
+//   - Só gerente/admin pode atribuir pra outra pessoa OU remover atribuição de outro
+// ═══════════════════════════════════════════════════════
+router.put('/conversas/:id/atribuir', requireAuth, requireConversaAccess(db), (req, res) => {
+    const id = req.conversa.id;
+    const { user_id, motivo } = req.body || {};
+    const me = req.user;
+    const conversa = req.conversa;
+    const target = user_id === null || user_id === undefined ? null : parseInt(user_id);
+
+    // Regras de permissão
+    const isGer = isGerente(me);
+    const ehMinha = Number(conversa.atribuido_user_id) === Number(me.id);
+    const puxandoPraMim = target === Number(me.id);
+    const largando = target === null;
+
+    if (!isGer) {
+        if (puxandoPraMim) {
+            // só pode puxar se estiver não-atribuída
+            if (conversa.atribuido_user_id && !ehMinha) {
+                return res.status(403).json({ error: 'Conversa já atribuída a outro atendente. Peça ao gerente pra transferir.' });
+            }
+        } else if (largando) {
+            if (!ehMinha) return res.status(403).json({ error: 'Você só pode largar conversas atribuídas a você.' });
+        } else {
+            return res.status(403).json({ error: 'Apenas gerentes podem atribuir conversas a outros atendentes.' });
+        }
+    }
+
+    // Validar usuário-alvo existe e está ativo
+    if (target !== null) {
+        const u = db.prepare('SELECT id, nome, role, ativo FROM users WHERE id = ?').get(target);
+        if (!u) return res.status(400).json({ error: 'Usuário não encontrado' });
+        if (!u.ativo) return res.status(400).json({ error: 'Usuário inativo' });
+    }
+
+    db.prepare(`
+        UPDATE chat_conversas
+           SET atribuido_user_id = ?,
+               atribuido_em = CASE WHEN ? IS NULL THEN NULL ELSE CURRENT_TIMESTAMP END,
+               atribuido_por_id = ?
+         WHERE id = ?
+    `).run(target, target, me.id, id);
+
+    db.prepare(
+        'INSERT INTO chat_conversa_atribuicoes (conversa_id, de_user_id, para_user_id, por_user_id, motivo) VALUES (?, ?, ?, ?, ?)'
+    ).run(id, conversa.atribuido_user_id, target, me.id, motivo || '');
+
+    const updated = db.prepare(`
+        SELECT cc.*, c.nome as cliente_nome, ua.nome as atribuido_nome, ua.role as atribuido_role
+        FROM chat_conversas cc
+        LEFT JOIN clientes c ON cc.cliente_id = c.id
+        LEFT JOIN users ua ON cc.atribuido_user_id = ua.id
+        WHERE cc.id = ?
+    `).get(id);
+    res.json(updated);
+});
+
+// ═══════════════════════════════════════════════════════
+// PUT /api/whatsapp/conversas/:id/categoria — definir categoria e prioridade
+// body: { categoria?: string, prioridade?: string, tags?: string[] }
+// ═══════════════════════════════════════════════════════
+const CATEGORIAS_VALIDAS = ['', 'comercial', 'pos_venda', 'medicao', 'financeiro', 'suporte', 'outros'];
+const PRIORIDADES_VALIDAS = ['baixa', 'normal', 'alta', 'urgente'];
+router.put('/conversas/:id/categoria', requireAuth, requireConversaAccess(db), (req, res) => {
+    const id = req.conversa.id;
+    const { categoria, prioridade, tags } = req.body || {};
+    const updates = [];
+    const params = [];
+    if (categoria !== undefined) {
+        if (!CATEGORIAS_VALIDAS.includes(categoria)) return res.status(400).json({ error: 'Categoria inválida' });
+        updates.push('categoria = ?'); params.push(categoria);
+    }
+    if (prioridade !== undefined) {
+        if (!PRIORIDADES_VALIDAS.includes(prioridade)) return res.status(400).json({ error: 'Prioridade inválida' });
+        updates.push('prioridade = ?'); params.push(prioridade);
+    }
+    if (Array.isArray(tags)) {
+        updates.push('tags_json = ?'); params.push(JSON.stringify(tags));
+    }
+    if (!updates.length) return res.status(400).json({ error: 'Nada pra atualizar' });
+    params.push(id);
+    db.prepare(`UPDATE chat_conversas SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+    const updated = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(id);
+    res.json(updated);
+});
+
+// ═══════════════════════════════════════════════════════
+// PUT /api/whatsapp/conversas/:id/arquivar — arquivar/desarquivar
+// body: { arquivada: boolean }
+// ═══════════════════════════════════════════════════════
+router.put('/conversas/:id/arquivar', requireAuth, requireConversaAccess(db), (req, res) => {
+    const { arquivada } = req.body || {};
+    db.prepare('UPDATE chat_conversas SET arquivada = ? WHERE id = ?').run(arquivada ? 1 : 0, req.conversa.id);
+    res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════
+// GET /api/whatsapp/conversas/:id/historico — histórico de atribuições
+// ═══════════════════════════════════════════════════════
+router.get('/conversas/:id/historico', requireAuth, requireConversaAccess(db), (req, res) => {
+    const h = db.prepare(`
+        SELECT a.*, ud.nome as de_nome, up.nome as para_nome, upor.nome as por_nome
+        FROM chat_conversa_atribuicoes a
+        LEFT JOIN users ud ON a.de_user_id = ud.id
+        LEFT JOIN users up ON a.para_user_id = up.id
+        LEFT JOIN users upor ON a.por_user_id = upor.id
+        WHERE a.conversa_id = ?
+        ORDER BY a.criado_em DESC
+    `).all(req.conversa.id);
+    res.json(h);
+});
+
+// ═══════════════════════════════════════════════════════
+// GET /api/whatsapp/usuarios-disponiveis — lista de atendentes pra atribuir
+// ═══════════════════════════════════════════════════════
+router.get('/usuarios-disponiveis', requireAuth, (req, res) => {
+    const users = db.prepare(
+        'SELECT id, nome, role FROM users WHERE ativo = 1 ORDER BY nome'
+    ).all();
+    res.json(users);
+});
+
+// ═══════════════════════════════════════════════════════
 // PUT /api/whatsapp/conversas/:id/ia-bloqueio — pausar/retomar IA manualmente
 // body: { bloqueada: true|false, minutos?: number, motivo?: string }
 // ═══════════════════════════════════════════════════════
-router.put('/conversas/:id/ia-bloqueio', requireAuth, (req, res) => {
-    const id = parseInt(req.params.id);
+router.put('/conversas/:id/ia-bloqueio', requireAuth, requireConversaAccess(db), (req, res) => {
+    const id = req.conversa.id;
     const { bloqueada, minutos, motivo } = req.body || {};
     if (bloqueada) {
         const min = Number(minutos) > 0 ? Number(minutos) : 60 * 24;
@@ -178,8 +407,8 @@ router.put('/conversas/:id/ia-bloqueio', requireAuth, (req, res) => {
 // Pausa escalação Sofia enquanto humano aguarda cliente ativamente
 // body: { aguardando: true|false }
 // ═══════════════════════════════════════════════════════
-router.put('/conversas/:id/aguardando-cliente', requireAuth, (req, res) => {
-    const id = parseInt(req.params.id);
+router.put('/conversas/:id/aguardando-cliente', requireAuth, requireConversaAccess(db), (req, res) => {
+    const id = req.conversa.id;
     const { aguardando } = req.body || {};
     const flag = aguardando ? 1 : 0;
     db.prepare('UPDATE chat_conversas SET aguardando_cliente = ? WHERE id = ?').run(flag, id);
@@ -195,7 +424,7 @@ router.put('/conversas/:id/aguardando-cliente', requireAuth, (req, res) => {
 // POST /api/whatsapp/conversas/:id/processar-escalacao-manual
 // Dispara verificação de escalação numa conversa específica (útil para testes)
 // ═══════════════════════════════════════════════════════
-router.post('/conversas/:id/processar-escalacao-manual', requireAuth, async (req, res) => {
+router.post('/conversas/:id/processar-escalacao-manual', requireAuth, requireConversaAccess(db), async (req, res) => {
     try {
         const esc = await import('../services/sofia_escalacao.js');
         await esc.processarEscalacoes(req.app.locals.wsBroadcast);
@@ -209,8 +438,8 @@ router.post('/conversas/:id/processar-escalacao-manual', requireAuth, async (req
 // ═══════════════════════════════════════════════════════
 // PUT /api/whatsapp/conversas/:id/vincular — vincular a cliente
 // ═══════════════════════════════════════════════════════
-router.put('/conversas/:id/vincular', requireAuth, (req, res) => {
-    const id = parseInt(req.params.id);
+router.put('/conversas/:id/vincular', requireAuth, requireConversaAccess(db), (req, res) => {
+    const id = req.conversa.id;
     const { cliente_id } = req.body;
     db.prepare('UPDATE chat_conversas SET cliente_id = ? WHERE id = ?').run(cliente_id || null, id);
     const conversa = db.prepare(`
@@ -224,14 +453,20 @@ router.put('/conversas/:id/vincular', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════════
 // POST /api/whatsapp/conversas/:id/enviar-midia — enviar imagem/audio/doc
 // ═══════════════════════════════════════════════════════
-router.post('/conversas/:id/enviar-midia', requireAuth, upload.single('file'), async (req, res) => {
-    const id = parseInt(req.params.id);
+router.post('/conversas/:id/enviar-midia', requireAuth, upload.single('file'), requireConversaAccess(db), async (req, res) => {
+    const id = req.conversa.id;
     const caption = req.body.caption || '';
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'Arquivo obrigatório' });
 
-    const conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(id);
-    if (!conversa) return res.status(404).json({ error: 'Conversa não encontrada' });
+    const conversa = req.conversa;
+
+    // Auto-atribuir ao enviar (mesmo padrão do /enviar)
+    if (!conversa.atribuido_user_id) {
+        db.prepare(
+            'UPDATE chat_conversas SET atribuido_user_id = ?, atribuido_em = CURRENT_TIMESTAMP, atribuido_por_id = ? WHERE id = ?'
+        ).run(req.user.id, req.user.id, id);
+    }
 
     const dest = conversa.wa_jid || conversa.wa_phone;
     const mime = file.mimetype || '';
@@ -287,10 +522,46 @@ router.post('/conversas/:id/enviar-midia', requireAuth, upload.single('file'), a
 // ═══════════════════════════════════════════════════════
 // POST /api/whatsapp/conversas/:id/sugerir — IA sugere resposta
 // ═══════════════════════════════════════════════════════
-router.post('/conversas/:id/sugerir', requireAuth, async (req, res) => {
+router.post('/conversas/:id/sugerir', requireAuth, requireConversaAccess(db), async (req, res) => {
     try {
-        const suggestion = await ai.suggestResponse(parseInt(req.params.id));
+        const suggestion = await ai.suggestResponse(req.conversa.id);
         res.json({ sugestao: suggestion });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// POST /api/whatsapp/backfill — pull histórico completo da Evolution
+// body: { chat_id?: string }  — se omitido, puxa TODOS os chats
+// Restrito a gerente/admin (operação pesada)
+// ═══════════════════════════════════════════════════════
+router.post('/backfill', requireAuth, async (req, res) => {
+    if (!isGerente(req.user)) return res.status(403).json({ error: 'Apenas gerentes podem rodar backfill' });
+    const { chat_id, limit } = req.body || {};
+    try {
+        let result;
+        if (chat_id) {
+            result = await backfillOneChat(chat_id, { limit: limit || 500 });
+        } else {
+            result = await backfillFromEvolution({ perChatLimit: limit || 300, onProgress: null });
+        }
+        res.json(result);
+    } catch (e) {
+        console.error('[backfill]', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// POST /api/whatsapp/conversas/:id/backfill — só essa conversa
+// ═══════════════════════════════════════════════════════
+router.post('/conversas/:id/backfill', requireAuth, requireConversaAccess(db), async (req, res) => {
+    try {
+        const conversa = req.conversa;
+        const jid = conversa.wa_jid || `${conversa.wa_phone}@s.whatsapp.net`;
+        const result = await backfillOneChat(jid, { limit: 1000 });
+        res.json(result);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }

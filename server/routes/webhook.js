@@ -56,11 +56,84 @@ router.post('/whatsapp', async (req, res) => {
             await handleIncomingMessage(body.data || body);
         } else if (event === 'messages.update') {
             await handleMessageStatusUpdate(body.data || body);
+        } else if (event === 'messages.set') {
+            // Lote de histórico disparado no pareamento do WhatsApp
+            await handleMessagesSet(body.data || body);
         }
     } catch (err) {
         console.error('[WH] Erro:', err.message);
     }
 });
+
+// ═══════════════════════════════════════════════════════
+// MESSAGES_SET — Lote de histórico que chega no pareamento
+// ═══════════════════════════════════════════════════════
+async function handleMessagesSet(data) {
+    const msgs = data?.messages || data || [];
+    const arr = Array.isArray(msgs) ? msgs : (msgs.records || []);
+    if (!arr.length) return;
+    console.log(`[WH] messages.set recebido — ${arr.length} mensagens`);
+
+    // Importa função de backfill pra reaproveitar lógica idempotente
+    const { default: _ } = await import('../services/whatsapp_backfill.js');
+    for (const msg of arr) {
+        try {
+            const remoteJid = msg?.key?.remoteJid || '';
+            if (!remoteJid || remoteJid.includes('@g.us') || remoteJid.includes('@broadcast')) continue;
+            const phone = remoteJid.replace('@s.whatsapp.net', '').replace('@lid', '');
+            if (!phone || phone.length < 8) continue;
+
+            // Upsert conversa (sem incrementar nao_lidas — é histórico)
+            let conversa = db.prepare('SELECT * FROM chat_conversas WHERE wa_jid = ? OR wa_phone = ?').get(remoteJid, phone);
+            if (!conversa) {
+                const lastDigits = phone.slice(-8);
+                let clienteId = null;
+                if (/^55\d{10,11}$/.test(phone)) {
+                    const cli = db.prepare(
+                        "SELECT id FROM clientes WHERE REPLACE(REPLACE(REPLACE(REPLACE(tel, '(', ''), ')', ''), '-', ''), ' ', '') LIKE ?"
+                    ).get(`%${lastDigits}%`);
+                    if (cli) clienteId = cli.id;
+                }
+                const r = db.prepare(
+                    "INSERT INTO chat_conversas (cliente_id, wa_phone, wa_jid, wa_name, status, nao_lidas, ultimo_msg_em) VALUES (?, ?, ?, ?, 'humano', 0, CURRENT_TIMESTAMP)"
+                ).run(clienteId, phone, remoteJid, msg.pushName || '');
+                conversa = { id: r.lastInsertRowid };
+            }
+
+            // Insere mensagem se não existe
+            const msgId = msg?.key?.id;
+            if (!msgId) continue;
+            const exists = db.prepare('SELECT id FROM chat_mensagens WHERE wa_message_id = ?').get(msgId);
+            if (exists) continue;
+
+            const direcao = msg.key.fromMe ? 'saida' : 'entrada';
+            const m = msg.message || {};
+            const tipo = m.imageMessage ? 'imagem'
+                : m.videoMessage ? 'video'
+                : m.audioMessage ? 'audio'
+                : m.documentMessage ? 'documento'
+                : m.stickerMessage ? 'sticker'
+                : 'texto';
+            const conteudo = m.conversation
+                || m.extendedTextMessage?.text
+                || m.imageMessage?.caption
+                || m.videoMessage?.caption
+                || m.documentMessage?.caption
+                || `[${tipo}]`;
+            const ts = msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : new Date().toISOString();
+            const remetente = msg.key.fromMe ? 'usuario' : 'cliente';
+
+            db.prepare(`
+                INSERT INTO chat_mensagens
+                    (conversa_id, wa_message_id, direcao, tipo, conteudo, remetente, importado, status_envio, criado_em)
+                VALUES (?, ?, ?, ?, ?, ?, 1, 'enviado', ?)
+            `).run(conversa.id, msgId, direcao, tipo, conteudo, remetente, ts);
+        } catch (e) {
+            // silencioso — processa próxima
+        }
+    }
+    console.log(`[WH] messages.set processado`);
+}
 
 // ═══════════════════════════════════════════════════════
 // PROCESSAR MENSAGEM RECEBIDA

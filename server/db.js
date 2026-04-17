@@ -2176,6 +2176,38 @@ const migrations = [
   )`,
   "CREATE INDEX IF NOT EXISTS idx_ext_logs_user ON ext_logs(user_id, criado_em)",
   "CREATE INDEX IF NOT EXISTS idx_ext_logs_criado ON ext_logs(criado_em)",
+
+  // ═══ Inbox compartilhado — atribuição + categoria + prioridade ═══
+  "ALTER TABLE chat_conversas ADD COLUMN atribuido_user_id INTEGER REFERENCES users(id)",
+  "ALTER TABLE chat_conversas ADD COLUMN atribuido_em DATETIME DEFAULT NULL",
+  "ALTER TABLE chat_conversas ADD COLUMN atribuido_por_id INTEGER REFERENCES users(id)",
+  "ALTER TABLE chat_conversas ADD COLUMN categoria TEXT DEFAULT ''",       // comercial, pos_venda, medicao, financeiro, suporte, outros
+  "ALTER TABLE chat_conversas ADD COLUMN prioridade TEXT DEFAULT 'normal'", // baixa, normal, alta, urgente
+  "ALTER TABLE chat_conversas ADD COLUMN arquivada INTEGER DEFAULT 0",
+  "ALTER TABLE chat_conversas ADD COLUMN tags_json TEXT DEFAULT '[]'",
+  "CREATE INDEX IF NOT EXISTS idx_chat_conversas_atribuido ON chat_conversas(atribuido_user_id)",
+  "CREATE INDEX IF NOT EXISTS idx_chat_conversas_categoria ON chat_conversas(categoria)",
+  "CREATE INDEX IF NOT EXISTS idx_chat_conversas_arquivada ON chat_conversas(arquivada)",
+
+  // Histórico de atribuições (auditoria)
+  `CREATE TABLE IF NOT EXISTS chat_conversa_atribuicoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversa_id INTEGER NOT NULL REFERENCES chat_conversas(id),
+    de_user_id INTEGER REFERENCES users(id),
+    para_user_id INTEGER REFERENCES users(id),
+    por_user_id INTEGER REFERENCES users(id),
+    motivo TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_chat_atrib_conversa ON chat_conversa_atribuicoes(conversa_id)",
+
+  // Marca mensagem como lida por usuário (pra badge por-atendente)
+  `CREATE TABLE IF NOT EXISTS chat_leituras (
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    conversa_id INTEGER NOT NULL REFERENCES chat_conversas(id),
+    ultima_leitura_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, conversa_id)
+  )`,
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

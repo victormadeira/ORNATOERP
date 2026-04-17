@@ -83,3 +83,37 @@ export function optionalAuth(req, res, next) {
 export function isAdmin(user) { return user.role === 'admin'; }
 export function isGerente(user) { return user.role === 'gerente' || user.role === 'admin'; }
 export function canSeeAll(user) { return user.role === 'admin' || user.role === 'gerente'; }
+
+// ═══════════════════════════════════════════════════════
+// Inbox — quem pode ver uma conversa?
+// Regra: gerente/admin veem tudo; vendedor vê só as atribuídas a ele
+//        OU as não atribuídas (pra ninguém perder conversa nova).
+// ═══════════════════════════════════════════════════════
+export function canAccessConversa(user, conversa) {
+    if (!user || !conversa) return false;
+    if (canSeeAll(user)) return true;
+    // Atribuída a ele
+    if (Number(conversa.atribuido_user_id) === Number(user.id)) return true;
+    // Não atribuída (ninguém ainda pegou) — vendedor pode ver e puxar
+    if (!conversa.atribuido_user_id) return true;
+    return false;
+}
+
+/**
+ * Middleware — carrega a conversa e valida permissão.
+ * Usa db passado pelo caller pra evitar import circular.
+ * Espera req.params.id com o ID da conversa. Seta req.conversa.
+ */
+export function requireConversaAccess(db) {
+    return (req, res, next) => {
+        const id = parseInt(req.params.id);
+        if (!id) return res.status(400).json({ error: 'ID inválido' });
+        const conv = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(id);
+        if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
+        if (!canAccessConversa(req.user, conv)) {
+            return res.status(403).json({ error: 'Sem permissão para acessar esta conversa' });
+        }
+        req.conversa = conv;
+        next();
+    };
+}
