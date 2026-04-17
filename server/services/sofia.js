@@ -487,17 +487,45 @@ export function mergeDossie(antigo = {}, novo = {}) {
 
 // Gatilhos explícitos de abuso — pausam IA imediatamente
 const GATILHOS_ABUSO = [
-    /\bgastar\s+(seus|os|nossos)?\s*tokens?\b/i,
-    /\bqueimar\s+(seus|os)?\s*tokens?\b/i,
+    /\bgastar\b[^.!?]{0,40}\btokens?\b/i,
+    /\bqueimar\b[^.!?]{0,40}\btokens?\b/i,
+    /\btokens?\b[^.!?]{0,20}\b(gastar|queimar|acabar)/i,
     /\btestar\s+(sua|a)?\s*ia\b/i,
-    /\bso\s+pra\s+(zoar|trollar|brincar|testar)/i,
-    /\bsó\s+pra\s+(zoar|trollar|brincar|testar)/i,
+    /\b(so|só)\s+(pra\s+)?(zoar|trollar|brincar|testar|sacanagem|zuar)/i,
+    /\b(trollar|zoar|zuar)\s+voc[êe]\b/i,
     /\bfazer\s+voc[êe]\s+gastar\b/i,
     /\bignore\s+(suas?|as)?\s*instru[cç][oõ]es\b/i,
     /\bdisregard\s+previous\b/i,
     /\bsystem prompt\b/i,
     /\bvou\s+ficar\s+mandando\b/i,
+    /\bn[aã]o\s+quero\s+(fechar|nada)\b.*\b(troll|zoar|gastar|brinc)/i,
+    /\b(troll|zoar)\b.*\bn[aã]o\s+quero\s+(fechar|nada)\b/i,
 ];
+
+// Padrões de "risada spam" / troll não-verbal
+const PADROES_TROLL_NAO_VERBAL = [
+    /^k{4,}$/i,                      // kkkkk, KKKKKK
+    /^(ha){3,}$/i,                   // hahaha+
+    /^(he){3,}$/i,                   // hehehe+
+    /^(rs){3,}$/i,                   // rsrsrs+
+    /^[a-z]{8,}$/i,                  // AUEHAUEHAUHE (letras aleatórias 8+)
+    /^[^\w\s]{3,}$/,                 // só pontuação/símbolos
+];
+
+function isTrollNaoVerbal(texto) {
+    const t = (texto || '').trim().replace(/\s+/g, '');
+    if (!t) return false;
+    // "aueahuea" — tem muitas vogais aleatórias?
+    if (/^[a-z]{8,}$/i.test(t) && /[aeiou]{3,}/i.test(t) && !/\s/.test(t)) {
+        // nomes comuns não explodem vogais em sequência; rabiscos sim
+        const vogRatio = (t.match(/[aeiou]/gi) || []).length / t.length;
+        if (vogRatio > 0.4 && vogRatio < 0.75) return true;
+    }
+    for (const re of PADROES_TROLL_NAO_VERBAL) {
+        if (re.test(t)) return true;
+    }
+    return false;
+}
 
 /**
  * Detecta se a mensagem do cliente contém gatilho explícito de abuso.
@@ -519,7 +547,24 @@ export function detectarAbuso(texto) {
  */
 export function detectarFlood(recentMsgs = []) {
     const entradas = recentMsgs.filter(m => m.direcao === 'entrada').slice(-6);
-    if (entradas.length < 3) return { flood: false, motivo: null, silenciar: false };
+    if (entradas.length < 2) return { flood: false, motivo: null, silenciar: false };
+
+    // 1 mensagem de troll não-verbal óbvia (kkkkk, AUEHAUEH, etc) — já é sinal forte
+    const ultima = (entradas[entradas.length - 1]?.conteudo || '').trim();
+    if (isTrollNaoVerbal(ultima) && entradas.length >= 2) {
+        // Se penúltima também foi troll não-verbal OU curta, pausa
+        const penult = (entradas[entradas.length - 2]?.conteudo || '').trim();
+        if (isTrollNaoVerbal(penult) || penult.replace(/[\s.!?,]/g, '').length <= 4) {
+            return { flood: true, motivo: 'troll_nao_verbal', silenciar: true };
+        }
+    }
+
+    // 3+ mensagens troll não-verbais nas últimas 5 (mesmo não consecutivas)
+    const ultimas5 = entradas.slice(-5);
+    const trollCount = ultimas5.filter(m => isTrollNaoVerbal((m.conteudo || '').trim())).length;
+    if (trollCount >= 3) {
+        return { flood: true, motivo: 'troll_nao_verbal_repetido', silenciar: true };
+    }
 
     // 3+ mensagens idênticas em sequência
     const ultimas3 = entradas.slice(-3).map(m => (m.conteudo || '').trim().toLowerCase());

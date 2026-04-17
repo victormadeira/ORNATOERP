@@ -990,6 +990,43 @@ router.post('/simulate', requireAuth, async (req, res) => {
         const { default: sofia } = await import('../services/sofia.js');
         const { default: aiSvc, SOFIA_DEFAULT_PROMPT } = await import('../services/ai.js');
 
+        // ═══ ANTI-ABUSO (aplicado também na sandbox, para refletir produção) ═══
+        const abusoMotivo = sofia.detectarAbuso(message);
+        if (abusoMotivo) {
+            return res.json({
+                text: '[IA silenciada — gatilho de abuso detectado na produção]',
+                dossie_novo: null,
+                dossie_acumulado: req.body.dossie_acumulado || {},
+                score: 0,
+                classificacao: 'frio',
+                score_detalhes: [`bloqueio:${abusoMotivo}`],
+                tags: ['abuso_detectado'],
+                violations: [],
+                sanitized: false,
+                bloqueado: true,
+                bloqueio_motivo: abusoMotivo,
+            });
+        }
+        const msgsFlood = (req.body.history || [])
+            .map(h => ({ direcao: h.role === 'assistant' ? 'saida' : 'entrada', conteudo: String(h.content || '') }))
+            .concat([{ direcao: 'entrada', conteudo: message }]);
+        const floodCheck = sofia.detectarFlood(msgsFlood);
+        if (floodCheck.flood) {
+            return res.json({
+                text: '[IA silenciada — flood/troll detectado na produção]',
+                dossie_novo: null,
+                dossie_acumulado: req.body.dossie_acumulado || {},
+                score: 0,
+                classificacao: 'frio',
+                score_detalhes: [`bloqueio:${floodCheck.motivo}`],
+                tags: ['flood_detectado'],
+                violations: [],
+                sanitized: false,
+                bloqueado: true,
+                bloqueio_motivo: floodCheck.motivo,
+            });
+        }
+
         // Montar contexto mínimo (simula dados já acumulados opcionalmente enviados pelo cliente)
         const dossieAcum = req.body.dossie_acumulado || {};
 
