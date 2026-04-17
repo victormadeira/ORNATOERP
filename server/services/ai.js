@@ -800,11 +800,34 @@ export async function processIncomingMessage(conversa, messageText) {
     if (conversa.ia_bloqueada) {
         const ate = conversa.ia_bloqueio_ate ? new Date(conversa.ia_bloqueio_ate).getTime() : 0;
         if (ate > Date.now()) {
-            console.log(`[Sofia] conv=${conversa.id} IA bloqueada até ${conversa.ia_bloqueio_ate} (${conversa.ia_bloqueio_motivo}) — silêncio`);
-            return null;
+            // Tenta desbloqueio por REDENÇÃO (pós cooldown + sinais legítimos)
+            // IMPORTANTE: feito em regex puro no servidor, independe da LLM em uso
+            const bloqueadoDesde = db.prepare(
+                "SELECT MAX(criado_em) AS ts FROM chat_mensagens WHERE conversa_id = ? AND remetente = 'ia' AND interno = 0"
+            ).get(conversa.id);
+            const inicioBloq = conversa.ia_bloqueio_ate
+                ? new Date(new Date(conversa.ia_bloqueio_ate).getTime() - 24 * 60 * 60 * 1000).toISOString()
+                : (bloqueadoDesde?.ts || new Date(Date.now() - 60 * 60 * 1000).toISOString());
+
+            const redencao = sofia.avaliarRedencao(messageText, inicioBloq);
+            if (redencao.liberar) {
+                console.log(`[Sofia] conv=${conversa.id} REDENÇÃO detectada — desbloqueando IA. Sinais: ${redencao.sinais?.join(', ')}`);
+                db.prepare(
+                    "UPDATE chat_conversas SET ia_bloqueada = 0, ia_bloqueio_ate = NULL, ia_bloqueio_motivo = '' WHERE id = ?"
+                ).run(conversa.id);
+                conversa.ia_bloqueada = 0;
+                conversa.ia_bloqueio_ate = null;
+                conversa.ia_bloqueio_motivo = '';
+                // continua o fluxo normal
+            } else {
+                console.log(`[Sofia] conv=${conversa.id} bloqueada (${conversa.ia_bloqueio_motivo}) — redenção negada: ${redencao.motivo} — silêncio`);
+                return null;
+            }
+        } else {
+            // Expirou naturalmente — limpa flag
+            db.prepare("UPDATE chat_conversas SET ia_bloqueada = 0, ia_bloqueio_ate = NULL, ia_bloqueio_motivo = '' WHERE id = ?").run(conversa.id);
+            conversa.ia_bloqueada = 0;
         }
-        // Expirou — limpa flag
-        db.prepare('UPDATE chat_conversas SET ia_bloqueada = 0, ia_bloqueio_ate = NULL, ia_bloqueio_motivo = \'\' WHERE id = ?').run(conversa.id);
     }
 
     // ═══ ANTI-ABUSO: gatilho explícito na mensagem ═══

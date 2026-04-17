@@ -519,28 +519,42 @@ const PALAVROES_AGRESSAO = [
     /\bque\s+(merda|porra|bosta|lixo)\s+(de|é|e)\b/i,
 ];
 
-// Padrões de "risada spam" / troll não-verbal
+// Padrões de "risada spam" / troll não-verbal (estruturais, não palavras comuns)
 const PADROES_TROLL_NAO_VERBAL = [
     /^k{4,}$/i,                      // kkkkk, KKKKKK
-    /^(ha){3,}$/i,                   // hahaha+
-    /^(he){3,}$/i,                   // hehehe+
-    /^(rs){3,}$/i,                   // rsrsrs+
-    /^[a-z]{8,}$/i,                  // AUEHAUEHAUHE (letras aleatórias 8+)
+    /^(ha){3,}!*$/i,                 // hahaha+
+    /^(he){3,}!*$/i,                 // hehehe+
+    /^(rs){3,}!*$/i,                 // rsrsrs+
     /^[^\w\s]{3,}$/,                 // só pontuação/símbolos
 ];
 
+// Heurística pra palavra "gibberish" única: letras aleatórias sem padrão de palavra
+function pareceGibberish(palavra) {
+    const t = palavra.toLowerCase();
+    if (t.length < 8) return false;
+    if (/\s/.test(t)) return false;
+    // ratio de vogais absurdo (rabisco balanceado) E repetição de sílaba curta
+    const vogRatio = (t.match(/[aeiou]/gi) || []).length / t.length;
+    if (vogRatio < 0.35 || vogRatio > 0.70) return false;
+    // 3+ vogais consecutivas OU mesma letra repetida 3+ vezes
+    if (!/[aeiou]{3,}/i.test(t) && !/([a-z])\1{2,}/i.test(t)) return false;
+    // Se contiver substring com >=4 chars que parece palavra PT comum, rejeita gibberish
+    const COMUNS = ['cozinh', 'closet', 'banheir', 'quarto', 'ambiente', 'projeto', 'arquitet',
+        'desculp', 'marcenaria', 'movel', 'quero', 'preciso', 'gostaria', 'ornato',
+        'planejad', 'interess', 'obra', 'reforma', 'casa', 'aparta', 'estuda'];
+    for (const c of COMUNS) if (t.includes(c)) return false;
+    return true;
+}
+
 function isTrollNaoVerbal(texto) {
-    const t = (texto || '').trim().replace(/\s+/g, '');
+    const t = (texto || '').trim();
     if (!t) return false;
-    // "aueahuea" — tem muitas vogais aleatórias?
-    if (/^[a-z]{8,}$/i.test(t) && /[aeiou]{3,}/i.test(t) && !/\s/.test(t)) {
-        // nomes comuns não explodem vogais em sequência; rabiscos sim
-        const vogRatio = (t.match(/[aeiou]/gi) || []).length / t.length;
-        if (vogRatio > 0.4 && vogRatio < 0.75) return true;
-    }
+    // Padrões estruturais (risada/pontuação)
     for (const re of PADROES_TROLL_NAO_VERBAL) {
         if (re.test(t)) return true;
     }
+    // Uma única palavra longa com cara de gibberish (AUEHAUEHAUHE, asdfasdf)
+    if (!/\s/.test(t) && pareceGibberish(t)) return true;
     return false;
 }
 
@@ -631,6 +645,60 @@ export function verificarRateLimit(timestampsEntrada = []) {
 // Limite de tokens/dia por conversa (entrada + saída combinados)
 export const BUDGET_TOKENS_CONVERSA_DIA = 30000;
 
+// ═══════════════════════════════════════════════════════
+// REDENÇÃO — cliente bloqueado pode se redimir
+// ═══════════════════════════════════════════════════════
+
+// Sinais de arrependimento / mudança de intenção
+const SINAIS_REDENCAO = [
+    /\b(desculp|me\s+desculpa|foi\s+mal|perd[ãa]o|peço\s+desculp|perdao)/i,
+    /\b(brincadeira|zoeira|estava\s+(brincando|zoando|de\s+brincadeira))/i,
+    /\b(agora|na\s+verdade|realmente|de\s+fato)\s+(quero|preciso|gostaria)/i,
+    /\b(quero|preciso|gostaria|tenho|penso\s+em)\s+(fazer|montar|projetar|planejar|contratar)\b/i,
+    /\b(cozinha|closet|banheir|quarto|sala|apartamento|casa|ambiente|marcenaria|movel|m[óo]veis?)\b/i,
+    /\b(arquitet|projeto|obra|reforma|planta)\b/i,
+    /\btenho\s+interesse\b/i,
+    /\bvamos\s+conversar\b/i,
+];
+
+// Cooldown mínimo antes de permitir redenção (evita unlock instantâneo)
+export const COOLDOWN_REDENCAO_MIN = 30;
+
+/**
+ * Avalia se a mensagem de um cliente bloqueado merece desbloqueio.
+ * Só libera se:
+ *  - Já passou COOLDOWN_REDENCAO_MIN desde o bloqueio
+ *  - Mensagem tem sinais de redenção (arrependimento + projeto real)
+ *  - Mensagem NÃO contém abuso novo
+ */
+export function avaliarRedencao(texto, bloqueadoDesde) {
+    if (!texto || !bloqueadoDesde) return { liberar: false, motivo: 'sem_contexto' };
+
+    // Se ainda tem abuso, não libera
+    if (detectarAbuso(texto)) return { liberar: false, motivo: 'novo_abuso' };
+
+    // Troll não-verbal ainda? não libera
+    if (isTrollNaoVerbal((texto || '').trim())) return { liberar: false, motivo: 'ainda_troll' };
+
+    // Cooldown mínimo
+    const desdeMs = new Date(bloqueadoDesde).getTime();
+    const decorridoMin = (Date.now() - desdeMs) / 60000;
+    if (decorridoMin < COOLDOWN_REDENCAO_MIN) {
+        return { liberar: false, motivo: 'cooldown_ativo', minutosRestantes: Math.ceil(COOLDOWN_REDENCAO_MIN - decorridoMin) };
+    }
+
+    // Conta sinais positivos (precisa ≥2 pra liberar — evita falso positivo)
+    const sinaisDetectados = [];
+    for (const re of SINAIS_REDENCAO) {
+        const m = texto.match(re);
+        if (m) sinaisDetectados.push(m[0]);
+    }
+    if (sinaisDetectados.length >= 2) {
+        return { liberar: true, motivo: 'redencao_detectada', sinais: sinaisDetectados };
+    }
+    return { liberar: false, motivo: 'sinais_insuficientes', sinais: sinaisDetectados };
+}
+
 export default {
     CIDADES_WHITELIST, CIDADES_BLACKLIST, BAIRROS_PREMIUM,
     cidadeDentroWhitelist, bairroPremium,
@@ -640,5 +708,6 @@ export default {
     saudacaoAtual, podeEnviarFollowup, horarioHumanoAtivo,
     detectarTratamento, mergeDossie,
     detectarAbuso, detectarFlood, verificarRateLimit,
+    avaliarRedencao, COOLDOWN_REDENCAO_MIN,
     BUDGET_TOKENS_CONVERSA_DIA,
 };
