@@ -198,6 +198,12 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [iaTesting, setIaTesting] = useState(false);
     const [iaUso, setIaUso] = useState(null);
     const [iaUsoLoading, setIaUsoLoading] = useState(false);
+    const [iaPrompt, setIaPrompt] = useState(null); // { default, custom, usando }
+    const [iaPromptDraft, setIaPromptDraft] = useState('');
+    const [iaPromptLoading, setIaPromptLoading] = useState(false);
+    const [iaPromptSaving, setIaPromptSaving] = useState(false);
+    const [iaPromptMode, setIaPromptMode] = useState('view'); // view | edit | default
+    const [iaPromptSaved, setIaPromptSaved] = useState(false);
     const [kbPrompt, setKbPrompt] = useState('');
     const [kbStats, setKbStats] = useState(null);
     const [kbLoading, setKbLoading] = useState(false);
@@ -426,8 +432,45 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         setIaUsoLoading(false);
     };
 
+    const loadIaPrompt = async () => {
+        setIaPromptLoading(true);
+        try {
+            const d = await api.get('/ia/prompt');
+            setIaPrompt(d);
+            setIaPromptDraft(d.custom || d.default);
+        } catch (e) { /* silencioso */ }
+        setIaPromptLoading(false);
+    };
+
+    const saveIaPrompt = async () => {
+        setIaPromptSaving(true);
+        try {
+            await api.put('/ia/prompt', { custom: iaPromptDraft });
+            setIaPromptSaved(true);
+            setTimeout(() => setIaPromptSaved(false), 2500);
+            await loadIaPrompt();
+            setIaPromptMode('view');
+        } catch (e) { notify?.('Erro ao salvar prompt: ' + e.message, 'error'); }
+        setIaPromptSaving(false);
+    };
+
+    const resetIaPrompt = async () => {
+        if (!confirm('Restaurar o prompt padrão da Sofia? Seu prompt customizado será apagado.')) return;
+        setIaPromptSaving(true);
+        try {
+            await api.post('/ia/prompt/reset');
+            await loadIaPrompt();
+            setIaPromptMode('view');
+            notify?.('Prompt restaurado para o padrão Sofia v2', 'success');
+        } catch (e) { notify?.('Erro ao restaurar: ' + e.message, 'error'); }
+        setIaPromptSaving(false);
+    };
+
     useEffect(() => {
-        if (activeSection === 'ia') loadIaUso();
+        if (activeSection === 'ia') {
+            loadIaUso();
+            loadIaPrompt();
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeSection]);
 
@@ -1924,6 +1967,114 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         </span>
                                     )}
                                 </div>
+                            </div>
+
+                            {/* ═══ Prompt de Treinamento da Sofia ═══ */}
+                            <div className="mt-5 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
+                                <div className="flex items-center justify-between mb-3">
+                                    <div>
+                                        <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>Prompt de Treinamento da Sofia</h3>
+                                        <div className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                            Documento completo que define identidade, regras, fluxo e guardrails da IA. Edite com cuidado — afeta todas as conversas novas.
+                                        </div>
+                                    </div>
+                                    {iaPrompt && (
+                                        <span className="text-[10px] px-2 py-1 rounded font-semibold" style={{
+                                            background: iaPrompt.usando === 'custom' ? '#f59e0b20' : '#22c55e20',
+                                            color: iaPrompt.usando === 'custom' ? '#f59e0b' : '#22c55e',
+                                            border: `1px solid ${iaPrompt.usando === 'custom' ? '#f59e0b40' : '#22c55e40'}`,
+                                        }}>
+                                            {iaPrompt.usando === 'custom' ? 'CUSTOMIZADO' : 'PADRÃO v2'}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {iaPromptLoading && !iaPrompt ? (
+                                    <div className="text-xs py-4 text-center" style={{ color: 'var(--text-muted)' }}>Carregando...</div>
+                                ) : iaPrompt ? (
+                                    <>
+                                        <div className="flex gap-2 mb-3">
+                                            <button
+                                                onClick={() => { setIaPromptMode('edit'); setIaPromptDraft(iaPrompt.custom || iaPrompt.default); }}
+                                                className={Z.btn2}
+                                                style={{ fontSize: 11, background: iaPromptMode === 'edit' ? 'var(--primary)' : undefined, color: iaPromptMode === 'edit' ? 'white' : undefined }}
+                                                disabled={!isGerente}
+                                            >
+                                                <Pencil size={11} style={{ display: 'inline', marginRight: 4 }} />
+                                                {iaPrompt.usando === 'custom' ? 'Editar customização' : 'Customizar'}
+                                            </button>
+                                            <button onClick={() => setIaPromptMode('default')} className={Z.btn2} style={{ fontSize: 11, background: iaPromptMode === 'default' ? 'var(--primary)' : undefined, color: iaPromptMode === 'default' ? 'white' : undefined }}>
+                                                <Bot size={11} style={{ display: 'inline', marginRight: 4 }} />
+                                                Ver padrão Sofia v2
+                                            </button>
+                                            {iaPrompt.usando === 'custom' && isGerente && (
+                                                <button onClick={resetIaPrompt} className={Z.btn2} style={{ fontSize: 11, color: '#ef4444', borderColor: '#ef444440' }} disabled={iaPromptSaving}>
+                                                    <Trash2 size={11} style={{ display: 'inline', marginRight: 4 }} />
+                                                    Restaurar padrão
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {iaPromptMode === 'default' && (
+                                            <div>
+                                                <textarea
+                                                    value={iaPrompt.default}
+                                                    readOnly
+                                                    rows={20}
+                                                    style={{
+                                                        width: '100%', fontSize: 11, lineHeight: 1.6, padding: 12, borderRadius: 8,
+                                                        background: 'var(--bg-muted)', color: 'var(--text-muted)',
+                                                        border: '1px solid var(--border)', fontFamily: 'monospace', resize: 'vertical',
+                                                    }}
+                                                />
+                                                <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                                    Apenas leitura — este é o prompt padrão Sofia v2 (hardcoded no sistema).
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {iaPromptMode === 'edit' && (
+                                            <div>
+                                                <textarea
+                                                    value={iaPromptDraft}
+                                                    onChange={e => setIaPromptDraft(e.target.value)}
+                                                    rows={22}
+                                                    disabled={!isGerente}
+                                                    style={{
+                                                        width: '100%', fontSize: 11, lineHeight: 1.6, padding: 12, borderRadius: 8,
+                                                        background: 'var(--bg-muted)', color: 'var(--text-primary)',
+                                                        border: '1px solid var(--border)', fontFamily: 'monospace', resize: 'vertical',
+                                                    }}
+                                                />
+                                                <div className="flex items-center justify-between mt-2">
+                                                    <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                                        {iaPromptDraft.length.toLocaleString('pt-BR')} caracteres
+                                                        {iaPromptSaved && <span className="ml-3" style={{ color: '#22c55e' }}>✓ Salvo</span>}
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button onClick={() => { setIaPromptMode('view'); setIaPromptDraft(iaPrompt.custom || iaPrompt.default); }} className={Z.btn2} style={{ fontSize: 11 }}>Cancelar</button>
+                                                        <button onClick={saveIaPrompt} className={Z.btn} style={{ fontSize: 11 }} disabled={iaPromptSaving || !isGerente}>
+                                                            {iaPromptSaving ? 'Salvando...' : 'Salvar prompt customizado'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                                    ⚠️ Se salvar customizado, este texto <strong>substitui</strong> o padrão Sofia v2 em todas as novas conversas. Use "Restaurar padrão" para voltar.
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {iaPromptMode === 'view' && (
+                                            <div className="text-[11px] rounded-lg p-3" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                                                {iaPrompt.usando === 'custom' ? (
+                                                    <>Usando <strong style={{ color: '#f59e0b' }}>prompt customizado</strong> ({iaPrompt.custom.length.toLocaleString('pt-BR')} caracteres). Clique em "Editar customização" para ajustar.</>
+                                                ) : (
+                                                    <>Usando <strong style={{ color: '#22c55e' }}>prompt padrão Sofia v2</strong> ({iaPrompt.default.length.toLocaleString('pt-BR')} caracteres). Clique em "Customizar" para editar.</>
+                                                )}
+                                            </div>
+                                        )}
+                                    </>
+                                ) : null}
                             </div>
 
                             {/* ═══ Consumo / Gasto da IA ═══ */}

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ornato - Preview de Exportacao</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    background: #0f1219;
+    color: #e0e6ff;
+    min-height: 100vh;
+  }
+  .header {
+    background: linear-gradient(135deg, #141926 0%, #1a1f2e 100%);
+    padding: 16px 20px;
+    border-bottom: 1px solid #2a3042;
+  }
+  .header-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .project-info {
+    display: flex;
+    gap: 20px;
+    font-size: 12px;
+    color: #6b7a99;
+  }
+  .project-info strong { color: #8892a8; font-weight: 500; }
+  .content { padding: 16px 20px 90px; display: flex; flex-direction: column; gap: 12px; }
+  .section-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #6b7a99;
+    margin-bottom: 8px;
+  }
+  .card {
+    background: #1a1f2e;
+    border: 1px solid #2a3042;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .module-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px solid #232839;
+    transition: background 0.15s;
+  }
+  .module-row:last-child { border-bottom: none; }
+  .module-row:hover { background: #1e2436; }
+  .module-check {
+    margin-right: 12px;
+    accent-color: #1379F0;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+  .module-info { flex: 1; }
+  .module-name { font-size: 13px; font-weight: 500; }
+  .module-meta { font-size: 11px; color: #6b7a99; margin-top: 2px; }
+  .module-stats {
+    display: flex;
+    gap: 14px;
+    font-size: 12px;
+    color: #8892a8;
+  }
+  .module-stats span { white-space: nowrap; }
+  .stat-value { color: #e0e6ff; font-weight: 600; }
+  .select-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .select-links { display: flex; gap: 12px; }
+  .select-link {
+    font-size: 12px;
+    color: #1379F0;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    text-decoration: underline;
+  }
+  .select-link:hover { color: #60a5fa; }
+  .warnings-card {
+    border-color: #3a2d1a;
+    background: #1c1a18;
+  }
+  .warning-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 14px;
+    border-bottom: 1px solid #2a2520;
+    font-size: 12px;
+  }
+  .warning-row:last-child { border-bottom: none; }
+  .warning-icon { color: #fbbf24; font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .warning-text { color: #d4a574; }
+  .summary-bar {
+    background: #1a1f2e;
+    border: 1px solid #2a3042;
+    border-radius: 10px;
+    padding: 14px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    text-align: center;
+  }
+  .summary-item-val {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1379F0;
+    line-height: 1.1;
+  }
+  .summary-item-label { font-size: 11px; color: #6b7a99; margin-top: 2px; }
+  .footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #141926;
+    border-top: 1px solid #2a3042;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .footer-info { font-size: 12px; color: #6b7a99; }
+  .btn {
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+  }
+  .btn-export {
+    background: #1379F0;
+    color: #fff;
+  }
+  .btn-export:hover { background: #1060d0; transform: translateY(-1px); }
+  .btn-export:active { transform: translateY(0); }
+  .btn-export:disabled { background: #2a3042; color: #4a5568; cursor: not-allowed; transform: none; }
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #4a5568;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-title">Preview de Exportacao</div>
+    <div class="project-info">
+      <span><strong>Cliente:</strong> <span id="clientName">--</span></span>
+      <span><strong>Projeto:</strong> <span id="projectName">--</span></span>
+    </div>
+  </div>
+
+  <div class="content">
+    <div>
+      <div class="select-actions">
+        <div class="section-title" style="margin:0;">Modulos</div>
+        <div class="select-links">
+          <button class="select-link" onclick="selectAll(true)">Selecionar tudo</button>
+          <button class="select-link" onclick="selectAll(false)">Desmarcar tudo</button>
+        </div>
+      </div>
+      <div class="card" id="modulesContainer">
+        <div class="empty-state">Nenhum dado carregado.</div>
+      </div>
+    </div>
+
+    <div id="warningsSection" style="display:none;">
+      <div class="section-title">Avisos</div>
+      <div class="card warnings-card" id="warningsContainer"></div>
+    </div>
+
+    <div>
+      <div class="section-title">Resumo</div>
+      <div class="summary-bar">
+        <div>
+          <div class="summary-item-val" id="totalModules">0</div>
+          <div class="summary-item-label">Modulos</div>
+        </div>
+        <div>
+          <div class="summary-item-val" id="totalPieces">0</div>
+          <div class="summary-item-label">Pecas</div>
+        </div>
+        <div>
+          <div class="summary-item-val" id="totalOps">0</div>
+          <div class="summary-item-label">Operacoes</div>
+        </div>
+        <div>
+          <div class="summary-item-val" id="totalMaterials">0</div>
+          <div class="summary-item-label">Materiais</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span class="footer-info" id="selectionInfo">0 modulos selecionados</span>
+    <button class="btn btn-export" id="exportBtn" onclick="doExport()" disabled>Exportar JSON</button>
+  </div>
+
+<script>
+  var previewData = null;
+  var selectedModules = {};
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function render() {
+    if (!previewData || !previewData.modules) return;
+
+    document.getElementById('clientName').textContent = previewData.client || '--';
+    document.getElementById('projectName').textContent = previewData.project || '--';
+
+    var mc = document.getElementById('modulesContainer');
+    var html = '';
+    previewData.modules.forEach(function(m) {
+      var checked = selectedModules[m.id] !== false;
+      html += '<div class="module-row">' +
+        '<input type="checkbox" class="module-check" data-id="' + m.id + '" ' +
+        (checked ? 'checked' : '') + ' onchange="toggleModule(\'' + m.id + '\', this.checked)">' +
+        '<div class="module-info">' +
+          '<div class="module-name">' + escHtml(m.name) + '</div>' +
+          (m.description ? '<div class="module-meta">' + escHtml(m.description) + '</div>' : '') +
+        '</div>' +
+        '<div class="module-stats">' +
+          '<span><span class="stat-value">' + (m.pieces || 0) + '</span> pecas</span>' +
+          '<span><span class="stat-value">' + (m.operations || 0) + '</span> ops</span>' +
+        '</div>' +
+      '</div>';
+    });
+    mc.innerHTML = html;
+
+    // Warnings
+    var ws = document.getElementById('warningsSection');
+    var wc = document.getElementById('warningsContainer');
+    if (previewData.warnings && previewData.warnings.length > 0) {
+      ws.style.display = 'block';
+      var whtml = '';
+      previewData.warnings.forEach(function(w) {
+        whtml += '<div class="warning-row">' +
+          '<span class="warning-icon">&#9888;</span>' +
+          '<span class="warning-text">' + escHtml(w) + '</span>' +
+        '</div>';
+      });
+      wc.innerHTML = whtml;
+    } else {
+      ws.style.display = 'none';
+    }
+
+    updateSummary();
+  }
+
+  function updateSummary() {
+    if (!previewData) return;
+    var selMods = 0, selPieces = 0, selOps = 0;
+    var materialsSet = {};
+
+    previewData.modules.forEach(function(m) {
+      if (selectedModules[m.id] === false) return;
+      selMods++;
+      selPieces += m.pieces || 0;
+      selOps += m.operations || 0;
+      if (m.materials) {
+        m.materials.forEach(function(mat) { materialsSet[mat] = true; });
+      }
+    });
+
+    document.getElementById('totalModules').textContent = selMods;
+    document.getElementById('totalPieces').textContent = selPieces;
+    document.getElementById('totalOps').textContent = selOps;
+    document.getElementById('totalMaterials').textContent = Object.keys(materialsSet).length;
+    document.getElementById('selectionInfo').textContent = selMods + ' modulo' + (selMods !== 1 ? 's' : '') + ' selecionado' + (selMods !== 1 ? 's' : '');
+    document.getElementById('exportBtn').disabled = selMods === 0;
+  }
+
+  function toggleModule(id, checked) {
+    selectedModules[id] = checked;
+    updateSummary();
+  }
+
+  function selectAll(state) {
+    if (!previewData) return;
+    previewData.modules.forEach(function(m) { selectedModules[m.id] = state; });
+    render();
+  }
+
+  function doExport() {
+    var ids = [];
+    if (previewData && previewData.modules) {
+      previewData.modules.forEach(function(m) {
+        if (selectedModules[m.id] !== false) ids.push(m.id);
+      });
+    }
+    try { sketchup.do_export(JSON.stringify({ modules: ids })); }
+    catch(e) { console.log('do_export callback not available'); }
+  }
+
+  window.loadPreview = function(data) {
+    previewData = typeof data === 'string' ? JSON.parse(data) : data;
+    selectedModules = {};
+    if (previewData.modules) {
+      previewData.modules.forEach(function(m) { selectedModules[m.id] = true; });
+    }
+    render();
+  };
+</script>
+</body>
+</html>

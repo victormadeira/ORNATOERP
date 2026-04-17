@@ -169,48 +169,93 @@ async function handleIncomingMessage(data) {
         if (exists) return;
     }
 
-    // ── 7. Baixar mídia se necessário ──
+    // ── 7. Baixar mídia + processar (áudio→transcrição, imagem→descrição) ──
     let mediaUrl = '';
+    let enrichedContent = messageContent;
+
     if (messageType !== 'texto' && msgId) {
         try {
             mediaUrl = await downloadMedia(data.key, messageType);
         } catch (err) {
-            console.error('[WH] Erro mídia:', err.message);
+            console.error('[WH] Erro download mídia:', err.message);
+        }
+
+        // Para áudio e imagem, a IA precisa entender — enriquecer o content
+        if ((messageType === 'audio' || messageType === 'imagem') && conversa.status === 'ia' || !conversa) {
+            try {
+                const base64 = await evolution.baixarMidiaBase64(data.key);
+                if (base64) {
+                    if (messageType === 'audio') {
+                        const transcricao = await ai.transcreverAudio(base64, 'audio/ogg');
+                        enrichedContent = `[áudio transcrito] ${transcricao}`;
+                        console.log(`[WH] Áudio transcrito (${transcricao.length} chars)`);
+                    } else if (messageType === 'imagem') {
+                        const desc = await ai.descreverImagem(base64, 'image/jpeg');
+                        enrichedContent = (messageContent ? `${messageContent}\n` : '') + `[imagem enviada — descrição: ${desc}]`;
+                        console.log(`[WH] Imagem descrita: ${desc.slice(0, 80)}`);
+                    }
+                }
+            } catch (err) {
+                console.error(`[WH] Erro processar ${messageType}:`, err.message);
+            }
         }
     }
 
-    // ── 8. Salvar mensagem ──
+    // ── 8. Salvar mensagem (com conteúdo enriquecido) ──
     db.prepare(`
         INSERT INTO chat_mensagens (conversa_id, wa_message_id, direcao, tipo, conteudo, media_url, remetente, criado_em)
         VALUES (?, ?, 'entrada', ?, ?, ?, 'cliente', CURRENT_TIMESTAMP)
-    `).run(conversa.id, msgId, messageType, messageContent || `[${messageType}]`, mediaUrl);
+    `).run(conversa.id, msgId, messageType, enrichedContent || `[${messageType}]`, mediaUrl);
 
     console.log(`[WH] Msg salva | conv #${conversa.id} | ${messageType} | ${pushName}`);
 
     // ── 9. Resposta automática da IA (se ativo) ──
-    if (conversa.status === 'ia' && messageContent) {
+    if (conversa.status === 'ia' && enrichedContent) {
         try {
-            const result = await ai.processIncomingMessage(conversa, messageContent);
+            // Typing indicator antes de chamar a IA (~3s)
+            const dest = conversa.wa_jid || remoteJid;
+            evolution.sendPresence(dest, 'composing', 3000).catch(() => { });
+
+            const result = await ai.processIncomingMessage(conversa, enrichedContent);
             if (!result) return;
 
-            const dest = conversa.wa_jid || remoteJid;
+            // Dividir resposta em mensagens separadas (quebra dupla = nova mensagem)
+            const parts = (result.text || '').split(/\n\n+/).map(p => p.trim()).filter(Boolean);
 
             if (result.action === 'escalate') {
                 db.prepare('UPDATE chat_conversas SET status = ? WHERE id = ?').run('humano', conversa.id);
-                const transMsg = result.text || 'Um momento! Vou transferir seu atendimento para nossa equipe. Já já alguém vai te responder!';
+            }
+
+            // Enviar cada parte com um pequeno delay de typing entre elas
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i];
+                if (i > 0) {
+                    // Typing curto antes da próxima parte (~1.5s)
+                    evolution.sendPresence(dest, 'composing', 1500).catch(() => { });
+                    await new Promise(r => setTimeout(r, 800));
+                }
                 try {
-                    await evolution.sendText(dest, transMsg);
+                    await evolution.sendText(dest, part);
                     db.prepare(`
                         INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, criado_em)
                         VALUES (?, 'saida', 'texto', ?, 'ia', CURRENT_TIMESTAMP)
-                    `).run(conversa.id, transMsg);
+                    `).run(conversa.id, part);
+                } catch (e) {
+                    console.error('[WH] Erro enviar parte:', e.message);
+                    break;
+                }
+            }
+
+            // Se escalou e não havia texto, manda fallback
+            if (result.action === 'escalate' && parts.length === 0) {
+                const fallback = 'Um momento! Vou transferir seu atendimento para nossa equipe comercial. Retornamos em breve.';
+                try {
+                    await evolution.sendText(dest, fallback);
+                    db.prepare(`
+                        INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, criado_em)
+                        VALUES (?, 'saida', 'texto', ?, 'ia', CURRENT_TIMESTAMP)
+                    `).run(conversa.id, fallback);
                 } catch (_) { /* silencioso */ }
-            } else if (result.text) {
-                await evolution.sendText(dest, result.text);
-                db.prepare(`
-                    INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, criado_em)
-                    VALUES (?, 'saida', 'texto', ?, 'ia', CURRENT_TIMESTAMP)
-                `).run(conversa.id, result.text);
             }
         } catch (err) {
             console.error('[WH] Erro IA:', err.message);

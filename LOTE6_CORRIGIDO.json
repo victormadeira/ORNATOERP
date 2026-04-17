@@ -1,0 +1,457 @@
+{
+  "details_project": {
+    "client_name": "Maria Silva",
+    "project_name": "Cozinha + Lavanderia — CORRIGIDO",
+    "project_code": "LOTE6_FIX",
+    "seller_name": ""
+  },
+  "model_entities": {
+    "1": {
+      "upmmasterdescription": "Cozinha — Balcão Pia",
+      "upmmasterid": 1,
+      "entities": {
+        "1": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_001",
+          "upmcode": "CM_LAT_ESQ",
+          "upmdescription": "Lateral Esq.",
+          "upmquantity": 1,
+          "upmedgeside1": "",
+          "upmedgeside2": "",
+          "upmedgeside3": "1m",
+          "upmedgeside4": "",
+          "upmdraw": "",
+          "entities": {
+            "1": {
+              "upmfeedstockpanel": true,
+              "upmmaterialcode": "MDF_18.5_BRANCO_TX",
+              "upmdescription": "MDF 18mm Branco TX",
+              "upmrealthickness": 18.5,
+              "upmcutlength": 850,
+              "upmcutwidth": 550
+            }
+          }
+        },
+        "2": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_002",
+          "upmcode": "CM_LAT_DIR",
+          "upmdescription": "Lateral Dir.",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": {
+            "1": {
+              "upmfeedstockpanel": true,
+              "upmmaterialcode": "MDF_18.5_BRANCO_TX",
+              "upmdescription": "MDF 18mm Branco TX",
+              "upmrealthickness": 18.5,
+              "upmcutlength": 850,
+              "upmcutwidth": 550
+            }
+          }
+        },
+        "3": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_003",
+          "upmcode": "CM_BAS",
+          "upmdescription": "Topo",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": {
+            "1": {
+              "upmfeedstockpanel": true,
+              "upmmaterialcode": "MDF_18.5_BRANCO_TX",
+              "upmdescription": "MDF 18mm Branco TX",
+              "upmrealthickness": 18.5,
+              "upmcutlength": 1164,
+              "upmcutwidth": 550
+            }
+          }
+        },
+        "4": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_004",
+          "upmcode": "CM_BAS",
+          "upmdescription": "Base",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": {
+            "1": {
+              "upmfeedstockpanel": true,
+              "upmmaterialcode": "MDF_18.5_BRANCO_TX",
+              "upmdescription": "MDF 18mm Branco TX",
+              "upmrealthickness": 18.5,
+              "upmcutlength": 1164,
+              "upmcutwidth": 550
+            }
+          }
+        },
+        "5": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_005",
+          "upmcode": "CM_FND",
+          "upmdescription": "Fundo",
+          "upmquantity": 1,
+          "entities": {
+            "1": {
+              "upmfeedstockpanel": true,
+              "upmmaterialcode": "MDF_18.5_BRANCO_TX",
+              "upmdescription": "MDF 18mm Branco TX",
+              "upmrealthickness": 18.5,
+              "upmcutlength": 1164,
+              "upmcutwidth": 814
+            }
+          }
+        }
+      }
+    },
+    "2": {
+      "upmmasterdescription": "Cozinha — Aéreo 1",
+      "upmmasterid": 2,
+      "entities": {
+        "1": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_006",
+          "upmdescription": "Lateral Esq.",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 700, "upmcutwidth": 350 } }
+        },
+        "2": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_007",
+          "upmdescription": "Lateral Dir.",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 700, "upmcutwidth": 350 } }
+        },
+        "3": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_008",
+          "upmdescription": "Topo",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 770, "upmcutwidth": 350 } }
+        },
+        "4": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_009",
+          "upmdescription": "Base",
+          "upmquantity": 1,
+          "upmedgeside3": "2m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 770, "upmcutwidth": 350 } }
+        },
+        "5": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_010",
+          "upmdescription": "Fundo",
+          "upmquantity": 1,
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 770, "upmcutwidth": 670 } }
+        }
+      }
+    },
+    "3": {
+      "upmmasterdescription": "Cozinha — Aéreo 2",
+      "upmmasterid": 3,
+      "entities": {
+        "1": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_011",
+          "upmdescription": "Lateral Esq.",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 700, "upmcutwidth": 350 } }
+        },
+        "2": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_012",
+          "upmdescription": "Lateral Dir.",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 700, "upmcutwidth": 350 } }
+        },
+        "3": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_013",
+          "upmdescription": "Topo",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 770, "upmcutwidth": 350 } }
+        },
+        "4": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_014",
+          "upmdescription": "Base",
+          "upmquantity": 1,
+          "upmedgeside3": "2m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 770, "upmcutwidth": 350 } }
+        },
+        "5": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_015",
+          "upmdescription": "Fundo",
+          "upmquantity": 1,
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 770, "upmcutwidth": 670 } }
+        }
+      }
+    },
+    "4": {
+      "upmmasterdescription": "Cozinha — Aéreo 3",
+      "upmmasterid": 4,
+      "entities": {
+        "1": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_016",
+          "upmdescription": "Lateral Esq.",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 700, "upmcutwidth": 350 } }
+        },
+        "2": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_017",
+          "upmdescription": "Lateral Dir.",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 700, "upmcutwidth": 350 } }
+        },
+        "3": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_018",
+          "upmdescription": "Topo",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 770, "upmcutwidth": 350 } }
+        },
+        "4": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_019",
+          "upmdescription": "Base",
+          "upmquantity": 1,
+          "upmedgeside3": "2m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 770, "upmcutwidth": 350 } }
+        },
+        "5": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_020",
+          "upmdescription": "Fundo",
+          "upmquantity": 1,
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 770, "upmcutwidth": 670 } }
+        }
+      }
+    },
+    "5": {
+      "upmmasterdescription": "Cozinha — Despenseiro",
+      "upmmasterid": 5,
+      "entities": {
+        "1": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_021",
+          "upmdescription": "Lateral Esq.",
+          "upmquantity": 1,
+          "upmedgeside3": "2m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_18.5_BRANCO_TX", "upmdescription": "MDF 18mm Branco TX", "upmrealthickness": 18.5, "upmcutlength": 2200, "upmcutwidth": 550 } }
+        },
+        "2": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_022",
+          "upmdescription": "Lateral Dir.",
+          "upmquantity": 1,
+          "upmedgeside3": "2m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_18.5_BRANCO_TX", "upmdescription": "MDF 18mm Branco TX", "upmrealthickness": 18.5, "upmcutlength": 2200, "upmcutwidth": 550 } }
+        },
+        "3": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_023",
+          "upmdescription": "Topo",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_18.5_BRANCO_TX", "upmdescription": "MDF 18mm Branco TX", "upmrealthickness": 18.5, "upmcutlength": 564, "upmcutwidth": 550 } }
+        },
+        "4": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_024",
+          "upmdescription": "Base",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_18.5_BRANCO_TX", "upmdescription": "MDF 18mm Branco TX", "upmrealthickness": 18.5, "upmcutlength": 564, "upmcutwidth": 550 } }
+        },
+        "5": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_025",
+          "upmdescription": "Fundo",
+          "upmquantity": 1,
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_18.5_BRANCO_TX", "upmdescription": "MDF 18mm Branco TX", "upmrealthickness": 18.5, "upmcutlength": 564, "upmcutwidth": 2164 } }
+        },
+        "6": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_026",
+          "upmdescription": "Tamp. Lat. Esq.",
+          "upmquantity": 1,
+          "upmedgeside3": "4m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_18.5_BRANCO_TX", "upmdescription": "MDF 18mm Branco TX", "upmrealthickness": 18.5, "upmcutlength": 2200, "upmcutwidth": 550 } }
+        },
+        "7": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_027",
+          "upmdescription": "Tamp. Lat. Dir.",
+          "upmquantity": 1,
+          "upmedgeside3": "4m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_18.5_BRANCO_TX", "upmdescription": "MDF 18mm Branco TX", "upmrealthickness": 18.5, "upmcutlength": 2200, "upmcutwidth": 550 } }
+        },
+        "8": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_028",
+          "upmdescription": "Tamp. Topo",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_18.5_BRANCO_TX", "upmdescription": "MDF 18mm Branco TX", "upmrealthickness": 18.5, "upmcutlength": 600, "upmcutwidth": 550 } }
+        },
+        "9": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_030",
+          "upmdescription": "Prateleira",
+          "upmquantity": 5,
+          "upmedgeside3": "3m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_18.5_BRANCO_TX", "upmdescription": "MDF 18mm Branco TX", "upmrealthickness": 18.5, "upmcutlength": 564, "upmcutwidth": 550 } }
+        }
+      }
+    },
+    "6": {
+      "upmmasterdescription": "Lavanderia — Balcão Lavanderia",
+      "upmmasterid": 6,
+      "entities": {
+        "1": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_031",
+          "upmdescription": "Lateral Esq.",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 850, "upmcutwidth": 550 } }
+        },
+        "2": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_032",
+          "upmdescription": "Lateral Dir.",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 850, "upmcutwidth": 550 } }
+        },
+        "3": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_033",
+          "upmdescription": "Topo",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 970, "upmcutwidth": 550 } }
+        },
+        "4": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_034",
+          "upmdescription": "Base",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 970, "upmcutwidth": 550 } }
+        },
+        "5": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_035",
+          "upmdescription": "Fundo",
+          "upmquantity": 1,
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 970, "upmcutwidth": 820 } }
+        }
+      }
+    },
+    "7": {
+      "upmmasterdescription": "Lavanderia — Aéreo Lavanderia 1",
+      "upmmasterid": 7,
+      "entities": {
+        "1": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_036",
+          "upmdescription": "Lateral Esq.",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 600, "upmcutwidth": 300 } }
+        },
+        "2": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_037",
+          "upmdescription": "Lateral Dir.",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 600, "upmcutwidth": 300 } }
+        },
+        "3": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_038",
+          "upmdescription": "Topo",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 970, "upmcutwidth": 300 } }
+        },
+        "4": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_039",
+          "upmdescription": "Base",
+          "upmquantity": 1,
+          "upmedgeside3": "2m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 970, "upmcutwidth": 300 } }
+        },
+        "5": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_040",
+          "upmdescription": "Fundo",
+          "upmquantity": 1,
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 970, "upmcutwidth": 570 } }
+        }
+      }
+    },
+    "8": {
+      "upmmasterdescription": "Lavanderia — Aéreo Lavanderia 2",
+      "upmmasterid": 8,
+      "entities": {
+        "1": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_041",
+          "upmdescription": "Lateral Esq.",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 600, "upmcutwidth": 300 } }
+        },
+        "2": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_042",
+          "upmdescription": "Lateral Dir.",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 600, "upmcutwidth": 300 } }
+        },
+        "3": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_043",
+          "upmdescription": "Topo",
+          "upmquantity": 1,
+          "upmedgeside3": "1m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 970, "upmcutwidth": 300 } }
+        },
+        "4": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_044",
+          "upmdescription": "Base",
+          "upmquantity": 1,
+          "upmedgeside3": "2m",
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 970, "upmcutwidth": 300 } }
+        },
+        "5": {
+          "upmpiece": true,
+          "upmpersistentid": "FIX_045",
+          "upmdescription": "Fundo",
+          "upmquantity": 1,
+          "entities": { "1": { "upmfeedstockpanel": true, "upmmaterialcode": "MDF_15.5_BRANCO_TX", "upmdescription": "MDF 15mm Branco TX", "upmrealthickness": 15.5, "upmcutlength": 970, "upmcutwidth": 570 } }
+        }
+      }
+    }
+  },
+  "machining": {}
+}

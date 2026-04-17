@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ornato - Preview de Furacao</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    background: #0f1219;
+    color: #e0e6ff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .toolbar {
+    background: #141926;
+    border-bottom: 1px solid #2a3042;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .toolbar-label {
+    font-size: 12px;
+    color: #6b7a99;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .toolbar select {
+    flex: 1;
+    background: #1a1f2e;
+    border: 1px solid #2a3042;
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: #e0e6ff;
+    font-size: 13px;
+    outline: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+  }
+  .toolbar select:focus { border-color: #1379F0; }
+  .zoom-controls {
+    display: flex;
+    gap: 4px;
+  }
+  .zoom-btn {
+    width: 28px;
+    height: 28px;
+    background: #1a1f2e;
+    border: 1px solid #2a3042;
+    border-radius: 4px;
+    color: #e0e6ff;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .zoom-btn:hover { border-color: #1379F0; background: #1e2436; }
+  .zoom-level {
+    font-size: 11px;
+    color: #6b7a99;
+    min-width: 36px;
+    text-align: center;
+    line-height: 28px;
+  }
+  .canvas-wrapper {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    cursor: grab;
+  }
+  .canvas-wrapper:active { cursor: grabbing; }
+  canvas {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+  .info-bar {
+    background: #141926;
+    border-top: 1px solid #2a3042;
+    padding: 8px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+  }
+  .piece-dims { color: #8892a8; }
+  .piece-dims strong { color: #e0e6ff; font-weight: 600; }
+  .legend {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #6b7a99;
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid;
+  }
+  .legend-line {
+    width: 14px;
+    height: 3px;
+    border-radius: 1px;
+  }
+  .empty-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #4a5568;
+    font-size: 14px;
+  }
+  .face-tabs {
+    background: #141926;
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid #2a3042;
+    padding: 0 16px;
+  }
+  .face-tab {
+    padding: 8px 14px;
+    font-size: 11px;
+    color: #6b7a99;
+    cursor: pointer;
+    border: none;
+    background: none;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .face-tab:hover { color: #e0e6ff; }
+  .face-tab.active { color: #1379F0; border-bottom-color: #1379F0; }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <span class="toolbar-label">Peca:</span>
+    <select id="pieceSelect" onchange="onPieceChange()">
+      <option value="">Selecione uma peca...</option>
+    </select>
+    <div class="zoom-controls">
+      <button class="zoom-btn" onclick="zoomIn()">+</button>
+      <span class="zoom-level" id="zoomLevel">100%</span>
+      <button class="zoom-btn" onclick="zoomOut()">-</button>
+      <button class="zoom-btn" onclick="zoomFit()" title="Ajustar">&#8690;</button>
+    </div>
+  </div>
+
+  <div class="face-tabs" id="faceTabs" style="display:none;">
+    <button class="face-tab active" data-face="top" onclick="switchFace('top')">Topo (face 5)</button>
+    <button class="face-tab" data-face="bottom" onclick="switchFace('bottom')">Base (face 6)</button>
+    <button class="face-tab" data-face="front" onclick="switchFace('front')">Frente (face 1)</button>
+    <button class="face-tab" data-face="back" onclick="switchFace('back')">Tras (face 2)</button>
+    <button class="face-tab" data-face="left" onclick="switchFace('left')">Esq (face 3)</button>
+    <button class="face-tab" data-face="right" onclick="switchFace('right')">Dir (face 4)</button>
+  </div>
+
+  <div class="canvas-wrapper" id="canvasWrapper">
+    <canvas id="canvas"></canvas>
+    <div class="empty-state" id="emptyState">Selecione uma peca para visualizar</div>
+  </div>
+
+  <div class="info-bar">
+    <div class="piece-dims" id="pieceDims">--</div>
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:rgba(239,68,68,0.3);border-color:#ef4444;"></div>
+        Passante
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:rgba(251,146,60,0.3);border-color:#fb923c;"></div>
+        Cego
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:rgba(96,165,250,0.3);border-color:#60a5fa;"></div>
+        Copo
+      </div>
+      <div class="legend-item">
+        <div class="legend-line" style="background:#facc15;"></div>
+        Canal
+      </div>
+    </div>
+  </div>
+
+<script>
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+  var wrapper = document.getElementById('canvasWrapper');
+
+  var zoom = 1.0;
+  var panX = 0, panY = 0;
+  var dragging = false, dragStartX = 0, dragStartY = 0;
+  var pieces = {};
+  var currentPiece = null;
+  var currentFace = 'top';
+
+  var COLORS = {
+    through: { fill: 'rgba(239,68,68,0.3)', stroke: '#ef4444' },
+    blind:   { fill: 'rgba(251,146,60,0.3)', stroke: '#fb923c' },
+    cup:     { fill: 'rgba(96,165,250,0.3)', stroke: '#60a5fa' },
+    groove:  { stroke: '#facc15', fill: 'rgba(250,204,21,0.15)' }
+  };
+
+  function resizeCanvas() {
+    var rect = wrapper.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    draw();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  // Pan
+  wrapper.addEventListener('mousedown', function(e) {
+    dragging = true;
+    dragStartX = e.clientX - panX;
+    dragStartY = e.clientY - panY;
+  });
+  window.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    panX = e.clientX - dragStartX;
+    panY = e.clientY - dragStartY;
+    draw();
+  });
+  window.addEventListener('mouseup', function() { dragging = false; });
+
+  // Zoom via scroll
+  wrapper.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    var delta = e.deltaY > 0 ? 0.9 : 1.1;
+    zoom = Math.max(0.2, Math.min(5, zoom * delta));
+    document.getElementById('zoomLevel').textContent = Math.round(zoom * 100) + '%';
+    draw();
+  }, { passive: false });
+
+  function zoomIn() { zoom = Math.min(5, zoom * 1.2); document.getElementById('zoomLevel').textContent = Math.round(zoom * 100) + '%'; draw(); }
+  function zoomOut() { zoom = Math.max(0.2, zoom * 0.8); document.getElementById('zoomLevel').textContent = Math.round(zoom * 100) + '%'; draw(); }
+  function zoomFit() {
+    if (!currentPiece) return;
+    var face = getFaceDims();
+    var pad = 60;
+    var sx = (canvas.width - pad * 2) / face.w;
+    var sy = (canvas.height - pad * 2) / face.h;
+    zoom = Math.min(sx, sy);
+    panX = (canvas.width - face.w * zoom) / 2;
+    panY = (canvas.height - face.h * zoom) / 2;
+    document.getElementById('zoomLevel').textContent = Math.round(zoom * 100) + '%';
+    draw();
+  }
+
+  function getFaceDims() {
+    if (!currentPiece) return { w: 0, h: 0 };
+    var p = currentPiece;
+    switch (currentFace) {
+      case 'top': case 'bottom': return { w: p.width, h: p.depth };
+      case 'front': case 'back': return { w: p.width, h: p.height };
+      case 'left': case 'right': return { w: p.depth, h: p.height };
+      default: return { w: p.width, h: p.depth };
+    }
+  }
+
+  function switchFace(face) {
+    currentFace = face;
+    document.querySelectorAll('.face-tab').forEach(function(t) {
+      t.classList.toggle('active', t.dataset.face === face);
+    });
+    zoomFit();
+  }
+
+  function draw() {
+    if (!currentPiece) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(panX, panY);
+    ctx.scale(zoom, zoom);
+
+    var face = getFaceDims();
+    var w = face.w, h = face.h;
+
+    // Piece outline
+    ctx.strokeStyle = '#3a4255';
+    ctx.lineWidth = 1.5 / zoom;
+    ctx.fillStyle = '#1a1f2e';
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeRect(0, 0, w, h);
+
+    // Dimension labels
+    ctx.fillStyle = '#6b7a99';
+    ctx.font = (11 / zoom) + 'px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(w.toFixed(1), w / 2, -6 / zoom);
+    ctx.save();
+    ctx.translate(-6 / zoom, h / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(h.toFixed(1), 0, 0);
+    ctx.restore();
+
+    // Operations
+    var ops = currentPiece.operations || [];
+    ops.forEach(function(op) {
+      if (op.face && op.face !== currentFace) return;
+
+      if (op.type === 'groove' || op.type === 'canal') {
+        ctx.strokeStyle = COLORS.groove.stroke;
+        ctx.fillStyle = COLORS.groove.fill;
+        ctx.lineWidth = 2 / zoom;
+        var gx = op.x || 0, gy = op.y || 0;
+        var gw = op.length || 0, gh = op.width || 4;
+        if (op.direction === 'vertical' || op.direction === 'y') {
+          ctx.fillRect(gx - gh / 2, gy, gh, gw);
+          ctx.strokeRect(gx - gh / 2, gy, gh, gw);
+        } else {
+          ctx.fillRect(gx, gy - gh / 2, gw, gh);
+          ctx.strokeRect(gx, gy - gh / 2, gw, gh);
+        }
+        return;
+      }
+
+      // Holes
+      var cx = op.x || 0, cy = op.y || 0;
+      var r = (op.diameter || 5) / 2;
+      var color;
+      if (op.diameter >= 25) color = COLORS.cup;
+      else if (op.through) color = COLORS.through;
+      else color = COLORS.blind;
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = color.fill;
+      ctx.fill();
+      ctx.strokeStyle = color.stroke;
+      ctx.lineWidth = 1.5 / zoom;
+      ctx.stroke();
+
+      // Crosshair
+      ctx.strokeStyle = color.stroke;
+      ctx.lineWidth = 0.5 / zoom;
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - r * 0.6, cy);
+      ctx.lineTo(cx + r * 0.6, cy);
+      ctx.moveTo(cx, cy - r * 0.6);
+      ctx.lineTo(cx, cy + r * 0.6);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    });
+
+    ctx.restore();
+  }
+
+  function onPieceChange() {
+    var sel = document.getElementById('pieceSelect');
+    var id = sel.value;
+    if (!id || !pieces[id]) {
+      currentPiece = null;
+      document.getElementById('emptyState').style.display = 'flex';
+      document.getElementById('faceTabs').style.display = 'none';
+      document.getElementById('pieceDims').textContent = '--';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+    currentPiece = pieces[id];
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('faceTabs').style.display = 'flex';
+    document.getElementById('pieceDims').innerHTML =
+      '<strong>' + currentPiece.width + '</strong> x <strong>' + currentPiece.depth +
+      '</strong> x <strong>' + currentPiece.height + '</strong> mm' +
+      (currentPiece.material ? ' &mdash; ' + currentPiece.material : '');
+    currentFace = 'top';
+    document.querySelectorAll('.face-tab').forEach(function(t) {
+      t.classList.toggle('active', t.dataset.face === 'top');
+    });
+    resizeCanvas();
+    zoomFit();
+  }
+
+  window.loadPiece = function(data) {
+    var d = typeof data === 'string' ? JSON.parse(data) : data;
+
+    if (Array.isArray(d)) {
+      pieces = {};
+      var sel = document.getElementById('pieceSelect');
+      sel.innerHTML = '<option value="">Selecione uma peca...</option>';
+      d.forEach(function(p) {
+        pieces[p.id] = p;
+        var opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name || p.id;
+        sel.appendChild(opt);
+      });
+    } else {
+      pieces[d.id] = d;
+      var sel = document.getElementById('pieceSelect');
+      var existing = false;
+      for (var i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === d.id) { existing = true; break; }
+      }
+      if (!existing) {
+        var opt = document.createElement('option');
+        opt.value = d.id;
+        opt.textContent = d.name || d.id;
+        sel.appendChild(opt);
+      }
+      sel.value = d.id;
+      onPieceChange();
+    }
+  };
+
+  resizeCanvas();
+</script>
+</body>
+</html>

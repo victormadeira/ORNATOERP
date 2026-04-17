@@ -2049,6 +2049,9 @@ const migrations = [
   "ALTER TABLE chat_conversas ADD COLUMN lead_score INTEGER DEFAULT 0",
   "ALTER TABLE chat_conversas ADD COLUMN lead_dados TEXT DEFAULT '{}'",
 
+  // ═══ Sofia v2 — Prompt customizável completo ═══
+  "ALTER TABLE empresa_config ADD COLUMN ia_system_prompt_full TEXT DEFAULT ''",
+
   // ═══ Funil de Leads — tabelas ═══
   `CREATE TABLE IF NOT EXISTS lead_colunas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

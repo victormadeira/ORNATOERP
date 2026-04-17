@@ -117,6 +117,36 @@ export async function getQRCode() {
     return { qrcode: data.base64 || data.qrcode?.base64 || '' };
 }
 
+// ═══ Enviar typing indicator (composing) ═══
+export async function sendPresence(phoneOrJid, presence = 'composing', delayMs = 2000) {
+    const cfg = getConfig();
+    if (!isConfigured()) return;
+    try {
+        const dest = phoneOrJid.includes('@lid') ? phoneOrJid.replace('@lid', '') : phoneOrJid.replace('@s.whatsapp.net', '');
+        const url = `${cfg.wa_instance_url}/chat/sendPresence/${cfg.wa_instance_name}`;
+        await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': cfg.wa_api_key },
+            body: JSON.stringify({ number: dest, presence, delay: delayMs }),
+        });
+    } catch (_) { /* silencioso */ }
+}
+
+// ═══ Baixar áudio e transcrever ═══
+export async function baixarMidiaBase64(messageKey) {
+    const cfg = getConfig();
+    if (!isConfigured()) throw new Error('WhatsApp não configurado');
+    const url = `${cfg.wa_instance_url}/chat/getBase64FromMediaMessage/${cfg.wa_instance_name}`;
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': cfg.wa_api_key },
+        body: JSON.stringify({ message: { key: messageKey }, convertToMp4: false }),
+    });
+    if (!res.ok) throw new Error(`Evolution getBase64: ${res.status}`);
+    const data = await res.json();
+    return data.base64 || '';
+}
+
 // ═══ Formatar número de telefone ═══
 export function formatPhone(phone) {
     // Remove tudo que não é número
@@ -129,4 +159,5 @@ export function formatPhone(phone) {
 export default {
     sendText, sendMedia, getConnectionStatus, getQRCode,
     isConfigured, getWebhookToken, formatPhone,
+    sendPresence, baixarMidiaBase64,
 };

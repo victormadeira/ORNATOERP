@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
-import ai from '../services/ai.js';
+import ai, { SOFIA_DEFAULT_PROMPT } from '../services/ai.js';
 
 const router = Router();
 
@@ -927,6 +927,48 @@ router.get('/uso', requireAuth, (req, res) => {
         `).all();
 
         res.json({ total, hoje, mes, porDia, recentes });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// GET /api/ia/prompt — retorna prompt padrão + customizado atual
+// ═══════════════════════════════════════════════════════
+router.get('/prompt', requireAuth, (req, res) => {
+    try {
+        const cfg = db.prepare('SELECT ia_system_prompt_full FROM empresa_config WHERE id = 1').get();
+        const custom = cfg?.ia_system_prompt_full || '';
+        res.json({
+            default: SOFIA_DEFAULT_PROMPT,
+            custom,
+            usando: custom && custom.trim().length > 100 ? 'custom' : 'default',
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// PUT /api/ia/prompt — atualizar prompt customizado (admin)
+// ═══════════════════════════════════════════════════════
+router.put('/prompt', requireAuth, requireRole('gerente'), (req, res) => {
+    try {
+        const { custom } = req.body;
+        db.prepare('UPDATE empresa_config SET ia_system_prompt_full = ? WHERE id = 1').run(custom || '');
+        res.json({ ok: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// POST /api/ia/prompt/reset — restaurar para o padrão (admin)
+// ═══════════════════════════════════════════════════════
+router.post('/prompt/reset', requireAuth, requireRole('gerente'), (req, res) => {
+    try {
+        db.prepare("UPDATE empresa_config SET ia_system_prompt_full = '' WHERE id = 1").run();
+        res.json({ ok: true });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }

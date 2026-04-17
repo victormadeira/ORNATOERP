@@ -1,0 +1,318 @@
+{
+  "details_project": {
+    "client": "João Silva",
+    "project": "Cozinha Planejada",
+    "my_code": "OP-0042",
+    "seller": "Maria Santos",
+    "type_material_panel": "MDF"
+  },
+  "model_entities": {
+    "0": {
+      "upmcode": "CM_BAL",
+      "upmdescription": "Balcao 3 Portas",
+      "upmwidth": "550",
+      "upmheight": "720",
+      "upmdepth": "1200",
+      "upmfinish": "BRANCO_TX",
+      "upmmasterid": 1,
+      "upmmasterdescription": "Balcao 3 Portas",
+      "upmnamefile": "cozinha_planejada.skp",
+      "entities": {
+        "0": {
+          "upmpiece": true,
+          "upmcode": "CM_LAT_DIR",
+          "upmdescription": "Lateral Direita",
+          "upmpersistentid": "100001",
+          "upmprocesscodea": "100001A",
+          "upmprocesscodeb": "100001B",
+          "upmnamefile": "cozinha_planejada.skp",
+          "upmmasterdescription": "Balcao 3 Portas",
+          "upmmasterid": 1,
+          "upmdepth": "550",
+          "upmheight": "720",
+          "upmwidth": "18.5",
+          "upmlength": "720",
+          "upmdraw": "FTE1x2",
+          "upmedgeside1": "",
+          "upmedgeside2": "",
+          "upmedgeside3": "CMBOR22x045BRANCO_TX",
+          "upmedgeside4": "",
+          "upmedgesides": "1C",
+          "upmedgesidetype": "1C",
+          "upmfinish": "BRANCO_TX",
+          "upmquantity": 1,
+          "upmproductfinal": "Balcao",
+          "entities": {
+            "0": {
+              "upmfeedstockpanel": true,
+              "upmallowtransferjob": 1,
+              "upmcutlist": 1,
+              "upmcutlength": "720",
+              "upmcutwidth": "550",
+              "upmcutthickness": "18.5",
+              "upmcutliquidlength": "720",
+              "upmcutliquidwidth": "550",
+              "upmdescription": "Chapa de MDF",
+              "upmextralength": "0",
+              "upmextrawidth": "0",
+              "upmfinish": "BRANCO_TX",
+              "upmjobaxis": "xyz",
+              "upmmaterialcode": "MDF_18.5_BRANCO_TX",
+              "upmmaterialtype": "MDF",
+              "upmquantity": "0.396",
+              "entities": {}
+            }
+          }
+        },
+        "1": {
+          "upmpiece": true,
+          "upmcode": "CM_LAT_ESQ",
+          "upmdescription": "Lateral Esquerda",
+          "upmpersistentid": "100002",
+          "upmprocesscodea": "100002A",
+          "upmprocesscodeb": "100002B",
+          "upmmasterdescription": "Balcao 3 Portas",
+          "upmmasterid": 1,
+          "upmdepth": "550",
+          "upmheight": "720",
+          "upmwidth": "18.5",
+          "upmlength": "720",
+          "upmdraw": "FTD1x2",
+          "upmedgeside1": "",
+          "upmedgeside2": "",
+          "upmedgeside3": "CMBOR22x045BRANCO_TX",
+          "upmedgeside4": "",
+          "upmedgesides": "1C",
+          "upmedgesidetype": "1C",
+          "upmfinish": "BRANCO_TX",
+          "upmquantity": 1,
+          "entities": {
+            "0": {
+              "upmfeedstockpanel": true,
+              "upmcutlength": "720",
+              "upmcutwidth": "550",
+              "upmcutthickness": "18.5",
+              "upmmaterialcode": "MDF_18.5_BRANCO_TX",
+              "entities": {}
+            }
+          }
+        },
+        "2": {
+          "upmpiece": true,
+          "upmcode": "CM_BAS",
+          "upmdescription": "Base",
+          "upmpersistentid": "100003",
+          "upmprocesscodea": "100003A",
+          "upmprocesscodeb": "100003B",
+          "upmmasterdescription": "Balcao 3 Portas",
+          "upmmasterid": 1,
+          "upmdepth": "550",
+          "upmheight": "1164",
+          "upmwidth": "18.5",
+          "upmlength": "1164",
+          "upmdraw": "FTED1x3",
+          "upmedgeside1": "",
+          "upmedgeside2": "",
+          "upmedgeside3": "CMBOR22x045BRANCO_TX",
+          "upmedgeside4": "",
+          "upmedgesides": "1C",
+          "upmedgesidetype": "1C",
+          "upmfinish": "BRANCO_TX",
+          "upmquantity": 1,
+          "entities": {
+            "0": {
+              "upmfeedstockpanel": true,
+              "upmcutlength": "1164",
+              "upmcutwidth": "550",
+              "upmcutthickness": "18.5",
+              "upmmaterialcode": "MDF_18.5_BRANCO_TX",
+              "entities": {}
+            }
+          }
+        },
+        "3": {
+          "upmpiece": true,
+          "upmcode": "CM_FUN_VER",
+          "upmdescription": "Fundo",
+          "upmpersistentid": "100004",
+          "upmprocesscodea": "100004A",
+          "upmprocesscodeb": "100004B",
+          "upmmasterdescription": "Balcao 3 Portas",
+          "upmmasterid": 1,
+          "upmdepth": "1160",
+          "upmheight": "716",
+          "upmwidth": "6.0",
+          "upmlength": "716",
+          "upmdraw": "E2x1",
+          "upmedgeside1": "",
+          "upmedgeside2": "",
+          "upmedgeside3": "",
+          "upmedgeside4": "",
+          "upmedgesides": "",
+          "upmedgesidetype": "",
+          "upmfinish": "CRU",
+          "upmquantity": 1,
+          "entities": {
+            "0": {
+              "upmfeedstockpanel": true,
+              "upmcutlength": "716",
+              "upmcutwidth": "1160",
+              "upmcutthickness": "6.0",
+              "upmmaterialcode": "MDF_6.0_CRU",
+              "entities": {}
+            }
+          }
+        },
+        "4": {
+          "upmpiece": true,
+          "upmcode": "CM_POR_LIS",
+          "upmdescription": "Porta Lisa",
+          "upmpersistentid": "100005",
+          "upmprocesscodea": "100005A",
+          "upmprocesscodeb": "100005B",
+          "upmmasterdescription": "Balcao 3 Portas",
+          "upmmasterid": 1,
+          "upmdepth": "597",
+          "upmheight": "716",
+          "upmwidth": "18.5",
+          "upmlength": "716",
+          "upmdraw": "FTED2x1",
+          "upmedgeside1": "CMBOR22x045BRANCO_TX",
+          "upmedgeside2": "CMBOR22x045BRANCO_TX",
+          "upmedgeside3": "CMBOR22x045BRANCO_TX",
+          "upmedgeside4": "CMBOR22x045BRANCO_TX",
+          "upmedgesides": "4Lados",
+          "upmedgesidetype": "4Lados",
+          "upmfinish": "BRANCO_TX",
+          "upmquantity": 3,
+          "entities": {
+            "0": {
+              "upmfeedstockpanel": true,
+              "upmcutlength": "716",
+              "upmcutwidth": "597",
+              "upmcutthickness": "18.5",
+              "upmmaterialcode": "MDF_18.5_BRANCO_TX",
+              "entities": {}
+            }
+          }
+        }
+      }
+    },
+    "1": {
+      "upmcode": "CM_BAL",
+      "upmdescription": "Armario Alto Carvalho",
+      "upmwidth": "400",
+      "upmheight": "2200",
+      "upmdepth": "600",
+      "upmfinish": "CARVALHO_HANOVER",
+      "upmmasterid": 2,
+      "upmmasterdescription": "Armario Alto Carvalho",
+      "entities": {
+        "0": {
+          "upmpiece": true,
+          "upmcode": "CM_LAT_DIR",
+          "upmdescription": "Lateral Direita Carvalho",
+          "upmpersistentid": "200001",
+          "upmprocesscodea": "200001A",
+          "upmmasterdescription": "Armario Alto Carvalho",
+          "upmmasterid": 2,
+          "upmdepth": "600",
+          "upmheight": "2200",
+          "upmwidth": "18.5",
+          "upmlength": "2200",
+          "upmdraw": "FTE1x2",
+          "upmedgeside1": "",
+          "upmedgeside2": "",
+          "upmedgeside3": "CMBOR22x045CARVALHO_HANOVER",
+          "upmedgeside4": "",
+          "upmedgesides": "1C",
+          "upmedgesidetype": "1C",
+          "upmfinish": "CARVALHO_HANOVER",
+          "upmquantity": 1,
+          "entities": {
+            "0": {
+              "upmfeedstockpanel": true,
+              "upmcutlength": "2200",
+              "upmcutwidth": "600",
+              "upmcutthickness": "18.5",
+              "upmmaterialcode": "MDF_18.5_CARVALHO_HANOVER",
+              "entities": {}
+            }
+          }
+        }
+      }
+    }
+  },
+  "machining": {
+    "100001": {
+      "code": "100001A",
+      "name_peace": "Lateral Direita",
+      "length": 720,
+      "width": 550,
+      "thickness": 18.5,
+      "borders": ["CMBOR22x045BRANCO_TX", "", "", ""],
+      "workers": {
+        "0": {
+          "category": "transfer_hole",
+          "tool": "f_5mm_twister243",
+          "face": "top",
+          "x": 37,
+          "y": 37,
+          "depth": 12
+        },
+        "1": {
+          "category": "transfer_hole",
+          "tool": "f_5mm_twister243",
+          "face": "top",
+          "x": 37,
+          "y": 69,
+          "depth": 12
+        },
+        "2": {
+          "category": "transfer_hole",
+          "tool": "f_15mm_tambor_min",
+          "face": "top",
+          "x": 37,
+          "y": 274,
+          "depth": 14
+        },
+        "3": {
+          "category": "Transfer_vertical_saw_cut",
+          "tool": "r_f",
+          "face": "left",
+          "x": 0,
+          "y": 17,
+          "depth": 10.5,
+          "length": 720,
+          "width": 6
+        }
+      }
+    },
+    "100005": {
+      "code": "100005A",
+      "name_peace": "Porta Lisa",
+      "length": 716,
+      "width": 597,
+      "thickness": 18.5,
+      "borders": ["CMBOR22x045BRANCO_TX", "CMBOR22x045BRANCO_TX", "CMBOR22x045BRANCO_TX", "CMBOR22x045BRANCO_TX"],
+      "workers": {
+        "0": {
+          "category": "transfer_hole",
+          "tool": "f_35mm_dob",
+          "face": "back",
+          "x": 100,
+          "y": 22,
+          "depth": 14
+        },
+        "1": {
+          "category": "transfer_hole",
+          "tool": "f_35mm_dob",
+          "face": "back",
+          "x": 616,
+          "y": 22,
+          "depth": 14
+        }
+      }
+    }
+  }
+}

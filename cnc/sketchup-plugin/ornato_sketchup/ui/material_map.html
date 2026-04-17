@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ornato - Mapeamento de Materiais</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    background: #0f1219;
+    color: #e0e6ff;
+    min-height: 100vh;
+  }
+  .header {
+    background: #141926;
+    padding: 14px 20px;
+    border-bottom: 1px solid #2a3042;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .header-title { font-size: 16px; font-weight: 600; }
+  .header-count {
+    font-size: 12px;
+    color: #6b7a99;
+    background: #232839;
+    padding: 3px 10px;
+    border-radius: 10px;
+  }
+  .content { padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; }
+  .add-form {
+    background: #1a1f2e;
+    border: 1px solid #2a3042;
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+  }
+  .form-group { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .form-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6b7a99;
+  }
+  .form-input {
+    background: #141926;
+    border: 1px solid #2a3042;
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: #e0e6ff;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-input:focus { border-color: #1379F0; }
+  .btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .btn-primary { background: #1379F0; color: #fff; }
+  .btn-primary:hover { background: #1060d0; }
+  .btn-secondary { background: #232839; color: #e0e6ff; border-color: #2a3042; }
+  .btn-secondary:hover { background: #2a3042; }
+  .btn-danger { background: transparent; color: #f87171; border-color: #3a2030; }
+  .btn-danger:hover { background: #2a1525; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .table-wrapper {
+    background: #1a1f2e;
+    border: 1px solid #2a3042;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    background: #141926;
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6b7a99;
+    text-align: left;
+    border-bottom: 1px solid #2a3042;
+  }
+  tbody td {
+    padding: 10px 14px;
+    font-size: 13px;
+    border-bottom: 1px solid #232839;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #1e2436; }
+  .cell-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .edit-input {
+    background: #141926;
+    border: 1px solid #1379F0;
+    border-radius: 4px;
+    padding: 4px 8px;
+    color: #e0e6ff;
+    font-size: 13px;
+    width: 100%;
+    outline: none;
+  }
+  .empty-state {
+    text-align: center;
+    padding: 32px;
+    color: #4a5568;
+    font-size: 13px;
+  }
+  .footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #141926;
+    border-top: 1px solid #2a3042;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .arrow { font-size: 14px; margin-right: 4px; color: #1379F0; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <span class="header-title">Mapeamento de Materiais</span>
+    <span class="header-count" id="mappingCount">0 mapeamentos</span>
+  </div>
+
+  <div class="content">
+    <div class="add-form">
+      <div class="form-group">
+        <span class="form-label">Material SketchUp</span>
+        <input type="text" class="form-input" id="inputSketchup" placeholder="Ex: MDF Branco 18mm">
+      </div>
+      <div style="padding-bottom:2px;"><span class="arrow">&#8594;</span></div>
+      <div class="form-group">
+        <span class="form-label">Codigo Ornato</span>
+        <input type="text" class="form-input" id="inputOrnato" placeholder="Ex: MDF-BR-18">
+      </div>
+      <button class="btn btn-primary" onclick="addMapping()" style="margin-bottom:1px;">Adicionar</button>
+    </div>
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Material SketchUp</th>
+            <th style="width:40px;"></th>
+            <th>Codigo Ornato</th>
+            <th style="width:120px; text-align:right;">Acoes</th>
+          </tr>
+        </thead>
+        <tbody id="mappingsBody">
+          <tr><td colspan="4"><div class="empty-state">Nenhum mapeamento cadastrado.</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footer">
+    <button class="btn btn-secondary" onclick="resetMappings()">Resetar</button>
+    <button class="btn btn-primary" onclick="saveMappings()">Salvar Tudo</button>
+  </div>
+
+<script>
+  var mappings = [];
+  var editingIdx = -1;
+
+  function render() {
+    var body = document.getElementById('mappingsBody');
+    document.getElementById('mappingCount').textContent = mappings.length + ' mapeamento' + (mappings.length !== 1 ? 's' : '');
+
+    if (mappings.length === 0) {
+      body.innerHTML = '<tr><td colspan="4"><div class="empty-state">Nenhum mapeamento cadastrado.</div></td></tr>';
+      return;
+    }
+
+    var html = '';
+    mappings.forEach(function(m, i) {
+      if (editingIdx === i) {
+        html += '<tr>' +
+          '<td><input class="edit-input" id="editSk" value="' + escHtml(m.sketchup) + '"></td>' +
+          '<td style="text-align:center;color:#1379F0;">&#8594;</td>' +
+          '<td><input class="edit-input" id="editOr" value="' + escHtml(m.ornato) + '"></td>' +
+          '<td><div class="cell-actions">' +
+            '<button class="btn btn-primary btn-sm" onclick="confirmEdit(' + i + ')">OK</button>' +
+            '<button class="btn btn-secondary btn-sm" onclick="cancelEdit()">X</button>' +
+          '</div></td></tr>';
+      } else {
+        html += '<tr>' +
+          '<td>' + escHtml(m.sketchup) + '</td>' +
+          '<td style="text-align:center;color:#1379F0;">&#8594;</td>' +
+          '<td>' + escHtml(m.ornato) + '</td>' +
+          '<td><div class="cell-actions">' +
+            '<button class="btn btn-secondary btn-sm" onclick="startEdit(' + i + ')">Editar</button>' +
+            '<button class="btn btn-danger btn-sm" onclick="deleteMapping(' + i + ')">Excluir</button>' +
+          '</div></td></tr>';
+      }
+    });
+    body.innerHTML = html;
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function addMapping() {
+    var sk = document.getElementById('inputSketchup').value.trim();
+    var or_ = document.getElementById('inputOrnato').value.trim();
+    if (!sk || !or_) return;
+    mappings.push({ sketchup: sk, ornato: or_ });
+    document.getElementById('inputSketchup').value = '';
+    document.getElementById('inputOrnato').value = '';
+    render();
+  }
+
+  function startEdit(idx) { editingIdx = idx; render(); }
+  function cancelEdit() { editingIdx = -1; render(); }
+
+  function confirmEdit(idx) {
+    var sk = document.getElementById('editSk').value.trim();
+    var or_ = document.getElementById('editOr').value.trim();
+    if (sk && or_) { mappings[idx] = { sketchup: sk, ornato: or_ }; }
+    editingIdx = -1;
+    render();
+  }
+
+  function deleteMapping(idx) {
+    mappings.splice(idx, 1);
+    editingIdx = -1;
+    render();
+  }
+
+  function resetMappings() { mappings = []; editingIdx = -1; render(); }
+
+  function saveMappings() {
+    try { sketchup.save_mappings(JSON.stringify(mappings)); }
+    catch(e) { console.log('save_mappings callback not available'); }
+  }
+
+  window.loadMappings = function(data) {
+    var arr = typeof data === 'string' ? JSON.parse(data) : data;
+    mappings = arr || [];
+    editingIdx = -1;
+    render();
+  };
+
+  document.getElementById('inputOrnato').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') addMapping();
+  });
+
+  render();
+</script>
+</body>
+</html>

@@ -45,6 +45,7 @@ import leadsRoutes from './routes/leads.js';
 import './db.js';
 import { iniciarAutomacoes } from './services/automacoes.js';
 import { iniciarBackupDiario } from './services/backup.js';
+import { iniciarSofiaFollowup } from './services/sofia_followup.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -203,6 +204,8 @@ const server = app.listen(PORT, () => {
     iniciarAutomacoes();
     // Backup diário do banco para Google Drive (3h da manhã)
     iniciarBackupDiario();
+    // Sofia Follow-up (WhatsApp — 24h após cliente sumir, janela 9h-18h Seg-Sáb)
+    iniciarSofiaFollowup();
 });
 
 const wss = new WebSocketServer({ server, path: '/ws' });

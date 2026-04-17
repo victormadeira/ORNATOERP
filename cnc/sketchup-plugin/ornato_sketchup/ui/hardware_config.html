@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ornato - Configuracao de Ferragens</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    background: #0f1219;
+    color: #e0e6ff;
+    min-height: 100vh;
+  }
+  .header {
+    background: #141926;
+    padding: 14px 20px;
+    border-bottom: 1px solid #2a3042;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .tabs {
+    display: flex;
+    background: #141926;
+    border-bottom: 1px solid #2a3042;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tabs::-webkit-scrollbar { height: 0; }
+  .tab {
+    padding: 10px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #6b7a99;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: all 0.2s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+  }
+  .tab:hover { color: #e0e6ff; }
+  .tab.active { color: #1379F0; border-bottom-color: #1379F0; }
+  .content { padding: 16px 20px 80px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .section-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #6b7a99;
+    margin-bottom: 12px;
+    margin-top: 16px;
+  }
+  .section-title:first-child { margin-top: 0; }
+  .params-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+  }
+  .param-card {
+    background: #1a1f2e;
+    border: 1px solid #2a3042;
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .param-label {
+    font-size: 11px;
+    color: #6b7a99;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .param-unit { font-size: 10px; color: #4a5568; }
+  .param-input {
+    width: 100%;
+    background: #141926;
+    border: 1px solid #2a3042;
+    border-radius: 4px;
+    padding: 6px 8px;
+    color: #e0e6ff;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .param-input:focus { border-color: #1379F0; }
+  .param-select {
+    width: 100%;
+    background: #141926;
+    border: 1px solid #2a3042;
+    border-radius: 4px;
+    padding: 6px 8px;
+    color: #e0e6ff;
+    font-size: 13px;
+    outline: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+  }
+  .param-select:focus { border-color: #1379F0; }
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+  }
+  .checkbox-row input[type="checkbox"] { accent-color: #1379F0; }
+  .checkbox-label { font-size: 13px; color: #e0e6ff; }
+  .footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #141926;
+    border-top: 1px solid #2a3042;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+  }
+  .btn-primary { background: #1379F0; color: #fff; }
+  .btn-primary:hover { background: #1060d0; }
+  .btn-secondary { background: #232839; color: #e0e6ff; border-color: #2a3042; }
+  .btn-secondary:hover { background: #2a3042; }
+</style>
+</head>
+<body>
+  <div class="header">Configuracao de Ferragens</div>
+
+  <div class="tabs" id="tabsBar">
+    <button class="tab active" data-tab="dobradica">Dobradica</button>
+    <button class="tab" data-tab="sistema32">Sistema 32</button>
+    <button class="tab" data-tab="minifix">Minifix</button>
+    <button class="tab" data-tab="cavilha">Cavilha</button>
+    <button class="tab" data-tab="puxador">Puxador</button>
+    <button class="tab" data-tab="corredica">Corredica</button>
+    <button class="tab" data-tab="fundo">Fundo</button>
+    <button class="tab" data-tab="prateleira">Prateleira</button>
+  </div>
+
+  <div class="content">
+    <!-- Dobradica -->
+    <div class="tab-panel active" id="panel-dobradica">
+      <div class="section-title">Copo</div>
+      <div class="params-grid">
+        <div class="param-card">
+          <div class="param-label">Diametro <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="dobradica.copo_diametro" value="35" step="0.5">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Profundidade <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="dobradica.copo_profundidade" value="12" step="0.5">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Dist. borda <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="dobradica.dist_borda" value="5" step="0.5">
+        </div>
+      </div>
+      <div class="section-title">Base</div>
+      <div class="params-grid">
+        <div class="param-card">
+          <div class="param-label">Furo diametro <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="dobradica.base_furo_diam" value="5" step="0.1">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Furo profundidade <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="dobradica.base_furo_prof" value="11" step="0.5">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Dist. entre furos <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="dobradica.base_dist_furos" value="32" step="1">
+        </div>
+      </div>
+    </div>
+
+    <!-- Sistema 32 -->
+    <div class="tab-panel" id="panel-sistema32">
+      <div class="section-title">Furos Laterais</div>
+      <div class="params-grid">
+        <div class="param-card">
+          <div class="param-label">Diametro <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="sistema32.diametro" value="5" step="0.1">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Profundidade <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="sistema32.profundidade" value="11" step="0.5">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Dist. da frente <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="sistema32.dist_frente" value="37" step="1">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Dist. do fundo <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="sistema32.dist_fundo" value="37" step="1">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Passo <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="sistema32.passo" value="32" step="1">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Primeiro furo <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="sistema32.primeiro_furo" value="37" step="1">
+        </div>
+      </div>
+    </div>
+
+    <!-- Minifix -->
+    <div class="tab-panel" id="panel-minifix">
+      <div class="section-title">Corpo (lateral)</div>
+      <div class="params-grid">
+        <div class="param-card">
+          <div class="param-label">Furo diametro <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="minifix.corpo_diam" value="15" step="0.5">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Furo profundidade <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="minifix.corpo_prof" value="12.5" step="0.5">
+        </div>
+      </div>
+      <div class="section-title">Parafuso (base/tampo)</div>
+      <div class="params-grid">
+        <div class="param-card">
+          <div class="param-label">Furo diametro <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="minifix.parafuso_diam" value="8" step="0.5">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Furo profundidade <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="minifix.parafuso_prof" value="34" step="0.5">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Dist. da borda <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="minifix.dist_borda" value="50" step="1">
+        </div>
+      </div>
+    </div>
+
+    <!-- Cavilha -->
+    <div class="tab-panel" id="panel-cavilha">
+      <div class="params-grid">
+        <div class="param-card">
+          <div class="param-label">Diametro <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="cavilha.diametro" value="8" step="0.5">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Profundidade <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="cavilha.profundidade" value="16" step="0.5">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Dist. da borda <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="cavilha.dist_borda" value="50" step="1">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Espacamento <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="cavilha.espacamento" value="128" step="1">
+        </div>
+      </div>
+    </div>
+
+    <!-- Puxador -->
+    <div class="tab-panel" id="panel-puxador">
+      <div class="params-grid">
+        <div class="param-card">
+          <div class="param-label">Furo diametro <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="puxador.furo_diam" value="5" step="0.5">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Entre-furos <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="puxador.entre_furos" value="128" step="1">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Tipo</div>
+          <select class="param-select" data-key="puxador.tipo">
+            <option value="handle">Alcas (2 furos)</option>
+            <option value="knob">Pomo (1 furo)</option>
+            <option value="profile">Perfil (cava)</option>
+          </select>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Posicao vertical <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="puxador.pos_vertical" value="0" step="1">
+          <div style="font-size:10px;color:#4a5568;margin-top:4px;">0 = centro</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Corredica -->
+    <div class="tab-panel" id="panel-corredica">
+      <div class="params-grid">
+        <div class="param-card">
+          <div class="param-label">Tipo</div>
+          <select class="param-select" data-key="corredica.tipo">
+            <option value="metalica">Metalica</option>
+            <option value="telescopica">Telescopica</option>
+            <option value="oculta">Oculta (undermount)</option>
+          </select>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Furo diametro <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="corredica.furo_diam" value="5" step="0.5">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Dist. do fundo <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="corredica.dist_fundo" value="37" step="1">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Offset Y <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="corredica.offset_y" value="0" step="1">
+        </div>
+      </div>
+    </div>
+
+    <!-- Fundo -->
+    <div class="tab-panel" id="panel-fundo">
+      <div class="params-grid">
+        <div class="param-card">
+          <div class="param-label">Tipo de encaixe</div>
+          <select class="param-select" data-key="fundo.tipo">
+            <option value="canal">Canal (rebaixo)</option>
+            <option value="sobreposto">Sobreposto</option>
+          </select>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Espessura fundo <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="fundo.espessura" value="3" step="0.5">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Largura canal <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="fundo.largura_canal" value="4" step="0.5">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Prof. canal <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="fundo.prof_canal" value="8" step="0.5">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Dist. da borda <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="fundo.dist_borda" value="10" step="1">
+        </div>
+      </div>
+    </div>
+
+    <!-- Prateleira -->
+    <div class="tab-panel" id="panel-prateleira">
+      <div class="params-grid">
+        <div class="param-card">
+          <div class="param-label">Tipo de suporte</div>
+          <select class="param-select" data-key="prateleira.tipo_suporte">
+            <option value="pino">Pino metalico</option>
+            <option value="suporte_L">Suporte L</option>
+            <option value="minifix">Minifix</option>
+          </select>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Furo diametro <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="prateleira.furo_diam" value="5" step="0.5">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Furo profundidade <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="prateleira.furo_prof" value="11" step="0.5">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Dist. frente <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="prateleira.dist_frente" value="37" step="1">
+        </div>
+        <div class="param-card">
+          <div class="param-label">Dist. fundo <span class="param-unit">mm</span></div>
+          <input class="param-input" type="number" data-key="prateleira.dist_fundo" value="37" step="1">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <button class="btn btn-secondary" onclick="resetConfig()">Resetar Padrao</button>
+    <button class="btn btn-primary" onclick="saveConfig()">Salvar</button>
+  </div>
+
+<script>
+  // Tab switching
+  var tabs = document.querySelectorAll('.tab');
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      tabs.forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+      document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+    });
+  });
+
+  function collectConfig() {
+    var config = {};
+    document.querySelectorAll('[data-key]').forEach(function(el) {
+      var keys = el.dataset.key.split('.');
+      var val;
+      if (el.type === 'number') val = parseFloat(el.value) || 0;
+      else if (el.type === 'checkbox') val = el.checked;
+      else val = el.value;
+      if (!config[keys[0]]) config[keys[0]] = {};
+      config[keys[0]][keys[1]] = val;
+    });
+    return config;
+  }
+
+  function applyConfig(config) {
+    document.querySelectorAll('[data-key]').forEach(function(el) {
+      var keys = el.dataset.key.split('.');
+      if (config[keys[0]] && config[keys[0]][keys[1]] !== undefined) {
+        var val = config[keys[0]][keys[1]];
+        if (el.type === 'checkbox') el.checked = !!val;
+        else el.value = val;
+      }
+    });
+  }
+
+  var defaultConfig = null;
+
+  function saveConfig() {
+    var config = collectConfig();
+    try { sketchup.save_config(JSON.stringify(config)); }
+    catch(e) { console.log('save_config callback not available'); }
+  }
+
+  function resetConfig() {
+    if (defaultConfig) applyConfig(defaultConfig);
+    else {
+      // Reset to HTML defaults
+      document.querySelectorAll('[data-key]').forEach(function(el) {
+        el.value = el.defaultValue;
+      });
+    }
+  }
+
+  window.loadConfig = function(data) {
+    var cfg = typeof data === 'string' ? JSON.parse(data) : data;
+    if (!defaultConfig) defaultConfig = JSON.parse(JSON.stringify(cfg));
+    applyConfig(cfg);
+  };
+</script>
+</body>
+</html>

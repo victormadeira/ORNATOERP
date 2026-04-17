@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ornato - Painel Principal</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    background: #0f1219;
+    color: #e0e6ff;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  .header {
+    background: linear-gradient(135deg, #141926 0%, #1a1f2e 100%);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #2a3042;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 32px; height: 32px;
+    background: #1379F0;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 16px; color: #fff;
+  }
+  .header-title { font-size: 18px; font-weight: 600; color: #fff; }
+  .header-version {
+    font-size: 11px;
+    color: #6b7a99;
+    background: #1a1f2e;
+    border: 1px solid #2a3042;
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+  .content { padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; }
+  .card {
+    background: #1a1f2e;
+    border: 1px solid #2a3042;
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .card-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #6b7a99;
+    margin-bottom: 12px;
+  }
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .summary-item {
+    background: #141926;
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+  }
+  .summary-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1379F0;
+    line-height: 1.1;
+  }
+  .summary-label {
+    font-size: 11px;
+    color: #6b7a99;
+    margin-top: 4px;
+  }
+  .actions-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .action-btn {
+    background: #141926;
+    border: 1px solid #2a3042;
+    border-radius: 8px;
+    padding: 14px 10px;
+    color: #e0e6ff;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .action-btn:hover {
+    border-color: #1379F0;
+    background: #1a2338;
+    transform: translateY(-1px);
+  }
+  .action-btn:active { transform: translateY(0); }
+  .action-btn.primary {
+    background: #1379F0;
+    border-color: #1379F0;
+    color: #fff;
+  }
+  .action-btn.primary:hover { background: #1060d0; }
+  .action-icon { font-size: 22px; }
+  .results-empty {
+    text-align: center;
+    padding: 20px;
+    color: #4a5568;
+    font-size: 13px;
+  }
+  .result-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #232839;
+    font-size: 13px;
+  }
+  .result-row:last-child { border-bottom: none; }
+  .result-label { color: #8892a8; }
+  .result-value { font-weight: 600; }
+  .result-value.ok { color: #34d399; }
+  .result-value.warn { color: #fbbf24; }
+  .result-value.err { color: #f87171; }
+  .status-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #141926;
+    border-top: 1px solid #2a3042;
+    padding: 8px 20px;
+    font-size: 11px;
+    color: #4a5568;
+    display: flex;
+    justify-content: space-between;
+  }
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #34d399;
+    display: inline-block;
+    margin-right: 6px;
+  }
+  .materials-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .material-tag {
+    background: #232839;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    color: #8892a8;
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">O</div>
+      <span class="header-title">Ornato CNC</span>
+    </div>
+    <span class="header-version">v1.0.0</span>
+  </div>
+
+  <div class="content">
+    <div class="card">
+      <div class="card-title">Resumo do Modelo</div>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-value" id="modulesCount">0</div>
+          <div class="summary-label">Modulos</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-value" id="piecesCount">0</div>
+          <div class="summary-label">Pecas</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-value" id="materialsCount">0</div>
+          <div class="summary-label">Materiais</div>
+        </div>
+      </div>
+      <div class="materials-list" id="materialsList"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Acoes</div>
+      <div class="actions-grid">
+        <button class="action-btn primary" onclick="doAnalyze()">
+          <span class="action-icon">&#128269;</span>
+          Analisar
+        </button>
+        <button class="action-btn" onclick="doProcess()">
+          <span class="action-icon">&#9881;</span>
+          Processar
+        </button>
+        <button class="action-btn" onclick="doExport()">
+          <span class="action-icon">&#128190;</span>
+          Exportar
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Ultima Analise</div>
+      <div id="resultsContainer">
+        <div class="results-empty">Nenhuma analise realizada ainda.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <span><span class="status-dot"></span>Conectado ao SketchUp</span>
+    <span id="statusTimestamp">--</span>
+  </div>
+
+<script>
+  function doAnalyze() {
+    try { sketchup.analyze(); } catch(e) { console.log('analyze callback not available'); }
+  }
+  function doProcess() {
+    try { sketchup.process(); } catch(e) { console.log('process callback not available'); }
+  }
+  function doExport() {
+    try { sketchup.export_json(); } catch(e) { console.log('export_json callback not available'); }
+  }
+
+  window.updateSummary = function(data) {
+    var d = typeof data === 'string' ? JSON.parse(data) : data;
+
+    document.getElementById('modulesCount').textContent = d.modules || 0;
+    document.getElementById('piecesCount').textContent = d.pieces || 0;
+    document.getElementById('materialsCount').textContent = d.materials ? d.materials.length : 0;
+
+    var ml = document.getElementById('materialsList');
+    ml.innerHTML = '';
+    if (d.materials && d.materials.length > 0) {
+      d.materials.forEach(function(m) {
+        var tag = document.createElement('span');
+        tag.className = 'material-tag';
+        tag.textContent = m;
+        ml.appendChild(tag);
+      });
+    }
+
+    if (d.results) {
+      var rc = document.getElementById('resultsContainer');
+      rc.innerHTML = '';
+      var items = d.results;
+      for (var key in items) {
+        var row = document.createElement('div');
+        row.className = 'result-row';
+        var val = items[key];
+        var cls = '';
+        if (typeof val === 'object') { cls = val.status || ''; val = val.value; }
+        row.innerHTML = '<span class="result-label">' + key + '</span>' +
+                        '<span class="result-value ' + cls + '">' + val + '</span>';
+        rc.appendChild(row);
+      }
+    }
+
+    document.getElementById('statusTimestamp').textContent =
+      new Date().toLocaleTimeString('pt-BR');
+  };
+</script>
+</body>
+</html>
