@@ -362,7 +362,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
 
     const baixarExtensao = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('erp_token');
             const r = await fetch('/api/ext/download-extension', {
                 headers: { Authorization: `Bearer ${token}` },
             });
