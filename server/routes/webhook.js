@@ -53,9 +53,9 @@ router.post('/whatsapp', async (req, res) => {
         console.log(`[WH] ${event} | ${keyInfo}`);
 
         if (event === 'messages.upsert') {
-            await handleIncomingMessage(body.data || body);
+            await handleIncomingMessage(body.data || body, req.app.locals.wsBroadcast);
         } else if (event === 'messages.update') {
-            await handleMessageStatusUpdate(body.data || body);
+            await handleMessageStatusUpdate(body.data || body, req.app.locals.wsBroadcast);
         } else if (event === 'messages.set') {
             // Lote de histórico disparado no pareamento do WhatsApp
             await handleMessagesSet(body.data || body);
@@ -138,7 +138,7 @@ async function handleMessagesSet(data) {
 // ═══════════════════════════════════════════════════════
 // PROCESSAR MENSAGEM RECEBIDA
 // ═══════════════════════════════════════════════════════
-async function handleIncomingMessage(data) {
+async function handleIncomingMessage(data, wsBroadcast = null) {
     if (!data?.key) return;
 
     const msgId = data.key.id;
@@ -275,12 +275,24 @@ async function handleIncomingMessage(data) {
     }
 
     // ── 8. Salvar mensagem (com conteúdo enriquecido) ──
-    db.prepare(`
+    const insertResult = db.prepare(`
         INSERT INTO chat_mensagens (conversa_id, wa_message_id, direcao, tipo, conteudo, media_url, remetente, criado_em)
         VALUES (?, ?, 'entrada', ?, ?, ?, 'cliente', CURRENT_TIMESTAMP)
     `).run(conversa.id, msgId, messageType, enrichedContent || `[${messageType}]`, mediaUrl);
 
     console.log(`[WH] Msg salva | conv #${conversa.id} | ${messageType} | ${pushName}`);
+
+    // WS broadcast — mensagem nova do cliente
+    try {
+        wsBroadcast?.('chat.message', {
+            conversa_id: conversa.id,
+            mensagem_id: insertResult.lastInsertRowid,
+            direcao: 'entrada',
+            tipo: messageType,
+            remetente: 'cliente',
+        });
+        wsBroadcast?.('chat.conversa-updated', { conversa_id: conversa.id });
+    } catch (_) { /* silencioso */ }
 
     // ── 9. Resposta automática da IA (se ativo) ──
     if (conversa.status === 'ia' && enrichedContent) {
@@ -297,6 +309,7 @@ async function handleIncomingMessage(data) {
 
             if (result.action === 'escalate') {
                 db.prepare(`UPDATE chat_conversas SET status = ?, handoff_em = COALESCE(handoff_em, CURRENT_TIMESTAMP), escalacao_nivel = 0, abandonada = 0 WHERE id = ?`).run('humano', conversa.id);
+                try { wsBroadcast?.('chat.conversa-updated', { conversa_id: conversa.id }); } catch (_) { /* silencioso */ }
             }
 
             // Enviar cada parte com um pequeno delay de typing entre elas
@@ -309,10 +322,19 @@ async function handleIncomingMessage(data) {
                 }
                 try {
                     await evolution.sendText(dest, part);
-                    db.prepare(`
+                    const aiInsert = db.prepare(`
                         INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, criado_em)
                         VALUES (?, 'saida', 'texto', ?, 'ia', CURRENT_TIMESTAMP)
                     `).run(conversa.id, part);
+                    try {
+                        wsBroadcast?.('chat.message', {
+                            conversa_id: conversa.id,
+                            mensagem_id: aiInsert.lastInsertRowid,
+                            direcao: 'saida',
+                            tipo: 'texto',
+                            remetente: 'ia',
+                        });
+                    } catch (_) { /* silencioso */ }
                 } catch (e) {
                     console.error('[WH] Erro enviar parte:', e.message);
                     break;
@@ -324,10 +346,19 @@ async function handleIncomingMessage(data) {
                 const fallback = 'Um momento! Vou transferir seu atendimento para nossa equipe comercial. Retornamos em breve.';
                 try {
                     await evolution.sendText(dest, fallback);
-                    db.prepare(`
+                    const fbInsert = db.prepare(`
                         INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, criado_em)
                         VALUES (?, 'saida', 'texto', ?, 'ia', CURRENT_TIMESTAMP)
                     `).run(conversa.id, fallback);
+                    try {
+                        wsBroadcast?.('chat.message', {
+                            conversa_id: conversa.id,
+                            mensagem_id: fbInsert.lastInsertRowid,
+                            direcao: 'saida',
+                            tipo: 'texto',
+                            remetente: 'ia',
+                        });
+                    } catch (_) { /* silencioso */ }
                 } catch (_) { /* silencioso */ }
             }
         } catch (err) {
@@ -366,11 +397,17 @@ async function downloadMedia(messageKey, messageType) {
 }
 
 // ═══ Atualizar status de entrega/leitura ═══
-async function handleMessageStatusUpdate(data) {
+async function handleMessageStatusUpdate(data, wsBroadcast = null) {
     if (!data?.key?.id) return;
     const statusMap = { 3: 'lido', 2: 'entregue', 1: 'enviado' };
     const status = statusMap[data.status] || 'enviado';
-    db.prepare('UPDATE chat_mensagens SET status_envio = ? WHERE wa_message_id = ?').run(status, data.key.id);
+    const r = db.prepare('UPDATE chat_mensagens SET status_envio = ? WHERE wa_message_id = ?').run(status, data.key.id);
+    if (r.changes > 0) {
+        try {
+            const row = db.prepare('SELECT conversa_id FROM chat_mensagens WHERE wa_message_id = ?').get(data.key.id);
+            if (row) wsBroadcast?.('chat.message-status', { conversa_id: row.conversa_id, wa_message_id: data.key.id, status });
+        } catch (_) { /* silencioso */ }
+    }
 }
 
 export default router;

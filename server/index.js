@@ -64,6 +64,13 @@ const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { e
 const publicLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, message: { error: 'Limite de requisições excedido.' }, standardHeaders: true, legacyHeaders: false });
 const sensitiveLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: 'Muitas requisições. Tente novamente em 1 minuto.' }, standardHeaders: true, legacyHeaders: false });
 
+// IA: cara em token — 30 chamadas/min por IP (cobre uso normal + um pouco de rajada)
+const iaLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, message: { error: 'Muitas chamadas à IA. Aguarde 1 minuto.' }, standardHeaders: true, legacyHeaders: false });
+// Uploads de mídia WhatsApp: 20/min — suficiente pra atendimento humano
+const mediaLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, message: { error: 'Muitos uploads. Aguarde 1 minuto.' }, standardHeaders: true, legacyHeaders: false });
+// Backfill: operação cara (chama Evolution API múltiplas vezes) — 3/hora
+const backfillLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 3, message: { error: 'Backfill só pode ser executado 3x por hora.' }, standardHeaders: true, legacyHeaders: false });
+
 // ═══ Webhook ANTES do CORS (Evolution API envia de origem externa) ═══
 // Limite maior pois Evolution pode enviar payloads com base64 de mídia
 app.use('/api/webhook', express.json({ limit: '50mb' }), webhookRoutes);
@@ -103,6 +110,18 @@ app.use((req, res, next) => {
     next();
 });
 
+// ═══ Request logging — loga só /api lentas (>2s) ou com erro (>=500) ═══
+app.use('/api', (req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const ms = Date.now() - start;
+        if (ms > 2000 || res.statusCode >= 500) {
+            console.log(`[${res.statusCode}] ${req.method} ${req.originalUrl || req.path} ${ms}ms user=${req.user?.id || '-'}`);
+        }
+    });
+    next();
+});
+
 // ═══════════════════════════════════════════════════════
 // ROTAS
 // ═══════════════════════════════════════════════════════
@@ -115,6 +134,16 @@ app.delete('/api/clientes/*', sensitiveLimiter);
 app.delete('/api/orcamentos/*', sensitiveLimiter);
 app.delete('/api/financeiro/*', sensitiveLimiter);
 app.delete('/api/estoque/*', sensitiveLimiter);
+
+// ═══ Rotas caras (IA / mídia / backfill) ═══════════════════════════
+// IA: qualquer POST em /api/ia/* e sugestão/geração em whatsapp
+app.use('/api/ia', iaLimiter);
+app.post('/api/whatsapp/conversas/*/sugerir', iaLimiter);
+// Uploads de mídia do chat
+app.post('/api/whatsapp/conversas/*/enviar-midia', mediaLimiter);
+// Backfill — chamada cara da Evolution
+app.post('/api/whatsapp/backfill', backfillLimiter);
+app.post('/api/whatsapp/conversas/*/backfill', backfillLimiter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/clientes', clientesRoutes);
@@ -156,6 +185,11 @@ app.use('/api/templates', templatesRoutes);
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
 
+// 404 para rotas /api/* não encontradas (antes do SPA fallback)
+app.use('/api', (req, res) => {
+    res.status(404).json({ error: 'Endpoint não encontrado', path: req.path });
+});
+
 // ═══ Servir frontend (SPA) ═══════════════════════════════════════════════
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -173,24 +207,18 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
-// ═══ Request logging (produção) ═══
-app.use((req, res, next) => {
-    const start = Date.now();
-    res.on('finish', () => {
-        const ms = Date.now() - start;
-        if (ms > 2000 || res.statusCode >= 500) {
-            console.log(`[${res.statusCode}] ${req.method} ${req.path} ${ms}ms ${req.user?.id || '-'}`);
-        }
-    });
-    next();
-});
-
-// ═══ Error handler (com ID rastreável) ═══
+// ═══ Error handler (4 args) — deve ficar por último ═══
+// Middleware de erro registrado DEPOIS de todas as rotas.
+// Captura qualquer next(err) vindo de qualquer rota /api/*.
 app.use((err, req, res, next) => {
     const errorId = `E${Date.now().toString(36)}`;
-    console.error(`[${errorId}] ${req.method} ${req.path}:`, err.stack || err);
+    // Log estruturado sem derrubar o processo
+    console.error(`[${errorId}] ${req.method} ${req.originalUrl || req.path} | user=${req.user?.id || '-'}`);
+    console.error(err.stack || err);
+    // Se a resposta já começou, delega ao default handler do express
+    if (res.headersSent) return next(err);
     res.status(err.statusCode || 500).json({
-        error: process.env.NODE_ENV === 'production' ? 'Erro interno do servidor' : err.message,
+        error: process.env.NODE_ENV === 'production' ? 'Erro interno do servidor' : (err.message || 'Erro interno'),
         errorId,
     });
 });

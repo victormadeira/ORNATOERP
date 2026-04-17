@@ -3,6 +3,7 @@ import { Z, Ic, Modal, PageHeader, TabBar, EmptyState } from '../ui';
 import { colorBg, colorBorder } from '../theme';
 import api from '../api';
 import { useAuth } from '../auth';
+import useWebSocket from '../hooks/useWebSocket';
 import {
     MessageCircle, Send, Lock, Bot, Sparkles, User, Phone,
     Search, MoreVertical, ArrowLeft, Link2, RefreshCw, Check, CheckCheck,
@@ -184,15 +185,44 @@ export default function Mensagens({ notify }) {
 
     useEffect(() => { loadConversas(); loadContadores(); }, [loadConversas, loadContadores]);
 
-    // Polling: atualiza conversas e mensagens a cada 10s
+    // ═══ WebSocket: atualização em tempo real ═══
+    const activeConvRef = useRef(activeConv);
+    activeConvRef.current = activeConv;
+
+    const handleWsEvent = useCallback((msg) => {
+        if (!msg || !msg.type) return;
+        if (msg.type === 'chat.message') {
+            const convId = msg.data?.conversa_id;
+            // Atualiza sempre a lista + contadores
+            loadConversas();
+            loadContadores();
+            // Se o evento é da conversa aberta, recarrega as mensagens
+            if (convId && convId === activeConvRef.current) {
+                loadMensagens(convId);
+            }
+        } else if (msg.type === 'chat.conversa-updated') {
+            loadConversas();
+            loadContadores();
+        } else if (msg.type === 'chat.message-status') {
+            // Atualização de status (entregue/lido) só interessa se a conversa está aberta
+            if (msg.data?.conversa_id && msg.data.conversa_id === activeConvRef.current) {
+                loadMensagens(activeConvRef.current);
+            }
+        }
+    }, [loadConversas, loadContadores, loadMensagens]);
+
+    const { connected: wsConnected } = useWebSocket(handleWsEvent);
+
+    // Polling leve como fallback quando WS está desconectado (30s)
     useEffect(() => {
+        if (wsConnected) return;
         const interval = setInterval(() => {
             loadConversas();
             loadContadores();
-            if (activeConv) loadMensagens(activeConv);
-        }, 10000);
+            if (activeConvRef.current) loadMensagens(activeConvRef.current);
+        }, 30000);
         return () => clearInterval(interval);
-    }, [activeConv, loadConversas, loadContadores, loadMensagens]);
+    }, [wsConnected, loadConversas, loadContadores, loadMensagens]);
 
     // ═══ Selecionar conversa ═══
     const selectConv = (conv) => {

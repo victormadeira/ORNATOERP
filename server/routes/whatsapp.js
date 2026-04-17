@@ -216,6 +216,16 @@ router.post('/conversas/:id/enviar', requireAuth, requireConversaAccess(db), asy
         db.prepare('UPDATE chat_conversas SET ultimo_msg_em = CURRENT_TIMESTAMP WHERE id = ?').run(id);
 
         const msg = db.prepare('SELECT cm.*, u.nome as usuario_nome FROM chat_mensagens cm LEFT JOIN users u ON cm.remetente_id = u.id WHERE cm.id = ?').get(r.lastInsertRowid);
+        try {
+            req.app.locals.wsBroadcast?.('chat.message', {
+                conversa_id: id,
+                mensagem_id: r.lastInsertRowid,
+                direcao: 'saida',
+                tipo: tipo || 'texto',
+                remetente: 'usuario',
+            });
+            req.app.locals.wsBroadcast?.('chat.conversa-updated', { conversa_id: id });
+        } catch (_) { /* silencioso */ }
         res.json(msg);
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -236,6 +246,16 @@ router.post('/conversas/:id/nota-interna', requireAuth, requireConversaAccess(db
     `).run(id, conteudo, req.user.id);
 
     const msg = db.prepare('SELECT cm.*, u.nome as usuario_nome FROM chat_mensagens cm LEFT JOIN users u ON cm.remetente_id = u.id WHERE cm.id = ?').get(r.lastInsertRowid);
+    try {
+        req.app.locals.wsBroadcast?.('chat.message', {
+            conversa_id: id,
+            mensagem_id: r.lastInsertRowid,
+            direcao: 'saida',
+            tipo: 'texto',
+            remetente: 'usuario',
+            interno: 1,
+        });
+    } catch (_) { /* silencioso */ }
     res.json(msg);
 });
 
@@ -249,6 +269,7 @@ router.put('/conversas/:id/status', requireAuth, requireConversaAccess(db), (req
         return res.status(400).json({ error: 'Status inválido' });
     }
     db.prepare('UPDATE chat_conversas SET status = ? WHERE id = ?').run(status, id);
+    try { req.app.locals.wsBroadcast?.('chat.conversa-updated', { conversa_id: id, status }); } catch (_) { /* silencioso */ }
     res.json({ ok: true });
 });
 
@@ -312,6 +333,7 @@ router.put('/conversas/:id/atribuir', requireAuth, requireConversaAccess(db), (r
         LEFT JOIN users ua ON cc.atribuido_user_id = ua.id
         WHERE cc.id = ?
     `).get(id);
+    try { req.app.locals.wsBroadcast?.('chat.conversa-updated', { conversa_id: id, atribuido_user_id: target }); } catch (_) { /* silencioso */ }
     res.json(updated);
 });
 
@@ -341,6 +363,7 @@ router.put('/conversas/:id/categoria', requireAuth, requireConversaAccess(db), (
     params.push(id);
     db.prepare(`UPDATE chat_conversas SET ${updates.join(', ')} WHERE id = ?`).run(...params);
     const updated = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(id);
+    try { req.app.locals.wsBroadcast?.('chat.conversa-updated', { conversa_id: id }); } catch (_) { /* silencioso */ }
     res.json(updated);
 });
 
@@ -351,6 +374,7 @@ router.put('/conversas/:id/categoria', requireAuth, requireConversaAccess(db), (
 router.put('/conversas/:id/arquivar', requireAuth, requireConversaAccess(db), (req, res) => {
     const { arquivada } = req.body || {};
     db.prepare('UPDATE chat_conversas SET arquivada = ? WHERE id = ?').run(arquivada ? 1 : 0, req.conversa.id);
+    try { req.app.locals.wsBroadcast?.('chat.conversa-updated', { conversa_id: req.conversa.id, arquivada: arquivada ? 1 : 0 }); } catch (_) { /* silencioso */ }
     res.json({ ok: true });
 });
 
@@ -399,6 +423,7 @@ router.put('/conversas/:id/ia-bloqueio', requireAuth, requireConversaAccess(db),
         ).run(id);
     }
     const conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(id);
+    try { req.app.locals.wsBroadcast?.('chat.conversa-updated', { conversa_id: id, ia_bloqueada: conversa.ia_bloqueada }); } catch (_) { /* silencioso */ }
     res.json(conversa);
 });
 
@@ -417,6 +442,7 @@ router.put('/conversas/:id/aguardando-cliente', requireAuth, requireConversaAcce
         db.prepare('UPDATE chat_conversas SET escalacao_nivel = 0, escalacao_ultima_em = NULL WHERE id = ?').run(id);
     }
     const conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(id);
+    try { req.app.locals.wsBroadcast?.('chat.conversa-updated', { conversa_id: id, aguardando_cliente: conversa.aguardando_cliente }); } catch (_) { /* silencioso */ }
     res.json(conversa);
 });
 
@@ -447,6 +473,7 @@ router.put('/conversas/:id/vincular', requireAuth, requireConversaAccess(db), (r
         FROM chat_conversas cc LEFT JOIN clientes c ON cc.cliente_id = c.id
         WHERE cc.id = ?
     `).get(id);
+    try { req.app.locals.wsBroadcast?.('chat.conversa-updated', { conversa_id: id, cliente_id: conversa.cliente_id }); } catch (_) { /* silencioso */ }
     res.json(conversa);
 });
 
@@ -513,6 +540,16 @@ router.post('/conversas/:id/enviar-midia', requireAuth, upload.single('file'), r
 
         db.prepare('UPDATE chat_conversas SET ultimo_msg_em = CURRENT_TIMESTAMP WHERE id = ?').run(id);
         const msg = db.prepare('SELECT cm.*, u.nome as usuario_nome FROM chat_mensagens cm LEFT JOIN users u ON cm.remetente_id = u.id WHERE cm.id = ?').get(r.lastInsertRowid);
+        try {
+            req.app.locals.wsBroadcast?.('chat.message', {
+                conversa_id: id,
+                mensagem_id: r.lastInsertRowid,
+                direcao: 'saida',
+                tipo,
+                remetente: 'usuario',
+            });
+            req.app.locals.wsBroadcast?.('chat.conversa-updated', { conversa_id: id });
+        } catch (_) { /* silencioso */ }
         res.json(msg);
     } catch (e) {
         res.status(500).json({ error: e.message });

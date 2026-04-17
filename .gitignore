@@ -18,7 +18,12 @@ server/.jwt_secret
 
 # Environment variables
 .env
-.env.*
+.env.local
+.env.*.local
+.env.production
+.env.development
+# Permitir versionar .env.example como template
+!.env.example
 
 # OS files
 .DS_Store
@@ -33,6 +38,11 @@ uploads/
 
 # Logs
 *.log
+.coverage
+
+# Python venv (cnc_optimizer local)
+.venv*/
+__pycache__/
 
 # Old system references (large)
 ref-sistema-antigo/

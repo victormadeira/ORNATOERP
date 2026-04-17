@@ -646,7 +646,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
             loadIaUso();
             loadIaPrompt();
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [activeSection]);
 
     const gerarBaseConhecimento = async () => {
