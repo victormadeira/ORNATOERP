@@ -203,13 +203,19 @@ export function calcularScore(dossie = {}) {
     const qtdAmbientes = Number(dossie.quantidade_ambientes || (Array.isArray(dossie.ambientes) ? dossie.ambientes.length : 0));
     const ambs = (dossie.ambientes || []).map(a => String(a).toLowerCase());
 
-    // Escopo (projeto residencial)
+    // Escopo (projeto residencial) — ambientes de maior ticket pontuam mais
     if (qtdAmbientes >= 4 || ambs.some(a => /completo|residencia|apartamento\s*inteiro|casa\s*inteira/.test(a))) {
         score += 40; detalhes.push('residencia_completa:+40');
     } else if (qtdAmbientes >= 2) {
         score += 25; detalhes.push('multiplos_ambientes:+25');
     } else if (qtdAmbientes === 1) {
-        score += 10; detalhes.push('ambiente_unico:+10');
+        // Ambiente único: diferenciar por ticket típico
+        const temAltoTicket = ambs.some(a => /cozinha|closet|bat[ht]|banheiro|\barea\s*gourmet/.test(a));
+        if (temAltoTicket) {
+            score += 20; detalhes.push('ambiente_premium:+20'); // cozinha/closet/banheiro
+        } else {
+            score += 12; detalhes.push('ambiente_unico:+12'); // quarto/sala/home office
+        }
     }
 
     // Comercial
