@@ -204,6 +204,13 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [iaPromptSaving, setIaPromptSaving] = useState(false);
     const [iaPromptMode, setIaPromptMode] = useState('view'); // view | edit | default
     const [iaPromptSaved, setIaPromptSaved] = useState(false);
+    // Sandbox de simulação
+    const [simHistory, setSimHistory] = useState([]); // [{role:'user'|'assistant', content:''}]
+    const [simInput, setSimInput] = useState('');
+    const [simSending, setSimSending] = useState(false);
+    const [simDossie, setSimDossie] = useState({});
+    const [simScore, setSimScore] = useState(null); // { score, classificacao, tags, violations, detalhes }
+    const [simOpen, setSimOpen] = useState(false);
     const [kbPrompt, setKbPrompt] = useState('');
     const [kbStats, setKbStats] = useState(null);
     const [kbLoading, setKbLoading] = useState(false);
@@ -452,6 +459,43 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
             setIaPromptMode('view');
         } catch (e) { notify?.('Erro ao salvar prompt: ' + e.message, 'error'); }
         setIaPromptSaving(false);
+    };
+
+    // ═══ Sandbox de simulação ═══
+    const simEnviar = async () => {
+        if (!simInput.trim() || simSending) return;
+        const texto = simInput.trim();
+        const newHistory = [...simHistory, { role: 'user', content: texto }];
+        setSimHistory(newHistory);
+        setSimInput('');
+        setSimSending(true);
+        try {
+            const r = await api.post('/ia/simulate', {
+                history: simHistory,
+                message: texto,
+                dossie_acumulado: simDossie,
+            });
+            setSimHistory([...newHistory, { role: 'assistant', content: r.text }]);
+            setSimDossie(r.dossie_acumulado || {});
+            setSimScore({
+                score: r.score,
+                classificacao: r.classificacao,
+                tags: r.tags,
+                violations: r.violations,
+                detalhes: r.score_detalhes,
+                sanitized: r.sanitized,
+            });
+        } catch (e) {
+            setSimHistory([...newHistory, { role: 'assistant', content: `[erro: ${e.error || e.message}]` }]);
+        }
+        setSimSending(false);
+    };
+
+    const simResetar = () => {
+        setSimHistory([]);
+        setSimDossie({});
+        setSimScore(null);
+        setSimInput('');
     };
 
     const resetIaPrompt = async () => {
@@ -2075,6 +2119,158 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         )}
                                     </>
                                 ) : null}
+                            </div>
+
+                            {/* ═══ Sandbox de Simulação ═══ */}
+                            <div className="mt-5 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
+                                <div className="flex items-center justify-between mb-3">
+                                    <div>
+                                        <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>
+                                            🧪 Sandbox — Testar Sofia sem afetar WhatsApp real
+                                        </h3>
+                                        <div className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                            Converse com a Sofia como se fosse um cliente. Nada é enviado pelo WhatsApp e nada é salvo nas conversas reais. Perfeito para validar antes de ativar.
+                                        </div>
+                                    </div>
+                                    <button onClick={() => setSimOpen(!simOpen)} className={Z.btn2} style={{ fontSize: 11 }}>
+                                        {simOpen ? 'Fechar sandbox' : 'Abrir sandbox'}
+                                    </button>
+                                </div>
+
+                                {simOpen && (
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                                        {/* Chat (2 cols) */}
+                                        <div className="lg:col-span-2 rounded-lg overflow-hidden flex flex-col" style={{ border: '1px solid var(--border)', background: 'var(--bg-muted)', height: 500 }}>
+                                            <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
+                                                <div className="flex items-center gap-2">
+                                                    <Bot size={14} style={{ color: 'var(--primary)' }} />
+                                                    <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Sofia (simulação)</span>
+                                                </div>
+                                                <button onClick={simResetar} className="text-[10px] px-2 py-1 rounded hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
+                                                    <Trash2 size={10} style={{ display: 'inline', marginRight: 3 }} /> Limpar
+                                                </button>
+                                            </div>
+
+                                            <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2" style={{ scrollbarWidth: 'thin' }}>
+                                                {simHistory.length === 0 && (
+                                                    <div className="text-center mt-16 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                                                        Digite uma mensagem como se fosse um cliente.<br />
+                                                        Exemplo: "Oi, vi o anúncio de vocês, quero saber sobre cozinha"
+                                                    </div>
+                                                )}
+                                                {simHistory.map((m, i) => (
+                                                    <div key={i} className={`max-w-[80%] rounded-lg px-3 py-2 text-[12px]`} style={{
+                                                        background: m.role === 'user' ? '#dcf8c6' : 'var(--bg)',
+                                                        color: '#222',
+                                                        alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+                                                        whiteSpace: 'pre-wrap',
+                                                        lineHeight: 1.5,
+                                                        border: m.role === 'assistant' ? '1px solid var(--border)' : 'none',
+                                                    }}>
+                                                        {m.content}
+                                                    </div>
+                                                ))}
+                                                {simSending && (
+                                                    <div className="text-[11px] italic" style={{ color: 'var(--text-muted)', alignSelf: 'flex-start' }}>
+                                                        Sofia está digitando...
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="p-2 flex gap-2" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
+                                                <input
+                                                    value={simInput}
+                                                    onChange={e => setSimInput(e.target.value)}
+                                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); simEnviar(); } }}
+                                                    placeholder="Digite como cliente e pressione Enter..."
+                                                    disabled={simSending}
+                                                    className={Z.inp}
+                                                    style={{ fontSize: 12, flex: 1 }}
+                                                />
+                                                <button onClick={simEnviar} disabled={simSending || !simInput.trim()} className={Z.btn} style={{ fontSize: 11 }}>
+                                                    Enviar
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Painel de análise */}
+                                        <div className="flex flex-col gap-3">
+                                            {/* Score */}
+                                            <div className="rounded-lg p-3" style={{ border: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
+                                                <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>Score do lead</div>
+                                                {simScore ? (
+                                                    <>
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="text-2xl font-bold" style={{
+                                                                color: simScore.score >= 80 ? '#8b5cf6'
+                                                                    : simScore.score >= 60 ? '#22c55e'
+                                                                        : simScore.score >= 30 ? '#f59e0b' : '#94a3b8',
+                                                            }}>{simScore.score}</div>
+                                                            <div className="text-[10px] font-semibold uppercase px-2 py-1 rounded" style={{
+                                                                background: simScore.score >= 80 ? '#8b5cf620'
+                                                                    : simScore.score >= 60 ? '#22c55e20'
+                                                                        : simScore.score >= 30 ? '#f59e0b20' : '#94a3b820',
+                                                                color: simScore.score >= 80 ? '#8b5cf6'
+                                                                    : simScore.score >= 60 ? '#22c55e'
+                                                                        : simScore.score >= 30 ? '#f59e0b' : '#94a3b8',
+                                                            }}>{(simScore.classificacao || 'frio').replace('_', ' ')}</div>
+                                                        </div>
+                                                        {simScore.detalhes && simScore.detalhes.length > 0 && (
+                                                            <div className="mt-2 flex flex-wrap gap-1">
+                                                                {simScore.detalhes.map((d, i) => (
+                                                                    <span key={i} className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>{d}</span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Sem dados ainda</div>
+                                                )}
+                                            </div>
+
+                                            {/* Tags */}
+                                            <div className="rounded-lg p-3" style={{ border: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
+                                                <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>Tags</div>
+                                                {simScore && simScore.tags?.length > 0 ? (
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {simScore.tags.map((t, i) => (
+                                                            <span key={i} className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'var(--primary)', color: 'white', opacity: 0.85 }}>{t}</span>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>—</div>
+                                                )}
+                                            </div>
+
+                                            {/* Violações de guardrails */}
+                                            {simScore && simScore.violations?.length > 0 && (
+                                                <div className="rounded-lg p-3" style={{ border: '1px solid #ef444440', background: '#ef444410' }}>
+                                                    <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold" style={{ color: '#ef4444' }}>⚠️ Guardrails violados</div>
+                                                    <div className="flex flex-col gap-1">
+                                                        {simScore.violations.map((v, i) => (
+                                                            <div key={i} className="text-[11px]" style={{ color: '#ef4444', fontFamily: 'monospace' }}>{v}</div>
+                                                        ))}
+                                                    </div>
+                                                    {simScore.sanitized && (
+                                                        <div className="text-[10px] mt-2 italic" style={{ color: 'var(--text-muted)' }}>Resposta foi sanitizada automaticamente antes de exibir.</div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Dossiê */}
+                                            <div className="rounded-lg p-3 flex-1" style={{ border: '1px solid var(--border)', background: 'var(--bg-muted)', maxHeight: 240, overflowY: 'auto' }}>
+                                                <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>Dossiê acumulado</div>
+                                                {Object.keys(simDossie).length > 0 ? (
+                                                    <pre className="text-[10px] whitespace-pre-wrap break-all" style={{ color: 'var(--text-secondary)', fontFamily: 'monospace', lineHeight: 1.5 }}>
+                                                        {JSON.stringify(simDossie, null, 2)}
+                                                    </pre>
+                                                ) : (
+                                                    <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Nenhum dado coletado ainda</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* ═══ Consumo / Gasto da IA ═══ */}

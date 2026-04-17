@@ -974,4 +974,83 @@ router.post('/prompt/reset', requireAuth, requireRole('gerente'), (req, res) => 
     }
 });
 
+// ═══════════════════════════════════════════════════════
+// POST /api/ia/simulate — sandbox de conversa (não envia WhatsApp, não salva em chat_conversas)
+// Body: { history: [{role:'user'|'assistant', content:''}], message: '...' }
+// Retorna: { text, dossie, score, classificacao, tags, violations, sanitized }
+// ═══════════════════════════════════════════════════════
+router.post('/simulate', requireAuth, async (req, res) => {
+    try {
+        const { history = [], message = '' } = req.body || {};
+        if (!message || typeof message !== 'string') {
+            return res.status(400).json({ error: 'message obrigatório' });
+        }
+
+        // Importar utilitários dinamicamente pra evitar ciclo
+        const { default: sofia } = await import('../services/sofia.js');
+        const { default: aiSvc, SOFIA_DEFAULT_PROMPT } = await import('../services/ai.js');
+
+        // Montar contexto mínimo (simula dados já acumulados opcionalmente enviados pelo cliente)
+        const dossieAcum = req.body.dossie_acumulado || {};
+
+        // Detectar tratamento da última mensagem do cliente
+        const tratamento = sofia.detectarTratamento(message);
+
+        let contextoExtra = `\n\n═══ CONTEXTO DESTA CONVERSA (SIMULAÇÃO) ═══`;
+        contextoExtra += `\nSaudação apropriada AGORA: ${sofia.saudacaoAtual()}`;
+        contextoExtra += `\nHorário humano ativo agora: ${sofia.horarioHumanoAtivo() ? 'Sim' : 'Não'}`;
+        if (tratamento === 'formal') contextoExtra += `\nTratamento: cliente usou "senhor/a" — ESPELHE.`;
+        else if (tratamento === 'informal') contextoExtra += `\nTratamento: cliente usou "você" — mantenha.`;
+        if (Object.keys(dossieAcum).length > 0) {
+            contextoExtra += `\n\n═══ DADOS JÁ COLETADOS ═══\n${JSON.stringify(dossieAcum, null, 2)}`;
+        }
+
+        // Buildar system prompt (pega customizado ou padrão)
+        const system = aiSvc.buildSystemPrompt(contextoExtra);
+
+        // Montar histórico para callAI
+        const aiMessages = (history || []).map(h => ({
+            role: h.role === 'assistant' ? 'assistant' : 'user',
+            content: String(h.content || ''),
+        }));
+        aiMessages.push({ role: 'user', content: message });
+
+        // Chamar IA
+        const response = await aiSvc.callAI(aiMessages, system, {
+            maxTokens: 1024,
+            contexto: 'simulate',
+        });
+
+        // Extrair dossiê
+        const { textoLimpo, dossie } = sofia.extrairDossie(response);
+
+        // Validar resposta
+        const validacao = sofia.validarResposta(textoLimpo);
+        const sanitizado = validacao.ok ? textoLimpo : sofia.sanitizar(textoLimpo);
+
+        // Merge dossiê
+        const dossieFinal = sofia.mergeDossie(dossieAcum, dossie || {});
+
+        // Score + tags
+        const { score, classificacao, detalhes } = sofia.calcularScore(dossieFinal);
+        const tags = sofia.gerarTags(dossieFinal, score);
+
+        res.json({
+            text: sanitizado,
+            text_original: textoLimpo,
+            dossie_novo: dossie,
+            dossie_acumulado: dossieFinal,
+            score,
+            classificacao,
+            score_detalhes: detalhes,
+            tags,
+            violations: validacao.violations,
+            sanitized: !validacao.ok,
+        });
+    } catch (e) {
+        console.error('[IA Simulate]', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 export default router;
