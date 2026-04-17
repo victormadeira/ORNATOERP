@@ -320,6 +320,26 @@ router.get('/badge-count', requireExtToken, (req, res) => {
 // GET /api/ext/ping — health check
 router.get('/ping', (req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
+// GET /api/ext/brand — cores + logo + nome da empresa (público; não expõe dados sensíveis)
+router.get('/brand', (req, res) => {
+    try {
+        const c = db.prepare(`
+            SELECT nome, logo_sistema, logo_header_path,
+                   sistema_cor_primaria, proposta_cor_primaria, proposta_cor_accent
+            FROM empresa_config WHERE id = 1
+        `).get() || {};
+        res.json({
+            nome: c.nome || 'Ornato ERP',
+            logo: c.logo_sistema || c.logo_header_path || '',
+            primary: c.sistema_cor_primaria || '#1379F0',
+            accent: c.proposta_cor_accent || '#C9A96E',
+            proposta_primary: c.proposta_cor_primaria || '#1B2A4A',
+        });
+    } catch {
+        res.json({ nome: 'Ornato ERP', logo: '', primary: '#1379F0', accent: '#C9A96E', proposta_primary: '#1B2A4A' });
+    }
+});
+
 // ═══════════════════════════════════════════════════════
 // POST /api/ext/login — login direto via extensão
 // body: { email, senha, device_name }

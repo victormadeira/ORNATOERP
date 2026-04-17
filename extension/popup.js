@@ -36,9 +36,72 @@ function initials(name) {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+function aplicarBrand(b) {
+    if (!b) return;
+    const root = document.documentElement;
+    if (b.primary) {
+        root.style.setProperty('--primary', b.primary);
+        // hover = 20% mais escuro
+        const dark = ajustarCor(b.primary, -20);
+        root.style.setProperty('--primary-hover', dark);
+        // topbar gradient
+        const topbar = document.querySelector('.topbar');
+        if (topbar) topbar.style.background = `linear-gradient(135deg, ${b.primary}, ${dark})`;
+        // avatar do login/logged
+        document.querySelectorAll('.avatar, .logo').forEach(el => {
+            if (el.classList.contains('avatar')) el.style.background = `linear-gradient(135deg, ${b.primary}, ${b.accent || '#C9A96E'})`;
+        });
+    }
+    if (b.accent) {
+        root.style.setProperty('--accent', b.accent);
+        document.querySelectorAll('.badge-role').forEach(el => el.style.background = b.accent);
+    }
+    // Logo na topbar
+    const logoEl = document.querySelector('.topbar .logo');
+    if (logoEl && b.logo) {
+        logoEl.innerHTML = `<img src="${escapeAttr(b.logo)}" alt="" style="width:100%;height:100%;object-fit:contain;border-radius:8px;filter:brightness(0) invert(1)" />`;
+    }
+    // Nome
+    const brandT1 = document.querySelector('.brand .t1');
+    if (brandT1 && b.nome) brandT1.textContent = b.nome;
+}
+
+function ajustarCor(hex, delta) {
+    const m = String(hex).replace('#', '').match(/^([a-f0-9]{6}|[a-f0-9]{3})$/i);
+    if (!m) return hex;
+    let h = m[1];
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const clamp = (v) => Math.max(0, Math.min(255, v));
+    const r = clamp(parseInt(h.slice(0,2), 16) + delta);
+    const g = clamp(parseInt(h.slice(2,4), 16) + delta);
+    const b = clamp(parseInt(h.slice(4,6), 16) + delta);
+    return '#' + [r,g,b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+function escapeAttr(s) { return String(s||'').replace(/"/g, '&quot;'); }
+
+async function carregarBrand(baseUrl) {
+    if (!baseUrl) return;
+    try {
+        const r = await fetch(baseUrl + '/api/ext/brand', { cache: 'no-cache' });
+        if (!r.ok) return;
+        const b = await r.json();
+        if (b.logo && !/^https?:\/\//i.test(b.logo)) {
+            b.logo = baseUrl + (b.logo.startsWith('/') ? '' : '/') + b.logo;
+        }
+        await chrome.storage.local.set({ brand: b });
+        aplicarBrand(b);
+    } catch {}
+}
+
 async function load() {
-    const { baseUrl = '', token = '', user = null, device = '' } = await chrome.storage.local.get(['baseUrl', 'token', 'user', 'device']);
+    const { baseUrl = '', token = '', user = null, device = '', brand = null } = await chrome.storage.local.get(['baseUrl', 'token', 'user', 'device', 'brand']);
     baseUrlEl.value = baseUrl || 'https://gestaoornato.com';
+
+    // Aplica branding cacheado imediatamente (sem flash)
+    if (brand) aplicarBrand(brand);
+    // E atualiza do servidor
+    carregarBrand(baseUrl || 'https://gestaoornato.com');
 
     if (token && user) {
         await showLogged(user, device);
@@ -116,6 +179,8 @@ btnLogin.addEventListener('click', async () => {
             device: data.device,
         });
         chrome.runtime.sendMessage({ type: 'updateBadge' });
+        // Atualiza branding imediatamente após login
+        carregarBrand(baseUrl);
         setStatus(loginStatus, '✓ Conectado como ' + data.user.nome, 'ok');
         setTimeout(() => showLogged(data.user, data.device), 400);
     } catch (e) {

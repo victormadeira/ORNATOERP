@@ -76,7 +76,7 @@
     const dotEl = sidebar.querySelector('#orn-dot');
     const userTagEl = sidebar.querySelector('#orn-user-tag');
     const resizer = sidebar.querySelector('.ornato-resizer');
-    const fabBadge = fab.querySelector('#orn-fab-badge');
+    const getFabBadge = () => fab.querySelector('#orn-fab-badge');
 
     // ═══════════════════════════════════════════════════════
     // State
@@ -90,7 +90,7 @@
 
     // ─── Carrega estado salvo ───
     (async () => {
-        const s = await storage.get(['sidebarOpen', 'sidebarWidth', 'lastTab', 'baseUrl', 'user']);
+        const s = await storage.get(['sidebarOpen', 'sidebarWidth', 'lastTab', 'baseUrl', 'user', 'brand']);
         baseUrl = (s.baseUrl || '').replace(/\/+$/, '');
         currentUser = s.user || null;
         if (currentUser) userTagEl.textContent = '· ' + (currentUser.nome || currentUser.email || '');
@@ -101,8 +101,86 @@
             currentTab = s.lastTab;
             tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === currentTab));
         }
+        // Aplica branding cacheado imediatamente pra evitar flash
+        if (s.brand) aplicarBrand(s.brand);
         if (s.sidebarOpen) openSidebar(false);
+
+        // Atualiza branding do servidor (cache-bust)
+        atualizarBrand();
     })();
+
+    // ═══════════════════════════════════════════════════════
+    // BRANDING DINÂMICO — cores + logo do ERP
+    // ═══════════════════════════════════════════════════════
+    function aplicarBrand(b) {
+        if (!b) return;
+        const root = sidebar;
+        if (b.primary) {
+            root.style.setProperty('--orn-primary', b.primary);
+            root.style.setProperty('--orn-primary-hover', ajustarCor(b.primary, -20));
+        }
+        if (b.accent) {
+            root.style.setProperty('--orn-accent', b.accent);
+            root.style.setProperty('--orn-accent-dark', ajustarCor(b.accent, -20));
+        }
+        // FAB também
+        if (b.primary) {
+            fab.style.background = `linear-gradient(135deg, ${b.primary}, ${ajustarCor(b.primary, -20)})`;
+            fab.style.boxShadow = `0 8px 24px ${b.primary}59, 0 2px 6px rgba(0,0,0,0.12)`;
+        }
+        // Logo
+        const logoEl = sidebar.querySelector('.ornato-logo');
+        const fabInner = fab;
+        if (b.logo && logoEl) {
+            logoEl.innerHTML = `<img src="${escapeAttr(b.logo)}" alt="${escapeAttr(b.nome || '')}" style="width:100%;height:100%;object-fit:contain;border-radius:8px" />`;
+            // FAB também usa o logo (branco sobre o fundo azul/primary)
+            fab.innerHTML = `<img src="${escapeAttr(b.logo)}" alt="" style="width:32px;height:32px;object-fit:contain;filter:brightness(0) invert(1)" /><span class="orn-fab-badge hide" id="orn-fab-badge">0</span>`;
+            // re-referencia o badge
+            window.__orn_fabBadge = fab.querySelector('#orn-fab-badge');
+        } else if (logoEl) {
+            // fallback: iniciais do nome
+            const init = avatarInitials(b.nome || 'OR');
+            logoEl.textContent = init.slice(0, 2);
+        }
+        // Nome
+        const t1 = sidebar.querySelector('.ornato-title .t1');
+        if (t1 && b.nome) {
+            // preserva o span do user-tag
+            const tag = sidebar.querySelector('#orn-user-tag');
+            t1.textContent = b.nome + ' ';
+            if (tag) t1.appendChild(tag);
+        }
+    }
+
+    async function atualizarBrand() {
+        if (!baseUrl) return;
+        try {
+            const r = await fetch(baseUrl + '/api/ext/brand', { cache: 'no-cache' });
+            if (!r.ok) return;
+            const brand = await r.json();
+            // URL absoluta do logo (aceita caminho relativo ou absoluto)
+            if (brand.logo && !/^https?:\/\//i.test(brand.logo)) {
+                brand.logo = baseUrl + (brand.logo.startsWith('/') ? '' : '/') + brand.logo;
+            }
+            await storage.set({ brand });
+            aplicarBrand(brand);
+        } catch {}
+    }
+
+    // Ajusta brilho de cor HEX (+/- pontos, -100..100)
+    function ajustarCor(hex, delta) {
+        const m = String(hex).replace('#', '').match(/^([a-f0-9]{6}|[a-f0-9]{3})$/i);
+        if (!m) return hex;
+        let h = m[1];
+        if (h.length === 3) h = h.split('').map(c => c + c).join('');
+        const clamp = (v) => Math.max(0, Math.min(255, v));
+        const r = clamp(parseInt(h.slice(0,2), 16) + delta);
+        const g = clamp(parseInt(h.slice(2,4), 16) + delta);
+        const b = clamp(parseInt(h.slice(4,6), 16) + delta);
+        return '#' + [r,g,b].map(v => v.toString(16).padStart(2, '0')).join('');
+    }
+
+    function escapeAttr(s) { return String(s||'').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
     function openSidebar(save = true) {
         sidebar.classList.remove('ornato-collapsed');
@@ -289,23 +367,52 @@
         const header = mainHeader();
         if (!header) return null;
         // Se drawer já está aberto, só extrai
-        if (drawerPanel()) return extrairTelefoneAtivo();
-
-        // Clica no header (área do nome) para abrir drawer
-        const clickable = header.querySelector('[role="button"]')
-            || header.querySelector('div[title]')
-            || header;
-        try { clickable.click(); } catch { return null; }
-
-        // Aguarda drawer abrir (até 2s)
-        for (let i = 0; i < 20; i++) {
-            await new Promise(r => setTimeout(r, 100));
-            if (drawerPanel()) break;
+        if (drawerPanel()) {
+            const t = extrairTelefoneAtivo();
+            if (t) return t;
         }
-        await new Promise(r => setTimeout(r, 200));
+
+        // Estratégias de clique (ordem de preferência):
+        // 1) Clique direto no nome (span[title] principal)
+        // 2) Botão "Dados do contato" no header
+        // 3) Próprio header
+        const clickTargets = [
+            header.querySelector('span[title]'),
+            header.querySelector('div[role="button"][title]'),
+            header.querySelector('[aria-label*="fil" i]'), // "Perfil"
+            header.querySelector('[aria-label*="prof" i]'),
+            header.querySelector('[data-testid="conversation-info-header"]'),
+            header.querySelector('[role="button"]'),
+            header,
+        ].filter(Boolean);
+
+        let opened = false;
+        for (const target of clickTargets) {
+            try {
+                // dispara mouse events realistas
+                const rect = target.getBoundingClientRect();
+                const x = rect.left + rect.width / 2;
+                const y = rect.top + rect.height / 2;
+                ['mousedown', 'mouseup', 'click'].forEach(type => {
+                    target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y }));
+                });
+            } catch {}
+            // Aguarda drawer abrir (até 1.5s)
+            for (let i = 0; i < 15; i++) {
+                await new Promise(r => setTimeout(r, 100));
+                if (drawerPanel()) { opened = true; break; }
+            }
+            if (opened) break;
+        }
+
+        if (!opened) return null;
+        await new Promise(r => setTimeout(r, 300)); // deixa renderizar completo
         const tel = extrairTelefoneAtivo();
-        // Fecha drawer clicando no botão X
-        const closeBtn = drawerPanel()?.querySelector('button[aria-label*="Fechar" i], button[aria-label*="Close" i], div[role="button"][aria-label*="Fechar" i]');
+        // Fecha drawer com botão X
+        const panel = drawerPanel();
+        const closeBtn = panel?.querySelector('button[aria-label*="Fechar" i], button[aria-label*="Close" i], div[role="button"][aria-label*="Fechar" i], [data-testid="x"]')
+            || panel?.querySelector('header button')
+            || panel?.querySelector('[role="button"]');
         try { closeBtn?.click(); } catch {}
         return tel;
     }
@@ -360,8 +467,11 @@
             const r = await api('GET', '/api/ext/badge-count');
             if (r.ok && r.data) {
                 const n = Number(r.data.count || 0);
-                if (n > 0) { fabBadge.textContent = n; fabBadge.classList.remove('hide'); }
-                else fabBadge.classList.add('hide');
+                const badge = getFabBadge();
+                if (badge) {
+                    if (n > 0) { badge.textContent = n; badge.classList.remove('hide'); }
+                    else badge.classList.add('hide');
+                }
             }
         } catch {}
     }
@@ -917,12 +1027,16 @@
             userTagEl.textContent = currentUser ? ('· ' + (currentUser.nome || currentUser.email || '')) : '';
         }
         if (changes.token) {
-            // Token mudou — recarrega dados se conversa aberta
             if (currentPhone) carregar(currentPhone);
             else updateFabBadge();
+            atualizarBrand();
         }
         if (changes.baseUrl) {
             baseUrl = (changes.baseUrl.newValue || '').replace(/\/+$/, '');
+            atualizarBrand();
+        }
+        if (changes.brand) {
+            aplicarBrand(changes.brand.newValue);
         }
     });
 })();

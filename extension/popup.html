@@ -89,13 +89,13 @@
             font-family: inherit;
             cursor: pointer;
             margin-top: 14px;
-            transition: background 0.15s, transform 0.1s;
+            transition: background 0.15s, transform 0.1s, filter 0.15s;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
         }
-        .btn:hover { background: var(--primary-hover); }
+        .btn:hover { background: var(--primary-hover); filter: brightness(1.05); }
         .btn:active { transform: scale(0.98); }
         .btn:disabled { opacity: 0.6; cursor: wait; }
         .btn.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
