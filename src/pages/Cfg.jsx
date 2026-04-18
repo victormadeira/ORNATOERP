@@ -161,6 +161,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         wa_instance_url: '', wa_instance_name: '', wa_api_key: '', wa_webhook_token: '', wa_owner_phone: '',
         ia_provider: 'anthropic', ia_api_key: '', ia_model: 'claude-sonnet-4',
         ia_system_prompt: '', ia_temperatura: 0.7, ia_ativa: 0, ia_blocked_phones: '',
+        ia_sugestoes_ativa: 1,
         upmobb_ativo: 0,
         etapas_template_json: '[]',
         landing_ativo: 1,
@@ -290,6 +291,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 ia_temperatura: d.ia_temperatura ?? 0.7,
                 ia_ativa: d.ia_ativa ?? 0,
                 ia_blocked_phones: d.ia_blocked_phones || '',
+                ia_sugestoes_ativa: d.ia_sugestoes_ativa ?? 1,
                 upmobb_ativo: d.upmobb_ativo ?? 0,
                 etapas_template_json: d.etapas_template_json || '[]',
                 landing_ativo: d.landing_ativo ?? 1,
@@ -472,6 +474,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 ia_temperatura: emp.ia_temperatura,
                 ia_ativa: emp.ia_ativa,
                 ia_blocked_phones: emp.ia_blocked_phones,
+                ia_sugestoes_ativa: emp.ia_sugestoes_ativa,
                 upmobb_ativo: emp.upmobb_ativo,
                 etapas_template_json: emp.etapas_template_json,
                 landing_ativo: emp.landing_ativo,
@@ -2141,6 +2144,41 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                             {iaTestResult.ok ? <CheckCircle2 size={14} /> : <XCircle size={14} />} {iaTestResult.msg}
                                         </span>
                                     )}
+                                </div>
+
+                                {/* Sugestões da IA — toggle do botão "Sugerir" em Mensagens */}
+                                <div
+                                    className="flex items-center justify-between gap-3 p-3 rounded-lg"
+                                    style={{
+                                        background: 'var(--bg-muted)',
+                                        border: '1px solid var(--border)',
+                                    }}
+                                >
+                                    <div style={{ flex: 1 }}>
+                                        <div className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+                                            Sugestões da IA na tela de Mensagens
+                                        </div>
+                                        <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                                            Habilita o botão <strong>Sugerir</strong> ao lado do campo de mensagem (a IA analisa o histórico e propõe uma resposta pro atendente humano).
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setEmp({ ...emp, ia_sugestoes_ativa: emp.ia_sugestoes_ativa ? 0 : 1 })}
+                                        disabled={!isGerente}
+                                        className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer"
+                                        style={{
+                                            background: emp.ia_sugestoes_ativa ? 'var(--success-bg)' : 'var(--bg-card)',
+                                            color: emp.ia_sugestoes_ativa ? 'var(--success)' : 'var(--text-muted)',
+                                            border: `1px solid ${emp.ia_sugestoes_ativa ? 'var(--success-border)' : 'var(--border)'}`,
+                                        }}
+                                    >
+                                        <div style={{
+                                            width: 8, height: 8, borderRadius: '50%',
+                                            background: emp.ia_sugestoes_ativa ? 'var(--success)' : 'var(--text-muted)',
+                                            transition: 'background 0.2s',
+                                        }} />
+                                        {emp.ia_sugestoes_ativa ? 'Ativado' : 'Desativado'}
+                                    </button>
                                 </div>
                             </div>
 

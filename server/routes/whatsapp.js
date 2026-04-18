@@ -42,7 +42,7 @@ router.get('/status', requireAuth, async (req, res) => {
 // ═══════════════════════════════════════════════════════
 router.get('/diagnostico', requireAuth, async (req, res) => {
     const emp = db.prepare(
-        'SELECT ia_ativa, ia_api_key, ia_model, wa_instance_url, wa_instance_name, wa_api_key, escalacao_ativa FROM empresa_config WHERE id = 1'
+        'SELECT ia_ativa, ia_api_key, ia_model, wa_instance_url, wa_instance_name, wa_api_key, escalacao_ativa, ia_sugestoes_ativa FROM empresa_config WHERE id = 1'
     ).get() || {};
 
     // 1) IA globalmente ativa?
@@ -98,6 +98,7 @@ router.get('/diagnostico', requireAuth, async (req, res) => {
         evolution_connected,
         evolution_state,       // 'open' | 'close' | 'connecting' | 'nao_configurado' | ...
         escalacao_ativa: emp.escalacao_ativa !== 0,
+        sugestoes_ativa: emp.ia_sugestoes_ativa !== 0,  // botão Sugerir em Mensagens
         conversas_bloqueadas,  // quantas conversas com IA pausada
         ultima_resposta_ia_em: ultima_resposta,  // ISO string ou null
         leads_24h,

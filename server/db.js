@@ -2128,6 +2128,9 @@ const migrations = [
   "ALTER TABLE empresa_config ADD COLUMN escalacao_ativa INTEGER DEFAULT 1",
   "ALTER TABLE empresa_config ADD COLUMN escalacao_config_json TEXT DEFAULT '{}'",
 
+  // ═══ Sugestões da IA (botão Sugerir em Mensagens) ═══
+  "ALTER TABLE empresa_config ADD COLUMN ia_sugestoes_ativa INTEGER DEFAULT 1",
+
   // ═══ Extensão Chrome — tokens pessoais ═══
   `CREATE TABLE IF NOT EXISTS ext_tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

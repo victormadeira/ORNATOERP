@@ -851,8 +851,31 @@ export default function Mensagens({ notify }) {
                                 })()}
 
                                 <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                         {activeConvData?.cliente_nome || activeConvData?.wa_name || activeConvData?.wa_phone}
+                                        {/* Status da IA (Sofia) — também aparece aqui dentro da conversa */}
+                                        {diag && (() => {
+                                            const s = diag.status_geral;
+                                            const cor = s === 'online' ? 'var(--success)' : s === 'parcial' ? 'var(--warning)' : 'var(--danger)';
+                                            const corBg = s === 'online' ? 'var(--success-bg)' : s === 'parcial' ? 'var(--warning-bg)' : 'var(--danger-bg)';
+                                            const corBr = s === 'online' ? 'var(--success-border)' : s === 'parcial' ? 'var(--warning-border)' : 'var(--danger-border)';
+                                            const label = s === 'online' ? 'IA: Online' : s === 'parcial' ? 'IA: Parcial' : 'IA: Offline';
+                                            return (
+                                                <button
+                                                    onClick={() => setDiagOpen(true)}
+                                                    title="Ver diagnóstico da IA (Sofia)"
+                                                    style={{
+                                                        fontSize: 10, padding: '2px 7px', borderRadius: 6,
+                                                        border: `1px solid ${corBr}`, background: corBg,
+                                                        color: cor, cursor: 'pointer', fontWeight: 700,
+                                                        display: 'flex', alignItems: 'center', gap: 3,
+                                                    }}
+                                                >
+                                                    <Activity size={9} />
+                                                    {label}
+                                                </button>
+                                            );
+                                        })()}
                                     </div>
                                     <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                                         <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Phone size={10} /> {activeConvData?.wa_phone}</span>
@@ -1330,21 +1353,23 @@ export default function Mensagens({ notify }) {
                                         <Lock size={11} /> Nota interna
                                     </button>
 
-                                    {/* Botão Sugerir */}
-                                    <button
-                                        onClick={sugerir}
-                                        disabled={suggesting}
-                                        style={{
-                                            fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: suggesting ? 'wait' : 'pointer',
-                                            background: colorBg('#8b5cf6'), color: '#8b5cf6',
-                                            border: `1px solid ${colorBorder('#8b5cf6')}`, fontWeight: 600,
-                                            marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4,
-                                            opacity: suggesting ? 0.6 : 1,
-                                        }}
-                                    >
-                                        {suggesting ? <RefreshCw size={11} className="animate-spin" /> : <Sparkles size={11} />}
-                                        {suggesting ? 'Gerando...' : 'Sugerir'}
-                                    </button>
+                                    {/* Botão Sugerir — só aparece se ativado em Configurações > IA */}
+                                    {(diag?.sugestoes_ativa !== false) && (
+                                        <button
+                                            onClick={sugerir}
+                                            disabled={suggesting}
+                                            style={{
+                                                fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: suggesting ? 'wait' : 'pointer',
+                                                background: colorBg('#8b5cf6'), color: '#8b5cf6',
+                                                border: `1px solid ${colorBorder('#8b5cf6')}`, fontWeight: 600,
+                                                marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4,
+                                                opacity: suggesting ? 0.6 : 1,
+                                            }}
+                                        >
+                                            {suggesting ? <RefreshCw size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                                            {suggesting ? 'Gerando...' : 'Sugerir'}
+                                        </button>
+                                    )}
                                 </div>
 
                                 {/* Input + Send — pill-style */}
