@@ -10,7 +10,10 @@ import {
     MessageCircle,
     Phone,
     Send,
+    Sparkles,
     Star,
+    PenLine,
+    MousePointerClick,
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -18,17 +21,22 @@ import {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const TIPOS_PROJETO = [
-    'Cozinha Planejada',
-    'Closet / Guarda-roupa',
-    'Home Office',
-    'Sala de Estar',
-    'Banheiro / Lavabo',
-    'Quarto',
-    'Área Gourmet',
-    'Lavanderia',
-    'Loja / Comercial',
-    'Projeto Completo',
-    'Outro',
+    { v: 'Cozinha Planejada', emoji: '🍳' },
+    { v: 'Closet / Guarda-roupa', emoji: '👔' },
+    { v: 'Home Office', emoji: '💻' },
+    { v: 'Sala de Estar', emoji: '🛋️' },
+    { v: 'Banheiro / Lavabo', emoji: '🛁' },
+    { v: 'Quarto', emoji: '🛏️' },
+    { v: 'Área Gourmet', emoji: '🍷' },
+    { v: 'Lavanderia', emoji: '🧺' },
+    { v: 'Loja / Comercial', emoji: '🏪' },
+    { v: 'Projeto Completo', emoji: '🏠' },
+];
+
+const JORNADA_PASSOS = [
+    { icon: MousePointerClick, titulo: 'Escolha os ambientes', descricao: 'Marque os espaços que você quer planejar — cozinha, closet, home office…' },
+    { icon: PenLine, titulo: 'Conte sua ideia', descricao: 'Descreva medidas, estilo, materiais e referências. Quanto mais detalhe, mais preciso o orçamento.' },
+    { icon: MessageCircle, titulo: 'Fale direto no WhatsApp', descricao: 'Sua mensagem já chega pronta na nossa equipe. Respondemos rapidinho e agendamos a visita.' },
 ];
 
 const FAQ_DEFAULT = [
@@ -101,7 +109,7 @@ function useCountUp(end, duration, trigger) {
 export default function LandingPage() {
     const [config, setConfig] = useState(null);
     const [portfolio, setPortfolio] = useState([]);
-    const [form, setForm] = useState({ nome: '', telefone: '', tipo_projeto: '', mensagem: '' });
+    const [form, setForm] = useState({ nome: '', telefone: '', tipo_projeto: '', mensagem: '', itens: [] });
     const [stats, setStats] = useState(null);
     const [enviando, setEnviando] = useState(false);
     const [enviado, setEnviado] = useState(false);
@@ -264,6 +272,48 @@ export default function LandingPage() {
         if (nums.length <= 2) return `(${nums}`;
         if (nums.length <= 7) return `(${nums.slice(0, 2)}) ${nums.slice(2)}`;
         return `(${nums.slice(0, 2)}) ${nums.slice(2, 7)}-${nums.slice(7)}`;
+    };
+
+    const toggleItem = (item) => {
+        setForm(f => ({
+            ...f,
+            itens: f.itens.includes(item) ? f.itens.filter(x => x !== item) : [...f.itens, item],
+            tipo_projeto: f.itens.includes(item)
+                ? f.itens.filter(x => x !== item).join(', ')
+                : [...f.itens, item].join(', '),
+        }));
+    };
+
+    // Monta mensagem pro WhatsApp com os itens marcados + detalhes do form
+    const buildWaMsg = () => {
+        const nome = form.nome.trim();
+        const itens = form.itens.length ? form.itens.join(', ') : '';
+        const detalhes = form.mensagem.trim();
+
+        const partes = [`Olá, ${empNome}! 👋`];
+        if (nome) partes.push(`Meu nome é *${nome}*.`);
+        partes.push('Gostaria de um orçamento de marcenaria sob medida.');
+        if (itens) partes.push(`\n📋 *Ambientes de interesse:*\n${itens}`);
+        if (detalhes) partes.push(`\n✏️ *Detalhes do projeto:*\n${detalhes}`);
+        partes.push('\nPodem me ajudar? 🙂');
+
+        return partes.join('\n');
+    };
+
+    const waHrefPersonalizado = waNum
+        ? `https://wa.me/${waNum}?text=${encodeURIComponent(buildWaMsg())}`
+        : '';
+
+    // Abre WhatsApp com mensagem pronta + dispara captura em paralelo (best-effort)
+    const enviarPorWhatsApp = () => {
+        if (!form.nome.trim()) { setErro('Preencha seu nome antes de enviar pro WhatsApp.'); return; }
+        if (!waHrefPersonalizado) { setErro('WhatsApp indisponível no momento.'); return; }
+        // dispara captura em background (não bloqueia)
+        fetch('/api/landing/captura', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...form, faixa_investimento: '', possui_projeto: '', email: '', origem: 'whatsapp_direto', ...utm }),
+        }).catch(() => {});
+        window.open(waHrefPersonalizado, '_blank', 'noopener,noreferrer');
     };
 
     const enviar = async (e) => {
@@ -518,15 +568,60 @@ export default function LandingPage() {
                 </section>
             )}
 
+            {/* ═══ JORNADA EM 3 PASSOS — Guia o cliente até o orçamento ═══ */}
+            <section className="lp-jornada-sec">
+                <div className="lp-jornada-bg" />
+                <div className="lp-container" style={{ position: 'relative', zIndex: 10 }}>
+                    <div className="lp-reveal" style={{ textAlign: 'center', marginBottom: '4rem' }}>
+                        <span className="lp-jornada-eyebrow">Começar é simples</span>
+                        <h2 className="lp-headline" style={{ marginTop: '0.75rem', marginInline: 'auto' }}>
+                            Do clique ao seu <span className="lp-hl">orçamento</span> em 3 passos.
+                        </h2>
+                    </div>
+
+                    <div className="lp-jornada-grid lp-reveal">
+                        {JORNADA_PASSOS.map((passo, idx) => {
+                            const Ico = passo.icon;
+                            return (
+                                <div key={idx} className="lp-jornada-card">
+                                    <div className="lp-jornada-num">{String(idx + 1).padStart(2, '0')}</div>
+                                    <div className="lp-jornada-icon-wrap">
+                                        <Ico size={22} />
+                                    </div>
+                                    <h3 className="lp-jornada-titulo">{passo.titulo}</h3>
+                                    <p className="lp-jornada-desc">{passo.descricao}</p>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <div className="lp-jornada-cta lp-reveal">
+                        <a href="#orcamento" className="lp-btn-copper">
+                            Começar agora <ArrowRight size={16} />
+                        </a>
+                        {waHref && (
+                            <a href={waHref} target="_blank" rel="noreferrer" className="lp-btn-outline">
+                                <MessageCircle size={14} /> Falar direto no WhatsApp
+                            </a>
+                        )}
+                    </div>
+                </div>
+            </section>
+
             {/* ═══ FORMULÁRIO + FAQ — Split layout ═══ */}
             <section className="lp-form-section" id="orcamento">
                 <div className="lp-section-bg">
                     {/* subtle warm radial only */}
                 </div>
                 <div className="lp-container" style={{ position: 'relative', zIndex: 10 }}>
-                    <h2 className="lp-headline lp-reveal" style={{ textAlign: 'center', marginBottom: '4rem', marginInline: 'auto' }}>
-                        Solicite seu <span className="lp-hl">orçamento</span>
-                    </h2>
+                    <div className="lp-reveal" style={{ textAlign: 'center', marginBottom: '3.5rem' }}>
+                        <h2 className="lp-headline" style={{ marginInline: 'auto' }}>
+                            Conte o que você quer, e a gente <span className="lp-hl">resolve.</span>
+                        </h2>
+                        <p className="lp-subheadline" style={{ maxWidth: 620, margin: '1.25rem auto 0', textAlign: 'center' }}>
+                            Marque os ambientes, descreva sua ideia e envie — pelo formulário ou direto no WhatsApp com sua mensagem já formatada pra nossa equipe.
+                        </p>
+                    </div>
 
                     <div className="lp-form-grid">
                         {/* Form */}
@@ -541,22 +636,78 @@ export default function LandingPage() {
                                 </div>
                             ) : (
                                 <form onSubmit={enviar} className="lp-form-inner">
-                                    <input className="lp-dark-input" placeholder="Seu nome *" required value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} />
-                                    <input className="lp-dark-input" placeholder="WhatsApp *" required value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: formatTel(e.target.value) }))} />
-                                    <select className="lp-dark-input" value={form.tipo_projeto} onChange={e => setForm(f => ({ ...f, tipo_projeto: e.target.value }))}>
-                                        <option value="">O que você precisa?</option>
-                                        {TIPOS_PROJETO.map((t) => <option key={t} value={t}>{t}</option>)}
-                                    </select>
-                                    <textarea className="lp-dark-input" rows={3} placeholder="Conte um pouco sobre seu projeto (opcional)" value={form.mensagem} onChange={e => setForm(f => ({ ...f, mensagem: e.target.value }))} />
-                                    {erro && <div className="lp-form-erro">{erro}</div>}
-                                    <div className="lp-btn-cta-wrap">
-                                        <button type="submit" className="lp-btn-cta-main" disabled={enviando}>
-                                            {enviando ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={16} />}
-                                            {enviando ? 'Enviando...' : 'Solicitar Orçamento'}
-                                        </button>
+                                    <div className="lp-form-row-2">
+                                        <input className="lp-dark-input" placeholder="Seu nome *" required value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} />
+                                        <input className="lp-dark-input" placeholder="WhatsApp *" required value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: formatTel(e.target.value) }))} />
                                     </div>
+
+                                    {/* ── Chips de ambientes (multi-seleção) ── */}
+                                    <div className="lp-chips-group">
+                                        <label className="lp-chips-label">
+                                            <Sparkles size={13} /> Quais ambientes você quer planejar?
+                                            {form.itens.length > 0 && <span className="lp-chips-count">{form.itens.length} selecionado{form.itens.length > 1 ? 's' : ''}</span>}
+                                        </label>
+                                        <div className="lp-chips-wrap">
+                                            {TIPOS_PROJETO.map((t) => {
+                                                const selected = form.itens.includes(t.v);
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        key={t.v}
+                                                        onClick={() => toggleItem(t.v)}
+                                                        className={`lp-chip${selected ? ' selected' : ''}`}
+                                                    >
+                                                        <span className="lp-chip-emoji">{t.emoji}</span>
+                                                        <span>{t.v}</span>
+                                                        {selected && <CheckCircle2 size={13} className="lp-chip-check" />}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="lp-chips-label" style={{ marginBottom: 8 }}>
+                                            <PenLine size={13} /> Conte sua ideia (medidas, materiais, estilo…)
+                                        </label>
+                                        <textarea
+                                            className="lp-dark-input"
+                                            rows={4}
+                                            placeholder="Ex: Cozinha em L com ilha, aprox. 4x3m. Gosto de madeira clara + preto fosco. Preciso incluir torre de forno e adega."
+                                            value={form.mensagem}
+                                            onChange={e => setForm(f => ({ ...f, mensagem: e.target.value }))}
+                                        />
+                                    </div>
+
+                                    {erro && <div className="lp-form-erro">{erro}</div>}
+
+                                    {/* ── Ações duplas: formulário + WhatsApp direto ── */}
+                                    <div className="lp-form-actions">
+                                        <div className="lp-btn-cta-wrap">
+                                            <button type="submit" className="lp-btn-cta-main" disabled={enviando}>
+                                                {enviando ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={16} />}
+                                                {enviando ? 'Enviando...' : 'Solicitar Orçamento'}
+                                            </button>
+                                        </div>
+
+                                        {waNum && (
+                                            <>
+                                                <div className="lp-or-divider"><span>ou</span></div>
+                                                <button
+                                                    type="button"
+                                                    onClick={enviarPorWhatsApp}
+                                                    className="lp-btn-wa-direct"
+                                                    title="Abre o WhatsApp com sua mensagem pronta"
+                                                >
+                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M5.337 21.672L.4 24l2.433-5.15A11.934 11.934 0 0 1 .001 12C.001 5.374 5.374 0 12 0s12 5.373 12 12c0 6.628-5.373 12-12 12a11.96 11.96 0 0 1-6.663-2.328z"/></svg>
+                                                    Enviar pelo WhatsApp
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+
                                     <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textAlign: 'center', marginTop: 4 }}>
-                                        Ao enviar, você autoriza contato da equipe {empNome}.
+                                        Sua mensagem já chega formatada na nossa equipe. Ao enviar, você autoriza contato da {empNome}.
                                     </p>
                                 </form>
                             )}
@@ -825,19 +976,94 @@ function buildCSS(acc) {
 .lp-author-name { font-weight:700; color:#fff; font-size:0.95rem; }
 .lp-author-role { font-size:0.75rem; color:${acc}; text-transform:uppercase; letter-spacing:0.1em; }
 
+/* ── JORNADA EM 3 PASSOS ── */
+.lp-jornada-sec { position:relative; padding:9rem 0; background:#060504; overflow:hidden; }
+.lp-jornada-bg { position:absolute; inset:0; z-index:0; pointer-events:none;
+  background:
+    radial-gradient(ellipse 50% 40% at 20% 20%, ${acc}10 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 80%, ${acc}08 0%, transparent 60%);
+  filter:blur(60px);
+}
+.lp-jornada-eyebrow { display:inline-flex; align-items:center; gap:0.5rem; padding:0.4rem 1rem; border:1px solid ${acc}40; border-radius:9999px; font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.15em; color:${acc}; background:${acc}10; }
+.lp-jornada-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:2rem; margin-top:3rem; position:relative; }
+.lp-jornada-grid::before {
+  content:""; position:absolute; top:55px; left:16.5%; right:16.5%; height:2px;
+  background:linear-gradient(to right, transparent, ${acc}50 20%, ${acc}50 80%, transparent);
+  z-index:0; pointer-events:none;
+}
+.lp-jornada-card {
+  position:relative; z-index:1;
+  background:rgba(255,255,255,0.03); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border:1px solid rgba(255,255,255,0.08); border-radius:1.8rem; padding:2.5rem 2rem 2rem;
+  transition:all 0.4s cubic-bezier(0.16,1,0.3,1);
+  display:flex; flex-direction:column; align-items:flex-start;
+}
+.lp-jornada-card:hover { border-color:${acc}; background:rgba(255,255,255,0.05); transform:translateY(-8px); box-shadow:0 20px 50px rgba(0,0,0,0.4), 0 0 30px ${acc}20; }
+.lp-jornada-num { position:absolute; top:1.25rem; right:1.5rem; font-family:'Oswald',sans-serif; font-size:2.6rem; font-weight:200; color:${acc}; opacity:0.25; line-height:1; letter-spacing:-0.05em; }
+.lp-jornada-icon-wrap { width:54px; height:54px; border-radius:1rem; background:${acc}15; border:1px solid ${acc}30; display:grid; place-items:center; color:${acc}; margin-bottom:1.5rem; transition:all 0.35s ease; }
+.lp-jornada-card:hover .lp-jornada-icon-wrap { background:${acc}; color:#0a0806; border-color:${acc}; transform:scale(1.08) rotate(-4deg); box-shadow:0 0 25px ${acc}50; }
+.lp-jornada-titulo { font-family:'Oswald',sans-serif; font-size:1.4rem; font-weight:400; letter-spacing:-0.01em; color:#fff; margin-bottom:0.6rem; }
+.lp-jornada-desc { font-size:0.92rem; color:rgba(255,255,255,0.55); line-height:1.65; font-weight:300; }
+.lp-jornada-cta { display:flex; gap:1.5rem; justify-content:center; align-items:center; margin-top:4rem; flex-wrap:wrap; }
+
 /* ── FORM SECTION ── */
 .lp-form-section { position:relative; padding:8rem 0; background:#080604; overflow:hidden; }
 .lp-form-section::before { content:""; position:absolute; inset:0; background:radial-gradient(ellipse 50% 60% at 30% 50%, ${acc}08 0%, transparent 50%), radial-gradient(ellipse 40% 50% at 80% 80%, rgba(60,40,20,0.06) 0%, transparent 50%); pointer-events:none; z-index:0; }
 .lp-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:3rem; align-items:start; }
 
 .lp-form-card-glass { background:rgba(255,255,255,0.03); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,0.08); border-radius:2rem; padding:2.5rem; }
-.lp-form-inner { display:grid; gap:14px; }
+.lp-form-inner { display:grid; gap:18px; }
+.lp-form-row-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .lp-dark-input { width:100%; border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:14px 16px; font-size:15px; outline:none; font-family:inherit; background:rgba(255,255,255,0.05); color:#fff; transition:border-color 0.2s, box-shadow 0.2s; }
 .lp-dark-input:focus { border-color:${acc}; box-shadow:0 0 0 3px ${acc}18; }
 .lp-dark-input::placeholder { color:rgba(255,255,255,0.35); }
 .lp-dark-input option { background:#111; color:#fff; }
 .lp-btn-submit-full { width:100%; }
 .lp-form-erro { font-size:13px; color:#FCA5A5; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); border-radius:10px; padding:10px 12px; }
+
+/* ── CHIPS DE AMBIENTES (multi-select) ── */
+.lp-chips-group { display:flex; flex-direction:column; gap:10px; }
+.lp-chips-label { display:flex; align-items:center; gap:6px; font-size:0.82rem; color:rgba(255,255,255,0.7); font-weight:500; letter-spacing:0.02em; }
+.lp-chips-count { margin-left:auto; font-size:0.7rem; font-weight:700; color:${acc}; background:${acc}15; border:1px solid ${acc}30; border-radius:9999px; padding:2px 10px; letter-spacing:0.05em; text-transform:uppercase; }
+.lp-chips-wrap { display:flex; flex-wrap:wrap; gap:8px; }
+.lp-chip {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:8px 14px 8px 12px; border-radius:9999px;
+  background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.12);
+  color:rgba(255,255,255,0.75); font-size:0.82rem; font-weight:500;
+  cursor:pointer; font-family:inherit; white-space:nowrap;
+  transition:all 0.25s cubic-bezier(0.16,1,0.3,1);
+}
+.lp-chip:hover { border-color:${acc}70; color:#fff; background:rgba(255,255,255,0.07); transform:translateY(-1px); }
+.lp-chip.selected { background:linear-gradient(135deg, ${acc}25, ${acc}15); border-color:${acc}; color:#fff; box-shadow:0 4px 15px ${acc}30, inset 0 0 0 1px ${acc}40; }
+.lp-chip.selected .lp-chip-check { color:${acc}; }
+.lp-chip-emoji { font-size:1rem; line-height:1; filter:grayscale(0.1); }
+
+/* ── Ações duplas: formulário + WhatsApp direto ── */
+.lp-form-actions { display:flex; flex-direction:column; gap:12px; }
+.lp-or-divider { display:flex; align-items:center; gap:10px; color:rgba(255,255,255,0.3); font-size:0.7rem; font-weight:600; text-transform:uppercase; letter-spacing:0.15em; }
+.lp-or-divider::before, .lp-or-divider::after { content:""; flex:1; height:1px; background:linear-gradient(to right, transparent, rgba(255,255,255,0.15), transparent); }
+.lp-or-divider span { padding:0 4px; }
+
+.lp-btn-wa-direct {
+  display:inline-flex; align-items:center; justify-content:center; gap:10px;
+  width:100%; height:54px; padding:0 2rem;
+  background:linear-gradient(135deg, #25D366, #128C7E);
+  color:#fff; border:none; border-radius:9999px;
+  font-family:inherit; font-size:0.9rem; font-weight:700;
+  text-transform:uppercase; letter-spacing:0.08em;
+  cursor:pointer; transition:all 0.3s cubic-bezier(0.16,1,0.3,1);
+  box-shadow:0 4px 20px rgba(37,211,102,0.3);
+  position:relative; overflow:hidden;
+}
+.lp-btn-wa-direct::before {
+  content:""; position:absolute; top:0; left:-100%; width:100%; height:100%;
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition:left 0.6s ease;
+}
+.lp-btn-wa-direct:hover { transform:translateY(-2px) scale(1.02); box-shadow:0 8px 30px rgba(37,211,102,0.5); filter:brightness(1.08); }
+.lp-btn-wa-direct:hover::before { left:100%; }
+.lp-btn-wa-direct:active { transform:translateY(0) scale(0.98); }
 
 /* ── FAQ (Dark) ── */
 .lp-faq-list { display:grid; gap:8px; }
@@ -899,6 +1125,11 @@ function buildCSS(acc) {
 
     .lp-form-grid { grid-template-columns:1fr; }
     .lp-cta-card { padding:4rem 2rem; border-radius:2rem; }
+
+    /* Jornada mobile */
+    .lp-jornada-grid { grid-template-columns:1fr; gap:1.25rem; }
+    .lp-jornada-grid::before { display:none; }
+    .lp-jornada-sec { padding:6rem 0; }
 }
 
 @media (max-width:768px) {
@@ -918,6 +1149,11 @@ function buildCSS(acc) {
     .lp-form-card-glass { padding:1.5rem; }
     .lp-cta-actions { flex-direction:column; }
     .lp-footer-contacts { flex-direction:column; align-items:center; gap:10px; }
+    .lp-form-row-2 { grid-template-columns:1fr; }
+    .lp-chip { font-size:0.78rem; padding:7px 12px 7px 10px; }
+    .lp-jornada-sec { padding:5rem 0; }
+    .lp-jornada-cta { flex-direction:column; gap:1rem; width:100%; }
+    .lp-jornada-cta .lp-btn-copper, .lp-jornada-cta .lp-btn-outline { width:100%; }
 }
 
 @media (max-width:480px) {
