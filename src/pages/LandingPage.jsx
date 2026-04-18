@@ -9,34 +9,36 @@ import {
     MapPin,
     MessageCircle,
     Phone,
-    Send,
     Sparkles,
     Star,
-    PenLine,
-    MousePointerClick,
+    Zap,
+    PenTool,
+    ReceiptText,
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LandingPage — Dark Premium Design (inspired by Vibe Portfolio)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const TIPOS_PROJETO = [
-    { v: 'Cozinha Planejada', emoji: '🍳' },
-    { v: 'Closet / Guarda-roupa', emoji: '👔' },
-    { v: 'Home Office', emoji: '💻' },
-    { v: 'Sala de Estar', emoji: '🛋️' },
-    { v: 'Banheiro / Lavabo', emoji: '🛁' },
-    { v: 'Quarto', emoji: '🛏️' },
-    { v: 'Área Gourmet', emoji: '🍷' },
-    { v: 'Lavanderia', emoji: '🧺' },
-    { v: 'Loja / Comercial', emoji: '🏪' },
-    { v: 'Projeto Completo', emoji: '🏠' },
-];
-
 const JORNADA_PASSOS = [
-    { icon: MousePointerClick, titulo: 'Escolha os ambientes', descricao: 'Marque os espaços que você quer planejar — cozinha, closet, home office…' },
-    { icon: PenLine, titulo: 'Conte sua ideia', descricao: 'Descreva medidas, estilo, materiais e referências. Quanto mais detalhe, mais preciso o orçamento.' },
-    { icon: MessageCircle, titulo: 'Fale direto no WhatsApp', descricao: 'Sua mensagem já chega pronta na nossa equipe. Respondemos rapidinho e agendamos a visita.' },
+    {
+        icon: MessageCircle,
+        eyebrow: '01 · Contato',
+        titulo: 'Comece uma conversa',
+        descricao: 'Mande um oi no WhatsApp ou deixe nome e telefone aqui mesmo. Nossa equipe responde em segundos — sem formulário comprido, sem espera.',
+    },
+    {
+        icon: PenTool,
+        eyebrow: '02 · Projeto',
+        titulo: 'Com ou sem projeto, a gente começa',
+        descricao: 'Já tem projeto do arquiteto ou designer? Perfeito, executamos com fidelidade total. Ainda não tem? Desenvolvemos o projeto 3D junto com você, do briefing ao detalhe final.',
+    },
+    {
+        icon: ReceiptText,
+        eyebrow: '03 · Orçamento',
+        titulo: 'Orçamento claro e no ponto',
+        descricao: 'Com o escopo fechado, enviamos orçamento detalhado e transparente. Aprovou? Entramos em produção com os padrões Ornato — entregando o ambiente completo, instalado e pronto.',
+    },
 ];
 
 const FAQ_DEFAULT = [
@@ -109,7 +111,7 @@ function useCountUp(end, duration, trigger) {
 export default function LandingPage() {
     const [config, setConfig] = useState(null);
     const [portfolio, setPortfolio] = useState([]);
-    const [form, setForm] = useState({ nome: '', telefone: '', tipo_projeto: '', mensagem: '', itens: [] });
+    const [form, setForm] = useState({ nome: '', telefone: '' });
     const [stats, setStats] = useState(null);
     const [enviando, setEnviando] = useState(false);
     const [enviado, setEnviado] = useState(false);
@@ -274,62 +276,39 @@ export default function LandingPage() {
         return `(${nums.slice(0, 2)}) ${nums.slice(2, 7)}-${nums.slice(7)}`;
     };
 
-    const toggleItem = (item) => {
-        setForm(f => ({
-            ...f,
-            itens: f.itens.includes(item) ? f.itens.filter(x => x !== item) : [...f.itens, item],
-            tipo_projeto: f.itens.includes(item)
-                ? f.itens.filter(x => x !== item).join(', ')
-                : [...f.itens, item].join(', '),
-        }));
-    };
-
-    // Monta mensagem pro WhatsApp com os itens marcados + detalhes do form
+    // Mensagem curta pro WhatsApp — a Sofia faz a qualificação
     const buildWaMsg = () => {
         const nome = form.nome.trim();
-        const itens = form.itens.length ? form.itens.join(', ') : '';
-        const detalhes = form.mensagem.trim();
-
-        const partes = [`Olá, ${empNome}! 👋`];
-        if (nome) partes.push(`Meu nome é *${nome}*.`);
-        partes.push('Gostaria de um orçamento de marcenaria sob medida.');
-        if (itens) partes.push(`\n📋 *Ambientes de interesse:*\n${itens}`);
-        if (detalhes) partes.push(`\n✏️ *Detalhes do projeto:*\n${detalhes}`);
-        partes.push('\nPodem me ajudar? 🙂');
-
-        return partes.join('\n');
+        const partes = [`Olá, ${empNome}! Vim pelo site.`];
+        if (nome) partes.push(`Meu nome é *${nome}* e gostaria de um orçamento de marcenaria sob medida.`);
+        else partes.push('Gostaria de um orçamento de marcenaria sob medida.');
+        return partes.join(' ');
     };
 
     const waHrefPersonalizado = waNum
         ? `https://wa.me/${waNum}?text=${encodeURIComponent(buildWaMsg())}`
         : '';
 
-    // Abre WhatsApp com mensagem pronta + dispara captura em paralelo (best-effort)
-    const enviarPorWhatsApp = () => {
-        if (!form.nome.trim()) { setErro('Preencha seu nome antes de enviar pro WhatsApp.'); return; }
-        if (!waHrefPersonalizado) { setErro('WhatsApp indisponível no momento.'); return; }
-        // dispara captura em background (não bloqueia)
-        fetch('/api/landing/captura', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...form, faixa_investimento: '', possui_projeto: '', email: '', origem: 'whatsapp_direto', ...utm }),
-        }).catch(() => {});
-        window.open(waHrefPersonalizado, '_blank', 'noopener,noreferrer');
-    };
-
+    // CTA único: salva o lead + abre o WhatsApp
     const enviar = async (e) => {
         e.preventDefault();
         if (!form.nome.trim() || !form.telefone.trim()) { setErro('Preencha nome e WhatsApp.'); return; }
+        if (!waHrefPersonalizado) { setErro('WhatsApp indisponível no momento.'); return; }
         setEnviando(true); setErro('');
-        try {
-            const resp = await fetch('/api/landing/captura', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...form, faixa_investimento: '', possui_projeto: '', email: '', ...utm }),
-            });
-            const data = await resp.json().catch(() => ({}));
-            if (!resp.ok) throw new Error(data.error || 'Erro ao enviar.');
+        // dispara captura em background (não bloqueia abertura do WA)
+        fetch('/api/landing/captura', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ...form, tipo_projeto: '', mensagem: '', faixa_investimento: '', possui_projeto: '', email: '',
+                origem: 'landing_wa', ...utm,
+            }),
+        }).catch(() => {});
+        // pequeno delay pra sensação de feedback + abre WA
+        setTimeout(() => {
+            window.open(waHrefPersonalizado, '_blank', 'noopener,noreferrer');
             setEnviado(true);
-        } catch (ex) { setErro(ex.message || 'Erro ao enviar. Tente novamente.'); }
-        finally { setEnviando(false); }
+            setEnviando(false);
+        }, 400);
     };
 
     // 3D tilt handler
@@ -568,15 +547,18 @@ export default function LandingPage() {
                 </section>
             )}
 
-            {/* ═══ JORNADA EM 3 PASSOS — Guia o cliente até o orçamento ═══ */}
+            {/* ═══ JORNADA EM 3 PASSOS — Contato → Projeto → Orçamento ═══ */}
             <section className="lp-jornada-sec">
                 <div className="lp-jornada-bg" />
                 <div className="lp-container" style={{ position: 'relative', zIndex: 10 }}>
                     <div className="lp-reveal" style={{ textAlign: 'center', marginBottom: '4rem' }}>
-                        <span className="lp-jornada-eyebrow">Começar é simples</span>
-                        <h2 className="lp-headline" style={{ marginTop: '0.75rem', marginInline: 'auto' }}>
-                            Do clique ao seu <span className="lp-hl">orçamento</span> em 3 passos.
+                        <span className="lp-jornada-eyebrow-tag">Nossa jornada</span>
+                        <h2 className="lp-headline" style={{ marginTop: '0.75rem', marginInline: 'auto', maxWidth: 900 }}>
+                            Três passos simples até <span className="lp-hl">realizar seu ambiente.</span>
                         </h2>
+                        <p className="lp-subheadline" style={{ maxWidth: 560, margin: '1.25rem auto 0', textAlign: 'center' }}>
+                            Do primeiro oi ao projeto instalado, um caminho claro e sem burocracia — a gente cuida do processo, você curte o resultado.
+                        </p>
                     </div>
 
                     <div className="lp-jornada-grid lp-reveal">
@@ -588,6 +570,7 @@ export default function LandingPage() {
                                     <div className="lp-jornada-icon-wrap">
                                         <Ico size={22} />
                                     </div>
+                                    <span className="lp-jornada-step-eyebrow">{passo.eyebrow}</span>
                                     <h3 className="lp-jornada-titulo">{passo.titulo}</h3>
                                     <p className="lp-jornada-desc">{passo.descricao}</p>
                                 </div>
@@ -616,99 +599,80 @@ export default function LandingPage() {
                 <div className="lp-container" style={{ position: 'relative', zIndex: 10 }}>
                     <div className="lp-reveal" style={{ textAlign: 'center', marginBottom: '3.5rem' }}>
                         <h2 className="lp-headline" style={{ marginInline: 'auto' }}>
-                            Conte o que você quer, e a gente <span className="lp-hl">resolve.</span>
+                            Começar é <span className="lp-hl">rápido.</span>
                         </h2>
-                        <p className="lp-subheadline" style={{ maxWidth: 620, margin: '1.25rem auto 0', textAlign: 'center' }}>
-                            Marque os ambientes, descreva sua ideia e envie — pelo formulário ou direto no WhatsApp com sua mensagem já formatada pra nossa equipe.
+                        <p className="lp-subheadline" style={{ maxWidth: 560, margin: '1.25rem auto 0', textAlign: 'center' }}>
+                            Deixe seu contato e caia no WhatsApp em 1 clique. Nossa IA entende o que você quer e já adianta 80% do briefing antes de um humano entrar.
                         </p>
                     </div>
 
                     <div className="lp-form-grid">
-                        {/* Form */}
+                        {/* Form minimalista — nome + WhatsApp, o resto a Sofia pergunta */}
                         <div className="lp-form-card-glass lp-reveal">
                             {enviado ? (
-                                <div style={{ textAlign: 'center', padding: '32px 16px' }}>
-                                    <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'var(--success-bg)', color: 'var(--success)', display: 'grid', placeItems: 'center', margin: '0 auto 14px' }}>
-                                        <CheckCircle2 size={30} />
+                                <div style={{ textAlign: 'center', padding: '24px 8px' }}>
+                                    <div style={{ width: 70, height: 70, borderRadius: '50%', background: 'rgba(37,211,102,0.15)', color: '#25D366', display: 'grid', placeItems: 'center', margin: '0 auto 18px', border: '2px solid rgba(37,211,102,0.3)' }}>
+                                        <CheckCircle2 size={34} />
                                     </div>
-                                    <h3 style={{ margin: '0 0 8px', fontSize: 22, fontFamily: "'Oswald', sans-serif", fontWeight: 300, color: '#fff' }}>Recebemos seu contato!</h3>
-                                    <p style={{ margin: 0, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7 }}>Nossa equipe vai entrar em contato para alinhar os detalhes do seu projeto.</p>
+                                    <h3 style={{ margin: '0 0 10px', fontSize: 24, fontFamily: "'Oswald', sans-serif", fontWeight: 300, color: '#fff', letterSpacing: '-0.02em' }}>
+                                        Abrindo o WhatsApp…
+                                    </h3>
+                                    <p style={{ margin: 0, color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, fontSize: 14 }}>
+                                        Se não abriu automaticamente, <a href={waHrefPersonalizado} target="_blank" rel="noreferrer" style={{ color: '#25D366', textDecoration: 'underline' }}>clique aqui</a>. Nossa equipe responde em segundos.
+                                    </p>
                                 </div>
                             ) : (
                                 <form onSubmit={enviar} className="lp-form-inner">
-                                    <div className="lp-form-row-2">
-                                        <input className="lp-dark-input" placeholder="Seu nome *" required value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} />
-                                        <input className="lp-dark-input" placeholder="WhatsApp *" required value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: formatTel(e.target.value) }))} />
+                                    <div className="lp-form-badge">
+                                        <Zap size={14} /> Atendimento online · responde em segundos
                                     </div>
 
-                                    {/* ── Chips de ambientes (multi-seleção) ── */}
-                                    <div className="lp-chips-group">
-                                        <label className="lp-chips-label">
-                                            <Sparkles size={13} /> Quais ambientes você quer planejar?
-                                            {form.itens.length > 0 && <span className="lp-chips-count">{form.itens.length} selecionado{form.itens.length > 1 ? 's' : ''}</span>}
-                                        </label>
-                                        <div className="lp-chips-wrap">
-                                            {TIPOS_PROJETO.map((t) => {
-                                                const selected = form.itens.includes(t.v);
-                                                return (
-                                                    <button
-                                                        type="button"
-                                                        key={t.v}
-                                                        onClick={() => toggleItem(t.v)}
-                                                        className={`lp-chip${selected ? ' selected' : ''}`}
-                                                    >
-                                                        <span className="lp-chip-emoji">{t.emoji}</span>
-                                                        <span>{t.v}</span>
-                                                        {selected && <CheckCircle2 size={13} className="lp-chip-check" />}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
+                                    <h3 className="lp-form-title">
+                                        Deixe só 2 dados — <span className="lp-hl">a gente cuida do resto.</span>
+                                    </h3>
+                                    <p className="lp-form-sub">
+                                        Sem formulário comprido. Sem espera. Em vez de preencher campos, converse direto com a nossa equipe no WhatsApp — é onde tudo acontece.
+                                    </p>
 
-                                    <div>
-                                        <label className="lp-chips-label" style={{ marginBottom: 8 }}>
-                                            <PenLine size={13} /> Conte sua ideia (medidas, materiais, estilo…)
-                                        </label>
-                                        <textarea
-                                            className="lp-dark-input"
-                                            rows={4}
-                                            placeholder="Ex: Cozinha em L com ilha, aprox. 4x3m. Gosto de madeira clara + preto fosco. Preciso incluir torre de forno e adega."
-                                            value={form.mensagem}
-                                            onChange={e => setForm(f => ({ ...f, mensagem: e.target.value }))}
-                                        />
-                                    </div>
+                                    <input
+                                        className="lp-dark-input lp-input-lg"
+                                        placeholder="Seu nome *"
+                                        required
+                                        value={form.nome}
+                                        onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
+                                    />
+                                    <input
+                                        className="lp-dark-input lp-input-lg"
+                                        placeholder="WhatsApp (com DDD) *"
+                                        required
+                                        inputMode="tel"
+                                        value={form.telefone}
+                                        onChange={e => setForm(f => ({ ...f, telefone: formatTel(e.target.value) }))}
+                                    />
 
                                     {erro && <div className="lp-form-erro">{erro}</div>}
 
-                                    {/* ── Ações duplas: formulário + WhatsApp direto ── */}
-                                    <div className="lp-form-actions">
-                                        <div className="lp-btn-cta-wrap">
-                                            <button type="submit" className="lp-btn-cta-main" disabled={enviando}>
-                                                {enviando ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={16} />}
-                                                {enviando ? 'Enviando...' : 'Solicitar Orçamento'}
-                                            </button>
-                                        </div>
+                                    {waNum ? (
+                                        <button type="submit" className="lp-btn-wa-hero" disabled={enviando}>
+                                            {enviando ? (
+                                                <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
+                                            ) : (
+                                                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M5.337 21.672L.4 24l2.433-5.15A11.934 11.934 0 0 1 .001 12C.001 5.374 5.374 0 12 0s12 5.373 12 12c0 6.628-5.373 12-12 12a11.96 11.96 0 0 1-6.663-2.328z"/></svg>
+                                            )}
+                                            {enviando ? 'Abrindo…' : 'Conversar no WhatsApp agora'}
+                                        </button>
+                                    ) : (
+                                        <button type="submit" className="lp-btn-wa-hero" disabled={enviando} style={{ background: `linear-gradient(135deg, ${acc}, ${acc}cc)` }}>
+                                            {enviando ? <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={18} />}
+                                            {enviando ? 'Enviando…' : 'Quero falar com a equipe'}
+                                        </button>
+                                    )}
 
-                                        {waNum && (
-                                            <>
-                                                <div className="lp-or-divider"><span>ou</span></div>
-                                                <button
-                                                    type="button"
-                                                    onClick={enviarPorWhatsApp}
-                                                    className="lp-btn-wa-direct"
-                                                    title="Abre o WhatsApp com sua mensagem pronta"
-                                                >
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M5.337 21.672L.4 24l2.433-5.15A11.934 11.934 0 0 1 .001 12C.001 5.374 5.374 0 12 0s12 5.373 12 12c0 6.628-5.373 12-12 12a11.96 11.96 0 0 1-6.663-2.328z"/></svg>
-                                                    Enviar pelo WhatsApp
-                                                </button>
-                                            </>
-                                        )}
+                                    <div className="lp-form-trust">
+                                        <span><CheckCircle2 size={12} /> 100% gratuito</span>
+                                        <span><CheckCircle2 size={12} /> Atendimento humano</span>
+                                        <span><CheckCircle2 size={12} /> Seus dados protegidos</span>
                                     </div>
-
-                                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textAlign: 'center', marginTop: 4 }}>
-                                        Sua mensagem já chega formatada na nossa equipe. Ao enviar, você autoriza contato da {empNome}.
-                                    </p>
                                 </form>
                             )}
                         </div>
@@ -984,7 +948,8 @@ function buildCSS(acc) {
     radial-gradient(ellipse 60% 50% at 80% 80%, ${acc}08 0%, transparent 60%);
   filter:blur(60px);
 }
-.lp-jornada-eyebrow { display:inline-flex; align-items:center; gap:0.5rem; padding:0.4rem 1rem; border:1px solid ${acc}40; border-radius:9999px; font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.15em; color:${acc}; background:${acc}10; }
+.lp-jornada-eyebrow-tag { display:inline-flex; align-items:center; gap:0.5rem; padding:0.4rem 1rem; border:1px solid ${acc}40; border-radius:9999px; font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.15em; color:${acc}; background:${acc}10; }
+.lp-jornada-step-eyebrow { display:inline-block; font-family:'Oswald',sans-serif; font-size:0.72rem; font-weight:500; text-transform:uppercase; letter-spacing:0.2em; color:${acc}; margin-bottom:0.5rem; opacity:0.85; }
 .lp-jornada-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:2rem; margin-top:3rem; position:relative; }
 .lp-jornada-grid::before {
   content:""; position:absolute; top:55px; left:16.5%; right:16.5%; height:2px;
@@ -1012,8 +977,7 @@ function buildCSS(acc) {
 .lp-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:3rem; align-items:start; }
 
 .lp-form-card-glass { background:rgba(255,255,255,0.03); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,0.08); border-radius:2rem; padding:2.5rem; }
-.lp-form-inner { display:grid; gap:18px; }
-.lp-form-row-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.lp-form-inner { display:flex; flex-direction:column; gap:14px; }
 .lp-dark-input { width:100%; border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:14px 16px; font-size:15px; outline:none; font-family:inherit; background:rgba(255,255,255,0.05); color:#fff; transition:border-color 0.2s, box-shadow 0.2s; }
 .lp-dark-input:focus { border-color:${acc}; box-shadow:0 0 0 3px ${acc}18; }
 .lp-dark-input::placeholder { color:rgba(255,255,255,0.35); }
@@ -1021,49 +985,57 @@ function buildCSS(acc) {
 .lp-btn-submit-full { width:100%; }
 .lp-form-erro { font-size:13px; color:#FCA5A5; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); border-radius:10px; padding:10px 12px; }
 
-/* ── CHIPS DE AMBIENTES (multi-select) ── */
-.lp-chips-group { display:flex; flex-direction:column; gap:10px; }
-.lp-chips-label { display:flex; align-items:center; gap:6px; font-size:0.82rem; color:rgba(255,255,255,0.7); font-weight:500; letter-spacing:0.02em; }
-.lp-chips-count { margin-left:auto; font-size:0.7rem; font-weight:700; color:${acc}; background:${acc}15; border:1px solid ${acc}30; border-radius:9999px; padding:2px 10px; letter-spacing:0.05em; text-transform:uppercase; }
-.lp-chips-wrap { display:flex; flex-wrap:wrap; gap:8px; }
-.lp-chip {
-  display:inline-flex; align-items:center; gap:6px;
-  padding:8px 14px 8px 12px; border-radius:9999px;
-  background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.12);
-  color:rgba(255,255,255,0.75); font-size:0.82rem; font-weight:500;
-  cursor:pointer; font-family:inherit; white-space:nowrap;
-  transition:all 0.25s cubic-bezier(0.16,1,0.3,1);
+/* ── FORM MINIMALISTA (nome + WhatsApp + 1 CTA) ── */
+.lp-form-badge {
+  display:inline-flex; align-items:center; gap:6px; align-self:flex-start;
+  padding:5px 12px; border-radius:9999px;
+  background:${acc}15; border:1px solid ${acc}40; color:${acc};
+  font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.12em;
+  margin-bottom:4px;
 }
-.lp-chip:hover { border-color:${acc}70; color:#fff; background:rgba(255,255,255,0.07); transform:translateY(-1px); }
-.lp-chip.selected { background:linear-gradient(135deg, ${acc}25, ${acc}15); border-color:${acc}; color:#fff; box-shadow:0 4px 15px ${acc}30, inset 0 0 0 1px ${acc}40; }
-.lp-chip.selected .lp-chip-check { color:${acc}; }
-.lp-chip-emoji { font-size:1rem; line-height:1; filter:grayscale(0.1); }
+.lp-form-title {
+  font-family:'Oswald',sans-serif; font-size:clamp(1.6rem,3vw,2.2rem); font-weight:300;
+  line-height:1.15; letter-spacing:-0.01em; color:#fff; margin-bottom:0.5rem;
+}
+.lp-form-sub { font-size:0.95rem; color:rgba(255,255,255,0.6); line-height:1.65; font-weight:300; margin-bottom:0.5rem; }
+.lp-input-lg { padding:18px 20px !important; font-size:16px !important; border-radius:14px !important; }
 
-/* ── Ações duplas: formulário + WhatsApp direto ── */
-.lp-form-actions { display:flex; flex-direction:column; gap:12px; }
-.lp-or-divider { display:flex; align-items:center; gap:10px; color:rgba(255,255,255,0.3); font-size:0.7rem; font-weight:600; text-transform:uppercase; letter-spacing:0.15em; }
-.lp-or-divider::before, .lp-or-divider::after { content:""; flex:1; height:1px; background:linear-gradient(to right, transparent, rgba(255,255,255,0.15), transparent); }
-.lp-or-divider span { padding:0 4px; }
-
-.lp-btn-wa-direct {
-  display:inline-flex; align-items:center; justify-content:center; gap:10px;
-  width:100%; height:54px; padding:0 2rem;
+.lp-btn-wa-hero {
+  display:inline-flex; align-items:center; justify-content:center; gap:12px;
+  width:100%; height:64px; padding:0 2rem; margin-top:6px;
   background:linear-gradient(135deg, #25D366, #128C7E);
-  color:#fff; border:none; border-radius:9999px;
-  font-family:inherit; font-size:0.9rem; font-weight:700;
-  text-transform:uppercase; letter-spacing:0.08em;
+  color:#fff; border:none; border-radius:14px;
+  font-family:inherit; font-size:1.02rem; font-weight:800;
+  letter-spacing:0.02em;
   cursor:pointer; transition:all 0.3s cubic-bezier(0.16,1,0.3,1);
-  box-shadow:0 4px 20px rgba(37,211,102,0.3);
+  box-shadow:0 6px 24px rgba(37,211,102,0.35), 0 0 0 0 rgba(37,211,102,0.4);
   position:relative; overflow:hidden;
+  animation:waHeroPulse 2.4s ease-in-out infinite;
 }
-.lp-btn-wa-direct::before {
+.lp-btn-wa-hero::before {
   content:""; position:absolute; top:0; left:-100%; width:100%; height:100%;
-  background:linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-  transition:left 0.6s ease;
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent);
+  transition:left 0.7s ease;
 }
-.lp-btn-wa-direct:hover { transform:translateY(-2px) scale(1.02); box-shadow:0 8px 30px rgba(37,211,102,0.5); filter:brightness(1.08); }
-.lp-btn-wa-direct:hover::before { left:100%; }
-.lp-btn-wa-direct:active { transform:translateY(0) scale(0.98); }
+.lp-btn-wa-hero:hover { transform:translateY(-2px) scale(1.015); box-shadow:0 12px 40px rgba(37,211,102,0.55); filter:brightness(1.08); animation-play-state:paused; }
+.lp-btn-wa-hero:hover::before { left:100%; }
+.lp-btn-wa-hero:active { transform:translateY(0) scale(0.98); }
+.lp-btn-wa-hero:disabled { opacity:0.7; cursor:wait; animation:none; }
+
+@keyframes waHeroPulse {
+  0%, 100% { box-shadow:0 6px 24px rgba(37,211,102,0.35), 0 0 0 0 rgba(37,211,102,0.4); }
+  50% { box-shadow:0 6px 24px rgba(37,211,102,0.35), 0 0 0 12px rgba(37,211,102,0); }
+}
+
+.lp-form-trust {
+  display:flex; gap:14px; justify-content:center; flex-wrap:wrap;
+  padding-top:10px; margin-top:2px;
+}
+.lp-form-trust span {
+  display:inline-flex; align-items:center; gap:4px;
+  font-size:0.72rem; color:rgba(255,255,255,0.5); font-weight:500;
+}
+.lp-form-trust span svg { color:${acc}; }
 
 /* ── FAQ (Dark) ── */
 .lp-faq-list { display:grid; gap:8px; }
@@ -1149,8 +1121,6 @@ function buildCSS(acc) {
     .lp-form-card-glass { padding:1.5rem; }
     .lp-cta-actions { flex-direction:column; }
     .lp-footer-contacts { flex-direction:column; align-items:center; gap:10px; }
-    .lp-form-row-2 { grid-template-columns:1fr; }
-    .lp-chip { font-size:0.78rem; padding:7px 12px 7px 10px; }
     .lp-jornada-sec { padding:5rem 0; }
     .lp-jornada-cta { flex-direction:column; gap:1rem; width:100%; }
     .lp-jornada-cta .lp-btn-copper, .lp-jornada-cta .lp-btn-outline { width:100%; }
