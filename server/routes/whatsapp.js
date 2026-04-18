@@ -36,6 +36,91 @@ router.get('/status', requireAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// GET /api/whatsapp/diagnostico — check-list consolidado de Sofia
+// Responde em <500ms com todas as camadas que precisam estar OK
+// para a IA capturar leads e responder mensagens.
+// ═══════════════════════════════════════════════════════
+router.get('/diagnostico', requireAuth, async (req, res) => {
+    const emp = db.prepare(
+        'SELECT ia_ativa, ia_api_key, ia_model, wa_instance_url, wa_instance_name, wa_api_key, escalacao_ativa FROM empresa_config WHERE id = 1'
+    ).get() || {};
+
+    // 1) IA globalmente ativa?
+    const ia_ativa = emp.ia_ativa === 1;
+    const ia_api_configurada = !!emp.ia_api_key;
+
+    // 2) WhatsApp (Evolution) configurado e conectado?
+    const wa_configurado = !!(emp.wa_instance_url && emp.wa_instance_name && emp.wa_api_key);
+    let evolution_state = 'nao_configurado';
+    let evolution_connected = false;
+    if (wa_configurado) {
+        try {
+            const st = await evolution.getConnectionStatus();
+            evolution_connected = !!st.connected;
+            evolution_state = st.state || (st.connected ? 'open' : (st.reason || 'desconhecido'));
+        } catch (e) {
+            evolution_state = 'erro';
+        }
+    }
+
+    // 3) Conversas com IA pausada (anti-abuso)
+    const conversas_bloqueadas = db.prepare(
+        "SELECT COUNT(*) as n FROM chat_conversas WHERE ia_bloqueada = 1 AND (ia_bloqueio_ate IS NULL OR ia_bloqueio_ate > datetime('now'))"
+    ).get()?.n || 0;
+
+    // 4) Última interação real da IA
+    const ultima_resposta = db.prepare(
+        "SELECT MAX(criado_em) as t FROM chat_mensagens WHERE remetente = 'ia'"
+    ).get()?.t || null;
+
+    // 5) Leads capturados nas últimas 24h (indicador de funcionamento real)
+    const leads_24h = db.prepare(
+        "SELECT COUNT(*) as n FROM leads WHERE criado_em >= datetime('now', '-1 day')"
+    ).get()?.n || 0;
+
+    // 6) Status consolidado
+    const camadas_ok = ia_ativa && ia_api_configurada && evolution_connected;
+    let status_geral = 'offline';
+    if (camadas_ok) status_geral = 'online';
+    else if (ia_ativa && wa_configurado) status_geral = 'parcial';
+
+    const problemas = [];
+    if (!ia_ativa) problemas.push('IA está DESATIVADA no sistema');
+    if (!ia_api_configurada) problemas.push('API key da IA (Claude) não configurada');
+    if (!wa_configurado) problemas.push('WhatsApp (Evolution) não configurado');
+    else if (!evolution_connected) problemas.push(`WhatsApp desconectado (estado: ${evolution_state})`);
+
+    res.json({
+        status_geral,          // 'online' | 'parcial' | 'offline'
+        ia_ativa,
+        ia_api_configurada,
+        wa_configurado,
+        evolution_connected,
+        evolution_state,       // 'open' | 'close' | 'connecting' | 'nao_configurado' | ...
+        escalacao_ativa: emp.escalacao_ativa !== 0,
+        conversas_bloqueadas,  // quantas conversas com IA pausada
+        ultima_resposta_ia_em: ultima_resposta,  // ISO string ou null
+        leads_24h,
+        problemas,             // lista human-readable
+    });
+});
+
+// ═══════════════════════════════════════════════════════
+// POST /api/whatsapp/ia/toggle — kill-switch rápido
+// body: { ativa: true|false }  (se omitido, inverte o estado atual)
+// Requer gerente/admin.
+// ═══════════════════════════════════════════════════════
+router.post('/ia/toggle', requireAuth, (req, res) => {
+    if (!isGerente(req.user)) {
+        return res.status(403).json({ error: 'Apenas gerente/admin pode desligar a IA' });
+    }
+    const atual = db.prepare('SELECT ia_ativa FROM empresa_config WHERE id = 1').get()?.ia_ativa === 1;
+    const nova = req.body?.ativa === undefined ? !atual : !!req.body.ativa;
+    db.prepare('UPDATE empresa_config SET ia_ativa = ? WHERE id = 1').run(nova ? 1 : 0);
+    res.json({ ok: true, ia_ativa: nova });
+});
+
+// ═══════════════════════════════════════════════════════
 // GET /api/whatsapp/qrcode — QR code para pareamento
 // ═══════════════════════════════════════════════════════
 router.get('/qrcode', requireAuth, async (req, res) => {

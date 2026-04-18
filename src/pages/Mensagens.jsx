@@ -10,7 +10,8 @@ import {
     Paperclip, Mic, Square, Image, X, FileText, Download,
     UserPlus, UserCheck, Tag, Archive, Inbox, Users as UsersIcon,
     AlertCircle, History, ChevronDown, Flag,
-    Pause, BellOff, Hourglass, Moon, Zap
+    Pause, BellOff, Hourglass, Moon, Zap,
+    Activity, Power, CheckCircle2, XCircle, AlertTriangle
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════
@@ -139,6 +140,10 @@ export default function Mensagens({ notify }) {
     const [showAssignMenu, setShowAssignMenu] = useState(false);
     const [showCategoriaMenu, setShowCategoriaMenu] = useState(false);
     const [backfilling, setBackfilling] = useState(false);
+    // ─── Diagnóstico da IA (status Sofia + kill-switch) ───
+    const [diag, setDiag] = useState(null);           // resultado de /api/whatsapp/diagnostico
+    const [diagOpen, setDiagOpen] = useState(false);  // modal aberto?
+    const [iaToggling, setIaToggling] = useState(false);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -426,6 +431,40 @@ export default function Mensagens({ notify }) {
         finally { setBackfilling(false); }
     };
 
+    // ═══ Diagnóstico da IA (Sofia) ═══
+    const loadDiagnostico = useCallback(async () => {
+        try {
+            const r = await api.get('/whatsapp/diagnostico');
+            setDiag(r);
+        } catch {
+            setDiag({ status_geral: 'offline', problemas: ['Não foi possível consultar o diagnóstico'] });
+        }
+    }, []);
+
+    const toggleIA = async () => {
+        if (!isGerente) return;
+        const alvo = !diag?.ia_ativa;
+        const msg = alvo
+            ? 'Reativar a IA (Sofia)? Ela voltará a responder mensagens e capturar leads automaticamente.'
+            : 'DESATIVAR a IA (Sofia)? Nenhuma mensagem nova será respondida e nenhum lead será capturado até você reativar.';
+        if (!confirm(msg)) return;
+        setIaToggling(true);
+        try {
+            const r = await api.post('/whatsapp/ia/toggle', { ativa: alvo });
+            notify?.(r.ia_ativa ? 'IA ativada' : 'IA desativada');
+            await loadDiagnostico();
+        } catch (e) {
+            notify?.(e.error || 'Erro ao alterar IA');
+        } finally { setIaToggling(false); }
+    };
+
+    // Auto-refresh do diagnóstico a cada 60s
+    useEffect(() => {
+        loadDiagnostico();
+        const iv = setInterval(loadDiagnostico, 60000);
+        return () => clearInterval(iv);
+    }, [loadDiagnostico]);
+
     // ═══ Vincular a cliente ═══
     const vincular = async (clienteId) => {
         try {
@@ -470,6 +509,31 @@ export default function Mensagens({ notify }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                             <MessageCircle size={20} style={{ color: 'var(--success)' }} />
                             <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0, flex: 1 }}>Inbox</h2>
+
+                            {/* Status da IA (Sofia) — clicável pra abrir diagnóstico */}
+                            {diag && (() => {
+                                const s = diag.status_geral;
+                                const cor = s === 'online' ? 'var(--success)' : s === 'parcial' ? 'var(--warning)' : 'var(--danger)';
+                                const corBg = s === 'online' ? 'var(--success-bg)' : s === 'parcial' ? 'var(--warning-bg)' : 'var(--danger-bg)';
+                                const corBr = s === 'online' ? 'var(--success-border)' : s === 'parcial' ? 'var(--warning-border)' : 'var(--danger-border)';
+                                const label = s === 'online' ? 'IA: Online' : s === 'parcial' ? 'IA: Parcial' : 'IA: Offline';
+                                return (
+                                    <button
+                                        onClick={() => setDiagOpen(true)}
+                                        title="Ver diagnóstico da IA (Sofia)"
+                                        style={{
+                                            fontSize: 11, padding: '4px 9px', borderRadius: 6,
+                                            border: `1px solid ${corBr}`, background: corBg,
+                                            color: cor, cursor: 'pointer', fontWeight: 700,
+                                            display: 'flex', alignItems: 'center', gap: 4,
+                                        }}
+                                    >
+                                        <Activity size={10} />
+                                        {label}
+                                    </button>
+                                );
+                            })()}
+
                             {isGerente && (
                                 <button
                                     onClick={rodarBackfill}
@@ -1439,6 +1503,147 @@ export default function Mensagens({ notify }) {
                             </div>
                         ))}
                     </div>
+                </Modal>
+            )}
+
+            {/* ═══ Modal Diagnóstico da IA (Sofia) ═══ */}
+            {diagOpen && (
+                <Modal title="Diagnóstico da IA (Sofia)" close={() => setDiagOpen(false)} w={500}>
+                    {!diag ? (
+                        <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
+                            <RefreshCw size={20} className="spin" />
+                            <div style={{ marginTop: 8, fontSize: 12 }}>Carregando...</div>
+                        </div>
+                    ) : (() => {
+                        // Render de cada linha do check-list
+                        const Row = ({ ok, label, value, warn = false }) => {
+                            const cor = ok ? 'var(--success)' : warn ? 'var(--warning)' : 'var(--danger)';
+                            const Icon = ok ? CheckCircle2 : warn ? AlertTriangle : XCircle;
+                            return (
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                    padding: '10px 12px', borderRadius: 8, marginBottom: 6,
+                                    border: '1px solid var(--border)', background: 'var(--bg-muted)',
+                                }}>
+                                    <Icon size={18} style={{ color: cor, flexShrink: 0 }} />
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{label}</div>
+                                        {value && (
+                                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{value}</div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        };
+
+                        const ultimaIso = diag.ultima_resposta_ia_em;
+                        const ultimaTxt = ultimaIso
+                            ? new Date(ultimaIso.endsWith('Z') ? ultimaIso : ultimaIso + 'Z').toLocaleString('pt-BR')
+                            : 'nunca respondeu';
+
+                        return (
+                            <div>
+                                {/* Status geral */}
+                                <div style={{
+                                    padding: '12px 14px', borderRadius: 10, marginBottom: 14,
+                                    background: diag.status_geral === 'online' ? 'var(--success-bg)'
+                                        : diag.status_geral === 'parcial' ? 'var(--warning-bg)' : 'var(--danger-bg)',
+                                    border: `1px solid ${diag.status_geral === 'online' ? 'var(--success-border)'
+                                        : diag.status_geral === 'parcial' ? 'var(--warning-border)' : 'var(--danger-border)'}`,
+                                }}>
+                                    <div style={{
+                                        fontSize: 15, fontWeight: 700,
+                                        color: diag.status_geral === 'online' ? 'var(--success-hover)'
+                                            : diag.status_geral === 'parcial' ? 'var(--warning-hover)' : 'var(--danger-hover)',
+                                    }}>
+                                        {diag.status_geral === 'online' && 'Sofia está operacional — respondendo mensagens e capturando leads.'}
+                                        {diag.status_geral === 'parcial' && 'Sofia está parcialmente configurada — algo impede o funcionamento.'}
+                                        {diag.status_geral === 'offline' && 'Sofia está OFFLINE — nenhuma mensagem nova será respondida.'}
+                                    </div>
+                                </div>
+
+                                {/* Check-list */}
+                                <Row ok={diag.ia_ativa}
+                                    label="IA globalmente ativa"
+                                    value={diag.ia_ativa ? 'Kill-switch principal está LIGADO' : 'Kill-switch está DESLIGADO — Sofia não responde.'} />
+                                <Row ok={diag.ia_api_configurada}
+                                    label="API da Claude configurada"
+                                    value={diag.ia_api_configurada ? 'Chave de API presente' : 'Falta cadastrar a chave em Configurações → IA'} />
+                                <Row ok={diag.wa_configurado && diag.evolution_connected}
+                                    warn={diag.wa_configurado && !diag.evolution_connected}
+                                    label="WhatsApp conectado (Evolution)"
+                                    value={!diag.wa_configurado ? 'Não configurado'
+                                        : diag.evolution_connected ? `Conectado (estado: ${diag.evolution_state})`
+                                        : `Desconectado — estado: ${diag.evolution_state}. Vá em Configurações e escaneie o QR novamente.`} />
+                                <Row ok={diag.conversas_bloqueadas === 0} warn={diag.conversas_bloqueadas > 0 && diag.conversas_bloqueadas < 5}
+                                    label="Conversas com IA pausada (anti-abuso)"
+                                    value={`${diag.conversas_bloqueadas} conversa(s) com bloqueio ativo. Expira automaticamente ou você pode despausar manualmente em cada chat.`} />
+                                <Row ok={diag.escalacao_ativa} warn={!diag.escalacao_ativa}
+                                    label="Escalação pós-handoff"
+                                    value={diag.escalacao_ativa ? 'Ligada — Sofia faz follow-up após handoff humano.' : 'Desligada — opcional, não impede captura de leads.'} />
+
+                                {/* Métricas das últimas 24h */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14 }}>
+                                    <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg-muted)', textAlign: 'center' }}>
+                                        <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary)' }}>{diag.leads_24h}</div>
+                                        <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Leads 24h</div>
+                                    </div>
+                                    <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg-muted)', textAlign: 'center' }}>
+                                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', marginTop: 3 }}>Última resposta</div>
+                                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{ultimaTxt}</div>
+                                    </div>
+                                </div>
+
+                                {/* Problemas detectados (lista bullets) */}
+                                {diag.problemas?.length > 0 && (
+                                    <div style={{
+                                        marginTop: 14, padding: 12, borderRadius: 8,
+                                        background: 'var(--danger-bg)', border: '1px solid var(--danger-border)',
+                                    }}>
+                                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-hover)', marginBottom: 6 }}>
+                                            Problemas detectados:
+                                        </div>
+                                        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--danger-hover)', lineHeight: 1.6 }}>
+                                            {diag.problemas.map((p, i) => <li key={i}>{p}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Ações */}
+                                <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end', alignItems: 'center' }}>
+                                    <button
+                                        onClick={loadDiagnostico}
+                                        className={Z.btn2}
+                                        style={{ fontSize: 12, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 6 }}
+                                    >
+                                        <RefreshCw size={13} /> Atualizar
+                                    </button>
+                                    {isGerente && (
+                                        <button
+                                            onClick={toggleIA}
+                                            disabled={iaToggling}
+                                            style={{
+                                                fontSize: 12, padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
+                                                fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6,
+                                                border: `1px solid ${diag.ia_ativa ? 'var(--danger)' : 'var(--success)'}`,
+                                                background: diag.ia_ativa ? 'var(--danger)' : 'var(--success)',
+                                                color: '#fff',
+                                            }}
+                                        >
+                                            <Power size={13} />
+                                            {iaToggling ? 'Aguarde...' : diag.ia_ativa ? 'Desativar IA' : 'Ativar IA'}
+                                        </button>
+                                    )}
+                                </div>
+
+                                {!isGerente && (
+                                    <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)', textAlign: 'right', fontStyle: 'italic' }}>
+                                        Apenas gerente/admin pode ligar/desligar a IA.
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
                 </Modal>
             )}
         </div>
