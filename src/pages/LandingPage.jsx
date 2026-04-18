@@ -12,34 +12,11 @@ import {
     Sparkles,
     Star,
     Zap,
-    PenTool,
-    ReceiptText,
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LandingPage — Dark Premium Design (inspired by Vibe Portfolio)
 // ═══════════════════════════════════════════════════════════════════════════════
-
-const JORNADA_PASSOS = [
-    {
-        icon: MessageCircle,
-        eyebrow: '01 · Contato',
-        titulo: 'Comece uma conversa',
-        descricao: 'Mande um oi no WhatsApp ou deixe nome e telefone aqui mesmo. Nossa equipe responde em segundos — sem formulário comprido, sem espera.',
-    },
-    {
-        icon: PenTool,
-        eyebrow: '02 · Projeto',
-        titulo: 'Com ou sem projeto, a gente começa',
-        descricao: 'Já tem projeto do arquiteto ou designer? Perfeito, executamos com fidelidade total. Ainda não tem? Desenvolvemos o projeto 3D junto com você, do briefing ao detalhe final.',
-    },
-    {
-        icon: ReceiptText,
-        eyebrow: '03 · Orçamento',
-        titulo: 'Orçamento claro e no ponto',
-        descricao: 'Com o escopo fechado, enviamos orçamento detalhado e transparente. Aprovou? Entramos em produção com os padrões Ornato — entregando o ambiente completo, instalado e pronto.',
-    },
-];
 
 const FAQ_DEFAULT = [
     { q: 'Quanto custa um projeto de marcenaria sob medida?', a: 'O investimento varia conforme a complexidade, materiais e dimensões. Após entender seu projeto, enviamos um orçamento detalhado sem compromisso.' },
@@ -547,50 +524,6 @@ export default function LandingPage() {
                 </section>
             )}
 
-            {/* ═══ JORNADA EM 3 PASSOS — Contato → Projeto → Orçamento ═══ */}
-            <section className="lp-jornada-sec">
-                <div className="lp-jornada-bg" />
-                <div className="lp-container" style={{ position: 'relative', zIndex: 10 }}>
-                    <div className="lp-reveal" style={{ textAlign: 'center', marginBottom: '4rem' }}>
-                        <span className="lp-jornada-eyebrow-tag">Nossa jornada</span>
-                        <h2 className="lp-headline" style={{ marginTop: '0.75rem', marginInline: 'auto', maxWidth: 900 }}>
-                            Três passos simples até <span className="lp-hl">realizar seu ambiente.</span>
-                        </h2>
-                        <p className="lp-subheadline" style={{ maxWidth: 560, margin: '1.25rem auto 0', textAlign: 'center' }}>
-                            Do primeiro oi ao projeto instalado, um caminho claro e sem burocracia — a gente cuida do processo, você curte o resultado.
-                        </p>
-                    </div>
-
-                    <div className="lp-jornada-grid lp-reveal">
-                        {JORNADA_PASSOS.map((passo, idx) => {
-                            const Ico = passo.icon;
-                            return (
-                                <div key={idx} className="lp-jornada-card">
-                                    <div className="lp-jornada-num">{String(idx + 1).padStart(2, '0')}</div>
-                                    <div className="lp-jornada-icon-wrap">
-                                        <Ico size={22} />
-                                    </div>
-                                    <span className="lp-jornada-step-eyebrow">{passo.eyebrow}</span>
-                                    <h3 className="lp-jornada-titulo">{passo.titulo}</h3>
-                                    <p className="lp-jornada-desc">{passo.descricao}</p>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    <div className="lp-jornada-cta lp-reveal">
-                        <a href="#orcamento" className="lp-btn-copper">
-                            Começar agora <ArrowRight size={16} />
-                        </a>
-                        {waHref && (
-                            <a href={waHref} target="_blank" rel="noreferrer" className="lp-btn-outline">
-                                <MessageCircle size={14} /> Falar direto no WhatsApp
-                            </a>
-                        )}
-                    </div>
-                </div>
-            </section>
-
             {/* ═══ FORMULÁRIO + FAQ — Split layout ═══ */}
             <section className="lp-form-section" id="orcamento">
                 <div className="lp-section-bg">
@@ -602,7 +535,7 @@ export default function LandingPage() {
                             Começar é <span className="lp-hl">rápido.</span>
                         </h2>
                         <p className="lp-subheadline" style={{ maxWidth: 560, margin: '1.25rem auto 0', textAlign: 'center' }}>
-                            Deixe seu contato e caia no WhatsApp em 1 clique. Nossa IA entende o que você quer e já adianta 80% do briefing antes de um humano entrar.
+                            Deixe seu contato e caia no WhatsApp em 1 clique. Nosso assistente virtual entende o que você quer e já adianta 80% do briefing antes do nosso time comercial entrar.
                         </p>
                     </div>
 
@@ -940,37 +873,6 @@ function buildCSS(acc) {
 .lp-author-name { font-weight:700; color:#fff; font-size:0.95rem; }
 .lp-author-role { font-size:0.75rem; color:${acc}; text-transform:uppercase; letter-spacing:0.1em; }
 
-/* ── JORNADA EM 3 PASSOS ── */
-.lp-jornada-sec { position:relative; padding:9rem 0; background:#060504; overflow:hidden; }
-.lp-jornada-bg { position:absolute; inset:0; z-index:0; pointer-events:none;
-  background:
-    radial-gradient(ellipse 50% 40% at 20% 20%, ${acc}10 0%, transparent 60%),
-    radial-gradient(ellipse 60% 50% at 80% 80%, ${acc}08 0%, transparent 60%);
-  filter:blur(60px);
-}
-.lp-jornada-eyebrow-tag { display:inline-flex; align-items:center; gap:0.5rem; padding:0.4rem 1rem; border:1px solid ${acc}40; border-radius:9999px; font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.15em; color:${acc}; background:${acc}10; }
-.lp-jornada-step-eyebrow { display:inline-block; font-family:'Oswald',sans-serif; font-size:0.72rem; font-weight:500; text-transform:uppercase; letter-spacing:0.2em; color:${acc}; margin-bottom:0.5rem; opacity:0.85; }
-.lp-jornada-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:2rem; margin-top:3rem; position:relative; }
-.lp-jornada-grid::before {
-  content:""; position:absolute; top:55px; left:16.5%; right:16.5%; height:2px;
-  background:linear-gradient(to right, transparent, ${acc}50 20%, ${acc}50 80%, transparent);
-  z-index:0; pointer-events:none;
-}
-.lp-jornada-card {
-  position:relative; z-index:1;
-  background:rgba(255,255,255,0.03); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
-  border:1px solid rgba(255,255,255,0.08); border-radius:1.8rem; padding:2.5rem 2rem 2rem;
-  transition:all 0.4s cubic-bezier(0.16,1,0.3,1);
-  display:flex; flex-direction:column; align-items:flex-start;
-}
-.lp-jornada-card:hover { border-color:${acc}; background:rgba(255,255,255,0.05); transform:translateY(-8px); box-shadow:0 20px 50px rgba(0,0,0,0.4), 0 0 30px ${acc}20; }
-.lp-jornada-num { position:absolute; top:1.25rem; right:1.5rem; font-family:'Oswald',sans-serif; font-size:2.6rem; font-weight:200; color:${acc}; opacity:0.25; line-height:1; letter-spacing:-0.05em; }
-.lp-jornada-icon-wrap { width:54px; height:54px; border-radius:1rem; background:${acc}15; border:1px solid ${acc}30; display:grid; place-items:center; color:${acc}; margin-bottom:1.5rem; transition:all 0.35s ease; }
-.lp-jornada-card:hover .lp-jornada-icon-wrap { background:${acc}; color:#0a0806; border-color:${acc}; transform:scale(1.08) rotate(-4deg); box-shadow:0 0 25px ${acc}50; }
-.lp-jornada-titulo { font-family:'Oswald',sans-serif; font-size:1.4rem; font-weight:400; letter-spacing:-0.01em; color:#fff; margin-bottom:0.6rem; }
-.lp-jornada-desc { font-size:0.92rem; color:rgba(255,255,255,0.55); line-height:1.65; font-weight:300; }
-.lp-jornada-cta { display:flex; gap:1.5rem; justify-content:center; align-items:center; margin-top:4rem; flex-wrap:wrap; }
-
 /* ── FORM SECTION ── */
 .lp-form-section { position:relative; padding:8rem 0; background:#080604; overflow:hidden; }
 .lp-form-section::before { content:""; position:absolute; inset:0; background:radial-gradient(ellipse 50% 60% at 30% 50%, ${acc}08 0%, transparent 50%), radial-gradient(ellipse 40% 50% at 80% 80%, rgba(60,40,20,0.06) 0%, transparent 50%); pointer-events:none; z-index:0; }
@@ -1098,10 +1000,6 @@ function buildCSS(acc) {
     .lp-form-grid { grid-template-columns:1fr; }
     .lp-cta-card { padding:4rem 2rem; border-radius:2rem; }
 
-    /* Jornada mobile */
-    .lp-jornada-grid { grid-template-columns:1fr; gap:1.25rem; }
-    .lp-jornada-grid::before { display:none; }
-    .lp-jornada-sec { padding:6rem 0; }
 }
 
 @media (max-width:768px) {
@@ -1121,9 +1019,6 @@ function buildCSS(acc) {
     .lp-form-card-glass { padding:1.5rem; }
     .lp-cta-actions { flex-direction:column; }
     .lp-footer-contacts { flex-direction:column; align-items:center; gap:10px; }
-    .lp-jornada-sec { padding:5rem 0; }
-    .lp-jornada-cta { flex-direction:column; gap:1rem; width:100%; }
-    .lp-jornada-cta .lp-btn-copper, .lp-jornada-cta .lp-btn-outline { width:100%; }
 }
 
 @media (max-width:480px) {
