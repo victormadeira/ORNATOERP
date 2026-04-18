@@ -811,7 +811,7 @@ export default function PropostaApresentacao({ token }) {
                                 const diasRestantes = Math.ceil(remaining / 86400000);
                                 const expirada = diasRestantes <= 0;
                                 const urgente = diasRestantes <= 3 && !expirada;
-                                const barColor = expirada ? '#ef4444' : urgente ? '#f59e0b' : c2;
+                                const barColor = expirada ? 'var(--danger)' : urgente ? 'var(--warning)' : c2;
                                 return (
                                     <div style={{
                                         maxWidth: 380, margin: '0 auto 28px', padding: '16px 20px',

@@ -16,7 +16,7 @@ const MATERIAL_PRESETS = {
 
 // Cores por ambiente (mais vibrantes e distintas)
 const AMB_COLORS = [
-    '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6',
+    'var(--info)', 'var(--success)', 'var(--warning)', 'var(--danger)', '#8b5cf6',
     '#06b6d4', '#ec4899', '#f97316', '#14b8a6', '#6366f1',
     '#84cc16', '#a855f7', '#0ea5e9', '#f43f5e', '#d946ef',
 ];
@@ -60,10 +60,10 @@ const MAT_BG_COLORS = {
 
 // Cores para fitas de borda (cada tipo de fita ganha uma cor distinta)
 const FITA_COLORS = [
-    '#2563eb', // azul
-    '#dc2626', // vermelho
-    '#16a34a', // verde
-    '#d97706', // amber
+    'var(--info-hover)', // azul
+    'var(--danger-hover)', // vermelho
+    'var(--success-hover)', // verde
+    'var(--warning-hover)', // amber
     '#7c3aed', // violeta
     '#db2777', // pink
     '#0891b2', // cyan
@@ -232,7 +232,7 @@ export default function PlanoCorte({ notify }) {
             const matBg = getMatBg(ch.material);
 
             const pecasSvg = ch.pecas.map((p, pi) => {
-                const color = ambColorMap[p.ambiente] || '#94a3b8';
+                const color = ambColorMap[p.ambiente] || 'var(--muted)';
                 return `
                     <rect x="${p.x * scale + 10}" y="${p.y * scale + 10}" width="${p.w * scale}" height="${p.h * scale}"
                         fill="${color}30" stroke="${color}" stroke-width="1" />
@@ -548,7 +548,7 @@ function StepPecas({ pecasData, config, setConfig, applyPreset, onOtimizar, onCa
                 </button>
                 {optimizing && (
                     <button onClick={onCancelar} className="btn-secondary"
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '10px 20px', color: '#dc2626', borderColor: '#dc2626' }}>
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '10px 20px', color: 'var(--danger-hover)', borderColor: 'var(--danger-hover)' }}>
                         <XCircle size={16} /> Cancelar
                     </button>
                 )}
@@ -614,7 +614,7 @@ function StepResultado({ plano, chapaIdx, setChapaIdx, zoom, setZoom, ambColorMa
                 <StatCard icon={<Layers size={16} />} label="Peças" value={resumo.total_pecas} color="var(--primary)" />
                 <StatCard icon={<Package size={16} />} label="Chapas" value={resumo.total_chapas} color="#22c55e" />
                 <StatCard icon={<BarChart3 size={16} />} label="Aproveitamento" value={`${resumo.aproveitamento}%`}
-                    color={resumo.aproveitamento >= 80 ? '#22c55e' : resumo.aproveitamento >= 60 ? '#f59e0b' : '#ef4444'} />
+                    color={resumo.aproveitamento >= 80 ? 'var(--success)' : resumo.aproveitamento >= 60 ? 'var(--warning)' : 'var(--danger)'} />
                 <StatCard icon={<Scissors size={16} />} label="Custo Chapas" value={R(resumo.custo_chapas)} color="#8b5cf6" />
                 <StatCard icon={<AlertTriangle size={16} />} label="Desperdício" value={`${N(resumo.desperdicio_m2)} m2`} color="#f59e0b" />
             </div>
@@ -681,8 +681,8 @@ function StepResultado({ plano, chapaIdx, setChapaIdx, zoom, setZoom, ambColorMa
                                 {chapaAtual.comprimento}x{chapaAtual.largura}mm — {chapaAtual.espessura}mm
                             </span>
                             <span style={{
-                                background: chapaAtual.aproveitamento >= 80 ? '#f0fdf4' : chapaAtual.aproveitamento >= 60 ? '#fffbeb' : '#fef2f2',
-                                color: chapaAtual.aproveitamento >= 80 ? '#16a34a' : chapaAtual.aproveitamento >= 60 ? '#d97706' : '#dc2626',
+                                background: chapaAtual.aproveitamento >= 80 ? 'var(--success-bg)' : chapaAtual.aproveitamento >= 60 ? 'var(--warning-bg)' : 'var(--danger-bg)',
+                                color: chapaAtual.aproveitamento >= 80 ? 'var(--success-hover)' : chapaAtual.aproveitamento >= 60 ? 'var(--warning-hover)' : 'var(--danger-hover)',
                                 padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap',
                             }}>
                                 {chapaAtual.aproveitamento}%
@@ -691,7 +691,7 @@ function StepResultado({ plano, chapaIdx, setChapaIdx, zoom, setZoom, ambColorMa
                                 {chapaAtual.pecas.length} peças
                             </span>
                             {chapaAtual.retalhos?.length > 0 && (
-                                <span style={{ background: '#fef3c7', padding: '2px 8px', borderRadius: 10, fontSize: 10, color: '#b45309', whiteSpace: 'nowrap' }}>
+                                <span style={{ background: 'var(--warning-bg)', padding: '2px 8px', borderRadius: 10, fontSize: 10, color: 'var(--warning-hover)', whiteSpace: 'nowrap' }}>
                                     {chapaAtual.retalhos.length} sobras
                                 </span>
                             )}
@@ -749,8 +749,8 @@ function StepResultado({ plano, chapaIdx, setChapaIdx, zoom, setZoom, ambColorMa
                                     <span style={{ fontSize: 11, fontWeight: 700 }}>#{ci + 1} {ch.material}</span>
                                     <span style={{
                                         fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 8,
-                                        background: ch.aproveitamento >= 80 ? '#f0fdf4' : ch.aproveitamento >= 60 ? '#fffbeb' : '#fef2f2',
-                                        color: ch.aproveitamento >= 80 ? '#16a34a' : ch.aproveitamento >= 60 ? '#d97706' : '#dc2626',
+                                        background: ch.aproveitamento >= 80 ? 'var(--success-bg)' : ch.aproveitamento >= 60 ? 'var(--warning-bg)' : 'var(--danger-bg)',
+                                        color: ch.aproveitamento >= 80 ? 'var(--success-hover)' : ch.aproveitamento >= 60 ? 'var(--warning-hover)' : 'var(--danger-hover)',
                                     }}>{ch.aproveitamento}%</span>
                                 </div>
                                 <ChapaThumb chapa={ch} ambColorMap={ambColorMap} />
@@ -804,7 +804,7 @@ function StepResultado({ plano, chapaIdx, setChapaIdx, zoom, setZoom, ambColorMa
                         <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>OUTROS</div>
                         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
-                                <div style={{ width: 10, height: 10, borderRadius: 2, background: '#fef3c7', border: '1px dashed #f59e0b' }} />
+                                <div style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--warning-bg)', border: '1px dashed #f59e0b' }} />
                                 <span>Sobra</span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
@@ -826,7 +826,7 @@ function StepResultado({ plano, chapaIdx, setChapaIdx, zoom, setZoom, ambColorMa
                         {filteredIndices.map((ci, pos) => {
                             const ch = chapas[ci];
                             const isActive = ci === chapaIdx;
-                            const apColor = ch.aproveitamento >= 80 ? '#22c55e' : ch.aproveitamento >= 60 ? '#f59e0b' : '#ef4444';
+                            const apColor = ch.aproveitamento >= 80 ? 'var(--success)' : ch.aproveitamento >= 60 ? 'var(--warning)' : 'var(--danger)';
                             return (
                                 <button key={ci} onClick={() => setChapaIdx(ci)}
                                     title={`Chapa ${ci + 1}: ${ch.material} — ${ch.pecas.length}pç — ${ch.aproveitamento}%`}
@@ -889,7 +889,7 @@ function StepResultado({ plano, chapaIdx, setChapaIdx, zoom, setZoom, ambColorMa
                                 <td style={{ padding: '5px 8px', fontSize: 12, textAlign: 'center', fontWeight: 600 }}>{m.total_pecas}</td>
                                 <td style={{ padding: '5px 8px', fontSize: 12, textAlign: 'center', fontWeight: 600, color: 'var(--primary)' }}>{m.total_chapas}</td>
                                 <td style={{ padding: '5px 8px', fontSize: 12, textAlign: 'center', fontWeight: 600,
-                                    color: m.aproveitamento >= 80 ? '#16a34a' : m.aproveitamento >= 60 ? '#d97706' : '#dc2626',
+                                    color: m.aproveitamento >= 80 ? 'var(--success-hover)' : m.aproveitamento >= 60 ? 'var(--warning-hover)' : 'var(--danger-hover)',
                                 }}>{N(m.aproveitamento, 1)}%</td>
                                 <td style={{ padding: '5px 8px', fontSize: 12, textAlign: 'right', fontWeight: 600 }}>{R(m.custo_total)}</td>
                             </tr>
@@ -952,7 +952,7 @@ function ChapaView({ chapa, scale, ambColorMap }) {
 
             {/* Peças */}
             {pecas.map((p, i) => {
-                const color = ambColorMap[p.ambiente] || '#94a3b8';
+                const color = ambColorMap[p.ambiente] || 'var(--muted)';
                 const px = p.x * scale;
                 const py = p.y * scale;
                 const pw = p.w * scale;
@@ -1038,7 +1038,7 @@ function ChapaThumb({ chapa, ambColorMap }) {
         <svg width={w + 2} height={h + 2} viewBox={`-1 -1 ${w + 2} ${h + 2}`} style={{ display: 'block' }}>
             <rect x={0} y={0} width={w} height={h} fill={matBg.bg} stroke={matBg.stroke} strokeWidth={0.5} rx={1} />
             {chapa.pecas.map((p, i) => {
-                const color = ambColorMap[p.ambiente] || '#94a3b8';
+                const color = ambColorMap[p.ambiente] || 'var(--muted)';
                 return <rect key={i} x={p.x * scale} y={p.y * scale} width={p.w * scale} height={p.h * scale}
                     fill={color + '55'} stroke={color} strokeWidth={0.3} />;
             })}

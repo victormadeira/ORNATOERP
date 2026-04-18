@@ -357,7 +357,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                 <button
                                     onClick={() => { setStatusFilter(''); setClienteFilter(''); setPeriodoFilter(''); }}
                                     className="text-[11px] px-3 py-1.5 rounded-md cursor-pointer hover:bg-red-500/10"
-                                    style={{ color: '#ef4444' }}
+                                    style={{ color: 'var(--danger)' }}
                                 >
                                     Limpar filtros
                                 </button>
@@ -462,13 +462,13 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                 </span>
                                             </td>
                                             <td className="td-glass hide-mobile">
-                                                <span className="text-xs" style={{ color: isStale ? '#ef4444' : 'var(--text-muted)' }}>
+                                                <span className="text-xs" style={{ color: isStale ? 'var(--danger)' : 'var(--text-muted)' }}>
                                                     {dt(o.atualizado_em || o.criado_em)}
                                                 </span>
                                                 {isStale && (
                                                     <div className="flex items-center gap-0.5 mt-0.5" title={`Sem movimentação há ${diasParado} dias`}>
-                                                        <AlertTriangle size={10} style={{ color: '#ef4444' }} />
-                                                        <span className="text-[9px] font-semibold" style={{ color: '#ef4444' }}>{diasParado}d parado</span>
+                                                        <AlertTriangle size={10} style={{ color: 'var(--danger)' }} />
+                                                        <span className="text-[9px] font-semibold" style={{ color: 'var(--danger)' }}>{diasParado}d parado</span>
                                                     </div>
                                                 )}
                                             </td>
@@ -479,7 +479,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                 <span className="flex flex-col gap-0.5">
                                                     <span className="flex items-center gap-1.5">
                                                         {o.tipo === 'aditivo' && (
-                                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.12)', color: '#3b82f6', flexShrink: 0 }}>
+                                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--info)', flexShrink: 0 }}>
                                                                 {o.numero?.match(/-A\d+$/)?.[0]?.replace('-', '') || 'ADT'}
                                                             </span>
                                                         )}
@@ -505,7 +505,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                 {aditivoCount[o.id] > 0 && (
                                                     <div
                                                         className="text-[9px] font-semibold mt-0.5 cursor-pointer hover:underline"
-                                                        style={{ color: '#3b82f6' }}
+                                                        style={{ color: 'var(--info)' }}
                                                         onClick={(e) => { e.stopPropagation(); setExpandedAditivos(expandedAditivos === o.id ? null : o.id); }}
                                                     >
                                                         +{aditivoCount[o.id]} aditivo{aditivoCount[o.id] > 1 ? 's' : ''} ({R$((aditivoMap[o.id] || []).reduce((s, a) => s + (a.valor_venda || 0), 0))})
@@ -533,7 +533,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                                 <div key={ad.id} className="flex items-start justify-between gap-2 py-1.5 border-b last:border-b-0" style={{ borderColor: 'var(--border)' }}>
                                                                     <div className="flex flex-col gap-0.5">
                                                                         <div className="flex items-center gap-1.5">
-                                                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.12)', color: '#3b82f6' }}>{badge}</span>
+                                                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--info)' }}>{badge}</span>
                                                                             <span className="text-[10px] font-medium" style={tagStyle(kc2?.c)}>{kc2?.nm || 'Lead'}</span>
                                                                         </div>
                                                                         {ad.motivo_aditivo && (
@@ -542,7 +542,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                                             </div>
                                                                         )}
                                                                     </div>
-                                                                    <div className="text-xs font-bold whitespace-nowrap" style={{ color: '#3b82f6' }}>
+                                                                    <div className="text-xs font-bold whitespace-nowrap" style={{ color: 'var(--info)' }}>
                                                                         +{R$(ad.valor_venda)}
                                                                     </div>
                                                                 </div>
@@ -589,7 +589,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                                                 {v.versao > 1 ? `R${v.versao}` : 'v1'}
                                                                             </span>
                                                                             <span className="text-[10px] font-medium" style={tagStyle(kc2?.c)}>{kc2?.nm || 'Lead'}</span>
-                                                                            <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(100,116,139,0.1)', color: '#94a3b8' }}>substituída</span>
+                                                                            <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(100,116,139,0.1)', color: 'var(--muted)' }}>substituída</span>
                                                                         </div>
                                                                         <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
                                                                             {dt(v.criado_em)}
@@ -644,7 +644,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                     <button
                                                         onClick={() => previewProposta(o)}
                                                         className="p-1.5 rounded-md transition-colors hover:bg-green-500/10"
-                                                        style={{ color: isLoadingThisLink ? 'var(--primary)' : '#16a34a' }}
+                                                        style={{ color: isLoadingThisLink ? 'var(--primary)' : 'var(--success-hover)' }}
                                                         title="Abrir proposta (nova aba)"
                                                         disabled={isLoadingThisLink}
                                                     >
@@ -678,7 +678,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                     <button
                                                         onClick={() => setConfirmDel({ id: o.id, nome: o.cliente_nome })}
                                                         className="p-1.5 rounded-md transition-colors bg-red-500/10 hover:bg-red-500/20"
-                                                        style={{ color: '#ef4444' }} title="Excluir"
+                                                        style={{ color: 'var(--danger)' }} title="Excluir"
                                                     >
                                                         <Ic.Trash />
                                                     </button>
@@ -757,12 +757,12 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                             const topAmb = linkModal.viewsData.section_resumo?.find(s => s.id?.startsWith('amb_'));
                             const totalInteracoes = Object.values(linkModal.viewsData.eventos_resumo || {}).reduce((s, v) => s + v, 0);
                             const metrics = [
-                                { label: 'Visitas', value: linkModal.viewsData.new_visits || 0, color: '#3b82f6' },
+                                { label: 'Visitas', value: linkModal.viewsData.new_visits || 0, color: 'var(--info)' },
                                 { label: 'Dispositivos', value: linkModal.viewsData.unique_devices || 0, color: '#8b5cf6' },
-                                { label: 'Tempo Max', value: `${Math.floor((linkModal.viewsData.max_tempo || 0) / 60)}min`, color: '#f59e0b' },
-                                { label: 'Scroll Max', value: `${linkModal.viewsData.max_scroll || 0}%`, color: '#22c55e' },
+                                { label: 'Tempo Max', value: `${Math.floor((linkModal.viewsData.max_tempo || 0) / 60)}min`, color: 'var(--warning)' },
+                                { label: 'Scroll Max', value: `${linkModal.viewsData.max_scroll || 0}%`, color: 'var(--success)' },
                             ];
-                            if (topAmb) metrics.push({ label: 'Amb. Foco', value: topAmb.nome?.split(' ')[0] || topAmb.id, color: '#ef4444', sub: `${Math.floor(topAmb.tempo / 60)}m${topAmb.tempo % 60}s` });
+                            if (topAmb) metrics.push({ label: 'Amb. Foco', value: topAmb.nome?.split(' ')[0] || topAmb.id, color: 'var(--danger)', sub: `${Math.floor(topAmb.tempo / 60)}m${topAmb.tempo % 60}s` });
                             if (totalInteracoes > 0) metrics.push({ label: 'Interações', value: totalInteracoes, color: '#0ea5e9' });
                             return (
                                 <div className={`grid gap-2 ${metrics.length > 4 ? 'grid-cols-3' : 'grid-cols-4'}`}>
@@ -793,22 +793,22 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                             let perfil, perfilCor, perfilIcon, perfilDesc;
                             if (pctResumo > 50 && pctAmbs < 30) {
                                 perfil = 'Focado no Preço';
-                                perfilCor = '#ef4444';
+                                perfilCor = 'var(--danger)';
                                 perfilIcon = <DollarSign size={14} />;
                                 perfilDesc = `${pctResumo}% do tempo no resumo financeiro — cliente pode estar comparando preços`;
                             } else if (pctAmbs > 60) {
                                 perfil = 'Analisou Detalhes';
-                                perfilCor = '#22c55e';
+                                perfilCor = 'var(--success)';
                                 perfilIcon = <Search size={14} />;
                                 perfilDesc = `${pctAmbs}% do tempo nos ambientes — cliente interessado nos detalhes do projeto`;
                             } else if (tempoTotal < 30) {
                                 perfil = 'Visualização Rápida';
-                                perfilCor = '#f59e0b';
+                                perfilCor = 'var(--warning)';
                                 perfilIcon = <Zap size={14} />;
                                 perfilDesc = `Apenas ${tempoTotal}s na proposta — pode não ter analisado a fundo`;
                             } else {
                                 perfil = 'Análise Equilibrada';
-                                perfilCor = '#3b82f6';
+                                perfilCor = 'var(--info)';
                                 perfilIcon = <CheckCheck size={14} />;
                                 perfilDesc = `${pctAmbs}% nos ambientes, ${pctResumo}% no financeiro — análise balanceada`;
                             }
@@ -824,10 +824,10 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                         <div className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>{perfilDesc}</div>
                                         <div className="flex gap-3 mt-2">
                                             <div className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
-                                                <span className="font-semibold" style={{ color: pctAmbs > 50 ? '#22c55e' : 'var(--text-secondary)' }}>{pctAmbs}%</span> nos ambientes
+                                                <span className="font-semibold" style={{ color: pctAmbs > 50 ? 'var(--success)' : 'var(--text-secondary)' }}>{pctAmbs}%</span> nos ambientes
                                             </div>
                                             <div className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
-                                                <span className="font-semibold" style={{ color: pctResumo > 50 ? '#ef4444' : 'var(--text-secondary)' }}>{pctResumo}%</span> no financeiro
+                                                <span className="font-semibold" style={{ color: pctResumo > 50 ? 'var(--danger)' : 'var(--text-secondary)' }}>{pctResumo}%</span> no financeiro
                                             </div>
                                         </div>
                                     </div>
@@ -845,7 +845,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                 const seg = s.tempo % 60;
                                                 const tempoStr = min > 0 ? `${min}m${seg > 0 ? seg + 's' : ''}` : `${seg}s`;
                                                 const heat = s.pct / 100;
-                                                const barColor = heat > 0.6 ? '#ef4444' : heat > 0.3 ? '#f97316' : heat > 0.15 ? '#f59e0b' : '#3b82f6';
+                                                const barColor = heat > 0.6 ? 'var(--danger)' : heat > 0.3 ? '#f97316' : heat > 0.15 ? 'var(--warning)' : 'var(--info)';
                                                 const isResumo = s.id === 'resumo' || s.id === 'pagamento';
                                                 return (
                                                     <div key={i} className="flex items-center gap-2">
@@ -994,7 +994,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                             <div>
                                 <div className="text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>
                                     LINK EXPERIÊNCIA COMPLETA
-                                    <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: '#dbeafe', color: '#1d4ed8' }}>RECOMENDADO</span>
+                                    <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: 'var(--info-bg)', color: '#1d4ed8' }}>RECOMENDADO</span>
                                 </div>
                                 <div className="flex gap-2">
                                     <input readOnly value={`${window.location.origin}/apresentacao/${linkModal.token}`}
@@ -1020,7 +1020,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                         <div>
                             <div className="text-xs font-semibold mb-3" style={{ color: 'var(--text-muted)' }}>
                                 TIMELINE DO CLIENTE
-                                <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ background: linkModal.total > 0 ? '#dbeafe' : 'var(--bg-muted)', color: linkModal.total > 0 ? '#1d4ed8' : 'var(--text-muted)' }}>
+                                <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ background: linkModal.total > 0 ? 'var(--info-bg)' : 'var(--bg-muted)', color: linkModal.total > 0 ? '#1d4ed8' : 'var(--text-muted)' }}>
                                     {linkModal.total} {linkModal.total === 1 ? 'acesso' : 'acessos'}
                                 </span>
                             </div>
@@ -1036,13 +1036,13 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                     <div className="flex flex-col gap-1">
                                         {timeline.events.map((ev, i) => {
                                             const ICON_MAP = {
-                                                file: { icon: <FileTextIcon size={10} />, color: '#3b82f6' },
+                                                file: { icon: <FileTextIcon size={10} />, color: 'var(--info)' },
                                                 link: { icon: <Link2 size={10} />, color: '#8b5cf6' },
                                                 eye: { icon: <EyeIcon size={10} />, color: '#6366f1' },
                                                 refresh: { icon: <RefreshCw size={10} />, color: '#f97316' },
                                                 share: { icon: <Share2 size={10} />, color: '#8b5cf6' },
-                                                printer: { icon: <Printer size={10} />, color: '#16a34a' },
-                                                check: { icon: <CheckCircle size={10} />, color: '#22c55e' },
+                                                printer: { icon: <Printer size={10} />, color: 'var(--success-hover)' },
+                                                check: { icon: <CheckCircle size={10} />, color: 'var(--success)' },
                                                 text: { icon: <Type size={10} />, color: '#0ea5e9' },
                                                 copy: { icon: <Copy size={10} />, color: '#14b8a6' },
                                                 zoom: { icon: <ZoomIn size={10} />, color: '#a855f7' },

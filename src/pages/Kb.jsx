@@ -8,7 +8,7 @@ import { useDraggable, useDroppable } from '@dnd-kit/core';
 
 // ── Status labels para arquivo ──
 const STATUS_LABEL = { arquivo: 'Arquivado', perdido: 'Perdido' };
-const STATUS_COLOR = { arquivo: '#64748b', perdido: '#dc2626' };
+const STATUS_COLOR = { arquivo: 'var(--muted)', perdido: 'var(--danger-hover)' };
 
 // ── Componente Card Arrastável ──
 function DraggableCard({ o, col, move, nav, KCOLS: kcols }) {
@@ -39,7 +39,7 @@ function DraggableCard({ o, col, move, nav, KCOLS: kcols }) {
                 <div className="flex-1 min-w-0">
                     <div className="text-sm text-[var(--text-primary)] font-semibold mb-0.5 flex items-center gap-1.5">
                         {o.tipo === 'aditivo' && (
-                            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.12)', color: '#3b82f6', flexShrink: 0 }}>
+                            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--info)', flexShrink: 0 }}>
                                 {o.numero?.match(/-A\d+$/)?.[0]?.replace('-', '') || 'ADT'}
                             </span>
                         )}
@@ -55,7 +55,7 @@ function DraggableCard({ o, col, move, nav, KCOLS: kcols }) {
                 {nav && (
                     <button onClick={() => nav('whatsapp')}
                         className="text-[8px] px-2 py-0.5 rounded-md border transition-colors cursor-pointer font-semibold"
-                        style={{ borderColor: '#22c55e30', color: '#22c55e' }}
+                        style={{ borderColor: 'var(--success-border)', color: 'var(--success)' }}
                         title="Abrir chat WhatsApp">
                         Chat
                     </button>
@@ -72,7 +72,7 @@ function DraggableCard({ o, col, move, nav, KCOLS: kcols }) {
                 {isDone && (
                     <button onClick={() => move(o.id, 'arquivo')}
                         className="text-[8px] px-2 py-0.5 rounded-md border transition-colors cursor-pointer font-semibold"
-                        style={{ borderColor: '#64748b30', color: '#64748b' }}
+                        style={{ borderColor: 'var(--muted)', color: 'var(--muted)' }}
                         title="Arquivar">
                         <Archive size={8} style={{ display: 'inline', marginRight: 2 }} /> Arquivar
                     </button>
@@ -82,7 +82,7 @@ function DraggableCard({ o, col, move, nav, KCOLS: kcols }) {
                 {['lead', 'orc', 'env', 'neg'].includes(col.id) && (
                     <button onClick={() => move(o.id, 'perdido')}
                         className="text-[8px] px-2 py-0.5 rounded-md border transition-colors cursor-pointer font-semibold"
-                        style={{ borderColor: '#dc262630', color: '#dc2626' }}
+                        style={{ borderColor: 'var(--danger-border)', color: 'var(--danger-hover)' }}
                         title="Marcar como perdido">
                         <XCircle size={8} style={{ display: 'inline', marginRight: 2 }} /> Perdido
                     </button>
@@ -122,7 +122,7 @@ function DragOverlayCard({ o }) {
         <div className="bg-[var(--bg-card)] border-2 rounded-lg p-3 shadow-2xl" style={{ borderColor: 'var(--primary)', width: 200, opacity: 0.92 }}>
             <div className="text-sm text-[var(--text-primary)] font-semibold mb-0.5 flex items-center gap-1.5">
                 {o.tipo === 'aditivo' && (
-                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.12)', color: '#3b82f6' }}>
+                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--info)' }}>
                         {o.numero?.match(/-A\d+$/)?.[0]?.replace('-', '') || 'ADT'}
                     </span>
                 )}
@@ -285,8 +285,8 @@ export default function Kb({ orcs, reload, notify, nav }) {
                         <div style={{ display: 'flex', gap: 4, background: 'var(--bg-muted)', borderRadius: 8, padding: 3 }}>
                             {[
                                 { id: 'todos', label: 'Todos', count: orcsArquivados.length },
-                                { id: 'arquivo', label: 'Arquivados', count: orcsArquivados.filter(o => o.kb_col === 'arquivo').length, color: '#64748b' },
-                                { id: 'perdido', label: 'Perdidos', count: orcsArquivados.filter(o => o.kb_col === 'perdido').length, color: '#dc2626' },
+                                { id: 'arquivo', label: 'Arquivados', count: orcsArquivados.filter(o => o.kb_col === 'arquivo').length, color: 'var(--muted)' },
+                                { id: 'perdido', label: 'Perdidos', count: orcsArquivados.filter(o => o.kb_col === 'perdido').length, color: 'var(--danger-hover)' },
                             ].map(f => (
                                 <button key={f.id} onClick={() => setFiltroArquivo(f.id)}
                                     style={{
@@ -326,7 +326,7 @@ export default function Kb({ orcs, reload, notify, nav }) {
 
                             {arquivoFiltrado.map(o => {
                                 const isPerdido = o.kb_col === 'perdido';
-                                const color = isPerdido ? '#dc2626' : '#64748b';
+                                const color = isPerdido ? 'var(--danger-hover)' : 'var(--muted)';
                                 return (
                                     <div key={o.id}
                                         style={{
@@ -351,7 +351,7 @@ export default function Kb({ orcs, reload, notify, nav }) {
                                         </div>
 
                                         {/* Valor */}
-                                        <div style={{ fontSize: 13, fontWeight: 700, color: isPerdido ? '#dc262680' : 'var(--primary)', textAlign: 'right', textDecoration: isPerdido ? 'line-through' : 'none' }}>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: isPerdido ? 'var(--danger-border)' : 'var(--primary)', textAlign: 'right', textDecoration: isPerdido ? 'line-through' : 'none' }}>
                                             {R$(o.valor_venda)}
                                         </div>
 

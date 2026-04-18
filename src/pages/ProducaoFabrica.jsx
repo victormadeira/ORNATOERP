@@ -8,15 +8,15 @@ import {
 import { PageHeader, Spinner, EmptyState, ProgressBar as PBar, ToolbarButton, ToolbarDivider } from '../ui';
 
 const ETAPAS = [
-    { id: 'aguardando', label: 'Aguardando', color: '#94a3b8', icon: Clock },
-    { id: 'corte', label: 'Corte', color: '#3b82f6', icon: Factory },
+    { id: 'aguardando', label: 'Aguardando', color: 'var(--muted)', icon: Clock },
+    { id: 'corte', label: 'Corte', color: 'var(--info)', icon: Factory },
     { id: 'usinagem', label: 'Usinagem', color: '#8b5cf6', icon: Factory },
-    { id: 'colagem_borda', label: 'Borda', color: '#f59e0b', icon: Factory },
+    { id: 'colagem_borda', label: 'Borda', color: 'var(--warning)', icon: Factory },
     { id: 'furacao', label: 'Furação', color: '#06b6d4', icon: Factory },
     { id: 'montagem', label: 'Montagem', color: '#ec4899', icon: Factory },
     { id: 'acabamento', label: 'Acabamento', color: '#14b8a6', icon: Factory },
-    { id: 'embalagem', label: 'Embalagem', color: '#22c55e', icon: Package },
-    { id: 'concluido', label: 'Concluído', color: '#10b981', icon: CheckCircle2 },
+    { id: 'embalagem', label: 'Embalagem', color: 'var(--success)', icon: Package },
+    { id: 'concluido', label: 'Concluído', color: 'var(--success)', icon: CheckCircle2 },
 ];
 
 const ETAPA_MAP = {};
@@ -48,15 +48,15 @@ function KanbanCard({ proj, onMoveNext, onMovePrev, tabletMode }) {
     const pct = proj.progresso_modulos || 0;
 
     // Urgência
-    let urgColor = '#22c55e', urgLabel = '', urgIcon = null;
+    let urgColor = 'var(--success)', urgLabel = '', urgIcon = null;
     if (proj.data_entrega) {
         const diff = Math.ceil((new Date(proj.data_entrega + 'T12:00:00') - new Date()) / 86400000);
-        if (diff < 0) { urgColor = '#ef4444'; urgLabel = `${Math.abs(diff)}d atrasado`; urgIcon = AlertTriangle; }
-        else if (diff <= 5) { urgColor = '#f59e0b'; urgLabel = `${diff}d`; urgIcon = Clock; }
+        if (diff < 0) { urgColor = 'var(--danger)'; urgLabel = `${Math.abs(diff)}d atrasado`; urgIcon = AlertTriangle; }
+        else if (diff <= 5) { urgColor = 'var(--warning)'; urgLabel = `${diff}d`; urgIcon = Clock; }
         else { urgLabel = `${diff}d`; }
     }
 
-    const isLate = urgColor === '#ef4444';
+    const isLate = urgColor === 'var(--danger)';
 
     return (
         <div className="prod-card prod-card-accent" style={{
@@ -87,7 +87,7 @@ function KanbanCard({ proj, onMoveNext, onMovePrev, tabletMode }) {
             <div style={{ marginBottom: 6 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
                     <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{proj.modulos_concluidos || 0}/{proj.modulos_total || 0} módulos</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: pct >= 100 ? '#22c55e' : 'var(--text-muted)' }}>{Math.round(pct)}%</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: pct >= 100 ? 'var(--success)' : 'var(--text-muted)' }}>{Math.round(pct)}%</span>
                 </div>
                 <PBar value={pct} height={tabletMode ? 5 : 4} />
             </div>
@@ -197,15 +197,15 @@ function ListView({ projetos, onMove }) {
                 </thead>
                 <tbody>
                     {projetos.map(p => {
-                        const eInfo = ETAPA_MAP[p.etapa_atual] || { label: p.etapa_atual || 'Aguardando', color: '#94a3b8' };
+                        const eInfo = ETAPA_MAP[p.etapa_atual] || { label: p.etapa_atual || 'Aguardando', color: 'var(--muted)' };
                         const pct = p.progresso_modulos || 0;
-                        let urgColor = '#22c55e', urgLabel = 'No prazo';
+                        let urgColor = 'var(--success)', urgLabel = 'No prazo';
                         if (p.data_entrega) {
                             const diff = Math.ceil((new Date(p.data_entrega + 'T12:00:00') - new Date()) / 86400000);
-                            if (diff < 0) { urgColor = '#ef4444'; urgLabel = `${Math.abs(diff)}d atrasado`; }
-                            else if (diff <= 5) { urgColor = '#f59e0b'; urgLabel = `${diff}d`; }
+                            if (diff < 0) { urgColor = 'var(--danger)'; urgLabel = `${Math.abs(diff)}d atrasado`; }
+                            else if (diff <= 5) { urgColor = 'var(--warning)'; urgLabel = `${diff}d`; }
                             else { urgLabel = `${diff}d`; }
-                        } else { urgColor = '#94a3b8'; urgLabel = 'Sem prazo'; }
+                        } else { urgColor = 'var(--muted)'; urgLabel = 'Sem prazo'; }
 
                         const etapaIdx = ETAPAS.findIndex(e => e.id === p.etapa_atual);
 
@@ -379,9 +379,9 @@ export default function ProducaoFabrica({ notify, user }) {
             }}>
                 {[
                     { label: 'Ativos', value: stats.ativos, color: 'var(--primary)', icon: Package },
-                    { label: 'Em Produção', value: stats.emAndamento, color: '#f59e0b', icon: PlayCircle },
-                    { label: 'Atrasados', value: stats.atrasados, color: '#ef4444', icon: AlertTriangle },
-                    { label: 'Módulos', value: `${stats.concluidos}/${stats.modulosTotal || 0}`, color: '#22c55e', icon: CheckCircle2 },
+                    { label: 'Em Produção', value: stats.emAndamento, color: 'var(--warning)', icon: PlayCircle },
+                    { label: 'Atrasados', value: stats.atrasados, color: 'var(--danger)', icon: AlertTriangle },
+                    { label: 'Módulos', value: `${stats.concluidos}/${stats.modulosTotal || 0}`, color: 'var(--success)', icon: CheckCircle2 },
                 ].map(s => (
                     <div key={s.label} className="glass-card hover-lift" style={{
                         display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',

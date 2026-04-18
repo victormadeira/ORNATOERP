@@ -60,16 +60,16 @@ const KB_LABELS = {
     arq: 'Arquivo', perdido: 'Perdido'
 };
 const KB_COLORS = {
-    lead: '#94a3b8', orc: '#3b82f6', env: '#8b5cf6', neg: '#f59e0b',
-    ok: '#22c55e', prod: '#06b6d4', mont: '#ec4899',
-    arq: '#64748b', perdido: '#ef4444'
+    lead: 'var(--muted)', orc: 'var(--info)', env: '#8b5cf6', neg: 'var(--warning)',
+    ok: 'var(--success)', prod: '#06b6d4', mont: '#ec4899',
+    arq: 'var(--muted)', perdido: 'var(--danger)'
 };
 
 const TIMELINE_ICONS = {
-    orcamento: { icon: <FileText size={14} />, color: '#3b82f6', label: 'Orçamento' },
+    orcamento: { icon: <FileText size={14} />, color: 'var(--info)', label: 'Orçamento' },
     projeto: { icon: <Briefcase size={14} />, color: '#8b5cf6', label: 'Projeto' },
-    nota: { icon: <Edit size={14} />, color: '#f59e0b', label: 'Nota' },
-    whatsapp: { icon: <MessageCircle size={14} />, color: '#22c55e', label: 'WhatsApp' },
+    nota: { icon: <Edit size={14} />, color: 'var(--warning)', label: 'Nota' },
+    whatsapp: { icon: <MessageCircle size={14} />, color: 'var(--success)', label: 'WhatsApp' },
     followup: { icon: <Sparkles size={14} />, color: '#ec4899', label: 'Follow-up' },
     ligacao: { icon: <Phone size={14} />, color: '#06b6d4', label: 'Ligação' },
     reuniao: { icon: <Calendar size={14} />, color: '#f97316', label: 'Reunião' },
@@ -87,8 +87,8 @@ const ORIGENS = {
 };
 
 const NOTE_COLORS = [
-    '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6',
-    '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#64748b'
+    'var(--info)', 'var(--success)', 'var(--warning)', 'var(--danger)', '#8b5cf6',
+    '#ec4899', '#06b6d4', '#f97316', '#14b8a6', 'var(--muted)'
 ];
 
 // ─── Copy Button ────────────────────────────────
@@ -151,7 +151,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
     const [tab, setTab] = useState('resumo');
     const [showNotaModal, setShowNotaModal] = useState(false);
     const [editNota, setEditNota] = useState(null);
-    const [notaForm, setNotaForm] = useState({ titulo: '', conteudo: '', cor: '#3b82f6' });
+    const [notaForm, setNotaForm] = useState({ titulo: '', conteudo: '', cor: 'var(--info)' });
     const [showInterModal, setShowInterModal] = useState(false);
     const [interForm, setInterForm] = useState({ tipo: 'ligacao', descricao: '', data: '' });
     const [tlFilter, setTlFilter] = useState('todos');
@@ -187,7 +187,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
             notify(editNota ? 'Nota atualizada!' : 'Nota criada!');
             setShowNotaModal(false);
             setEditNota(null);
-            setNotaForm({ titulo: '', conteudo: '', cor: '#3b82f6' });
+            setNotaForm({ titulo: '', conteudo: '', cor: 'var(--info)' });
             loadCliente();
             loadTimeline();
         } catch { notify('Erro ao salvar nota'); }
@@ -301,14 +301,14 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                     label="Total Faturado"
                     value={R$(m.total_faturado)}
                     sub={`${m.total_recebido ? 'Recebido: ' + R$(m.total_recebido) : ''}`}
-                    color="#22c55e"
+                    color="var(--success)"
                 />
                 <MetricCard
                     icon={<FileText size={20} />}
                     label="Orçamentos"
                     value={m.total_orcamentos || 0}
                     sub={`${m.orcamentos_aprovados || 0} aprovados`}
-                    color="#3b82f6"
+                    color="var(--info)"
                 />
                 <MetricCard
                     icon={<Target size={20} />}
@@ -325,7 +325,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                         ? `${projs.filter(p => p.status === 'em_andamento').length} em andamento`
                         : 'Nenhum ativo'
                     }
-                    color="#f59e0b"
+                    color="var(--warning)"
                 />
             </div>
 
@@ -403,17 +403,17 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                                     {orcs.slice(0, 3).map(o => (
                                         <div key={o.id} className="flex items-center gap-3 p-3 rounded-lg transition-colors hover:bg-[var(--bg-muted)]"
                                             style={{ border: '1px solid var(--border)' }}>
-                                            <div className="w-2 h-8 rounded-full shrink-0" style={{ background: KB_COLORS[o.kb_col] || '#94a3b8' }} />
+                                            <div className="w-2 h-8 rounded-full shrink-0" style={{ background: KB_COLORS[o.kb_col] || 'var(--muted)' }} />
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                                                         {o.numero || `#${o.id}`}
                                                     </span>
-                                                    <span className={tagClass} style={tagStyle(KB_COLORS[o.kb_col] || '#94a3b8')}>
+                                                    <span className={tagClass} style={tagStyle(KB_COLORS[o.kb_col] || 'var(--muted)')}>
                                                         {KB_LABELS[o.kb_col] || o.kb_col}
                                                     </span>
                                                     {o.tipo === 'aditivo' && (
-                                                        <span className={tagClass} style={tagStyle('#f59e0b')}>
+                                                        <span className={tagClass} style={tagStyle('var(--warning)')}>
                                                             Aditivo
                                                         </span>
                                                     )}
@@ -447,7 +447,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                                 </div>
                                 <div className="space-y-2">
                                     {projs.slice(0, 3).map(p => {
-                                        const st = STATUS_PROJ[p.status] || { label: p.status, color: '#94a3b8' };
+                                        const st = STATUS_PROJ[p.status] || { label: p.status, color: 'var(--muted)' };
                                         return (
                                             <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg transition-colors hover:bg-[var(--bg-muted)]"
                                                 style={{ border: '1px solid var(--border)' }}>
@@ -487,7 +487,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                                 </h4>
                                 <div className="space-y-2">
                                     {notas.filter(n => n.fixado).map(n => (
-                                        <div key={n.id} className="p-3 rounded-lg text-sm" style={{ background: `${n.cor || '#3b82f6'}10`, borderLeft: `3px solid ${n.cor || '#3b82f6'}` }}>
+                                        <div key={n.id} className="p-3 rounded-lg text-sm" style={{ background: `${n.cor || 'var(--info)'}10`, borderLeft: `3px solid ${n.cor || 'var(--info)'}` }}>
                                             {n.titulo && <div className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{n.titulo}</div>}
                                             <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                                                 {n.conteudo.length > 120 ? n.conteudo.slice(0, 120) + '...' : n.conteudo}
@@ -509,7 +509,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                                         <div key={c.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-[var(--bg-muted)] transition-colors"
                                             style={{ border: '1px solid var(--border)' }}>
                                             <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                                                style={{ background: colorBg('#22c55e'), color: '#22c55e' }}>
+                                                style={{ background: colorBg('var(--success)'), color: 'var(--success)' }}>
                                                 <MessageCircle size={14} />
                                             </div>
                                             <div className="flex-1 min-w-0">
@@ -521,7 +521,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                                                 </div>
                                             </div>
                                             {c.nao_lidas > 0 && (
-                                                <span className="text-[10px] font-bold text-white px-1.5 py-0.5 rounded-full" style={{ background: '#22c55e' }}>
+                                                <span className="text-[10px] font-bold text-white px-1.5 py-0.5 rounded-full" style={{ background: 'var(--success)' }}>
                                                     {c.nao_lidas}
                                                 </span>
                                             )}
@@ -558,7 +558,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                         <div className="glass-card p-4">
                             <h4 className="text-xs font-bold mb-3" style={{ color: 'var(--text-muted)' }}>AÇÕES RÁPIDAS</h4>
                             <div className="space-y-2">
-                                <button onClick={() => { setNotaForm({ titulo: '', conteudo: '', cor: '#3b82f6' }); setEditNota(null); setShowNotaModal(true); }}
+                                <button onClick={() => { setNotaForm({ titulo: '', conteudo: '', cor: 'var(--info)' }); setEditNota(null); setShowNotaModal(true); }}
                                     className="w-full flex items-center gap-2 p-2.5 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--bg-muted)] cursor-pointer"
                                     style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
                                     <Plus size={14} /> Adicionar Nota
@@ -603,7 +603,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                                 className={Z.btn2} style={{ fontSize: 12 }}>
                                 <Plus size={12} /> Interação
                             </button>
-                            <button onClick={() => { setNotaForm({ titulo: '', conteudo: '', cor: '#3b82f6' }); setEditNota(null); setShowNotaModal(true); }}
+                            <button onClick={() => { setNotaForm({ titulo: '', conteudo: '', cor: 'var(--info)' }); setEditNota(null); setShowNotaModal(true); }}
                                 className={Z.btn} style={{ fontSize: 12 }}>
                                 <Plus size={12} /> Nota
                             </button>
@@ -623,7 +623,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
 
                             <div className="space-y-1">
                                 {filteredTimeline.map((ev, idx) => {
-                                    const cfg = TIMELINE_ICONS[ev.tipo] || { icon: <Hash size={14} />, color: '#94a3b8', label: ev.tipo };
+                                    const cfg = TIMELINE_ICONS[ev.tipo] || { icon: <Hash size={14} />, color: 'var(--muted)', label: ev.tipo };
                                     return (
                                         <div key={idx} className="relative flex gap-3 py-3 pl-1">
                                             <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10"
@@ -680,7 +680,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                         <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
                             {notas.length} {notas.length === 1 ? 'nota' : 'notas'}
                         </h3>
-                        <button onClick={() => { setNotaForm({ titulo: '', conteudo: '', cor: '#3b82f6' }); setEditNota(null); setShowNotaModal(true); }}
+                        <button onClick={() => { setNotaForm({ titulo: '', conteudo: '', cor: 'var(--info)' }); setEditNota(null); setShowNotaModal(true); }}
                             className={Z.btn} style={{ fontSize: 12 }}>
                             <Plus size={12} /> Nova Nota
                         </button>
@@ -690,7 +690,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                         <div className="glass-card p-12 text-center" style={{ color: 'var(--text-muted)' }}>
                             <Edit size={32} className="mx-auto mb-3 opacity-40" />
                             <p className="text-sm">Nenhuma nota registrada</p>
-                            <button onClick={() => { setNotaForm({ titulo: '', conteudo: '', cor: '#3b82f6' }); setEditNota(null); setShowNotaModal(true); }}
+                            <button onClick={() => { setNotaForm({ titulo: '', conteudo: '', cor: 'var(--info)' }); setEditNota(null); setShowNotaModal(true); }}
                                 className={`${Z.btn2} mt-3`} style={{ fontSize: 12 }}>
                                 Criar primeira nota
                             </button>
@@ -699,12 +699,12 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {notas.map(n => (
                                 <div key={n.id} className="glass-card p-4 relative group"
-                                    style={{ borderTop: `3px solid ${n.cor || '#3b82f6'}` }}>
+                                    style={{ borderTop: `3px solid ${n.cor || 'var(--info)'}` }}>
                                     {/* Pin + Actions */}
                                     <div className="absolute top-2 right-2 flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                         <button onClick={() => toggleFixarNota(n)}
                                             className="p-1 rounded hover:bg-[var(--bg-hover)] cursor-pointer transition-colors"
-                                            style={{ color: n.fixado ? '#f59e0b' : 'var(--text-muted)' }} title={n.fixado ? 'Desafixar' : 'Fixar'}>
+                                            style={{ color: n.fixado ? 'var(--warning)' : 'var(--text-muted)' }} title={n.fixado ? 'Desafixar' : 'Fixar'}>
                                             {n.fixado ? <PinOff size={12} /> : <Pin size={12} />}
                                         </button>
                                         <button onClick={() => { setEditNota(n); setNotaForm({ titulo: n.titulo, conteudo: n.conteudo, cor: n.cor }); setShowNotaModal(true); }}
@@ -714,13 +714,13 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                                         </button>
                                         <button onClick={() => deletarNota(n.id)}
                                             className="p-1 rounded hover:bg-red-500/10 cursor-pointer transition-colors"
-                                            style={{ color: '#ef4444' }} title="Excluir">
+                                            style={{ color: 'var(--danger)' }} title="Excluir">
                                             <Trash2 size={12} />
                                         </button>
                                     </div>
 
                                     {n.fixado && (
-                                        <Pin size={10} className="absolute top-3 left-3" style={{ color: '#f59e0b' }} />
+                                        <Pin size={10} className="absolute top-3 left-3" style={{ color: 'var(--warning)' }} />
                                     )}
 
                                     {n.titulo && (
@@ -775,7 +775,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                                                 {o.ambiente || '—'}
                                             </td>
                                             <td className="td-glass">
-                                                <span className={tagClass} style={tagStyle(KB_COLORS[o.kb_col] || '#94a3b8')}>
+                                                <span className={tagClass} style={tagStyle(KB_COLORS[o.kb_col] || 'var(--muted)')}>
                                                     {KB_LABELS[o.kb_col] || o.kb_col}
                                                 </span>
                                             </td>
@@ -811,7 +811,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                     ) : (
                         <div className="space-y-3">
                             {projs.map(p => {
-                                const st = STATUS_PROJ[p.status] || { label: p.status, color: '#94a3b8', bg: '#f1f5f9' };
+                                const st = STATUS_PROJ[p.status] || { label: p.status, color: 'var(--muted)', bg: 'var(--muted-bg)' };
                                 return (
                                     <div key={p.id} className="glass-card p-4 flex items-center gap-4 hover:bg-[var(--bg-muted)] transition-colors cursor-pointer"
                                         onClick={() => nav && nav('proj')}>
@@ -1088,7 +1088,7 @@ export default function Cli({ clis, reload, notify, nav }) {
                                             </button>
                                             <button onClick={() => setConfirmDel({ id: c.id, nome: c.nome })}
                                                 className="p-1.5 rounded-md transition-colors bg-red-500/10 hover:bg-red-500/20"
-                                                style={{ color: '#ef4444' }} title="Excluir">
+                                                style={{ color: 'var(--danger)' }} title="Excluir">
                                                 <Ic.Trash />
                                             </button>
                                         </div>

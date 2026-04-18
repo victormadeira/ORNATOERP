@@ -621,31 +621,31 @@ export default function App() {
 
     // Notificacao tipo -> icone + cor
     const NOTIF_STYLE = {
-        financeiro_vencido:  { icon: <AlertTriangle size={14} />, color: '#ef4444', bg: '#fef2f2' },
-        financeiro_proximo:  { icon: <Clock size={14} />, color: '#f59e0b', bg: '#fffbeb' },
-        orcamento_aprovado:  { icon: <CheckCircle2 size={14} />, color: '#22c55e', bg: '#f0fdf4' },
-        projeto_criado:      { icon: <Folder size={14} />, color: '#3b82f6', bg: '#eff6ff' },
+        financeiro_vencido:  { icon: <AlertTriangle size={14} />, color: 'var(--danger)', bg: 'var(--danger-bg)' },
+        financeiro_proximo:  { icon: <Clock size={14} />, color: 'var(--warning)', bg: 'var(--warning-bg)' },
+        orcamento_aprovado:  { icon: <CheckCircle2 size={14} />, color: 'var(--success)', bg: 'var(--success-bg)' },
+        projeto_criado:      { icon: <Folder size={14} />, color: 'var(--info)', bg: 'var(--info-bg)' },
         projeto_status:      { icon: <BarChart2 size={14} />, color: '#8b5cf6', bg: '#f5f3ff' },
         estoque_baixo:       { icon: <AlertCircle size={14} />, color: '#f97316', bg: '#fff7ed' },
-        pagar_vencido:       { icon: <AlertTriangle size={14} />, color: '#ef4444', bg: '#fef2f2' },
-        pagar_proximo:       { icon: <DollarSign size={14} />, color: '#f59e0b', bg: '#fffbeb' },
+        pagar_vencido:       { icon: <AlertTriangle size={14} />, color: 'var(--danger)', bg: 'var(--danger-bg)' },
+        pagar_proximo:       { icon: <DollarSign size={14} />, color: 'var(--warning)', bg: 'var(--warning-bg)' },
         recorrencia_gerada:  { icon: <Calendar size={14} />, color: '#8b5cf6', bg: '#f5f3ff' },
-        portal_mensagem:     { icon: <MessageCircle size={14} />, color: '#3b82f6', bg: '#eff6ff' },
+        portal_mensagem:     { icon: <MessageCircle size={14} />, color: 'var(--info)', bg: 'var(--info-bg)' },
         montador_foto:       { icon: <Camera size={14} />, color: '#8b5cf6', bg: '#f5f3ff' },
         orcamento_parado:    { icon: <FileText size={14} />, color: '#f97316', bg: '#fff7ed' },
-        etapa_atrasada:      { icon: <ClipboardList size={14} />, color: '#ef4444', bg: '#fef2f2' },
+        etapa_atrasada:      { icon: <ClipboardList size={14} />, color: 'var(--danger)', bg: 'var(--danger-bg)' },
         cliente_aniversario: { icon: <Gift size={14} />, color: '#ec4899', bg: '#fdf2f8' },
         proposta_visualizada:{ icon: <Eye size={14} />, color: '#6366f1', bg: '#eef2ff' },
         portal_visualizado:  { icon: <Eye size={14} />, color: '#0ea5e9', bg: '#f0f9ff' },
         proposta_retorno:    { icon: <RefreshCw size={14} />, color: '#f97316', bg: '#fff7ed' },
         proposta_compartilhada: { icon: <Share2 size={14} />, color: '#8b5cf6', bg: '#f5f3ff' },
-        proposta_impressa:   { icon: <Printer size={14} />, color: '#16a34a', bg: '#f0fdf4' },
-        entrega_hoje:        { icon: <Calendar size={14} />, color: '#3b82f6', bg: '#eff6ff' },
-        entrega_atrasada:    { icon: <AlertTriangle size={14} />, color: '#ef4444', bg: '#fef2f2' },
+        proposta_impressa:   { icon: <Printer size={14} />, color: 'var(--success-hover)', bg: 'var(--success-bg)' },
+        entrega_hoje:        { icon: <Calendar size={14} />, color: 'var(--info)', bg: 'var(--info-bg)' },
+        entrega_atrasada:    { icon: <AlertTriangle size={14} />, color: 'var(--danger)', bg: 'var(--danger-bg)' },
     };
     const getNotifStyle = (tipo) => NOTIF_STYLE[tipo] || { icon: <Bell size={14} />, color: 'var(--primary)', bg: 'var(--bg-hover)' };
     const notifBadgeColor = notifs.nao_lidas > 0
-        ? (notifs.notificacoes.some(n => !n.lida && (n.tipo === 'financeiro_vencido' || n.tipo === 'pagar_vencido')) ? '#ef4444' : '#3b82f6')
+        ? (notifs.notificacoes.some(n => !n.lida && (n.tipo === 'financeiro_vencido' || n.tipo === 'pagar_vencido')) ? 'var(--danger)' : 'var(--info)')
         : null;
 
     return (
@@ -936,7 +936,7 @@ function PerfilModal({ user, onClose, notify, updateUser }) {
                     </div>
 
                     {err && (
-                        <div style={{ padding: '8px 12px', borderRadius: 8, marginBottom: 12, fontSize: 12, fontWeight: 600, background: 'rgba(220,38,38,0.08)', color: '#ef4444', border: '1px solid rgba(220,38,38,0.15)' }}>
+                        <div style={{ padding: '8px 12px', borderRadius: 8, marginBottom: 12, fontSize: 12, fontWeight: 600, background: 'rgba(220,38,38,0.08)', color: 'var(--danger)', border: '1px solid rgba(220,38,38,0.15)' }}>
                             {err}
                         </div>
                     )}
@@ -968,7 +968,7 @@ function PerfilModal({ user, onClose, notify, updateUser }) {
                     </div>
 
                     {errSenha && (
-                        <div style={{ padding: '8px 12px', borderRadius: 8, marginBottom: 12, fontSize: 12, fontWeight: 600, background: 'rgba(220,38,38,0.08)', color: '#ef4444', border: '1px solid rgba(220,38,38,0.15)' }}>
+                        <div style={{ padding: '8px 12px', borderRadius: 8, marginBottom: 12, fontSize: 12, fontWeight: 600, background: 'rgba(220,38,38,0.08)', color: 'var(--danger)', border: '1px solid rgba(220,38,38,0.15)' }}>
                             {errSenha}
                         </div>
                     )}

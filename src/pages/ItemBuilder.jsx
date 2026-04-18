@@ -118,10 +118,10 @@ function FitaToggle({ value = [], onChange }) {
 
 // ── FormulaInput ────────────────────────────────────────────────────────────
 const CHIP_COLORS = {
-    caixa: { bg: '#dbeafe', color: '#1d4ed8', border: '#93c5fd' },
+    caixa: { bg: 'var(--info-bg)', color: '#1d4ed8', border: '#93c5fd' },
     interno: { bg: '#e0e7ff', color: '#4338ca', border: '#a5b4fc' },
-    derivada: { bg: '#dcfce7', color: '#15803d', border: '#86efac' },
-    propria: { bg: '#fef3c7', color: '#b45309', border: '#fcd34d' },
+    derivada: { bg: 'var(--success-bg)', color: 'var(--success-hover)', border: '#86efac' },
+    propria: { bg: 'var(--warning-bg)', color: 'var(--warning-hover)', border: '#fcd34d' },
 };
 
 function FormulaInput({ value, onChange, vars = [], testVars = {}, placeholder, suggestions = [], className = '' }) {
@@ -147,8 +147,8 @@ function FormulaInput({ value, onChange, vars = [], testVars = {}, placeholder, 
                 {hasVal && (
                     <span style={{
                         fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap',
-                        background: result !== null ? '#dcfce7' : '#fee2e2',
-                        color: result !== null ? '#15803d' : '#dc2626',
+                        background: result !== null ? 'var(--success-bg)' : 'var(--danger-bg)',
+                        color: result !== null ? 'var(--success-hover)' : 'var(--danger-hover)',
                     }}>
                         {result !== null ? `= ${N(result, result > 100 ? 0 : 2)}` : 'erro'}
                     </span>
@@ -285,12 +285,12 @@ function VarDerivEditor({ varsDeriv, onChange, testVars }) {
                             </div>
                             <span style={{
                                 fontSize: 10, fontWeight: 700, textAlign: 'center', padding: '2px 4px', borderRadius: 4,
-                                background: result !== null ? '#dcfce7' : '#fee2e2',
-                                color: result !== null ? '#15803d' : '#dc2626',
+                                background: result !== null ? 'var(--success-bg)' : 'var(--danger-bg)',
+                                color: result !== null ? 'var(--success-hover)' : 'var(--danger-hover)',
                             }}>
                                 {result !== null ? N(result, result > 100 ? 0 : 1) : 'erro'}
                             </span>
-                            <button type="button" onClick={() => remove(key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef444480', fontSize: 14, padding: 0 }}>×</button>
+                            <button type="button" onClick={() => remove(key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger-border)', fontSize: 14, padding: 0 }}>×</button>
                         </div>
                     );
                 })
@@ -411,7 +411,7 @@ function PreviewPecas({ item, tipo, testVars, bib }) {
     if (!res) return <p className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>Erro no cálculo</p>;
     if (res.pecas.length === 0) return <p className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>Nenhuma peça definida</p>;
 
-    const TYPE_COLOR = { caixa: 'var(--primary)', tamponamento: '#3b82f6', componente: '#16a34a', frente_externa: '#f59e0b' };
+    const TYPE_COLOR = { caixa: 'var(--primary)', tamponamento: 'var(--info)', componente: 'var(--success-hover)', frente_externa: 'var(--warning)' };
     const chapasDB = bib?.chapas || DB_CHAPAS;
 
     return (
@@ -522,7 +522,7 @@ function CaixaEditor({ initial, onSave, onCancel, ferragens = DB_FERRAGENS }) {
             {/* Tamponamentos */}
             <div className={Z.card}>
                 <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-sm" style={{ color: '#3b82f6' }}>Tamponamentos / Acabamento Externo</h3>
+                    <h3 className="font-semibold text-sm" style={{ color: 'var(--info)' }}>Tamponamentos / Acabamento Externo</h3>
                     <button onClick={addTamp} className={`${Z.btn} text-xs py-1 px-2`}><Plus size={12} /> Tamponamento</button>
                 </div>
                 <p className="text-[9px] mb-2 px-1" style={{ color: 'var(--text-muted)' }}>Só calculados quando o orçamento tem matExt definido.</p>
@@ -673,7 +673,7 @@ function ComponenteEditor({ initial, onSave, onCancel, ferragens = DB_FERRAGENS 
             <div className={Z.card}>
                 <div className="flex items-center justify-between mb-3">
                     <div>
-                        <h3 className="font-semibold text-sm" style={{ color: '#f59e0b' }} title="Dimensões específicas deste componente. Ex: 'ag' = altura da gaveta">Variáveis Próprias</h3>
+                        <h3 className="font-semibold text-sm" style={{ color: 'var(--warning)' }} title="Dimensões específicas deste componente. Ex: 'ag' = altura da gaveta">Variáveis Próprias</h3>
                         <p className="text-[9px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Dimensões específicas deste componente (ex: ag = altura da gaveta)</p>
                     </div>
                     <button onClick={addVar} className={`${Z.btn} text-xs py-1 px-2`}><Plus size={12} /> Variável</button>
@@ -714,7 +714,7 @@ function ComponenteEditor({ initial, onSave, onCancel, ferragens = DB_FERRAGENS 
             <div className={Z.card}>
                 <div className="flex items-center justify-between mb-3">
                     <div>
-                        <h3 className="font-semibold text-sm" style={{ color: '#16a34a' }}>Peças do Componente</h3>
+                        <h3 className="font-semibold text-sm" style={{ color: 'var(--success-hover)' }}>Peças do Componente</h3>
                         <p className="text-[9px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Clique nas variáveis coloridas para inserir nas fórmulas</p>
                     </div>
                     <button onClick={addPeca} className={`${Z.btn} text-xs py-1 px-2`}><Plus size={12} /> Peça</button>
@@ -735,13 +735,13 @@ function ComponenteEditor({ initial, onSave, onCancel, ferragens = DB_FERRAGENS 
             </div>
 
             {/* Frente Externa */}
-            <div className={Z.card} style={{ borderLeft: '3px solid #f59e0b' }}>
+            <div className={Z.card} style={{ borderLeft: '3px solid var(--warning)' }}>
                 <div className="flex items-center gap-3 mb-3">
                     <label className="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" checked={form.frente_externa?.ativa || false}
                             onChange={e => setF('frente_externa', { ...(form.frente_externa || {}), ativa: e.target.checked })}
-                            className="w-4 h-4 accent-[#f59e0b]" />
-                        <span className="font-semibold text-sm" style={{ color: '#f59e0b' }}>Frente Externa</span>
+                            className="w-4 h-4 accent-[var(--warning)]" />
+                        <span className="font-semibold text-sm" style={{ color: 'var(--warning)' }}>Frente Externa</span>
                     </label>
                     <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>Material exclusivo, diferente do interior — afeta o preço separadamente</span>
                 </div>
@@ -1017,7 +1017,7 @@ export default function ItemBuilder({ notify }) {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {items.map(item => (
-                        <div key={item.db_id} className={`${Z.card} flex flex-col gap-3`} style={{ borderTop: `2px solid ${aba === 'caixas' ? 'var(--primary)' : '#16a34a'}` }}>
+                        <div key={item.db_id} className={`${Z.card} flex flex-col gap-3`} style={{ borderTop: `2px solid ${aba === 'caixas' ? 'var(--primary)' : 'var(--success-hover)'}` }}>
                             <div className="flex items-start justify-between">
                                 <div>
                                     <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{item.nome}</div>
@@ -1036,7 +1036,7 @@ export default function ItemBuilder({ notify }) {
                             {aba === 'componentes' && (
                                 <div className="flex gap-3 text-[10px] flex-wrap" style={{ color: 'var(--text-muted)' }}>
                                     <span>{(item.pecas || []).length} peças</span>
-                                    {item.frente_externa?.ativa && <span className="font-semibold" style={{ color: '#f59e0b' }}>+ frente externa</span>}
+                                    {item.frente_externa?.ativa && <span className="font-semibold" style={{ color: 'var(--warning)' }}>+ frente externa</span>}
                                     <span>{(item.sub_itens || []).length} ferragens</span>
                                     {(item.vars || []).length > 0 && <span>{(item.vars || []).map(v => v.id).join(', ')}</span>}
                                 </div>

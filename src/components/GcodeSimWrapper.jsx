@@ -266,23 +266,23 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
             const ox = tx(0), oy = ty(0);
             const axLen = Math.min(40 * dpr, shW * 0.06, shH * 0.06);
             // X axis arrow (horizontal)
-            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5 * dpr; ctx.globalAlpha = 0.8;
+            ctx.strokeStyle = 'var(--danger)'; ctx.lineWidth = 1.5 * dpr; ctx.globalAlpha = 0.8;
             ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + axLen, oy); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(ox + axLen, oy); ctx.lineTo(ox + axLen - 4 * dpr, oy - 3 * dpr); ctx.lineTo(ox + axLen - 4 * dpr, oy + 3 * dpr); ctx.closePath();
-            ctx.fillStyle = '#ef4444'; ctx.fill();
+            ctx.fillStyle = 'var(--danger)'; ctx.fill();
             // Y axis arrow (vertical)
-            ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 1.5 * dpr;
+            ctx.strokeStyle = 'var(--success)'; ctx.lineWidth = 1.5 * dpr;
             ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy + axLen); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(ox, oy + axLen); ctx.lineTo(ox - 3 * dpr, oy + axLen - 4 * dpr); ctx.lineTo(ox + 3 * dpr, oy + axLen - 4 * dpr); ctx.closePath();
-            ctx.fillStyle = '#22c55e'; ctx.fill();
+            ctx.fillStyle = 'var(--success)'; ctx.fill();
             // Origin dot
             ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.9;
             ctx.beginPath(); ctx.arc(ox, oy, 3 * dpr, 0, Math.PI * 2); ctx.fill();
             // Labels
             ctx.globalAlpha = 0.7;
             ctx.font = `bold ${9 * dpr}px monospace`;
-            ctx.fillStyle = '#ef4444'; ctx.fillText('X', ox + axLen + 3 * dpr, oy + 4 * dpr);
-            ctx.fillStyle = '#22c55e'; ctx.fillText('Y', ox - 4 * dpr, oy + axLen + 12 * dpr);
+            ctx.fillStyle = 'var(--danger)'; ctx.fillText('X', ox + axLen + 3 * dpr, oy + 4 * dpr);
+            ctx.fillStyle = 'var(--success)'; ctx.fillText('Y', ox - 4 * dpr, oy + axLen + 12 * dpr);
             ctx.fillStyle = '#888'; ctx.font = `${8 * dpr}px monospace`;
             ctx.fillText('0,0', ox + 5 * dpr, oy - 5 * dpr);
             ctx.globalAlpha = 1;
@@ -477,10 +477,10 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
             if (moveLimit < 0) {
                 // Start + end markers
                 const first = allMoves[0];
-                ctx.fillStyle = '#22c55e'; ctx.beginPath();
+                ctx.fillStyle = 'var(--success)'; ctx.beginPath();
                 ctx.arc(tx(first.x1), ty(first.y1), 4 * dpr, 0, Math.PI * 2); ctx.fill();
                 const last = allMoves[allMoves.length - 1];
-                ctx.fillStyle = '#ef4444'; ctx.beginPath();
+                ctx.fillStyle = 'var(--danger)'; ctx.beginPath();
                 ctx.arc(tx(last.x2), ty(last.y2), 4 * dpr, 0, Math.PI * 2); ctx.fill();
             } else if (moveLimit < allMoves.length) {
                 const cur = allMoves[moveLimit];

@@ -126,7 +126,7 @@ function ImageUploader({ label, image, onChange, disabled, hint, maxSize = 2 * 1
                 <button
                     type="button"
                     onClick={() => onChange('')}
-                    style={{ marginTop: 8, fontSize: 11, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}
+                    style={{ marginTop: 8, fontSize: 11, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}
                 >
                     <Ic.X /> Remover
                 </button>
@@ -766,7 +766,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         disabled={!isGerente} placeholder="#1379F0"
                                     />
                                     <div style={{ display: 'flex', gap: 6 }}>
-                                        {['#1379F0', '#8B5CF6', '#059669', '#EA580C', '#DC2626', '#0891B2', '#4F46E5', '#D946EF'].map(c => (
+                                        {['#1379F0', '#8B5CF6', '#059669', '#EA580C', 'var(--danger-hover)', '#0891B2', '#4F46E5', '#D946EF'].map(c => (
                                             <button key={c} onClick={() => { setEmp({ ...emp, sistema_cor_primaria: c }); applyPrimaryColor(c); }}
                                                 disabled={!isGerente}
                                                 style={{
@@ -981,13 +981,13 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 onClick={() => setEmp({ ...emp, upmobb_ativo: emp.upmobb_ativo ? 0 : 1 })}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold cursor-pointer transition-all"
                                 style={{
-                                    background: emp.upmobb_ativo ? '#22c55e20' : 'var(--bg-muted)',
-                                    color: emp.upmobb_ativo ? '#22c55e' : 'var(--text-muted)',
-                                    border: `1px solid ${emp.upmobb_ativo ? '#22c55e40' : 'var(--border)'}`,
+                                    background: emp.upmobb_ativo ? 'var(--success-bg)' : 'var(--bg-muted)',
+                                    color: emp.upmobb_ativo ? 'var(--success)' : 'var(--text-muted)',
+                                    border: `1px solid ${emp.upmobb_ativo ? 'var(--success-border)' : 'var(--border)'}`,
                                 }}>
                                 <div style={{
                                     width: 10, height: 10, borderRadius: '50%',
-                                    background: emp.upmobb_ativo ? '#22c55e' : 'var(--text-muted)',
+                                    background: emp.upmobb_ativo ? 'var(--success)' : 'var(--text-muted)',
                                 }} />
                                 {emp.upmobb_ativo ? 'Ativo' : 'Inativo'}
                             </button>
@@ -1341,8 +1341,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                     <img src={emp.assinatura_empresa_img} alt="Assinatura" style={{ maxHeight: 80, maxWidth: '100%' }} />
                                                 </div>
                                                 <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <CheckCircle2 size={14} style={{ color: '#16a34a' }} />
-                                                    <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 500 }}>Assinatura digital gerada</span>
+                                                    <CheckCircle2 size={14} style={{ color: 'var(--success-hover)' }} />
+                                                    <span style={{ fontSize: 11, color: 'var(--success-hover)', fontWeight: 500 }}>Assinatura digital gerada</span>
                                                     {isGerente && (
                                                         <button
                                                             onClick={() => setEmp({ ...emp, assinatura_empresa_img: '' })}
@@ -1373,7 +1373,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                             {emp.responsavel_legal_nome}
                                                         </span>
                                                     ) : (
-                                                        <span style={{ fontSize: 12, color: '#9ca3af', fontStyle: 'italic' }}>
+                                                        <span style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
                                                             Preencha o nome do responsavel legal acima
                                                         </span>
                                                     )}
@@ -1490,7 +1490,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     { name: 'Navy & Gold', pri: '#1B2A4A', acc: '#C9A96E' },
                                     { name: 'Grafite & Cobre', pri: '#2D2D2D', acc: '#B7654A' },
                                     { name: 'Verde Floresta', pri: '#2D4A3E', acc: '#C4A882' },
-                                    { name: 'Azul Moderno', pri: '#1a56db', acc: '#f59e0b' },
+                                    { name: 'Azul Moderno', pri: '#1a56db', acc: 'var(--warning)' },
                                     { name: 'Preto Elegante', pri: '#111111', acc: '#D4AF37' },
                                 ].map(p => (
                                     <button key={p.name} disabled={!isGerente}
@@ -1763,7 +1763,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                             <div className="flex items-center gap-2 text-sm">
                                 <div style={{
                                     width: 10, height: 10, borderRadius: '50%',
-                                    background: driveStatus?.ok ? '#22c55e' : driveStatus === null ? '#f59e0b' : '#ef4444',
+                                    background: driveStatus?.ok ? 'var(--success)' : driveStatus === null ? 'var(--warning)' : 'var(--danger)',
                                 }} />
                                 <span style={{ color: 'var(--text-secondary)' }}>
                                     {driveStatus?.ok
@@ -1870,8 +1870,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 </div>
 
                                 {/* Webhook URL Info */}
-                                <div className="rounded-lg p-3 border-l-2" style={{ background: 'var(--bg-muted)', borderColor: '#22c55e' }}>
-                                    <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: '#22c55e' }}>URL do Webhook</div>
+                                <div className="rounded-lg p-3 border-l-2" style={{ background: 'var(--bg-muted)', borderColor: 'var(--success)' }}>
+                                    <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--success)' }}>URL do Webhook</div>
                                     <code className="text-xs" style={{ color: 'var(--text-primary)', wordBreak: 'break-all' }}>
                                         http://SEU_IP:3001/api/webhook/whatsapp
                                     </code>
@@ -1896,9 +1896,9 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     <div className="mt-3 flex items-center gap-2">
                                         <div style={{
                                             width: 10, height: 10, borderRadius: '50%',
-                                            background: waStatus.connected ? '#22c55e' : '#ef4444',
+                                            background: waStatus.connected ? 'var(--success)' : 'var(--danger)',
                                         }} />
-                                        <span className="text-sm" style={{ color: waStatus.connected ? '#22c55e' : '#ef4444', fontWeight: 600 }}>
+                                        <span className="text-sm" style={{ color: waStatus.connected ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
                                             {waStatus.connected ? 'Conectado' : 'Desconectado'}
                                         </span>
                                         {waStatus.error && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>({waStatus.error})</span>}
@@ -1967,27 +1967,27 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                             <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Funcionalidades</h3>
                             <div className="flex flex-col gap-2 text-[11px]" style={{ color: 'var(--text-muted)', lineHeight: 1.7 }}>
                                 <div className="flex items-start gap-2">
-                                    <Check size={12} style={{ color: '#22c55e', flexShrink: 0 }} />
+                                    <Check size={12} style={{ color: 'var(--success)', flexShrink: 0 }} />
                                     <span>Receber mensagens em tempo real</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <Check size={12} style={{ color: '#22c55e', flexShrink: 0 }} />
+                                    <Check size={12} style={{ color: 'var(--success)', flexShrink: 0 }} />
                                     <span>Resposta automática por IA</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <Check size={12} style={{ color: '#22c55e', flexShrink: 0 }} />
+                                    <Check size={12} style={{ color: 'var(--success)', flexShrink: 0 }} />
                                     <span>Escalação para atendente humano</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <Check size={12} style={{ color: '#22c55e', flexShrink: 0 }} />
+                                    <Check size={12} style={{ color: 'var(--success)', flexShrink: 0 }} />
                                     <span>Notas internas por conversa</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <Check size={12} style={{ color: '#22c55e', flexShrink: 0 }} />
+                                    <Check size={12} style={{ color: 'var(--success)', flexShrink: 0 }} />
                                     <span>Vinculação automática com clientes CRM</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <Check size={12} style={{ color: '#22c55e', flexShrink: 0 }} />
+                                    <Check size={12} style={{ color: 'var(--success)', flexShrink: 0 }} />
                                     <span>Sugestão de resposta por IA</span>
                                 </div>
                             </div>
@@ -2008,14 +2008,14 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     disabled={!isGerente}
                                     className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer"
                                     style={{
-                                        background: emp.ia_ativa ? '#22c55e20' : 'var(--bg-muted)',
-                                        color: emp.ia_ativa ? '#22c55e' : 'var(--text-muted)',
-                                        border: `1px solid ${emp.ia_ativa ? '#22c55e40' : 'var(--border)'}`,
+                                        background: emp.ia_ativa ? 'var(--success-bg)' : 'var(--bg-muted)',
+                                        color: emp.ia_ativa ? 'var(--success)' : 'var(--text-muted)',
+                                        border: `1px solid ${emp.ia_ativa ? 'var(--success-border)' : 'var(--border)'}`,
                                     }}
                                 >
                                     <div style={{
                                         width: 8, height: 8, borderRadius: '50%',
-                                        background: emp.ia_ativa ? '#22c55e' : 'var(--text-muted)',
+                                        background: emp.ia_ativa ? 'var(--success)' : 'var(--text-muted)',
                                         transition: 'background 0.2s',
                                     }} />
                                     {emp.ia_ativa ? 'IA Ativa' : 'IA Inativa'}
@@ -2137,7 +2137,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         {iaTesting ? <><RefreshCw size={12} className="animate-spin" style={{ display: 'inline', marginRight: 4 }} /> Testando...</> : <><FlaskConical size={12} style={{ display: 'inline', marginRight: 4 }} /> Testar Conexão IA</>}
                                     </button>
                                     {iaTestResult && (
-                                        <span className="text-xs font-semibold flex items-center gap-1" style={{ color: iaTestResult.ok ? '#22c55e' : '#ef4444' }}>
+                                        <span className="text-xs font-semibold flex items-center gap-1" style={{ color: iaTestResult.ok ? 'var(--success)' : 'var(--danger)' }}>
                                             {iaTestResult.ok ? <CheckCircle2 size={14} /> : <XCircle size={14} />} {iaTestResult.msg}
                                         </span>
                                     )}
@@ -2155,9 +2155,9 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     </div>
                                     {iaPrompt && (
                                         <span className="text-[10px] px-2 py-1 rounded font-semibold" style={{
-                                            background: iaPrompt.usando === 'custom' ? '#f59e0b20' : '#22c55e20',
-                                            color: iaPrompt.usando === 'custom' ? '#f59e0b' : '#22c55e',
-                                            border: `1px solid ${iaPrompt.usando === 'custom' ? '#f59e0b40' : '#22c55e40'}`,
+                                            background: iaPrompt.usando === 'custom' ? 'var(--warning-bg)' : 'var(--success-bg)',
+                                            color: iaPrompt.usando === 'custom' ? 'var(--warning)' : 'var(--success)',
+                                            border: `1px solid ${iaPrompt.usando === 'custom' ? 'var(--warning-border)' : 'var(--success-border)'}`,
                                         }}>
                                             {iaPrompt.usando === 'custom' ? 'CUSTOMIZADO' : 'PADRÃO v2'}
                                         </span>
@@ -2183,7 +2183,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                 Ver padrão Sofia v2
                                             </button>
                                             {iaPrompt.usando === 'custom' && isGerente && (
-                                                <button onClick={resetIaPrompt} className={Z.btn2} style={{ fontSize: 11, color: '#ef4444', borderColor: '#ef444440' }} disabled={iaPromptSaving}>
+                                                <button onClick={resetIaPrompt} className={Z.btn2} style={{ fontSize: 11, color: 'var(--danger)', borderColor: 'var(--danger-border)' }} disabled={iaPromptSaving}>
                                                     <Trash2 size={11} style={{ display: 'inline', marginRight: 4 }} />
                                                     Restaurar padrão
                                                 </button>
@@ -2242,9 +2242,9 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         {iaPromptMode === 'view' && (
                                             <div className="text-[11px] rounded-lg p-3" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
                                                 {iaPrompt.usando === 'custom' ? (
-                                                    <>Usando <strong style={{ color: '#f59e0b' }}>prompt customizado</strong> ({iaPrompt.custom.length.toLocaleString('pt-BR')} caracteres). Clique em "Editar customização" para ajustar.</>
+                                                    <>Usando <strong style={{ color: 'var(--warning)' }}>prompt customizado</strong> ({iaPrompt.custom.length.toLocaleString('pt-BR')} caracteres). Clique em "Editar customização" para ajustar.</>
                                                 ) : (
-                                                    <>Usando <strong style={{ color: '#22c55e' }}>prompt padrão Sofia v2</strong> ({iaPrompt.default.length.toLocaleString('pt-BR')} caracteres). Clique em "Customizar" para editar.</>
+                                                    <>Usando <strong style={{ color: 'var(--success)' }}>prompt padrão Sofia v2</strong> ({iaPrompt.default.length.toLocaleString('pt-BR')} caracteres). Clique em "Customizar" para editar.</>
                                                 )}
                                             </div>
                                         )}
@@ -2404,12 +2404,12 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                         </td>
                                                         <td className="p-2">
                                                             {t.revogado
-                                                                ? <span style={{ color: '#ef4444' }}>Revogado</span>
-                                                                : <span style={{ color: '#22c55e' }}>Ativo</span>}
+                                                                ? <span style={{ color: 'var(--danger)' }}>Revogado</span>
+                                                                : <span style={{ color: 'var(--success)' }}>Ativo</span>}
                                                         </td>
                                                         <td className="p-2 text-right">
                                                             {!t.revogado && (
-                                                                <button onClick={() => revogarExtToken(t.id)} style={{ color: '#ef4444', fontSize: 11 }}>
+                                                                <button onClick={() => revogarExtToken(t.id)} style={{ color: 'var(--danger)', fontSize: 11 }}>
                                                                     Revogar
                                                                 </button>
                                                             )}
@@ -2457,8 +2457,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                             <td className="p-2">
                                                                 <span style={{
                                                                     padding: '2px 6px', borderRadius: 4, fontSize: 9,
-                                                                    background: l.tipo === 'login' ? '#22c55e20' : l.tipo === 'download' ? '#3b82f620' : 'var(--bg-muted)',
-                                                                    color: l.tipo === 'login' ? '#22c55e' : l.tipo === 'download' ? '#3b82f6' : 'var(--text-muted)',
+                                                                    background: l.tipo === 'login' ? 'var(--success-bg)' : l.tipo === 'download' ? 'var(--info-bg)' : 'var(--bg-muted)',
+                                                                    color: l.tipo === 'login' ? 'var(--success)' : l.tipo === 'download' ? 'var(--info)' : 'var(--text-muted)',
                                                                 }}>{l.tipo}</span>
                                                             </td>
                                                             <td className="p-2" style={{ fontFamily: 'monospace' }}>{l.method} {l.endpoint}</td>
@@ -2543,7 +2543,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                             {t.atalho && <code style={{ fontSize: 10, color: 'var(--primary)', background: 'var(--bg-muted)', padding: '1px 5px', borderRadius: 3 }}>/{t.atalho}</code>}
                                                             <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t.categoria}</span>
                                                             {t.usos > 0 && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>· {t.usos} usos</span>}
-                                                            {!t.ativo && <span style={{ fontSize: 10, color: '#ef4444' }}>inativo</span>}
+                                                            {!t.ativo && <span style={{ fontSize: 10, color: 'var(--danger)' }}>inativo</span>}
                                                         </div>
                                                         <div className="text-[11px]" style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap', maxHeight: 60, overflow: 'hidden' }}>
                                                             {t.conteudo}
@@ -2551,7 +2551,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                     </div>
                                                     <div className="flex gap-2 ml-2">
                                                         <button onClick={() => setTplEdit({ ...t, ativo: !!t.ativo })} className="text-[11px]" style={{ color: 'var(--primary)' }}>Editar</button>
-                                                        <button onClick={() => excluirTemplate(t.id)} className="text-[11px]" style={{ color: '#ef4444' }}>Excluir</button>
+                                                        <button onClick={() => excluirTemplate(t.id)} className="text-[11px]" style={{ color: 'var(--danger)' }}>Excluir</button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -2615,7 +2615,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                     </div>
                                                 )}
                                                 {simBloqueado && (
-                                                    <div className="text-[10px] italic mt-2" style={{ color: '#94a3b8', alignSelf: 'center', textAlign: 'center' }}>
+                                                    <div className="text-[10px] italic mt-2" style={{ color: 'var(--muted)', alignSelf: 'center', textAlign: 'center' }}>
                                                         · · · IA silenciada (sem gasto de tokens) · · ·
                                                     </div>
                                                 )}
@@ -2655,16 +2655,16 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                         <div className="flex items-center justify-between">
                                                             <div className="text-2xl font-bold" style={{
                                                                 color: simScore.score >= 80 ? '#8b5cf6'
-                                                                    : simScore.score >= 60 ? '#22c55e'
-                                                                        : simScore.score >= 30 ? '#f59e0b' : '#94a3b8',
+                                                                    : simScore.score >= 60 ? 'var(--success)'
+                                                                        : simScore.score >= 30 ? 'var(--warning)' : 'var(--muted)',
                                                             }}>{simScore.score}</div>
                                                             <div className="text-[10px] font-semibold uppercase px-2 py-1 rounded" style={{
                                                                 background: simScore.score >= 80 ? '#8b5cf620'
-                                                                    : simScore.score >= 60 ? '#22c55e20'
-                                                                        : simScore.score >= 30 ? '#f59e0b20' : '#94a3b820',
+                                                                    : simScore.score >= 60 ? 'var(--success-bg)'
+                                                                        : simScore.score >= 30 ? 'var(--warning-bg)' : 'var(--muted-bg)',
                                                                 color: simScore.score >= 80 ? '#8b5cf6'
-                                                                    : simScore.score >= 60 ? '#22c55e'
-                                                                        : simScore.score >= 30 ? '#f59e0b' : '#94a3b8',
+                                                                    : simScore.score >= 60 ? 'var(--success)'
+                                                                        : simScore.score >= 30 ? 'var(--warning)' : 'var(--muted)',
                                                             }}>{(simScore.classificacao || 'frio').replace('_', ' ')}</div>
                                                         </div>
                                                         {simScore.detalhes && simScore.detalhes.length > 0 && (
@@ -2700,8 +2700,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                     <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>Intenção de compra</div>
                                                     <div className="flex items-center justify-between">
                                                         <div className="text-lg font-bold" style={{
-                                                            color: simScore.intencao.score >= 20 ? '#22c55e'
-                                                                : simScore.intencao.score >= 10 ? '#f59e0b' : '#94a3b8',
+                                                            color: simScore.intencao.score >= 20 ? 'var(--success)'
+                                                                : simScore.intencao.score >= 10 ? 'var(--warning)' : 'var(--muted)',
                                                         }}>+{simScore.intencao.score}</div>
                                                         <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>/ 30</div>
                                                     </div>
@@ -2760,8 +2760,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     <>
                                         <div className="grid grid-cols-3 gap-3 mb-4">
                                             {[
-                                                { lb: 'Hoje', d: iaUso.hoje, cor: '#22c55e' },
-                                                { lb: 'Este mês', d: iaUso.mes, cor: '#3b82f6' },
+                                                { lb: 'Hoje', d: iaUso.hoje, cor: 'var(--success)' },
+                                                { lb: 'Este mês', d: iaUso.mes, cor: 'var(--info)' },
                                                 { lb: 'Total geral', d: iaUso.total, cor: 'var(--primary)' },
                                             ].map(({ lb, d, cor }) => (
                                                 <div key={lb} className="p-3 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
@@ -2878,9 +2878,9 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                             {kbStats && (
                                 <div className="mt-3 flex gap-2 flex-wrap">
                                     {[
-                                        { label: 'Caixas', val: kbStats.caixas, color: '#3b82f6' },
+                                        { label: 'Caixas', val: kbStats.caixas, color: 'var(--info)' },
                                         { label: 'Componentes', val: kbStats.componentes, color: '#8b5cf6' },
-                                        { label: 'Materiais', val: kbStats.materiais, color: '#22c55e' },
+                                        { label: 'Materiais', val: kbStats.materiais, color: 'var(--success)' },
                                     ].map(s => (
                                         <span key={s.label} className="text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: s.color + '15', color: s.color, border: `1px solid ${s.color}30` }}>
                                             {s.val} {s.label}
@@ -2893,7 +2893,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 <div className="mt-3">
                                     <div className="flex items-center justify-between mb-1">
                                         <label className="text-[10px] font-bold uppercase" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>Prompt Gerado</label>
-                                        <button onClick={copiarBaseConhecimento} className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-md cursor-pointer" style={{ background: kbCopied ? '#22c55e15' : 'var(--bg-muted)', color: kbCopied ? '#22c55e' : 'var(--primary)', border: `1px solid ${kbCopied ? '#22c55e40' : 'var(--border)'}` }}>
+                                        <button onClick={copiarBaseConhecimento} className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-md cursor-pointer" style={{ background: kbCopied ? 'var(--success-bg)' : 'var(--bg-muted)', color: kbCopied ? 'var(--success)' : 'var(--primary)', border: `1px solid ${kbCopied ? 'var(--success-border)' : 'var(--border)'}` }}>
                                             {kbCopied ? <><Check size={11} /> Copiado!</> : <><Ic.Copy /> Copiar</>}
                                         </button>
                                     </div>
@@ -3158,7 +3158,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                             <button
                                                 onClick={() => updateLandingList('landing_servicos_json', landingServicos.filter((_, i) => i !== idx))}
                                                 className="text-[11px] mt-2"
-                                                style={{ color: '#ef4444' }}
+                                                style={{ color: 'var(--danger)' }}
                                             >
                                                 Remover
                                             </button>
@@ -3204,7 +3204,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                             <button
                                                 onClick={() => updateLandingList('landing_diferenciais_json', landingDiferenciais.filter((_, i) => i !== idx))}
                                                 className="text-[11px] mt-2"
-                                                style={{ color: '#ef4444' }}
+                                                style={{ color: 'var(--danger)' }}
                                             >
                                                 Remover
                                             </button>
@@ -3250,7 +3250,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                             <button
                                                 onClick={() => updateLandingList('landing_etapas_json', landingEtapas.filter((_, i) => i !== idx))}
                                                 className="text-[11px] mt-2"
-                                                style={{ color: '#ef4444' }}
+                                                style={{ color: 'var(--danger)' }}
                                             >
                                                 Remover
                                             </button>
@@ -3309,7 +3309,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                             <button
                                                 onClick={() => updateLandingList('landing_provas_json', landingProvas.filter((_, i) => i !== idx))}
                                                 className="text-[11px] mt-2"
-                                                style={{ color: '#ef4444' }}
+                                                style={{ color: 'var(--danger)' }}
                                             >
                                                 Remover
                                             </button>
@@ -3458,7 +3458,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                     await api.del(`/portfolio/${p.id}`);
                                                     notify?.('Foto removida');
                                                     loadPortfolio();
-                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: '#ef4444' }} title="Excluir">
+                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--danger)' }} title="Excluir">
                                                     <Trash2 size={14} />
                                                 </button>
                                             </div>
@@ -3515,7 +3515,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                             {[1,2,3,4,5].map(n => (
                                                 <button key={n} type="button" onClick={() => setDepEdit({ ...depEdit, estrelas: n })}
                                                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
-                                                    <svg width="24" height="24" viewBox="0 0 24 24" fill={n <= (depEdit.estrelas || 5) ? '#f59e0b' : '#e2e8f0'}>
+                                                    <svg width="24" height="24" viewBox="0 0 24 24" fill={n <= (depEdit.estrelas || 5) ? 'var(--warning)' : '#e2e8f0'}>
                                                         <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                                                     </svg>
                                                 </button>
@@ -3573,7 +3573,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                             <div className="flex items-center gap-2 mb-1">
                                                 <div className="flex gap-0.5">
                                                     {[1,2,3,4,5].map(n => (
-                                                        <svg key={n} width="14" height="14" viewBox="0 0 24 24" fill={n <= dep.estrelas ? '#f59e0b' : '#e2e8f0'}>
+                                                        <svg key={n} width="14" height="14" viewBox="0 0 24 24" fill={n <= dep.estrelas ? 'var(--warning)' : '#e2e8f0'}>
                                                             <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                                                         </svg>
                                                     ))}
@@ -3612,7 +3612,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                     await api.del(`/depoimentos/${dep.id}`);
                                                     notify?.('Depoimento removido');
                                                     loadDepoimentos();
-                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: '#ef4444' }} title="Excluir">
+                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--danger)' }} title="Excluir">
                                                     <Trash2 size={14} />
                                                 </button>
                                             </div>
@@ -3715,7 +3715,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         </div>
                                         {/* Delete */}
                                         <button onClick={() => { const arr = tplEtapas.filter((_, j) => j !== i); updateTpl(arr); }}
-                                            className="p-1 rounded hover:bg-red-50 cursor-pointer" style={{ color: '#ef4444' }} title="Excluir">
+                                            className="p-1 rounded hover:bg-red-50 cursor-pointer" style={{ color: 'var(--danger)' }} title="Excluir">
                                             <Trash2 size={13} />
                                         </button>
                                     </div>
@@ -4145,7 +4145,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                             {/* Exportar */}
                             <div className="p-4 rounded-xl" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
                                 <div className="flex items-center gap-2 mb-2">
-                                    <Download size={16} style={{ color: '#22c55e' }} />
+                                    <Download size={16} style={{ color: 'var(--success)' }} />
                                     <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Exportar Backup</span>
                                 </div>
                                 <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
@@ -4175,7 +4175,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     }}
                                     disabled={backupLoading}
                                     className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
-                                    style={{ background: '#22c55e' }}
+                                    style={{ background: 'var(--success)' }}
                                 >
                                     {backupLoading ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
                                     Exportar Backup
@@ -4232,8 +4232,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                             {/* Resultado */}
                             {backupResult && (
                                 <div className="flex items-center gap-2 p-3 rounded-lg text-sm" style={{
-                                    background: backupResult.ok ? '#dcfce7' : '#fee2e2',
-                                    color: backupResult.ok ? '#166534' : '#991b1b',
+                                    background: backupResult.ok ? 'var(--success-bg)' : 'var(--danger-bg)',
+                                    color: backupResult.ok ? 'var(--success-hover)' : 'var(--danger-hover)',
                                 }}>
                                     {backupResult.ok ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
                                     {backupResult.msg}
@@ -4326,13 +4326,13 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     <div className="space-y-1 max-h-60 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
                                         {driveBackups.map((b, i) => (
                                             <div key={b.id} className="flex items-center justify-between px-3 py-2 rounded-lg text-xs" style={{
-                                                background: i === 0 ? '#dcfce7' : 'transparent',
+                                                background: i === 0 ? 'var(--success-bg)' : 'transparent',
                                                 border: i === 0 ? '1px solid #bbf7d0' : '1px solid transparent',
                                             }}>
                                                 <div className="flex items-center gap-2">
-                                                    <Database size={12} style={{ color: i === 0 ? '#16a34a' : 'var(--text-muted)' }} />
+                                                    <Database size={12} style={{ color: i === 0 ? 'var(--success-hover)' : 'var(--text-muted)' }} />
                                                     <span style={{ color: 'var(--text-primary)', fontWeight: i === 0 ? 600 : 400 }}>{b.name}</span>
-                                                    {i === 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: '#16a34a', color: '#fff' }}>MAIS RECENTE</span>}
+                                                    {i === 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'var(--success-hover)', color: '#fff' }}>MAIS RECENTE</span>}
                                                 </div>
                                                 <div className="flex items-center gap-3" style={{ color: 'var(--text-muted)' }}>
                                                     <span>{b.sizeMB} MB</span>

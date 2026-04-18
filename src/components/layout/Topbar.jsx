@@ -114,7 +114,7 @@ export default function Topbar({
                     onClick={() => nav('whatsapp')}
                     style={{
                         position: 'relative', background: 'none', border: 'none', cursor: 'pointer',
-                        padding: 8, borderRadius: 10, transition: 'background 0.15s', color: '#22c55e',
+                        padding: 8, borderRadius: 10, transition: 'background 0.15s', color: 'var(--success)',
                     }}
                     className="hover:bg-[var(--bg-hover)]"
                     title={`${waUnread} mensagem(ns) nao lida(s)`}
@@ -123,7 +123,7 @@ export default function Topbar({
                     <span className="badge-pulse" style={{
                         position: 'absolute', top: 4, right: 4,
                         width: 16, height: 16, borderRadius: '50%',
-                        background: '#22c55e', color: '#fff',
+                        background: 'var(--success)', color: '#fff',
                         fontSize: 9, fontWeight: 800,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         border: '2px solid var(--bg-body)',

@@ -54,13 +54,13 @@ export default function ToolbarDropdown({ label, icon: Icon, items, disabled }) 
                                 style={{
                                     padding: '8px 14px', cursor: it.disabled ? 'default' : 'pointer',
                                     fontSize: 12, display: 'flex', alignItems: 'center', gap: 8,
-                                    color: it.danger ? '#ef4444' : it.disabled ? 'var(--text-muted)' : 'var(--text-primary)',
+                                    color: it.danger ? 'var(--danger)' : it.disabled ? 'var(--text-muted)' : 'var(--text-primary)',
                                     opacity: it.disabled ? 0.5 : 1,
                                     transition: 'background .1s',
                                 }}
                                 onMouseEnter={e => { if (!it.disabled) e.currentTarget.style.background = 'var(--bg-muted)'; }}
                                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                {ItIc && <ItIc size={13} style={{ color: it.danger ? '#ef4444' : 'var(--text-muted)' }} />}
+                                {ItIc && <ItIc size={13} style={{ color: it.danger ? 'var(--danger)' : 'var(--text-muted)' }} />}
                                 {it.label}
                             </div>
                         );

@@ -13,9 +13,9 @@ import {
 // ═══════════════════════════════════════════════════════
 
 const PRIO_COLORS = {
-    alta: { bg: '#ef444420', color: '#ef4444', border: '#ef444440', label: 'Alta' },
-    media: { bg: '#f59e0b20', color: '#f59e0b', border: '#f59e0b40', label: 'Media' },
-    baixa: { bg: '#22c55e20', color: '#22c55e', border: '#22c55e40', label: 'Baixa' },
+    alta: { bg: 'var(--danger-bg)', color: 'var(--danger)', border: 'var(--danger-border)', label: 'Alta' },
+    media: { bg: 'var(--warning-bg)', color: 'var(--warning)', border: 'var(--warning-border)', label: 'Media' },
+    baixa: { bg: 'var(--success-bg)', color: 'var(--success)', border: 'var(--success-border)', label: 'Baixa' },
 };
 
 const CTX_TIPOS = [
@@ -211,13 +211,13 @@ export default function AssistenteIA({ notify }) {
     const MKT_TIPOS = {
         post_instagram: { label: 'Post Instagram', icon: <Instagram size={14} />, color: '#E4405F' },
         copy_anuncio: { label: 'Copy Anúncio', icon: <Target size={14} />, color: '#1877F2' },
-        descricao_projeto: { label: 'Descrição Projeto', icon: <Type size={14} />, color: '#22c55e' },
+        descricao_projeto: { label: 'Descrição Projeto', icon: <Type size={14} />, color: 'var(--success)' },
     };
 
     const MKT_STATUS_COLORS = {
-        rascunho: { bg: '#64748b20', color: '#64748b', label: 'Rascunho' },
-        agendado: { bg: '#3b82f620', color: '#3b82f6', label: 'Agendado' },
-        publicado: { bg: '#22c55e20', color: '#22c55e', label: 'Publicado' },
+        rascunho: { bg: 'var(--muted-bg)', color: 'var(--muted)', label: 'Rascunho' },
+        agendado: { bg: 'var(--info-bg)', color: 'var(--info)', label: 'Agendado' },
+        publicado: { bg: 'var(--success-bg)', color: 'var(--success)', label: 'Publicado' },
     };
 
     // ═══ Tabs ═══
@@ -294,7 +294,7 @@ export default function AssistenteIA({ notify }) {
                                                 onClick={() => markFollowup(f.id, 'feito')}
                                                 style={{
                                                     padding: '6px 10px', borderRadius: 6, cursor: 'pointer',
-                                                    background: '#22c55e20', color: '#22c55e', border: '1px solid #22c55e40',
+                                                    background: 'var(--success-bg)', color: 'var(--success)', border: '1px solid var(--success-border)',
                                                     fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
                                                 }}
                                             >
@@ -595,9 +595,9 @@ export default function AssistenteIA({ notify }) {
                                         onClick={() => copyToClipboard(mktGerado, 'gerado')}
                                         style={{
                                             padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                                            background: copiedId === 'gerado' ? '#22c55e20' : 'var(--bg-muted)',
-                                            color: copiedId === 'gerado' ? '#22c55e' : 'var(--text-muted)',
-                                            border: `1px solid ${copiedId === 'gerado' ? '#22c55e40' : 'var(--border)'}`,
+                                            background: copiedId === 'gerado' ? 'var(--success-bg)' : 'var(--bg-muted)',
+                                            color: copiedId === 'gerado' ? 'var(--success)' : 'var(--text-muted)',
+                                            border: `1px solid ${copiedId === 'gerado' ? 'var(--success-border)' : 'var(--border)'}`,
                                             display: 'flex', alignItems: 'center', gap: 4,
                                         }}
                                     >
@@ -655,7 +655,7 @@ export default function AssistenteIA({ notify }) {
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                         {mktConteudos.map(c => {
-                            const tipoInfo = MKT_TIPOS[c.tipo] || { label: c.tipo, icon: <FileText size={14} />, color: '#64748b' };
+                            const tipoInfo = MKT_TIPOS[c.tipo] || { label: c.tipo, icon: <FileText size={14} />, color: 'var(--muted)' };
                             const statusInfo = MKT_STATUS_COLORS[c.status] || MKT_STATUS_COLORS.rascunho;
                             const isEditing = mktEditId === c.id;
 
@@ -736,8 +736,8 @@ export default function AssistenteIA({ notify }) {
                                                         title="Copiar texto"
                                                         style={{
                                                             padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: 'none',
-                                                            background: copiedId === c.id ? '#22c55e20' : 'var(--bg-muted)',
-                                                            color: copiedId === c.id ? '#22c55e' : 'var(--text-muted)',
+                                                            background: copiedId === c.id ? 'var(--success-bg)' : 'var(--bg-muted)',
+                                                            color: copiedId === c.id ? 'var(--success)' : 'var(--text-muted)',
                                                         }}
                                                     >
                                                         {copiedId === c.id ? <Check size={13} /> : <Copy size={13} />}
@@ -752,7 +752,7 @@ export default function AssistenteIA({ notify }) {
                                                     <button
                                                         onClick={() => deleteMktConteudo(c.id)}
                                                         title="Excluir"
-                                                        style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: 'none', background: '#ef444410', color: '#ef4444' }}
+                                                        style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: 'none', background: 'var(--danger-bg)', color: 'var(--danger)' }}
                                                     >
                                                         <Trash2 size={13} />
                                                     </button>

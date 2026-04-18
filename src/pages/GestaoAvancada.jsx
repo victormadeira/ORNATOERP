@@ -121,17 +121,17 @@ function TabDRE() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
-                <KPI icon={ArrowUpCircle} label="Receitas" value={R$(totalReceita)} color="#22c55e" />
-                <KPI icon={ArrowDownCircle} label="Despesas" value={R$(totalDespesa)} color="#ef4444" />
-                <KPI icon={DollarSign} label="Lucro Liquido" value={R$(lucro)} color={lucro >= 0 ? '#22c55e' : '#ef4444'} />
-                <KPI icon={Percent} label="Margem" value={`${N(margem, 1)}%`} color={margem >= 0 ? '#22c55e' : '#ef4444'} />
+                <KPI icon={ArrowUpCircle} label="Receitas" value={R$(totalReceita)} color="var(--success)" />
+                <KPI icon={ArrowDownCircle} label="Despesas" value={R$(totalDespesa)} color="var(--danger)" />
+                <KPI icon={DollarSign} label="Lucro Liquido" value={R$(lucro)} color={lucro >= 0 ? 'var(--success)' : 'var(--danger)'} />
+                <KPI icon={Percent} label="Margem" value={`${N(margem, 1)}%`} color={margem >= 0 ? 'var(--success)' : 'var(--danger)'} />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                 {/* Receitas */}
                 <div className={Z.card}>
                     <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <ArrowUpCircle size={18} style={{ color: '#22c55e' }} /> Receitas
+                        <ArrowUpCircle size={18} style={{ color: 'var(--success)' }} /> Receitas
                     </h3>
                     {receitas.length === 0 ? (
                         <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Nenhuma receita registrada</p>
@@ -143,12 +143,12 @@ function TabDRE() {
                                         <div style={{ fontSize: 14, fontWeight: 600 }}>{r.descricao || r.categoria || 'Receita'}</div>
                                         {r.projeto && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{r.projeto}</div>}
                                     </div>
-                                    <span style={{ fontSize: 14, fontWeight: 700, color: '#22c55e' }}>{R$(r.valor)}</span>
+                                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)' }}>{R$(r.valor)}</span>
                                 </div>
                             ))}
                             <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, fontWeight: 800, fontSize: 15 }}>
                                 <span>Total</span>
-                                <span style={{ color: '#22c55e' }}>{R$(totalReceita)}</span>
+                                <span style={{ color: 'var(--success)' }}>{R$(totalReceita)}</span>
                             </div>
                         </div>
                     )}
@@ -157,7 +157,7 @@ function TabDRE() {
                 {/* Despesas */}
                 <div className={Z.card}>
                     <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <ArrowDownCircle size={18} style={{ color: '#ef4444' }} /> Despesas
+                        <ArrowDownCircle size={18} style={{ color: 'var(--danger)' }} /> Despesas
                     </h3>
                     {despesas.length === 0 ? (
                         <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Nenhuma despesa registrada</p>
@@ -169,12 +169,12 @@ function TabDRE() {
                                         <div style={{ fontSize: 14, fontWeight: 600 }}>{d.descricao || d.categoria || 'Despesa'}</div>
                                         {d.projeto && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{d.projeto}</div>}
                                     </div>
-                                    <span style={{ fontSize: 14, fontWeight: 700, color: '#ef4444' }}>{R$(d.valor)}</span>
+                                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--danger)' }}>{R$(d.valor)}</span>
                                 </div>
                             ))}
                             <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, fontWeight: 800, fontSize: 15 }}>
                                 <span>Total</span>
-                                <span style={{ color: '#ef4444' }}>{R$(totalDespesa)}</span>
+                                <span style={{ color: 'var(--danger)' }}>{R$(totalDespesa)}</span>
                             </div>
                         </div>
                     )}
@@ -229,7 +229,7 @@ function TabRentabilidade() {
                             const custo = p.custo || p.custo_total || 0;
                             const lucro = p.lucro ?? (receita - custo);
                             const margem = p.margem ?? (receita > 0 ? (lucro / receita) * 100 : 0);
-                            const margemColor = margem >= 30 ? '#22c55e' : margem >= 15 ? '#eab308' : '#ef4444';
+                            const margemColor = margem >= 30 ? 'var(--success)' : margem >= 15 ? '#eab308' : 'var(--danger)';
 
                             return (
                                 <tr key={p.id || i} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -237,9 +237,9 @@ function TabRentabilidade() {
                                         {p.nome || p.projeto}
                                         {p.cliente && <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>{p.cliente}</div>}
                                     </td>
-                                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#22c55e', fontWeight: 600 }}>{R$(receita)}</td>
-                                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#ef4444', fontWeight: 600 }}>{R$(custo)}</td>
-                                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: lucro >= 0 ? '#22c55e' : '#ef4444' }}>{R$(lucro)}</td>
+                                    <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 600 }}>{R$(receita)}</td>
+                                    <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--danger)', fontWeight: 600 }}>{R$(custo)}</td>
+                                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: lucro >= 0 ? 'var(--success)' : 'var(--danger)' }}>{R$(lucro)}</td>
                                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: margemColor }}>
                                         {N(margem, 1)}%
                                     </td>
@@ -287,9 +287,9 @@ function TabPrevisaoCaixa() {
     return (
         <div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
-                <KPI icon={Landmark} label="Saldo Atual" value={R$(saldoAtual)} color={saldoAtual >= 0 ? '#22c55e' : '#ef4444'} />
-                <KPI icon={ArrowUpCircle} label="A Receber" value={R$(aReceber)} color="#3b82f6" />
-                <KPI icon={ArrowDownCircle} label="A Pagar" value={R$(aPagar)} color="#f59e0b" />
+                <KPI icon={Landmark} label="Saldo Atual" value={R$(saldoAtual)} color={saldoAtual >= 0 ? 'var(--success)' : 'var(--danger)'} />
+                <KPI icon={ArrowUpCircle} label="A Receber" value={R$(aReceber)} color="var(--info)" />
+                <KPI icon={ArrowDownCircle} label="A Pagar" value={R$(aPagar)} color="var(--warning)" />
                 <KPI icon={Target} label="Saldo Projetado" value={R$(saldoAtual + aReceber - aPagar)} color="#a855f7" />
             </div>
 
@@ -312,15 +312,15 @@ function TabPrevisaoCaixa() {
                                     <span style={{ fontSize: 15, fontWeight: 700 }}>{p.label}</span>
                                     <div>
                                         <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Entradas</div>
-                                        <div style={{ fontSize: 15, fontWeight: 700, color: '#22c55e' }}>{R$(p.receber)}</div>
+                                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--success)' }}>{R$(p.receber)}</div>
                                     </div>
                                     <div>
                                         <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Saidas</div>
-                                        <div style={{ fontSize: 15, fontWeight: 700, color: '#ef4444' }}>{R$(p.pagar)}</div>
+                                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--danger)' }}>{R$(p.pagar)}</div>
                                     </div>
                                     <div>
                                         <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Saldo Projetado</div>
-                                        <div style={{ fontSize: 15, fontWeight: 800, color: saldo >= 0 ? '#22c55e' : '#ef4444' }}>{R$(saldo)}</div>
+                                        <div style={{ fontSize: 15, fontWeight: 800, color: saldo >= 0 ? 'var(--success)' : 'var(--danger)' }}>{R$(saldo)}</div>
                                     </div>
                                 </div>
                             );
@@ -339,15 +339,15 @@ function TabPrevisaoCaixa() {
                                     <span style={{ fontSize: 14, fontWeight: 700 }}>{p.label || p.periodo}</span>
                                     <div>
                                         <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Entradas</div>
-                                        <div style={{ fontSize: 15, fontWeight: 700, color: '#22c55e' }}>{R$(p.entradas || 0)}</div>
+                                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--success)' }}>{R$(p.entradas || 0)}</div>
                                     </div>
                                     <div>
                                         <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Saidas</div>
-                                        <div style={{ fontSize: 15, fontWeight: 700, color: '#ef4444' }}>{R$(p.saidas || 0)}</div>
+                                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--danger)' }}>{R$(p.saidas || 0)}</div>
                                     </div>
                                     <div>
                                         <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Saldo</div>
-                                        <div style={{ fontSize: 15, fontWeight: 800, color: saldo >= 0 ? '#22c55e' : '#ef4444' }}>{R$(saldo)}</div>
+                                        <div style={{ fontSize: 15, fontWeight: 800, color: saldo >= 0 ? 'var(--success)' : 'var(--danger)' }}>{R$(saldo)}</div>
                                     </div>
                                 </div>
                             );
@@ -413,11 +413,11 @@ function TabEntregas() {
     if (loading) return <LoadingSpinner />;
 
     const statusColors = {
-        pendente: { bg: '#fef3c7', color: '#d97706', label: 'Pendente' },
-        agendada: { bg: '#dbeafe', color: '#2563eb', label: 'Agendada' },
+        pendente: { bg: 'var(--warning-bg)', color: 'var(--warning-hover)', label: 'Pendente' },
+        agendada: { bg: 'var(--info-bg)', color: 'var(--info-hover)', label: 'Agendada' },
         em_transito: { bg: '#e0e7ff', color: '#7c3aed', label: 'Em transito' },
-        entregue: { bg: '#dcfce7', color: '#16a34a', label: 'Entregue' },
-        cancelada: { bg: '#fee2e2', color: '#dc2626', label: 'Cancelada' },
+        entregue: { bg: 'var(--success-bg)', color: 'var(--success-hover)', label: 'Entregue' },
+        cancelada: { bg: 'var(--danger-bg)', color: 'var(--danger-hover)', label: 'Cancelada' },
     };
 
     const grouped = {};
@@ -700,9 +700,9 @@ function TabEquipe() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                             {ferias.map((f, i) => {
                                 const statusMap = {
-                                    pendente: { color: '#d97706', bg: '#fef3c7', label: 'Pendente' },
-                                    aprovada: { color: '#16a34a', bg: '#dcfce7', label: 'Aprovada' },
-                                    rejeitada: { color: '#dc2626', bg: '#fee2e2', label: 'Rejeitada' },
+                                    pendente: { color: 'var(--warning-hover)', bg: 'var(--warning-bg)', label: 'Pendente' },
+                                    aprovada: { color: 'var(--success-hover)', bg: 'var(--success-bg)', label: 'Aprovada' },
+                                    rejeitada: { color: 'var(--danger-hover)', bg: 'var(--danger-bg)', label: 'Rejeitada' },
                                 };
                                 const tipoMap = {
                                     ferias: 'Ferias',
@@ -803,11 +803,11 @@ function TabNPS() {
     const detratores = data.detratores ?? 0;
     const avaliacoes = data.avaliacoes || data.respostas || [];
 
-    let scoreColor = '#22c55e';
+    let scoreColor = 'var(--success)';
     let scoreLabel = 'Excelente';
-    if (score < 0) { scoreColor = '#ef4444'; scoreLabel = 'Critico'; }
+    if (score < 0) { scoreColor = 'var(--danger)'; scoreLabel = 'Critico'; }
     else if (score < 50) { scoreColor = '#eab308'; scoreLabel = 'Razoavel'; }
-    else if (score < 75) { scoreColor = '#3b82f6'; scoreLabel = 'Bom'; }
+    else if (score < 75) { scoreColor = 'var(--info)'; scoreLabel = 'Bom'; }
 
     const ScoreIcon = score >= 50 ? Smile : score >= 0 ? Meh : Frown;
 
@@ -820,9 +820,9 @@ function TabNPS() {
                     <div style={{ fontSize: 14, fontWeight: 700, color: scoreColor, marginTop: 4 }}>{scoreLabel}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{total} respostas</div>
                 </div>
-                <KPI icon={ThumbsUp} label="Promotores (9-10)" value={promotores} sub={total > 0 ? `${Math.round((promotores / total) * 100)}%` : ''} color="#22c55e" />
+                <KPI icon={ThumbsUp} label="Promotores (9-10)" value={promotores} sub={total > 0 ? `${Math.round((promotores / total) * 100)}%` : ''} color="var(--success)" />
                 <KPI icon={Meh} label="Neutros (7-8)" value={neutros} sub={total > 0 ? `${Math.round((neutros / total) * 100)}%` : ''} color="#eab308" />
-                <KPI icon={ThumbsDown} label="Detratores (0-6)" value={detratores} sub={total > 0 ? `${Math.round((detratores / total) * 100)}%` : ''} color="#ef4444" />
+                <KPI icon={ThumbsDown} label="Detratores (0-6)" value={detratores} sub={total > 0 ? `${Math.round((detratores / total) * 100)}%` : ''} color="var(--danger)" />
             </div>
 
             {avaliacoes.length > 0 && (
@@ -830,7 +830,7 @@ function TabNPS() {
                     <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Avaliacoes Recentes</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                         {avaliacoes.map((a, i) => {
-                            const noteColor = a.nota >= 9 ? '#22c55e' : a.nota >= 7 ? '#eab308' : '#ef4444';
+                            const noteColor = a.nota >= 9 ? 'var(--success)' : a.nota >= 7 ? '#eab308' : 'var(--danger)';
                             return (
                                 <div key={a.id || i} style={{
                                     display: 'flex', gap: 12, padding: '12px 0',
@@ -914,15 +914,15 @@ function TabManutencao() {
     if (loading) return <LoadingSpinner />;
 
     const statusMap = {
-        pendente: { color: '#d97706', bg: '#fef3c7', label: 'Pendente' },
-        em_andamento: { color: '#2563eb', bg: '#dbeafe', label: 'Em andamento' },
-        concluida: { color: '#16a34a', bg: '#dcfce7', label: 'Concluida' },
-        cancelada: { color: '#dc2626', bg: '#fee2e2', label: 'Cancelada' },
+        pendente: { color: 'var(--warning-hover)', bg: 'var(--warning-bg)', label: 'Pendente' },
+        em_andamento: { color: 'var(--info-hover)', bg: 'var(--info-bg)', label: 'Em andamento' },
+        concluida: { color: 'var(--success-hover)', bg: 'var(--success-bg)', label: 'Concluida' },
+        cancelada: { color: 'var(--danger-hover)', bg: 'var(--danger-bg)', label: 'Cancelada' },
     };
 
     const tipoMap = {
-        preventiva: { color: '#3b82f6', label: 'Preventiva' },
-        corretiva: { color: '#ef4444', label: 'Corretiva' },
+        preventiva: { color: 'var(--info)', label: 'Preventiva' },
+        corretiva: { color: 'var(--danger)', label: 'Corretiva' },
         preditiva: { color: '#a855f7', label: 'Preditiva' },
     };
 
@@ -936,10 +936,10 @@ function TabManutencao() {
     return (
         <div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
-                <KPI icon={Wrench} label="Total" value={data.length} color="#3b82f6" />
-                <KPI icon={Clock} label="Pendentes" value={pendentes.length} color="#d97706" />
-                <KPI icon={AlertTriangle} label="Atrasadas" value={atrasadas.length} color="#ef4444" />
-                <KPI icon={CheckCircle2} label="Concluidas" value={data.filter(m => m.status === 'concluida').length} color="#22c55e" />
+                <KPI icon={Wrench} label="Total" value={data.length} color="var(--info)" />
+                <KPI icon={Clock} label="Pendentes" value={pendentes.length} color="var(--warning-hover)" />
+                <KPI icon={AlertTriangle} label="Atrasadas" value={atrasadas.length} color="var(--danger)" />
+                <KPI icon={CheckCircle2} label="Concluidas" value={data.filter(m => m.status === 'concluida').length} color="var(--success)" />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
@@ -977,9 +977,9 @@ function TabManutencao() {
                                         <td style={{ padding: '10px 12px' }}>
                                             <span style={{ fontSize: 11, fontWeight: 700, color: tp.color }}>{tp.label}</span>
                                         </td>
-                                        <td style={{ padding: '10px 12px', color: isAtrasada ? '#ef4444' : 'inherit', fontWeight: isAtrasada ? 700 : 400 }}>
+                                        <td style={{ padding: '10px 12px', color: isAtrasada ? 'var(--danger)' : 'inherit', fontWeight: isAtrasada ? 700 : 400 }}>
                                             {dtFmt(m.data_prevista)}
-                                            {isAtrasada && <AlertTriangle size={12} style={{ marginLeft: 4, color: '#ef4444' }} />}
+                                            {isAtrasada && <AlertTriangle size={12} style={{ marginLeft: 4, color: 'var(--danger)' }} />}
                                         </td>
                                         <td style={{ padding: '10px 12px' }}>{m.responsavel || '--'}</td>
                                         <td style={{ padding: '10px 12px' }}>

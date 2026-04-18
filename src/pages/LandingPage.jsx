@@ -533,7 +533,7 @@ export default function LandingPage() {
                         <div className="lp-form-card-glass lp-reveal">
                             {enviado ? (
                                 <div style={{ textAlign: 'center', padding: '32px 16px' }}>
-                                    <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#22C55E18', color: '#22C55E', display: 'grid', placeItems: 'center', margin: '0 auto 14px' }}>
+                                    <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'var(--success-bg)', color: 'var(--success)', display: 'grid', placeItems: 'center', margin: '0 auto 14px' }}>
                                         <CheckCircle2 size={30} />
                                     </div>
                                     <h3 style={{ margin: '0 0 8px', fontSize: 22, fontFamily: "'Oswald', sans-serif", fontWeight: 300, color: '#fff' }}>Recebemos seu contato!</h3>

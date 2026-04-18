@@ -276,7 +276,7 @@ function ElementoSVG({ el, et, cfg, isEditor, selected, onMouseDown }) {
       return (
         <g transform={transform} onMouseDown={handleDown} style={{ cursor }}>
           {isEditor && selected && <rect x={el.x - 0.3} y={el.y - 0.3} width={el.w + 0.6} height={el.h + 0.6} fill="none" stroke="#3b82f6" strokeWidth={0.3} strokeDasharray="1,0.5" />}
-          <DiagramaBordasGroup x={el.x} y={el.y} w={el.w} h={el.h} cor={el.diagramaCor || '#22c55e'} et={et} />
+          <DiagramaBordasGroup x={el.x} y={el.y} w={el.w} h={el.h} cor={el.diagramaCor || 'var(--success)'} et={et} />
         </g>
       );
     case 'imagem': {
@@ -613,7 +613,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
       retangulo: { tipo: 'retangulo', x: 10, y: 10, w: 20, h: 10, preenchimento: 'none', bordaCor: '#000000', bordaLargura: 0.3, raio: 0 },
       barcode: { tipo: 'barcode', x: 10, y: 10, w: 30, h: 10, barcodeVariavel: 'controle' },
       qrcode: { tipo: 'qrcode', x: 10, y: 10, w: 15, h: 15, barcodeVariavel: 'controle', cor: '#000000' },
-      diagrama_bordas: { tipo: 'diagrama_bordas', x: 10, y: 10, w: 18, h: 14, diagramaCor: '#22c55e' },
+      diagrama_bordas: { tipo: 'diagrama_bordas', x: 10, y: 10, w: 18, h: 14, diagramaCor: 'var(--success)' },
       imagem: { tipo: 'imagem', x: 5, y: 5, w: 20, h: 15, imagemUrl: '', imagemFit: 'contain' },
       minimapa: { tipo: 'minimapa', x: 5, y: 5, w: 25, h: 18, corPeca: '#e74c3c', corOutras: '#ddd', corFundo: '#fff', corBorda: '#333' },
       miniatura_peca: { tipo: 'miniatura_peca', x: 5, y: 5, w: 20, h: 16 },
@@ -651,7 +651,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
         { tipo: 'texto', x: 3, y: 14, w: 50, h: 4, texto: '{{comprimento}} x {{largura}} x {{espessura}}', fontSize: 2.8, fontWeight: 600, cor: '#000', alinhamento: 'start' },
         { tipo: 'texto', x: 3, y: 20, w: 40, h: 4, texto: '{{modulo_desc}}', fontSize: 2.2, fontWeight: 400, cor: '#666', alinhamento: 'start' },
         { tipo: 'texto', x: 3, y: 25, w: 40, h: 4, texto: 'Qtd: {{quantidade}}', fontSize: 2.5, fontWeight: 600, cor: '#000', alinhamento: 'start' },
-        { tipo: 'diagrama_bordas', x: 3, y: 32, w: 14, h: 14, diagramaCor: '#22c55e' },
+        { tipo: 'diagrama_bordas', x: 3, y: 32, w: 14, h: 14, diagramaCor: 'var(--success)' },
         { tipo: 'barcode', x: 55, y: 3, w: 42, h: 12, barcodeVariavel: 'controle' },
         { tipo: 'qrcode', x: 75, y: 28, w: 18, h: 18, barcodeVariavel: 'controle', cor: '#000' },
         { tipo: 'texto', x: 55, y: 18, w: 42, h: 4, texto: '{{cliente}}', fontSize: 2.2, fontWeight: 400, cor: '#666', alinhamento: 'start' },
@@ -663,7 +663,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
         { tipo: 'texto', x: 2, y: 2, w: 40, h: 4, texto: '{{descricao}}', fontSize: 3, fontWeight: 700, cor: '#000', alinhamento: 'start' },
         { tipo: 'texto', x: 2, y: 7, w: 40, h: 3, texto: '{{comprimento}}x{{largura}}x{{espessura}}', fontSize: 2.5, fontWeight: 600, cor: '#000', alinhamento: 'start' },
         { tipo: 'texto', x: 2, y: 11, w: 40, h: 3, texto: '{{material}} · Qtd:{{quantidade}}', fontSize: 2, fontWeight: 400, cor: '#555', alinhamento: 'start' },
-        { tipo: 'diagrama_bordas', x: 2, y: 16, w: 12, h: 12, diagramaCor: '#22c55e' },
+        { tipo: 'diagrama_bordas', x: 2, y: 16, w: 12, h: 12, diagramaCor: 'var(--success)' },
         { tipo: 'qrcode', x: 50, y: 2, w: 16, h: 16, barcodeVariavel: 'controle', cor: '#000' },
         { tipo: 'barcode', x: 16, y: 30, w: 52, h: 8, barcodeVariavel: 'controle' },
       ];
@@ -683,7 +683,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
         { tipo: 'texto', x: 3, y: 38, w: 25, h: 3, texto: 'Fita Traseira: {{borda_cor_traseira}}', fontSize: 2, fontWeight: 400, cor: '#333', alinhamento: 'start' },
         { tipo: 'texto', x: 3, y: 42, w: 25, h: 3, texto: 'Fita Esquerda: {{borda_cor_esq}}', fontSize: 2, fontWeight: 400, cor: '#333', alinhamento: 'start' },
         { tipo: 'texto', x: 3, y: 46, w: 25, h: 3, texto: 'Fita Direita: {{borda_cor_dir}}', fontSize: 2, fontWeight: 400, cor: '#333', alinhamento: 'start' },
-        { tipo: 'diagrama_bordas', x: 30, y: 34, w: 16, h: 16, diagramaCor: '#22c55e' },
+        { tipo: 'diagrama_bordas', x: 30, y: 34, w: 16, h: 16, diagramaCor: 'var(--success)' },
         { tipo: 'minimapa', x: 52, y: 34, w: 25, h: 18, corPeca: '#e74c3c', corOutras: '#ddd', corFundo: '#fff', corBorda: '#333' },
         { tipo: 'qrcode', x: 80, y: 17, w: 18, h: 18, barcodeVariavel: 'controle', cor: '#000' },
         { tipo: 'barcode', x: 3, y: 56, w: 75, h: 10, barcodeVariavel: 'controle' },
@@ -931,7 +931,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
           style={{ fontSize: 11, padding: '5px 12px', gap: 4, display: 'flex', alignItems: 'center', borderRadius: 6 }}>
           <Save size={12} /> {saving ? '...' : 'Salvar'}
         </button>
-        {dirty && <span style={{ color: '#f59e0b', fontSize: 16, lineHeight: 1 }}>●</span>}
+        {dirty && <span style={{ color: 'var(--warning)', fontSize: 16, lineHeight: 1 }}>●</span>}
 
         {/* Template actions dropdown area */}
         <div style={{ display: 'flex', gap: 1 }}>
@@ -1421,7 +1421,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                   <SH icon={<Palette size={10} />}>Diagrama de Bordas</SH>
                   <div>
                     <LBL>Cor fitas ativas</LBL>
-                    <input type="color" value={selEl.diagramaCor || '#22c55e'}
+                    <input type="color" value={selEl.diagramaCor || 'var(--success)'}
                       onChange={e => updateEl(selEl.id, { diagramaCor: e.target.value })}
                       style={{ width: '100%', height: 28, border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', marginTop: 2 }} />
                   </div>

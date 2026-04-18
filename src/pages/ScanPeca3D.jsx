@@ -53,7 +53,7 @@ function EdgeDiagram({ peca }) {
     const isActive = (code) => code && code !== '-' && code !== '';
 
     const edgeStyle = (active, edgeColor) => ({
-        background: active ? (edgeColor || '#22c55e') : '#333',
+        background: active ? (edgeColor || 'var(--success)') : '#333',
         opacity: active ? 1 : 0.4,
     });
 
@@ -98,7 +98,7 @@ function EdgeDiagram({ peca }) {
             <div style={{ position: 'absolute', top: 4, left: 0, right: 0, textAlign: 'center' }}>
                 <span style={{
                     fontSize: 10, fontWeight: 600,
-                    color: isActive(edges.top.code) ? '#22c55e' : '#555',
+                    color: isActive(edges.top.code) ? 'var(--success)' : '#555',
                 }}>
                     {edges.top.label} {isActive(edges.top.code) ? `(${edges.top.code})` : ''}
                 </span>
@@ -107,7 +107,7 @@ function EdgeDiagram({ peca }) {
             <div style={{ position: 'absolute', bottom: 4, left: 0, right: 0, textAlign: 'center' }}>
                 <span style={{
                     fontSize: 10, fontWeight: 600,
-                    color: isActive(edges.bottom.code) ? '#22c55e' : '#555',
+                    color: isActive(edges.bottom.code) ? 'var(--success)' : '#555',
                 }}>
                     {edges.bottom.label} {isActive(edges.bottom.code) ? `(${edges.bottom.code})` : ''}
                 </span>
@@ -119,7 +119,7 @@ function EdgeDiagram({ peca }) {
             }}>
                 <span style={{
                     fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap',
-                    color: isActive(edges.left.code) ? '#22c55e' : '#555',
+                    color: isActive(edges.left.code) ? 'var(--success)' : '#555',
                 }}>
                     {edges.left.label} {isActive(edges.left.code) ? `(${edges.left.code})` : ''}
                 </span>
@@ -131,7 +131,7 @@ function EdgeDiagram({ peca }) {
             }}>
                 <span style={{
                     fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap',
-                    color: isActive(edges.right.code) ? '#22c55e' : '#555',
+                    color: isActive(edges.right.code) ? 'var(--success)' : '#555',
                 }}>
                     {edges.right.label} {isActive(edges.right.code) ? `(${edges.right.code})` : ''}
                 </span>
@@ -208,7 +208,7 @@ function CameraScanner({ onDetect, onClose }) {
                 {error ? (
                     <div style={{ padding: 32, textAlign: 'center' }}>
                         <AlertCircle size={40} color="#ef4444" style={{ marginBottom: 12 }} />
-                        <p style={{ color: '#ef4444', fontSize: 14 }}>{error}</p>
+                        <p style={{ color: 'var(--danger)', fontSize: 14 }}>{error}</p>
                     </div>
                 ) : (
                     <>
@@ -255,11 +255,11 @@ function classifyPiece(desc) {
 }
 
 const PIECE_COLORS = {
-    lateral_dir: '#3b82f6', lateral_esq: '#3b82f6',
-    base: '#22c55e', tampo: '#a855f7',
-    traseira: '#6b7280', prateleira: '#06b6d4',
-    porta: '#f59e0b', gaveta: '#f59e0b',
-    divisoria: '#ec4899', other: '#64748b',
+    lateral_dir: 'var(--info)', lateral_esq: 'var(--info)',
+    base: 'var(--success)', tampo: '#a855f7',
+    traseira: 'var(--muted)', prateleira: '#06b6d4',
+    porta: 'var(--warning)', gaveta: 'var(--warning)',
+    divisoria: '#ec4899', other: 'var(--muted)',
 };
 
 const PIECE_LABELS = {
@@ -530,7 +530,7 @@ function MontageChecklist({ allPieces, currentPeca }) {
                                         type="checkbox"
                                         checked={!!checkedIds[p.id]}
                                         onChange={() => toggle(p.id)}
-                                        style={{ accentColor: '#f59e0b', width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }}
+                                        style={{ accentColor: 'var(--warning)', width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }}
                                     />
                                     <span style={{
                                         fontSize: 10, fontWeight: 700, color: '#555',
@@ -581,7 +581,7 @@ function MontageChecklist({ allPieces, currentPeca }) {
                                 {hinges > 0 && (
                                     <div style={{
                                         padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                                        background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#ef4444',
+                                        background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: 'var(--danger)',
                                     }}>
                                         {hinges} dobradica{hinges > 1 ? 's' : ''}
                                     </div>
@@ -589,7 +589,7 @@ function MontageChecklist({ allPieces, currentPeca }) {
                                 {minifix > 0 && (
                                     <div style={{
                                         padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                                        background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)', color: '#3b82f6',
+                                        background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)', color: 'var(--info)',
                                     }}>
                                         {minifix} minifix
                                     </div>
@@ -597,7 +597,7 @@ function MontageChecklist({ allPieces, currentPeca }) {
                                 {cavilhas > 0 && (
                                     <div style={{
                                         padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                                        background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e',
+                                        background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: 'var(--success)',
                                     }}>
                                         ~{cavilhas} cavilha{cavilhas > 1 ? 's' : ''}
                                     </div>
@@ -605,7 +605,7 @@ function MontageChecklist({ allPieces, currentPeca }) {
                                 {grooves > 0 && (
                                     <div style={{
                                         padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                                        background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', color: '#f59e0b',
+                                        background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', color: 'var(--warning)',
                                     }}>
                                         {grooves} canal{grooves > 1 ? '/rasgos' : '/rasgo'}
                                     </div>
@@ -778,7 +778,7 @@ export default function ScanPeca3D({ codigo: initialCodigo }) {
                                 borderRadius: 10, color: '#fff', outline: 'none', transition: 'border .2s',
                                 letterSpacing: 1, boxSizing: 'border-box',
                             }}
-                            onFocus={e => e.target.style.borderColor = '#3b82f6'}
+                            onFocus={e => e.target.style.borderColor = 'var(--info)'}
                             onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
                         />
                         {loading && (
@@ -814,7 +814,7 @@ export default function ScanPeca3D({ codigo: initialCodigo }) {
                     <div style={{
                         padding: '14px 18px', background: 'rgba(239,68,68,0.1)',
                         border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10,
-                        color: '#ef4444', fontSize: 14, marginBottom: 20, fontWeight: 500,
+                        color: 'var(--danger)', fontSize: 14, marginBottom: 20, fontWeight: 500,
                         display: 'flex', alignItems: 'center', gap: 10,
                     }}>
                         <AlertCircle size={18} />
@@ -834,7 +834,7 @@ export default function ScanPeca3D({ codigo: initialCodigo }) {
                             }}>
                                 <CheckCircle2 size={20} color="#22c55e" />
                                 <div>
-                                    <div style={{ fontSize: 13, fontWeight: 700, color: '#22c55e' }}>Peca ja escaneada / expedida</div>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--success)' }}>Peca ja escaneada / expedida</div>
                                     {lastScan && (
                                         <div style={{ fontSize: 11, color: '#888' }}>
                                             Ultimo scan: {new Date(lastScan.created_at || lastScan.timestamp).toLocaleString('pt-BR')}
@@ -944,7 +944,7 @@ export default function ScanPeca3D({ codigo: initialCodigo }) {
                                     {bordas.length > 0 && (
                                         <div style={{
                                             marginTop: 8, textAlign: 'center',
-                                            fontSize: 12, color: '#22c55e', fontWeight: 700,
+                                            fontSize: 12, color: 'var(--success)', fontWeight: 700,
                                         }}>
                                             Fitar: {bordas.join(', ')}
                                         </div>
@@ -1075,7 +1075,7 @@ export default function ScanPeca3D({ codigo: initialCodigo }) {
                                                     </div>
                                                     <span style={{
                                                         fontSize: 12, fontWeight: 600,
-                                                        color: active ? '#22c55e' : '#444',
+                                                        color: active ? 'var(--success)' : '#444',
                                                     }}>
                                                         {active ? val : 'Sem fita'}
                                                     </span>
@@ -1101,7 +1101,7 @@ export default function ScanPeca3D({ codigo: initialCodigo }) {
                                             const cat = (w.category || '').replace(/_/g, ' ');
                                             const isHole = /hole|furo/i.test(cat);
                                             const isGroove = /groove|rasgo|canal|saw/i.test(cat);
-                                            const color = isHole ? '#e11d48' : isGroove ? '#f59e0b' : '#8b5cf6';
+                                            const color = isHole ? '#e11d48' : isGroove ? 'var(--warning)' : '#8b5cf6';
                                             return (
                                                 <div key={i} style={{
                                                     display: 'flex', alignItems: 'center', gap: 8,
@@ -1124,7 +1124,7 @@ export default function ScanPeca3D({ codigo: initialCodigo }) {
                                         background: 'rgba(34,197,94,0.08)', borderRadius: 12,
                                         border: '1px solid rgba(34,197,94,0.2)', padding: 16, marginBottom: 16,
                                     }}>
-                                        <h3 style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 700, color: '#22c55e' }}>
+                                        <h3 style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 700, color: 'var(--success)' }}>
                                             Posicao no Plano de Corte
                                         </h3>
                                         <div style={{ fontSize: 12, color: '#aaa', fontFamily: 'monospace' }}>

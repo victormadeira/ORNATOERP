@@ -49,7 +49,7 @@ const REPORTS = [
         id: 'clientes',
         label: 'Clientes',
         icon: <Users size={20} />,
-        color: '#3b82f6',
+        color: 'var(--info)',
         desc: 'Lista completa de clientes com métricas de faturamento e conversão',
         usePeriodo: false,
     },
@@ -65,7 +65,7 @@ const REPORTS = [
         id: 'projetos',
         label: 'Projetos',
         icon: <Briefcase size={20} />,
-        color: '#f59e0b',
+        color: 'var(--warning)',
         desc: 'Projetos com progresso, receita, despesas e etapas',
         usePeriodo: true,
     },
@@ -73,7 +73,7 @@ const REPORTS = [
         id: 'financeiro',
         label: 'Financeiro',
         icon: <DollarSign size={20} />,
-        color: '#22c55e',
+        color: 'var(--success)',
         desc: 'Contas a receber, contas a pagar e despesas por projeto',
         usePeriodo: true,
     },
@@ -333,7 +333,7 @@ export default function Relatorios({ notify }) {
                         <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--primary)', marginBottom: 3 }}>
                             Relatório de {reportCfg?.label}
                         </h2>
-                        <p style={{ fontSize: 11, color: '#64748b' }}>
+                        <p style={{ fontSize: 11, color: 'var(--muted)' }}>
                             {reportCfg?.usePeriodo !== false ? `Período: ${dtFmt(data.periodo?.inicio)} a ${dtFmt(data.periodo?.fim)}` : 'Todos os registros'}
                             {' · '}{data.dados?.length || 0} registros
                             {' · '}Emitido em {new Date().toLocaleDateString('pt-BR')}
@@ -386,7 +386,7 @@ export default function Relatorios({ notify }) {
                     {/* Print Header */}
                     <div className="print-only" style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '2.5px solid var(--primary)' }}>
                         <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--primary)', marginBottom: 3 }}>Relatório Financeiro</h2>
-                        <p style={{ fontSize: 11, color: '#64748b' }}>
+                        <p style={{ fontSize: 11, color: 'var(--muted)' }}>
                             Período: {dtFmt(data.periodo?.inicio)} a {dtFmt(data.periodo?.fim)}
                             {' · '}Emitido em {new Date().toLocaleDateString('pt-BR')}
                         </p>
@@ -395,7 +395,7 @@ export default function Relatorios({ notify }) {
                     {/* Summary Cards */}
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
                         {[
-                            { label: 'Total a Receber', value: R$(data.resumo?.totalReceber), color: '#3b82f6' },
+                            { label: 'Total a Receber', value: R$(data.resumo?.totalReceber), color: 'var(--info)' },
                             { label: 'Recebido', value: R$(data.resumo?.totalRecebido), color: 'var(--success)' },
                             { label: 'Total a Pagar', value: R$(data.resumo?.totalPagar), color: 'var(--warning)' },
                             { label: 'Pago', value: R$(data.resumo?.totalPago), color: 'var(--danger)' },

@@ -129,8 +129,8 @@ export default function ProposalPublic({ token, isPreview = false }) {
 
     // ── Loading state ────────────────────────────────────────────────────────
     if (loading) return (
-        <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,-apple-system,sans-serif' }}>
-            <div style={{ textAlign: 'center', color: '#64748b' }}>
+        <div style={{ minHeight: '100vh', background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,-apple-system,sans-serif' }}>
+            <div style={{ textAlign: 'center', color: 'var(--muted)' }}>
                 <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#1B2A4A', borderRadius: '50%', animation: 'spin .8s linear infinite', margin: '0 auto 16px' }} />
                 <p>Carregando proposta...</p>
             </div>
@@ -140,31 +140,31 @@ export default function ProposalPublic({ token, isPreview = false }) {
 
     // ── Error state ──────────────────────────────────────────────────────────
     if (error) return (
-        <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,-apple-system,sans-serif' }}>
+        <div style={{ minHeight: '100vh', background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,-apple-system,sans-serif' }}>
             <div style={{ textAlign: 'center', maxWidth: 400, padding: 32 }}>
-                <div style={{ width: 64, height: 64, background: '#fee2e2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: '#ef4444' }}>
+                <div style={{ width: 64, height: 64, background: 'var(--danger-bg)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: 'var(--danger)' }}>
                     <Lock size={28} />
                 </div>
                 <h2 style={{ color: '#1e293b', marginBottom: 8 }}>Link inválido ou expirado</h2>
-                <p style={{ color: '#64748b', fontSize: 14 }}>{error}</p>
+                <p style={{ color: 'var(--muted)', fontSize: 14 }}>{error}</p>
             </div>
         </div>
     );
 
     // ── Sem HTML (proposta antiga sem HTML salvo) ────────────────────────────
     if (!html) return (
-        <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,-apple-system,sans-serif' }}>
+        <div style={{ minHeight: '100vh', background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui,-apple-system,sans-serif' }}>
             <div style={{ textAlign: 'center', maxWidth: 450, padding: 32 }}>
-                <div style={{ width: 64, height: 64, background: '#fef3c7', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}><FileText size={28} style={{ color: '#92400e' }} /></div>
+                <div style={{ width: 64, height: 64, background: 'var(--warning-bg)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}><FileText size={28} style={{ color: 'var(--warning-hover)' }} /></div>
                 <h2 style={{ color: '#1e293b', marginBottom: 8 }}>Proposta pendente</h2>
-                <p style={{ color: '#64748b', fontSize: 14, lineHeight: 1.6 }}>
+                <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.6 }}>
                     Esta proposta ainda não foi publicada. Solicite ao responsável que gere a proposta novamente para disponibilizar o conteúdo neste link.
                 </p>
                 {meta && (
                     <div style={{ marginTop: 20, padding: 16, background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', textAlign: 'left' }}>
                         {meta.empresa_nome && <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>{meta.empresa_nome}</div>}
-                        {meta.numero && <div style={{ fontSize: 13, color: '#64748b' }}>Proposta Nº {meta.numero}</div>}
-                        {meta.cliente_nome && <div style={{ fontSize: 13, color: '#64748b' }}>Cliente: {meta.cliente_nome}</div>}
+                        {meta.numero && <div style={{ fontSize: 13, color: 'var(--muted)' }}>Proposta Nº {meta.numero}</div>}
+                        {meta.cliente_nome && <div style={{ fontSize: 13, color: 'var(--muted)' }}>Cliente: {meta.cliente_nome}</div>}
                     </div>
                 )}
             </div>
@@ -215,7 +215,7 @@ export default function ProposalPublic({ token, isPreview = false }) {
             {/* Banner de preview */}
             {isPreview && (
                 <div className="no-print" style={{
-                    background: 'linear-gradient(90deg, #f59e0b, #d97706)', color: '#fff',
+                    background: 'linear-gradient(90deg, var(--warning), var(--warning-hover))', color: '#fff',
                     padding: '8px 16px', textAlign: 'center', fontSize: 13, fontWeight: 700,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 }}>
@@ -236,18 +236,18 @@ export default function ProposalPublic({ token, isPreview = false }) {
                     <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>
                         {meta?.empresa_nome || 'Proposta Comercial'}
                     </span>
-                    {meta?.numero && <span style={{ fontSize: 11, color: meta?.cor_primaria || '#64748b', background: `${meta?.cor_primaria || '#64748b'}10`, padding: '3px 10px', borderRadius: 12, fontWeight: 600, border: `1px solid ${meta?.cor_primaria || '#64748b'}25` }}>Nº {meta.numero}</span>}
+                    {meta?.numero && <span style={{ fontSize: 11, color: meta?.cor_primaria || 'var(--muted)', background: `${meta?.cor_primaria || 'var(--muted)'}10`, padding: '3px 10px', borderRadius: 12, fontWeight: 600, border: `1px solid ${meta?.cor_primaria || 'var(--muted)'}25` }}>Nº {meta.numero}</span>}
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button onClick={copyLink} className="action-bar-btn" style={{
-                        background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0',
+                        background: 'var(--muted-bg)', color: '#475569', border: '1px solid #e2e8f0',
                         padding: '6px 14px', borderRadius: 8, cursor: 'pointer',
                         fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
                     }}>
                         {copied ? <><CheckCircle2 size={12} /> <span className="action-bar-text">Copiado!</span></> : <><LinkIcon size={12} /> <span className="action-bar-text">Copiar link</span></>}
                     </button>
                     <a href={waUrl} target="_blank" rel="noreferrer" style={{
-                        background: '#22c55e', color: '#fff', border: 'none', textDecoration: 'none',
+                        background: 'var(--success)', color: '#fff', border: 'none', textDecoration: 'none',
                         padding: '6px 14px', borderRadius: 8, cursor: 'pointer',
                         fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
                     }}>
@@ -450,9 +450,9 @@ export default function ProposalPublic({ token, isPreview = false }) {
                 const diasRestantes = Math.ceil(remaining / 86400000);
                 const expirada = diasRestantes <= 0;
                 const urgente = diasRestantes <= 3 && !expirada;
-                const barColor = expirada ? '#ef4444' : urgente ? '#f59e0b' : (meta?.cor_accent || '#C9A96E');
-                const bgColor = expirada ? '#fef2f2' : urgente ? '#fffbeb' : '#f8fafc';
-                const textColor = expirada ? '#dc2626' : urgente ? '#b45309' : '#64748b';
+                const barColor = expirada ? 'var(--danger)' : urgente ? 'var(--warning)' : (meta?.cor_accent || '#C9A96E');
+                const bgColor = expirada ? 'var(--danger-bg)' : urgente ? 'var(--warning-bg)' : 'var(--bg-muted)';
+                const textColor = expirada ? 'var(--danger-hover)' : urgente ? 'var(--warning-hover)' : 'var(--muted)';
                 return (
                     <div className="no-print" style={{ maxWidth: 900, margin: '0 auto 8px', padding: '0 8px' }}>
                         <div style={{
@@ -485,7 +485,7 @@ export default function ProposalPublic({ token, isPreview = false }) {
                 <div className="no-print" style={{ maxWidth: 900, margin: '0 auto 16px', padding: '0 8px' }}>
                     {aprovado ? (
                         <div className="approval-success" style={{
-                            background: '#f0fdf4', border: '1px solid #bbf7d0',
+                            background: 'var(--success-bg)', border: '1px solid #bbf7d0',
                             borderRadius: 12, padding: '32px 28px', textAlign: 'center',
                             boxShadow: '0 2px 12px rgba(34,197,94,0.08)',
                             position: 'relative', overflow: 'hidden',
@@ -497,7 +497,7 @@ export default function ProposalPublic({ token, isPreview = false }) {
                                         <div key={i} className="confetti-piece" style={{
                                             left: `${5 + Math.random() * 90}%`,
                                             top: `${-5 - Math.random() * 10}%`,
-                                            background: ['#22c55e', '#f59e0b', '#3b82f6', '#ef4444', '#a855f7', '#ec4899'][i % 6],
+                                            background: ['var(--success)', 'var(--warning)', 'var(--info)', 'var(--danger)', '#a855f7', '#ec4899'][i % 6],
                                             width: 6 + Math.random() * 6, height: 6 + Math.random() * 4,
                                             borderRadius: Math.random() > 0.5 ? '50%' : '2px',
                                             animationDelay: `${Math.random() * 0.8}s`,
@@ -507,24 +507,24 @@ export default function ProposalPublic({ token, isPreview = false }) {
                                 </div>
                             )}
                             <div style={{
-                                width: 56, height: 56, borderRadius: '50%', background: '#22c55e',
+                                width: 56, height: 56, borderRadius: '50%', background: 'var(--success)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 margin: '0 auto 14px', boxShadow: '0 4px 16px rgba(34,197,94,0.25)',
                             }}>
                                 <CheckCircle2 size={28} color="#fff" />
                             </div>
-                            <h3 style={{ color: '#15803d', fontSize: 20, fontWeight: 700, margin: '0 0 6px' }}>
+                            <h3 style={{ color: 'var(--success-hover)', fontSize: 20, fontWeight: 700, margin: '0 0 6px' }}>
                                 Proposta Aprovada!
                             </h3>
-                            <p style={{ color: '#16a34a', fontSize: 13, margin: '0 0 16px' }}>
+                            <p style={{ color: 'var(--success-hover)', fontSize: 13, margin: '0 0 16px' }}>
                                 Aprovada em {aprovadoEm ? new Date(aprovadoEm).toLocaleString('pt-BR') : '—'}
                             </p>
                             <div style={{
-                                background: '#dcfce7', borderRadius: 8, padding: '14px 20px',
+                                background: 'var(--success-bg)', borderRadius: 8, padding: '14px 20px',
                                 maxWidth: 420, margin: '0 auto',
                                 border: '1px solid #bbf7d0',
                             }}>
-                                <p style={{ color: '#166534', fontSize: 13, margin: 0, lineHeight: 1.6 }}>
+                                <p style={{ color: 'var(--success-hover)', fontSize: 13, margin: 0, lineHeight: 1.6 }}>
                                     Nossa equipe entrará em contato em breve para dar início aos próximos passos do seu projeto.
                                 </p>
                             </div>
@@ -538,7 +538,7 @@ export default function ProposalPublic({ token, isPreview = false }) {
                             <h3 style={{ color: '#1e293b', fontSize: 18, fontWeight: 700, margin: '0 0 8px' }}>
                                 Aprovar Proposta
                             </h3>
-                            <p style={{ color: '#64748b', fontSize: 13, margin: '0 0 16px', maxWidth: 500, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>
+                            <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 16px', maxWidth: 500, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>
                                 Revise todos os itens e, se estiver de acordo, confirme abaixo.
                             </p>
                             {/* Checkbox de confirmação */}
@@ -546,7 +546,7 @@ export default function ProposalPublic({ token, isPreview = false }) {
                                 display: 'inline-flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
                                 maxWidth: 440, textAlign: 'left', margin: '0 auto 20px',
                                 padding: '12px 16px', borderRadius: 8,
-                                background: aceiteCheck ? '#f0fdf4' : '#f8fafc',
+                                background: aceiteCheck ? 'var(--success-bg)' : 'var(--bg-muted)',
                                 border: `1px solid ${aceiteCheck ? '#bbf7d0' : '#e2e8f0'}`,
                                 transition: 'all 0.2s',
                             }}>
@@ -554,7 +554,7 @@ export default function ProposalPublic({ token, isPreview = false }) {
                                     type="checkbox"
                                     checked={aceiteCheck}
                                     onChange={e => setAceiteCheck(e.target.checked)}
-                                    style={{ width: 18, height: 18, accentColor: '#22c55e', marginTop: 1, flexShrink: 0 }}
+                                    style={{ width: 18, height: 18, accentColor: 'var(--success)', marginTop: 1, flexShrink: 0 }}
                                 />
                                 <span style={{ fontSize: 13, color: '#475569', lineHeight: 1.5 }}>
                                     Li e concordo com os termos desta proposta comercial.
@@ -562,7 +562,7 @@ export default function ProposalPublic({ token, isPreview = false }) {
                             </label>
                             <br />
                             {erroAprovacao && (
-                                <p style={{ color: '#ef4444', fontSize: 13, margin: '0 0 12px', fontWeight: 500 }}>
+                                <p style={{ color: 'var(--danger)', fontSize: 13, margin: '0 0 12px', fontWeight: 500 }}>
                                     {erroAprovacao}
                                 </p>
                             )}
@@ -587,7 +587,7 @@ export default function ProposalPublic({ token, isPreview = false }) {
                                     setAprovando(false);
                                 }}
                                 style={{
-                                    background: !aceiteCheck ? '#cbd5e1' : aprovando ? '#94a3b8' : '#22c55e',
+                                    background: !aceiteCheck ? '#cbd5e1' : aprovando ? 'var(--muted)' : 'var(--success)',
                                     color: '#fff', border: 'none', padding: '14px 40px',
                                     borderRadius: 10, fontSize: 15, fontWeight: 700,
                                     cursor: !aceiteCheck ? 'not-allowed' : aprovando ? 'wait' : 'pointer',
@@ -606,7 +606,7 @@ export default function ProposalPublic({ token, isPreview = false }) {
             )}
 
             {/* Rodapé */}
-            <div className="no-print" style={{ textAlign: 'center', padding: '16px 0 32px', fontSize: 11, color: '#94a3b8' }}>
+            <div className="no-print" style={{ textAlign: 'center', padding: '16px 0 32px', fontSize: 11, color: 'var(--muted)' }}>
                 Proposta gerada pelo sistema Ornato ERP
             </div>
         </div>

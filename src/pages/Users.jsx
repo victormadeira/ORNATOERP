@@ -254,7 +254,7 @@ function UserRow({ u, isMe, onRoleChange, onToggleAtivo, onDelete, onOpenPerms }
                             <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Confirmar?</span>
                             <button onClick={onDelete}
                                 className="text-[10px] px-2 py-0.5 rounded font-bold cursor-pointer"
-                                style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)' }}>
+                                style={{ background: 'rgba(239,68,68,0.15)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.25)' }}>
                                 Excluir
                             </button>
                             <button onClick={() => setConfirmDel(false)}

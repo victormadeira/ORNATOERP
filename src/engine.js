@@ -948,7 +948,7 @@ export function calcPainelRipado(cfg, bib = []) {
 export const TIPOS_ESPECIAIS = [
     { id: 'espelho',  nome: 'Espelho',   cor: '#06b6d4', unidade: 'm²',  icon: 'Square' },
     { id: 'estofado', nome: 'Estofado',  cor: '#ec4899', unidade: 'm²',  icon: 'Sofa' },
-    { id: 'aluminio', nome: 'Alumínio',  cor: '#94a3b8', unidade: 'ml',  icon: 'RectangleHorizontal' },
+    { id: 'aluminio', nome: 'Alumínio',  cor: 'var(--muted)', unidade: 'ml',  icon: 'RectangleHorizontal' },
     { id: 'vidro',    nome: 'Vidro',     cor: '#22d3ee', unidade: 'm²',  icon: 'GlassWater' },
     { id: 'outro',    nome: 'Outro',     cor: '#a78bfa', unidade: 'un',  icon: 'Shapes' },
 ];
@@ -1125,8 +1125,8 @@ export const KCOLS = [
 ];
 // Status de arquivo (fora do pipeline visual)
 export const KCOLS_ARCHIVE = [
-    { id: "arquivo", nm: "Arquivado", c: "#64748b" },
-    { id: "perdido", nm: "Perdido", c: "#dc2626" },
+    { id: "arquivo", nm: "Arquivado", c: "var(--muted)" },
+    { id: "perdido", nm: "Perdido", c: "var(--danger-hover)" },
 ];
 // Colunas que travam edição do orçamento (já aprovado/em produção/entregue)
 export const LOCKED_COLS = ['ok', 'prod', 'done'];

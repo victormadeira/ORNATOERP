@@ -63,7 +63,7 @@ export default function OrdemProducao({ nav, editProjeto }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
                     <div style={{
                         width: 40, height: 40, borderRadius: 12,
-                        background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                        background: 'linear-gradient(135deg, var(--warning), var(--warning-hover))',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
                         <Scissors size={20} color="#fff" />
@@ -90,7 +90,7 @@ export default function OrdemProducao({ nav, editProjeto }) {
                             onClick={() => setProjetoId(p.id)}
                             style={{
                                 padding: 16, cursor: 'pointer', transition: 'all 0.15s',
-                                borderLeft: `4px solid ${p.status === 'concluido' ? '#22c55e' : p.status === 'em_andamento' ? '#3b82f6' : '#f59e0b'}`,
+                                borderLeft: `4px solid ${p.status === 'concluido' ? 'var(--success)' : p.status === 'em_andamento' ? 'var(--info)' : 'var(--warning)'}`,
                             }}
                         >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -108,8 +108,8 @@ export default function OrdemProducao({ nav, editProjeto }) {
                                     </div>
                                     <span style={{
                                         fontSize: 10, padding: '2px 8px', borderRadius: 99, fontWeight: 700,
-                                        background: p.status === 'concluido' ? '#22c55e20' : p.status === 'em_andamento' ? '#3b82f620' : '#f59e0b20',
-                                        color: p.status === 'concluido' ? '#22c55e' : p.status === 'em_andamento' ? '#3b82f6' : '#f59e0b',
+                                        background: p.status === 'concluido' ? 'var(--success-bg)' : p.status === 'em_andamento' ? 'var(--info-bg)' : 'var(--warning-bg)',
+                                        color: p.status === 'concluido' ? 'var(--success)' : p.status === 'em_andamento' ? 'var(--info)' : 'var(--warning)',
                                     }}>
                                         {p.status === 'concluido' ? 'Concluído' : p.status === 'em_andamento' ? 'Em andamento' : 'Não iniciado'}
                                     </span>
@@ -144,7 +144,7 @@ export default function OrdemProducao({ nav, editProjeto }) {
                     </button>
                     <div style={{
                         width: 40, height: 40, borderRadius: 12,
-                        background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                        background: 'linear-gradient(135deg, var(--warning), var(--warning-hover))',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
                         <Scissors size={20} color="#fff" />
@@ -170,11 +170,11 @@ export default function OrdemProducao({ nav, editProjeto }) {
             {/* KPIs */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
                 {[
-                    { label: 'Peças', value: resumo.total_pecas, icon: <Layers size={16} />, color: '#3b82f6' },
-                    { label: 'Chapas', value: resumo.total_chapas, icon: <Package size={16} />, color: '#22c55e' },
-                    { label: 'Ferragens', value: resumo.total_ferragens, icon: <ClipboardList size={16} />, color: '#f59e0b' },
+                    { label: 'Peças', value: resumo.total_pecas, icon: <Layers size={16} />, color: 'var(--info)' },
+                    { label: 'Chapas', value: resumo.total_chapas, icon: <Package size={16} />, color: 'var(--success)' },
+                    { label: 'Ferragens', value: resumo.total_ferragens, icon: <ClipboardList size={16} />, color: 'var(--warning)' },
                     { label: 'Fita (m)', value: N(resumo.total_fita_m, 1), icon: <Ruler size={16} />, color: '#8b5cf6' },
-                    { label: 'Custo Material', value: R$(resumo.custo_total), icon: <ShoppingCart size={16} />, color: '#ef4444' },
+                    { label: 'Custo Material', value: R$(resumo.custo_total), icon: <ShoppingCart size={16} />, color: 'var(--danger)' },
                 ].map(kpi => (
                     <div key={kpi.label} className={Z.card} style={{ padding: 14, textAlign: 'center' }}>
                         <div style={{ color: kpi.color, marginBottom: 4, display: 'flex', justifyContent: 'center' }}>{kpi.icon}</div>
@@ -253,7 +253,7 @@ export default function OrdemProducao({ nav, editProjeto }) {
                                                     <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                                                         <td style={tdStyle}>
                                                             {p.nome}
-                                                            {p.aditivo && <span style={{ fontSize: 9, color: '#f59e0b', marginLeft: 4 }}>({p.aditivo})</span>}
+                                                            {p.aditivo && <span style={{ fontSize: 9, color: 'var(--warning)', marginLeft: 4 }}>({p.aditivo})</span>}
                                                         </td>
                                                         <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>{p.ambiente}</td>
                                                         <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>{p.modulo}</td>
@@ -301,7 +301,7 @@ export default function OrdemProducao({ nav, editProjeto }) {
                                 </div>
                                 <div>
                                     <span style={{ color: 'var(--text-muted)' }}>Custo: </span>
-                                    <span style={{ fontWeight: 700, color: '#ef4444' }}>{R$(c.qtdChapas * c.preco)}</span>
+                                    <span style={{ fontWeight: 700, color: 'var(--danger)' }}>{R$(c.qtdChapas * c.preco)}</span>
                                 </div>
                             </div>
                             {/* Barra de uso */}
@@ -310,7 +310,7 @@ export default function OrdemProducao({ nav, editProjeto }) {
                                     <div style={{
                                         height: '100%', borderRadius: 3,
                                         width: `${Math.min(100, (c.areaPecas / (c.areaUtil * c.qtdChapas)) * 100)}%`,
-                                        background: 'linear-gradient(90deg, #22c55e, #16a34a)',
+                                        background: 'linear-gradient(90deg, var(--success), var(--success-hover))',
                                     }} />
                                 </div>
                                 <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textAlign: 'right' }}>
@@ -369,7 +369,7 @@ export default function OrdemProducao({ nav, editProjeto }) {
                                         <td style={tdStyle}>TOTAL</td>
                                         <td style={{ ...tdStyle, textAlign: 'center' }}>{ferragens.reduce((s, f) => s + f.qtd, 0)}</td>
                                         <td colSpan={2} />
-                                        <td style={{ ...tdStyle, textAlign: 'right', color: '#ef4444' }}>
+                                        <td style={{ ...tdStyle, textAlign: 'right', color: 'var(--danger)' }}>
                                             {R$(ferragens.reduce((s, f) => s + f.qtd * f.preco, 0))}
                                         </td>
                                         <td />
@@ -394,18 +394,18 @@ export default function OrdemProducao({ nav, editProjeto }) {
                     {/* Itens que precisam comprar */}
                     {bom.filter(b => b.comprar > 0).length > 0 && (
                         <div style={{ marginBottom: 16 }}>
-                            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#ef4444', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--danger)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <AlertTriangle size={14} /> Itens a Comprar
                             </h3>
                             <div style={{ overflowX: 'auto' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                                     <thead>
-                                        <tr style={{ background: '#fef2f2' }}>
+                                        <tr style={{ background: 'var(--danger-bg)' }}>
                                             <th style={thStyle}>Item</th>
                                             <th style={{ ...thStyle, textAlign: 'center' }}>Tipo</th>
                                             <th style={{ ...thStyle, textAlign: 'center' }}>Necessário</th>
                                             <th style={{ ...thStyle, textAlign: 'center' }}>Em Estoque</th>
-                                            <th style={{ ...thStyle, textAlign: 'center', color: '#ef4444' }}>Comprar</th>
+                                            <th style={{ ...thStyle, textAlign: 'center', color: 'var(--danger)' }}>Comprar</th>
                                             <th style={{ ...thStyle, textAlign: 'right' }}>Custo Est.</th>
                                         </tr>
                                     </thead>
@@ -416,17 +416,17 @@ export default function OrdemProducao({ nav, editProjeto }) {
                                                 <td style={{ ...tdStyle, textAlign: 'center' }}>
                                                     <span style={{
                                                         fontSize: 10, padding: '2px 6px', borderRadius: 99, fontWeight: 700,
-                                                        background: b.tipo === 'chapa' ? '#3b82f620' : b.tipo === 'ferragem' ? '#f59e0b20' : '#8b5cf620',
-                                                        color: b.tipo === 'chapa' ? '#3b82f6' : b.tipo === 'ferragem' ? '#f59e0b' : '#8b5cf6',
+                                                        background: b.tipo === 'chapa' ? 'var(--info-bg)' : b.tipo === 'ferragem' ? 'var(--warning-bg)' : '#8b5cf620',
+                                                        color: b.tipo === 'chapa' ? 'var(--info)' : b.tipo === 'ferragem' ? 'var(--warning)' : '#8b5cf6',
                                                     }}>
                                                         {b.tipo}
                                                     </span>
                                                 </td>
                                                 <td style={{ ...tdStyle, textAlign: 'center' }}>{b.necessario} {b.un}</td>
-                                                <td style={{ ...tdStyle, textAlign: 'center', color: b.em_estoque > 0 ? '#22c55e' : 'var(--text-muted)' }}>
+                                                <td style={{ ...tdStyle, textAlign: 'center', color: b.em_estoque > 0 ? 'var(--success)' : 'var(--text-muted)' }}>
                                                     {b.em_estoque} {b.un}
                                                 </td>
-                                                <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 800, color: '#ef4444', fontSize: 15 }}>
+                                                <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 800, color: 'var(--danger)', fontSize: 15 }}>
                                                     {b.comprar} {b.un}
                                                 </td>
                                                 <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>
@@ -463,8 +463,8 @@ export default function OrdemProducao({ nav, editProjeto }) {
                                         <td style={{ ...tdStyle, textAlign: 'center' }}>
                                             <span style={{
                                                 fontSize: 10, padding: '2px 6px', borderRadius: 99, fontWeight: 700,
-                                                background: b.tipo === 'chapa' ? '#3b82f620' : b.tipo === 'ferragem' ? '#f59e0b20' : '#8b5cf620',
-                                                color: b.tipo === 'chapa' ? '#3b82f6' : b.tipo === 'ferragem' ? '#f59e0b' : '#8b5cf6',
+                                                background: b.tipo === 'chapa' ? 'var(--info-bg)' : b.tipo === 'ferragem' ? 'var(--warning-bg)' : '#8b5cf620',
+                                                color: b.tipo === 'chapa' ? 'var(--info)' : b.tipo === 'ferragem' ? 'var(--warning)' : '#8b5cf6',
                                             }}>
                                                 {b.tipo}
                                             </span>
@@ -472,7 +472,7 @@ export default function OrdemProducao({ nav, editProjeto }) {
                                         <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 600 }}>{b.necessario} {b.un}</td>
                                         <td style={{
                                             ...tdStyle, textAlign: 'center', fontWeight: 600,
-                                            color: b.em_estoque >= b.necessario ? '#22c55e' : b.em_estoque > 0 ? '#f59e0b' : '#ef4444',
+                                            color: b.em_estoque >= b.necessario ? 'var(--success)' : b.em_estoque > 0 ? 'var(--warning)' : 'var(--danger)',
                                         }}>
                                             {b.em_estoque} {b.un}
                                         </td>
@@ -482,7 +482,7 @@ export default function OrdemProducao({ nav, editProjeto }) {
                                 ))}
                                 <tr style={{ background: 'var(--bg-muted)', fontWeight: 700 }}>
                                     <td colSpan={5} style={tdStyle}>CUSTO TOTAL MATERIAIS</td>
-                                    <td style={{ ...tdStyle, textAlign: 'right', color: '#ef4444', fontSize: 15 }}>
+                                    <td style={{ ...tdStyle, textAlign: 'right', color: 'var(--danger)', fontSize: 15 }}>
                                         {R$(resumo.custo_total)}
                                     </td>
                                 </tr>

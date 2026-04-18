@@ -9,19 +9,19 @@ const timeFmt = (s) => {
 };
 
 const mkStatusEtapa = (accent) => ({
-    nao_iniciado: { label: 'Não iniciado', color: '#94a3b8', Icon: PauseCircle },
-    pendente:     { label: 'Pendente',     color: '#94a3b8', Icon: Clock },
+    nao_iniciado: { label: 'Não iniciado', color: 'var(--muted)', Icon: PauseCircle },
+    pendente:     { label: 'Pendente',     color: 'var(--muted)', Icon: Clock },
     em_andamento: { label: 'Em andamento', color: accent, Icon: Play },
-    concluida:    { label: 'Concluída',    color: '#22c55e', Icon: CheckCircle2 },
-    atrasada:     { label: 'Atrasada',     color: '#ef4444', Icon: AlertCircle },
+    concluida:    { label: 'Concluída',    color: 'var(--success)', Icon: CheckCircle2 },
+    atrasada:     { label: 'Atrasada',     color: 'var(--danger)', Icon: AlertCircle },
 });
 
 const mkStatusProj = (accent) => ({
-    nao_iniciado: { label: 'Não iniciado', color: '#94a3b8' },
+    nao_iniciado: { label: 'Não iniciado', color: 'var(--muted)' },
     em_andamento: { label: 'Em andamento', color: accent },
-    atrasado:     { label: 'Atrasado',     color: '#ef4444' },
-    concluido:    { label: 'Concluído',    color: '#22c55e' },
-    suspenso:     { label: 'Suspenso',     color: '#f59e0b' },
+    atrasado:     { label: 'Atrasado',     color: 'var(--danger)' },
+    concluido:    { label: 'Concluído',    color: 'var(--success)' },
+    suspenso:     { label: 'Suspenso',     color: 'var(--warning)' },
 });
 
 // ─── Helpers para o Gantt Premium ──────────────────────
@@ -177,11 +177,11 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
             case 'em_andamento':
                 return { ...base, background: `linear-gradient(90deg, ${accent}, ${accent}bb, ${accent})`, backgroundSize: '200% 100%', animation: 'ganttShimmer 2.5s ease-in-out infinite', boxShadow: `0 3px 10px ${accent}40` };
             case 'concluida':
-                return { ...base, background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 2px 8px rgba(34,197,94,0.3)' };
+                return { ...base, background: 'linear-gradient(135deg, var(--success), var(--success-hover))', boxShadow: '0 2px 8px rgba(34,197,94,0.3)' };
             case 'nao_iniciado': case 'pendente':
-                return { ...base, background: '#f8fafc', border: 'none' };
+                return { ...base, background: 'var(--bg-muted)', border: 'none' };
             default:
-                return { ...base, background: '#94a3b8' };
+                return { ...base, background: 'var(--muted)' };
         }
     };
 
@@ -204,7 +204,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                     Etapa atual: <strong style={{ color: primary }}>{currentEtapa.nome}</strong>
                 </div>
                 {lastEtapa.data_vencimento && (
-                    <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
                         Previsão: <strong style={{ color: '#0f172a' }}>{dtFmt(lastEtapa.data_vencimento)}</strong>
                     </div>
                 )}
@@ -237,7 +237,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                     width: effectiveStatus === 'concluida' ? 28 : isActive ? 30 : 24,
                                     height: effectiveStatus === 'concluida' ? 28 : isActive ? 30 : 24,
                                     borderRadius: 6,
-                                    background: effectiveStatus === 'concluida' ? '#22c55e' : isActive ? accent : '#f8fafc',
+                                    background: effectiveStatus === 'concluida' ? 'var(--success)' : isActive ? accent : 'var(--bg-muted)',
                                     border: effectiveStatus === 'nao_iniciado' || effectiveStatus === 'pendente' ? '2px dashed #cbd5e1' : `2px solid ${st.color}`,
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                                     boxShadow: isActive ? `0 0 12px ${accent}40` : 'none',
@@ -249,7 +249,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                     }
                                 </div>
                                 {!isLast && (
-                                    <div style={{ width: 2, flex: 1, minHeight: 16, background: effectiveStatus === 'concluida' ? '#22c55e' : '#e2e8f0' }} />
+                                    <div style={{ width: 2, flex: 1, minHeight: 16, background: effectiveStatus === 'concluida' ? 'var(--success)' : '#e2e8f0' }} />
                                 )}
                             </div>
 
@@ -258,19 +258,19 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                 flex: 1, paddingBottom: isLast ? 0 : 12, paddingLeft: 10, minWidth: 0,
                             }}>
                                 <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', marginBottom: 2 }}>{e.nome}</div>
-                                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6, fontVariantNumeric: 'tabular-nums' }}>
+                                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6, fontVariantNumeric: 'tabular-nums' }}>
                                     {e.data_inicio && e.data_vencimento
                                         ? `${dtFmt(e.data_inicio).slice(0, 5)} → ${dtFmt(e.data_vencimento).slice(0, 5)}`
                                         : e.data_vencimento ? dtFmt(e.data_vencimento).slice(0, 5) : ''}
                                     {diasInfo && e.status !== 'concluida' && (
-                                        <span style={{ marginLeft: 6, color: diasInfo.atrasado ? '#ef4444' : '#22c55e', fontWeight: 600 }}>
+                                        <span style={{ marginLeft: 6, color: diasInfo.atrasado ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>
                                             {diasInfo.texto}
                                         </span>
                                     )}
                                 </div>
                                 {/* Progress bar */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 4, height: 5, overflow: 'hidden' }}>
+                                    <div style={{ flex: 1, background: 'var(--muted-bg)', borderRadius: 4, height: 5, overflow: 'hidden' }}>
                                         <div className={isActive ? 'gantt-progress-active' : ''} style={{ width: `${prog}%`, height: '100%', background: st.color, borderRadius: 4, transition: 'width 0.6s ease' }} />
                                     </div>
                                     <span style={{ fontSize: 10, fontWeight: 700, color: st.color, minWidth: 28, fontFamily: 'SF Mono, Monaco, monospace', fontVariantNumeric: 'tabular-nums' }}>{prog}%</span>
@@ -294,7 +294,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                     Seu projeto está na etapa: <strong style={{ color: primary }}>{currentEtapa.nome}</strong>
                 </div>
                 {lastEtapa.data_vencimento && (
-                    <div style={{ fontSize: 13, color: '#64748b', marginBottom: 14 }}>
+                    <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>
                         Previsão de entrega: <strong style={{ color: '#0f172a' }}>{dtFmt(lastEtapa.data_vencimento)}</strong>
                     </div>
                 )}
@@ -315,7 +315,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                 <div style={{ width: 200, flexShrink: 0, borderRight: '1px solid #e2e8f0', background: '#fafbfc' }}>
                     {/* Sidebar header */}
                     <div style={{ height: 42, display: 'flex', alignItems: 'center', padding: '0 14px', borderBottom: '1px solid #e2e8f0' }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#94a3b8' }}>Etapas</span>
+                        <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)' }}>Etapas</span>
                     </div>
                     {/* Sidebar rows */}
                     {etapas.map((e, i) => {
@@ -329,7 +329,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                 height: ROW_H, display: 'flex', alignItems: 'center', gap: 8,
                                 padding: '0 14px', borderBottom: i < etapas.length - 1 ? '1px solid #f1f5f9' : 'none',
                                 animation: `ganttSlideIn 0.4s ease ${i * 100}ms both`,
-                                background: isActive ? `${accent}06` : '#f8fafc',
+                                background: isActive ? `${accent}06` : 'var(--bg-muted)',
                                 borderLeft: `3px solid ${st.color}`,
                             }}>
                                 <div style={{
@@ -400,13 +400,13 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                         {showToday && (
                             <div style={{
                                 position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0,
-                                width: 2, background: '#ef4444', zIndex: 10,
+                                width: 2, background: 'var(--danger)', zIndex: 10,
                                 animation: 'ganttTodayPulse 2s ease-in-out infinite',
                                 boxShadow: '0 0 8px rgba(239,68,68,0.4)',
                             }}>
                                 <div style={{
                                     position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50%)',
-                                    background: '#ef4444', color: '#fff', fontSize: 8, fontWeight: 800,
+                                    background: 'var(--danger)', color: '#fff', fontSize: 8, fontWeight: 800,
                                     padding: '1px 5px', borderRadius: 3, whiteSpace: 'nowrap', letterSpacing: '0.1em',
                                 }}>HOJE</div>
                             </div>
@@ -429,7 +429,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                             const prog = calcProgresso(e);
                             const diasInfo = calcDiasRestantes(e);
                             const isHovered = hoveredIdx === i;
-                            const milestoneColor = effectiveStatus === 'concluida' ? '#22c55e' : effectiveStatus === 'em_andamento' ? accent : '#94a3b8';
+                            const milestoneColor = effectiveStatus === 'concluida' ? 'var(--success)' : effectiveStatus === 'em_andamento' ? accent : 'var(--muted)';
 
                             return (
                                 <div key={e.id} style={{
@@ -446,13 +446,13 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                                 onMouseLeave={() => setHoveredIdx(null)}
                                                 style={{
                                                     width: 22, height: 22, marginLeft: -11,
-                                                    background: milestoneColor === '#94a3b8'
-                                                        ? '#f8fafc'
+                                                    background: milestoneColor === 'var(--muted)'
+                                                        ? 'var(--bg-muted)'
                                                         : `linear-gradient(135deg, ${milestoneColor}, ${milestoneColor}cc)`,
-                                                    border: milestoneColor === '#94a3b8' ? '2px dashed #cbd5e1' : `2px solid ${milestoneColor}`,
+                                                    border: milestoneColor === 'var(--muted)' ? '2px dashed #cbd5e1' : `2px solid ${milestoneColor}`,
                                                     borderRadius: 5,
                                                     animation: 'ganttDiamondPulse 3s ease-in-out infinite',
-                                                    boxShadow: milestoneColor !== '#94a3b8' ? `0 3px 12px ${milestoneColor}35` : 'none',
+                                                    boxShadow: milestoneColor !== 'var(--muted)' ? `0 3px 12px ${milestoneColor}35` : 'none',
                                                     cursor: 'default',
                                                     transition: 'filter 0.2s, box-shadow 0.2s',
                                                 }}
@@ -487,7 +487,7 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                             {width > 10 && (
                                                 <span style={{
                                                     position: 'relative', zIndex: 1, fontSize: 10, fontWeight: 700,
-                                                    color: (effectiveStatus === 'nao_iniciado' || effectiveStatus === 'pendente') ? '#94a3b8' : '#fff',
+                                                    color: (effectiveStatus === 'nao_iniciado' || effectiveStatus === 'pendente') ? 'var(--muted)' : '#fff',
                                                     padding: '0 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                                                     fontVariantNumeric: 'tabular-nums',
                                                 }}>
@@ -510,11 +510,11 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                             pointerEvents: 'none',
                                         }}>
                                             <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a', marginBottom: 6 }}>{e.nome}</div>
-                                            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>
+                                            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>
                                                 {dtFmt(e.data_inicio)} → {dtFmt(e.data_vencimento)}
                                             </div>
                                             {diasInfo && e.status !== 'concluida' && (
-                                                <div style={{ fontSize: 12, color: diasInfo.atrasado ? '#ef4444' : '#22c55e', fontWeight: 600, marginBottom: 6 }}>
+                                                <div style={{ fontSize: 12, color: diasInfo.atrasado ? 'var(--danger)' : 'var(--success)', fontWeight: 600, marginBottom: 6 }}>
                                                     {diasInfo.texto}
                                                 </div>
                                             )}
@@ -522,10 +522,10 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
                                                 {e.status === 'concluida' ? 'Esta etapa foi concluída com sucesso!' : getEtapaDesc(e.nome)}
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 4, height: 6, overflow: 'hidden' }}>
-                                                    <div style={{ width: `${prog}%`, height: '100%', background: STATUS[effectiveStatus]?.color || '#94a3b8', borderRadius: 4 }} />
+                                                <div style={{ flex: 1, background: 'var(--muted-bg)', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+                                                    <div style={{ width: `${prog}%`, height: '100%', background: STATUS[effectiveStatus]?.color || 'var(--muted)', borderRadius: 4 }} />
                                                 </div>
-                                                <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', fontFamily: 'SF Mono, Monaco, monospace', fontVariantNumeric: 'tabular-nums' }}>{prog}%</span>
+                                                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', fontFamily: 'SF Mono, Monaco, monospace', fontVariantNumeric: 'tabular-nums' }}>{prog}%</span>
                                             </div>
                                         </div>
                                     )}
@@ -539,21 +539,21 @@ function GanttPublic({ etapas, primary = '#1B2A4A', accent = '#B7654A' }) {
             {/* Legend */}
             <div style={{ display: 'flex', gap: 16, marginTop: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
                 {[
-                    { label: 'Concluída', color: '#22c55e', style: {} },
+                    { label: 'Concluída', color: 'var(--success)', style: {} },
                     { label: 'Em andamento', color: accent, style: {} },
-                    { label: 'Não iniciado', color: '#94a3b8', style: { border: '1.5px dashed #94a3b8', background: 'transparent' } },
+                    { label: 'Não iniciado', color: 'var(--muted)', style: { border: '1.5px dashed #94a3b8', background: 'transparent' } },
                 ].map(l => (
-                    <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#64748b' }}>
+                    <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--muted)' }}>
                         <div style={{ width: 20, height: 10, background: l.color, borderRadius: 4, ...l.style }} />
                         {l.label}
                     </div>
                 ))}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#64748b' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--muted)' }}>
                     <div style={{ width: 10, height: 10, background: accent, borderRadius: 2, transform: 'rotate(45deg)' }} />
                     Marco
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#64748b' }}>
-                    <div style={{ width: 2, height: 12, background: '#ef4444', borderRadius: 1, boxShadow: '0 0 4px rgba(239,68,68,0.5)' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--muted)' }}>
+                    <div style={{ width: 2, height: 12, background: 'var(--danger)', borderRadius: 1, boxShadow: '0 0 4px rgba(239,68,68,0.5)' }} />
                     Hoje
                 </div>
             </div>
@@ -618,25 +618,25 @@ function PortalChat({ token, mensagens: initialMsgs, accent, primary, clienteNom
                     <MessageSquare size={16} style={{ color: accent }} /> Mensagens
                     {msgNaoLidas > 0 && (
                         <span style={{
-                            background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 700,
+                            background: 'var(--danger)', color: '#fff', fontSize: 11, fontWeight: 700,
                             padding: '2px 8px', borderRadius: 99, marginLeft: 4,
                         }}>
                             {msgNaoLidas} nova{msgNaoLidas > 1 ? 's' : ''}
                         </span>
                     )}
                 </h2>
-                <span style={{ fontSize: 12, color: '#94a3b8', paddingLeft: 24 }}>Concierge do Projeto — Seu consultor direto</span>
+                <span style={{ fontSize: 12, color: 'var(--muted)', paddingLeft: 24 }}>Concierge do Projeto — Seu consultor direto</span>
             </div>
 
             {/* Chat area */}
             <div ref={chatRef} style={{
                 maxHeight: 360, minHeight: 120, overflowY: 'auto',
-                background: '#f8fafc', borderRadius: 12,
+                background: 'var(--bg-muted)', borderRadius: 12,
                 padding: 16, marginBottom: 16,
                 border: '1px solid #e2e8f0'
             }}>
                 {msgs.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '32px 0', color: '#94a3b8', fontSize: 13 }}>
+                    <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--muted)', fontSize: 13 }}>
                         <MessageSquare size={28} style={{ margin: '0 auto 8px', opacity: 0.4 }} />
                         <p>Envie uma mensagem para a equipe</p>
                     </div>
@@ -669,7 +669,7 @@ function PortalChat({ token, mensagens: initialMsgs, accent, primary, clienteNom
                                             <span style={{ fontSize: 11, fontWeight: 700, color: isEquipe ? primary : accent }}>
                                                 {m.autor_nome || (isEquipe ? 'Equipe' : 'Você')}
                                             </span>
-                                            <span style={{ fontSize: 10, color: '#94a3b8' }}>{timeFmt(m.criado_em)}</span>
+                                            <span style={{ fontSize: 10, color: 'var(--muted)' }}>{timeFmt(m.criado_em)}</span>
                                         </div>
                                         <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap' }}>
                                             {m.conteudo}
@@ -706,11 +706,11 @@ function PortalChat({ token, mensagens: initialMsgs, accent, primary, clienteNom
                         onClick={() => setEditandoNome(true)}
                         style={{
                             background: 'none', border: '1px dashed #cbd5e1', borderRadius: 8,
-                            padding: '6px 12px', fontSize: 12, color: '#64748b', cursor: 'pointer',
+                            padding: '6px 12px', fontSize: 12, color: 'var(--muted)', cursor: 'pointer',
                             display: 'flex', alignItems: 'center', gap: 6,
                         }}
                     >
-                        <User size={12} /> {nome || 'Definir nome'} <span style={{ fontSize: 10, color: '#94a3b8' }}>(clique para alterar)</span>
+                        <User size={12} /> {nome || 'Definir nome'} <span style={{ fontSize: 10, color: 'var(--muted)' }}>(clique para alterar)</span>
                     </button>
                 )}
             </div>
@@ -768,12 +768,12 @@ function PortalDocumentos({ token, accent }) {
     const fmtSize = (bytes) => bytes > 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`;
     const isImage = (tipo) => ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(tipo);
     const getFileIcon = (tipo) => {
-        if (['pdf'].includes(tipo)) return { bg: '#fee2e2', color: '#ef4444', label: 'PDF' };
-        if (['doc', 'docx'].includes(tipo)) return { bg: '#dbeafe', color: '#3b82f6', label: 'DOC' };
-        if (['xls', 'xlsx', 'csv'].includes(tipo)) return { bg: '#dcfce7', color: '#22c55e', label: 'XLS' };
-        if (['dxf', 'dwg'].includes(tipo)) return { bg: '#fef3c7', color: '#f59e0b', label: 'CAD' };
+        if (['pdf'].includes(tipo)) return { bg: 'var(--danger-bg)', color: 'var(--danger)', label: 'PDF' };
+        if (['doc', 'docx'].includes(tipo)) return { bg: 'var(--info-bg)', color: 'var(--info)', label: 'DOC' };
+        if (['xls', 'xlsx', 'csv'].includes(tipo)) return { bg: 'var(--success-bg)', color: 'var(--success)', label: 'XLS' };
+        if (['dxf', 'dwg'].includes(tipo)) return { bg: 'var(--warning-bg)', color: 'var(--warning)', label: 'CAD' };
         if (isImage(tipo)) return { bg: '#ede9fe', color: '#8b5cf6', label: 'IMG' };
-        return { bg: '#f1f5f9', color: '#64748b', label: (tipo || '?').toUpperCase().slice(0, 3) };
+        return { bg: 'var(--muted-bg)', color: 'var(--muted)', label: (tipo || '?').toUpperCase().slice(0, 3) };
     };
 
     return (
@@ -781,7 +781,7 @@ function PortalDocumentos({ token, accent }) {
             <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <FileText size={16} style={{ color: accent }} /> Documentos
             </h2>
-            <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>
                 {arquivos.length} documento{arquivos.length !== 1 ? 's' : ''} disponíve{arquivos.length !== 1 ? 'is' : 'l'}
             </p>
 
@@ -797,12 +797,12 @@ function PortalDocumentos({ token, accent }) {
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 12,
                                 padding: '12px 16px', borderRadius: 10,
-                                background: '#f8fafc', border: '1px solid #e2e8f0',
+                                background: 'var(--bg-muted)', border: '1px solid #e2e8f0',
                                 textDecoration: 'none', color: 'inherit',
                                 transition: 'all 0.15s',
                             }}
-                            onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = accent + '50'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--muted-bg)'; e.currentTarget.style.borderColor = accent + '50'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-muted)'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
                         >
                             {isImage(f.tipo) ? (
                                 <img src={f.url} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0 }} />
@@ -815,7 +815,7 @@ function PortalDocumentos({ token, accent }) {
                             )}
                             <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontWeight: 600, fontSize: 13, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.nome}</div>
-                                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
                                     {fmtSize(f.tamanho)} · {new Date(f.data).toLocaleDateString('pt-BR')}
                                 </div>
                             </div>
@@ -878,7 +878,7 @@ function PortalGaleria({ token, accent, primary }) {
             <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Camera size={16} style={{ color: accent }} /> Fotos da Montagem
             </h2>
-            <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>
                 {fotosFiltradas.length} foto{fotosFiltradas.length !== 1 ? 's' : ''}
                 {filtroAmb ? ` em ${filtroAmb}` : ` registrada${fotos.length !== 1 ? 's' : ''}`}
             </p>
@@ -892,7 +892,7 @@ function PortalGaleria({ token, accent, primary }) {
                             padding: '6px 14px', borderRadius: 99, fontSize: 12, fontWeight: 600,
                             border: `1.5px solid ${!filtroAmb ? accent : '#e2e8f0'}`,
                             background: !filtroAmb ? `${accent}15` : '#fff',
-                            color: !filtroAmb ? accent : '#64748b',
+                            color: !filtroAmb ? accent : 'var(--muted)',
                             cursor: 'pointer', transition: 'all 0.15s',
                         }}
                     >
@@ -909,7 +909,7 @@ function PortalGaleria({ token, accent, primary }) {
                                     padding: '6px 14px', borderRadius: 99, fontSize: 12, fontWeight: 600,
                                     border: `1.5px solid ${active ? accent : '#e2e8f0'}`,
                                     background: active ? `${accent}15` : '#fff',
-                                    color: active ? accent : '#64748b',
+                                    color: active ? accent : 'var(--muted)',
                                     cursor: 'pointer', transition: 'all 0.15s',
                                 }}
                             >
@@ -936,7 +936,7 @@ function PortalGaleria({ token, accent, primary }) {
                             borderRadius: 10,
                             overflow: 'hidden',
                             cursor: 'pointer',
-                            background: '#f1f5f9',
+                            background: 'var(--muted-bg)',
                             border: '1px solid #e2e8f0',
                         }}
                     >
@@ -1107,8 +1107,8 @@ export default function PortalCliente({ token, isPreview = false }) {
     const font = 'system-ui, -apple-system, sans-serif';
 
     if (loading) return (
-        <div style={{ minHeight: '100vh', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: font }}>
-            <div style={{ textAlign: 'center', color: '#64748b' }}>
+        <div style={{ minHeight: '100vh', background: 'var(--muted-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: font }}>
+            <div style={{ textAlign: 'center', color: 'var(--muted)' }}>
                 <div style={{ width: 40, height: 40, border: `3px solid #e2e8f0`, borderTopColor: primary, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
                 <p>Carregando portal do cliente...</p>
             </div>
@@ -1117,11 +1117,11 @@ export default function PortalCliente({ token, isPreview = false }) {
     );
 
     if (error) return (
-        <div style={{ minHeight: '100vh', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: font }}>
+        <div style={{ minHeight: '100vh', background: 'var(--muted-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: font }}>
             <div style={{ textAlign: 'center', maxWidth: 400, padding: 32 }}>
-                <div style={{ width: 64, height: 64, background: '#fee2e2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: '#ef4444' }}><Lock size={28} /></div>
+                <div style={{ width: 64, height: 64, background: 'var(--danger-bg)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: 'var(--danger)' }}><Lock size={28} /></div>
                 <h2 style={{ color: '#1e293b', marginBottom: 8 }}>Link inválido ou expirado</h2>
-                <p style={{ color: '#64748b', fontSize: 14 }}>{error}</p>
+                <p style={{ color: 'var(--muted)', fontSize: 14 }}>{error}</p>
             </div>
         </div>
     );
@@ -1144,7 +1144,7 @@ export default function PortalCliente({ token, isPreview = false }) {
     const statusProj = STATUS_PROJ[portalStatus] || STATUS_PROJ.nao_iniciado;
 
     return (
-        <div style={{ minHeight: '100vh', background: '#f1f5f9', fontFamily: font, padding: '32px 16px' }}>
+        <div style={{ minHeight: '100vh', background: 'var(--muted-bg)', fontFamily: font, padding: '32px 16px' }}>
             <style>{`
                 @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
                 @keyframes ganttBarShine { 0% { left: -40%; } 100% { left: 140%; } }
@@ -1162,7 +1162,7 @@ export default function PortalCliente({ token, isPreview = false }) {
             {/* Banner de preview */}
             {isPreview && (
                 <div className="no-print" style={{
-                    background: 'linear-gradient(90deg, #f59e0b, #d97706)', color: '#fff',
+                    background: 'linear-gradient(90deg, var(--warning), var(--warning-hover))', color: '#fff',
                     padding: '10px 16px', textAlign: 'center', fontSize: 13, fontWeight: 700,
                     borderRadius: 10, marginBottom: 16, maxWidth: 800, margin: '0 auto 16px',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -1200,7 +1200,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                     <h1 style={{ color: '#0f172a', fontSize: 22, fontWeight: 800, margin: '0 0 4px', lineHeight: 1.3 }}>
                         Olá, {(projeto.cliente_nome || '').trim() || 'Cliente'}!
                     </h1>
-                    <p style={{ color: '#64748b', fontSize: 13, margin: '0 0 18px' }}>
+                    <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 18px' }}>
                         {concluidasPct >= 100 ? 'Seu projeto foi concluído!' :
                          concluidasPct > 0 ? `Seu projeto está ${concluidasPct}% concluído` :
                          'Acompanhe o progresso do seu projeto'}
@@ -1209,22 +1209,22 @@ export default function PortalCliente({ token, isPreview = false }) {
                     {/* Barra de progresso */}
                     <div style={{ marginBottom: 18 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                            <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Progresso geral</span>
+                            <span style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Progresso geral</span>
                             <span style={{ color: primary, fontSize: 16, fontWeight: 800 }}>{concluidasPct}%</span>
                         </div>
-                        <div style={{ background: '#f1f5f9', borderRadius: 99, height: 8, overflow: 'hidden' }}>
+                        <div style={{ background: 'var(--muted-bg)', borderRadius: 99, height: 8, overflow: 'hidden' }}>
                             <div className={concluidasPct < 100 ? 'gantt-progress-active' : ''} style={{ width: `${concluidasPct}%`, height: '100%', background: accent, borderRadius: 99, transition: 'width 0.8s ease' }} />
                         </div>
                     </div>
 
                     {/* Info grid — sempre 3 cards */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                        <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
-                            <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Projeto</div>
+                        <div style={{ background: 'var(--bg-muted)', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Projeto</div>
                             <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{projeto.nome || '—'}</div>
                         </div>
-                        <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
-                            <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Status</div>
+                        <div style={{ background: 'var(--bg-muted)', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Status</div>
                             <span style={{
                                 background: `${statusProj.color}15`, color: statusProj.color,
                                 fontSize: 12, fontWeight: 700, padding: '2px 10px', borderRadius: 99,
@@ -1232,15 +1232,15 @@ export default function PortalCliente({ token, isPreview = false }) {
                             }}>{statusProj.label}</span>
                         </div>
                         {projeto.data_inicio ? (
-                            <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
-                                <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Período</div>
+                            <div style={{ background: 'var(--bg-muted)', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Período</div>
                                 <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
                                     {dtFmt(projeto.data_inicio)} → {dtFmt(projeto.data_vencimento)}
                                 </div>
                             </div>
                         ) : (
-                            <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
-                                <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Etapas</div>
+                            <div style={{ background: 'var(--bg-muted)', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Etapas</div>
                                 <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
                                     {etapas.filter(e => e.status === 'concluida').length}/{etapas.length} concluídas
                                 </div>
@@ -1270,20 +1270,20 @@ export default function PortalCliente({ token, isPreview = false }) {
 
                     return (
                         <div style={{
-                            background: isRecente ? `${accent}10` : '#f8fafc',
+                            background: isRecente ? `${accent}10` : 'var(--bg-muted)',
                             padding: '12px 32px',
                             borderBottom: '1px solid #e2e8f0',
                             display: 'flex', alignItems: 'center', gap: 10,
                         }}>
                             <div style={{
                                 width: 8, height: 8, borderRadius: '50%',
-                                background: isRecente ? '#22c55e' : '#94a3b8',
+                                background: isRecente ? 'var(--success)' : 'var(--muted)',
                                 flexShrink: 0,
                                 ...(isRecente ? { animation: 'pulse 2s infinite' } : {}),
                             }} />
                             <div style={{ flex: 1, minWidth: 0 }}>
                                 <span style={{ fontSize: 13, color: '#334155', fontWeight: 500 }}>
-                                    <strong style={{ color: isRecente ? accent : '#64748b' }}>{tempoLabel}:</strong>{' '}
+                                    <strong style={{ color: isRecente ? accent : 'var(--muted)' }}>{tempoLabel}:</strong>{' '}
                                     {texto.length > 80 ? texto.slice(0, 80) + '…' : texto}
                                 </span>
                             </div>
@@ -1308,7 +1308,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                             padding: '14px 20px', border: 0, borderTop: 0, borderLeft: 0, borderRight: 0,
                             background: 'none', outline: 'none',
                             cursor: 'pointer', fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
-                            color: tab === t.id ? primary : '#64748b',
+                            color: tab === t.id ? primary : 'var(--muted)',
                             borderBottom: tab === t.id ? `2px solid ${primary}` : '2px solid transparent',
                             marginBottom: -2, display: 'flex', alignItems: 'center', gap: 6,
                             whiteSpace: 'nowrap', transition: 'all 0.2s',
@@ -1317,7 +1317,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                             {t.label}
                             {t.badge > 0 && (
                                 <span style={{
-                                    background: '#ef4444', color: '#fff', fontSize: 10,
+                                    background: 'var(--danger)', color: '#fff', fontSize: 10,
                                     fontWeight: 700, padding: '1px 6px', borderRadius: 10,
                                 }}>{t.badge}</span>
                             )}
@@ -1340,11 +1340,11 @@ export default function PortalCliente({ token, isPreview = false }) {
                 {projeto.ambientes && projeto.ambientes.length > 0 && (() => {
                     const AMB_COMPAT = { corte: 'producao', acabamento: 'expedicao' };
                     const AMB_ST = [
-                        { key: 'aguardando', label: 'Aguardando', color: '#94a3b8', icon: Clock },
+                        { key: 'aguardando', label: 'Aguardando', color: 'var(--muted)', icon: Clock },
                         { key: 'producao', label: 'Produção', color: '#f97316', icon: Factory },
-                        { key: 'expedicao', label: 'Expedição', color: '#3b82f6', icon: Truck },
+                        { key: 'expedicao', label: 'Expedição', color: 'var(--info)', icon: Truck },
                         { key: 'instalacao', label: 'Instalação', color: '#8b5cf6', icon: Wrench },
-                        { key: 'concluido', label: 'Concluído', color: '#22c55e', icon: CheckCircle2 },
+                        { key: 'concluido', label: 'Concluído', color: 'var(--success)', icon: CheckCircle2 },
                     ];
                     const stMap = Object.fromEntries(AMB_ST.map(s => [s.key, s]));
                     const stIdx = (k) => AMB_ST.findIndex(s => s.key === (AMB_COMPAT[k] || k));
@@ -1359,11 +1359,11 @@ export default function PortalCliente({ token, isPreview = false }) {
                                 <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
                                     <Layers size={16} style={{ color: accent }} /> Ambientes
                                 </h2>
-                                <span style={{ fontSize: 12, color: '#64748b' }}>{done}/{total} concluídos</span>
+                                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{done}/{total} concluídos</span>
                             </div>
 
                             {/* Barra de progresso geral */}
-                            <div style={{ background: '#f1f5f9', borderRadius: 6, overflow: 'hidden', height: 6, marginBottom: 18 }}>
+                            <div style={{ background: 'var(--muted-bg)', borderRadius: 6, overflow: 'hidden', height: 6, marginBottom: 18 }}>
                                 <div style={{ height: '100%', width: `${total > 0 ? (done / total) * 100 : 0}%`, background: accent, borderRadius: 6, transition: 'width 0.3s' }} />
                             </div>
 
@@ -1377,7 +1377,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                                     return (
                                         <div key={amb.id || i} style={{
                                             padding: '16px 20px', borderRadius: 12,
-                                            background: amb.status === 'concluido' ? '#f0fdf4' : '#fff',
+                                            background: amb.status === 'concluido' ? 'var(--success-bg)' : '#fff',
                                             border: '1px solid #f1f5f9',
                                             borderLeft: `3px solid ${st.color}`,
                                             boxShadow: '0 1px 4px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02)',
@@ -1487,19 +1487,19 @@ export default function PortalCliente({ token, isPreview = false }) {
                             {ocorrencias.map(oc => (
                                 <div key={oc.id} style={{
                                     padding: '14px 18px', borderRadius: 10,
-                                    background: oc.status === 'resolvido' ? '#f0fdf4' : '#f8fafc',
+                                    background: oc.status === 'resolvido' ? 'var(--success-bg)' : 'var(--bg-muted)',
                                     border: '1px solid #e2e8f0'
                                 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
                                         <div style={{ fontWeight: 600, fontSize: 14, color: '#0f172a' }}>{oc.assunto}</div>
                                         {oc.status === 'resolvido' && (
-                                            <span style={{ fontSize: 11, color: '#22c55e', fontWeight: 700, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}><CheckCircle2 size={12} /> Resolvido</span>
+                                            <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 700, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}><CheckCircle2 size={12} /> Resolvido</span>
                                         )}
                                     </div>
                                     {oc.descricao && (
                                         <p style={{ fontSize: 13, color: '#334155', margin: '6px 0 0', lineHeight: 1.6 }}>{oc.descricao}</p>
                                     )}
-                                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>
+                                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8 }}>
                                         {oc.autor} · {new Date(oc.criado_em).toLocaleDateString('pt-BR')}
                                     </div>
                                 </div>
@@ -1535,13 +1535,13 @@ export default function PortalCliente({ token, isPreview = false }) {
                         {/* Barra de progresso */}
                         <div style={{ marginBottom: 16 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
-                                <span style={{ color: '#64748b' }}>Pago: <strong style={{ color: '#22c55e' }}>R$ {(pagamento.totalPago || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></span>
-                                <span style={{ color: '#64748b' }}>Total: <strong style={{ color: '#0f172a' }}>R$ {(pagamento.totalGeral || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></span>
+                                <span style={{ color: 'var(--muted)' }}>Pago: <strong style={{ color: 'var(--success)' }}>R$ {(pagamento.totalPago || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></span>
+                                <span style={{ color: 'var(--muted)' }}>Total: <strong style={{ color: '#0f172a' }}>R$ {(pagamento.totalGeral || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></span>
                             </div>
                             <div style={{ background: '#e2e8f0', borderRadius: 99, height: 10, overflow: 'hidden' }}>
                                 <div style={{
                                     width: `${pagamento.totalGeral > 0 ? Math.round((pagamento.totalPago / pagamento.totalGeral) * 100) : 0}%`,
-                                    height: '100%', background: 'linear-gradient(90deg, #22c55e, #16a34a)', borderRadius: 99, transition: 'width 0.5s',
+                                    height: '100%', background: 'linear-gradient(90deg, var(--success), var(--success-hover))', borderRadius: 99, transition: 'width 0.5s',
                                 }} />
                             </div>
                         </div>
@@ -1554,23 +1554,23 @@ export default function PortalCliente({ token, isPreview = false }) {
                                     <div key={c.id} style={{
                                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                                         padding: '10px 14px', borderRadius: 8,
-                                        background: paga ? '#f0fdf4' : vencida ? '#fef2f2' : '#f8fafc',
-                                        border: `1px solid ${paga ? '#bbf7d0' : vencida ? '#fecaca' : '#e2e8f0'}`,
+                                        background: paga ? 'var(--success-bg)' : vencida ? 'var(--danger-bg)' : 'var(--bg-muted)',
+                                        border: `1px solid ${paga ? '#bbf7d0' : vencida ? 'var(--danger-border)' : '#e2e8f0'}`,
                                     }}>
                                         <div>
                                             <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{c.descricao || 'Parcela'}</div>
-                                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
                                                 Vence: {dtFmt(c.data_vencimento)}
                                                 {paga && c.data_pagamento ? ` · Pago em ${dtFmt(c.data_pagamento)}` : ''}
                                             </div>
                                         </div>
                                         <div style={{ textAlign: 'right' }}>
-                                            <div style={{ fontSize: 14, fontWeight: 700, color: paga ? '#22c55e' : vencida ? '#ef4444' : '#0f172a' }}>
+                                            <div style={{ fontSize: 14, fontWeight: 700, color: paga ? 'var(--success)' : vencida ? 'var(--danger)' : '#0f172a' }}>
                                                 R$ {(c.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                             </div>
                                             <div style={{
                                                 fontSize: 10, fontWeight: 700, marginTop: 2,
-                                                color: paga ? '#22c55e' : vencida ? '#ef4444' : '#94a3b8',
+                                                color: paga ? 'var(--success)' : vencida ? 'var(--danger)' : 'var(--muted)',
                                             }}>
                                                 {paga ? '✓ PAGO' : vencida ? 'VENCIDA' : 'PENDENTE'}
                                             </div>
@@ -1600,7 +1600,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     flexWrap: 'wrap', gap: 12
                 }}>
-                    <div style={{ fontSize: 12, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
                         {empresa.email && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Mail size={11} /> {empresa.email}</span>}
                         {empresa.telefone && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={11} /> {empresa.telefone}</span>}
                     </div>
@@ -1617,7 +1617,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                     </button>
                 </div>
 
-                <div style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: '#94a3b8' }}>
+                <div style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: 'var(--muted)' }}>
                     Portal gerado pelo sistema Ornato ERP
                 </div>
             </div>

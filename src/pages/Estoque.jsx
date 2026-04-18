@@ -15,9 +15,9 @@ import {
 const TIPOS = { material: 'Material', ferragem: 'Ferragem', acessorio: 'Acessório' };
 
 const STATUS_COR = (qtd, min) => {
-    if (qtd <= 0) return { label: 'Zerado', color: '#ef4444', bg: '#fef2f2' };
-    if (min > 0 && qtd < min) return { label: 'Baixo', color: '#f59e0b', bg: '#fffbeb' };
-    return { label: 'OK', color: '#22c55e', bg: '#f0fdf4' };
+    if (qtd <= 0) return { label: 'Zerado', color: 'var(--danger)', bg: 'var(--danger-bg)' };
+    if (min > 0 && qtd < min) return { label: 'Baixo', color: 'var(--warning)', bg: 'var(--warning-bg)' };
+    return { label: 'OK', color: 'var(--success)', bg: 'var(--success-bg)' };
 };
 
 // Indicador visual de nível de estoque (dot + tooltip)
@@ -26,7 +26,7 @@ const StockIndicator = ({ qtd, min, unidade }) => {
     const isBelowMin = qtd <= min;
     const isApproaching = !isBelowMin && qtd <= min * 1.5;
     if (!isBelowMin && !isApproaching) return null;
-    const color = isBelowMin ? '#ef4444' : '#f59e0b';
+    const color = isBelowMin ? 'var(--danger)' : 'var(--warning)';
     const tip = isBelowMin
         ? `Estoque abaixo do mínimo (${N(min, 1)} ${unidade || 'un'})`
         : `Estoque próximo do mínimo (${N(min, 1)} ${unidade || 'un'})`;
@@ -315,15 +315,15 @@ function SaidaLoteModal({ materiais, projetos, onClose, onSave, notify }) {
                                             <td style={{ padding: '6px 8px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
                                                 {it.qtdOrcada > 0 ? N(it.qtdOrcada, 1) : '—'}
                                             </td>
-                                            <td style={{ padding: '6px 8px', textAlign: 'center', fontSize: 11, color: it.qtdJaSaiu > 0 ? '#f59e0b' : 'var(--text-muted)' }}>
+                                            <td style={{ padding: '6px 8px', textAlign: 'center', fontSize: 11, color: it.qtdJaSaiu > 0 ? 'var(--warning)' : 'var(--text-muted)' }}>
                                                 {it.qtdJaSaiu > 0 ? N(it.qtdJaSaiu, 1) : '—'}
                                             </td>
                                             <td style={{ padding: '6px 8px', textAlign: 'center' }}>
                                                 <input type="number" step="0.01" min="0" className={Z.inp}
-                                                    style={{ width: 80, fontSize: 12, textAlign: 'center', margin: '0 auto', display: 'block', color: semSaldo ? '#ef4444' : undefined, fontWeight: 600 }}
+                                                    style={{ width: 80, fontSize: 12, textAlign: 'center', margin: '0 auto', display: 'block', color: semSaldo ? 'var(--danger)' : undefined, fontWeight: 600 }}
                                                     value={it.qtdSaida || ''} onChange={e => updateQtd(idx, e.target.value)} />
                                             </td>
-                                            <td style={{ padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: semSaldo ? '#ef4444' : '#22c55e' }}>
+                                            <td style={{ padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: semSaldo ? 'var(--danger)' : 'var(--success)' }}>
                                                 {N(it.estoque, 1)}
                                             </td>
                                             <td style={{ padding: '6px 8px', textAlign: 'center' }}>
@@ -372,9 +372,9 @@ function SaidaLoteModal({ materiais, projetos, onClose, onSave, notify }) {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 12 }}>
                         <span style={{ fontWeight: 600 }}>
                             {selecionados.length} item(ns) selecionado(s)
-                            {temErroSaldo && <span style={{ color: '#ef4444', marginLeft: 8 }}>Alguns excedem o saldo!</span>}
+                            {temErroSaldo && <span style={{ color: 'var(--danger)', marginLeft: 8 }}>Alguns excedem o saldo!</span>}
                         </span>
-                        <span style={{ fontWeight: 700, color: '#ef4444' }}>Total estimado: {R$(totalEstimado)}</span>
+                        <span style={{ fontWeight: 700, color: 'var(--danger)' }}>Total estimado: {R$(totalEstimado)}</span>
                     </div>
                 )}
             </div>
@@ -383,7 +383,7 @@ function SaidaLoteModal({ materiais, projetos, onClose, onSave, notify }) {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
                 <button className={Z.btn2} onClick={onClose}>Cancelar</button>
                 <button className={Z.btn} onClick={confirmar} disabled={saving || selecionados.length === 0}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#ef4444' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--danger)' }}>
                     <ArrowUpCircle size={14} /> {saving ? 'Processando...' : `Confirmar ${selecionados.length} Saída(s)`}
                 </button>
             </div>
@@ -547,10 +547,10 @@ export default function Estoque({ notify }) {
                 </div>
                 <div className={Z.card} style={{ padding: '16px 18px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                        <AlertTriangle size={16} color={totalBaixo > 0 ? '#ef4444' : '#22c55e'} />
+                        <AlertTriangle size={16} color={totalBaixo > 0 ? 'var(--danger)' : 'var(--success)'} />
                         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Alertas</span>
                     </div>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: totalBaixo > 0 ? '#ef4444' : '#22c55e' }}>{totalBaixo}</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: totalBaixo > 0 ? 'var(--danger)' : 'var(--success)' }}>{totalBaixo}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>item(ns) abaixo do mínimo</div>
                 </div>
                 <div className={Z.card} style={{ padding: '16px 18px' }}>
@@ -564,13 +564,13 @@ export default function Estoque({ notify }) {
 
             {/* Alertas */}
             {alertas.length > 0 && (
-                <div style={{ marginBottom: 20, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: '14px 18px' }}>
+                <div style={{ marginBottom: 20, background: 'var(--danger-bg)', border: '1px solid #fecaca', borderRadius: 12, padding: '14px 18px' }}>
                     <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--danger)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                         <AlertTriangle size={14} /> Materiais abaixo do mínimo
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         {alertas.map(a => (
-                            <span key={a.id} style={{ fontSize: 12, background: '#fff', padding: '4px 10px', borderRadius: 20, border: '1px solid #fecaca', color: '#dc2626', fontWeight: 600 }}>
+                            <span key={a.id} style={{ fontSize: 12, background: '#fff', padding: '4px 10px', borderRadius: 20, border: '1px solid #fecaca', color: 'var(--danger-hover)', fontWeight: 600 }}>
                                 {a.nome}: {N(a.quantidade, 1)} / {N(a.quantidade_minima, 1)} {a.unidade}
                             </span>
                         ))}
@@ -607,9 +607,9 @@ export default function Estoque({ notify }) {
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
                                 borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                                border: filterBaixo ? '2px solid #ef4444' : '1px solid var(--border)',
-                                background: filterBaixo ? '#fef2f2' : 'var(--bg-card)',
-                                color: filterBaixo ? '#ef4444' : 'var(--text-muted)',
+                                border: filterBaixo ? '2px solid var(--danger)' : '1px solid var(--border)',
+                                background: filterBaixo ? 'var(--danger-bg)' : 'var(--bg-card)',
+                                color: filterBaixo ? 'var(--danger)' : 'var(--text-muted)',
                                 transition: 'all 0.15s',
                             }}
                         >
@@ -617,7 +617,7 @@ export default function Estoque({ notify }) {
                             Estoque Baixo
                             {totalBaixo > 0 && (
                                 <span style={{
-                                    background: filterBaixo ? '#ef4444' : 'var(--text-muted)',
+                                    background: filterBaixo ? 'var(--danger)' : 'var(--text-muted)',
                                     color: '#fff', fontSize: 10, fontWeight: 700,
                                     padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center',
                                 }}>
@@ -727,10 +727,10 @@ export default function Estoque({ notify }) {
                                 <tbody>
                                     {movs.map((m, i) => {
                                         const tipoInfo = m.tipo === 'entrada'
-                                            ? { label: '↓ Entrada', color: 'var(--success)', bg: '#f0fdf4' }
+                                            ? { label: '↓ Entrada', color: 'var(--success)', bg: 'var(--success-bg)' }
                                             : m.tipo === 'saida'
-                                                ? { label: '↑ Saída', color: 'var(--danger)', bg: '#fef2f2' }
-                                                : { label: '↻ Ajuste', color: 'var(--primary)', bg: '#eff6ff' };
+                                                ? { label: '↑ Saída', color: 'var(--danger)', bg: 'var(--danger-bg)' }
+                                                : { label: '↻ Ajuste', color: 'var(--primary)', bg: 'var(--info-bg)' };
                                         return (
                                             <tr key={m.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
                                                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
@@ -995,7 +995,7 @@ export default function Estoque({ notify }) {
                                                 {c.telefone ? <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={11} /> {c.telefone}</span> : '—'}
                                             </td>
                                             <td style={{ padding: '10px 14px' }}>
-                                                <span className={tagClass} style={tagStyle(c.ativo === false ? '#ef4444' : '#22c55e')}>{c.ativo === false ? 'Inativo' : 'Ativo'}</span>
+                                                <span className={tagClass} style={tagStyle(c.ativo === false ? 'var(--danger)' : 'var(--success)')}>{c.ativo === false ? 'Inativo' : 'Ativo'}</span>
                                             </td>
                                             <td style={{ padding: '10px 14px' }}>
                                                 {isGerente && (
@@ -1012,7 +1012,7 @@ export default function Estoque({ notify }) {
                                                                 notify(c.ativo === false ? 'Colaborador reativado' : 'Colaborador desativado');
                                                             } catch { }
                                                         }} className={Z.btn2} title={c.ativo === false ? 'Reativar' : 'Desativar'}
-                                                            style={{ padding: '4px 8px', fontSize: 12, color: c.ativo === false ? '#22c55e' : '#ef4444' }}>
+                                                            style={{ padding: '4px 8px', fontSize: 12, color: c.ativo === false ? 'var(--success)' : 'var(--danger)' }}>
                                                             {c.ativo === false ? <CheckCircle2 size={13} /> : <Trash2 size={13} />}
                                                         </button>
                                                     </div>

@@ -141,13 +141,13 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
             case 'em_andamento':
                 return { ...base, background: 'linear-gradient(135deg, var(--primary), #3b93f7)', boxShadow: '0 2px 6px rgba(0,0,0,0.12)' };
             case 'concluida':
-                return { ...base, background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' };
+                return { ...base, background: 'linear-gradient(135deg, var(--success), var(--success-hover))', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' };
             case 'nao_iniciado': case 'pendente':
                 return { ...base, background: 'var(--bg-muted)', border: 'none' };
             case 'atrasada':
-                return { ...base, background: 'linear-gradient(135deg, #ef4444, #dc2626)', boxShadow: '0 2px 6px rgba(239,68,68,0.2)' };
+                return { ...base, background: 'linear-gradient(135deg, var(--danger), var(--danger-hover))', boxShadow: '0 2px 6px rgba(239,68,68,0.2)' };
             default:
-                return { ...base, background: '#64748b' };
+                return { ...base, background: 'var(--muted)' };
         }
     };
 
@@ -179,7 +179,7 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                                     height: ROW_H, display: 'flex', alignItems: 'center', gap: 6,
                                     padding: '0 12px', borderBottom: i < etapas.length - 1 ? '1px solid var(--border)' : 'none',
                                     background: isActive ? 'rgba(19,121,240,0.04)' : isOverdue ? 'rgba(239,68,68,0.04)' : 'transparent',
-                                    borderLeft: isActive ? '3px solid var(--primary)' : isOverdue ? '3px solid #ef4444' : '3px solid transparent',
+                                    borderLeft: isActive ? '3px solid var(--primary)' : isOverdue ? '3px solid var(--danger)' : '3px solid transparent',
                                     cursor: onEdit ? 'pointer' : 'default',
                                 }}>
                                 <div style={{
@@ -251,11 +251,11 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                         {showToday && (
                             <div style={{
                                 position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0,
-                                width: 2, background: '#ef4444', zIndex: 10,
+                                width: 2, background: 'var(--danger)', zIndex: 10,
                             }}>
                                 <div style={{
                                     position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50%)',
-                                    background: '#ef4444', color: '#fff', fontSize: 8, fontWeight: 800,
+                                    background: 'var(--danger)', color: '#fff', fontSize: 8, fontWeight: 800,
                                     padding: '1px 5px', borderRadius: 3, whiteSpace: 'nowrap', letterSpacing: '0.1em',
                                 }}>HOJE</div>
                             </div>
@@ -283,7 +283,7 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                             const hasDep = e.dependencia_id && etapaMap[e.dependencia_id];
                             const diasInfo = calcDiasRestantesERP(e);
                             const isHovered = hoveredIdx === i;
-                            const milestoneColor = e.status === 'concluida' ? '#22c55e' : e.status === 'em_andamento' ? 'var(--primary)' : e.status === 'atrasada' ? '#ef4444' : 'var(--text-muted)';
+                            const milestoneColor = e.status === 'concluida' ? 'var(--success)' : e.status === 'em_andamento' ? 'var(--primary)' : e.status === 'atrasada' ? 'var(--danger)' : 'var(--text-muted)';
 
                             return (
                                 <div key={e.id} style={{
@@ -363,7 +363,7 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                                                 {dtFmt(e.data_inicio)} → {dtFmt(e.data_vencimento)}
                                             </div>
                                             {diasInfo && e.status !== 'concluida' && (
-                                                <div style={{ fontSize: 11, color: diasInfo.atrasado ? '#ef4444' : '#22c55e', fontWeight: 600, marginBottom: 3 }}>
+                                                <div style={{ fontSize: 11, color: diasInfo.atrasado ? 'var(--danger)' : 'var(--success)', fontWeight: 600, marginBottom: 3 }}>
                                                     {diasInfo.texto}
                                                 </div>
                                             )}
@@ -374,7 +374,7 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                                             )}
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
                                                 <div style={{ flex: 1, background: 'var(--border)', borderRadius: 99, height: 5, overflow: 'hidden' }}>
-                                                    <div style={{ width: `${prog}%`, height: '100%', background: STATUS_ETAPA[e.status]?.color || '#64748b', borderRadius: 99 }} />
+                                                    <div style={{ width: `${prog}%`, height: '100%', background: STATUS_ETAPA[e.status]?.color || 'var(--muted)', borderRadius: 99 }} />
                                                 </div>
                                                 <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)' }}>{prog}%</span>
                                             </div>
@@ -391,10 +391,10 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
             {/* Legend */}
             <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
                 {[
-                    { label: 'Concluída', color: '#22c55e', extra: {} },
+                    { label: 'Concluída', color: 'var(--success)', extra: {} },
                     { label: 'Em andamento', color: 'var(--primary)', extra: {} },
-                    { label: 'Não iniciado', color: '#64748b', extra: { border: '1.5px dashed var(--border)', background: 'transparent' } },
-                    { label: 'Atrasada', color: '#ef4444', extra: {} },
+                    { label: 'Não iniciado', color: 'var(--muted)', extra: { border: '1.5px dashed var(--border)', background: 'transparent' } },
+                    { label: 'Atrasada', color: 'var(--danger)', extra: {} },
                 ].map(l => (
                     <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)' }}>
                         <div style={{ width: 18, height: 9, background: l.color, borderRadius: 3, ...l.extra }} />
@@ -406,7 +406,7 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
                     Marco
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)' }}>
-                    <div style={{ width: 2, height: 12, background: '#ef4444', borderRadius: 1, boxShadow: '0 0 4px rgba(239,68,68,0.5)' }} />
+                    <div style={{ width: 2, height: 12, background: 'var(--danger)', borderRadius: 1, boxShadow: '0 0 4px rgba(239,68,68,0.5)' }} />
                     Hoje
                 </div>
             </div>
@@ -535,7 +535,7 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
 
     return (
         <Modal title="Novo Projeto" close={onClose} w={660}>
-            {err && <p style={{ color: '#ef4444', marginBottom: 12, fontSize: 13 }}>{err}</p>}
+            {err && <p style={{ color: 'var(--danger)', marginBottom: 12, fontSize: 13 }}>{err}</p>}
             <div style={{ display: 'grid', gap: 14 }}>
                 <div>
                     <label className={Z.lbl}>Nome do Projeto *</label>
@@ -596,7 +596,7 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
                                 <input type="number" min="1" max="365" className={Z.inp} style={{ fontSize: 11, padding: '6px 6px', textAlign: 'center' }} value={e.duracao_dias || ''} onChange={ev => updateDuracao(i, ev.target.value)} />
                                 <input type="date" className={Z.inp} style={{ fontSize: 10, padding: '6px 4px' }} value={e.data_inicio} onChange={ev => setEtapas(et => et.map((x, j) => j === i ? { ...x, data_inicio: ev.target.value } : x))} />
                                 <input type="date" className={Z.inp} style={{ fontSize: 10, padding: '6px 4px' }} value={e.data_vencimento} onChange={ev => setEtapas(et => et.map((x, j) => j === i ? { ...x, data_vencimento: ev.target.value } : x))} />
-                                <button type="button" onClick={() => rmEtapa(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4 }} title="Excluir"><Ic.Trash /></button>
+                                <button type="button" onClick={() => rmEtapa(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 4 }} title="Excluir"><Ic.Trash /></button>
                             </div>
                         ))}
                     </div>
@@ -863,7 +863,7 @@ function TabCronograma({ data, load, notify, users }) {
                                     display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10,
                                     background: isOverdue ? '#fef2f208' : 'var(--bg-muted)',
                                     borderLeft: `4px solid ${effectiveSt.color}`,
-                                    border: isOverdue ? '1px solid #ef444440' : undefined,
+                                    border: isOverdue ? '1px solid var(--danger-border)' : undefined,
                                     borderLeftWidth: 4,
                                 }}>
                                     {/* Status dropdown */}
@@ -898,14 +898,14 @@ function TabCronograma({ data, load, notify, users }) {
                                             {e.data_inicio && <span>{dtFmt(e.data_inicio)} → {dtFmt(e.data_vencimento)}</span>}
                                             {e.responsavel_nome && <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><UserIcon size={10} /> {e.responsavel_nome}</span>}
                                             {depEtapa && <span style={{ color: '#8b5cf6', fontWeight: 600 }}>Depende de: {depEtapa.nome}</span>}
-                                            {isOverdue && <span style={{ color: '#ef4444', fontWeight: 600 }}>Atrasada</span>}
+                                            {isOverdue && <span style={{ color: 'var(--danger)', fontWeight: 600 }}>Atrasada</span>}
                                         </div>
                                     </div>
-                                    <Badge label={STATUS_ETAPA[effectiveStatus]?.label || effectiveStatus} color={STATUS_ETAPA[effectiveStatus]?.color || '#64748b'} />
+                                    <Badge label={STATUS_ETAPA[effectiveStatus]?.label || effectiveStatus} color={STATUS_ETAPA[effectiveStatus]?.color || 'var(--muted)'} />
                                     <button onClick={() => setEditEtapa(e)} title="Editar etapa"
                                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: 4, opacity: 0.7 }}><Ic.Edit /></button>
                                     <button onClick={() => setConfirmDel({ id: e.id, nome: e.nome })}
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4, opacity: 0.6 }} title="Excluir etapa"><Ic.Trash /></button>
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 4, opacity: 0.6 }} title="Excluir etapa"><Ic.Trash /></button>
                                 </div>
                             );
                         })}
@@ -943,14 +943,14 @@ function TabCronograma({ data, load, notify, users }) {
                 ) : (
                     <div style={{ display: 'grid', gap: 10 }}>
                         {data.ocorrencias.map(oc => (
-                            <div key={oc.id} style={{ padding: '12px 16px', borderRadius: 10, background: oc.status === 'interno' ? '#fffbeb' : oc.status === 'resolvido' ? '#f0fdf4' : 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                            <div key={oc.id} style={{ padding: '12px 16px', borderRadius: 10, background: oc.status === 'interno' ? 'var(--warning-bg)' : oc.status === 'resolvido' ? 'var(--success-bg)' : 'var(--bg-muted)', border: '1px solid var(--border)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                                     <div>
                                         <div style={{ fontWeight: 600, fontSize: 14 }}>{oc.assunto}</div>
                                         {oc.descricao && <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0', lineHeight: 1.5 }}>{oc.descricao}</p>}
                                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
                                             {oc.autor} · {new Date(oc.criado_em).toLocaleDateString('pt-BR')}
-                                            {oc.status === 'interno' && <span style={{ marginLeft: 8, color: '#f59e0b', fontWeight: 600 }}><Ic.Lock /> Interno</span>}
+                                            {oc.status === 'interno' && <span style={{ marginLeft: 8, color: 'var(--warning)', fontWeight: 600 }}><Ic.Lock /> Interno</span>}
                                         </div>
                                     </div>
                                     <select value={oc.status} onChange={e => api.put(`/projetos/ocorrencias/${oc.id}`, { status: e.target.value }).then(load)}
@@ -1063,10 +1063,10 @@ function TabFinanceiro({ data, notify, load }) {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px,1fr))', gap: 12, marginBottom: 20 }}>
                     {[
                         { label: 'Orçado', valor: resumo.orcado, icon: <Receipt size={16} />, color: 'var(--primary)' },
-                        { label: 'Despesas', valor: resumo.total_despesas, icon: <TrendingDown size={16} />, color: '#ef4444' },
-                        { label: 'Recebido', valor: resumo.total_recebido, icon: <TrendingUp size={16} />, color: '#22c55e' },
-                        { label: 'Pendente', valor: resumo.total_pendente, icon: <Clock size={16} />, color: '#f59e0b' },
-                        { label: 'Lucro Estimado', valor: resumo.lucro_estimado, icon: <DollarSign size={16} />, color: resumo.lucro_estimado >= 0 ? '#22c55e' : '#ef4444' },
+                        { label: 'Despesas', valor: resumo.total_despesas, icon: <TrendingDown size={16} />, color: 'var(--danger)' },
+                        { label: 'Recebido', valor: resumo.total_recebido, icon: <TrendingUp size={16} />, color: 'var(--success)' },
+                        { label: 'Pendente', valor: resumo.total_pendente, icon: <Clock size={16} />, color: 'var(--warning)' },
+                        { label: 'Lucro Estimado', valor: resumo.lucro_estimado, icon: <DollarSign size={16} />, color: resumo.lucro_estimado >= 0 ? 'var(--success)' : 'var(--danger)' },
                     ].map(c => (
                         <div key={c.label} className={Z.card} style={{ padding: '16px 18px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, color: c.color }}>{c.icon}<span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>{c.label}</span></div>
@@ -1082,7 +1082,7 @@ function TabFinanceiro({ data, notify, load }) {
                     <h3 style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>Despesas por Categoria</h3>
                     <div style={{ display: 'grid', gap: 6 }}>
                         {resumo.despesas_por_categoria.map(dc => {
-                            const cat = CAT_MAP[dc.categoria] || { label: dc.categoria, color: '#94a3b8' };
+                            const cat = CAT_MAP[dc.categoria] || { label: dc.categoria, color: 'var(--muted)' };
                             const pct = resumo.total_despesas > 0 ? (dc.total / resumo.total_despesas) * 100 : 0;
                             return (
                                 <div key={dc.categoria} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1101,7 +1101,7 @@ function TabFinanceiro({ data, notify, load }) {
             {/* Despesas */}
             <div className={Z.card} style={{ marginBottom: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                    <h2 style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 7 }}><ArrowDownCircle size={16} color="#ef4444" /> Despesas</h2>
+                    <h2 style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 7 }}><ArrowDownCircle size={16} color="var(--danger)" /> Despesas</h2>
                     <button onClick={() => setShowDespForm(!showDespForm)} className={Z.btn2} style={{ fontSize: 12, padding: '6px 12px' }}><PlusCircle size={12} /> Adicionar</button>
                 </div>
 
@@ -1132,15 +1132,15 @@ function TabFinanceiro({ data, notify, load }) {
                             <thead><tr>{['Data', 'Descrição', 'Categoria', 'Fornecedor', 'Valor', ''].map(h => <th key={h} className={Z.th} style={{ fontSize: 11 }}>{h}</th>)}</tr></thead>
                             <tbody>
                                 {despesas.map(d => {
-                                    const cat = CAT_MAP[d.categoria] || { label: d.categoria, color: '#94a3b8' };
+                                    const cat = CAT_MAP[d.categoria] || { label: d.categoria, color: 'var(--muted)' };
                                     return (
                                         <tr key={d.id} style={{ borderTop: '1px solid var(--border)' }}>
                                             <td style={{ padding: '8px 12px', fontSize: 12 }}>{dtFmt(d.data)}</td>
                                             <td style={{ padding: '8px 12px', fontWeight: 600 }}>{d.descricao}</td>
                                             <td style={{ padding: '8px 12px' }}><span style={{ fontSize: 11, background: `${cat.color}15`, color: cat.color, padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>{cat.label}</span></td>
                                             <td style={{ padding: '8px 12px', color: 'var(--text-muted)', fontSize: 12 }}>{d.fornecedor || '—'}</td>
-                                            <td style={{ padding: '8px 12px', fontWeight: 700, color: '#ef4444' }}>{R$(d.valor)}</td>
-                                            <td style={{ padding: '8px 12px' }}><button onClick={() => setConfirmDel({ id: d.id, nome: d.descricao, tipo: 'despesa' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', opacity: 0.5 }} title="Excluir"><Trash2 size={14} /></button></td>
+                                            <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--danger)' }}>{R$(d.valor)}</td>
+                                            <td style={{ padding: '8px 12px' }}><button onClick={() => setConfirmDel({ id: d.id, nome: d.descricao, tipo: 'despesa' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', opacity: 0.5 }} title="Excluir"><Trash2 size={14} /></button></td>
                                         </tr>
                                     );
                                 })}
@@ -1153,7 +1153,7 @@ function TabFinanceiro({ data, notify, load }) {
             {/* Toggle portal + Contas a Receber */}
             <div className={Z.card}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
-                    <h2 style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 7 }}><ArrowUpCircle size={16} color="#22c55e" /> Contas a Receber</h2>
+                    <h2 style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 7 }}><ArrowUpCircle size={16} color="var(--success)" /> Contas a Receber</h2>
                     <div style={{ display: 'flex', gap: 6 }}>
                         {contas.filter(c => c.auto_gerada).length === 0 && data.orc_id && (
                             <button onClick={importarParcelas} className={Z.btn2} style={{ fontSize: 12, padding: '6px 12px', color: 'var(--primary)' }}>⬇ Importar do orçamento</button>
@@ -1165,7 +1165,7 @@ function TabFinanceiro({ data, notify, load }) {
                 {/* Toggle visibilidade no portal */}
                 <label style={{
                     display: 'flex', alignItems: 'center', gap: 8, fontSize: 12,
-                    color: mostrarPagPortal ? '#22c55e' : 'var(--text-muted)',
+                    color: mostrarPagPortal ? 'var(--success)' : 'var(--text-muted)',
                     cursor: 'pointer', marginBottom: 14,
                     padding: '8px 12px', borderRadius: 8,
                     background: mostrarPagPortal ? '#f0fdf420' : 'var(--bg-muted)',
@@ -1179,7 +1179,7 @@ function TabFinanceiro({ data, notify, load }) {
                             data_inicio: data.data_inicio, data_vencimento: data.data_vencimento,
                             portal_mostrar_pagamento: next,
                         }).then(() => { if (load) load(); }).catch(() => notify('Erro ao salvar'));
-                    }} style={{ accentColor: '#22c55e' }} />
+                    }} style={{ accentColor: 'var(--success)' }} />
                     <span style={{ fontWeight: 600 }}>
                         {mostrarPagPortal ? '✓ Visível no Portal do Cliente' : 'Oculto no Portal do Cliente'}
                     </span>
@@ -1204,12 +1204,12 @@ function TabFinanceiro({ data, notify, load }) {
                         {contas.map(cr => {
                             const vencida = cr.status !== 'pago' && cr.data_vencimento && cr.data_vencimento < hoje;
                             const proxima = cr.status !== 'pago' && cr.data_vencimento && !vencida && cr.data_vencimento <= new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-                            const bg = cr.status === 'pago' ? '#f0fdf4' : vencida ? '#fef2f2' : proxima ? '#fffbeb' : 'var(--bg-muted)';
-                            const borderColor = cr.status === 'pago' ? '#22c55e' : vencida ? '#ef4444' : proxima ? '#f59e0b' : 'var(--border)';
+                            const bg = cr.status === 'pago' ? 'var(--success-bg)' : vencida ? 'var(--danger-bg)' : proxima ? 'var(--warning-bg)' : 'var(--bg-muted)';
+                            const borderColor = cr.status === 'pago' ? 'var(--success)' : vencida ? 'var(--danger)' : proxima ? 'var(--warning)' : 'var(--border)';
                             return (
                                 <div key={cr.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10, background: bg, border: `1px solid ${borderColor}30`, borderLeft: `4px solid ${borderColor}` }}>
                                     <button onClick={() => marcarPago(cr)} title={cr.status === 'pago' ? 'Reverter' : 'Marcar como pago'}
-                                        style={{ width: 24, height: 24, borderRadius: '50%', border: `2px solid ${borderColor}`, background: cr.status === 'pago' ? '#22c55e' : 'transparent', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        style={{ width: 24, height: 24, borderRadius: '50%', border: `2px solid ${borderColor}`, background: cr.status === 'pago' ? 'var(--success)' : 'transparent', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                         {cr.status === 'pago' && <CheckIcon size={12} color="#fff" />}
                                     </button>
                                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -1217,13 +1217,13 @@ function TabFinanceiro({ data, notify, load }) {
                                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                                             <span>Venc.: {dtFmt(cr.data_vencimento)}</span>
                                             {cr.meio_pagamento && <span>• {cr.meio_pagamento}</span>}
-                                            {cr.status === 'pago' && cr.data_pagamento && <span style={{ color: '#22c55e', fontWeight: 600 }}>Pago em {dtFmt(cr.data_pagamento)}</span>}
-                                            {vencida && <span style={{ color: '#ef4444', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><AlertTriangle size={11} /> Vencida</span>}
-                                            {proxima && <span style={{ color: '#f59e0b', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} /> Vencendo</span>}
+                                            {cr.status === 'pago' && cr.data_pagamento && <span style={{ color: 'var(--success)', fontWeight: 600 }}>Pago em {dtFmt(cr.data_pagamento)}</span>}
+                                            {vencida && <span style={{ color: 'var(--danger)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><AlertTriangle size={11} /> Vencida</span>}
+                                            {proxima && <span style={{ color: 'var(--warning)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} /> Vencendo</span>}
                                         </div>
                                     </div>
-                                    <div style={{ fontWeight: 700, fontSize: 15, color: cr.status === 'pago' ? '#22c55e' : vencida ? '#ef4444' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cr.valor)}</div>
-                                    <button onClick={() => setConfirmDel({ id: cr.id, nome: cr.descricao, tipo: 'receber' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4, opacity: 0.4 }} title="Excluir"><Trash2 size={14} /></button>
+                                    <div style={{ fontWeight: 700, fontSize: 15, color: cr.status === 'pago' ? 'var(--success)' : vencida ? 'var(--danger)' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cr.valor)}</div>
+                                    <button onClick={() => setConfirmDel({ id: cr.id, nome: cr.descricao, tipo: 'receber' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 4, opacity: 0.4 }} title="Excluir"><Trash2 size={14} /></button>
                                 </div>
                             );
                         })}
@@ -1234,7 +1234,7 @@ function TabFinanceiro({ data, notify, load }) {
             {/* Contas a Pagar (vinculadas a este projeto) */}
             <div className={Z.card} style={{ marginTop: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                    <h2 style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 7 }}><DollarSign size={16} color="#f59e0b" /> Contas a Pagar</h2>
+                    <h2 style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 7 }}><DollarSign size={16} color="var(--warning)" /> Contas a Pagar</h2>
                     <button onClick={() => setShowCPForm(!showCPForm)} className={Z.btn2} style={{ fontSize: 12, padding: '6px 12px' }}><PlusCircle size={12} /> Adicionar</button>
                 </div>
 
@@ -1270,13 +1270,13 @@ function TabFinanceiro({ data, notify, load }) {
                         {contasPagar.map(cp => {
                             const vencida = cp.status !== 'pago' && cp.data_vencimento && cp.data_vencimento < hoje;
                             const proxima = cp.status !== 'pago' && cp.data_vencimento && !vencida && cp.data_vencimento <= new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-                            const bg = cp.status === 'pago' ? '#f0fdf4' : vencida ? '#fef2f2' : proxima ? '#fffbeb' : 'var(--bg-muted)';
-                            const borderColor = cp.status === 'pago' ? '#22c55e' : vencida ? '#ef4444' : proxima ? '#f59e0b' : 'var(--border)';
-                            const cat = CAT_MAP[cp.categoria] || { label: cp.categoria, color: '#94a3b8' };
+                            const bg = cp.status === 'pago' ? 'var(--success-bg)' : vencida ? 'var(--danger-bg)' : proxima ? 'var(--warning-bg)' : 'var(--bg-muted)';
+                            const borderColor = cp.status === 'pago' ? 'var(--success)' : vencida ? 'var(--danger)' : proxima ? 'var(--warning)' : 'var(--border)';
+                            const cat = CAT_MAP[cp.categoria] || { label: cp.categoria, color: 'var(--muted)' };
                             return (
                                 <div key={cp.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10, background: bg, border: `1px solid ${borderColor}30`, borderLeft: `4px solid ${borderColor}` }}>
                                     <button onClick={() => togglePagCP(cp)} title={cp.status === 'pago' ? 'Reverter' : 'Marcar como pago'}
-                                        style={{ width: 24, height: 24, borderRadius: '50%', border: `2px solid ${borderColor}`, background: cp.status === 'pago' ? '#22c55e' : 'transparent', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        style={{ width: 24, height: 24, borderRadius: '50%', border: `2px solid ${borderColor}`, background: cp.status === 'pago' ? 'var(--success)' : 'transparent', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                         {cp.status === 'pago' && <CheckIcon size={12} color="#fff" />}
                                     </button>
                                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -1286,13 +1286,13 @@ function TabFinanceiro({ data, notify, load }) {
                                             <span style={{ fontSize: 10, background: `${cat.color}15`, color: cat.color, padding: '1px 6px', borderRadius: 8, fontWeight: 600 }}>{cat.label}</span>
                                             {cp.fornecedor && <span>• {cp.fornecedor}</span>}
                                             {cp.meio_pagamento && <span>• {cp.meio_pagamento}</span>}
-                                            {cp.status === 'pago' && cp.data_pagamento && <span style={{ color: '#22c55e', fontWeight: 600 }}>Pago em {dtFmt(cp.data_pagamento)}</span>}
-                                            {vencida && <span style={{ color: '#ef4444', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><AlertTriangle size={11} /> Vencida</span>}
-                                            {proxima && <span style={{ color: '#f59e0b', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} /> Vencendo</span>}
+                                            {cp.status === 'pago' && cp.data_pagamento && <span style={{ color: 'var(--success)', fontWeight: 600 }}>Pago em {dtFmt(cp.data_pagamento)}</span>}
+                                            {vencida && <span style={{ color: 'var(--danger)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><AlertTriangle size={11} /> Vencida</span>}
+                                            {proxima && <span style={{ color: 'var(--warning)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} /> Vencendo</span>}
                                         </div>
                                     </div>
-                                    <div style={{ fontWeight: 700, fontSize: 15, color: cp.status === 'pago' ? '#22c55e' : vencida ? '#ef4444' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cp.valor)}</div>
-                                    <button onClick={() => setConfirmDel({ id: cp.id, nome: cp.descricao, tipo: 'pagar' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4, opacity: 0.4 }} title="Excluir"><Trash2 size={14} /></button>
+                                    <div style={{ fontWeight: 700, fontSize: 15, color: cp.status === 'pago' ? 'var(--success)' : vencida ? 'var(--danger)' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cp.valor)}</div>
+                                    <button onClick={() => setConfirmDel({ id: cp.id, nome: cp.descricao, tipo: 'pagar' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 4, opacity: 0.4 }} title="Excluir"><Trash2 size={14} /></button>
                                 </div>
                             );
                         })}
@@ -1301,7 +1301,7 @@ function TabFinanceiro({ data, notify, load }) {
                             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
                                 Total pendente: {contasPagar.filter(c => c.status === 'pendente').length} conta(s)
                             </span>
-                            <span style={{ fontSize: 15, fontWeight: 700, color: '#f59e0b' }}>
+                            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--warning)' }}>
                                 {R$(contasPagar.filter(c => c.status === 'pendente').reduce((s, c) => s + (c.valor || 0), 0))}
                             </span>
                         </div>
@@ -1409,23 +1409,23 @@ function TabEstoque({ data, notify, user }) {
                         </button>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
-                        <div style={{ background: '#eff6ff', borderRadius: 10, padding: 14, textAlign: 'center' }}>
-                            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Orçado</div>
+                        <div style={{ background: 'var(--info-bg)', borderRadius: 10, padding: 14, textAlign: 'center' }}>
+                            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>Orçado</div>
                             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--primary)' }}>{R$(comparativo.totais.orcado)}</div>
                         </div>
-                        <div style={{ background: '#fef2f2', borderRadius: 10, padding: 14, textAlign: 'center' }}>
-                            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Gasto</div>
-                            <div style={{ fontSize: 18, fontWeight: 800, color: '#ef4444' }}>{R$(comparativo.totais.gasto)}</div>
+                        <div style={{ background: 'var(--danger-bg)', borderRadius: 10, padding: 14, textAlign: 'center' }}>
+                            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>Gasto</div>
+                            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--danger)' }}>{R$(comparativo.totais.gasto)}</div>
                         </div>
-                        <div style={{ background: comparativo.totais.diferenca >= 0 ? '#f0fdf4' : '#fef2f2', borderRadius: 10, padding: 14, textAlign: 'center' }}>
-                            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Diferença</div>
-                            <div style={{ fontSize: 18, fontWeight: 800, color: comparativo.totais.diferenca >= 0 ? '#22c55e' : '#ef4444' }}>{R$(comparativo.totais.diferenca)}</div>
+                        <div style={{ background: comparativo.totais.diferenca >= 0 ? 'var(--success-bg)' : 'var(--danger-bg)', borderRadius: 10, padding: 14, textAlign: 'center' }}>
+                            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>Diferença</div>
+                            <div style={{ fontSize: 18, fontWeight: 800, color: comparativo.totais.diferenca >= 0 ? 'var(--success)' : 'var(--danger)' }}>{R$(comparativo.totais.diferenca)}</div>
                         </div>
                     </div>
                     {comparativo.totais.orcado === 0 && comparativo.totais.gasto > 0 && (
-                        <div style={{ background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <AlertTriangle size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                            <span style={{ fontSize: 12, color: '#92400e' }}>Orçamento sem módulos configurados — valores orçados estão zerados. Configure os módulos no editor de orçamento e recalcule.</span>
+                        <div style={{ background: 'var(--warning-bg)', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <AlertTriangle size={14} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+                            <span style={{ fontSize: 12, color: 'var(--warning-hover)' }}>Orçamento sem módulos configurados — valores orçados estão zerados. Configure os módulos no editor de orçamento e recalcule.</span>
                         </div>
                     )}
                     <div style={{ overflowX: 'auto' }}>
@@ -1436,8 +1436,8 @@ function TabEstoque({ data, notify, user }) {
                                 <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
                                     <td style={{ padding: '8px 12px', fontWeight: 600 }}>{c.nome}</td>
                                     <td style={{ padding: '8px 12px', color: 'var(--primary)' }}>{R$(c.orcado_valor)}</td>
-                                    <td style={{ padding: '8px 12px', color: '#ef4444' }}>{R$(c.gasto_valor)}</td>
-                                    <td style={{ padding: '8px 12px', fontWeight: 700, color: c.dif_valor >= 0 ? '#22c55e' : '#ef4444' }}>{R$(c.dif_valor)}</td>
+                                    <td style={{ padding: '8px 12px', color: 'var(--danger)' }}>{R$(c.gasto_valor)}</td>
+                                    <td style={{ padding: '8px 12px', fontWeight: 700, color: c.dif_valor >= 0 ? 'var(--success)' : 'var(--danger)' }}>{R$(c.dif_valor)}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -1515,7 +1515,7 @@ function TabEstoque({ data, notify, user }) {
                                                                 background: '#fff',
                                                                 transition: 'background 0.1s'
                                                             }}
-                                                            onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--muted-bg)'}
                                                             onMouseLeave={e => e.currentTarget.style.background = '#fff'}
                                                         >
                                                             <span style={{ fontWeight: 600 }}>{m.nome}</span>
@@ -1548,12 +1548,12 @@ function TabEstoque({ data, notify, user }) {
                                     <td style={{ padding: '8px 12px', fontSize: 12 }}>{new Date(m.criado_em).toLocaleDateString('pt-BR')}</td>
                                     <td style={{ padding: '8px 12px', fontWeight: 600 }}>{m.material_nome}</td>
                                     <td style={{ padding: '8px 12px' }}>{m.quantidade} {m.unidade}</td>
-                                    <td style={{ padding: '8px 12px' }}><span style={{ fontSize: 11, fontWeight: 600, color: m.tipo === 'entrada' ? '#22c55e' : '#ef4444' }}>{m.tipo === 'entrada' ? '↑ Entrada' : '↓ Saída'}</span></td>
+                                    <td style={{ padding: '8px 12px' }}><span style={{ fontSize: 11, fontWeight: 600, color: m.tipo === 'entrada' ? 'var(--success)' : 'var(--danger)' }}>{m.tipo === 'entrada' ? '↑ Entrada' : '↓ Saída'}</span></td>
                                     <td style={{ padding: '8px 12px', fontSize: 12 }}>{m.valor_unitario ? R$(m.valor_unitario) : '—'}</td>
                                     <td style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>{m.descricao}</td>
                                     {canDelete && (
                                         <td style={{ padding: '8px 6px', textAlign: 'center' }}>
-                                            <button onClick={() => setConfirmDel({ id: m.id, nome: `${m.quantidade} ${m.unidade || 'un'} de ${m.material_nome}` })} title="Excluir movimentação" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', opacity: 0.6, transition: 'opacity 0.15s', padding: 4 }}
+                                            <button onClick={() => setConfirmDel({ id: m.id, nome: `${m.quantidade} ${m.unidade || 'un'} de ${m.material_nome}` })} title="Excluir movimentação" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', opacity: 0.6, transition: 'opacity 0.15s', padding: 4 }}
                                                 onMouseEnter={e => e.currentTarget.style.opacity = 1}
                                                 onMouseLeave={e => e.currentTarget.style.opacity = 0.6}>
                                                 <Trash2 size={14} />
@@ -1696,17 +1696,17 @@ function TabArquivos({ data, notify }) {
                 {uploading && (
                     <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 10, background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                            <span style={{ fontSize: 12, color: uploadProgress === 100 ? '#22c55e' : 'var(--text-primary)', fontWeight: 600, maxWidth: '70%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: 12, color: uploadProgress === 100 ? 'var(--success)' : 'var(--text-primary)', fontWeight: 600, maxWidth: '70%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {uploadFileName}
                             </span>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: uploadProgress === 100 ? '#22c55e' : 'var(--primary)' }}>{uploadProgress}%</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: uploadProgress === 100 ? 'var(--success)' : 'var(--primary)' }}>{uploadProgress}%</span>
                         </div>
                         <div style={{ width: '100%', height: 8, borderRadius: 4, background: 'var(--bg-card)', overflow: 'hidden' }}>
                             <div style={{
                                 width: `${uploadProgress}%`,
                                 height: '100%',
                                 borderRadius: 4,
-                                background: uploadProgress === 100 ? '#22c55e' : 'var(--primary)',
+                                background: uploadProgress === 100 ? 'var(--success)' : 'var(--primary)',
                                 transition: 'width 0.3s ease, background 0.3s ease',
                             }} />
                         </div>
@@ -1743,8 +1743,8 @@ function TabArquivos({ data, notify }) {
                                         title={f.visivel_portal ? 'Visível no portal do cliente' : 'Oculto no portal'}
                                         style={{
                                             fontSize: 11, padding: '3px 8px', borderRadius: 6,
-                                            background: f.visivel_portal ? '#f0fdf4' : 'var(--bg-muted)',
-                                            color: f.visivel_portal ? '#22c55e' : 'var(--text-muted)',
+                                            background: f.visivel_portal ? 'var(--success-bg)' : 'var(--bg-muted)',
+                                            color: f.visivel_portal ? 'var(--success)' : 'var(--text-muted)',
                                             border: `1px solid ${f.visivel_portal ? '#bbf7d0' : 'var(--border)'}`,
                                             cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
                                             fontWeight: 600,
@@ -1756,7 +1756,7 @@ function TabArquivos({ data, notify }) {
                                 )}
                                 <a href={`${API_BASE}${f.url}`} target="_blank" rel="noreferrer"
                                     style={{ color: 'var(--primary)', fontSize: 12, fontWeight: 600, textDecoration: 'none', padding: '4px 8px' }}>Abrir</a>
-                                <button onClick={() => setConfirmDel({ id: f.nome, nome: f.nome, tipo: 'arquivo' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4, opacity: 0.5 }} title="Excluir"><Ic.Trash /></button>
+                                <button onClick={() => setConfirmDel({ id: f.nome, nome: f.nome, tipo: 'arquivo' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 4, opacity: 0.5 }} title="Excluir"><Ic.Trash /></button>
                             </div>
                         ))}
                     </div>
@@ -1793,7 +1793,7 @@ function TabArquivos({ data, notify }) {
                             <div key={link.id} style={{
                                 display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10,
                                 background: link.ativo ? 'var(--bg-muted)' : '#fef2f220',
-                                border: `1px solid ${link.ativo ? 'var(--border)' : '#ef444440'}`,
+                                border: `1px solid ${link.ativo ? 'var(--border)' : 'var(--danger-border)'}`,
                                 opacity: link.ativo ? 1 : 0.7,
                             }}>
                                 <div style={{ flex: 1 }}>
@@ -1808,8 +1808,8 @@ function TabArquivos({ data, notify }) {
                                                 autoFocus
                                                 placeholder="Nome do montador"
                                             />
-                                            <button onClick={() => saveMontadorNome(link.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: '#22c55e' }} title="Salvar"><CheckIcon size={14} /></button>
-                                            <button onClick={() => { setEditingMontador(null); setEditMontadorNome(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: '#ef4444' }} title="Cancelar"><XIcon size={14} /></button>
+                                            <button onClick={() => saveMontadorNome(link.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--success)' }} title="Salvar"><CheckIcon size={14} /></button>
+                                            <button onClick={() => { setEditingMontador(null); setEditMontadorNome(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--danger)' }} title="Cancelar"><XIcon size={14} /></button>
                                         </div>
                                     ) : (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1819,7 +1819,7 @@ function TabArquivos({ data, notify }) {
                                                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: '0 4px', opacity: 0.5, color: 'var(--text)' }}
                                                 title="Editar nome"
                                             ><Pencil size={12} /></button>
-                                            {!link.ativo && <span style={{ color: '#ef4444', fontSize: 11, marginLeft: 4 }}>Desativado</span>}
+                                            {!link.ativo && <span style={{ color: 'var(--danger)', fontSize: 11, marginLeft: 4 }}>Desativado</span>}
                                         </div>
                                     )}
                                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
@@ -1829,7 +1829,7 @@ function TabArquivos({ data, notify }) {
                                 <button onClick={() => copyMontadorLink(link.token)} className={Z.btn2} style={{ fontSize: 11, padding: '4px 10px' }}>
                                     {copiedLink === link.token ? <><CheckIcon size={12} /> Copiado!</> : <><Clipboard size={12} /> Copiar Link</>}
                                 </button>
-                                <button onClick={() => toggleMontadorLink(link.id)} className={Z.btn2} style={{ fontSize: 11, padding: '4px 10px', color: link.ativo ? '#f59e0b' : '#22c55e' }}>
+                                <button onClick={() => toggleMontadorLink(link.id)} className={Z.btn2} style={{ fontSize: 11, padding: '4px 10px', color: link.ativo ? 'var(--warning)' : 'var(--success)' }}>
                                     {link.ativo ? 'Desativar' : 'Ativar'}
                                 </button>
                             </div>
@@ -1926,7 +1926,7 @@ function TabArquivos({ data, notify }) {
                             }).map(foto => (
                                 <div key={foto.id || foto.url}
                                     onClick={() => setFotoLightbox(foto)}
-                                    style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${foto.visivel_portal ? '#22c55e40' : 'var(--border)'}`, background: 'var(--bg-muted)', transition: 'transform 0.15s', position: 'relative', cursor: 'pointer' }}
+                                    style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${foto.visivel_portal ? 'var(--success-border)' : 'var(--border)'}`, background: 'var(--bg-muted)', transition: 'transform 0.15s', position: 'relative', cursor: 'pointer' }}
                                     onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
                                     onMouseLeave={e => e.currentTarget.style.transform = ''}
                                 >
@@ -1934,7 +1934,7 @@ function TabArquivos({ data, notify }) {
                                     {/* Badge visual (não clicável) */}
                                     <div style={{
                                         position: 'absolute', top: 6, right: 6,
-                                        background: foto.visivel_portal ? '#22c55e' : 'rgba(0,0,0,0.5)',
+                                        background: foto.visivel_portal ? 'var(--success)' : 'rgba(0,0,0,0.5)',
                                         borderRadius: 6, padding: '3px 6px',
                                         display: 'flex', alignItems: 'center', gap: 3,
                                         color: '#fff', fontSize: 10, fontWeight: 600,
@@ -1994,7 +1994,7 @@ function TabArquivos({ data, notify }) {
                             {/* Excluir */}
                             <button
                                 className={Z.btn2}
-                                style={{ fontSize: 11, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 4, color: '#ef4444', borderColor: '#ef444440' }}
+                                style={{ fontSize: 11, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 4, color: 'var(--danger)', borderColor: 'var(--danger-border)' }}
                                 onClick={() => setConfirmDel({ id: fotoLightbox.id, nome: 'esta foto', tipo: 'foto' })}
                             >
                                 <Trash2 size={12} /> Excluir
@@ -2003,9 +2003,9 @@ function TabArquivos({ data, notify }) {
                             <button
                                 className={Z.btn2}
                                 style={{ fontSize: 11, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 4,
-                                    background: fotoLightbox.visivel_portal ? '#22c55e15' : undefined,
-                                    color: fotoLightbox.visivel_portal ? '#22c55e' : undefined,
-                                    borderColor: fotoLightbox.visivel_portal ? '#22c55e40' : undefined,
+                                    background: fotoLightbox.visivel_portal ? 'var(--success-bg)' : undefined,
+                                    color: fotoLightbox.visivel_portal ? 'var(--success)' : undefined,
+                                    borderColor: fotoLightbox.visivel_portal ? 'var(--success-border)' : undefined,
                                 }}
                                 onClick={async () => {
                                     try {
@@ -2101,10 +2101,10 @@ function TabProducao({ data, notify, nav }) {
     const { resumo = {}, chapas, ferragens, fita, bom, pecas } = prodData || {};
 
     const STATUS_LOTE = {
-        importado: { label: 'Importado', color: '#3b82f6', bg: '#eff6ff' },
+        importado: { label: 'Importado', color: 'var(--info)', bg: 'var(--info-bg)' },
         otimizado: { label: 'Otimizado', color: '#8b5cf6', bg: '#f5f3ff' },
-        cortado: { label: 'Cortado', color: '#f59e0b', bg: '#fffbeb' },
-        pronto: { label: 'Pronto', color: '#22c55e', bg: '#f0fdf4' },
+        cortado: { label: 'Cortado', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+        pronto: { label: 'Pronto', color: 'var(--success)', bg: 'var(--success-bg)' },
     };
 
     // Agrupar peças por material
@@ -2186,11 +2186,11 @@ function TabProducao({ data, notify, nav }) {
             {/* KPIs */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 16 }}>
                 {[
-                    { label: 'Peças', value: resumo.total_pecas, icon: <Layers size={16} />, color: '#3b82f6' },
-                    { label: 'Chapas', value: resumo.total_chapas, icon: <Package size={16} />, color: '#22c55e' },
-                    { label: 'Ferragens', value: resumo.total_ferragens, icon: <ClipboardList size={16} />, color: '#f59e0b' },
+                    { label: 'Peças', value: resumo.total_pecas, icon: <Layers size={16} />, color: 'var(--info)' },
+                    { label: 'Chapas', value: resumo.total_chapas, icon: <Package size={16} />, color: 'var(--success)' },
+                    { label: 'Ferragens', value: resumo.total_ferragens, icon: <ClipboardList size={16} />, color: 'var(--warning)' },
                     { label: 'Fita (m)', value: N(resumo.total_fita_m, 1), icon: <Ruler size={16} />, color: '#8b5cf6' },
-                    { label: 'Custo Material', value: R$(resumo.custo_total), icon: <ShoppingCart size={16} />, color: '#ef4444' },
+                    { label: 'Custo Material', value: R$(resumo.custo_total), icon: <ShoppingCart size={16} />, color: 'var(--danger)' },
                 ].map(kpi => (
                     <div key={kpi.label} className={Z.card} style={{ padding: 14, textAlign: 'center' }}>
                         <div style={{ color: kpi.color, marginBottom: 4, display: 'flex', justifyContent: 'center' }}>{kpi.icon}</div>
@@ -2273,7 +2273,7 @@ function TabProducao({ data, notify, nav }) {
                                                     <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                                                         <td style={prodTdStyle}>
                                                             {p.nome}
-                                                            {p.aditivo && <span style={{ fontSize: 9, color: '#f59e0b', marginLeft: 4 }}>({p.aditivo})</span>}
+                                                            {p.aditivo && <span style={{ fontSize: 9, color: 'var(--warning)', marginLeft: 4 }}>({p.aditivo})</span>}
                                                         </td>
                                                         <td style={{ ...prodTdStyle, color: 'var(--text-muted)' }}>{p.ambiente}</td>
                                                         <td style={{ ...prodTdStyle, color: 'var(--text-muted)' }}>{p.modulo}</td>
@@ -2321,7 +2321,7 @@ function TabProducao({ data, notify, nav }) {
                                 </div>
                                 <div>
                                     <span style={{ color: 'var(--text-muted)' }}>Custo: </span>
-                                    <span style={{ fontWeight: 700, color: '#ef4444' }}>{R$(c.qtdChapas * c.preco)}</span>
+                                    <span style={{ fontWeight: 700, color: 'var(--danger)' }}>{R$(c.qtdChapas * c.preco)}</span>
                                 </div>
                             </div>
                             <div style={{ marginTop: 8 }}>
@@ -2329,7 +2329,7 @@ function TabProducao({ data, notify, nav }) {
                                     <div style={{
                                         height: '100%', borderRadius: 3,
                                         width: `${Math.min(100, (c.areaPecas / (c.areaUtil * c.qtdChapas)) * 100)}%`,
-                                        background: 'linear-gradient(90deg, #22c55e, #16a34a)',
+                                        background: 'linear-gradient(90deg, var(--success), var(--success-hover))',
                                     }} />
                                 </div>
                                 <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textAlign: 'right' }}>
@@ -2385,7 +2385,7 @@ function TabProducao({ data, notify, nav }) {
                                         <td style={prodTdStyle}>TOTAL</td>
                                         <td style={{ ...prodTdStyle, textAlign: 'center' }}>{ferragens.reduce((s, f) => s + f.qtd, 0)}</td>
                                         <td colSpan={2} />
-                                        <td style={{ ...prodTdStyle, textAlign: 'right', color: '#ef4444' }}>
+                                        <td style={{ ...prodTdStyle, textAlign: 'right', color: 'var(--danger)' }}>
                                             {R$(ferragens.reduce((s, f) => s + f.qtd * f.preco, 0))}
                                         </td>
                                         <td />
@@ -2410,18 +2410,18 @@ function TabProducao({ data, notify, nav }) {
                             {/* Itens que precisam comprar */}
                             {bom.filter(b => b.comprar > 0).length > 0 && (
                                 <div style={{ marginBottom: 16 }}>
-                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: '#ef4444', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--danger)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                                         <AlertTriangle size={14} /> Itens a Comprar
                                     </h3>
                                     <div style={{ overflowX: 'auto' }}>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                                             <thead>
-                                                <tr style={{ background: '#fef2f2' }}>
+                                                <tr style={{ background: 'var(--danger-bg)' }}>
                                                     <th style={prodThStyle}>Item</th>
                                                     <th style={{ ...prodThStyle, textAlign: 'center' }}>Tipo</th>
                                                     <th style={{ ...prodThStyle, textAlign: 'center' }}>Necessário</th>
                                                     <th style={{ ...prodThStyle, textAlign: 'center' }}>Em Estoque</th>
-                                                    <th style={{ ...prodThStyle, textAlign: 'center', color: '#ef4444' }}>Comprar</th>
+                                                    <th style={{ ...prodThStyle, textAlign: 'center', color: 'var(--danger)' }}>Comprar</th>
                                                     <th style={{ ...prodThStyle, textAlign: 'right' }}>Custo Est.</th>
                                                 </tr>
                                             </thead>
@@ -2432,15 +2432,15 @@ function TabProducao({ data, notify, nav }) {
                                                         <td style={{ ...prodTdStyle, textAlign: 'center' }}>
                                                             <span style={{
                                                                 fontSize: 10, padding: '2px 6px', borderRadius: 99, fontWeight: 700,
-                                                                background: b.tipo === 'chapa' ? '#3b82f620' : b.tipo === 'ferragem' ? '#f59e0b20' : '#8b5cf620',
-                                                                color: b.tipo === 'chapa' ? '#3b82f6' : b.tipo === 'ferragem' ? '#f59e0b' : '#8b5cf6',
+                                                                background: b.tipo === 'chapa' ? 'var(--info-bg)' : b.tipo === 'ferragem' ? 'var(--warning-bg)' : '#8b5cf620',
+                                                                color: b.tipo === 'chapa' ? 'var(--info)' : b.tipo === 'ferragem' ? 'var(--warning)' : '#8b5cf6',
                                                             }}>{b.tipo}</span>
                                                         </td>
                                                         <td style={{ ...prodTdStyle, textAlign: 'center' }}>{b.necessario} {b.un}</td>
-                                                        <td style={{ ...prodTdStyle, textAlign: 'center', color: b.em_estoque > 0 ? '#22c55e' : 'var(--text-muted)' }}>
+                                                        <td style={{ ...prodTdStyle, textAlign: 'center', color: b.em_estoque > 0 ? 'var(--success)' : 'var(--text-muted)' }}>
                                                             {b.em_estoque} {b.un}
                                                         </td>
-                                                        <td style={{ ...prodTdStyle, textAlign: 'center', fontWeight: 800, color: '#ef4444', fontSize: 15 }}>
+                                                        <td style={{ ...prodTdStyle, textAlign: 'center', fontWeight: 800, color: 'var(--danger)', fontSize: 15 }}>
                                                             {b.comprar} {b.un}
                                                         </td>
                                                         <td style={{ ...prodTdStyle, textAlign: 'right', fontWeight: 600 }}>
@@ -2477,14 +2477,14 @@ function TabProducao({ data, notify, nav }) {
                                                 <td style={{ ...prodTdStyle, textAlign: 'center' }}>
                                                     <span style={{
                                                         fontSize: 10, padding: '2px 6px', borderRadius: 99, fontWeight: 700,
-                                                        background: b.tipo === 'chapa' ? '#3b82f620' : b.tipo === 'ferragem' ? '#f59e0b20' : '#8b5cf620',
-                                                        color: b.tipo === 'chapa' ? '#3b82f6' : b.tipo === 'ferragem' ? '#f59e0b' : '#8b5cf6',
+                                                        background: b.tipo === 'chapa' ? 'var(--info-bg)' : b.tipo === 'ferragem' ? 'var(--warning-bg)' : '#8b5cf620',
+                                                        color: b.tipo === 'chapa' ? 'var(--info)' : b.tipo === 'ferragem' ? 'var(--warning)' : '#8b5cf6',
                                                     }}>{b.tipo}</span>
                                                 </td>
                                                 <td style={{ ...prodTdStyle, textAlign: 'center', fontWeight: 600 }}>{b.necessario} {b.un}</td>
                                                 <td style={{
                                                     ...prodTdStyle, textAlign: 'center', fontWeight: 600,
-                                                    color: b.em_estoque >= b.necessario ? '#22c55e' : b.em_estoque > 0 ? '#f59e0b' : '#ef4444',
+                                                    color: b.em_estoque >= b.necessario ? 'var(--success)' : b.em_estoque > 0 ? 'var(--warning)' : 'var(--danger)',
                                                 }}>
                                                     {b.em_estoque} {b.un}
                                                 </td>
@@ -2494,7 +2494,7 @@ function TabProducao({ data, notify, nav }) {
                                         ))}
                                         <tr style={{ background: 'var(--bg-muted)', fontWeight: 700 }}>
                                             <td colSpan={5} style={prodTdStyle}>CUSTO TOTAL MATERIAIS</td>
-                                            <td style={{ ...prodTdStyle, textAlign: 'right', color: '#ef4444', fontSize: 15 }}>
+                                            <td style={{ ...prodTdStyle, textAlign: 'right', color: 'var(--danger)', fontSize: 15 }}>
                                                 {R$(resumo.custo_total)}
                                             </td>
                                         </tr>
@@ -2567,7 +2567,7 @@ function TabPortalMsgs({ data, notify }) {
                                 <CopyIcon size={11} /> Copiar
                             </button>
                             <a href={`/preview/portal/${data.token}`} target="_blank" rel="noreferrer"
-                                style={{ fontSize: 11, padding: '4px 10px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 6, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', cursor: 'pointer' }}>
+                                style={{ fontSize: 11, padding: '4px 10px', background: 'var(--warning-bg)', color: 'var(--warning-hover)', border: '1px solid #fde68a', borderRadius: 6, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', cursor: 'pointer' }}>
                                 <Ic.Eye size={11} /> Preview
                             </a>
                         </div>
@@ -2576,8 +2576,8 @@ function TabPortalMsgs({ data, notify }) {
                     )}
                 </div>
                 {naoLidas > 0 && (
-                    <div style={{ background: '#ef444415', border: '1px solid #ef444430', borderRadius: 10, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: '#ef4444' }}>{naoLidas} mensage{naoLidas === 1 ? 'm' : 'ns'} não lida{naoLidas === 1 ? '' : 's'}</span>
+                    <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: 10, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger)' }}>{naoLidas} mensage{naoLidas === 1 ? 'm' : 'ns'} não lida{naoLidas === 1 ? '' : 's'}</span>
                     </div>
                 )}
             </div>
@@ -2619,7 +2619,7 @@ function TabPortalMsgs({ data, notify }) {
                                                     {m.autor_nome || (isCliente ? 'Cliente' : 'Equipe')}
                                                 </span>
                                                 {isCliente && !m.lida && (
-                                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+                                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--danger)', display: 'inline-block' }} />
                                                 )}
                                             </div>
                                             <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{m.conteudo}</p>
@@ -2931,8 +2931,8 @@ function TabEntrega({ data, notify }) {
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full flex items-center justify-center"
-                            style={{ background: isConcluido ? '#f0fdf4' : '#fefce8' }}>
-                            <FileCheck size={20} style={{ color: isConcluido ? '#16a34a' : '#ca8a04' }} />
+                            style={{ background: isConcluido ? 'var(--success-bg)' : 'var(--warning-bg)' }}>
+                            <FileCheck size={20} style={{ color: isConcluido ? 'var(--success-hover)' : '#ca8a04' }} />
                         </div>
                         <div>
                             <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
@@ -2956,7 +2956,7 @@ function TabEntrega({ data, notify }) {
                             <Layers size={14} /> Por Ambiente
                         </button>
                         <button onClick={gerarCertificado} disabled={!termoData} className={Z.btn2}
-                            style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '6px 14px', color: '#16a34a', borderColor: '#bbf7d0' }}>
+                            style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '6px 14px', color: 'var(--success-hover)', borderColor: '#bbf7d0' }}>
                             <Shield size={14} /> Certificado Garantia
                         </button>
                     </div>
@@ -2973,7 +2973,7 @@ function TabEntrega({ data, notify }) {
                             width: `${progresso}%`,
                             height: '100%',
                             borderRadius: 8,
-                            background: progresso === 100 ? '#16a34a' : 'var(--primary)',
+                            background: progresso === 100 ? 'var(--success-hover)' : 'var(--primary)',
                             transition: 'width 0.3s',
                         }} />
                     </div>
@@ -2983,9 +2983,9 @@ function TabEntrega({ data, notify }) {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {[
                         { label: 'Total', value: totalEtapas, color: 'var(--text-muted)' },
-                        { label: 'Concluídas', value: concluidas, color: '#16a34a' },
-                        { label: 'Em andamento', value: etapas.filter(e => e.status === 'em_andamento').length, color: '#3b82f6' },
-                        { label: 'Pendentes', value: etapas.filter(e => e.status === 'nao_iniciado').length, color: '#94a3b8' },
+                        { label: 'Concluídas', value: concluidas, color: 'var(--success-hover)' },
+                        { label: 'Em andamento', value: etapas.filter(e => e.status === 'em_andamento').length, color: 'var(--info)' },
+                        { label: 'Pendentes', value: etapas.filter(e => e.status === 'nao_iniciado').length, color: 'var(--muted)' },
                     ].map((s, i) => (
                         <div key={i} className="text-center p-2 rounded-lg" style={{ background: 'var(--bg-muted)' }}>
                             <div className="text-lg font-bold" style={{ color: s.color }}>{s.value}</div>
@@ -3000,8 +3000,8 @@ function TabEntrega({ data, notify }) {
                 <div className="glass-card p-5">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: '#eff6ff' }}>
-                                <Camera size={20} style={{ color: '#3b82f6' }} />
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'var(--info-bg)' }}>
+                                <Camera size={20} style={{ color: 'var(--info)' }} />
                             </div>
                             <div>
                                 <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Vistoria Digital</h3>
@@ -3039,7 +3039,7 @@ function TabEntrega({ data, notify }) {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             {fotosAmb > 0 && (
-                                                <span className="text-[10px] font-semibold flex items-center gap-1" style={{ color: '#16a34a' }}>
+                                                <span className="text-[10px] font-semibold flex items-center gap-1" style={{ color: 'var(--success-hover)' }}>
                                                     <ImageIcon size={12} /> {fotosAmb} foto{fotosAmb !== 1 ? 's' : ''}
                                                 </span>
                                             )}
@@ -3078,7 +3078,7 @@ function TabEntrega({ data, notify }) {
                                                                             style={{ border: '1px solid var(--border)' }} onClick={() => setPreviewImg(f.url)} />
                                                                         <button onClick={() => deletarFoto(f.id)}
                                                                             className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                            style={{ background: '#ef4444', color: '#fff' }} title="Remover foto">
+                                                                            style={{ background: 'var(--danger)', color: '#fff' }} title="Remover foto">
                                                                             <XIcon size={10} />
                                                                         </button>
                                                                     </div>
@@ -3097,7 +3097,7 @@ function TabEntrega({ data, notify }) {
                                                         <div className="flex items-center justify-between">
                                                             <div className="flex items-center gap-2">
                                                                 {fotos.length > 0
-                                                                    ? <CheckCircle2 size={14} style={{ color: '#16a34a' }} />
+                                                                    ? <CheckCircle2 size={14} style={{ color: 'var(--success-hover)' }} />
                                                                     : <XCircle size={14} style={{ color: '#d1d5db' }} />
                                                                 }
                                                                 <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
@@ -3136,7 +3136,7 @@ function TabEntrega({ data, notify }) {
                                                                         <button
                                                                             onClick={() => deletarFoto(f.id)}
                                                                             className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                            style={{ background: '#ef4444', color: '#fff' }}
+                                                                            style={{ background: 'var(--danger)', color: '#fff' }}
                                                                             title="Remover foto"
                                                                         >
                                                                             <XIcon size={10} />
@@ -3166,12 +3166,12 @@ function TabEntrega({ data, notify }) {
                         const itensComFoto = new Set(entregaFotos.map(f => `${f.ambiente_idx}-${f.item_idx}`)).size;
                         const pct = totalItens > 0 ? Math.round((itensComFoto / totalItens) * 100) : 0;
                         return (
-                            <div className="mt-4 p-3 rounded-lg flex items-center gap-3" style={{ background: pct === 100 ? '#f0fdf4' : '#fffbeb', border: `1px solid ${pct === 100 ? '#bbf7d0' : '#fde68a'}` }}>
+                            <div className="mt-4 p-3 rounded-lg flex items-center gap-3" style={{ background: pct === 100 ? 'var(--success-bg)' : 'var(--warning-bg)', border: `1px solid ${pct === 100 ? '#bbf7d0' : 'var(--warning-border)'}` }}>
                                 {pct === 100
-                                    ? <CheckCircle2 size={16} style={{ color: '#16a34a' }} />
+                                    ? <CheckCircle2 size={16} style={{ color: 'var(--success-hover)' }} />
                                     : <Camera size={16} style={{ color: '#ca8a04' }} />
                                 }
-                                <span className="text-xs font-semibold" style={{ color: pct === 100 ? '#16a34a' : '#ca8a04' }}>
+                                <span className="text-xs font-semibold" style={{ color: pct === 100 ? 'var(--success-hover)' : '#ca8a04' }}>
                                     {itensComFoto}/{totalItens} módulos fotografados ({pct}%)
                                 </span>
                             </div>
@@ -3224,7 +3224,7 @@ function TabEntrega({ data, notify }) {
                         </div>
                         <div className="p-3 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
                             <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Financeiro</div>
-                            <div className="text-sm font-semibold" style={{ color: termoData.financeiro.totalPendente > 0 ? '#ef4444' : '#16a34a' }}>
+                            <div className="text-sm font-semibold" style={{ color: termoData.financeiro.totalPendente > 0 ? 'var(--danger)' : 'var(--success-hover)' }}>
                                 {termoData.financeiro.totalPendente > 0
                                     ? `${R$(termoData.financeiro.totalPago)} pago · ${R$(termoData.financeiro.totalPendente)} pendente`
                                     : `${R$(termoData.financeiro.valorTotal)} — Quitado`
@@ -3235,16 +3235,16 @@ function TabEntrega({ data, notify }) {
 
                     {/* Ocorrências abertas */}
                     {(termoData.ocorrencias || []).length > 0 && (
-                        <div className="p-3 rounded-lg mb-4" style={{ background: '#fef2f2', border: '1px solid #fecaca' }}>
+                        <div className="p-3 rounded-lg mb-4" style={{ background: 'var(--danger-bg)', border: '1px solid #fecaca' }}>
                             <div className="flex items-center gap-2 mb-2">
-                                <AlertTriangle size={14} style={{ color: '#ef4444' }} />
-                                <span className="text-xs font-bold" style={{ color: '#ef4444' }}>
+                                <AlertTriangle size={14} style={{ color: 'var(--danger)' }} />
+                                <span className="text-xs font-bold" style={{ color: 'var(--danger)' }}>
                                     {termoData.ocorrencias.length} ocorrência{termoData.ocorrencias.length > 1 ? 's' : ''} aberta{termoData.ocorrencias.length > 1 ? 's' : ''}
                                 </span>
                             </div>
                             <div className="flex flex-col gap-1">
                                 {termoData.ocorrencias.map(oc => (
-                                    <div key={oc.id} className="text-xs" style={{ color: '#991b1b' }}>
+                                    <div key={oc.id} className="text-xs" style={{ color: 'var(--danger-hover)' }}>
                                         • {oc.assunto}{oc.descricao ? ` — ${oc.descricao}` : ''}
                                     </div>
                                 ))}
@@ -3295,11 +3295,11 @@ function TabEntrega({ data, notify }) {
                     )}
 
                     {/* Garantia info */}
-                    <div className="flex items-center gap-3 p-3 rounded-lg mt-3" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
-                        <Shield size={16} style={{ color: '#16a34a', flexShrink: 0 }} />
+                    <div className="flex items-center gap-3 p-3 rounded-lg mt-3" style={{ background: 'var(--success-bg)', border: '1px solid #bbf7d0' }}>
+                        <Shield size={16} style={{ color: 'var(--success-hover)', flexShrink: 0 }} />
                         <div>
-                            <span className="text-xs font-semibold" style={{ color: '#16a34a' }}>Garantia inclusa</span>
-                            <span className="text-[10px] ml-2" style={{ color: '#166534' }}>
+                            <span className="text-xs font-semibold" style={{ color: 'var(--success-hover)' }}>Garantia inclusa</span>
+                            <span className="text-[10px] ml-2" style={{ color: 'var(--success-hover)' }}>
                                 {garantiaTexto ? 'Texto personalizado' : '5 anos para defeitos de fabricação (padrão)'}
                             </span>
                         </div>
@@ -3324,11 +3324,11 @@ function TabEntrega({ data, notify }) {
 // TAB: AMBIENTES (gestão de ambientes do projeto)
 // ═══════════════════════════════════════════════════════
 const AMB_STATUS = [
-    { key: 'aguardando', label: 'Aguardando', color: '#94a3b8', icon: Clock },
+    { key: 'aguardando', label: 'Aguardando', color: 'var(--muted)', icon: Clock },
     { key: 'producao', label: 'Produção', color: '#f97316', icon: Factory },
-    { key: 'expedicao', label: 'Expedição', color: '#3b82f6', icon: Truck },
+    { key: 'expedicao', label: 'Expedição', color: 'var(--info)', icon: Truck },
     { key: 'instalacao', label: 'Instalação', color: '#8b5cf6', icon: Wrench },
-    { key: 'concluido', label: 'Concluído', color: '#22c55e', icon: CheckCircle2 },
+    { key: 'concluido', label: 'Concluído', color: 'var(--success)', icon: CheckCircle2 },
 ];
 // Compatibilidade: mapear status antigos para novos
 const AMB_STATUS_COMPAT = { corte: 'producao', acabamento: 'expedicao' };
@@ -3458,7 +3458,7 @@ function TabAmbientes({ data, notify, reload }) {
             {/* Progresso geral */}
             {total > 0 && (
                 <div style={{ marginBottom: 16, background: 'var(--bg-muted)', borderRadius: 8, overflow: 'hidden', height: 6 }}>
-                    <div style={{ height: '100%', width: `${(concluidos / total) * 100}%`, background: '#22c55e', borderRadius: 8, transition: 'width 0.3s' }} />
+                    <div style={{ height: '100%', width: `${(concluidos / total) * 100}%`, background: 'var(--success)', borderRadius: 8, transition: 'width 0.3s' }} />
                 </div>
             )}
 
@@ -3541,16 +3541,16 @@ function TabAmbientes({ data, notify, reload }) {
                                     </button>
                                 )}
                                 <button onClick={() => setConfirmDel(amb.id)} className={Z.btn2}
-                                    style={{ padding: 4, fontSize: 11, color: '#ef4444' }} title="Remover">
+                                    style={{ padding: 4, fontSize: 11, color: 'var(--danger)' }} title="Remover">
                                     <Trash2 size={14} />
                                 </button>
                             </div>
 
                             {/* Confirmação de exclusão */}
                             {confirmDel === amb.id && (
-                                <div style={{ width: '100%', marginTop: 6, padding: '8px 12px', background: '#fef2f2', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
-                                    <span style={{ color: '#ef4444' }}>Remover "{amb.nome}"?</span>
-                                    <button onClick={() => removeAmb(amb.id)} className={Z.btn2} style={{ padding: '3px 10px', fontSize: 11, color: '#ef4444', borderColor: '#ef4444' }}>Sim</button>
+                                <div style={{ width: '100%', marginTop: 6, padding: '8px 12px', background: 'var(--danger-bg)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+                                    <span style={{ color: 'var(--danger)' }}>Remover "{amb.nome}"?</span>
+                                    <button onClick={() => removeAmb(amb.id)} className={Z.btn2} style={{ padding: '3px 10px', fontSize: 11, color: 'var(--danger)', borderColor: 'var(--danger)' }}>Sim</button>
                                     <button onClick={() => setConfirmDel(null)} className={Z.btn2} style={{ padding: '3px 10px', fontSize: 11 }}>Não</button>
                                 </div>
                             )}
@@ -3614,7 +3614,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user, nav }) {
     };
 
     if (loading) return <div className={Z.pg}><Spinner text="Carregando projeto..." /></div>;
-    if (!data) return <div className={Z.pg}><p style={{ color: '#ef4444' }}>Projeto não encontrado.</p></div>;
+    if (!data) return <div className={Z.pg}><p style={{ color: 'var(--danger)' }}>Projeto não encontrado.</p></div>;
 
     const TABS = [
         { id: 'cronograma', label: 'Cronograma', icon: <CalendarIcon size={14} /> },
@@ -3671,7 +3671,7 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user, nav }) {
                         <>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                                 <h1 className={Z.h1} style={{ cursor: 'pointer' }} onClick={() => setEditInfo(true)} title="Clique para editar">{data.nome}</h1>
-                                <Badge label={STATUS_PROJ[data.status]?.label || data.status} color={STATUS_PROJ[data.status]?.color || '#94a3b8'} />
+                                <Badge label={STATUS_PROJ[data.status]?.label || data.status} color={STATUS_PROJ[data.status]?.color || 'var(--muted)'} />
                                 <button onClick={() => setEditInfo(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }} title="Editar projeto">
                                     <Pencil size={14} />
                                 </button>
@@ -3839,11 +3839,11 @@ export default function Projetos({ orcs, notify, user, openProjectId, onProjectO
                                         onMouseLeave={e => e.currentTarget.style.background = ''}>
                                         <td style={{ padding: '12px 16px' }}>
                                             <div style={{ fontWeight: 600, fontSize: 14 }}>{p.nome}</div>
-                                            {p.ocorrencias_abertas > 0 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={11} /> {p.ocorrencias_abertas} aberta{p.ocorrencias_abertas > 1 ? 's' : ''}</div>}
-                                            {p.contas_vencidas > 0 && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}><DollarSign size={11} /> {p.contas_vencidas} vencida{p.contas_vencidas > 1 ? 's' : ''}</div>}
+                                            {p.ocorrencias_abertas > 0 && <div style={{ fontSize: 11, color: 'var(--warning)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={11} /> {p.ocorrencias_abertas} aberta{p.ocorrencias_abertas > 1 ? 's' : ''}</div>}
+                                            {p.contas_vencidas > 0 && <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}><DollarSign size={11} /> {p.contas_vencidas} vencida{p.contas_vencidas > 1 ? 's' : ''}</div>}
                                         </td>
                                         <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontSize: 14 }}>{p.cliente_nome || '—'}</td>
-                                        <td style={{ padding: '12px 16px' }}><Badge label={STATUS_PROJ[p.status]?.label || p.status} color={STATUS_PROJ[p.status]?.color || '#94a3b8'} /></td>
+                                        <td style={{ padding: '12px 16px' }}><Badge label={STATUS_PROJ[p.status]?.label || p.status} color={STATUS_PROJ[p.status]?.color || 'var(--muted)'} /></td>
                                         <td style={{ padding: '12px 16px', minWidth: 120 }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                                 <div style={{ flex: 1, background: 'var(--bg-muted)', borderRadius: 99, height: 6 }}>
@@ -3857,7 +3857,7 @@ export default function Projetos({ orcs, notify, user, openProjectId, onProjectO
                                         <td style={{ padding: '12px 16px', display: 'flex', gap: 2 }} onClick={e => e.stopPropagation()}>
                                             <button onClick={() => { const n = prompt('Nome do novo projeto:', `${p.nome} (cópia)`); if (n) api.post(`/projetos/${p.id}/duplicar`, { nome: n }).then(() => load()).catch(() => notify('Erro ao duplicar')); }}
                                                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: 6, borderRadius: 6, opacity: 0.6 }} title="Duplicar"><Ic.Copy /></button>
-                                            <button onClick={() => setConfirmDel({ id: p.id, nome: p.nome })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 6, borderRadius: 6, opacity: 0.6 }} title="Excluir"><Ic.Trash /></button>
+                                            <button onClick={() => setConfirmDel({ id: p.id, nome: p.nome })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 6, borderRadius: 6, opacity: 0.6 }} title="Excluir"><Ic.Trash /></button>
                                         </td>
                                     </tr>
                                 );

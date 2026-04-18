@@ -102,7 +102,7 @@ export default function MontadorUpload({ token }) {
 
     if (error && !info) return (
         <div style={styles.center}>
-            <AlertCircle size={48} color="#ef4444" />
+            <AlertCircle size={48} color="var(--danger)" />
             <h2 style={{ marginTop: 16, fontSize: 18, fontWeight: 700, color: '#333' }}>Link Indisponível</h2>
             <p style={{ color: '#666', marginTop: 8, textAlign: 'center', maxWidth: 300 }}>{error}</p>
         </div>
@@ -118,7 +118,7 @@ export default function MontadorUpload({ token }) {
                     ) : (
                         <div style={{ fontWeight: 700, fontSize: 16, color: '#1e293b' }}>{info.empresa_nome}</div>
                     )}
-                    <div style={{ fontSize: 12, color: '#94a3b8', borderLeft: info.empresa_logo ? '1px solid #e2e8f0' : 'none', paddingLeft: info.empresa_logo ? 12 : 0 }}>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', borderLeft: info.empresa_logo ? '1px solid #e2e8f0' : 'none', paddingLeft: info.empresa_logo ? 12 : 0 }}>
                         Registro Fotográfico
                     </div>
                 </div>
@@ -139,7 +139,7 @@ export default function MontadorUpload({ token }) {
                     Montador: {info.nome_montador}
                 </div>
                 {fotos > 0 && (
-                    <div style={{ fontSize: 12, color: '#22c55e', fontWeight: 600, marginTop: 8 }}>
+                    <div style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600, marginTop: 8 }}>
                         {fotos} foto(s) enviada(s) nesta sessão
                     </div>
                 )}
@@ -177,7 +177,7 @@ export default function MontadorUpload({ token }) {
                                         padding: '8px 16px', borderRadius: 20, border: 'none', cursor: 'pointer',
                                         fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
                                         transition: 'all 0.15s',
-                                        background: selected ? (info?.cor_primaria || '#1B2A4A') : '#f1f5f9',
+                                        background: selected ? (info?.cor_primaria || '#1B2A4A') : 'var(--muted-bg)',
                                         color: selected ? '#fff' : '#475569',
                                         boxShadow: selected ? `0 2px 8px ${info?.cor_primaria || '#1B2A4A'}40` : 'none',
                                     }}
@@ -243,7 +243,7 @@ export default function MontadorUpload({ token }) {
                         {uploadedFotos.map((foto, i) => (
                             <div key={i} style={styles.fotoItem}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                                    <CheckCircle2 size={16} color="#22c55e" style={{ flexShrink: 0 }} />
+                                    <CheckCircle2 size={16} color="var(--success)" style={{ flexShrink: 0 }} />
                                     <span style={{ fontSize: 13, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {foto.filename}
                                     </span>
@@ -252,7 +252,7 @@ export default function MontadorUpload({ token }) {
                                     {foto.ambiente && (
                                         <span style={styles.ambienteTag}>{foto.ambiente}</span>
                                     )}
-                                    <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                                         <Clock size={11} style={{ verticalAlign: 'middle', marginRight: 2 }} />
                                         {foto.timestamp}
                                     </span>
@@ -264,7 +264,7 @@ export default function MontadorUpload({ token }) {
             )}
 
             {/* Info texto */}
-            <div style={{ textAlign: 'center', padding: '20px 24px', color: '#94a3b8', fontSize: 12, lineHeight: 1.6 }}>
+            <div style={{ textAlign: 'center', padding: '20px 24px', color: 'var(--muted)', fontSize: 12, lineHeight: 1.6 }}>
                 As fotos são enviadas diretamente para a empresa.<br />
                 Não é possível visualizar fotos já enviadas.
             </div>
@@ -275,10 +275,10 @@ export default function MontadorUpload({ token }) {
 const mkStyles = (cor1 = '#1B2A4A', cor2 = '#C9A96E') => ({
     center: {
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        minHeight: '100vh', padding: 24, background: '#f8fafc',
+        minHeight: '100vh', padding: 24, background: 'var(--bg-muted)',
     },
     page: {
-        minHeight: '100vh', background: '#f1f5f9',
+        minHeight: '100vh', background: 'var(--muted-bg)',
         maxWidth: 480, margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     },
     header: {
@@ -307,7 +307,7 @@ const mkStyles = (cor1 = '#1B2A4A', cor2 = '#C9A96E') => ({
     successBanner: {
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         padding: '10px 16px', borderRadius: 10, marginBottom: 16,
-        background: '#f0fdf4', color: '#22c55e', fontWeight: 600, fontSize: 14,
+        background: 'var(--success-bg)', color: 'var(--success)', fontWeight: 600, fontSize: 14,
         border: '1px solid #bbf7d0',
     },
     btnCamera: {
@@ -331,7 +331,7 @@ const mkStyles = (cor1 = '#1B2A4A', cor2 = '#C9A96E') => ({
     fotoItem: {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
         padding: '10px 12px', borderRadius: 10,
-        background: '#f8fafc', border: '1px solid #f1f5f9',
+        background: 'var(--bg-muted)', border: '1px solid #f1f5f9',
     },
     ambienteTag: {
         display: 'inline-block', padding: '2px 8px', borderRadius: 6,

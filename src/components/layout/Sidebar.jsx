@@ -58,10 +58,10 @@ function useRecentAndFavorites(pg, MENU_GROUPS) {
 }
 
 const TYPE_CONFIG = {
-    cliente:   { icon: User,          label: 'Cliente',    page: 'cli',  color: '#3b82f6' },
-    orcamento: { icon: FileText,      label: 'Orcamento', page: 'orcs', color: '#f59e0b' },
+    cliente:   { icon: User,          label: 'Cliente',    page: 'cli',  color: 'var(--info)' },
+    orcamento: { icon: FileText,      label: 'Orcamento', page: 'orcs', color: 'var(--warning)' },
     projeto:   { icon: FolderKanban,  label: 'Projeto',    page: 'proj', color: '#8b5cf6' },
-    peca:      { icon: Box,           label: 'Peca',       page: 'cnc',  color: '#10b981' },
+    peca:      { icon: Box,           label: 'Peca',       page: 'cnc',  color: 'var(--success)' },
 };
 
 function getResultTitle(r) {
@@ -419,9 +419,9 @@ export default function Sidebar({
                             const vencidasReceberCount = notifs.notificacoes.filter(n => !n.lida && n.tipo === 'financeiro_vencido').length;
                             const vencidasPagarCount = notifs.notificacoes.filter(n => !n.lida && n.tipo === 'pagar_vencido').length;
                             const getBadge = (id) => {
-                                if (id === 'whatsapp' && waUnread > 0) return { num: waUnread, bg: '#22c55e' };
-                                if (id === 'financeiro' && vencidasPagarCount > 0) return { num: vencidasPagarCount, bg: '#ef4444' };
-                                if (id === 'proj' && vencidasReceberCount > 0) return { num: vencidasReceberCount, bg: '#ef4444' };
+                                if (id === 'whatsapp' && waUnread > 0) return { num: waUnread, bg: 'var(--success)' };
+                                if (id === 'financeiro' && vencidasPagarCount > 0) return { num: vencidasPagarCount, bg: 'var(--danger)' };
+                                if (id === 'proj' && vencidasReceberCount > 0) return { num: vencidasReceberCount, bg: 'var(--danger)' };
                                 return null;
                             };
 
@@ -570,8 +570,8 @@ export default function Sidebar({
                             const isOpen = !collapsed[g.id];
                             const vencidasPagarCount = notifs.notificacoes.filter(n => !n.lida && n.tipo === 'pagar_vencido').length;
                             const getBadge = (id) => {
-                                if (id === 'whatsapp' && waUnread > 0) return { num: waUnread, bg: '#22c55e' };
-                                if (id === 'financeiro' && vencidasPagarCount > 0) return { num: vencidasPagarCount, bg: '#ef4444' };
+                                if (id === 'whatsapp' && waUnread > 0) return { num: waUnread, bg: 'var(--success)' };
+                                if (id === 'financeiro' && vencidasPagarCount > 0) return { num: vencidasPagarCount, bg: 'var(--danger)' };
                                 return null;
                             };
                             return (

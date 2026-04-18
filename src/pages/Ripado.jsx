@@ -244,7 +244,7 @@ export default function Ripado({ embedded = false }) {
 
                     {/* Ripas Horizontais (muxarabi) */}
                     {tipo === 'muxarabi' && (
-                        <div className={Z.card} style={{ borderLeft: '3px solid #f59e0b' }}>
+                        <div className={Z.card} style={{ borderLeft: '3px solid var(--warning)' }}>
                             <div className="flex items-center justify-between mb-3">
                                 <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Ripas Horizontais</h3>
                                 <label className="flex items-center gap-1.5 text-xs cursor-pointer" style={{ color: 'var(--text-muted)' }}>
@@ -272,7 +272,7 @@ export default function Ripado({ embedded = false }) {
                             )}
                             {calc && calc.nH > 0 && (
                                 <div className="mt-3 flex gap-2 flex-wrap">
-                                    <span className="text-[11px] px-2 py-1 rounded-full font-semibold" style={{ background: '#f59e0b15', color: '#f59e0b' }}>
+                                    <span className="text-[11px] px-2 py-1 rounded-full font-semibold" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>
                                         {calc.nH} ripas horizontais
                                     </span>
                                     <span className="text-[11px] px-2 py-1 rounded-full" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
@@ -314,10 +314,10 @@ export default function Ripado({ embedded = false }) {
                             {/* Cards de resumo */}
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 <Num label="Ripas Verticais" value={calc.nV} color="var(--primary)" />
-                                {tipo === 'muxarabi' && <Num label="Ripas Horizontais" value={calc.nH} color="#f59e0b" />}
+                                {tipo === 'muxarabi' && <Num label="Ripas Horizontais" value={calc.nH} color="var(--warning)" />}
                                 <Num label="ML Totais" value={N(calc.mlTotal)} unit="metros lineares" />
                                 <Num label="Fita de Borda" value={N(calc.fitaTotal)} unit="metros lineares" />
-                                <Num label="Cobertura" value={N(calc.cobertura, 1) + '%'} color={calc.cobertura > 80 ? '#ef4444' : calc.cobertura > 50 ? '#f59e0b' : '#10b981'} />
+                                <Num label="Cobertura" value={N(calc.cobertura, 1) + '%'} color={calc.cobertura > 80 ? 'var(--danger)' : calc.cobertura > 50 ? 'var(--warning)' : 'var(--success)'} />
                                 <Num label="Vazio" value={N(calc.vazio, 1) + '%'} />
                                 {temSubstrato && <Num label="Área Substrato" value={N(calc.areaSubstrato)} unit="m²" />}
                                 {calc.custoMaterial > 0 && <Num label="Custo Material" value={R$(calc.custoMaterial)} color="var(--primary)" />}

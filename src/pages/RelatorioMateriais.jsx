@@ -456,7 +456,7 @@ ${watermarkSrc ? `<div class="watermark"><img src="${watermarkSrc}" /></div>` : 
             ${custoComplexidade > 0 ? `<div class="total-row"><span class="label">Complexidade</span><span class="value">${R$(custoComplexidade)}</span></div>` : ''}
             <div class="total-row"><span class="label">Custo Base (Material + MO + Inst.)</span><span class="value">${R$(tot.cb)}</span></div>
             <div class="total-row"><span class="label">Preço Venda (markup divisor)</span><span class="value">${R$(tot.pvFinal)}</span></div>
-            ${descontoR > 0 ? `<div class="total-row"><span class="label" style="color:#ef4444">Desconto</span><span class="value" style="color:#ef4444">−${R$(descontoR)}</span></div>` : ''}
+            ${descontoR > 0 ? `<div class="total-row"><span class="label" style="color:var(--danger)">Desconto</span><span class="value" style="color:var(--danger)">−${R$(descontoR)}</span></div>` : ''}
             <div class="total-row final"><span class="label">VALOR FINAL</span><span class="value primary">${R$(pvComDesconto)}</span></div>
         </div>
     </div>
@@ -569,7 +569,7 @@ export default function RelatorioMateriais({ empresa, orcamento, ambientes, tot,
             {/* Fita de Borda */}
             {tot.ft > 0 && (
                 <div className="mb-5">
-                    <div className="text-xs font-bold mb-2 flex items-center gap-1.5" style={{ color: '#f59e0b' }}>
+                    <div className="text-xs font-bold mb-2 flex items-center gap-1.5" style={{ color: 'var(--warning)' }}>
                         <Scissors size={13} /> FITA DE BORDA
                     </div>
                     {Object.keys(fitaByMatTotal).length > 0 ? (
@@ -612,7 +612,7 @@ export default function RelatorioMateriais({ empresa, orcamento, ambientes, tot,
 
             {/* Resumo de Custos */}
             <div className="mb-3">
-                <div className="text-xs font-bold mb-3 flex items-center gap-1.5" style={{ color: '#16a34a' }}>
+                <div className="text-xs font-bold mb-3 flex items-center gap-1.5" style={{ color: 'var(--success-hover)' }}>
                     <DollarSign size={13} /> RESUMO DE CUSTOS
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">

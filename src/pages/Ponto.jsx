@@ -12,17 +12,17 @@ const DS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
 const TIPOS = [
-    { id: 'normal', lb: 'Normal', c: '#22c55e', short: '—' },
-    { id: 'falta', lb: 'Falta', c: '#ef4444', short: 'F' },
-    { id: 'atestado', lb: 'Atestado', c: '#3b82f6', short: 'A' },
-    { id: 'ferias', lb: 'Férias', c: '#3b82f6', short: 'Fe' },
-    { id: 'feriado', lb: 'Feriado', c: '#9ca3af', short: 'Fr' },
-    { id: 'folga', lb: 'Folga', c: '#9ca3af', short: 'Fg' },
+    { id: 'normal', lb: 'Normal', c: 'var(--success)', short: '—' },
+    { id: 'falta', lb: 'Falta', c: 'var(--danger)', short: 'F' },
+    { id: 'atestado', lb: 'Atestado', c: 'var(--info)', short: 'A' },
+    { id: 'ferias', lb: 'Férias', c: 'var(--info)', short: 'Fe' },
+    { id: 'feriado', lb: 'Feriado', c: 'var(--muted)', short: 'Fr' },
+    { id: 'folga', lb: 'Folga', c: 'var(--muted)', short: 'Fg' },
     { id: 'compensacao', lb: 'Compensação', c: '#a855f7', short: 'C' },
 ];
 const TIPO_MAP = Object.fromEntries(TIPOS.map(t => [t.id, t]));
 
-const COR = { normal: '#22c55e', atraso: '#f59e0b', falta: '#ef4444', atestado: '#3b82f6', ferias: '#3b82f6', feriado: '#9ca3af', folga: '#9ca3af', compensacao: '#a855f7' };
+const COR = { normal: 'var(--success)', atraso: 'var(--warning)', falta: 'var(--danger)', atestado: 'var(--info)', ferias: 'var(--info)', feriado: 'var(--muted)', folga: 'var(--muted)', compensacao: '#a855f7' };
 
 const FERIADOS_NACIONAIS = [
     { data: '-01-01', descricao: 'Confraternização Universal' },
@@ -101,7 +101,7 @@ function cellStatus(reg, dayOfWeek, jornada, tol, feriados, dateStr, dataAdmissa
 // ─── StatusDot ──────────────────────────────────────────
 function Dot({ status }) {
     if (!status) return <span style={{ display: 'inline-block', width: 8, height: 8 }} />;
-    return <span title={status} style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: COR[status] || '#9ca3af' }} />;
+    return <span title={status} style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: COR[status] || 'var(--muted)' }} />;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -215,7 +215,7 @@ function PlanilhaModal({ funcionario, mesKey, ano, mes, jornada, feriados, regis
                     Preencher Horário Padrão
                 </button>
                 <div style={{ flex: 1 }} />
-                {dirtyCount > 0 && <span style={{ fontSize: 10, color: '#f59e0b', fontWeight: 600 }}>{dirtyCount} alteração(ões)</span>}
+                {dirtyCount > 0 && <span style={{ fontSize: 10, color: 'var(--warning)', fontWeight: 600 }}>{dirtyCount} alteração(ões)</span>}
                 <button className={Z.btnSm} onClick={salvarTudo} disabled={saving || !dirtyCount} style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
                     <Save size={11} /> {saving ? 'Salvando...' : 'Salvar Tudo'}
                 </button>
@@ -281,7 +281,7 @@ function PlanilhaModal({ funcionario, mesKey, ano, mes, jornada, feriados, regis
                                     <td style={{ ...tdS, textAlign: 'center', fontSize: 10, color: 'var(--text-muted)', width: 50 }}>
                                         {r.isFuture ? '' : fmtH(exp)}
                                     </td>
-                                    <td style={{ ...tdS, textAlign: 'center', fontWeight: 600, fontSize: 10, color: saldo >= 0 ? '#22c55e' : '#ef4444', width: 50 }}>
+                                    <td style={{ ...tdS, textAlign: 'center', fontWeight: 600, fontSize: 10, color: saldo >= 0 ? 'var(--success)' : 'var(--danger)', width: 50 }}>
                                         {r.isFuture ? '' : fmtH(saldo)}
                                     </td>
                                     <td style={{ ...tdS, width: 60 }}>
@@ -312,8 +312,8 @@ function PlanilhaModal({ funcionario, mesKey, ano, mes, jornada, feriados, regis
                     <div style={{ display: 'flex', gap: 16, padding: '10px 0 0', fontSize: 11, fontWeight: 600, flexWrap: 'wrap' }}>
                         <span>Trabalhadas: <span style={{ color: 'var(--text-primary)' }}>{fmtH(tw)}</span></span>
                         <span>Previstas: <span style={{ color: 'var(--text-muted)' }}>{fmtH(te)}</span></span>
-                        <span>Saldo: <span style={{ color: saldo >= 0 ? '#22c55e' : '#ef4444' }}>{fmtH(saldo)}</span></span>
-                        {faltas > 0 && <span>Faltas: <span style={{ color: '#ef4444' }}>{faltas}</span></span>}
+                        <span>Saldo: <span style={{ color: saldo >= 0 ? 'var(--success)' : 'var(--danger)' }}>{fmtH(saldo)}</span></span>
+                        {faltas > 0 && <span>Faltas: <span style={{ color: 'var(--danger)' }}>{faltas}</span></span>}
                     </div>
                 );
             })()}
@@ -629,20 +629,20 @@ function RelatorioModal({ funcionarios, registros, jornada, tolerancia, feriados
                 {/* Resumo geral */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
                     <Ind label="Horas Trabalhadas" value={fmtH(totals.trabalhadas)} color="var(--text-primary)" />
-                    <Ind label="Horas Extras" value={fmtH(totals.extras)} color="#22c55e" />
-                    <Ind label="Deficit" value={fmtH(totals.deficit)} color="#ef4444" />
-                    <Ind label="Atrasos" value={totals.atrasos} color="#f59e0b" />
-                    <Ind label="Faltas" value={totals.faltas} color="#ef4444" />
-                    <Ind label="Atestados" value={totals.atestados} color="#3b82f6" />
+                    <Ind label="Horas Extras" value={fmtH(totals.extras)} color="var(--success)" />
+                    <Ind label="Deficit" value={fmtH(totals.deficit)} color="var(--danger)" />
+                    <Ind label="Atrasos" value={totals.atrasos} color="var(--warning)" />
+                    <Ind label="Faltas" value={totals.faltas} color="var(--danger)" />
+                    <Ind label="Atestados" value={totals.atestados} color="var(--info)" />
                 </div>
 
                 {/* Cards por funcionário */}
                 {data.map(({ func, trabalhadas, previstas, extras, deficit, saldo, atrasos, faltas, atestados, ferias, diasDetail }) => {
                     const pctTrab = previstas > 0 ? Math.min((trabalhadas / previstas) * 100, 150) : 0;
-                    const barColor = saldo >= 0 ? '#22c55e' : '#ef4444';
+                    const barColor = saldo >= 0 ? 'var(--success)' : 'var(--danger)';
                     const bh = bancoHoras?.[func.id];
                     const acum = bh?.saldo_acumulado ?? saldo;
-                    const acumColor = acum >= 0 ? '#22c55e' : '#ef4444';
+                    const acumColor = acum >= 0 ? 'var(--success)' : 'var(--danger)';
 
                     return (
                         <div key={func.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 10, background: 'var(--bg-primary)' }}>
@@ -666,8 +666,8 @@ function RelatorioModal({ funcionarios, registros, jornada, tolerancia, feriados
                                     <div style={{ flex: 1 }}>
                                         <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Banco de Horas</div>
                                         <div style={{ display: 'flex', gap: 12, marginTop: 3, fontSize: 10 }}>
-                                            <span>Anterior: <strong style={{ color: bh.saldo_anterior >= 0 ? '#22c55e' : '#ef4444' }}>{bh.saldo_anterior >= 0 ? '+' : ''}{fmtH(bh.saldo_anterior)}</strong></span>
-                                            <span>Mês: <strong style={{ color: bh.saldo_mes >= 0 ? '#22c55e' : '#ef4444' }}>{bh.saldo_mes >= 0 ? '+' : ''}{fmtH(bh.saldo_mes)}</strong></span>
+                                            <span>Anterior: <strong style={{ color: bh.saldo_anterior >= 0 ? 'var(--success)' : 'var(--danger)' }}>{bh.saldo_anterior >= 0 ? '+' : ''}{fmtH(bh.saldo_anterior)}</strong></span>
+                                            <span>Mês: <strong style={{ color: bh.saldo_mes >= 0 ? 'var(--success)' : 'var(--danger)' }}>{bh.saldo_mes >= 0 ? '+' : ''}{fmtH(bh.saldo_mes)}</strong></span>
                                         </div>
                                     </div>
                                     <div style={{ textAlign: 'right' }}>
@@ -686,7 +686,7 @@ function RelatorioModal({ funcionarios, registros, jornada, tolerancia, feriados
                                     <span>Previstas: {fmtH(previstas)}</span>
                                 </div>
                                 <div style={{ height: 8, background: 'var(--bg-muted)', borderRadius: 4, overflow: 'hidden', position: 'relative' }}>
-                                    <div style={{ height: '100%', width: `${Math.min(pctTrab, 100)}%`, background: pctTrab > 100 ? '#22c55e' : pctTrab > 90 ? '#3b82f6' : '#f59e0b', borderRadius: 4, transition: 'width 0.5s ease' }} />
+                                    <div style={{ height: '100%', width: `${Math.min(pctTrab, 100)}%`, background: pctTrab > 100 ? 'var(--success)' : pctTrab > 90 ? 'var(--info)' : 'var(--warning)', borderRadius: 4, transition: 'width 0.5s ease' }} />
                                     {pctTrab > 100 && (
                                         <div style={{ position: 'absolute', top: 0, left: '66.7%', width: `${Math.min(pctTrab - 100, 50) * 0.667}%`, height: '100%', background: 'rgba(34,197,94,0.3)', borderRadius: '0 4px 4px 0' }} />
                                     )}
@@ -696,37 +696,37 @@ function RelatorioModal({ funcionarios, registros, jornada, tolerancia, feriados
                             {/* Indicadores */}
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                 {extras > 0 && (
-                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)' }}>
+                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', border: '1px solid rgba(34,197,94,0.2)' }}>
                                         +{fmtH(extras)} extras
                                     </span>
                                 )}
                                 {deficit > 0 && (
-                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>
+                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.2)' }}>
                                         -{fmtH(deficit)} deficit
                                     </span>
                                 )}
                                 {atrasos > 0 && (
-                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.2)' }}>
+                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, background: 'rgba(245,158,11,0.1)', color: 'var(--warning)', border: '1px solid rgba(245,158,11,0.2)' }}>
                                         {atrasos} atraso{atrasos > 1 ? 's' : ''}
                                     </span>
                                 )}
                                 {faltas > 0 && (
-                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>
+                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.2)' }}>
                                         {faltas} falta{faltas > 1 ? 's' : ''}
                                     </span>
                                 )}
                                 {atestados > 0 && (
-                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)' }}>
+                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, background: 'rgba(59,130,246,0.1)', color: 'var(--info)', border: '1px solid rgba(59,130,246,0.2)' }}>
                                         {atestados} atestado{atestados > 1 ? 's' : ''}
                                     </span>
                                 )}
                                 {ferias > 0 && (
-                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)' }}>
+                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, background: 'rgba(59,130,246,0.1)', color: 'var(--info)', border: '1px solid rgba(59,130,246,0.2)' }}>
                                         {ferias} dia{ferias > 1 ? 's' : ''} férias
                                     </span>
                                 )}
                                 {!extras && !deficit && !atrasos && !faltas && !atestados && !ferias && (
-                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)' }}>
+                                    <span style={{ padding: '3px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', border: '1px solid rgba(34,197,94,0.2)' }}>
                                         Tudo em dia
                                     </span>
                                 )}
@@ -735,11 +735,11 @@ function RelatorioModal({ funcionarios, registros, jornada, tolerancia, feriados
                             {/* Detalhe de atrasos */}
                             {diasDetail.length > 0 && (
                                 <div style={{ marginTop: 8, padding: '6px 8px', background: 'rgba(245,158,11,0.05)', borderRadius: 6, border: '1px solid rgba(245,158,11,0.1)' }}>
-                                    <div style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', marginBottom: 3 }}>Detalhamento de Atrasos</div>
+                                    <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--warning)', marginBottom: 3 }}>Detalhamento de Atrasos</div>
                                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                         {diasDetail.map((dd, i) => (
                                             <span key={i} style={{ fontSize: 9, color: 'var(--text-secondary)', background: 'var(--bg-primary)', padding: '2px 6px', borderRadius: 4 }}>
-                                                {fmtBR(dd.dateStr)} <strong style={{ color: '#f59e0b' }}>+{dd.minAtraso}min</strong>
+                                                {fmtBR(dd.dateStr)} <strong style={{ color: 'var(--warning)' }}>+{dd.minAtraso}min</strong>
                                             </span>
                                         ))}
                                     </div>
@@ -937,7 +937,7 @@ export default function Ponto({ notify }) {
                         window.open(url, '_blank');
                         notify?.('Relatório PDF gerado', 'success');
                     } catch (e) { notify?.(e.error || 'Erro ao gerar PDF', 'error'); }
-                }} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, background: '#dc2626', borderColor: '#dc2626', color: '#fff' }}>
+                }} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, background: 'var(--danger-hover)', borderColor: 'var(--danger-hover)', color: '#fff' }}>
                     <FileText size={13} /> PDF
                 </button>
                 <button className={Z.btn2Sm} onClick={exportCSV} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -957,7 +957,7 @@ export default function Ponto({ notify }) {
                     <button className={Z.btn2Sm} onClick={nextMes} style={{ padding: '4px 8px' }}><ChevronRight size={16} /></button>
                 </div>
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 8, flexWrap: 'wrap' }}>
-                    {[{ c: '#22c55e', l: 'Normal' }, { c: '#f59e0b', l: 'Atraso' }, { c: '#ef4444', l: 'Falta' }, { c: '#3b82f6', l: 'Atestado/Férias' }, { c: '#9ca3af', l: 'Folga/Feriado' }, { c: '#a855f7', l: 'Compensação' }].map(x => (
+                    {[{ c: 'var(--success)', l: 'Normal' }, { c: 'var(--warning)', l: 'Atraso' }, { c: 'var(--danger)', l: 'Falta' }, { c: 'var(--info)', l: 'Atestado/Férias' }, { c: 'var(--muted)', l: 'Folga/Feriado' }, { c: '#a855f7', l: 'Compensação' }].map(x => (
                         <div key={x.l} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'var(--text-muted)' }}>
                             <span style={{ width: 7, height: 7, borderRadius: '50%', background: x.c, display: 'inline-block' }} />{x.l}
                         </div>
@@ -1028,9 +1028,9 @@ export default function Ponto({ notify }) {
                                             const acum = bh?.saldo_acumulado || sm.saldo;
                                             return (<>
                                                 <td style={{ padding: '3px 2px', textAlign: 'center', fontSize: 9, fontWeight: 600, borderLeft: '2px solid var(--border)', color: 'var(--text-primary)' }}>{fmtH(sm.tw)}</td>
-                                                <td style={{ padding: '3px 2px', textAlign: 'center', fontSize: 9, fontWeight: 600, borderLeft: '1px solid var(--border)', color: sm.faltas > 0 ? '#ef4444' : 'var(--text-muted)' }}>{sm.faltas || '—'}</td>
-                                                <td style={{ padding: '3px 2px', textAlign: 'center', fontSize: 9, fontWeight: 600, borderLeft: '1px solid var(--border)', color: sm.saldo >= 0 ? '#22c55e' : '#ef4444' }}>{fmtH(sm.saldo)}</td>
-                                                <td style={{ padding: '3px 2px', textAlign: 'center', fontSize: 9, fontWeight: 800, borderLeft: '1px solid var(--border)', color: acum >= 0 ? '#22c55e' : '#ef4444', background: 'rgba(19,121,240,0.03)' }} title={bh ? `Anterior: ${fmtH(bh.saldo_anterior)} | Mês: ${fmtH(bh.saldo_mes)} | Total: ${fmtH(bh.saldo_acumulado)}` : 'Banco de horas'}>{fmtH(acum)}</td>
+                                                <td style={{ padding: '3px 2px', textAlign: 'center', fontSize: 9, fontWeight: 600, borderLeft: '1px solid var(--border)', color: sm.faltas > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{sm.faltas || '—'}</td>
+                                                <td style={{ padding: '3px 2px', textAlign: 'center', fontSize: 9, fontWeight: 600, borderLeft: '1px solid var(--border)', color: sm.saldo >= 0 ? 'var(--success)' : 'var(--danger)' }}>{fmtH(sm.saldo)}</td>
+                                                <td style={{ padding: '3px 2px', textAlign: 'center', fontSize: 9, fontWeight: 800, borderLeft: '1px solid var(--border)', color: acum >= 0 ? 'var(--success)' : 'var(--danger)', background: 'rgba(19,121,240,0.03)' }} title={bh ? `Anterior: ${fmtH(bh.saldo_anterior)} | Mês: ${fmtH(bh.saldo_mes)} | Total: ${fmtH(bh.saldo_acumulado)}` : 'Banco de horas'}>{fmtH(acum)}</td>
                                             </>);
                                         })()}
                                     </tr>

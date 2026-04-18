@@ -253,8 +253,8 @@ function OPSelector({ ordens, projetos, opAtual, setOpAtual, criarOP, notify, on
     };
 
     const STATUS_COR = {
-        rascunho: '#94a3b8', readiness: '#3b82f6', otimizando: '#f59e0b',
-        otimizada: '#8b5cf6', etiquetas: '#06b6d4', gcode: '#ec4899', liberada: '#22c55e'
+        rascunho: 'var(--muted)', readiness: 'var(--info)', otimizando: 'var(--warning)',
+        otimizada: '#8b5cf6', etiquetas: '#06b6d4', gcode: '#ec4899', liberada: 'var(--success)'
     };
 
     return (
@@ -270,9 +270,9 @@ function OPSelector({ ordens, projetos, opAtual, setOpAtual, criarOP, notify, on
                     {opAtual && (
                         <span style={{
                             fontSize: 10, fontWeight: 700, padding: '3px 10px',
-                            borderRadius: 20, background: (STATUS_COR[opAtual.status] || '#6b7280') + '15',
-                            color: STATUS_COR[opAtual.status] || '#6b7280',
-                            border: `1px solid ${(STATUS_COR[opAtual.status] || '#6b7280')}25`,
+                            borderRadius: 20, background: (STATUS_COR[opAtual.status] || 'var(--muted)') + '15',
+                            color: STATUS_COR[opAtual.status] || 'var(--muted)',
+                            border: `1px solid ${(STATUS_COR[opAtual.status] || 'var(--muted)')}25`,
                             textTransform: 'uppercase', letterSpacing: '0.03em',
                         }}>
                             {opAtual.status}
@@ -376,7 +376,7 @@ function OPSelector({ ordens, projetos, opAtual, setOpAtual, criarOP, notify, on
                                     <div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                <CheckCircle2 size={18} color="#22c55e" />
+                                                <CheckCircle2 size={18} color="var(--success)" />
                                                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
                                                     {jsonPreview.filename}
                                                 </span>
@@ -394,7 +394,7 @@ function OPSelector({ ordens, projetos, opAtual, setOpAtual, criarOP, notify, on
                                                 <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Peças</div>
                                             </div>
                                             <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg-muted)', textAlign: 'center' }}>
-                                                <div style={{ fontSize: 20, fontWeight: 800, color: '#3b82f6' }}>{jsonPreview.modulos}</div>
+                                                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--info)' }}>{jsonPreview.modulos}</div>
                                                 <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Módulos</div>
                                             </div>
                                             <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg-muted)', textAlign: 'center' }}>
@@ -426,7 +426,7 @@ function OPSelector({ ordens, projetos, opAtual, setOpAtual, criarOP, notify, on
                                         </div>
                                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 12 }}>
                                             {jsonPreview.materiaisList.map((m, i) => (
-                                                <span key={i} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: '#fef3c7', color: '#92400e', fontWeight: 500 }}>
+                                                <span key={i} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--warning-bg)', color: 'var(--warning-hover)', fontWeight: 500 }}>
                                                     {m}
                                                 </span>
                                             ))}
@@ -619,15 +619,15 @@ function StepReadiness({ op, notify, setStep }) {
                 <div style={{ textAlign: 'center' }}>
                     <div style={{
                         fontSize: 36, fontWeight: 800,
-                        color: readiness.ok === readiness.total ? '#22c55e' : readiness.erros > 0 ? '#ef4444' : '#f59e0b'
+                        color: readiness.ok === readiness.total ? 'var(--success)' : readiness.erros > 0 ? 'var(--danger)' : 'var(--warning)'
                     }}>
                         {readiness.ok}/{readiness.total}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>CHECKS OK</div>
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
-                    {readiness.erros > 0 && <MiniTag color="#ef4444" label={`${readiness.erros} erro(s)`} />}
-                    {readiness.avisos > 0 && <MiniTag color="#f59e0b" label={`${readiness.avisos} aviso(s)`} />}
+                    {readiness.erros > 0 && <MiniTag color="var(--danger)" label={`${readiness.erros} erro(s)`} />}
+                    {readiness.avisos > 0 && <MiniTag color="var(--warning)" label={`${readiness.avisos} aviso(s)`} />}
                     {readiness.pendentes > 0 && <MiniTag color="#6366f1" label={`${readiness.pendentes} pendente(s)`} />}
                 </div>
             </div>
@@ -641,7 +641,7 @@ function StepReadiness({ op, notify, setStep }) {
                         <div key={check.id} style={{
                             display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
                             background: 'var(--bg-card)', borderRadius: 10,
-                            border: `1px solid ${check.status === 'ok' ? '#dcfce7' : check.status === 'erro' ? '#fecaca' : 'var(--border)'}`,
+                            border: `1px solid ${check.status === 'ok' ? 'var(--success-bg)' : check.status === 'erro' ? 'var(--danger-border)' : 'var(--border)'}`,
                         }}>
                             <IconComp size={18} style={{ color: badge.color, flexShrink: 0 }} />
                             <div style={{ flex: 1 }}>
@@ -910,7 +910,7 @@ function StepCorte({ op, notify }) {
                         const svgW = cW * sc + margin * 2;
                         const svgH = cH * sc + margin * 2 + 14;
                         const approx = ch.aproveitamento?.toFixed(1) || '?';
-                        const approxColor = parseFloat(approx) >= 80 ? '#16a34a' : parseFloat(approx) >= 60 ? '#ca8a04' : '#dc2626';
+                        const approxColor = parseFloat(approx) >= 80 ? 'var(--success-hover)' : parseFloat(approx) >= 60 ? '#ca8a04' : 'var(--danger-hover)';
 
                         return (
                             <div key={i} className="glass-card" style={{ padding: 16 }}>
@@ -1492,9 +1492,9 @@ function StepGcode({ op, notify }) {
                     <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>Validação de Ferramentas</h4>
                     {result.validacao.ferramentas_necessarias.map((f, i) => (
                         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 4 }}>
-                            {f.ok ? <CheckCircle2 size={14} style={{ color: '#22c55e' }} /> : <AlertTriangle size={14} style={{ color: '#ef4444' }} />}
+                            {f.ok ? <CheckCircle2 size={14} style={{ color: 'var(--success)' }} /> : <AlertTriangle size={14} style={{ color: 'var(--danger)' }} />}
                             <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{f.tool_code}</span>
-                            <span style={{ color: f.ok ? '#22c55e' : '#ef4444' }}>{f.ok ? f.ferramenta : 'Não cadastrada!'}</span>
+                            <span style={{ color: f.ok ? 'var(--success)' : 'var(--danger)' }}>{f.ok ? f.ferramenta : 'Não cadastrada!'}</span>
                         </div>
                     ))}
                 </div>
@@ -1532,13 +1532,13 @@ function StepGcode({ op, notify }) {
                     }}>
                         {result.gcode.split('\n').slice(0, 200).map((line, i) => {
                             let color = 'inherit';
-                            if (line.startsWith(';') || line.startsWith('(')) color = '#6b7280';
-                            else if (/^G0\b/.test(line)) color = '#3b82f6';
-                            else if (/^G1\b/.test(line)) color = '#22c55e';
-                            else if (/^T\d/.test(line)) color = '#f59e0b';
-                            return <span key={i}><span style={{ color: '#9ca3af', userSelect: 'none', display: 'inline-block', width: 40, textAlign: 'right', marginRight: 12 }}>{i + 1}</span><span style={{ color }}>{line}</span>{'\n'}</span>;
+                            if (line.startsWith(';') || line.startsWith('(')) color = 'var(--muted)';
+                            else if (/^G0\b/.test(line)) color = 'var(--info)';
+                            else if (/^G1\b/.test(line)) color = 'var(--success)';
+                            else if (/^T\d/.test(line)) color = 'var(--warning)';
+                            return <span key={i}><span style={{ color: 'var(--muted)', userSelect: 'none', display: 'inline-block', width: 40, textAlign: 'right', marginRight: 12 }}>{i + 1}</span><span style={{ color }}>{line}</span>{'\n'}</span>;
                         })}
-                        {result.gcode.split('\n').length > 200 && <span style={{ color: '#9ca3af' }}>... ({result.gcode.split('\n').length - 200} linhas adicionais)</span>}
+                        {result.gcode.split('\n').length > 200 && <span style={{ color: 'var(--muted)' }}>... ({result.gcode.split('\n').length - 200} linhas adicionais)</span>}
                     </pre>
                 </div>
             )}
@@ -1574,7 +1574,7 @@ function StepLiberar({ op, notify, onRefresh }) {
         <div style={{ textAlign: 'center', padding: 32 }}>
             <div style={{
                 width: 80, height: 80, borderRadius: 20, margin: '0 auto 20px',
-                background: liberada ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'linear-gradient(135deg, #e67e22, #d35400)',
+                background: liberada ? 'linear-gradient(135deg, var(--success), var(--success-hover))' : 'linear-gradient(135deg, #e67e22, #d35400)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
                 {liberada ? <CheckCircle2 size={40} color="#fff" /> : <ArrowRight size={40} color="#fff" />}
@@ -1590,7 +1590,7 @@ function StepLiberar({ op, notify, onRefresh }) {
                 <SummaryRow label="Projeto" value={op.projeto_nome || '-'} />
                 <SummaryRow label="Cliente" value={op.cliente_nome || '-'} />
                 <SummaryRow label="Peças" value={`${op.total_pecas || 0} peça(s)`} />
-                <SummaryRow label="Status" value={liberada ? 'LIBERADA' : op.status?.toUpperCase()} color={liberada ? '#22c55e' : '#f59e0b'} />
+                <SummaryRow label="Status" value={liberada ? 'LIBERADA' : op.status?.toUpperCase()} color={liberada ? 'var(--success)' : 'var(--warning)'} />
             </div>
 
             {!liberada ? (
@@ -1602,7 +1602,7 @@ function StepLiberar({ op, notify, onRefresh }) {
                     <button onClick={liberar} disabled={liberando} className={Z.btn}
                         style={{
                             padding: '14px 32px', fontSize: 15, fontWeight: 700,
-                            background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                            background: 'linear-gradient(135deg, var(--success), var(--success-hover))',
                             display: 'inline-flex', alignItems: 'center', gap: 8,
                         }}>
                         {liberando ? 'Liberando...' : <><Play size={18} /> Liberar para Produção</>}

@@ -83,8 +83,8 @@ export default function Produtividade({ notify }) {
     const totalTarefas = data.reduce((s, r) => s + (r.tarefas || 0), 0);
 
     const ETAPA_COLORS = {
-        corte: '#3b82f6', usinagem: '#8b5cf6', colagem_borda: '#f59e0b', furacao: '#ef4444',
-        montagem: '#22c55e', acabamento: '#06b6d4', embalagem: '#ec4899',
+        corte: 'var(--info)', usinagem: '#8b5cf6', colagem_borda: 'var(--warning)', furacao: 'var(--danger)',
+        montagem: 'var(--success)', acabamento: '#06b6d4', embalagem: '#ec4899',
     };
 
     return (
@@ -113,10 +113,10 @@ export default function Produtividade({ notify }) {
                 <>
                     {/* KPI Cards */}
                     <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12, marginBottom: 24 }}>
-                        <KpiCard icon={Clock} label="Horas Trabalhadas" value={`${Math.round(totalHoras * 10) / 10}h`} accent="#3b82f6" />
-                        <KpiCard icon={Zap} label="Tarefas Concluídas" value={totalTarefas} accent="#22c55e" />
+                        <KpiCard icon={Clock} label="Horas Trabalhadas" value={`${Math.round(totalHoras * 10) / 10}h`} accent="var(--info)" />
+                        <KpiCard icon={Zap} label="Tarefas Concluídas" value={totalTarefas} accent="var(--success)" />
                         <KpiCard icon={Users} label="Colaboradores" value={porColaborador.length} accent="#8b5cf6" />
-                        <KpiCard icon={Timer} label="Capacidade Mensal" value={capacidade ? `${capacidade.capacidadeMensal}h` : '--'} accent="#f59e0b" />
+                        <KpiCard icon={Timer} label="Capacidade Mensal" value={capacidade ? `${capacidade.capacidadeMensal}h` : '--'} accent="var(--warning)" />
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16, marginBottom: 24 }}>
@@ -147,7 +147,7 @@ export default function Produtividade({ notify }) {
                                                 <strong style={{ color: 'var(--text-secondary)' }}>{Math.round(c.totalMin / 60)}h</strong> · {c.totalTarefas} tarefas
                                             </span>
                                         </div>
-                                        <ProgressBar value={c.totalMin} max={maxMinColab} color={i === 0 ? '#8b5cf6' : i === 1 ? '#3b82f6' : '#94a3b8'} height={7} />
+                                        <ProgressBar value={c.totalMin} max={maxMinColab} color={i === 0 ? '#8b5cf6' : i === 1 ? 'var(--info)' : 'var(--muted)'} height={7} />
                                     </div>
                                 ))}
                             </div>
@@ -157,8 +157,8 @@ export default function Produtividade({ notify }) {
                         <div className="glass-card" style={{ overflow: 'hidden' }}>
                             <div className="section-card-header">
                                 <div className="section-card-header-title">
-                                    <div className="section-card-header-icon" style={{ background: '#3b82f612' }}>
-                                        <BarChart3 size={15} style={{ color: '#3b82f6' }} />
+                                    <div className="section-card-header-icon" style={{ background: 'var(--info-bg)' }}>
+                                        <BarChart3 size={15} style={{ color: 'var(--info)' }} />
                                     </div>
                                     Por Etapa
                                 </div>
@@ -170,7 +170,7 @@ export default function Produtividade({ notify }) {
                                 {porEtapa.length === 0 ? (
                                     <EmptyState icon={BarChart3} title="Nenhum apontamento" description="Nenhum apontamento registrado no período selecionado." />
                                 ) : porEtapa.map(e => {
-                                    const c = ETAPA_COLORS[e.etapa] || '#64748b';
+                                    const c = ETAPA_COLORS[e.etapa] || 'var(--muted)';
                                     return (
                                         <div key={e.etapa} style={{ marginBottom: 14 }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
@@ -198,8 +198,8 @@ export default function Produtividade({ notify }) {
                         <div className="glass-card" style={{ overflow: 'hidden' }}>
                             <div className="section-card-header">
                                 <div className="section-card-header-title">
-                                    <div className="section-card-header-icon" style={{ background: '#22c55e12' }}>
-                                        <TrendingUp size={14} style={{ color: '#22c55e' }} />
+                                    <div className="section-card-header-icon" style={{ background: 'var(--success-bg)' }}>
+                                        <TrendingUp size={14} style={{ color: 'var(--success)' }} />
                                     </div>
                                     Detalhamento
                                 </div>
@@ -223,9 +223,9 @@ export default function Produtividade({ notify }) {
                                                 <td className="td-glass">
                                                     <span style={{
                                                         padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 600,
-                                                        background: `${ETAPA_COLORS[row.etapa] || '#64748b'}12`,
-                                                        color: ETAPA_COLORS[row.etapa] || '#64748b',
-                                                        border: `1px solid ${ETAPA_COLORS[row.etapa] || '#64748b'}25`,
+                                                        background: `${ETAPA_COLORS[row.etapa] || 'var(--muted)'}12`,
+                                                        color: ETAPA_COLORS[row.etapa] || 'var(--muted)',
+                                                        border: `1px solid ${ETAPA_COLORS[row.etapa] || 'var(--muted)'}25`,
                                                         textTransform: 'capitalize',
                                                     }}>
                                                         {row.etapa?.replace(/_/g, ' ')}

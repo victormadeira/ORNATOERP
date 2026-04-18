@@ -138,10 +138,10 @@ export default function ToolpathSimulator({ chapData, operations, isOpen, onClos
             {/* Stats bar */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 6, marginBottom: 10 }}>
                 {[
-                    { lb: 'Dist. Total', val: `${(stats.totalDist / 1000).toFixed(1)}m`, color: '#3b82f6' },
-                    { lb: 'Dist. Corte', val: `${(stats.cutDist / 1000).toFixed(1)}m`, color: '#22c55e' },
-                    { lb: 'Dist. Rápido', val: `${(stats.rapidDist / 1000).toFixed(1)}m`, color: '#ef4444' },
-                    { lb: 'Trocas Ferr.', val: stats.toolChanges, color: '#f59e0b' },
+                    { lb: 'Dist. Total', val: `${(stats.totalDist / 1000).toFixed(1)}m`, color: 'var(--info)' },
+                    { lb: 'Dist. Corte', val: `${(stats.cutDist / 1000).toFixed(1)}m`, color: 'var(--success)' },
+                    { lb: 'Dist. Rápido', val: `${(stats.rapidDist / 1000).toFixed(1)}m`, color: 'var(--danger)' },
+                    { lb: 'Trocas Ferr.', val: stats.toolChanges, color: 'var(--warning)' },
                     { lb: 'Tempo Est.', val: formatTime(stats.estimatedTime), color: '#8b5cf6' },
                 ].map(s => (
                     <div key={s.lb} style={{ padding: '6px 8px', background: 'var(--bg-muted)', borderRadius: 6, textAlign: 'center' }}>
@@ -244,7 +244,7 @@ export default function ToolpathSimulator({ chapData, operations, isOpen, onClos
                         Troca ferr.
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} />
+                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--success)' }} />
                         Início
                     </span>
                 </div>

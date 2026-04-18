@@ -40,8 +40,8 @@ function ProducaoResume({ data, nav }) {
     const items = [
         { icon: Factory, label: 'Em Produção', value: data.projetos_ativos, color: 'var(--primary)', sub: data.projetos_atrasados > 0 ? `${data.projetos_atrasados} atrasado${data.projetos_atrasados > 1 ? 's' : ''}` : 'todos no prazo' },
         { icon: Clock, label: 'Horas/Semana', value: `${data.horas_semana}h`, color: '#8b5cf6', sub: 'apontadas' },
-        { icon: Truck, label: 'Entregas', value: data.entregas_semana, color: '#f59e0b', sub: 'esta semana' },
-        { icon: Wrench, label: 'Instalações', value: data.instalacoes_semana, color: '#22c55e', sub: 'esta semana' },
+        { icon: Truck, label: 'Entregas', value: data.entregas_semana, color: 'var(--warning)', sub: 'esta semana' },
+        { icon: Wrench, label: 'Instalações', value: data.instalacoes_semana, color: 'var(--success)', sub: 'esta semana' },
     ];
 
     return (
@@ -83,9 +83,9 @@ function ProducaoResume({ data, nav }) {
             {data.gargalos?.length > 0 && (
                 <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {data.gargalos.map((g, i) => {
-                        const severity = g.qtd >= 8 ? { bg: 'rgba(239,68,68,0.10)', color: '#ef4444', pulse: true }
+                        const severity = g.qtd >= 8 ? { bg: 'rgba(239,68,68,0.10)', color: 'var(--danger)', pulse: true }
                             : g.qtd >= 4 ? { bg: 'rgba(249,115,22,0.10)', color: '#f97316', pulse: false }
-                            : { bg: 'rgba(245,158,11,0.10)', color: '#f59e0b', pulse: false };
+                            : { bg: 'rgba(245,158,11,0.10)', color: 'var(--warning)', pulse: false };
                         return (
                             <span key={i} style={{
                                 fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 6,
@@ -156,8 +156,8 @@ function FilaAtencao({ data, nav }) {
                 borderBottom: '1px solid var(--border)',
                 background: 'linear-gradient(135deg, rgba(245,158,11,0.06), transparent)',
             }}>
-                <AlertTriangle size={16} style={{ color: '#f59e0b' }} />
-                <span style={{ fontWeight: 700, fontSize: 13, color: '#f59e0b' }}>Fila de Atencao</span>
+                <AlertTriangle size={16} style={{ color: 'var(--warning)' }} />
+                <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--warning)' }}>Fila de Atencao</span>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
                     {data.total_parados > 0 && `${data.total_parados} orc. parado${data.total_parados > 1 ? 's' : ''}`}
                     {data.total_parados > 0 && data.total_vencidas > 0 && ' · '}
@@ -172,9 +172,9 @@ function FilaAtencao({ data, nav }) {
                             <Clock size={10} style={{ display: 'inline', marginRight: 4 }} /> Orcamentos Parados ({'>'}7 dias)
                         </div>
                         {data.orcamentos_parados.map((o, i) => {
-                            const urgency = o.dias_parado > 14 ? { bg: '#ef444418', color: '#ef4444' }
+                            const urgency = o.dias_parado > 14 ? { bg: 'var(--danger-bg)', color: 'var(--danger)' }
                                 : o.dias_parado >= 7 ? { bg: '#f9731618', color: '#f97316' }
-                                : { bg: '#f59e0b18', color: '#f59e0b' };
+                                : { bg: 'var(--warning-bg)', color: 'var(--warning)' };
                             return (
                             <div key={o.id} onClick={() => nav('orcs')}
                                 style={{
@@ -202,7 +202,7 @@ function FilaAtencao({ data, nav }) {
                 {data.total_vencidas > 0 && (
                     <div>
                         <div style={{ padding: '10px 16px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)' }}>
-                            <XCircle size={10} style={{ display: 'inline', marginRight: 4, color: '#ef4444' }} /> Contas Vencidas
+                            <XCircle size={10} style={{ display: 'inline', marginRight: 4, color: 'var(--danger)' }} /> Contas Vencidas
                         </div>
                         {data.contas_vencidas.map((c, i) => (
                             <div key={c.id} onClick={() => nav('financeiro')}
@@ -393,13 +393,13 @@ function ProjetosAtivos({ data, total, nav }) {
             </SectionHeader>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 0 }}>
                 {data.map((p, idx) => {
-                    const color = (STATUS_PROJ[p.status]?.color || '#94a3b8');
+                    const color = (STATUS_PROJ[p.status]?.color || 'var(--muted)');
                     const pct = p.progresso_pct || 0;
                     const diasLabel = p.dias_restantes > 0
                         ? `${p.dias_restantes}d restantes`
                         : p.dias_restantes === 0 ? 'Vence hoje'
                         : `${Math.abs(p.dias_restantes)}d atrasado`;
-                    const diasColor = p.dias_restantes < 0 ? '#ef4444' : p.dias_restantes <= 7 ? '#f59e0b' : 'var(--text-muted)';
+                    const diasColor = p.dias_restantes < 0 ? 'var(--danger)' : p.dias_restantes <= 7 ? 'var(--warning)' : 'var(--text-muted)';
 
                     return (
                         <div key={p.id} onClick={() => nav('proj')}
@@ -454,12 +454,12 @@ function ProjetosAtivos({ data, total, nav }) {
                             {(p.ocorrencias_abertas > 0 || p.contas_vencidas > 0) && (
                                 <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
                                     {p.ocorrencias_abertas > 0 && (
-                                        <span style={{ fontSize: 10, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                        <span style={{ fontSize: 10, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 3 }}>
                                             <AlertTriangle size={10} /> {p.ocorrencias_abertas} ocorrencia{p.ocorrencias_abertas > 1 ? 's' : ''}
                                         </span>
                                     )}
                                     {p.contas_vencidas > 0 && (
-                                        <span style={{ fontSize: 10, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                        <span style={{ fontSize: 10, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 3 }}>
                                             <XCircle size={10} /> {p.contas_vencidas} conta{p.contas_vencidas > 1 ? 's' : ''} vencida{p.contas_vencidas > 1 ? 's' : ''}
                                         </span>
                                     )}
@@ -599,7 +599,7 @@ function GraficoBarras6Meses({ data }) {
             <SectionHeader icon={BarChart3} title="Receita vs Despesas (6 meses)">
                 <div style={{ display: 'flex', gap: 12, fontSize: 10, fontWeight: 600 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 3, background: 'var(--primary)', display: 'inline-block' }} /> Receita</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 3, background: '#94a3b8', display: 'inline-block' }} /> Despesas</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 3, background: 'var(--muted)', display: 'inline-block' }} /> Despesas</span>
                 </div>
             </SectionHeader>
             <div style={{ padding: '20px', display: 'flex', alignItems: 'flex-end', gap: 12, height: 220, position: 'relative' }}>
@@ -622,7 +622,7 @@ function GraficoBarras6Meses({ data }) {
                                 <div style={{
                                     flex: 1, borderRadius: '6px 6px 0 0', minHeight: m.despesa > 0 ? 4 : 0,
                                     height: `${dPct}%`,
-                                    background: '#94a3b8',
+                                    background: 'var(--muted)',
                                     transformOrigin: 'bottom',
                                     animation: `chartGrowUp 0.5s ease ${i * 80 + 50}ms both`,
                                 }} title={`Despesas: ${R$(m.despesa)}`} />
@@ -654,7 +654,7 @@ function GraficoPizzaDespesas({ data }) {
             <div style={{ padding: '14px 20px' }}>
                 {data.map((d, i) => {
                     const pct = total > 0 ? Math.round((d.total / total) * 100) : 0;
-                    const color = CAT_COLOR[d.categoria] || '#94a3b8';
+                    const color = CAT_COLOR[d.categoria] || 'var(--muted)';
                     return (
                         <div key={i} style={{ marginBottom: 10, animation: `stagger-in 0.35s ease ${i * 50}ms both` }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -736,7 +736,7 @@ function FluxoProjetado({ data }) {
                             <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, textTransform: 'capitalize', color: 'var(--text-primary)' }}>{m.label}</div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
                                 <span style={{ color: 'var(--primary)', fontWeight: 600 }}>Entradas: {R$(m.entradas)}</span>
-                                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Saidas: {R$(m.saidas)}</span>
+                                <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Saidas: {R$(m.saidas)}</span>
                             </div>
                             <div style={{ display: 'flex', gap: 3, marginBottom: 4, height: 8, borderRadius: 99, overflow: 'hidden', background: 'var(--bg-card)' }}>
                                 <div style={{
@@ -746,7 +746,7 @@ function FluxoProjetado({ data }) {
                                 }} />
                                 <div style={{
                                     width: `${((m.saidas || 1) / totalFlux) * 100}%`, height: '100%',
-                                    background: '#94a3b8', borderRadius: 99,
+                                    background: 'var(--muted)', borderRadius: 99,
                                     transformOrigin: 'left', animation: `chartSlideRight 0.5s ease ${i * 80 + 150}ms both`,
                                 }} />
                             </div>
@@ -823,9 +823,9 @@ function TopClientes({ data }) {
                         <span style={{
                             width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                             fontSize: 11, fontWeight: 700,
-                            background: i === 0 ? 'linear-gradient(135deg, #f59e0b22, #f59e0b08)' : 'var(--bg-muted)',
-                            color: i === 0 ? '#f59e0b' : 'var(--text-muted)',
-                            border: i === 0 ? '1px solid #f59e0b30' : 'none',
+                            background: i === 0 ? 'linear-gradient(135deg, #f59e0b22, var(--warning-bg))' : 'var(--bg-muted)',
+                            color: i === 0 ? 'var(--warning)' : 'var(--text-muted)',
+                            border: i === 0 ? '1px solid var(--warning-border)' : 'none',
                         }}>{i + 1}</span>
                         <div>
                             <div style={{ fontSize: 13, fontWeight: 600 }}>{c.cliente_nome}</div>

@@ -702,7 +702,7 @@ export function StepProgress({ steps, current, onStepClick }) {
             {steps.map((step, i) => {
                 const isDone = step.done;
                 const isActive = i === current;
-                const color = isDone ? '#22c55e' : isActive ? 'var(--primary)' : 'var(--text-muted)';
+                const color = isDone ? 'var(--success)' : isActive ? 'var(--primary)' : 'var(--text-muted)';
                 return (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                         <button
@@ -711,7 +711,7 @@ export function StepProgress({ steps, current, onStepClick }) {
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 width: 28, height: 28, borderRadius: '50%',
                                 border: `2px solid ${color}`,
-                                background: isDone ? '#22c55e' : isActive ? 'var(--primary)' : 'transparent',
+                                background: isDone ? 'var(--success)' : isActive ? 'var(--primary)' : 'transparent',
                                 color: isDone || isActive ? '#fff' : color,
                                 fontSize: 11, fontWeight: 700, cursor: 'pointer',
                                 transition: 'all 0.2s',
@@ -723,7 +723,7 @@ export function StepProgress({ steps, current, onStepClick }) {
                         {i < steps.length - 1 && (
                             <div style={{
                                 width: 20, height: 2,
-                                background: isDone ? '#22c55e' : 'var(--border)',
+                                background: isDone ? 'var(--success)' : 'var(--border)',
                                 transition: 'background 0.3s',
                             }} />
                         )}
@@ -812,7 +812,7 @@ export function FilterChips({ options, value, onChange, multiple = false }) {
 // ─── ProgressBar — barra de progresso simples ──────────
 export function ProgressBar({ value = 0, max = 100, color, height = 6, showLabel, label }) {
     const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
-    const c = color || (pct >= 100 ? '#22c55e' : pct >= 60 ? 'var(--primary)' : pct >= 30 ? '#f59e0b' : '#ef4444');
+    const c = color || (pct >= 100 ? 'var(--success)' : pct >= 60 ? 'var(--primary)' : pct >= 30 ? 'var(--warning)' : 'var(--danger)');
     return (
         <div style={{ width: '100%' }}>
             {(showLabel || label) && (
@@ -835,7 +835,7 @@ export function ProgressBar({ value = 0, max = 100, color, height = 6, showLabel
 
 // ─── RankBadge — badge de ranking (1°, 2°, 3°) ────────
 export function RankBadge({ rank }) {
-    const colors = { 1: '#f59e0b', 2: '#94a3b8', 3: '#cd7f32' };
+    const colors = { 1: 'var(--warning)', 2: 'var(--muted)', 3: '#cd7f32' };
     const c = colors[rank];
     if (!c) return <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>{rank}°</span>;
     return (

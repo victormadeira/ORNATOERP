@@ -34,15 +34,15 @@ const ORIGENS_LABEL = {
     whatsapp: 'WhatsApp', outro: 'Outro', '': 'Não informado',
 };
 const ORIGENS_COLOR = {
-    instagram: '#E1306C', google: '#4285F4', indicacao: '#22c55e',
+    instagram: '#E1306C', google: '#4285F4', indicacao: 'var(--success)',
     facebook: '#1877F2', arquiteto: '#8b5cf6', site: '#06b6d4',
-    whatsapp: '#25D366', outro: '#64748b', '': '#94a3b8',
+    whatsapp: '#25D366', outro: 'var(--muted)', '': 'var(--muted)',
 };
 const TEMP_CONFIG = {
-    muito_quente: { icon: Flame,          color: '#ef4444', bg: '#fef2f2', text: 'Muito quente', animated: true },
+    muito_quente: { icon: Flame,          color: 'var(--danger)', bg: 'var(--danger-bg)', text: 'Muito quente', animated: true },
     quente:       { icon: ThermometerSun,  color: '#f97316', bg: '#fff7ed', text: 'Quente', animated: true },
-    morno:        { icon: Droplets,        color: '#eab308', bg: '#fefce8', text: 'Morno' },
-    frio:         { icon: Snowflake,       color: '#64748b', bg: '#f1f5f9', text: 'Frio' },
+    morno:        { icon: Droplets,        color: '#eab308', bg: 'var(--warning-bg)', text: 'Morno' },
+    frio:         { icon: Snowflake,       color: 'var(--muted)', bg: 'var(--muted-bg)', text: 'Frio' },
 };
 
 function TempIcon({ temp, size = 13 }) {
@@ -93,7 +93,7 @@ function DraggableCard({ lead, onEdit, onOpen, nav, onNewOrc, onLinkOrc }) {
     };
 
     const diasParado = lead.dias_parado || 0;
-    const alertColor = diasParado >= 7 ? '#ef4444' : diasParado >= 3 ? '#f59e0b' : null;
+    const alertColor = diasParado >= 7 ? 'var(--danger)' : diasParado >= 3 ? 'var(--warning)' : null;
     const origemColor = ORIGENS_COLOR[lead.origem] || ORIGENS_COLOR[''];
 
     return (
@@ -148,7 +148,7 @@ function DraggableCard({ lead, onEdit, onOpen, nav, onNewOrc, onLinkOrc }) {
                                 <div className="text-[9px] text-[var(--text-muted)] mb-1 flex flex-wrap gap-x-2">
                                     {dados.tipo_imovel && <span>{dados.tipo_imovel}</span>}
                                     {dados.num_ambientes && <span>{dados.num_ambientes} amb.</span>}
-                                    {dados.urgencia && <span style={{ color: dados.urgencia === 'alta' ? '#ef4444' : undefined }}>{dados.urgencia}</span>}
+                                    {dados.urgencia && <span style={{ color: dados.urgencia === 'alta' ? 'var(--danger)' : undefined }}>{dados.urgencia}</span>}
                                 </div>
                             )}
 
@@ -184,7 +184,7 @@ function DraggableCard({ lead, onEdit, onOpen, nav, onNewOrc, onLinkOrc }) {
 
                             {/* Orçamento vinculado */}
                             {lead.orc_id && (
-                                <div className="text-[9px] mb-1.5 flex items-center gap-1 px-1.5 py-1 rounded" style={{ background: colorBg('#3b82f6'), color: '#3b82f6' }}>
+                                <div className="text-[9px] mb-1.5 flex items-center gap-1 px-1.5 py-1 rounded" style={{ background: colorBg('var(--info)'), color: 'var(--info)' }}>
                                     <FileText size={9} />
                                     <span className="font-semibold">Orç. {lead.orc_numero || `#${lead.orc_id}`}</span>
                                     {lead.orc_valor > 0 && <span className="ml-auto font-bold">R$ {Number(lead.orc_valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
@@ -211,7 +211,7 @@ function DraggableCard({ lead, onEdit, onOpen, nav, onNewOrc, onLinkOrc }) {
                                     )}
                                     {!lead.orc_id && (
                                         <button onClick={(e) => { e.stopPropagation(); onNewOrc?.(lead); }} className="p-1 rounded hover:bg-[var(--bg-card)]" title="Criar orçamento">
-                                            <PlusCircle size={11} style={{ color: '#3b82f6' }} />
+                                            <PlusCircle size={11} style={{ color: 'var(--info)' }} />
                                         </button>
                                     )}
                                     <button onClick={(e) => { e.stopPropagation(); onEdit(lead); }} className="p-1 rounded hover:bg-[var(--bg-card)]" title="Editar">
@@ -286,12 +286,12 @@ function MetricsDash({ metricas }) {
     const m = metricas;
 
     const cards = [
-        { label: 'Total Leads', value: m.totalLeads, icon: Users, color: '#3b82f6' },
-        { label: 'Convertidos', value: m.convertidos, icon: Target, color: '#22c55e' },
+        { label: 'Total Leads', value: m.totalLeads, icon: Users, color: 'var(--info)' },
+        { label: 'Convertidos', value: m.convertidos, icon: Target, color: 'var(--success)' },
         { label: 'Taxa Conversão', value: `${m.taxaConversao}%`, icon: TrendingUp, color: '#8b5cf6' },
         { label: 'Esta Semana', value: m.estaSemana, icon: Calendar, color: '#06b6d4', sub: m.semanaPassada > 0 ? `vs ${m.semanaPassada} sem. ant.` : null },
-        { label: 'Tempo Médio', value: `${m.tempoMedioConversao}d`, icon: Clock, color: '#f59e0b' },
-        { label: 'Atrasados', value: m.followupAtrasado + m.parados, icon: AlertTriangle, color: m.followupAtrasado + m.parados > 0 ? '#ef4444' : '#64748b' },
+        { label: 'Tempo Médio', value: `${m.tempoMedioConversao}d`, icon: Clock, color: 'var(--warning)' },
+        { label: 'Atrasados', value: m.followupAtrasado + m.parados, icon: AlertTriangle, color: m.followupAtrasado + m.parados > 0 ? 'var(--danger)' : 'var(--muted)' },
     ];
 
     return (
@@ -353,7 +353,7 @@ export default function FunilLeads({ notify, nav }) {
     const [editLead, setEditLead] = useState(null);
     const [showMetrics, setShowMetrics] = useState(true);
     const [showColConfig, setShowColConfig] = useState(false);
-    const [colForm, setColForm] = useState({ nome: '', cor: '#64748b' });
+    const [colForm, setColForm] = useState({ nome: '', cor: 'var(--muted)' });
     const [editColId, setEditColId] = useState(null);
     const [editColForm, setEditColForm] = useState({ nome: '', cor: '' });
     const [showLinkOrc, setShowLinkOrc] = useState(null); // lead para vincular orçamento
@@ -458,7 +458,7 @@ export default function FunilLeads({ notify, nav }) {
         if (!colForm.nome?.trim()) { notify?.('Digite o nome da coluna'); return; }
         try {
             await api.post('/leads/colunas', { ...colForm, nome: colForm.nome.trim() });
-            setColForm({ nome: '', cor: '#64748b' });
+            setColForm({ nome: '', cor: 'var(--muted)' });
             loadAll();
             notify?.('Coluna criada!');
         } catch (err) { notify?.(err?.error || 'Erro ao criar coluna'); }
@@ -615,7 +615,7 @@ export default function FunilLeads({ notify, nav }) {
                                             </button>
                                         ) : (
                                             <button onClick={() => deleteColumn(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }} title="Remover">
-                                                <Trash2 size={11} style={{ color: '#ef4444', opacity: 0.5 }} />
+                                                <Trash2 size={11} style={{ color: 'var(--danger)', opacity: 0.5 }} />
                                             </button>
                                         )}
                                     </>
@@ -901,13 +901,13 @@ function LeadModal({ lead, colunas, onSave, onDelete, onClose, onNewOrc, onLinkO
                     <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
                         <label className="text-[10px] font-semibold text-[var(--text-muted)] uppercase mb-2 block">Orçamento</label>
                         {lead.orc_id ? (
-                            <div className="flex items-center gap-3 p-2.5 rounded-lg" style={{ background: colorBg('#3b82f6'), border: `1px solid ${colorBorder('#3b82f6')}` }}>
-                                <FileText size={16} style={{ color: '#3b82f6', flexShrink: 0 }} />
+                            <div className="flex items-center gap-3 p-2.5 rounded-lg" style={{ background: colorBg('var(--info)'), border: `1px solid ${colorBorder('var(--info)')}` }}>
+                                <FileText size={16} style={{ color: 'var(--info)', flexShrink: 0 }} />
                                 <div className="flex-1">
                                     <div className="text-xs font-semibold text-[var(--text-primary)]">{lead.orc_numero || `#${lead.orc_id}`}</div>
                                     {lead.orc_valor > 0 && <div className="text-[10px] text-[var(--text-muted)]">R$ {Number(lead.orc_valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>}
                                 </div>
-                                <button onClick={() => onUnlinkOrc?.(lead.id)} className="text-[10px] px-2 py-1 rounded" style={{ color: '#ef4444', background: colorBg('#ef4444') }} title="Desvincular">
+                                <button onClick={() => onUnlinkOrc?.(lead.id)} className="text-[10px] px-2 py-1 rounded" style={{ color: 'var(--danger)', background: colorBg('var(--danger)') }} title="Desvincular">
                                     <X size={10} className="inline" /> Desvincular
                                 </button>
                             </div>
@@ -926,7 +926,7 @@ function LeadModal({ lead, colunas, onSave, onDelete, onClose, onNewOrc, onLinkO
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
                     {onDelete ? (
-                        <button onClick={onDelete} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: colorBg('#ef4444'), color: '#ef4444', border: `1px solid ${colorBorder('#ef4444')}` }}>
+                        <button onClick={onDelete} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: colorBg('var(--danger)'), color: 'var(--danger)', border: `1px solid ${colorBorder('var(--danger)')}` }}>
                             <Trash2 size={11} className="inline mr-1" style={{ verticalAlign: 'middle' }} />Excluir
                         </button>
                     ) : <div />}

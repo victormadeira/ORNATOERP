@@ -32,7 +32,7 @@ function useDebounce(value, delay) {
  */
 
 const WORKER_CATEGORIES = [
-    { value: 'transfer_hole', label: 'Furo passante', icon: '●', color: '#dc2626', desc: 'Atravessa a peça' },
+    { value: 'transfer_hole', label: 'Furo passante', icon: '●', color: 'var(--danger-hover)', desc: 'Atravessa a peça' },
     { value: 'transfer_hole_blind', label: 'Furo cego', icon: '◐', color: '#f97316', desc: 'Não atravessa' },
     { value: 'transfer_pocket', label: 'Rebaixo / Pocket', icon: '▬', color: '#a855f7', desc: 'Depressão retangular' },
     { value: 'Transfer_vertical_saw_cut', label: 'Rasgo / Canal', icon: '━', color: '#eab308', desc: 'Corte linear' },
@@ -470,7 +470,7 @@ export default function PecaEditor({ peca, loteId, onSave, onClose, materiais = 
                                                     <Copy size={12} />
                                                 </button>
                                                 <button onClick={e => { e.stopPropagation(); removeWorker(i); }}
-                                                    title="Remover" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 2 }}>
+                                                    title="Remover" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 2 }}>
                                                     <Trash2 size={12} />
                                                 </button>
                                             </div>

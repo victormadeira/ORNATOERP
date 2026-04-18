@@ -89,7 +89,7 @@ function MiniChapaMap({ plano, pecaId }) {
                             <rect
                                 x={px} y={py} width={pw} height={ph}
                                 fill={isTarget ? 'rgba(34,197,94,0.35)' : 'rgba(19,121,240,0.12)'}
-                                stroke={isTarget ? '#22c55e' : 'rgba(19,121,240,0.3)'}
+                                stroke={isTarget ? 'var(--success)' : 'rgba(19,121,240,0.3)'}
                                 strokeWidth={isTarget ? 1.5 : 0.5} rx={1}
                             />
                             {isTarget && pw > 12 && ph > 8 && (
@@ -116,7 +116,7 @@ function MiniChapaMap({ plano, pecaId }) {
                             x={px - 1} y={py - 1} width={pw + 2} height={ph + 2}
                             fill="none" stroke="#4ade80" strokeWidth={2}
                             strokeDasharray="3 2" rx={2}
-                            style={{ filter: 'drop-shadow(0 0 4px #22c55e)' }}
+                            style={{ filter: 'drop-shadow(0 0 4px var(--success))' }}
                         />
                     );
                 })()}
@@ -699,8 +699,8 @@ export default function Expedicao() {
     const peca = lastScan?.peca;
     const plano = lastScan?.plano;
 
-    const scanBorderColor = scanResult === 'success' ? '#22c55e'
-        : (scanResult === 'error' || scanResult === 'duplicate') ? '#ef4444'
+    const scanBorderColor = scanResult === 'success' ? 'var(--success)'
+        : (scanResult === 'error' || scanResult === 'duplicate') ? 'var(--danger)'
         : 'var(--border)';
     const scanBg = scanResult === 'success' ? 'rgba(34,197,94,0.08)'
         : (scanResult === 'error' || scanResult === 'duplicate') ? 'rgba(239,68,68,0.08)'
@@ -873,7 +873,7 @@ export default function Expedicao() {
                                                             fontSize: 9, fontWeight: 700,
                                                             padding: '1px 6px', borderRadius: 10,
                                                             background: 'rgba(34,197,94,0.15)',
-                                                            color: '#22c55e', textTransform: 'uppercase',
+                                                            color: 'var(--success)', textTransform: 'uppercase',
                                                             letterSpacing: 0.3, flexShrink: 0,
                                                         }}>
                                                             Em produção
@@ -974,20 +974,20 @@ export default function Expedicao() {
                         background: 'var(--bg-muted)', border: '1px solid var(--border)',
                         flexShrink: 0,
                     }}>
-                        <BarChart2 size={13} color={progressPct === 100 ? '#22c55e' : 'var(--primary)'} />
+                        <BarChart2 size={13} color={progressPct === 100 ? 'var(--success)' : 'var(--primary)'} />
                         <div style={{ width: 72, height: 5, borderRadius: 3, background: 'var(--border-hover)' }}>
                             <div style={{
                                 height: '100%', borderRadius: 3,
                                 width: `${progressPct}%`,
                                 transition: 'width .5s ease',
                                 background: progressPct === 100
-                                    ? 'linear-gradient(90deg, #22c55e, #4ade80)'
+                                    ? 'linear-gradient(90deg, var(--success), #4ade80)'
                                     : 'linear-gradient(90deg, var(--primary), #60a5fa)',
                             }} />
                         </div>
                         <span style={{
                             fontSize: 12, fontWeight: 700,
-                            color: progressPct === 100 ? '#22c55e' : 'var(--primary)',
+                            color: progressPct === 100 ? 'var(--success)' : 'var(--primary)',
                             fontFamily: 'monospace', minWidth: 50,
                         }}>
                             {cpProgress.scanned}/{cpProgress.total}
@@ -1121,8 +1121,8 @@ export default function Expedicao() {
                                 position: 'absolute', left: 18, top: '50%',
                                 transform: 'translateY(-50%)',
                                 color: scanning ? 'var(--primary)'
-                                    : scanResult === 'success' ? '#22c55e'
-                                    : (scanResult === 'error' || scanResult === 'duplicate') ? '#ef4444'
+                                    : scanResult === 'success' ? 'var(--success)'
+                                    : (scanResult === 'error' || scanResult === 'duplicate') ? 'var(--danger)'
                                     : 'var(--text-muted)',
                                 transition: 'color .2s',
                                 display: 'flex', alignItems: 'center',
@@ -1254,7 +1254,7 @@ export default function Expedicao() {
                                         <Pill color="var(--primary)" label="Material" value={peca.material_code} />
                                     )}
                                     {(peca.quantidade || 1) > 1 && (
-                                        <Pill color="#f59e0b" label="Qtd" value={`×${peca.quantidade}`} />
+                                        <Pill color="var(--warning)" label="Qtd" value={`×${peca.quantidade}`} />
                                     )}
                                     {peca.grain && peca.grain !== 'sem_veio' && (
                                         <Pill color="#f97316" label="Veio" value={peca.grain} />
@@ -1383,7 +1383,7 @@ export default function Expedicao() {
                                     <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
                                         <div style={{
                                             fontSize: 26, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1,
-                                            color: progressPct === 100 ? '#22c55e' : 'var(--primary)',
+                                            color: progressPct === 100 ? 'var(--success)' : 'var(--primary)',
                                         }}>
                                             {progressPct}%
                                         </div>
@@ -1418,13 +1418,13 @@ export default function Expedicao() {
                                                             <span style={{ color: 'var(--primary)', fontSize: 9 }}>▶</span>
                                                         )}
                                                         {isDone && !isActive && (
-                                                            <CheckCircle size={10} color="#22c55e" />
+                                                            <CheckCircle size={10} color="var(--success)" />
                                                         )}
                                                         {c.nome}
                                                     </span>
                                                     <span style={{
                                                         fontSize: 11, fontFamily: 'monospace',
-                                                        color: isDone ? '#22c55e' : isActive ? 'var(--primary)' : 'var(--text-muted)',
+                                                        color: isDone ? 'var(--success)' : isActive ? 'var(--primary)' : 'var(--text-muted)',
                                                         fontWeight: isActive ? 700 : 400,
                                                     }}>
                                                         {prog.scanned}/{prog.total}
@@ -1434,7 +1434,7 @@ export default function Expedicao() {
                                                     <div style={{
                                                         height: '100%', borderRadius: 3,
                                                         width: `${pct}%`, transition: 'width .5s ease',
-                                                        background: isDone ? '#22c55e'
+                                                        background: isDone ? 'var(--success)'
                                                             : isActive ? 'var(--primary)'
                                                             : 'var(--border-hover)',
                                                     }} />
@@ -1553,7 +1553,7 @@ export default function Expedicao() {
                                             style={{
                                                 display: 'flex', alignItems: 'center', gap: 5,
                                                 padding: '6px 14px', fontSize: 11, fontWeight: 700,
-                                                background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                                background: 'linear-gradient(135deg, var(--warning), var(--warning-hover))',
                                                 border: 'none', borderRadius: 8,
                                                 color: '#fff', cursor: bulkMarking ? 'wait' : 'pointer',
                                                 boxShadow: '0 2px 8px rgba(245,158,11,0.3)',
@@ -1605,14 +1605,14 @@ export default function Expedicao() {
                                                 }}>
                                                     {!allDone && pendingInMod.length > 0 && (
                                                         allModPendingSelected
-                                                            ? <CheckSquare size={13} color="#f59e0b" />
+                                                            ? <CheckSquare size={13} color="var(--warning)" />
                                                             : <Square size={13} color="var(--text-muted)" />
                                                     )}
                                                     {modulo}
                                                 </span>
                                                 <span style={{
                                                     fontSize: 11, fontFamily: 'monospace', fontWeight: 700,
-                                                    color: allDone ? '#22c55e' : 'var(--text-muted)',
+                                                    color: allDone ? 'var(--success)' : 'var(--text-muted)',
                                                 }}>
                                                     {modScanned}/{pecas.length}
                                                     {allDone && ' ✓'}
@@ -1666,12 +1666,12 @@ export default function Expedicao() {
                                                         <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
                                                             {isScanned ? (
                                                                 isManual ? (
-                                                                    <Hand size={15} color="#f59e0b" />
+                                                                    <Hand size={15} color="var(--warning)" />
                                                                 ) : (
-                                                                    <CheckCircle size={15} color="#22c55e" />
+                                                                    <CheckCircle size={15} color="var(--success)" />
                                                                 )
                                                             ) : isSelected ? (
-                                                                <CheckSquare size={15} color="#f59e0b" />
+                                                                <CheckSquare size={15} color="var(--warning)" />
                                                             ) : (
                                                                 <Square size={15} color="var(--border-hover)" />
                                                             )}
@@ -1682,7 +1682,7 @@ export default function Expedicao() {
                                                             <div style={{
                                                                 fontSize: 12,
                                                                 fontWeight: isScanned ? 600 : 400,
-                                                                color: isScanned ? '#22c55e' : 'var(--text-primary)',
+                                                                color: isScanned ? 'var(--success)' : 'var(--text-primary)',
                                                                 overflow: 'hidden',
                                                                 textOverflow: 'ellipsis',
                                                                 whiteSpace: 'nowrap',
@@ -1768,8 +1768,8 @@ export default function Expedicao() {
                         animation: 'scaleIn .4s cubic-bezier(.34,1.56,.64,1)',
                     }}>
                         <Award
-                            size={60} color="#22c55e"
-                            style={{ marginBottom: 18, filter: 'drop-shadow(0 0 24px #22c55e)' }}
+                            size={60} color="var(--success)"
+                            style={{ marginBottom: 18, filter: 'drop-shadow(0 0 24px var(--success))' }}
                         />
                         <div style={{ fontSize: 34, fontWeight: 900, color: '#4ade80', marginBottom: 8 }}>
                             Lote Completo!
@@ -1782,7 +1782,7 @@ export default function Expedicao() {
                             style={{
                                 padding: '13px 36px', borderRadius: 10,
                                 fontSize: 14, fontWeight: 700,
-                                background: '#22c55e', border: 'none',
+                                background: 'var(--success)', border: 'none',
                                 color: '#052e16', cursor: 'pointer',
                                 boxShadow: '0 4px 20px rgba(34,197,94,0.4)',
                             }}
@@ -1875,10 +1875,10 @@ export default function Expedicao() {
                                         gap: 12, marginBottom: 20,
                                     }}>
                                         {[
-                                            { label: 'Peças processadas', value: dashData.resumo?.total_pecas_processadas || 0, icon: Package, color: '#3b82f6' },
-                                            { label: 'Média peças/hora', value: dashData.resumo?.media_pecas_hora || 0, icon: Clock, color: '#22c55e' },
+                                            { label: 'Peças processadas', value: dashData.resumo?.total_pecas_processadas || 0, icon: Package, color: 'var(--info)' },
+                                            { label: 'Média peças/hora', value: dashData.resumo?.media_pecas_hora || 0, icon: Clock, color: 'var(--success)' },
                                             { label: 'Lotes concluídos', value: dashData.resumo?.lotes_concluidos || 0, icon: CheckCircle, color: '#8b5cf6' },
-                                            { label: 'Operadores ativos', value: dashData.operadores?.length || 0, icon: User, color: '#f59e0b' },
+                                            { label: 'Operadores ativos', value: dashData.operadores?.length || 0, icon: User, color: 'var(--warning)' },
                                         ].map((card, i) => (
                                             <div key={i} style={{
                                                 padding: '14px 16px', borderRadius: 10,
@@ -1972,7 +1972,7 @@ export default function Expedicao() {
                                             }}>
                                                 <span style={{
                                                     fontWeight: 800, fontSize: 14,
-                                                    color: idx === 0 ? '#f59e0b' : idx === 1 ? '#94a3b8' : idx === 2 ? '#cd7f32' : 'var(--text-muted)',
+                                                    color: idx === 0 ? 'var(--warning)' : idx === 1 ? 'var(--muted)' : idx === 2 ? '#cd7f32' : 'var(--text-muted)',
                                                 }}>
                                                     {idx < 3 ? ['1°', '2°', '3°'][idx] : `${idx + 1}`}
                                                 </span>
@@ -1989,7 +1989,7 @@ export default function Expedicao() {
                                                 <span style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
                                                     {op.total_scans}
                                                 </span>
-                                                <span style={{ textAlign: 'right', fontWeight: 600, color: '#22c55e', fontVariantNumeric: 'tabular-nums' }}>
+                                                <span style={{ textAlign: 'right', fontWeight: 600, color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
                                                     {op.pecas_por_hora}
                                                 </span>
                                                 <span style={{ textAlign: 'right', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>

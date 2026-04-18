@@ -856,8 +856,8 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
         bgCanvas.width = 2; bgCanvas.height = 256;
         const bgCtx = bgCanvas.getContext('2d');
         const bgGrad = bgCtx.createLinearGradient(0, 0, 0, 256);
-        bgGrad.addColorStop(0, '#f8fafc');
-        bgGrad.addColorStop(0.5, '#f1f5f9');
+        bgGrad.addColorStop(0, 'var(--bg-muted)');
+        bgGrad.addColorStop(0.5, 'var(--muted-bg)');
         bgGrad.addColorStop(1, '#e2e8f0');
         bgCtx.fillStyle = bgGrad;
         bgCtx.fillRect(0, 0, 2, 256);
@@ -1148,7 +1148,7 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
         background: active ? 'rgba(19,121,240,0.15)' : 'rgba(255,255,255,0.85)',
         border: active ? '1px solid rgba(19,121,240,0.4)' : '1px solid rgba(0,0,0,0.1)',
         borderRadius: 6, cursor: 'pointer', padding: '5px 7px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: active ? '#1379F0' : '#64748b', fontSize: 11, fontWeight: 600, lineHeight: 1,
+        color: active ? '#1379F0' : 'var(--muted)', fontSize: 11, fontWeight: 600, lineHeight: 1,
         backdropFilter: 'blur(8px)', transition: 'all 0.15s ease',
         boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
     });
@@ -1189,7 +1189,7 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 3h18v18H3z"/><path d="M3 12h18M12 3v18M3 3l18 18M21 3L3 21" opacity="0.5"/></svg>
                     </button>
                     <button onClick={() => setShowEdgeBands(v => !v)} title="Fitas de borda" style={tbBtn(showEdgeBands)}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 3h18M3 21h18" strokeWidth="3" stroke={showEdgeBands ? '#3b82f6' : 'currentColor'}/></svg>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 3h18M3 21h18" strokeWidth="3" stroke={showEdgeBands ? 'var(--info)' : 'currentColor'}/></svg>
                     </button>
                 </div>
             </div>
@@ -1247,7 +1247,7 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
                 </div>
                 {ebCount > 0 && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ width: 8, height: 3, borderRadius: 1, background: '#3b82f6', display: 'inline-block' }} />
+                        <span style={{ width: 8, height: 3, borderRadius: 1, background: 'var(--info)', display: 'inline-block' }} />
                         Borda
                     </div>
                 )}
@@ -1339,7 +1339,7 @@ function Fallback2D({ peca, width, height, style }) {
     const ox = pad + (availW - pw) / 2;
     const oy = pad + (availH - ph) / 2;
 
-    const ebColor = '#3b82f6';
+    const ebColor = 'var(--info)';
 
     const workerTip = (w, e) => {
         const info = classifyWorker(w.category);
@@ -1533,7 +1533,7 @@ function Fallback2D({ peca, width, height, style }) {
                                 fill={darkness} stroke={M.rebaixo} strokeWidth={1} strokeDasharray="3,1.5" rx={1} />
                             {rw > 12 && rh > 12 && (
                                 <text x={cx2 - rw / 2 + 3} y={cy2 - rh / 2 + 9}
-                                    fontSize="7" fill={wFace === 'bottom' ? '#6366f1' : '#dc2626'} fontWeight="700" opacity="0.6">{faceIcon}</text>
+                                    fontSize="7" fill={wFace === 'bottom' ? '#6366f1' : 'var(--danger-hover)'} fontWeight="700" opacity="0.6">{faceIcon}</text>
                             )}
                             <rect x={cx2 - rw / 2 - 4} y={cy2 - rh / 2 - 4} width={rw + 8} height={rh + 8} fill="transparent" />
                         </g>
@@ -1563,7 +1563,7 @@ function Fallback2D({ peca, width, height, style }) {
                             onMouseEnter={(e) => workerTip(w, e)} onMouseMove={(e) => workerTip(w, e)} onMouseLeave={() => setTip(null)}>
                             <circle cx={cx2 + 0.5} cy={cy2 + 0.5} r={r + 0.5} fill="#000" opacity="0.1" />
                             <circle cx={cx2} cy={cy2} r={r}
-                                fill={isBottom ? '#94a3b8' : M.furo}
+                                fill={isBottom ? 'var(--muted)' : M.furo}
                                 stroke={isThrough ? M.furo : M.rebaixo} strokeWidth={isThrough ? 1.5 : 0.8} />
                             {isBottom && r > 2.5 && (
                                 <>
@@ -1598,8 +1598,8 @@ function Fallback2D({ peca, width, height, style }) {
                     const depth = w.depth || 0;
                     const depthPx = Math.min((depth / comp) * pw, pw * 0.15);
                     const toolLbl = getToolLabel(w.tool_code);
-                    const color = isFrontRear ? '#16a34a' : '#2563eb';
-                    const colorDark = isFrontRear ? '#15803d' : '#1d4ed8';
+                    const color = isFrontRear ? 'var(--success-hover)' : 'var(--info-hover)';
+                    const colorDark = isFrontRear ? 'var(--success-hover)' : '#1d4ed8';
 
                     if (isLeftRight) {
                         const atRight = wFace === 'left';

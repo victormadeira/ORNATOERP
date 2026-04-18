@@ -77,7 +77,7 @@ body{font-family:'Inter',Arial,Helvetica,sans-serif;color:#111;font-size:11px;pa
 @media print{.fill-tip{display:none!important;} .check-obs,.item-obs{border-color:transparent!important;box-shadow:none!important;} .check-obs:empty::placeholder,.item-obs:empty::placeholder{color:transparent!important;}}
 
 .garantia-box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:10px 14px;margin-bottom:14px;}
-.garantia-box h3{font-size:11px;font-weight:bold;color:#16a34a;margin-bottom:6px;}
+.garantia-box h3{font-size:11px;font-weight:bold;color:var(--success-hover);margin-bottom:6px;}
 .garantia-box p{font-size:10px;line-height:1.6;color:#333;}
 
 .financeiro{background:${ca}10;border:1px solid ${ca}30;border-radius:5px;padding:10px 14px;margin-bottom:14px;}
@@ -87,7 +87,7 @@ body{font-family:'Inter',Arial,Helvetica,sans-serif;color:#111;font-size:11px;pa
 .fin-row.total{font-weight:bold;font-size:12px;border-top:1.5px solid ${ca};margin-top:4px;padding-top:6px;}
 
 .ressalvas{background:#fef2f2;border:1px solid #fecaca;border-radius:5px;padding:10px 14px;margin-bottom:14px;}
-.ressalvas h3{color:#dc2626!important;border-bottom-color:#fecaca!important;}
+.ressalvas h3{color:var(--danger-hover)!important;border-bottom-color:#fecaca!important;}
 .ressalvas p{font-size:10px;line-height:1.6;color:#333;}
 
 .foto-grid{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;margin-bottom:10px;}
@@ -124,9 +124,9 @@ body{font-family:'Inter',Arial,Helvetica,sans-serif;color:#111;font-size:11px;pa
 
 .cl-box{border-radius:6px;padding:12px 14px;margin-bottom:14px;page-break-inside:avoid;}
 .cl-box.cobertura{background:#f0fdf4;border:1px solid #bbf7d0;}
-.cl-box.cobertura h4{color:#16a34a;}
+.cl-box.cobertura h4{color:var(--success-hover);}
 .cl-box.exclusao{background:#fef2f2;border:1px solid #fecaca;}
-.cl-box.exclusao h4{color:#dc2626;}
+.cl-box.exclusao h4{color:var(--danger-hover);}
 .cl-box.cuidados{background:#fffbeb;border:1px solid #fde68a;}
 .cl-box.cuidados h4{color:${ca};}
 .cl-box h4{font-size:10px;font-weight:700;margin-bottom:6px;text-transform:uppercase;}
@@ -355,7 +355,7 @@ ${(hasOcorr || hasRessalvas) ? `
 <div class="cl">
     ${sn('Pendências e Ressalvas')}
     ${hasOcorr ? `<table class="mt"><thead><tr><th>Assunto</th><th>Descrição</th><th>Status</th></tr></thead><tbody>
-    ${ocorrencias.map(oc => `<tr><td class="nome"><strong>${esc(oc.assunto)}</strong></td><td>${esc(oc.descricao) || '—'}</td><td style="color:#ef4444;font-weight:600">Pendente</td></tr>`).join('')}
+    ${ocorrencias.map(oc => `<tr><td class="nome"><strong>${esc(oc.assunto)}</strong></td><td>${esc(oc.descricao) || '—'}</td><td style="color:var(--danger);font-weight:600">Pendente</td></tr>`).join('')}
     </tbody></table>` : ''}
     ${hasRessalvas ? `<div class="cl-box exclusao" style="margin-top:8px"><h4>Ressalvas</h4><p style="font-size:10px;line-height:1.6">${esc(ressalvas).replace(/\n/g, '<br>')}</p></div>` : ''}
 </div>` : ''}
@@ -392,9 +392,9 @@ ${(hasOcorr || hasRessalvas) ? `
     ${sn('Situação Financeira')}
     <div class="financeiro">
         <div class="fin-row"><span>Valor do projeto:</span><span style="font-weight:600">${R(financeiro.valorTotal)}</span></div>
-        <div class="fin-row"><span>Valor pago:</span><span style="font-weight:600;color:#16a34a">${R(financeiro.totalPago)}</span></div>
-        ${financeiro.totalPendente > 0 ? `<div class="fin-row"><span>Saldo pendente:</span><span style="font-weight:600;color:#ef4444">${R(financeiro.totalPendente)}</span></div>` : ''}
-        <div class="fin-row total"><span>${financeiro.totalPendente > 0 ? 'SALDO A PAGAR' : 'QUITADO'}</span><span style="color:${financeiro.totalPendente > 0 ? '#ef4444' : '#16a34a'}">${financeiro.totalPendente > 0 ? R(financeiro.totalPendente) : 'R$ 0,00'}</span></div>
+        <div class="fin-row"><span>Valor pago:</span><span style="font-weight:600;color:var(--success-hover)">${R(financeiro.totalPago)}</span></div>
+        ${financeiro.totalPendente > 0 ? `<div class="fin-row"><span>Saldo pendente:</span><span style="font-weight:600;color:var(--danger)">${R(financeiro.totalPendente)}</span></div>` : ''}
+        <div class="fin-row total"><span>${financeiro.totalPendente > 0 ? 'SALDO A PAGAR' : 'QUITADO'}</span><span style="color:${financeiro.totalPendente > 0 ? 'var(--danger)' : 'var(--success-hover)'}">${financeiro.totalPendente > 0 ? R(financeiro.totalPendente) : 'R$ 0,00'}</span></div>
     </div>
 </div>
 

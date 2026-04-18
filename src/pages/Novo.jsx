@@ -237,7 +237,7 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso
                             {onAddAvulso && (
                                 <button onClick={() => { onAddAvulso(); setQ(''); setOpen(false); }}
                                     className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
-                                    style={{ color: '#10b981' }}
+                                    style={{ color: 'var(--success)' }}
                                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.08)'}
                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                     <Tag size={14} />
@@ -247,7 +247,7 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso
                             {onAddGrupo && (
                                 <button onClick={() => { onAddGrupo(); setQ(''); setOpen(false); }}
                                     className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
-                                    style={{ color: '#f59e0b' }}
+                                    style={{ color: 'var(--warning)' }}
                                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.08)'}
                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                     <Package size={14} />
@@ -529,7 +529,7 @@ function RelatorioItem({ res, chapasDB, fitasDB, coef, qtd }) {
     const custoFerragens = res.ferrList.reduce((s, f) => s + f.preco * f.qtd, 0);
     const custoChapas = Object.values(res.chapas).reduce((s, c) => s + (c.frac || c.n) * c.mat.preco, 0);
 
-    const TYPE_COLOR = { caixa: 'var(--primary)', tamponamento: 'var(--primary)', componente: '#64748b', frente_externa: '#94a3b8' };
+    const TYPE_COLOR = { caixa: 'var(--primary)', tamponamento: 'var(--primary)', componente: 'var(--muted)', frente_externa: 'var(--muted)' };
     const TYPE_LABEL = { caixa: 'Caixa', tamponamento: 'Tamp.', componente: 'Componente', frente_externa: 'Frente Ext.' };
 
     return (
@@ -643,7 +643,7 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove, precoVenda }) {
                     {exp ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                     <Layers size={13} style={{ color: 'var(--warning)' }} />
                     <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>{painel.nome || 'Painel Ripado'}</span>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: '#f59e0b15', color: 'var(--warning)' }}>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>
                         {painel.tipo === 'muxarabi' ? 'Muxarabi' : 'Ripado'}
                     </span>
                     {calc && <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>{calc.nV} rip · {N(calc.mlTotal)}m</span>}
@@ -685,7 +685,7 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove, precoVenda }) {
                     </div>
 
                     {/* Ripas V */}
-                    <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-card)', borderColor: '#f59e0b30', borderLeft: '3px solid var(--warning)' }}>
+                    <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--warning-border)', borderLeft: '3px solid var(--warning)' }}>
                         <span className="text-[10px] uppercase tracking-widest font-bold block mb-2" style={{ color: 'var(--warning)' }}>Ripas Verticais</span>
                         <div className="grid grid-cols-3 gap-2">
                             <div><label className={Z.lbl}>Largura (mm)</label><input type="number" className={Z.inp} min={5} value={painel.wV || 40} onChange={e => up({ wV: +e.target.value })} /></div>
@@ -826,7 +826,7 @@ function RipadoModuloCard({ ripado, dims, bibItems, onUpdate }) {
             </div>
 
             {/* Ripas V */}
-            <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-card)', borderColor: '#f59e0b30', borderLeft: '3px solid var(--warning)' }}>
+            <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--warning-border)', borderLeft: '3px solid var(--warning)' }}>
                 <span className="text-[10px] uppercase tracking-widest font-bold block mb-2" style={{ color: 'var(--warning)' }}>Ripas Verticais</span>
                 <div className="grid grid-cols-3 gap-2">
                     <div><label className={Z.lbl}>Largura (mm)</label><input type="number" className={Z.inp} min={5} value={ripado.wV || 40} onChange={e => up({ wV: +e.target.value })} /></div>
@@ -2564,10 +2564,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             draggable={canDrag}
                                             onDragStart={e => handleDragStart(e, amb.id, item.id)}
                                             onDragEnd={handleDragEnd}
-                                            style={{ border: '1.5px dashed #10b98180', background: 'rgba(16,185,129,0.03)', borderLeft: '3px solid #10b981', cursor: canDrag ? 'grab' : 'default' }}>
+                                            style={{ border: '1.5px dashed var(--success-border)', background: 'rgba(16,185,129,0.03)', borderLeft: '3px solid var(--success)', cursor: canDrag ? 'grab' : 'default' }}>
                                             <div className="flex items-center gap-2 px-3 py-2">
                                                 {canDrag && <GripVertical size={12} style={{ color: 'var(--text-muted)', opacity: 0.4, flexShrink: 0 }} />}
-                                                <Tag size={13} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                <Tag size={13} style={{ color: 'var(--success)', flexShrink: 0 }} />
                                                 <input type="text" placeholder="Nome do item avulso (ex: Bancada granito)"
                                                     value={item.nome} onChange={e => upItem(amb.id, item.id, it => it.nome = e.target.value)}
                                                     className="bg-transparent font-medium text-sm outline-none flex-1 min-w-0"
@@ -2583,12 +2583,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         onChange={e => upItem(amb.id, item.id, it => it.valor = parseFloat(e.target.value) || 0)}
                                                         className={Z.inp} style={{ width: 90, textAlign: 'right', fontSize: 12 }} readOnly={readOnly} />
                                                 </div>
-                                                <span className="font-bold text-xs whitespace-nowrap" style={{ color: '#10b981', minWidth: 70, textAlign: 'right' }}>
+                                                <span className="font-bold text-xs whitespace-nowrap" style={{ color: 'var(--success)', minWidth: 70, textAlign: 'right' }}>
                                                     {R$((item.valor || 0) * (item.qtd || 1))}
                                                 </span>
                                                 {!readOnly && !inGroup && hasGrupos && (
                                                     <select value="" onChange={e => { if (e.target.value) moveToGrupo(amb.id, item.id, e.target.value); }}
-                                                        className="text-[9px] bg-transparent outline-none cursor-pointer" style={{ color: '#f59e0b', width: 20 }} title="Mover para grupo">
+                                                        className="text-[9px] bg-transparent outline-none cursor-pointer" style={{ color: 'var(--warning)', width: 20 }} title="Mover para grupo">
                                                         <option value="">+</option>
                                                         {(amb.grupos || []).map(g => <option key={g.id} value={g.id}>{g.nome || 'Grupo sem nome'}</option>)}
                                                     </select>
@@ -2653,7 +2653,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 </div>
                                                 {(item.qtd || 1) > 1 && <span className="text-[9px] px-1 rounded font-bold" style={{ background: 'rgba(19,121,240,0.1)', color: 'var(--primary)' }}>×{item.qtd}</span>}
                                                 {item.componentes.length > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>{item.componentes.length} comp.</span>}
-                                                {item.ripado && <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: '#f59e0b15', color: 'var(--warning)' }}>Ripado</span>}
+                                                {item.ripado && <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>Ripado</span>}
                                                 {ajusteR !== 0 && (
                                                     <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: ajusteR > 0 ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)', color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>
                                                         {ajusteR > 0 ? '+' : ''}{aj.tipo === '%' ? `${aj.valor}%` : R$(ajusteR)}
@@ -2668,7 +2668,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         const margemIt = precoItemFinal - custoIt;
                                                         const margemPct = precoItemFinal > 0 ? (margemIt / precoItemFinal * 100) : 0;
                                                         return (
-                                                            <span className="text-[8px] leading-none" style={{ color: margemPct > 50 ? '#8b5cf6' : margemPct > 35 ? '#22c55e' : margemPct > 20 ? 'var(--warning)' : '#ef4444', opacity: 0.8 }}>
+                                                            <span className="text-[8px] leading-none" style={{ color: margemPct > 50 ? '#8b5cf6' : margemPct > 35 ? 'var(--success)' : margemPct > 20 ? 'var(--warning)' : 'var(--danger)', opacity: 0.8 }}>
                                                                 {N(margemPct, 0)}% margem
                                                             </span>
                                                         );
@@ -2677,7 +2677,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 {!readOnly && !inGroup && hasGrupos && (
                                                     <select value="" onChange={e => { e.stopPropagation(); if (e.target.value) moveToGrupo(amb.id, item.id, e.target.value); }}
                                                         onClick={e => e.stopPropagation()}
-                                                        className="text-[9px] bg-transparent outline-none cursor-pointer" style={{ color: '#f59e0b', width: 20 }} title="Mover para grupo">
+                                                        className="text-[9px] bg-transparent outline-none cursor-pointer" style={{ color: 'var(--warning)', width: 20 }} title="Mover para grupo">
                                                         <option value="">+</option>
                                                         {(amb.grupos || []).map(g => <option key={g.id} value={g.id}>{g.nome || 'Grupo sem nome'}</option>)}
                                                     </select>
@@ -2826,7 +2826,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         <>
                                                             {hasAmbMat && isCustom && (
                                                                 <div className="flex items-center justify-between mb-1">
-                                                                    <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: '#f59e0b15', color: 'var(--warning)', border: '1px solid #f59e0b30' }}>Material customizado</span>
+                                                                    <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid var(--warning-border)' }}>Material customizado</span>
                                                                     <button onClick={() => upItem(amb.id, item.id, it => { it._matCustom = false; })}
                                                                         className="text-[9px] px-2 py-0.5 rounded cursor-pointer"
                                                                         style={{ color: 'var(--text-muted)', background: 'var(--bg-muted)', border: '1px solid var(--border)' }}
@@ -2903,7 +2903,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
                                                 {/* Ripado no módulo */}
                                                 {item.ripado && (
-                                                    <div className="rounded-lg border p-3" style={{ borderColor: '#f59e0b40', borderLeft: '3px solid var(--warning)', background: 'var(--bg-card)' }}>
+                                                    <div className="rounded-lg border p-3" style={{ borderColor: 'var(--warning-border)', borderLeft: '3px solid var(--warning)', background: 'var(--bg-card)' }}>
                                                         <div className="flex items-center justify-between mb-2">
                                                             <span className="text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5" style={{ color: 'var(--warning)' }}>
                                                                 <Layers size={10} /> Ripado
@@ -2964,7 +2964,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     : `${amb.itens.length} caixa${amb.itens.length !== 1 ? 's' : ''}${(amb.paineis || []).length > 0 ? ` · ${amb.paineis.length} painel${amb.paineis.length > 1 ? 'is' : ''}` : ''}${(amb.itensEspeciais || []).length > 0 ? ` · ${amb.itensEspeciais.length} especial${amb.itensEspeciais.length > 1 ? 'is' : ''}` : ''}`
                                                 }
                                             </span>
-                                            {amb.tipo === 'manual' && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: '#f59e0b18', color: 'var(--warning)', border: '1px solid #f59e0b30' }}>Manual</span>}
+                                            {amb.tipo === 'manual' && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid var(--warning-border)' }}>Manual</span>}
                                             {amb.matInt && <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(19,121,240,0.06)', color: 'var(--primary)', border: '1px solid rgba(19,121,240,0.15)' }} title={`Interno: ${chapasDB.find(c=>c.id===amb.matInt)?.nome || amb.matInt}${amb.matExt ? ` · Externo: ${[...chapasDB, ...acabDB].find(c=>c.id===amb.matExt)?.nome || amb.matExt}` : ''}`}>{chapasDB.find(c=>c.id===amb.matInt)?.nome || amb.matInt}</span>}
                                         </div>
                                         <div className="flex items-center gap-3">
@@ -3193,23 +3193,23 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         onDragLeave={handleGrupoDragLeave}
                                                         onDrop={e => handleGrupoDrop(e, amb.id, grupo.id)}
                                                         style={{
-                                                            borderColor: dragOverGrupo === grupo.id ? '#f59e0b' : 'rgba(245,158,11,0.3)',
+                                                            borderColor: dragOverGrupo === grupo.id ? 'var(--warning)' : 'rgba(245,158,11,0.3)',
                                                             background: dragOverGrupo === grupo.id ? 'rgba(245,158,11,0.08)' : 'var(--bg-card)',
-                                                            borderLeft: '3px solid #f59e0b',
+                                                            borderLeft: '3px solid var(--warning)',
                                                             boxShadow: dragOverGrupo === grupo.id ? '0 0 12px rgba(245,158,11,0.2)' : 'none',
                                                             transform: dragOverGrupo === grupo.id ? 'scale(1.01)' : 'none',
                                                         }}>
                                                         {/* Header do grupo */}
                                                         <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'rgba(245,158,11,0.04)' }}>
-                                                            <Package size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                                                            <Package size={14} style={{ color: 'var(--warning)', flexShrink: 0 }} />
                                                             <input type="text" placeholder="Nome do grupo (ex: Armário Cozinha 1500mm)"
                                                                 value={grupo.nome} onChange={e => renameGrupo(amb.id, grupo.id, e.target.value)}
                                                                 className="bg-transparent font-semibold text-sm outline-none flex-1 min-w-0"
-                                                                style={{ color: '#f59e0b' }} readOnly={readOnly} />
-                                                            <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>
+                                                                style={{ color: 'var(--warning)' }} readOnly={readOnly} />
+                                                            <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: 'rgba(245,158,11,0.12)', color: 'var(--warning)' }}>
                                                                 {filhos.length} {filhos.length === 1 ? 'item' : 'itens'}
                                                             </span>
-                                                            <span className="font-bold text-xs" style={{ color: '#f59e0b' }}>{R$(pvGrupo)}</span>
+                                                            <span className="font-bold text-xs" style={{ color: 'var(--warning)' }}>{R$(pvGrupo)}</span>
                                                             {!readOnly && <button onClick={() => duplicateGrupo(amb.id, grupo.id)}
                                                                 className="p-1 rounded hover:bg-[var(--bg-hover)]"
                                                                 style={{ color: 'var(--text-muted)' }}
@@ -3221,14 +3221,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         {/* Filhos do grupo — cards completos expandíveis */}
                                                         <div className="pl-3 pr-1 pb-2 pt-1" style={{ borderTop: '1px solid rgba(245,158,11,0.12)' }}>
                                                             {filhos.length === 0 ? (
-                                                                <div className="text-center py-4" style={{ color: dragOverGrupo === grupo.id ? '#f59e0b' : 'var(--text-muted)' }}>
+                                                                <div className="text-center py-4" style={{ color: dragOverGrupo === grupo.id ? 'var(--warning)' : 'var(--text-muted)' }}>
                                                                     <Package size={20} className="mx-auto mb-1 opacity-40" />
                                                                     <span className="text-[10px]">{dragOverGrupo === grupo.id ? 'Solte aqui para adicionar ao grupo' : 'Arraste itens para dentro deste grupo'}</span>
                                                                 </div>
                                                             ) : (<>
                                                                 {filhos.map(fi => renderItemCard(fi, { inGroup: true }))}
                                                                 {dragOverGrupo === grupo.id && (
-                                                                    <div className="text-center py-2 text-[10px] font-medium" style={{ color: '#f59e0b' }}>
+                                                                    <div className="text-center py-2 text-[10px] font-medium" style={{ color: 'var(--warning)' }}>
                                                                         ↓ Solte aqui para adicionar ao grupo
                                                                     </div>
                                                                 )}
@@ -3353,7 +3353,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             <div key={a.id} className="flex justify-between text-xs items-center">
                                                 <span className="truncate" style={{ color: 'var(--text-muted)' }}>{a.nome}</span>
                                                 <div className="flex items-center gap-1.5">
-                                                    {ambMargemPct > 0 && <span className="text-[8px]" title={`Margem ${N(ambMargemPct, 1)}%`} style={{ color: ambMargemPct > 50 ? '#8b5cf6' : ambMargemPct > 35 ? '#22c55e' : ambMargemPct > 20 ? 'var(--warning)' : '#ef4444', opacity: 0.8 }}>{N(ambMargemPct, 0)}%</span>}
+                                                    {ambMargemPct > 0 && <span className="text-[8px]" title={`Margem ${N(ambMargemPct, 1)}%`} style={{ color: ambMargemPct > 50 ? '#8b5cf6' : ambMargemPct > 35 ? 'var(--success)' : ambMargemPct > 20 ? 'var(--warning)' : 'var(--danger)', opacity: 0.8 }}>{N(ambMargemPct, 0)}%</span>}
                                                     <span style={{ color: 'var(--text-secondary)' }}>{R$(ambPvVal)}</span>
                                                 </div>
                                             </div>
@@ -3449,9 +3449,9 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         {/* ── Presets rápidos ── */}
                                         <div className="flex gap-1 mb-2">
                                             {[
-                                                { label: 'Competitivo', fab: 25, comp: 15, lucro: 8, cor: '#3b82f6' },
-                                                { label: 'Padrão', fab: 45, comp: 20, lucro: 12, cor: '#22c55e' },
-                                                { label: 'Premium', fab: 65, comp: 30, lucro: 18, cor: '#f59e0b' },
+                                                { label: 'Competitivo', fab: 25, comp: 15, lucro: 8, cor: 'var(--info)' },
+                                                { label: 'Padrão', fab: 45, comp: 20, lucro: 12, cor: 'var(--success)' },
+                                                { label: 'Premium', fab: 65, comp: 30, lucro: 18, cor: 'var(--warning)' },
                                             ].map(p => {
                                                 const isActive = Math.abs(margemFabPct - p.fab) < 5 && Math.abs(margemCompPct - p.comp) < 5;
                                                 return (
@@ -3521,7 +3521,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 <div>
                                                     <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>MDO (custo-hora)</span>
                                                 </div>
-                                                <span className="text-[11px] font-semibold" style={{ color: '#22c55e' }}>{R$(mdoVal)}</span>
+                                                <span className="text-[11px] font-semibold" style={{ color: 'var(--success)' }}>{R$(mdoVal)}</span>
                                             </div>
                                         ) : (
                                             <div className="flex items-center justify-between gap-2 mb-1.5 px-1">
@@ -3723,7 +3723,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         <div className="mt-1.5 rounded px-2.5 py-1.5 flex items-center justify-between"
                                             style={{ background: abaixoPiso ? 'rgba(239,68,68,0.10)' : 'rgba(34,197,94,0.06)', border: `1px solid ${abaixoPiso ? 'rgba(239,68,68,0.25)' : 'rgba(34,197,94,0.15)'}` }}>
                                             <div className="flex flex-col">
-                                                <span className="text-[9px] font-semibold" style={{ color: abaixoPiso ? '#ef4444' : '#22c55e' }}>
+                                                <span className="text-[9px] font-semibold" style={{ color: abaixoPiso ? 'var(--danger)' : 'var(--success)' }}>
                                                     {abaixoPiso ? 'ABAIXO DO PISO' : 'Piso (custo real)'}
                                                 </span>
                                                 <span className="text-[8px]" style={{ color: 'var(--text-muted)' }}>
@@ -3731,8 +3731,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 </span>
                                             </div>
                                             <div className="text-right">
-                                                <span className="text-[10px] font-bold" style={{ color: abaixoPiso ? '#ef4444' : 'var(--text-secondary)' }}>{R$(tot.pisoMinimo)}</span>
-                                                <span className="text-[8px] block" style={{ color: abaixoPiso ? '#ef4444' : '#22c55e' }}>
+                                                <span className="text-[10px] font-bold" style={{ color: abaixoPiso ? 'var(--danger)' : 'var(--text-secondary)' }}>{R$(tot.pisoMinimo)}</span>
+                                                <span className="text-[8px] block" style={{ color: abaixoPiso ? 'var(--danger)' : 'var(--success)' }}>
                                                     {folga >= 0 ? '+' : ''}{R$(folga)} ({folga >= 0 ? '+' : ''}{N(folgaPct, 0)}%)
                                                 </span>
                                             </div>
@@ -3769,7 +3769,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     const margemBrutaPct = pvCalc > 0 ? (margemBrutaR / pvCalc * 100) : 0;
                                     // Indicador: movelaria sob medida tipicamente 2.5× a 3.5×
                                     const faixa = mult < 2.2 ? 'baixo' : mult <= 3.5 ? 'saudavel' : 'alto';
-                                    const faixaCor = faixa === 'baixo' ? '#ef4444' : faixa === 'saudavel' ? '#22c55e' : '#f59e0b';
+                                    const faixaCor = faixa === 'baixo' ? 'var(--danger)' : faixa === 'saudavel' ? 'var(--success)' : 'var(--warning)';
                                     const faixaLabel = faixa === 'baixo' ? 'Abaixo do mercado' : faixa === 'saudavel' ? 'Faixa saudável' : 'Acima do mercado';
                                     // Barra visual: posição do multiplicador entre 1× e 5×
                                     const barPos = Math.min(100, Math.max(0, ((mult - 1) / 4) * 100));
@@ -3789,7 +3789,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 {/* Barra visual */}
                                                 <div className="relative h-2 rounded-full mb-1" style={{ background: 'var(--bg-card)' }}>
                                                     {/* Faixa saudável: 2.5× a 3.5× → 37.5% a 62.5% */}
-                                                    <div className="absolute h-full rounded-full" style={{ left: '37.5%', width: '25%', background: '#22c55e20' }} />
+                                                    <div className="absolute h-full rounded-full" style={{ left: '37.5%', width: '25%', background: 'var(--success-bg)' }} />
                                                     <div className="absolute h-3 w-1.5 rounded-full" style={{ left: `${barPos}%`, top: '-2px', background: faixaCor, transform: 'translateX(-50%)' }} />
                                                 </div>
                                                 <div className="flex justify-between text-[8px]" style={{ color: 'var(--text-muted)', opacity: 0.5 }}>
@@ -3819,14 +3819,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 </div>
                                                 <div className="flex justify-between pt-1 mt-0.5" style={{ borderTop: '1px dashed var(--border)' }}>
                                                     <span style={{ color: 'var(--text-muted)' }}>Margem bruta</span>
-                                                    <span className="font-semibold" style={{ color: margemBrutaPct > 40 ? '#22c55e' : margemBrutaPct > 25 ? 'var(--warning)' : '#ef4444' }}>
+                                                    <span className="font-semibold" style={{ color: margemBrutaPct > 40 ? 'var(--success)' : margemBrutaPct > 25 ? 'var(--warning)' : 'var(--danger)' }}>
                                                         {R$(margemBrutaR)} ({N(margemBrutaPct, 1)}%)
                                                     </span>
                                                 </div>
                                                 {lucroR > 0 && (
                                                     <div className="flex justify-between">
                                                         <span style={{ color: 'var(--text-muted)' }}>Lucro líquido ({lucroPerc}%)</span>
-                                                        <span className="font-semibold" style={{ color: '#22c55e' }}>{R$(lucroR)}</span>
+                                                        <span className="font-semibold" style={{ color: 'var(--success)' }}>{R$(lucroR)}</span>
                                                     </div>
                                                 )}
                                                 {/* Métricas de referência */}
@@ -3946,20 +3946,20 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     {/* Mão de Obra */}
                                                     <div>
                                                         <div className="flex justify-between items-center mb-0.5">
-                                                            <span className="text-[10px] font-semibold" style={{ color: '#64748b' }}>Mão de Obra</span>
-                                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(mdo)} <span className="font-semibold" style={{ color: '#64748b' }}>{pct(mdo)}%</span></span>
+                                                            <span className="text-[10px] font-semibold" style={{ color: 'var(--muted)' }}>Mão de Obra</span>
+                                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(mdo)} <span className="font-semibold" style={{ color: 'var(--muted)' }}>{pct(mdo)}%</span></span>
                                                         </div>
-                                                        <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(mdo, '#64748b')}</div>
+                                                        <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(mdo, 'var(--muted)')}</div>
                                                     </div>
 
                                                     {/* Custos Operacionais */}
                                                     {custOp > 0 && (
                                                         <div>
                                                             <div className="flex justify-between items-center mb-0.5">
-                                                                <span className="text-[10px] font-semibold" style={{ color: '#94a3b8' }}>Custos Operacionais</span>
-                                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(custOp)} <span className="font-semibold" style={{ color: '#94a3b8' }}>{pct(custOp)}%</span></span>
+                                                                <span className="text-[10px] font-semibold" style={{ color: 'var(--muted)' }}>Custos Operacionais</span>
+                                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(custOp)} <span className="font-semibold" style={{ color: 'var(--muted)' }}>{pct(custOp)}%</span></span>
                                                             </div>
-                                                            <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(custOp, '#94a3b8')}</div>
+                                                            <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(custOp, 'var(--muted)')}</div>
                                                         </div>
                                                     )}
 
@@ -3970,7 +3970,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     </div>
 
                                                     {/* Taxas individuais */}
-                                                    {[[impR, 'Impostos', '#B86565', taxas.imp], [comR, 'Comissão', '#C4924C', taxas.com], [lucroR, 'Lucro', '#5B8C6B', taxas.lucro], [instR, 'Instalação', '#94a3b8', taxas.inst ?? 5], [freteR, 'Frete', '#94a3b8', taxas.frete], [montR, 'Montagem', '#94a3b8', taxas.mont]].filter(([v,,,t]) => t > 0).map(([v, l, cor, t]) => (
+                                                    {[[impR, 'Impostos', '#B86565', taxas.imp], [comR, 'Comissão', '#C4924C', taxas.com], [lucroR, 'Lucro', '#5B8C6B', taxas.lucro], [instR, 'Instalação', 'var(--muted)', taxas.inst ?? 5], [freteR, 'Frete', 'var(--muted)', taxas.frete], [montR, 'Montagem', 'var(--muted)', taxas.mont]].filter(([v,,,t]) => t > 0).map(([v, l, cor, t]) => (
                                                         <div key={l}>
                                                             <div className="flex justify-between items-center mb-0.5">
                                                                 <span className="text-[10px] font-semibold" style={{ color: cor }}>{l} ({N(t,1)}%)</span>
@@ -4027,7 +4027,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 </div>
                                                 <div className="flex justify-between pt-1 mt-1 font-semibold" style={{ borderTop: '1px solid var(--border)' }}>
                                                     <span style={{ color: 'var(--text-secondary)' }}>Ref. Centro Custo</span>
-                                                    <span style={{ color: '#64748b' }}>{R$(refCentroCusto)}</span>
+                                                    <span style={{ color: 'var(--muted)' }}>{R$(refCentroCusto)}</span>
                                                 </div>
                                             </div>
 
@@ -4044,11 +4044,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 </div>
                                                 <div>
                                                     <div className="flex justify-between text-[9px] mb-0.5">
-                                                        <span style={{ color: '#64748b' }}>Ref. Centro Custo</span>
-                                                        <span className="font-bold" style={{ color: '#64748b' }}>{R$(refCentroCusto)}</span>
+                                                        <span style={{ color: 'var(--muted)' }}>Ref. Centro Custo</span>
+                                                        <span className="font-bold" style={{ color: 'var(--muted)' }}>{R$(refCentroCusto)}</span>
                                                     </div>
                                                     <div className="w-full h-2 rounded-full" style={{ background: 'var(--bg-muted)' }}>
-                                                        <div className="h-full rounded-full" style={{ width: `${Math.min(100, (refCentroCusto / maxVal) * 100)}%`, background: '#64748b', transition: 'width 0.3s' }} />
+                                                        <div className="h-full rounded-full" style={{ width: `${Math.min(100, (refCentroCusto / maxVal) * 100)}%`, background: 'var(--muted)', transition: 'width 0.3s' }} />
                                                     </div>
                                                 </div>
                                             </div>
@@ -4056,7 +4056,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             {/* Difference indicator */}
                                             <div className="mt-2 p-2 rounded-lg text-center text-[10px] font-bold" style={{
                                                 background: abaixo ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.08)',
-                                                color: abaixo ? '#ef4444' : '#22c55e',
+                                                color: abaixo ? 'var(--danger)' : 'var(--success)',
                                                 border: `1px solid ${abaixo ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)'}`,
                                             }}>
                                                 {abaixo
@@ -4078,7 +4078,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 <button
                                     onClick={() => setShowAprovarModal(true)}
                                     className="w-full py-2.5 text-xs font-bold rounded-lg cursor-pointer flex items-center justify-center gap-1.5 transition-all"
-                                    style={{ background: '#16a34a', color: '#fff', boxShadow: '0 2px 8px rgba(22,163,74,0.3)' }}
+                                    style={{ background: 'var(--success-hover)', color: '#fff', boxShadow: '0 2px 8px rgba(22,163,74,0.3)' }}
                                 >
                                     <CheckCircle size={14} /> Aprovar Orçamento
                                 </button>
@@ -4190,7 +4190,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 <button onClick={() => window.open(fullUrl, '_blank')} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', fontSize: 11, cursor: 'pointer' }}>
                                                     Abrir link
                                                 </button>
-                                                {waLink && <a href={waLink} target="_blank" rel="noreferrer" style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: '#22c55e', color: '#fff', fontSize: 11, textDecoration: 'none', cursor: 'pointer' }}>
+                                                {waLink && <a href={waLink} target="_blank" rel="noreferrer" style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: 'var(--success)', color: '#fff', fontSize: 11, textDecoration: 'none', cursor: 'pointer' }}>
                                                     Enviar WhatsApp
                                                 </a>}
                                             </div>
@@ -4199,7 +4199,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 } catch (ex) { notify(ex.detail || ex.error || 'Erro ao gerar assinatura'); }
                             }} className={`${Z.btn2} w-full py-2 text-xs`} style={
                                 assinaturas.some(d => d.status === 'concluido')
-                                    ? { background: '#dcfce7', borderColor: '#22c55e', color: '#166534', cursor: 'default' }
+                                    ? { background: 'var(--success-bg)', borderColor: 'var(--success)', color: 'var(--success-hover)', cursor: 'default' }
                                     : { background: 'var(--accent-bg)', borderColor: 'var(--accent)' }
                             } disabled={assinaturas.some(d => d.status === 'concluido')}>
                                 {assinaturas.some(d => d.status === 'concluido')
@@ -4241,8 +4241,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 <div className="flex items-center gap-2">
                                     <span style={{
                                         fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-                                        background: doc.status === 'concluido' ? '#dcfce7' : doc.status === 'cancelado' ? '#fef2f2' : '#fef9c3',
-                                        color: doc.status === 'concluido' ? '#166534' : doc.status === 'cancelado' ? '#991b1b' : '#854d0e',
+                                        background: doc.status === 'concluido' ? 'var(--success-bg)' : doc.status === 'cancelado' ? 'var(--danger-bg)' : 'var(--warning-bg)',
+                                        color: doc.status === 'concluido' ? 'var(--success-hover)' : doc.status === 'cancelado' ? 'var(--danger-hover)' : 'var(--warning-hover)',
                                     }}>
                                         {doc.status === 'concluido' ? 'ASSINADO' : doc.status === 'cancelado' ? 'CANCELADO' : 'PENDENTE'}
                                     </span>
@@ -4267,7 +4267,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 6, textTransform: 'uppercase' }}>{sig.papel}</span>
                                         </div>
                                         {sig.status === 'assinado' ? (
-                                            <CheckCircle size={14} color="#22c55e" />
+                                            <CheckCircle size={14} color="var(--success)" />
                                         ) : (
                                             <Clock size={14} color="#94a3b8" />
                                         )}
@@ -4333,7 +4333,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             setAssinaturas(prev => prev.map(d => d.id === doc.id ? { ...d, status: 'cancelado' } : d));
                                             notify('Sessão cancelada');
                                         } catch (ex) { notify(ex.error || 'Erro ao cancelar'); }
-                                    }} style={{ fontSize: 10, padding: '4px 10px', borderRadius: 6, border: '1px solid #fca5a5', background: '#fff', color: '#dc2626', cursor: 'pointer' }}>
+                                    }} style={{ fontSize: 10, padding: '4px 10px', borderRadius: 6, border: '1px solid #fca5a5', background: '#fff', color: 'var(--danger-hover)', cursor: 'pointer' }}>
                                         <X size={11} /> Cancelar
                                     </button>
                                 )}
@@ -4365,7 +4365,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             <div>
                                 <div className="text-[10px] font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>
                                     EXPERIÊNCIA COMPLETA
-                                    <span className="ml-1 px-1 py-0.5 rounded text-[8px] font-bold" style={{ background: '#dbeafe', color: '#1d4ed8' }}>REC</span>
+                                    <span className="ml-1 px-1 py-0.5 rounded text-[8px] font-bold" style={{ background: 'var(--info-bg)', color: '#1d4ed8' }}>REC</span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <input readOnly value={`${window.location.origin}/apresentacao/${viewsData.token}`}
@@ -4394,7 +4394,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             <div className="mt-1">
                                 <a href={`/preview/proposta/${viewsData.token}`} target="_blank" rel="noreferrer"
                                     className="flex items-center justify-center gap-2 w-full py-2 rounded-lg text-xs font-semibold cursor-pointer"
-                                    style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                                    style={{ background: 'var(--warning-bg)', color: 'var(--warning-hover)', border: '1px solid #fde68a' }}>
                                     <Eye size={13} /> Visualizar Preview (sem estatísticas)
                                 </a>
                             </div>
@@ -4557,7 +4557,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     } catch (ex) { notify(ex.detail || 'Erro ao resetar'); }
                                 }} className="text-[10px] px-3 py-1.5 rounded flex items-center gap-1.5 cursor-pointer"
                                     style={{ color: 'var(--text-muted)', border: '1px solid var(--border)' }}
-                                    onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = '#ef444440'; }}
+                                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.borderColor = 'var(--danger-border)'; }}
                                     onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)'; }}>
                                     <RefreshCw size={10} /> Resetar estatísticas
                                 </button>
@@ -4826,7 +4826,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             />
 
                             {importResult && (
-                                <div className="mt-3 p-3 rounded-lg" style={{ background: '#22c55e10', border: '1px solid #22c55e30' }}>
+                                <div className="mt-3 p-3 rounded-lg" style={{ background: 'var(--success-bg)', border: '1px solid var(--success-border)' }}>
                                     <div className="flex items-center gap-2 text-xs font-bold" style={{ color: 'var(--success)' }}>
                                         <CheckCircle size={14} /> Importado com sucesso!
                                     </div>
@@ -4836,7 +4836,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             { label: 'Itens', val: importResult.stats.itens },
                                             { label: 'Componentes', val: importResult.stats.componentes },
                                         ].map(s => (
-                                            <span key={s.label} className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#22c55e15', color: 'var(--success)' }}>
+                                            <span key={s.label} className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--success-bg)', color: 'var(--success)' }}>
                                                 {s.val} {s.label}
                                             </span>
                                         ))}
@@ -4893,7 +4893,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 {/* Manual */}
                                 <button onClick={() => createAmbiente('manual')}
                                     className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md"
-                                    style={{ borderColor: '#f59e0b40', background: '#f59e0b08' }}>
+                                    style={{ borderColor: 'var(--warning-border)', background: 'var(--warning-bg)' }}>
                                     <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--warning)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                         <FileText size={22} />
                                     </div>
@@ -5023,8 +5023,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             }
                                             setAddCompModal(null);
                                         }}
-                                        className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-[#f59e0b]/40 hover:bg-[var(--bg-hover)] text-left w-full mb-3"
-                                        style={{ borderColor: hasRipado ? '#f59e0b40' : 'var(--border)', background: hasRipado ? '#f59e0b08' : undefined }}>
+                                        className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-[var(--warning)]/40 hover:bg-[var(--bg-hover)] text-left w-full mb-3"
+                                        style={{ borderColor: hasRipado ? 'var(--warning-border)' : 'var(--border)', background: hasRipado ? 'var(--warning-bg)' : undefined }}>
                                         <Layers size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} />
                                         <div className="flex-1">
                                             <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Ripado / Muxarabi</div>
@@ -5034,7 +5034,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         </div>
                                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded" style={hasRipado
                                             ? { background: 'rgba(239,68,68,0.12)', color: 'var(--danger)' }
-                                            : { background: '#f59e0b20', color: 'var(--warning)' }}>
+                                            : { background: 'var(--warning-bg)', color: 'var(--warning)' }}>
                                             {hasRipado ? 'Remover' : '+ Adicionar'}
                                         </span>
                                     </button>
@@ -5083,7 +5083,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     ) : componentesFiltrados.map(comp => (
                                         <button key={comp.db_id}
                                             onClick={() => addComp(addCompModal.ambId, addCompModal.itemId, comp)}
-                                            className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-[#16a34a]/40 hover:bg-[var(--bg-hover)] text-left w-full mb-1.5"
+                                            className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-[var(--success-hover)]/40 hover:bg-[var(--bg-hover)] text-left w-full mb-1.5"
                                             style={{ borderColor: 'var(--border)' }}>
                                             <Package size={16} style={{ color: 'var(--success)', marginTop: 2, flexShrink: 0 }} />
                                             <div className="flex-1">
@@ -5139,20 +5139,20 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             const kcColors = { lead: '#7e7ec8', orc: '#c8a97e', env: '#c8c87e', neg: '#c87eb8', ok: '#8fbc8f', prod: '#7eb8c8', done: '#6a9' };
                             return (
                                 <div key={ad.id} className="relative flex items-start gap-3">
-                                    <div className="absolute left-[-15px] top-1 w-3 h-3 rounded-full border-2" style={{ background: '#3b82f6', borderColor: '#3b82f6' }} />
+                                    <div className="absolute left-[-15px] top-1 w-3 h-3 rounded-full border-2" style={{ background: 'var(--info)', borderColor: 'var(--info)' }} />
                                     <div className="flex-1">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
-                                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.12)', color: '#3b82f6' }}>{badge}</span>
+                                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--info)' }}>{badge}</span>
                                                 <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{ad.numero}</span>
                                                 <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: `${kcColors[ad.kb_col] || '#666'}22`, color: kcColors[ad.kb_col] || '#666' }}>
                                                     {ad.kb_col === 'ok' ? 'Aprovado' : ad.kb_col === 'lead' ? 'Em elaboração' : ad.kb_col}
                                                 </span>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-xs font-bold" style={{ color: '#3b82f6' }}>+{R$(ad.valor_venda || 0)}</span>
+                                                <span className="text-xs font-bold" style={{ color: 'var(--info)' }}>+{R$(ad.valor_venda || 0)}</span>
                                                 <button onClick={() => api.get(`/orcamentos/${ad.id}`).then(o => nav('novo', o)).catch(() => notify('Erro'))}
-                                                    className="text-[9px] font-semibold px-2 py-0.5 rounded cursor-pointer" style={{ background: 'rgba(59,130,246,0.08)', color: '#3b82f6' }}>
+                                                    className="text-[9px] font-semibold px-2 py-0.5 rounded cursor-pointer" style={{ background: 'rgba(59,130,246,0.08)', color: 'var(--info)' }}>
                                                     Abrir
                                                 </button>
                                             </div>
@@ -5187,7 +5187,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
                         onClick={e => e.stopPropagation()}>
                         <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
-                            <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: '#3b82f6' }}>
+                            <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: 'var(--info)' }}>
                                 <FilePlus2 size={16} /> Criar Aditivo
                             </h3>
                             <button onClick={() => setShowAditivoModal(false)} className="p-1 rounded hover:bg-[var(--bg-hover)] cursor-pointer"><X size={16} /></button>
@@ -5239,7 +5239,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 const erros = validarAprovacao();
                                 if (erros.length > 0) return (
                                     <div>
-                                        <div className="p-3 rounded-lg mb-4 text-xs" style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.2)' }}>
+                                        <div className="p-3 rounded-lg mb-4 text-xs" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--danger-hover)', border: '1px solid rgba(239,68,68,0.2)' }}>
                                             <strong className="block mb-2">Corrija os itens abaixo antes de aprovar:</strong>
                                             <ul className="list-disc pl-4 flex flex-col gap-1">
                                                 {erros.map((e, i) => <li key={i}>{e}</li>)}
@@ -5322,7 +5322,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             <button onClick={() => setShowUnlockModal(false)} className="p-1 rounded hover:bg-[var(--bg-hover)] cursor-pointer"><X size={16} /></button>
                         </div>
                         <div className="p-4">
-                            <div className="p-3 rounded-lg mb-4 text-xs" style={{ background: 'rgba(245,158,11,0.08)', color: '#92400e', border: '1px solid rgba(245,158,11,0.2)' }}>
+                            <div className="p-3 rounded-lg mb-4 text-xs" style={{ background: 'rgba(245,158,11,0.08)', color: 'var(--warning-hover)', border: '1px solid rgba(245,158,11,0.2)' }}>
                                 <strong>Atenção:</strong> Este orçamento já gerou um projeto. Alterações podem impactar dados vinculados (contas a receber, etapas, portal do cliente).
                             </div>
                             <label className={Z.lbl}>Digite <strong>EDITAR</strong> para confirmar</label>
@@ -5419,7 +5419,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                                                 <strong>{v1.versao === 1 ? 'v1' : `R${v1.versao}`}</strong> {R$(v1.valor_venda)} → <strong>{v2.versao === 1 ? 'v1' : `R${v2.versao}`}</strong> {R$(v2.valor_venda)}
                                             </div>
-                                            <span className="text-sm font-bold" style={{ color: valorDiff >= 0 ? 'var(--success)' : '#dc2626' }}>
+                                            <span className="text-sm font-bold" style={{ color: valorDiff >= 0 ? 'var(--success)' : 'var(--danger-hover)' }}>
                                                 {valorDiff >= 0 ? '+' : ''}{R$(valorDiff)} ({valorDiff >= 0 ? '+' : ''}{N(pctDiff, 1)}%)
                                             </span>
                                         </div>
@@ -5431,24 +5431,24 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         ))}
                                         {/* Ambientes removidos */}
                                         {diff.ambientes.removed.map((a, i) => (
-                                            <div key={`rem-${i}`} className="px-3 py-2 rounded-lg text-xs" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', color: '#dc2626' }}>
+                                            <div key={`rem-${i}`} className="px-3 py-2 rounded-lg text-xs" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--danger-hover)' }}>
                                                 <strong>- Removido:</strong> {a.nome} ({a.itensCount} itens)
                                             </div>
                                         ))}
                                         {/* Ambientes modificados */}
                                         {diff.ambientes.modified.map((a, i) => (
                                             <div key={`mod-${i}`} className="rounded-lg overflow-hidden" style={{ border: '1px solid rgba(245,158,11,0.2)' }}>
-                                                <div className="px-3 py-2 text-xs font-bold" style={{ background: 'rgba(245,158,11,0.08)', color: '#d97706' }}>~ Modificado: {a.nome}</div>
+                                                <div className="px-3 py-2 text-xs font-bold" style={{ background: 'rgba(245,158,11,0.08)', color: 'var(--warning-hover)' }}>~ Modificado: {a.nome}</div>
                                                 <div className="px-3 py-2 flex flex-col gap-1.5 text-[11px]" style={{ color: 'var(--text-secondary)' }}>
                                                     {a.itens.added.map((it, j) => <div key={`ia-${j}`} style={{ color: 'var(--success)' }}>+ {it.nome} {it.dims ? `(${it.dims.l}×${it.dims.a})` : ''}</div>)}
-                                                    {a.itens.removed.map((it, j) => <div key={`ir-${j}`} style={{ color: '#dc2626' }}>- {it.nome} {it.dims ? `(${it.dims.l}×${it.dims.a})` : ''}</div>)}
+                                                    {a.itens.removed.map((it, j) => <div key={`ir-${j}`} style={{ color: 'var(--danger-hover)' }}>- {it.nome} {it.dims ? `(${it.dims.l}×${it.dims.a})` : ''}</div>)}
                                                     {a.itens.modified.map((it, j) => (
-                                                        <div key={`im-${j}`} style={{ color: '#d97706' }}>~ {it.nome}: {it.diffs.map(d => `${d.campo} ${d.de}→${d.para}`).join(', ')}</div>
+                                                        <div key={`im-${j}`} style={{ color: 'var(--warning-hover)' }}>~ {it.nome}: {it.diffs.map(d => `${d.campo} ${d.de}→${d.para}`).join(', ')}</div>
                                                     ))}
                                                     {a.paineis.added.map((p, j) => <div key={`pa-${j}`} style={{ color: 'var(--success)' }}>+ Painel: {p.nome}</div>)}
-                                                    {a.paineis.removed.map((p, j) => <div key={`pr-${j}`} style={{ color: '#dc2626' }}>- Painel: {p.nome}</div>)}
+                                                    {a.paineis.removed.map((p, j) => <div key={`pr-${j}`} style={{ color: 'var(--danger-hover)' }}>- Painel: {p.nome}</div>)}
                                                     {a.itensEspeciais.added.map((e, j) => <div key={`ea-${j}`} style={{ color: 'var(--success)' }}>+ Especial: {e.nome}</div>)}
-                                                    {a.itensEspeciais.removed.map((e, j) => <div key={`er-${j}`} style={{ color: '#dc2626' }}>- Especial: {e.nome}</div>)}
+                                                    {a.itensEspeciais.removed.map((e, j) => <div key={`er-${j}`} style={{ color: 'var(--danger-hover)' }}>- Especial: {e.nome}</div>)}
                                                 </div>
                                             </div>
                                         ))}

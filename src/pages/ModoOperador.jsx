@@ -220,10 +220,10 @@ export default function ModoOperador({ notify, onBack }) {
     };
 
     const statusColor = (s) => {
-        if (s === 'concluido') return '#22c55e';
-        if (s === 'produzindo') return '#f59e0b';
-        if (s === 'erro') return '#ef4444';
-        return '#64748b';
+        if (s === 'concluido') return 'var(--success)';
+        if (s === 'produzindo') return 'var(--warning)';
+        if (s === 'erro') return 'var(--danger)';
+        return 'var(--muted)';
     };
 
     const statusLabel = (s) => {
@@ -374,7 +374,7 @@ export default function ModoOperador({ notify, onBack }) {
                         padding: '28px 32px', minWidth: 340, textAlign: 'center',
                         boxShadow: '0 16px 64px rgba(0,0,0,0.6)',
                     }} onClick={e => e.stopPropagation()}>
-                        <CheckCircle2 size={36} style={{ color: '#22c55e', marginBottom: 12 }} />
+                        <CheckCircle2 size={36} style={{ color: 'var(--success)', marginBottom: 12 }} />
                         <div style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginBottom: 8 }}>Concluir item?</div>
                         <div style={{ fontSize: 13, color: '#888', marginBottom: 24 }}>
                             {itemAtual.lote_nome || `Lote #${itemAtual.lote_id}`} -- Chapa {(itemAtual.chapa_idx || 0) + 1}
@@ -386,7 +386,7 @@ export default function ModoOperador({ notify, onBack }) {
                             }}>Cancelar</button>
                             <button onClick={() => { setShowConfirmConcluir(false); concluirItem(itemAtual); }} style={{
                                 padding: '12px 28px', borderRadius: 8, border: 'none',
-                                background: '#22c55e', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer',
+                                background: 'var(--success)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer',
                             }}>Concluir</button>
                         </div>
                     </div>
@@ -399,10 +399,10 @@ export default function ModoOperador({ notify, onBack }) {
                 background: '#12121e', borderBottom: '1px solid #1e1e3a',
             }}>
                 {[
-                    { label: 'Total', value: stats.total, color: '#3b82f6', icon: Package },
-                    { label: 'Pendentes', value: stats.pendentes, color: '#64748b', icon: Clock },
-                    { label: 'Em Producao', value: stats.emAndamento, color: '#f59e0b', icon: Zap },
-                    { label: 'Concluidos', value: stats.concluidos, color: '#22c55e', icon: CheckCircle2 },
+                    { label: 'Total', value: stats.total, color: 'var(--info)', icon: Package },
+                    { label: 'Pendentes', value: stats.pendentes, color: 'var(--muted)', icon: Clock },
+                    { label: 'Em Producao', value: stats.emAndamento, color: 'var(--warning)', icon: Zap },
+                    { label: 'Concluidos', value: stats.concluidos, color: 'var(--success)', icon: CheckCircle2 },
                 ].map((s, i) => (
                     <div key={i} style={{
                         display: 'flex', alignItems: 'center', gap: 12, padding: '14px 24px',
@@ -426,7 +426,7 @@ export default function ModoOperador({ notify, onBack }) {
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div>
-                            <div style={{ fontSize: 10, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4 }}>
+                            <div style={{ fontSize: 10, color: 'var(--warning)', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4 }}>
                                 {pausaMotivoAtual ? 'PAUSADO' : 'EM PRODUCAO AGORA'}
                             </div>
                             <div style={{ fontSize: 22, fontWeight: 800, color: '#fff' }}>
@@ -442,29 +442,29 @@ export default function ModoOperador({ notify, onBack }) {
                                     padding: '6px 14px', borderRadius: 20,
                                     background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)',
                                 }}>
-                                    <Pause size={12} style={{ color: '#f59e0b' }} />
-                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b' }}>
+                                    <Pause size={12} style={{ color: 'var(--warning)' }} />
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--warning)' }}>
                                         Pausado: {pausaMotivoAtual}
                                     </span>
                                 </div>
                             )}
                         </div>
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 40, fontWeight: 300, color: pausaMotivoAtual ? '#888' : '#f59e0b', fontFamily: 'monospace' }}>
+                            <div style={{ fontSize: 40, fontWeight: 300, color: pausaMotivoAtual ? '#888' : 'var(--warning)', fontFamily: 'monospace' }}>
                                 {formatTime(cronometro)}
                             </div>
                             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                                 <button onClick={handlePauseButtonClick} style={{
                                     padding: '10px 20px', borderRadius: 8, border: 'none', cursor: 'pointer',
                                     background: cronometroAtivo ? 'rgba(239,68,68,0.2)' : 'rgba(34,197,94,0.2)',
-                                    color: cronometroAtivo ? '#ef4444' : '#22c55e', fontWeight: 700, fontSize: 13,
+                                    color: cronometroAtivo ? 'var(--danger)' : 'var(--success)', fontWeight: 700, fontSize: 13,
                                     display: 'flex', alignItems: 'center', gap: 6,
                                 }}>
                                     {cronometroAtivo ? <><Pause size={16} /> Pausar</> : <><Play size={16} /> Retomar</>}
                                 </button>
                                 <button onClick={() => concluirItem(itemAtual)} style={{
                                     padding: '10px 24px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                                    background: '#22c55e', color: '#fff', fontWeight: 800, fontSize: 14,
+                                    background: 'var(--success)', color: '#fff', fontWeight: 800, fontSize: 14,
                                     display: 'flex', alignItems: 'center', gap: 6,
                                 }}>
                                     <CheckCircle2 size={18} /> CONCLUIR
@@ -491,7 +491,7 @@ export default function ModoOperador({ notify, onBack }) {
                         </span>
                         {totalEtaMinutes > 0 && (
                             <span style={{
-                                fontSize: 11, fontWeight: 700, color: '#3b82f6',
+                                fontSize: 11, fontWeight: 700, color: 'var(--info)',
                                 padding: '3px 10px', background: 'rgba(59,130,246,0.1)',
                                 borderRadius: 20, display: 'flex', alignItems: 'center', gap: 4,
                             }}>
@@ -528,7 +528,7 @@ export default function ModoOperador({ notify, onBack }) {
                                     <span>{item.material || '-'}</span>
                                     <span>{item.pecas_count || '?'} pecas</span>
                                     {item.tempo_estimado > 0 && (
-                                        <span style={{ color: '#3b82f6' }}>~{formatEta(item.tempo_estimado)}</span>
+                                        <span style={{ color: 'var(--info)' }}>~{formatEta(item.tempo_estimado)}</span>
                                     )}
                                 </div>
                             </div>
@@ -554,7 +554,7 @@ export default function ModoOperador({ notify, onBack }) {
                             {item.status === 'produzindo' && itemAtual?.id !== item.id && (
                                 <button onClick={() => concluirItem(item)} style={{
                                     padding: '12px 24px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                                    background: '#22c55e', color: '#fff', fontWeight: 800, fontSize: 14,
+                                    background: 'var(--success)', color: '#fff', fontWeight: 800, fontSize: 14,
                                     display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
                                 }}>
                                     <CheckCircle2 size={16} /> CONCLUIR
@@ -568,7 +568,7 @@ export default function ModoOperador({ notify, onBack }) {
                             padding: 60, textAlign: 'center', color: '#444', fontSize: 16,
                             background: '#12121e', borderRadius: 12, border: '1px dashed #1e1e3a',
                         }}>
-                            <CheckCircle2 size={40} style={{ color: '#22c55e', marginBottom: 12, opacity: 0.5 }} />
+                            <CheckCircle2 size={40} style={{ color: 'var(--success)', marginBottom: 12, opacity: 0.5 }} />
                             <div>Todas as chapas foram produzidas!</div>
                         </div>
                     )}
@@ -587,7 +587,7 @@ export default function ModoOperador({ notify, onBack }) {
                                     borderRadius: 8, background: 'rgba(34,197,94,0.03)', border: '1px solid rgba(34,197,94,0.1)',
                                     opacity: 0.6,
                                 }}>
-                                    <CheckCircle2 size={16} style={{ color: '#22c55e' }} />
+                                    <CheckCircle2 size={16} style={{ color: 'var(--success)' }} />
                                     <span style={{ fontSize: 13, color: '#888' }}>
                                         {item.lote_nome || `Lote #${item.lote_id}`} -- Chapa {(item.chapa_idx || 0) + 1}
                                     </span>
@@ -618,7 +618,7 @@ export default function ModoOperador({ notify, onBack }) {
                                         borderRadius: 8, background: 'rgba(255,255,255,0.02)', border: '1px solid #1e1e3a',
                                         opacity: 0.5,
                                     }}>
-                                        <CheckCircle2 size={14} style={{ color: '#22c55e' }} />
+                                        <CheckCircle2 size={14} style={{ color: 'var(--success)' }} />
                                         <div style={{ flex: 1 }}>
                                             <span style={{ fontSize: 13, color: '#777', textDecoration: 'line-through' }}>
                                                 {item.lote_nome || `Lote #${item.lote_id}`} -- Chapa {(item.chapa_idx || 0) + 1}

@@ -105,8 +105,8 @@ function initials(name) {
 
 // Gera cor estável pra avatar baseada no nome
 function avatarColor(name) {
-    if (!name) return '#64748b';
-    const palette = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316'];
+    if (!name) return 'var(--muted)';
+    const palette = ['#0ea5e9', 'var(--success)', 'var(--warning)', 'var(--danger)', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316'];
     let hash = 0;
     for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
     return palette[Math.abs(hash) % palette.length];
@@ -671,8 +671,8 @@ export default function Mensagens({ notify }) {
                                                     {c.lead_qualificacao && c.lead_qualificacao !== 'novo' && (
                                                         <span style={{
                                                             fontSize: 8, padding: '1px 5px', borderRadius: 99, fontWeight: 600,
-                                                            background: colorBg(LEAD_COLORS[c.lead_qualificacao] || '#64748b'),
-                                                            color: LEAD_COLORS[c.lead_qualificacao] || '#64748b',
+                                                            background: colorBg(LEAD_COLORS[c.lead_qualificacao] || 'var(--muted)'),
+                                                            color: LEAD_COLORS[c.lead_qualificacao] || 'var(--muted)',
                                                         }}>
                                                             {c.lead_score > 0 && `${c.lead_score}%`}
                                                         </span>
@@ -685,8 +685,8 @@ export default function Mensagens({ notify }) {
                                                     {c.atribuido_nome ? (
                                                         <span style={{
                                                             fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600,
-                                                            background: c.atribuido_user_id === user?.id ? colorBg('#22c55e') : 'var(--bg-muted)',
-                                                            color: c.atribuido_user_id === user?.id ? '#22c55e' : 'var(--text-muted)',
+                                                            background: c.atribuido_user_id === user?.id ? colorBg('var(--success)') : 'var(--bg-muted)',
+                                                            color: c.atribuido_user_id === user?.id ? 'var(--success)' : 'var(--text-muted)',
                                                             display: 'flex', alignItems: 'center', gap: 3,
                                                         }}>
                                                             <UserCheck size={8} />
@@ -695,7 +695,7 @@ export default function Mensagens({ notify }) {
                                                     ) : (
                                                         <span style={{
                                                             fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600,
-                                                            background: colorBg('#f59e0b'), color: '#f59e0b',
+                                                            background: colorBg('var(--warning)'), color: 'var(--warning)',
                                                             display: 'flex', alignItems: 'center', gap: 3,
                                                         }}>
                                                             <Inbox size={8} /> Na fila
@@ -797,7 +797,7 @@ export default function Mensagens({ notify }) {
                                                 onClick={() => setShowVincular(true)}
                                                 style={{
                                                     fontSize: 10, padding: '1px 6px', borderRadius: 4,
-                                                    background: colorBg('#f59e0b'), color: 'var(--warning)', border: `1px solid ${colorBorder('#f59e0b')}`,
+                                                    background: colorBg('var(--warning)'), color: 'var(--warning)', border: `1px solid ${colorBorder('var(--warning)')}`,
                                                     cursor: 'pointer', fontWeight: 600,
                                                 }}
                                             >
@@ -807,9 +807,9 @@ export default function Mensagens({ notify }) {
                                         {activeConvData?.lead_qualificacao && (
                                             <span style={{
                                                 fontSize: 10, padding: '1px 8px', borderRadius: 99, fontWeight: 600,
-                                                background: colorBg(LEAD_COLORS[activeConvData.lead_qualificacao] || '#64748b'),
-                                                color: LEAD_COLORS[activeConvData.lead_qualificacao] || '#64748b',
-                                                border: `1px solid ${colorBorder(LEAD_COLORS[activeConvData.lead_qualificacao] || '#64748b')}`,
+                                                background: colorBg(LEAD_COLORS[activeConvData.lead_qualificacao] || 'var(--muted)'),
+                                                color: LEAD_COLORS[activeConvData.lead_qualificacao] || 'var(--muted)',
+                                                border: `1px solid ${colorBorder(LEAD_COLORS[activeConvData.lead_qualificacao] || 'var(--muted)')}`,
                                             }}>
                                                 {LEAD_LABELS[activeConvData.lead_qualificacao] || activeConvData.lead_qualificacao}
                                                 {activeConvData.lead_score > 0 && ` ${activeConvData.lead_score}%`}
@@ -826,9 +826,9 @@ export default function Mensagens({ notify }) {
                                             title={`Atribuída a ${activeConvData.atribuido_nome}`}
                                             style={{
                                                 fontSize: 12, padding: '6px 10px', borderRadius: 8,
-                                                border: `1px solid ${activeConvData.atribuido_user_id === user?.id ? colorBorder('#22c55e') : 'var(--border)'}`,
-                                                background: activeConvData.atribuido_user_id === user?.id ? colorBg('#22c55e') : 'var(--bg-muted)',
-                                                color: activeConvData.atribuido_user_id === user?.id ? '#22c55e' : 'var(--text-primary)',
+                                                border: `1px solid ${activeConvData.atribuido_user_id === user?.id ? colorBorder('var(--success)') : 'var(--border)'}`,
+                                                background: activeConvData.atribuido_user_id === user?.id ? colorBg('var(--success)') : 'var(--bg-muted)',
+                                                color: activeConvData.atribuido_user_id === user?.id ? 'var(--success)' : 'var(--text-primary)',
                                                 cursor: 'pointer', fontWeight: 600,
                                                 display: 'flex', alignItems: 'center', gap: 5,
                                             }}
@@ -843,9 +843,9 @@ export default function Mensagens({ notify }) {
                                             title="Puxar esta conversa pra você"
                                             style={{
                                                 fontSize: 12, padding: '6px 10px', borderRadius: 8,
-                                                border: `1px solid ${colorBorder('#f59e0b')}`,
-                                                background: colorBg('#f59e0b'),
-                                                color: '#f59e0b', cursor: 'pointer', fontWeight: 600,
+                                                border: `1px solid ${colorBorder('var(--warning)')}`,
+                                                background: colorBg('var(--warning)'),
+                                                color: 'var(--warning)', cursor: 'pointer', fontWeight: 600,
                                                 display: 'flex', alignItems: 'center', gap: 5,
                                             }}
                                         >
@@ -867,7 +867,7 @@ export default function Mensagens({ notify }) {
                                             </div>
                                             <button
                                                 onClick={() => atribuir(null, 'liberada pra fila')}
-                                                style={{ width: '100%', padding: '8px 12px', fontSize: 13, background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer', color: '#f59e0b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
+                                                style={{ width: '100%', padding: '8px 12px', fontSize: 13, background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer', color: 'var(--warning)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
                                                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
                                                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                             >
@@ -879,9 +879,9 @@ export default function Mensagens({ notify }) {
                                                     onClick={() => atribuir(u.id)}
                                                     style={{
                                                         width: '100%', padding: '8px 12px', fontSize: 13,
-                                                        background: activeConvData?.atribuido_user_id === u.id ? colorBg('#22c55e') : 'transparent',
+                                                        background: activeConvData?.atribuido_user_id === u.id ? colorBg('var(--success)') : 'transparent',
                                                         border: 'none', textAlign: 'left', cursor: 'pointer',
-                                                        color: activeConvData?.atribuido_user_id === u.id ? '#22c55e' : 'var(--text-primary)',
+                                                        color: activeConvData?.atribuido_user_id === u.id ? 'var(--success)' : 'var(--text-primary)',
                                                         fontWeight: activeConvData?.atribuido_user_id === u.id ? 700 : 500,
                                                         display: 'flex', alignItems: 'center', gap: 6,
                                                     }}
@@ -904,8 +904,8 @@ export default function Mensagens({ notify }) {
                                         title="Definir categoria"
                                         style={{
                                             fontSize: 12, padding: '6px 10px', borderRadius: 8,
-                                            border: `1px solid ${activeConvData?.categoria ? colorBorder(CAT_MAP[activeConvData.categoria]?.c || '#64748b') : 'var(--border)'}`,
-                                            background: activeConvData?.categoria ? colorBg(CAT_MAP[activeConvData.categoria]?.c || '#64748b') : 'transparent',
+                                            border: `1px solid ${activeConvData?.categoria ? colorBorder(CAT_MAP[activeConvData.categoria]?.c || 'var(--muted)') : 'var(--border)'}`,
+                                            background: activeConvData?.categoria ? colorBg(CAT_MAP[activeConvData.categoria]?.c || 'var(--muted)') : 'transparent',
                                             color: activeConvData?.categoria ? CAT_MAP[activeConvData.categoria]?.c : 'var(--text-muted)',
                                             cursor: 'pointer', fontWeight: 600,
                                             display: 'flex', alignItems: 'center', gap: 5,
@@ -1087,7 +1087,7 @@ export default function Mensagens({ notify }) {
                                         indicator = null;
                                         metaColor = 'var(--text-muted)';
                                     } else if (isInterno) {
-                                        bubbleBg = '#fef3c7';
+                                        bubbleBg = 'var(--warning-bg)';
                                         bubbleColor = '#78350f';
                                         align = 'flex-end';
                                         indicator = <Lock size={10} style={{ opacity: 0.7 }} />;
@@ -1245,9 +1245,9 @@ export default function Mensagens({ notify }) {
                                         onClick={() => setInterno(false)}
                                         style={{
                                             fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: 'pointer',
-                                            background: !interno ? colorBg('#22c55e') : 'transparent',
+                                            background: !interno ? colorBg('var(--success)') : 'transparent',
                                             color: !interno ? 'var(--success)' : 'var(--text-muted)',
-                                            border: `1px solid ${!interno ? colorBorder('#22c55e') : 'var(--border)'}`,
+                                            border: `1px solid ${!interno ? colorBorder('var(--success)') : 'var(--border)'}`,
                                             fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
                                         }}
                                     >
@@ -1257,8 +1257,8 @@ export default function Mensagens({ notify }) {
                                         onClick={() => setInterno(true)}
                                         style={{
                                             fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: 'pointer',
-                                            background: interno ? '#fef3c7' : 'transparent',
-                                            color: interno ? '#92400e' : 'var(--text-muted)',
+                                            background: interno ? 'var(--warning-bg)' : 'transparent',
+                                            color: interno ? 'var(--warning-hover)' : 'var(--text-muted)',
                                             border: `1px solid ${interno ? colorBorder('#fbbf24') : 'var(--border)'}`,
                                             fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
                                         }}
@@ -1345,7 +1345,7 @@ export default function Mensagens({ notify }) {
                                                 width: 40, height: 40, borderRadius: '50%',
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                 border: 'none', cursor: 'pointer', flexShrink: 0,
-                                                background: recording ? '#ef4444' : 'var(--primary)',
+                                                background: recording ? 'var(--danger)' : 'var(--primary)',
                                                 color: '#fff',
                                                 boxShadow: '0 2px 6px rgba(19,121,240,0.3)',
                                                 transition: 'transform 0.12s',
