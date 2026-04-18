@@ -4,7 +4,7 @@ import api from '../api';
 import { useAuth } from '../auth';
 import { applyPrimaryColor } from '../theme';
 import { DEFAULT_CONTRATO_TEMPLATE } from './ContratoHtml';
-import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield } from 'lucide-react';
+import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle } from 'lucide-react';
 
 const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
@@ -2224,7 +2224,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                 <div className="flex items-center justify-between mt-2">
                                                     <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
                                                         {iaPromptDraft.length.toLocaleString('pt-BR')} caracteres
-                                                        {iaPromptSaved && <span className="ml-3" style={{ color: '#22c55e' }}>✓ Salvo</span>}
+                                                        {iaPromptSaved && <span className="ml-3" style={{ color: 'var(--success)' }}>Salvo</span>}
                                                     </div>
                                                     <div className="flex gap-2">
                                                         <button onClick={() => { setIaPromptMode('view'); setIaPromptDraft(iaPrompt.custom || iaPrompt.default); }} className={Z.btn2} style={{ fontSize: 11 }}>Cancelar</button>
@@ -2233,8 +2233,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                         </button>
                                                     </div>
                                                 </div>
-                                                <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                                                    ⚠️ Se salvar customizado, este texto <strong>substitui</strong> o padrão Sofia v2 em todas as novas conversas. Use "Restaurar padrão" para voltar.
+                                                <div className="text-[10px] mt-1" style={{ color: 'var(--warning-hover)' }}>
+                                                    Atenção: se salvar customizado, este texto <strong>substitui</strong> o padrão Sofia v2 em todas as novas conversas. Use "Restaurar padrão" para voltar.
                                                 </div>
                                             </div>
                                         )}
@@ -2268,12 +2268,12 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         onClick={() => setEscCfg({ ...escCfg, ativa: !escCfg.ativa })}
                                         className="px-3 py-1.5 rounded-lg text-[11px] font-semibold"
                                         style={{
-                                            background: escCfg.ativa ? '#22c55e20' : 'var(--bg-muted)',
-                                            color: escCfg.ativa ? '#22c55e' : 'var(--text-muted)',
-                                            border: `1px solid ${escCfg.ativa ? '#22c55e40' : 'var(--border)'}`,
+                                            background: escCfg.ativa ? 'var(--success-bg)' : 'var(--bg-muted)',
+                                            color: escCfg.ativa ? 'var(--success)' : 'var(--text-muted)',
+                                            border: `1px solid ${escCfg.ativa ? 'var(--success-border)' : 'var(--border)'}`,
                                         }}
                                     >
-                                        {escCfg.ativa ? '✓ Ativa' : 'Desligada'}
+                                        {escCfg.ativa ? 'Ativa' : 'Desligada'}
                                     </button>
                                 </div>
 
@@ -2310,7 +2310,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     <button onClick={salvarEscCfg} className={Z.btn2} style={{ fontSize: 11 }}>
                                         Salvar configuração
                                     </button>
-                                    {escSaved && <span className="text-[11px]" style={{ color: '#22c55e' }}>✓ Salvo</span>}
+                                    {escSaved && <span className="text-[11px]" style={{ color: 'var(--success)' }}>Salvo</span>}
                                 </div>
                             </div>
 
@@ -2319,21 +2319,21 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 <div className="mb-3 flex items-start justify-between gap-3">
                                     <div>
                                         <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>
-                                            🧩 Extensão Chrome — WhatsApp Web Sidebar
+                                            Extensão Chrome — WhatsApp Web Sidebar
                                         </h3>
                                         <div className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
                                             Cada pessoa faz <strong>login direto na extensão</strong> com o email e senha do ERP. O token é vinculado ao usuário e todas as ações ficam auditadas.
                                         </div>
                                     </div>
                                     <button onClick={baixarExtensao} className={Z.btn2} style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
-                                        ⬇ Baixar extensão (.zip)
+                                        Baixar extensão (.zip)
                                     </button>
                                 </div>
 
                                 <div className="rounded-lg p-3 mb-3 text-[11px]" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
                                     <div className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Como instalar:</div>
                                     <ol style={{ paddingLeft: 16, lineHeight: 1.6 }}>
-                                        <li>Clique em <strong>⬇ Baixar extensão</strong> acima e descompacte o .zip em uma pasta.</li>
+                                        <li>Clique em <strong>Baixar extensão</strong> acima e descompacte o .zip em uma pasta.</li>
                                         <li>Abra <code>chrome://extensions/</code> e ative <strong>Modo do desenvolvedor</strong> (canto superior direito).</li>
                                         <li>Clique em <strong>"Carregar sem compactação"</strong> e selecione a pasta descompactada.</li>
                                         <li>Clique no ícone da extensão no Chrome e faça <strong>login com seu email e senha do ERP</strong>.</li>
@@ -2342,14 +2342,14 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     </ol>
                                 </div>
 
-                                <div className="rounded-lg p-3 mb-3 text-[11px]" style={{ background: '#dcfce710', border: '1px solid #22c55e40', color: '#15803d' }}>
-                                    <strong>✓ Novidade:</strong> não é mais necessário gerar tokens manualmente — o login da extensão é feito com email + senha direto no popup. A tabela abaixo lista tokens ativos (sessões) para você revogar se perder acesso a algum dispositivo.
+                                <div className="rounded-lg p-3 mb-3 text-[11px]" style={{ background: 'var(--success-bg)', border: '1px solid var(--success-border)', color: 'var(--success-hover)' }}>
+                                    <strong>Novidade:</strong> não é mais necessário gerar tokens manualmente — o login da extensão é feito com email + senha direto no popup. A tabela abaixo lista tokens ativos (sessões) para você revogar se perder acesso a algum dispositivo.
                                 </div>
 
                                 {extTokenRevelado && (
-                                    <div className="rounded-lg p-3 mb-3" style={{ background: '#f59e0b15', border: '1px solid #f59e0b40' }}>
-                                        <div className="text-[11px] font-semibold mb-2" style={{ color: '#f59e0b' }}>
-                                            ⚠ Copie agora — este token não será mostrado de novo:
+                                    <div className="rounded-lg p-3 mb-3" style={{ background: 'var(--warning-bg)', border: '1px solid var(--warning-border)' }}>
+                                        <div className="text-[11px] font-semibold mb-2" style={{ color: 'var(--warning-hover)' }}>
+                                            Atenção: copie agora — este token não será mostrado de novo:
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <code className="flex-1 text-[10px] p-2 rounded break-all" style={{ background: 'var(--bg)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
@@ -2477,7 +2477,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 <div className="flex items-center justify-between mb-3">
                                     <div>
                                         <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>
-                                            📋 Templates de mensagem
+                                            Templates de mensagem
                                         </h3>
                                         <div className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
                                             Respostas rápidas para a equipe usar na extensão Chrome (atalho: digite <code>/atalho</code> no campo de busca).
@@ -2565,7 +2565,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 <div className="flex items-center justify-between mb-3">
                                     <div>
                                         <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>
-                                            🧪 Sandbox — Testar Sofia sem afetar WhatsApp real
+                                            Sandbox — Testar Sofia sem afetar WhatsApp real
                                         </h3>
                                         <div className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
                                             Converse com a Sofia como se fosse um cliente. Nada é enviado pelo WhatsApp e nada é salvo nas conversas reais. Perfeito para validar antes de ativar.
@@ -2622,10 +2622,10 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                             </div>
 
                                             {simBloqueado && (
-                                                <div className="px-3 py-2 text-[11px] flex items-center gap-2" style={{ background: '#ef444415', borderTop: '1px solid #ef444440', color: '#ef4444' }}>
-                                                    <span>🚫</span>
+                                                <div className="px-3 py-2 text-[11px] flex items-center gap-2" style={{ background: 'var(--danger-bg)', borderTop: '1px solid var(--danger-border)', color: 'var(--danger)' }}>
+                                                    <BellOff size={12} />
                                                     <span className="flex-1"><strong>IA silenciada.</strong> Motivo: <code style={{ fontFamily: 'monospace' }}>{simBloqueado.motivo}</code> — próximas mensagens do cliente NÃO chamam a API.</span>
-                                                    <button onClick={simResetar} className="underline" style={{ color: '#ef4444' }}>resetar</button>
+                                                    <button onClick={simResetar} className="underline" style={{ color: 'var(--danger)' }}>resetar</button>
                                                 </div>
                                             )}
 
@@ -2717,11 +2717,11 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
 
                                             {/* Violações de guardrails */}
                                             {simScore && simScore.violations?.length > 0 && (
-                                                <div className="rounded-lg p-3" style={{ border: '1px solid #ef444440', background: '#ef444410' }}>
-                                                    <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold" style={{ color: '#ef4444' }}>⚠️ Guardrails violados</div>
+                                                <div className="rounded-lg p-3" style={{ border: '1px solid var(--danger-border)', background: 'var(--danger-bg)' }}>
+                                                    <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold flex items-center gap-1" style={{ color: 'var(--danger)' }}><AlertTriangle size={11} /> Guardrails violados</div>
                                                     <div className="flex flex-col gap-1">
                                                         {simScore.violations.map((v, i) => (
-                                                            <div key={i} className="text-[11px]" style={{ color: '#ef4444', fontFamily: 'monospace' }}>{v}</div>
+                                                            <div key={i} className="text-[11px]" style={{ color: 'var(--danger)', fontFamily: 'monospace' }}>{v}</div>
                                                         ))}
                                                     </div>
                                                     {simScore.sanitized && (

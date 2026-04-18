@@ -47,9 +47,34 @@
   --glass-border: rgba(255, 255, 255, 0.6);
   --glass-blur: 16px;
 
-  --success: #16A34A;
-  --danger: #DC2626;
-  --warning: #F59E0B;
+  /* ─── Paleta semântica Ornato (terrosa, harmoniza com cobre) ─── */
+  --success: #6B8E4E;          /* verde oliva/musgo */
+  --success-bg: #EEF3E6;       /* fundo suave */
+  --success-border: #C7D6B0;
+  --success-hover: #5C7B43;
+
+  --danger: #A0473A;           /* vermelho tijolo/bordô */
+  --danger-bg: #F7E9E6;
+  --danger-border: #E0B5AB;
+  --danger-hover: #8A3C30;
+
+  --warning: #C9882B;          /* ocre */
+  --warning-bg: #F8EED7;
+  --warning-border: #E9C889;
+  --warning-hover: #A67023;
+
+  --info: #5B7B8A;             /* azul ardósia */
+  --info-bg: #E6ECEF;
+  --info-border: #B3C5CD;
+  --info-hover: #4A6674;
+
+  --muted: #8B7D6E;             /* taupe/pardo — substitui slate */
+  --muted-bg: #F2EEE9;
+
+  /* Legados (compat) — apontam pros novos tokens */
+  --color-ok: var(--success);
+  --color-err: var(--danger);
+  --color-warn: var(--warning);
 
   --primary-ring: rgba(19, 121, 240, 0.2);
   --primary-alpha: rgba(19, 121, 240, 0.08);
@@ -105,6 +130,30 @@
   --glass-blur: 20px;
 
   --primary-light: rgba(19, 121, 240, 0.12);
+
+  /* Paleta semântica Ornato — variantes claras p/ dark mode (WCAG AA) */
+  --success: #9FBF7E;
+  --success-bg: rgba(159, 191, 126, 0.1);
+  --success-border: rgba(159, 191, 126, 0.25);
+  --success-hover: #B6CF98;
+
+  --danger: #D97560;
+  --danger-bg: rgba(217, 117, 96, 0.1);
+  --danger-border: rgba(217, 117, 96, 0.25);
+  --danger-hover: #E5907D;
+
+  --warning: #E5A84E;
+  --warning-bg: rgba(229, 168, 78, 0.1);
+  --warning-border: rgba(229, 168, 78, 0.25);
+  --warning-hover: #EFBA74;
+
+  --info: #8AA8B8;
+  --info-bg: rgba(138, 168, 184, 0.1);
+  --info-border: rgba(138, 168, 184, 0.25);
+  --info-hover: #A3BDCB;
+
+  --muted: #A89C8E;
+  --muted-bg: rgba(168, 156, 142, 0.08);
 }
 
 /* ─── Base ─── */
@@ -570,7 +619,7 @@ tr:hover .td-glass {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #22c55e;
+  background: var(--success);
   border: 2px solid var(--bg-sidebar);
   position: absolute;
   bottom: -1px;
@@ -822,7 +871,7 @@ tr.tr-clickable:hover .td-glass { background: var(--primary-alpha); }
 }
 
 .step-line-done {
-  background: #22c55e;
+  background: var(--success);
 }
 
 /* ─── Alert banner ─── */
@@ -838,33 +887,34 @@ tr.tr-clickable:hover .td-glass { background: var(--primary-alpha); }
 }
 
 .alert-banner-warning {
-  background: #fefce8;
-  border-color: #fde68a;
-  color: #92400e;
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+  color: var(--warning-hover);
 }
 
 .alert-banner-error {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #991b1b;
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: var(--danger-hover);
 }
 
 .alert-banner-info {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: #1e40af;
+  background: var(--info-bg);
+  border-color: var(--info-border);
+  color: var(--info-hover);
 }
 
 .alert-banner-success {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-  color: #166534;
+  background: var(--success-bg);
+  border-color: var(--success-border);
+  color: var(--success-hover);
 }
 
-.dark .alert-banner-warning { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); color: #fbbf24; }
-.dark .alert-banner-error { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); color: #fca5a5; }
-.dark .alert-banner-info { background: rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.2); color: #93c5fd; }
-.dark .alert-banner-success { background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.2); color: #86efac; }
+/* Dark mode já ajusta via --*-bg/--*-border/--*-hover dentro de .dark{} */
+.dark .alert-banner-warning { color: var(--warning); }
+.dark .alert-banner-error   { color: var(--danger); }
+.dark .alert-banner-info    { color: var(--info); }
+.dark .alert-banner-success { color: var(--success); }
 
 /* ═══════════════════════════════════════════════════════════
    MOBILE BOTTOM NAV

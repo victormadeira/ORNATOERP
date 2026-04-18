@@ -788,7 +788,7 @@ function LeadModal({ lead, colunas, onSave, onDelete, onClose, onNewOrc, onLinkO
                             {dados.urgencia && <div><strong>Urgência:</strong> {dados.urgencia}</div>}
                             {dados.prazo && <div><strong>Prazo:</strong> {dados.prazo}</div>}
                             {dados.indicacao_de && <div><strong>Indicação:</strong> {dados.indicacao_de}</div>}
-                            {dados.notas && <div style={{ marginTop: 2, fontStyle: 'italic', color: tc.color }}>💡 {dados.notas}</div>}
+                            {dados.notas && <div style={{ marginTop: 2, fontStyle: 'italic', color: tc.color }}>Nota: {dados.notas}</div>}
                         </div>
                     </div>
                 )}

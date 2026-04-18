@@ -283,8 +283,8 @@ export default function PecaEditor({ peca, loteId, onSave, onClose, materiais = 
                                     {form.material_id && (() => {
                                         const mat = materiaisCatalogo.find(m => m.id === form.material_id);
                                         return mat && mat.melamina !== 'ambos' ? (
-                                            <div style={{ marginTop: 6, padding: '4px 8px', borderRadius: 4, background: '#fef3c7', fontSize: 10, color: '#92400e' }}>
-                                                ⚠️ Melamina: {mat.melamina === 'face_a' ? 'apenas Face A' : mat.melamina === 'face_b' ? 'apenas Face B' : 'cru'}
+                                            <div style={{ marginTop: 6, padding: '4px 8px', borderRadius: 4, background: 'var(--warning-bg)', fontSize: 10, color: 'var(--warning-hover)' }}>
+                                                Melamina: {mat.melamina === 'face_a' ? 'apenas Face A' : mat.melamina === 'face_b' ? 'apenas Face B' : 'cru'}
                                             </div>
                                         ) : null;
                                     })()}

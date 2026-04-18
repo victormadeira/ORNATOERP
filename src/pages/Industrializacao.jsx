@@ -20,10 +20,10 @@ const STEPS = [
 
 const READINESS_ICONS = { package: Package, layers: Layers, cpu: Cpu, scissors: Scissors, tag: Tag };
 const STATUS_BADGE = {
-    ok: { bg: '#dcfce7', color: '#166534', label: '✓ OK' },
-    aviso: { bg: '#fef9c3', color: '#854d0e', label: '⚠ Aviso' },
-    erro: { bg: '#fecaca', color: '#991b1b', label: '✗ Erro' },
-    pendente: { bg: '#e0e7ff', color: '#3730a3', label: '◯ Pendente' },
+    ok:       { bg: 'var(--success-bg)', color: 'var(--success-hover)', label: 'OK' },
+    aviso:    { bg: 'var(--warning-bg)', color: 'var(--warning-hover)', label: 'Aviso' },
+    erro:     { bg: 'var(--danger-bg)',  color: 'var(--danger-hover)',  label: 'Erro' },
+    pendente: { bg: 'var(--info-bg)',    color: 'var(--info-hover)',    label: 'Pendente' },
 };
 
 // ═══════════════════════════════════════════════════════
@@ -401,9 +401,9 @@ function OPSelector({ ordens, projetos, opAtual, setOpAtual, criarOP, notify, on
                                                 <div style={{ fontSize: 20, fontWeight: 800, color: '#8b5cf6' }}>{jsonPreview.materiais}</div>
                                                 <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Materiais</div>
                                             </div>
-                                            <div style={{ padding: 10, borderRadius: 8, background: jsonPreview.hasMachining ? '#dcfce7' : '#fef9c3', textAlign: 'center' }}>
-                                                <div style={{ fontSize: 16, fontWeight: 800, color: jsonPreview.hasMachining ? '#166534' : '#854d0e' }}>
-                                                    {jsonPreview.hasMachining ? '✓ CNC' : '✗ CNC'}
+                                            <div style={{ padding: 10, borderRadius: 8, background: jsonPreview.hasMachining ? 'var(--success-bg)' : 'var(--warning-bg)', textAlign: 'center' }}>
+                                                <div style={{ fontSize: 16, fontWeight: 800, color: jsonPreview.hasMachining ? 'var(--success-hover)' : 'var(--warning-hover)' }}>
+                                                    {jsonPreview.hasMachining ? 'Com CNC' : 'Sem CNC'}
                                                 </div>
                                                 <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Usinagem</div>
                                             </div>
@@ -880,8 +880,8 @@ function StepCorte({ op, notify }) {
                     {otimizando ? <><RefreshCw size={14} className="spin" /> Otimizando...</> : <><Scissors size={14} /> Otimizar Plano de Corte</>}
                 </button>
                 {plano && (
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#22c55e' }}>
-                        ✓ Aproveitamento: {plano.aproveitamento || '?'}%
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--success)' }}>
+                        Aproveitamento: {plano.aproveitamento || '?'}%
                     </span>
                 )}
             </div>
@@ -1513,8 +1513,8 @@ function StepGcode({ op, notify }) {
                     </button>
                 )}
                 {result?.ok && (
-                    <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 600 }}>
-                        ✓ {result.total_pecas} peça(s), {result.total_operacoes} operação(ões)
+                    <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>
+                        {result.total_pecas} peça(s), {result.total_operacoes} operação(ões)
                     </span>
                 )}
             </div>
@@ -1558,7 +1558,7 @@ function StepLiberar({ op, notify, onRefresh }) {
         try {
             const r = await api.post(`/industrializacao/ordens/${op.id}/liberar`);
             if (r.ok) {
-                notify(`✅ ${op.numero} liberada para produção!`);
+                notify(`${op.numero} liberada para produção!`);
                 setLiberada(true);
                 onRefresh();
             } else {
@@ -1610,8 +1610,8 @@ function StepLiberar({ op, notify, onRefresh }) {
                 </div>
             ) : (
                 <div style={{ marginTop: 20 }}>
-                    <p style={{ fontSize: 14, color: '#22c55e', fontWeight: 600 }}>
-                        ✅ Ordem de produção enviada para o chão de fábrica com sucesso!
+                    <p style={{ fontSize: 14, color: 'var(--success)', fontWeight: 600 }}>
+                        Ordem de produção enviada para o chão de fábrica com sucesso.
                     </p>
                 </div>
             )}

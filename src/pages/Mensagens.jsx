@@ -9,7 +9,8 @@ import {
     Search, MoreVertical, ArrowLeft, Link2, RefreshCw, Check, CheckCheck,
     Paperclip, Mic, Square, Image, X, FileText, Download,
     UserPlus, UserCheck, Tag, Archive, Inbox, Users as UsersIcon,
-    AlertCircle, History, ChevronDown, Flag
+    AlertCircle, History, ChevronDown, Flag,
+    Pause, BellOff, Hourglass, Moon, Zap
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════
@@ -20,34 +21,35 @@ const STATUS_LABELS = { ia: 'IA', humano: 'Humano', fechado: 'Fechado' };
 const STATUS_ICONS = { ia: <Bot size={12} />, humano: <User size={12} />, fechado: <Lock size={12} /> };
 const STATUS_COLORS = {
     ia: { bg: colorBg('#8b5cf6'), color: '#8b5cf6', border: colorBorder('#8b5cf6') },
-    humano: { bg: colorBg('#22c55e'), color: '#22c55e', border: colorBorder('#22c55e') },
-    fechado: { bg: colorBg('#64748b'), color: '#64748b', border: colorBorder('#64748b') },
+    humano: { bg: colorBg('var(--success)'), color: 'var(--success)', border: colorBorder('var(--success)') },
+    fechado: { bg: colorBg('var(--muted)'), color: 'var(--muted)', border: colorBorder('var(--muted)') },
 };
 const LEAD_LABELS = {
     novo: 'Novo', em_qualificacao: 'Qualificando', qualificado: 'Qualificado',
     desqualificado: 'Desqualificado', fora_area: 'Fora da Área',
 };
 const LEAD_COLORS = {
-    novo: '#64748b', em_qualificacao: '#f59e0b', qualificado: '#22c55e',
-    desqualificado: '#ef4444', fora_area: '#ef4444',
+    novo: 'var(--muted)', em_qualificacao: 'var(--warning)', qualificado: 'var(--success)',
+    desqualificado: 'var(--danger)', fora_area: 'var(--danger)',
 };
 
 const CATEGORIAS = [
-    { v: '', l: 'Sem categoria', c: '#94a3b8' },
-    { v: 'comercial', l: 'Comercial', c: '#3b82f6' },
+    { v: '', l: 'Sem categoria', c: 'var(--muted)' },
+    { v: 'comercial', l: 'Comercial', c: 'var(--info)' },
     { v: 'medicao', l: 'Medição', c: '#8b5cf6' },
-    { v: 'pos_venda', l: 'Pós-venda', c: '#22c55e' },
-    { v: 'financeiro', l: 'Financeiro', c: '#f59e0b' },
+    { v: 'pos_venda', l: 'Pós-venda', c: 'var(--success)' },
+    { v: 'financeiro', l: 'Financeiro', c: 'var(--warning)' },
     { v: 'suporte', l: 'Suporte', c: '#ec4899' },
-    { v: 'outros', l: 'Outros', c: '#64748b' },
+    { v: 'outros', l: 'Outros', c: 'var(--muted)' },
 ];
 const CAT_MAP = Object.fromEntries(CATEGORIAS.map(c => [c.v, c]));
 
+// Níveis de prioridade — sem emojis, usa Lucide icons (ArrowDown/Minus/ArrowUp/Flame)
 const PRIORIDADES = [
-    { v: 'baixa', l: 'Baixa', c: '#94a3b8', emoji: '⬇' },
-    { v: 'normal', l: 'Normal', c: '#64748b', emoji: '•' },
-    { v: 'alta', l: 'Alta', c: '#f59e0b', emoji: '⬆' },
-    { v: 'urgente', l: 'Urgente', c: '#ef4444', emoji: '🔥' },
+    { v: 'baixa',   l: 'Baixa',   c: 'var(--muted)' },
+    { v: 'normal',  l: 'Normal',  c: 'var(--muted)' },
+    { v: 'alta',    l: 'Alta',    c: 'var(--warning)' },
+    { v: 'urgente', l: 'Urgente', c: 'var(--danger)' },
 ];
 const PRI_MAP = Object.fromEntries(PRIORIDADES.map(p => [p.v, p]));
 
@@ -615,16 +617,19 @@ export default function Mensagens({ notify }) {
                                             }} />
                                             {c.prioridade === 'urgente' && (
                                                 <span style={{
-                                                    position: 'absolute', top: -4, right: -4,
-                                                    fontSize: 11,
-                                                }}>🔥</span>
+                                                    position: 'absolute', top: -3, right: -3,
+                                                    width: 12, height: 12, borderRadius: '50%',
+                                                    background: 'var(--danger)',
+                                                    border: '2px solid var(--bg-card)',
+                                                    boxShadow: '0 0 0 1px var(--danger-border)',
+                                                }} title="Urgente" />
                                             )}
                                             {c.prioridade === 'alta' && (
                                                 <span style={{
                                                     position: 'absolute', top: -2, right: -2,
                                                     width: 10, height: 10, borderRadius: '50%',
-                                                    background: '#f59e0b', border: '2px solid var(--bg-card)',
-                                                }} />
+                                                    background: 'var(--warning)', border: '2px solid var(--bg-card)',
+                                                }} title="Alta" />
                                             )}
                                         </div>
                                         {/* Info */}
@@ -958,7 +963,8 @@ export default function Mensagens({ notify }) {
                                                             cursor: 'pointer', fontWeight: 700,
                                                         }}
                                                     >
-                                                        {p.emoji} {p.l}
+                                                        <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: p.c, marginRight: 4, verticalAlign: 'middle' }} />
+                                                        {p.l}
                                                     </button>
                                                 ))}
                                             </div>
@@ -974,13 +980,13 @@ export default function Mensagens({ notify }) {
                                         : 'Pausar IA nesta conversa por 24h (anti-abuso)'}
                                     style={{
                                         fontSize: 12, padding: '6px 10px', borderRadius: 8,
-                                        border: `1px solid ${activeConvData?.ia_bloqueada ? '#ef4444' : 'var(--border)'}`,
-                                        background: activeConvData?.ia_bloqueada ? '#ef444420' : 'transparent',
-                                        color: activeConvData?.ia_bloqueada ? '#ef4444' : 'var(--text-muted)',
+                                        border: `1px solid ${activeConvData?.ia_bloqueada ? 'var(--danger)' : 'var(--border)'}`,
+                                        background: activeConvData?.ia_bloqueada ? 'var(--danger-bg)' : 'transparent',
+                                        color: activeConvData?.ia_bloqueada ? 'var(--danger)' : 'var(--text-muted)',
                                         cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
                                     }}
                                 >
-                                    {activeConvData?.ia_bloqueada ? '🚫 IA pausada' : '⏸ Pausar IA'}
+                                    {activeConvData?.ia_bloqueada ? <><BellOff size={12} /> IA pausada</> : <><Pause size={12} /> Pausar IA</>}
                                 </button>
 
                                 {/* Aguardando cliente (pausa escalação pós-handoff) */}
@@ -992,13 +998,14 @@ export default function Mensagens({ notify }) {
                                             : 'Marcar como "aguardando cliente" para pausar a escalação automática'}
                                         style={{
                                             fontSize: 12, padding: '6px 10px', borderRadius: 8,
-                                            border: `1px solid ${activeConvData?.aguardando_cliente ? '#f59e0b' : 'var(--border)'}`,
-                                            background: activeConvData?.aguardando_cliente ? '#f59e0b20' : 'transparent',
-                                            color: activeConvData?.aguardando_cliente ? '#f59e0b' : 'var(--text-muted)',
+                                            border: `1px solid ${activeConvData?.aguardando_cliente ? 'var(--warning)' : 'var(--border)'}`,
+                                            background: activeConvData?.aguardando_cliente ? 'var(--warning-bg)' : 'transparent',
+                                            color: activeConvData?.aguardando_cliente ? 'var(--warning)' : 'var(--text-muted)',
                                             cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
                                         }}
                                     >
-                                        {activeConvData?.aguardando_cliente ? '⏳ Aguardando cliente' : '⏳ Aguardar cliente'}
+                                        <Hourglass size={12} />
+                                        {activeConvData?.aguardando_cliente ? 'Aguardando cliente' : 'Aguardar cliente'}
                                     </button>
                                 )}
 
@@ -1008,12 +1015,13 @@ export default function Mensagens({ notify }) {
                                         title={`Sofia já agiu neste handoff (nível ${activeConvData.escalacao_nivel})`}
                                         style={{
                                             fontSize: 11, padding: '4px 8px', borderRadius: 6,
-                                            background: activeConvData.escalacao_nivel >= 3 ? '#ef444420' : activeConvData.escalacao_nivel >= 2 ? '#f59e0b20' : '#3b82f620',
-                                            color: activeConvData.escalacao_nivel >= 3 ? '#ef4444' : activeConvData.escalacao_nivel >= 2 ? '#f59e0b' : '#3b82f6',
+                                            background: activeConvData.escalacao_nivel >= 3 ? 'var(--danger-bg)' : activeConvData.escalacao_nivel >= 2 ? 'var(--warning-bg)' : 'var(--info-bg)',
+                                            color: activeConvData.escalacao_nivel >= 3 ? 'var(--danger)' : activeConvData.escalacao_nivel >= 2 ? 'var(--warning)' : 'var(--info)',
                                             fontWeight: 600,
+                                            display: 'inline-flex', alignItems: 'center', gap: 4,
                                         }}
                                     >
-                                        {activeConvData.abandonada ? '💤 Abandonada' : `⚡ N${activeConvData.escalacao_nivel}`}
+                                        {activeConvData.abandonada ? <><Moon size={11} /> Abandonada</> : <><Zap size={11} /> N{activeConvData.escalacao_nivel}</>}
                                     </span>
                                 )}
 

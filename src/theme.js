@@ -53,20 +53,20 @@ if (savedPrimary) applyPrimaryColor(savedPrimary);
 
 // ─── Status de Projetos ─────────────────────────────
 export const STATUS_PROJ = {
-    nao_iniciado: { label: 'Nao iniciado', color: '#94a3b8', bg: '#f1f5f9' },
+    nao_iniciado: { label: 'Nao iniciado', color: 'var(--muted)',   bg: 'var(--muted-bg)' },
     em_andamento: { label: 'Em andamento', color: 'var(--primary)', bg: 'var(--primary-light)' },
-    atrasado:     { label: 'Atrasado',     color: '#ef4444', bg: '#fef2f2' },
-    concluido:    { label: 'Concluido',    color: '#22c55e', bg: '#f0fdf4' },
-    suspenso:     { label: 'Suspenso',     color: '#f59e0b', bg: '#fffbeb' },
+    atrasado:     { label: 'Atrasado',     color: 'var(--danger)',  bg: 'var(--danger-bg)' },
+    concluido:    { label: 'Concluido',    color: 'var(--success)', bg: 'var(--success-bg)' },
+    suspenso:     { label: 'Suspenso',     color: 'var(--warning)', bg: 'var(--warning-bg)' },
 };
 
 // ─── Status de Etapas ───────────────────────────────
 export const STATUS_ETAPA = {
-    nao_iniciado: { label: 'Nao iniciado', color: '#64748b' },
-    pendente:     { label: 'Pendente',     color: '#64748b' },
+    nao_iniciado: { label: 'Nao iniciado', color: 'var(--muted)' },
+    pendente:     { label: 'Pendente',     color: 'var(--muted)' },
     em_andamento: { label: 'Em andamento', color: 'var(--primary)' },
-    concluida:    { label: 'Concluida',    color: '#22c55e' },
-    atrasada:     { label: 'Atrasada',     color: '#ef4444' },
+    concluida:    { label: 'Concluida',    color: 'var(--success)' },
+    atrasada:     { label: 'Atrasada',     color: 'var(--danger)' },
 };
 
 // ─── Categorias de Despesa (unificado) ──────────────
@@ -98,48 +98,55 @@ export const CAT_LABEL = {};
 CATEGORIAS.forEach(c => { CAT_COLOR[c.id] = c.color; CAT_LABEL[c.id] = c.label; });
 
 // ─── Cores Semanticas ───────────────────────────────
+// Getters leem do CSS em runtime — respondem ao tema (light/dark) e config dinâmica
+function cssVar(name, fallback) {
+    if (typeof document === 'undefined') return fallback;
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
 export const COLORS = {
-    get primary() { return getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#1379F0'; },
-    success: '#22c55e',
-    danger:  '#ef4444',
-    warning: '#f59e0b',
-    muted:   '#94a3b8',
+    get primary() { return cssVar('--primary', '#1379F0'); },
+    get success() { return cssVar('--success', '#6B8E4E'); },
+    get danger()  { return cssVar('--danger',  '#A0473A'); },
+    get warning() { return cssVar('--warning', '#C9882B'); },
+    get info()    { return cssVar('--info',    '#5B7B8A'); },
+    get muted()   { return cssVar('--muted',   '#8B7D6E'); },
 };
 
 // ─── Status Unificado (usar em TODAS as páginas) ────
+// Usa var(--*) para responder a tema e config — sem hex hardcoded
 export const STATUS_COLORS = {
     // Genéricos
-    pendente:      { label: 'Pendente',      color: '#f59e0b', bg: '#fefce8', icon: 'clock' },
-    em_andamento:  { label: 'Em andamento',  color: '#3b82f6', bg: '#eff6ff', icon: 'play' },
-    concluido:     { label: 'Concluído',     color: '#22c55e', bg: '#f0fdf4', icon: 'check' },
-    concluida:     { label: 'Concluída',     color: '#22c55e', bg: '#f0fdf4', icon: 'check' },
-    atrasado:      { label: 'Atrasado',      color: '#ef4444', bg: '#fef2f2', icon: 'alert' },
-    atrasada:      { label: 'Atrasada',      color: '#ef4444', bg: '#fef2f2', icon: 'alert' },
-    suspenso:      { label: 'Suspenso',      color: '#94a3b8', bg: '#f8fafc', icon: 'pause' },
-    cancelado:     { label: 'Cancelado',     color: '#64748b', bg: '#f1f5f9', icon: 'x' },
-    nao_iniciado:  { label: 'Não iniciado',  color: '#94a3b8', bg: '#f8fafc', icon: 'circle' },
+    pendente:      { label: 'Pendente',      color: 'var(--warning)', bg: 'var(--warning-bg)', icon: 'clock' },
+    em_andamento:  { label: 'Em andamento',  color: 'var(--info)',    bg: 'var(--info-bg)',    icon: 'play' },
+    concluido:     { label: 'Concluído',     color: 'var(--success)', bg: 'var(--success-bg)', icon: 'check' },
+    concluida:     { label: 'Concluída',     color: 'var(--success)', bg: 'var(--success-bg)', icon: 'check' },
+    atrasado:      { label: 'Atrasado',      color: 'var(--danger)',  bg: 'var(--danger-bg)',  icon: 'alert' },
+    atrasada:      { label: 'Atrasada',      color: 'var(--danger)',  bg: 'var(--danger-bg)',  icon: 'alert' },
+    suspenso:      { label: 'Suspenso',      color: 'var(--muted)',   bg: 'var(--muted-bg)',   icon: 'pause' },
+    cancelado:     { label: 'Cancelado',     color: 'var(--muted)',   bg: 'var(--muted-bg)',   icon: 'x' },
+    nao_iniciado:  { label: 'Não iniciado',  color: 'var(--muted)',   bg: 'var(--muted-bg)',   icon: 'circle' },
 
     // CNC específicos
-    em_corte:      { label: 'Em corte',      color: '#8b5cf6', bg: '#f5f3ff', icon: 'scissors' },
-    cortada:       { label: 'Cortada',       color: '#22c55e', bg: '#f0fdf4', icon: 'check' },
-    conferida:     { label: 'Conferida',     color: '#10b981', bg: '#ecfdf5', icon: 'checkDouble' },
+    em_corte:      { label: 'Em corte',      color: '#8b5cf6',        bg: '#f5f3ff',           icon: 'scissors' },
+    cortada:       { label: 'Cortada',       color: 'var(--success)', bg: 'var(--success-bg)', icon: 'check' },
+    conferida:     { label: 'Conferida',     color: 'var(--success)', bg: 'var(--success-bg)', icon: 'checkDouble' },
 
     // Produção/Expedição
-    em_producao:   { label: 'Em produção',   color: '#3b82f6', bg: '#eff6ff', icon: 'factory' },
-    aguardando:    { label: 'Aguardando',    color: '#f59e0b', bg: '#fefce8', icon: 'clock' },
-    expedido:      { label: 'Expedido',      color: '#06b6d4', bg: '#ecfeff', icon: 'truck' },
-    entregue:      { label: 'Entregue',      color: '#22c55e', bg: '#f0fdf4', icon: 'check' },
-    instalando:    { label: 'Instalando',    color: '#8b5cf6', bg: '#f5f3ff', icon: 'wrench' },
+    em_producao:   { label: 'Em produção',   color: 'var(--info)',    bg: 'var(--info-bg)',    icon: 'factory' },
+    aguardando:    { label: 'Aguardando',    color: 'var(--warning)', bg: 'var(--warning-bg)', icon: 'clock' },
+    expedido:      { label: 'Expedido',      color: 'var(--info)',    bg: 'var(--info-bg)',    icon: 'truck' },
+    entregue:      { label: 'Entregue',      color: 'var(--success)', bg: 'var(--success-bg)', icon: 'check' },
+    instalando:    { label: 'Instalando',    color: '#8b5cf6',        bg: '#f5f3ff',           icon: 'wrench' },
 
     // Financeiro
-    pago:          { label: 'Pago',          color: '#22c55e', bg: '#f0fdf4', icon: 'check' },
-    vencido:       { label: 'Vencido',       color: '#ef4444', bg: '#fef2f2', icon: 'alert' },
-    a_vencer:      { label: 'A vencer',      color: '#f59e0b', bg: '#fefce8', icon: 'clock' },
+    pago:          { label: 'Pago',          color: 'var(--success)', bg: 'var(--success-bg)', icon: 'check' },
+    vencido:       { label: 'Vencido',       color: 'var(--danger)',  bg: 'var(--danger-bg)',  icon: 'alert' },
+    a_vencer:      { label: 'A vencer',      color: 'var(--warning)', bg: 'var(--warning-bg)', icon: 'clock' },
 };
 
 // Helper: buscar status com fallback
 export function getStatus(key) {
-    return STATUS_COLORS[key] || { label: key, color: '#94a3b8', bg: '#f8fafc', icon: 'circle' };
+    return STATUS_COLORS[key] || { label: key, color: 'var(--muted)', bg: 'var(--muted-bg)', icon: 'circle' };
 }
 
 // ─── Escala de Espaçamento (múltiplos de 4) ─────────
@@ -157,5 +164,27 @@ export const FONT = {
 };
 
 // ─── Helpers de opacidade (padrao: 15% bg, 30% border) ──
-export const colorBg = (c) => `${c}15`;
-export const colorBorder = (c) => `${c}30`;
+// Suporte a CSS vars: se receber `var(--success)`, retorna `var(--success-bg)`
+// (os tokens -bg e -border estão definidos em index.css para success/danger/warning/info/muted).
+// Para hex, mantém o append de alpha (#ef444415).
+const _SEM_VARS = new Set(['--success', '--danger', '--warning', '--info', '--muted']);
+function _isSemanticVar(c) {
+    const m = /^var\((--[a-z-]+)\)$/i.exec(c || '');
+    return m && _SEM_VARS.has(m[1].toLowerCase()) ? m[1] : null;
+}
+export const colorBg = (c) => {
+    if (!c) return '';
+    const sv = _isSemanticVar(c);
+    if (sv) return `var(${sv}-bg)`;
+    if (c === 'var(--primary)') return 'var(--primary-light)';
+    if (c.startsWith('var(')) return c; // fallback seguro
+    return `${c}15`;
+};
+export const colorBorder = (c) => {
+    if (!c) return '';
+    const sv = _isSemanticVar(c);
+    if (sv) return `var(${sv}-border)`;
+    if (c === 'var(--primary)') return 'var(--primary-ring)';
+    if (c.startsWith('var(')) return c;
+    return `${c}30`;
+};
