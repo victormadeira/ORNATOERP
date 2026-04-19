@@ -13,6 +13,7 @@ import {
     Star,
     Zap,
 } from 'lucide-react';
+import { initClarity, setClarityTag } from '../utils/clarity';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LandingPage — Dark Premium Design (inspired by Vibe Portfolio)
@@ -100,6 +101,12 @@ export default function LandingPage() {
     const timelineRef = useRef(null);
     const timelineProgressRef = useRef(null);
     const timelineLineRef = useRef(null);
+
+    // Microsoft Clarity — heatmap & session recording (skipa localhost)
+    useEffect(() => {
+        initClarity(config?.clarity_project_id);
+        setClarityTag('page', 'landing');
+    }, [config?.clarity_project_id]);
 
     useEffect(() => {
         fetch('/api/landing/config')

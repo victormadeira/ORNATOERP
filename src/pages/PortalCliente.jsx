@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { MapPin, Phone, Mail, Calendar, MessageSquare, Lock, CheckCircle2, Printer, PauseCircle, Clock, Play, AlertCircle, Send, User, Camera, X, ChevronLeft, ChevronRight, ZoomIn, Ruler, ClipboardCheck, ShoppingCart, Factory, Paintbrush, Truck, Wrench, ListChecks, Scissors, Layers, FileText, Download, DollarSign, Activity, Bell } from 'lucide-react';
+import { initClarity, identifyClarity, setClarityTag } from '../utils/clarity';
 
 const dtFmt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const timeFmt = (s) => {
@@ -1086,6 +1087,13 @@ export default function PortalCliente({ token, isPreview = false }) {
             .catch(() => setError('Não foi possível carregar o projeto'))
             .finally(() => setLoading(false));
 
+        // Microsoft Clarity (skipa preview e localhost)
+        if (!isPreview) {
+            initClarity();
+            setClarityTag('page', 'portal-cliente');
+            if (token) identifyClarity(token, '', '', `Portal ${token.slice(0, 8)}`);
+        }
+
         // Solicitar geolocalização (apenas acesso público, não preview)
         if (!isPreview && navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
@@ -1101,6 +1109,14 @@ export default function PortalCliente({ token, isPreview = false }) {
             );
         }
     }, [token, isPreview]);
+
+    // Clarity: enriquece tags quando data carrega (cliente, projeto)
+    useEffect(() => {
+        if (isPreview || !data) return;
+        if (data.cliente?.nome) setClarityTag('cliente', data.cliente.nome);
+        if (data.projeto?.nome) setClarityTag('projeto', data.projeto.nome);
+        if (data.projeto?.numero) setClarityTag('projeto_numero', data.projeto.numero);
+    }, [data, isPreview]);
 
     const primary = data?.empresa?.proposta_cor_primaria || '#1B2A4A';
     const accent = data?.empresa?.proposta_cor_accent || '#C9A96E';

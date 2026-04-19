@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Lock, Link as LinkIcon, Printer, CheckCircle2, FileText } from 'lucide-react';
+import { initClarity, identifyClarity, setClarityTag, upgradeClarity, injectClarityIntoIframe } from '../utils/clarity';
 
 // ── ProposalPublic — exibe a proposta como clone do PDF + tracking ───────────
 export default function ProposalPublic({ token, isPreview = false }) {
@@ -40,6 +41,16 @@ export default function ProposalPublic({ token, isPreview = false }) {
             .catch(() => setError('Não foi possível carregar a proposta'))
             .finally(() => setLoading(false));
     }, [token, isPreview]);
+
+    // ── Microsoft Clarity (skipa preview e localhost) ────────────────────────
+    useEffect(() => {
+        if (isPreview) return;
+        initClarity();
+        setClarityTag('page', 'proposta');
+        if (token) identifyClarity(token, '', '', meta?.cliente_nome ? `Proposta ${meta.numero || ''} — ${meta.cliente_nome}` : `Proposta ${token.slice(0, 8)}`);
+        if (meta?.cliente_nome) setClarityTag('cliente', meta.cliente_nome);
+        if (meta?.numero) setClarityTag('proposta_numero', meta.numero);
+    }, [isPreview, token, meta?.cliente_nome, meta?.numero]);
 
     // ── Tracking: fingerprint + heartbeat + section observer + interações ──
     useEffect(() => {
@@ -289,6 +300,20 @@ export default function ProposalPublic({ token, isPreview = false }) {
                             }
                         `;
                         doc.head.appendChild(style);
+
+                        // Injetar Clarity DENTRO do iframe (heatmap + recording do conteúdo da proposta)
+                        // Pula em preview/admin pra não poluir os dados
+                        if (!isPreview) {
+                            injectClarityIntoIframe(iframe, {
+                                token,
+                                friendlyName: meta?.cliente_nome ? `Proposta ${meta.numero || ''} — ${meta.cliente_nome}` : `Proposta ${token.slice(0, 8)}`,
+                                tags: {
+                                    page: 'proposta-conteudo',
+                                    cliente: meta?.cliente_nome || '',
+                                    proposta_numero: meta?.numero || '',
+                                },
+                            });
+                        }
 
                         // Auto-resize iframe para caber o conteúdo (com delay para CSS aplicar)
                         setTimeout(() => {
@@ -579,6 +604,9 @@ export default function ProposalPublic({ token, isPreview = false }) {
                                             setAprovadoEm(d.aprovado_em || new Date().toISOString());
                                             setShowConfetti(true);
                                             setTimeout(() => setShowConfetti(false), 4000);
+                                            // Clarity: marca a sessão como prioritária (conversão)
+                                            upgradeClarity('proposta_aprovada');
+                                            setClarityTag('aprovada', 'true');
                                         }
                                         else { setErroAprovacao(d.error || 'Não foi possível aprovar. Tente novamente.'); }
                                     } catch {

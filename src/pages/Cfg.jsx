@@ -189,6 +189,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         landing_servicos_json: JSON.stringify(LANDING_SERVICOS_DEFAULT),
         landing_diferenciais_json: JSON.stringify(LANDING_DIFERENCIAIS_DEFAULT),
         landing_etapas_json: JSON.stringify(LANDING_ETAPAS_DEFAULT),
+        clarity_project_id: 'wed7zy3qnz',
         centro_custo_json: '[]',
         centro_custo_dias_uteis: 22,
     });
@@ -319,6 +320,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 landing_servicos_json: d.landing_servicos_json || JSON.stringify(LANDING_SERVICOS_DEFAULT),
                 landing_diferenciais_json: d.landing_diferenciais_json || JSON.stringify(LANDING_DIFERENCIAIS_DEFAULT),
                 landing_etapas_json: d.landing_etapas_json || JSON.stringify(LANDING_ETAPAS_DEFAULT),
+                clarity_project_id: d.clarity_project_id ?? 'wed7zy3qnz',
                 centro_custo_json: d.centro_custo_json || '[]',
                 centro_custo_dias_uteis: d.centro_custo_dias_uteis ?? 22,
             });
@@ -502,6 +504,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 landing_servicos_json: emp.landing_servicos_json,
                 landing_diferenciais_json: emp.landing_diferenciais_json,
                 landing_etapas_json: emp.landing_etapas_json,
+                clarity_project_id: emp.clarity_project_id,
                 centro_custo_json: emp.centro_custo_json,
                 centro_custo_dias_uteis: emp.centro_custo_dias_uteis,
             });
@@ -3143,6 +3146,29 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     </div>
                                 ))}
                             </div>
+                        </div>
+
+                        <div className={Z.card + ' mt-4'}>
+                            <h3 className="font-semibold text-sm mb-1" style={{ color: 'var(--primary)' }}>Microsoft Clarity</h3>
+                            <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
+                                Heatmap e gravação de sessões na landing, propostas e portal do cliente.{' '}
+                                <a href="https://clarity.microsoft.com" target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>
+                                    Acessar dashboard
+                                </a>
+                            </p>
+                            <label className={Z.lbl}>Project ID</label>
+                            <input
+                                className={Z.inp}
+                                value={emp.clarity_project_id ?? ''}
+                                onChange={e => setEmp({ ...emp, clarity_project_id: e.target.value })}
+                                disabled={!isGerente}
+                                placeholder="ex: wed7zy3qnz (deixe vazio para desativar)"
+                                style={{ fontFamily: 'monospace' }}
+                            />
+                            <p className="text-[10.5px] mt-2" style={{ color: 'var(--text-muted)' }}>
+                                O tracking não roda em <code>localhost</code> — só em produção.
+                                {emp.clarity_project_id ? ' ✓ Ativo.' : ' ✗ Desativado.'}
+                            </p>
                         </div>
                     </div>
 

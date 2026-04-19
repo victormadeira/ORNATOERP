@@ -24,6 +24,7 @@ router.get('/config', (req, res) => {
                landing_grafismo_imagem,
                landing_cor_fundo, landing_cor_destaque, landing_cor_neutra, landing_cor_clara,
                landing_servicos_json, landing_diferenciais_json, landing_etapas_json,
+               clarity_project_id,
                instagram, facebook
         FROM empresa_config WHERE id = 1
     `).get();

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { initClarity, identifyClarity, setClarityTag } from '../utils/clarity';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PropostaApresentacao — Landing Page pré-proposta com identidade Ornato
@@ -545,6 +546,18 @@ export default function PropostaApresentacao({ token }) {
             .catch(() => setError('Não foi possível carregar'))
             .finally(() => setLoading(false));
     }, [token]);
+
+    // ── Microsoft Clarity (skipa localhost) ──────────────────────────────────
+    useEffect(() => {
+        initClarity(data?.empresa?.clarity_project_id);
+        setClarityTag('page', 'apresentacao');
+        if (token) {
+            const friendly = data?.cliente?.nome ? `Apresentação — ${data.cliente.nome}` : `Apresentação ${token.slice(0, 8)}`;
+            identifyClarity(token, '', '', friendly);
+        }
+        if (data?.cliente?.nome) setClarityTag('cliente', data.cliente.nome);
+        if (data?.numero) setClarityTag('proposta_numero', data.numero);
+    }, [token, data?.cliente?.nome, data?.numero, data?.empresa?.clarity_project_id]);
 
     // ── Stats counter trigger ────────────────────────────────────────────────
     useEffect(() => {

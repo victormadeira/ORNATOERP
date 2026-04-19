@@ -1138,6 +1138,8 @@ const migrations = [
   "ALTER TABLE empresa_config ADD COLUMN landing_servicos_json TEXT DEFAULT '[]'",
   "ALTER TABLE empresa_config ADD COLUMN landing_diferenciais_json TEXT DEFAULT '[]'",
   "ALTER TABLE empresa_config ADD COLUMN landing_etapas_json TEXT DEFAULT '[]'",
+  // ═══ Microsoft Clarity (heatmap & session recording) ═══
+  "ALTER TABLE empresa_config ADD COLUMN clarity_project_id TEXT DEFAULT 'wed7zy3qnz'",
   // ═══ Projetista Visual (DESCONTINUADO — tabela mantida para dados legados) ═══
   `CREATE TABLE IF NOT EXISTS projetos_visual (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
