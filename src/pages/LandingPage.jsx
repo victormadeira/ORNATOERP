@@ -230,6 +230,11 @@ export default function LandingPage() {
 
     // ── Vars ─────────────────────────────────────────────────────────────────
     const acc = config?.landing_cor_destaque || '#B7654A';
+    const accRgb = (() => {
+        const h = (acc || '#B7654A').replace('#', '');
+        const n = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+        return `${parseInt(n.slice(0, 2), 16)}, ${parseInt(n.slice(2, 4), 16)}, ${parseInt(n.slice(4, 6), 16)}`;
+    })();
     const empNome = config?.nome || 'Ornato';
     const portfolioItems = portfolio.length >= 6 ? portfolio : [...portfolio, ...PORTFOLIO_PLACEHOLDER.slice(0, 6 - portfolio.length)];
     const heroTitulo = config?.landing_titulo || 'Ambientes sob medida, feitos para durar e encantar.';
@@ -595,7 +600,7 @@ export default function LandingPage() {
                                             {enviando ? 'Abrindo…' : 'Conversar no WhatsApp agora'}
                                         </button>
                                     ) : (
-                                        <button type="submit" className="lp-btn-wa-hero" disabled={enviando} style={{ background: `linear-gradient(135deg, ${acc}, ${acc}cc)` }}>
+                                        <button type="submit" className="lp-btn-wa-hero" disabled={enviando} style={{ background: `linear-gradient(135deg, ${acc}, ${acc}cc)`, '--wa-glow-rgb': accRgb }}>
                                             {enviando ? <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={18} />}
                                             {enviando ? 'Enviando…' : 'Quero falar com a equipe'}
                                         </button>
@@ -903,6 +908,7 @@ function buildCSS(acc) {
 .lp-input-lg { padding:18px 20px !important; font-size:16px !important; border-radius:14px !important; }
 
 .lp-btn-wa-hero {
+  --wa-glow-rgb: 37, 211, 102;
   display:inline-flex; align-items:center; justify-content:center; gap:12px;
   width:100%; height:64px; padding:0 2rem; margin-top:6px;
   background:linear-gradient(135deg, #25D366, #128C7E);
@@ -910,7 +916,7 @@ function buildCSS(acc) {
   font-family:inherit; font-size:1.02rem; font-weight:800;
   letter-spacing:0.02em;
   cursor:pointer; transition:all 0.3s cubic-bezier(0.16,1,0.3,1);
-  box-shadow:0 6px 24px rgba(37,211,102,0.35), 0 0 0 0 rgba(37,211,102,0.4);
+  box-shadow:0 6px 24px rgba(var(--wa-glow-rgb),0.35), 0 0 0 0 rgba(var(--wa-glow-rgb),0.4);
   position:relative; overflow:hidden;
   animation:waHeroPulse 2.4s ease-in-out infinite;
 }
@@ -919,14 +925,14 @@ function buildCSS(acc) {
   background:linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent);
   transition:left 0.7s ease;
 }
-.lp-btn-wa-hero:hover { transform:translateY(-2px) scale(1.015); box-shadow:0 12px 40px rgba(37,211,102,0.55); filter:brightness(1.08); animation-play-state:paused; }
+.lp-btn-wa-hero:hover { transform:translateY(-2px) scale(1.015); box-shadow:0 12px 40px rgba(var(--wa-glow-rgb),0.55); filter:brightness(1.08); animation-play-state:paused; }
 .lp-btn-wa-hero:hover::before { left:100%; }
 .lp-btn-wa-hero:active { transform:translateY(0) scale(0.98); }
 .lp-btn-wa-hero:disabled { opacity:0.7; cursor:wait; animation:none; }
 
 @keyframes waHeroPulse {
-  0%, 100% { box-shadow:0 6px 24px rgba(37,211,102,0.35), 0 0 0 0 rgba(37,211,102,0.4); }
-  50% { box-shadow:0 6px 24px rgba(37,211,102,0.35), 0 0 0 12px rgba(37,211,102,0); }
+  0%, 100% { box-shadow:0 6px 24px rgba(var(--wa-glow-rgb),0.35), 0 0 0 0 rgba(var(--wa-glow-rgb),0.4); }
+  50% { box-shadow:0 6px 24px rgba(var(--wa-glow-rgb),0.35), 0 0 0 12px rgba(var(--wa-glow-rgb),0); }
 }
 
 .lp-form-trust {
