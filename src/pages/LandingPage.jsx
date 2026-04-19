@@ -210,7 +210,7 @@ export default function LandingPage() {
 
     if (!config) {
         return (
-            <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#000' }}>
+            <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: '#060504' }}>
                 <Loader2 size={30} style={{ color: '#B7654A', animation: 'spin 1s linear infinite' }} />
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
             </div>
@@ -219,7 +219,7 @@ export default function LandingPage() {
 
     if (Number(config?.landing_ativo) === 0) {
         return (
-            <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#000', color: '#fff', padding: 24 }}>
+            <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: '#060504', color: '#f4ece0', padding: 24 }}>
                 <div style={{ textAlign: 'center' }}>
                     <h1 style={{ fontSize: 36, margin: 0, fontFamily: "'Oswald', sans-serif", fontWeight: 200 }}>{config?.nome || 'Ornato'}</h1>
                     <p style={{ marginTop: 10, opacity: 0.5 }}>Nossa página está em atualização.</p>
@@ -692,10 +692,10 @@ export default function LandingPage() {
 // ═══════════════════════════════════════════════════════════════════════════════
 function buildCSS(acc) {
     return `
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Oswald:wght@200;300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Oswald:wght@200;300;400;500;600&display=swap');
 
 /* ── Reset ── */
-.lp { margin:0; padding:0; font-family:'Inter',system-ui,sans-serif; overflow-x:hidden; -webkit-font-smoothing:antialiased; color:#fff; background:#030201; line-height:1.6; }
+.lp { margin:0; padding:0; font-family:'Geist',system-ui,sans-serif; overflow-x:hidden; -webkit-font-smoothing:antialiased; color:#f4ece0; background:#060504; line-height:1.6; }
 .lp *, .lp *::before, .lp *::after { box-sizing:border-box; margin:0; padding:0; }
 .lp-container { max-width:1400px; margin:0 auto; padding:0 4rem; }
 
@@ -725,7 +725,7 @@ function buildCSS(acc) {
 .lp-reveal.active { opacity:1; transform:translateY(0); }
 
 /* ── AURA SYSTEM ── */
-.lp-aura-wrap { position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none; background:#000; }
+.lp-aura-wrap { position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none; background:#060504; }
 .lp-aura-wrap .lp-aura { position:absolute; width:75vw; height:75vw; border-radius:50%; filter:blur(160px); opacity:0.35; mix-blend-mode:plus-lighter; }
 .lp-aura-1 { top:-15%; right:-10%; animation:liquidMove1 30s infinite alternate ease-in-out; }
 .lp-aura-2 { background:radial-gradient(circle, #3D2B1F 0%, transparent 70%); bottom:-15%; left:-10%; animation:liquidMove2 35s infinite alternate ease-in-out; }
@@ -745,11 +745,11 @@ function buildCSS(acc) {
 .lp-nav-links { display:flex; gap:3rem; position:absolute; left:50%; transform:translateX(-50%); }
 .lp-nav-links a { color:rgba(255,255,255,0.7); text-decoration:none; font-size:0.8rem; font-weight:500; letter-spacing:0.05em; text-transform:uppercase; transition:all 0.3s; }
 .lp-nav-links a:hover { color:#fff; text-shadow:0 0 10px rgba(255,255,255,0.3); }
-.lp-btn-nav { display:inline-flex; align-items:center; justify-content:center; height:42px; padding:0 1.5rem; background:${acc}; color:#000; text-decoration:none; border-radius:9999px; font-weight:700; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.08em; transition:all 0.3s; border:none; }
+.lp-btn-nav { display:inline-flex; align-items:center; justify-content:center; height:42px; padding:0 1.5rem; background:${acc}; color:#1a0f08; text-decoration:none; border-radius:9999px; font-weight:700; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.08em; transition:all 0.3s; border:none; }
 .lp-btn-nav:hover { transform:translateY(-2px); box-shadow:0 6px 20px ${acc}60; filter:brightness(1.1); }
 
 /* ── HERO LAYOUT ── */
-.lp-hero { min-height:100vh; display:flex; align-items:center; padding-top:8rem; position:relative; overflow:hidden; }
+.lp-hero { min-height:100dvh; display:flex; align-items:center; padding-top:8rem; position:relative; overflow:hidden; }
 .lp-hero-content { display:grid; grid-template-columns:1.1fr 0.9fr; gap:6rem; align-items:center; width:100%; position:relative; z-index:10; }
 .lp-hero-text { display:flex; flex-direction:column; gap:2.5rem; }
 
@@ -817,7 +817,7 @@ function buildCSS(acc) {
 .lp-timeline-item:nth-child(even) .lp-timeline-content { width:50%; justify-content:flex-start; padding-left:5rem; }
 .lp-timeline-content { display:flex; position:relative; }
 
-.lp-timeline-dot { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:16px; height:16px; background:#000; border:3px solid ${acc}; border-radius:50%; z-index:20; box-shadow:0 0 15px ${acc}40; }
+.lp-timeline-dot { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:16px; height:16px; background:#060504; border:3px solid ${acc}; border-radius:50%; z-index:20; box-shadow:0 0 15px ${acc}40; }
 
 .lp-timeline-year { position:absolute; top:50%; transform:translateY(-50%); font-family:'Oswald',sans-serif; font-size:1.8rem; font-weight:200; color:rgba(255,255,255,0.5); white-space:nowrap; }
 .lp-timeline-item:nth-child(odd) .lp-timeline-year { left:calc(100% + 4rem); }
