@@ -998,15 +998,17 @@ tr.tr-clickable:hover .td-glass { background: var(--primary-alpha); }
    ═══════════════════════════════════════════════════════════ */
 .login-container {
   position: relative;
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0a0a0a;
+  background: #060504;
   overflow: hidden;
 }
 
 .login-glass {
+  --mx: 50%;
+  --my: 0%;
   position: relative;
   z-index: 10;
   background: rgba(255, 255, 255, 0.04);
@@ -1022,6 +1024,35 @@ tr.tr-clickable:hover .td-glass { background: var(--primary-alpha); }
   width: 100%;
   max-width: 400px;
   margin: 16px;
+  transition: box-shadow 0.4s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.35s ease;
+  overflow: hidden;
+}
+
+/* Cursor-aware spotlight — tracks pointer, fades out when idle */
+.login-glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    420px circle at var(--mx) var(--my),
+    var(--primary-ring) 0%,
+    transparent 55%
+  );
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  z-index: 0;
+}
+
+.login-glass:hover::after {
+  opacity: 0.7;
+}
+
+.login-glass > * {
+  position: relative;
+  z-index: 1;
 }
 
 .login-glass::before {
@@ -1034,10 +1065,19 @@ tr.tr-clickable:hover .td-glass { background: var(--primary-alpha); }
   pointer-events: none;
 }
 
+/* Focus-within — intensify shadow when any field is focused */
+.login-glass:focus-within {
+  box-shadow:
+    0 28px 72px rgba(0, 0, 0, 0.45),
+    0 0 0 1px var(--primary-alpha),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+}
+
 .login-glass input {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #f1f5f9;
+  color: #f4ece0;
   padding: 12px 14px;
   border-radius: var(--radius-md);
   width: 100%;
@@ -1050,11 +1090,28 @@ tr.tr-clickable:hover .td-glass { background: var(--primary-alpha); }
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-ring), 0 0 20px var(--primary-alpha);
   background: rgba(255, 255, 255, 0.07);
+  transform: translateY(-1px);
 }
 
 .login-glass input::placeholder {
   color: rgba(148, 163, 184, 0.4);
 }
+
+/* Success state — fade out on successful login */
+.login-glass.login-success {
+  transform: scale(0.98);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Shake — error feedback */
+@keyframes login-shake {
+  0%, 100% { transform: translateX(0); }
+  15%, 55% { transform: translateX(-6px); }
+  35%, 75% { transform: translateX(6px); }
+  90% { transform: translateX(-2px); }
+}
+.login-shake { animation: login-shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
 
 @keyframes login-logo-enter {
   from { opacity: 0; transform: translateY(-16px) scale(0.9); filter: blur(4px); }
@@ -1066,12 +1123,33 @@ tr.tr-clickable:hover .td-glass { background: var(--primary-alpha); }
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Staggered field entrance — waterfall effect */
+@keyframes login-field-enter {
+  from { opacity: 0; transform: translateY(14px); filter: blur(2px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
 .login-logo-anim {
   animation: login-logo-enter 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
 }
 
 .login-form-anim {
   animation: login-form-enter 0.6s ease 0.6s both;
+}
+
+.login-field-anim {
+  animation: login-field-enter 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.login-field-anim:nth-of-type(1) { animation-delay: 0.75s; }
+.login-field-anim:nth-of-type(2) { animation-delay: 0.88s; }
+
+.login-submit-btn {
+  animation: login-field-enter 0.55s cubic-bezier(0.22, 1, 0.36, 1) 1.02s both;
+}
+
+/* Checkmark draw-in on success */
+@keyframes check-draw {
+  to { stroke-dashoffset: 0; }
 }
 
 /* ─── Tablet/Mobile (<=768px) — iOS zoom + touch-target 44px ─── */

@@ -142,9 +142,38 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
     const [senha, setSenha] = useState('');
     const [err, setErr] = useState('');
     const [loading, setLoading] = useState(false);
+    const [success, setSuccess] = useState(false);
     const [logoSistema, setLogoSistema] = useState(logoProp || localStorage.getItem('logo_sistema') || '');
     const [empNome, setEmpNome] = useState(nomeProp || localStorage.getItem('emp_nome') || 'Ornato');
     const [primaryColor, setPrimaryColor] = useState(() => localStorage.getItem('sistema_cor_primaria') || '#1379F0');
+    const cardRef = useRef(null);
+    const btnRef = useRef(null);
+
+    // Cursor-aware spotlight: update CSS vars for radial-gradient position
+    const handleCardMove = (e) => {
+        const card = cardRef.current;
+        if (!card) return;
+        const rect = card.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        card.style.setProperty('--mx', `${x}%`);
+        card.style.setProperty('--my', `${y}%`);
+    };
+
+    // Magnetic button: subtle pull toward cursor
+    const handleBtnMove = (e) => {
+        const btn = btnRef.current;
+        if (!btn || loading) return;
+        const rect = btn.getBoundingClientRect();
+        const x = (e.clientX - rect.left - rect.width / 2) / rect.width;
+        const y = (e.clientY - rect.top - rect.height / 2) / rect.height;
+        btn.style.transform = `translate(${x * 4}px, ${y * 3 - 2}px)`;
+    };
+    const handleBtnLeave = () => {
+        const btn = btnRef.current;
+        if (!btn) return;
+        btn.style.transform = '';
+    };
 
     // Derivar RGB da cor primária para usar em shadows/gradientes dinâmicos
     const rgb = useMemo(() => {
@@ -177,10 +206,29 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!email || !senha) { setErr('Preencha todos os campos'); return; }
+        if (!email || !senha) {
+            setErr('Preencha todos os campos');
+            // shake the card for feedback
+            if (cardRef.current) {
+                cardRef.current.classList.remove('login-shake');
+                void cardRef.current.offsetWidth;
+                cardRef.current.classList.add('login-shake');
+            }
+            return;
+        }
         setLoading(true); setErr('');
-        try { await login(email, senha); }
-        catch (ex) { setErr(ex.error || 'Erro ao fazer login'); }
+        try {
+            await login(email, senha);
+            setSuccess(true);
+        }
+        catch (ex) {
+            setErr(ex.error || 'Erro ao fazer login');
+            if (cardRef.current) {
+                cardRef.current.classList.remove('login-shake');
+                void cardRef.current.offsetWidth;
+                cardRef.current.classList.add('login-shake');
+            }
+        }
         finally { setLoading(false); }
     };
 
@@ -204,7 +252,12 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
             }} />
 
             {/* Login Form */}
-            <div className="login-glass" style={{ zIndex: 10 }}>
+            <div
+                ref={cardRef}
+                className={`login-glass${success ? ' login-success' : ''}`}
+                style={{ zIndex: 10 }}
+                onMouseMove={handleCardMove}
+            >
                 {/* Logo */}
                 <div className="text-center mb-8 login-logo-anim">
                     {logoSistema
@@ -214,9 +267,9 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
                         }} />
                         : <h1 style={{
                             fontSize: 32, fontWeight: 800, marginBottom: 8,
-                            background: `linear-gradient(135deg, #fff 0%, rgba(${rgb.lr},${rgb.lg},${rgb.lb},0.9) 50%, #94a3b8 100%)`,
-                            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                            color: '#f4ece0',
                             letterSpacing: '-0.03em',
+                            textShadow: `0 2px 20px rgba(${rgb.r},${rgb.g},${rgb.b},0.35)`,
                         }}>{empNome}</h1>
                     }
                     <p style={{ fontSize: 13, color: 'rgba(148, 163, 184, 0.6)', letterSpacing: '0.02em' }}>
@@ -244,7 +297,7 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
                     )}
 
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        <div>
+                        <div className="login-field-anim">
                             <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(148, 163, 184, 0.7)', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                                 E-mail
                             </label>
@@ -256,7 +309,7 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
                                 autoFocus
                             />
                         </div>
-                        <div>
+                        <div className="login-field-anim">
                             <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(148, 163, 184, 0.7)', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                                 Senha
                             </label>
@@ -268,22 +321,32 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
                             />
                         </div>
                         <button
+                            ref={btnRef}
                             type="submit"
                             disabled={loading}
+                            className="login-submit-btn"
                             style={{
                                 width: '100%', padding: '13px 0', borderRadius: 12, border: 'none',
                                 background: 'var(--primary-gradient)',
                                 color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
                                 boxShadow: `0 4px 20px rgba(${rgb.r},${rgb.g},${rgb.b},0.35), inset 0 1px 0 rgba(255,255,255,0.15)`,
-                                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                                transition: 'transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease',
                                 marginTop: 4,
                                 opacity: loading ? 0.7 : 1,
                                 letterSpacing: '0.02em',
+                                willChange: 'transform',
                             }}
-                            onMouseEnter={e => { if (!loading) { e.target.style.transform = 'translateY(-2px)'; e.target.style.boxShadow = `0 8px 30px rgba(${rgb.r},${rgb.g},${rgb.b},0.45), inset 0 1px 0 rgba(255,255,255,0.15)`; } }}
-                            onMouseLeave={e => { e.target.style.transform = 'translateY(0)'; e.target.style.boxShadow = `0 4px 20px rgba(${rgb.r},${rgb.g},${rgb.b},0.35), inset 0 1px 0 rgba(255,255,255,0.15)`; }}
+                            onMouseMove={handleBtnMove}
+                            onMouseLeave={handleBtnLeave}
                         >
-                            {loading ? (
+                            {success ? (
+                                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'check-draw 0.4s ease-out forwards' }}>
+                                        <polyline points="20 6 9 17 4 12" style={{ strokeDasharray: 30, strokeDashoffset: 30, animation: 'check-draw 0.4s ease-out forwards' }} />
+                                    </svg>
+                                    Entrando...
+                                </span>
+                            ) : loading ? (
                                 <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                                     <div style={{
                                         width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)',
