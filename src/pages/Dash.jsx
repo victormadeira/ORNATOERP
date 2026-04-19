@@ -116,10 +116,8 @@ function HeadlineMes({ data }) {
                 <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
                     Faturamento em {data.mes_atual}
                 </div>
-                <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1 }}>
-                    <span style={{ background: 'var(--primary-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                        {R$(data.faturamento_mes)}
-                    </span>
+                <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1, color: 'var(--primary)', letterSpacing: '-0.02em' }}>
+                    {R$(data.faturamento_mes)}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
                     {data.qtd_fechados} negocio{data.qtd_fechados !== 1 ? 's' : ''} fechado{data.qtd_fechados !== 1 ? 's' : ''}
@@ -176,12 +174,18 @@ function FilaAtencao({ data, nav }) {
                                 : o.dias_parado >= 7 ? { bg: '#f9731618', color: '#f97316' }
                                 : { bg: 'var(--warning-bg)', color: 'var(--warning)' };
                             return (
-                            <div key={o.id} onClick={() => nav('orcs')}
+                            <div
+                                key={o.id}
+                                onClick={() => nav('orcs')}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nav('orcs'); } }}
+                                role="button"
+                                tabIndex={0}
+                                aria-label={`Orçamento de ${o.cliente_nome}, ${o.dias_parado} dias parado`}
                                 style={{
                                     padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
                                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                                     animation: `stagger-in 0.25s ease ${i * 40}ms both`,
-                                    borderLeft: `3px solid ${urgency.color}`,
+                                    background: `linear-gradient(90deg, ${urgency.color}0a, transparent 30%)`,
                                 }}
                                 className="hover:bg-[var(--bg-hover)] transition-colors">
                                 <div style={{ minWidth: 0 }}>
@@ -205,7 +209,13 @@ function FilaAtencao({ data, nav }) {
                             <XCircle size={10} style={{ display: 'inline', marginRight: 4, color: 'var(--danger)' }} /> Contas Vencidas
                         </div>
                         {data.contas_vencidas.map((c, i) => (
-                            <div key={c.id} onClick={() => nav('financeiro')}
+                            <div
+                                key={c.id}
+                                onClick={() => nav('financeiro')}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nav('financeiro'); } }}
+                                role="button"
+                                tabIndex={0}
+                                aria-label={`Conta vencida: ${c.descricao}, ${c.dias_atraso} dias atraso, ${R$(c.valor)}`}
                                 style={{
                                     padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
                                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
@@ -338,7 +348,14 @@ function FluxoCaixa({ data }) {
                                 </span>
                                 <span style={{ fontSize: 13, fontWeight: 700, color: it.color }}>{R$(it.value)}</span>
                             </div>
-                            <div style={{ background: 'var(--bg-muted)', borderRadius: 99, height: 8, overflow: 'hidden' }}>
+                            <div
+                                role="progressbar"
+                                aria-label={it.label}
+                                aria-valuenow={Math.round(pct)}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                style={{ background: 'var(--bg-muted)', borderRadius: 99, height: 8, overflow: 'hidden' }}
+                            >
                                 <div style={{
                                     width: `${pct}%`, height: '100%', borderRadius: 99,
                                     background: it.color,
@@ -730,7 +747,8 @@ function FluxoProjetado({ data }) {
                     return (
                         <div key={i} style={{
                             marginBottom: i < data.length - 1 ? 16 : 0, padding: 12, borderRadius: 10,
-                            background: 'var(--bg-muted)', borderLeft: `3px solid ${accentColor}`,
+                            background: `linear-gradient(135deg, ${accentColor === 'var(--primary)' ? 'var(--primary-alpha)' : 'rgba(184,101,101,0.08)'}, var(--bg-muted) 60%)`,
+                            border: `1px solid ${accentColor === 'var(--primary)' ? 'var(--primary-ring)' : 'rgba(184,101,101,0.18)'}`,
                             animation: `stagger-in 0.35s ease ${i * 80}ms both`,
                         }}>
                             <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, textTransform: 'capitalize', color: 'var(--text-primary)' }}>{m.label}</div>
@@ -939,8 +957,15 @@ export default function Dash({ nav, notify, user }) {
     return (
         <div className={Z.pg}>
             <PageHeader icon={Activity} title={`${greet()}, bem-vindo!`} subtitle={today}>
-                <button onClick={() => load(true)} className="btn-secondary" style={{ padding: '7px 12px', minHeight: 0 }} title="Atualizar dados">
-                    <RefreshCw size={14} style={refreshing ? { animation: 'spin 1s linear infinite' } : undefined} />
+                <button
+                    onClick={() => load(true)}
+                    className="btn-secondary"
+                    style={{ padding: '7px 12px', minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', touchAction: 'manipulation' }}
+                    title="Atualizar dados"
+                    aria-label={refreshing ? 'Atualizando dados…' : 'Atualizar dados do dashboard'}
+                    aria-busy={refreshing}
+                >
+                    <RefreshCw size={14} style={refreshing ? { animation: 'spin 1s linear infinite' } : undefined} aria-hidden="true" />
                 </button>
             </PageHeader>
             <TabBar
@@ -987,15 +1012,19 @@ export default function Dash({ nav, notify, user }) {
 
                     {/* Collapsible: less-critical sections */}
                     <div style={{ marginBottom: 16 }}>
-                        <button onClick={() => setMaisDetalhes(v => !v)}
+                        <button
+                            onClick={() => setMaisDetalhes(v => !v)}
+                            aria-expanded={maisDetalhes}
+                            aria-controls="dash-mais-detalhes"
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                                padding: '12px 20px', borderRadius: 12,
+                                padding: '12px 20px', borderRadius: 12, minHeight: 44,
                                 background: 'var(--bg-muted)', border: '1px solid var(--border)',
                                 cursor: 'pointer', transition: 'all 0.2s',
                                 color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600,
+                                touchAction: 'manipulation',
                             }}>
-                            <ChevronDown size={16} style={{
+                            <ChevronDown size={16} aria-hidden="true" style={{
                                 transition: 'transform 0.25s',
                                 transform: maisDetalhes ? 'rotate(180deg)' : 'rotate(0deg)',
                             }} />
@@ -1005,7 +1034,7 @@ export default function Dash({ nav, notify, user }) {
                             </span>
                         </button>
                         {maisDetalhes && (
-                            <div style={{ marginTop: 16 }}>
+                            <div id="dash-mais-detalhes" style={{ marginTop: 16 }}>
                                 <ProjetosAtivos data={data.projetos_ativos} total={data.total_projetos_ativos} nav={nav} />
                                 <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10, marginBottom: 16 }}>
                                     {shortcuts.filter(s => !(isVendedor && s.pg === 'cfg')).map((s, i) => {
