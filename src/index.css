@@ -210,6 +210,8 @@ h1, h2, h3 { letter-spacing: -0.015em; }
   box-shadow: var(--shadow-sm), 0 1px 2px var(--primary-ring);
   position: relative;
   overflow: hidden;
+  /* UX Pro Max: tap-delay — reduz 300ms de delay em mobile */
+  touch-action: manipulation;
 }
 
 .btn-primary::before {
@@ -247,6 +249,7 @@ h1, h2, h3 { letter-spacing: -0.015em; }
   cursor: pointer;
   font-family: var(--font-sans);
   font-size: 0.875rem;
+  touch-action: manipulation;
 }
 
 .btn-secondary:hover {
@@ -274,6 +277,7 @@ h1, h2, h3 { letter-spacing: -0.015em; }
   gap: 0.5rem;
   cursor: pointer;
   font-family: var(--font-sans);
+  touch-action: manipulation;
 }
 
 .btn-danger:hover {
@@ -1070,19 +1074,34 @@ tr.tr-clickable:hover .td-glass { background: var(--primary-alpha); }
   animation: login-form-enter 0.6s ease 0.6s both;
 }
 
-/* ─── Mobile (<=640px) ─── */
+/* ─── Tablet/Mobile (<=768px) — iOS zoom + touch-target 44px ─── */
+@media (max-width: 768px) {
+  /* UX Pro Max: readable-font-size — inputs ≥16px previnem auto-zoom iOS Safari */
+  .input-glass { font-size: 1rem; padding: 0.625rem 0.75rem; min-height: 44px; }
+  /* UX Pro Max: touch-target-size — botões ≥44px (Apple HIG) */
+  .btn-primary, .btn-secondary, .btn-danger { font-size: 0.8125rem; padding: 0.5rem 1rem; min-height: 44px; }
+  .sidebar-item { min-height: 44px; }
+}
+
+/* ─── Mobile (<=640px) — layout compacto ─── */
 @media (max-width: 640px) {
   .glass-card { border-radius: var(--radius-md); }
   .glass-card.p-5 { padding: 0.75rem !important; }
-  .input-glass { font-size: 1rem; padding: 0.625rem 0.75rem; min-height: 44px; }
-  .btn-primary, .btn-secondary { font-size: 0.8125rem; padding: 0.5rem 1rem; min-height: 40px; }
   .th-glass { padding: 0.5rem 0.625rem; font-size: 0.6875rem; }
   .td-glass { padding: 0.5rem 0.625rem; font-size: 0.8125rem; }
   .label-text { font-size: 0.8125rem; }
   .hide-mobile { display: none !important; }
   main { padding-bottom: 68px; }
-  .sidebar-item { min-height: 44px; }
-  .btn-primary, .btn-secondary { min-height: 44px; }
+}
+
+/* ─── UX Pro Max: reduced-motion — respeitar preferência do usuário ─── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ─── Print ─── */
