@@ -788,7 +788,8 @@ export default function Mensagens({ notify }) {
                 <div style={{
                     flex: 1, display: 'flex', flexDirection: 'column',
                     background: 'var(--bg-body)',
-                    borderLeft: '3px solid var(--primary)',
+                    borderLeft: '1px solid var(--border)',
+                    boxShadow: 'inset 2px 0 0 0 var(--primary-ring)',
                 }}>
                     {!activeConv ? (
                         // Nenhuma conversa selecionada — estilo WA Web splash

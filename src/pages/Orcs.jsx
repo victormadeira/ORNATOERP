@@ -387,11 +387,21 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                         const c = col.c || 'var(--text-muted)';
                         const isActive = statusFilter === col.id;
                         return (
-                            <div key={col.id} className="glass-card hover-lift cursor-pointer"
+                            <button
+                                key={col.id}
+                                type="button"
+                                className="glass-card hover-lift cursor-pointer"
+                                aria-pressed={isActive}
+                                aria-label={`Filtrar por ${col.nm}: ${colOrcs.length} orçamentos`}
                                 style={{
                                     padding: '14px 16px',
-                                    borderLeft: `3px solid ${c}`,
+                                    background: `linear-gradient(90deg, ${c}10, transparent 40%), var(--bg-card)`,
+                                    border: `1px solid ${isActive ? c : 'var(--border)'}`,
                                     position: 'relative', overflow: 'hidden',
+                                    textAlign: 'left',
+                                    minHeight: 44,
+                                    touchAction: 'manipulation',
+                                    cursor: 'pointer',
                                     outline: isActive ? `2px solid ${c}` : 'none',
                                     outlineOffset: -1,
                                 }}
@@ -400,7 +410,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                 <div className="text-[10px] font-bold uppercase tracking-widest" style={{ color: c }}>{col.nm}</div>
                                 <div className="text-xl font-extrabold mt-1" style={{ color: 'var(--text-primary)' }}>{colOrcs.length}</div>
                                 <div className="text-[11px] font-medium mt-0.5" style={{ color: 'var(--text-muted)' }}>{R$(colOrcs.reduce((s, o) => s + (o.valor_venda || 0), 0))}</div>
-                            </div>
+                            </button>
                         );
                     })}
                 </div>
