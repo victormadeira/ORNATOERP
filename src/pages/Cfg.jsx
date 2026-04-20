@@ -4,7 +4,7 @@ import api from '../api';
 import { useAuth } from '../auth';
 import { applyPrimaryColor } from '../theme';
 import { DEFAULT_CONTRATO_TEMPLATE } from './ContratoHtml';
-import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle, Mic } from 'lucide-react';
+import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle } from 'lucide-react';
 
 const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
@@ -214,10 +214,6 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [simScore, setSimScore] = useState(null); // { score, classificacao, tags, violations, detalhes }
     const [simBloqueado, setSimBloqueado] = useState(null); // { motivo } — uma vez bloqueada, nada mais vai pra API
     const [simOpen, setSimOpen] = useState(false);
-    // Gravação real de áudio (MediaRecorder do navegador)
-    const [simAudioState, setSimAudioState] = useState('idle'); // 'idle' | 'recording' | 'transcribing'
-    const [simAudioElapsed, setSimAudioElapsed] = useState(0); // segundos gravando
-    const simRecRef = useRef(null); // { recorder, stream, chunks, tick }
     // Escalação pós-handoff
     const [escCfg, setEscCfg] = useState({ ativa: true, sla: null });
     const [escSaved, setEscSaved] = useState(false);
@@ -575,13 +571,10 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     };
 
     // ═══ Sandbox de simulação ═══
-    // Envia uma mensagem. Se "asAudio" true, o conteúdo é tratado como áudio
-    // transcrito (mesmo prefixo que o webhook real usa: "[áudio transcrito] ...").
-    const simEnviar = async (textoOverride = null, asAudio = false) => {
-        const raw = (textoOverride ?? simInput).trim();
-        if (!raw || simSending) return;
-        const texto = asAudio ? `[áudio transcrito] ${raw}` : raw;
-        const newHistory = [...simHistory, { role: 'user', content: texto, _audio: asAudio }];
+    const simEnviar = async () => {
+        if (!simInput.trim() || simSending) return;
+        const texto = simInput.trim();
+        const newHistory = [...simHistory, { role: 'user', content: texto }];
 
         // Uma vez bloqueada, nada mais vai pra API — cliente real nem veria resposta
         if (simBloqueado) {
@@ -640,108 +633,6 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         setSimScore(null);
         setSimInput('');
         setSimBloqueado(null);
-        // Para gravação se estiver rolando
-        if (simRecRef.current) {
-            try { simRecRef.current.recorder?.stop(); } catch (_) { /* silencioso */ }
-            try { simRecRef.current.stream?.getTracks().forEach(t => t.stop()); } catch (_) { /* silencioso */ }
-            try { clearInterval(simRecRef.current.tick); } catch (_) { /* silencioso */ }
-            simRecRef.current = null;
-        }
-        setSimAudioState('idle');
-        setSimAudioElapsed(0);
-    };
-
-    // ═══ Gravação de áudio real (MediaRecorder) — igual app mobile ═══
-    // Clique 1: começa a gravar do microfone
-    // Clique 2: para, envia pra /api/ia/transcrever e injeta o texto no sandbox
-    //           com prefixo "[áudio transcrito] ..." (mesmo formato do webhook real)
-    const simStartRec = async () => {
-        if (simSending || simBloqueado || simAudioState !== 'idle') return;
-        if (!navigator.mediaDevices?.getUserMedia) {
-            notify?.('Seu navegador não suporta gravação de áudio', 'error');
-            return;
-        }
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            // Pega o melhor mime disponível (Chrome: webm/opus, Safari: mp4)
-            const tryMimes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
-            const mime = tryMimes.find(m => MediaRecorder.isTypeSupported(m)) || '';
-            const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-            const chunks = [];
-            recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-            recorder.start();
-
-            const t0 = Date.now();
-            const tick = setInterval(() => setSimAudioElapsed(Math.floor((Date.now() - t0) / 1000)), 250);
-            simRecRef.current = { recorder, stream, chunks, tick, mime };
-            setSimAudioElapsed(0);
-            setSimAudioState('recording');
-        } catch (e) {
-            notify?.(e.name === 'NotAllowedError'
-                ? 'Permissão de microfone negada. Libere nas configurações do navegador.'
-                : `Erro no microfone: ${e.message}`, 'error');
-        }
-    };
-
-    const simStopRec = async () => {
-        const rec = simRecRef.current;
-        if (!rec || simAudioState !== 'recording') return;
-        const { recorder, stream, chunks, tick, mime } = rec;
-        clearInterval(tick);
-        setSimAudioState('transcribing');
-
-        // Espera o recorder finalizar (onstop é assíncrono)
-        const blob = await new Promise(resolve => {
-            recorder.onstop = () => resolve(new Blob(chunks, { type: mime || 'audio/webm' }));
-            try { recorder.stop(); } catch (_) { resolve(new Blob(chunks, { type: mime || 'audio/webm' })); }
-        });
-        try { stream.getTracks().forEach(t => t.stop()); } catch (_) { /* silencioso */ }
-        simRecRef.current = null;
-
-        // Duração mínima 1s (senão áudios curtos falham a transcrição)
-        if (blob.size < 2000) {
-            notify?.('Áudio muito curto. Segure por pelo menos 1 segundo.', 'warn');
-            setSimAudioState('idle');
-            setSimAudioElapsed(0);
-            return;
-        }
-
-        try {
-            // Blob → base64 (sem prefixo data:)
-            const base64 = await new Promise((resolve, reject) => {
-                const r = new FileReader();
-                r.onloadend = () => resolve(String(r.result).split(',')[1] || '');
-                r.onerror = reject;
-                r.readAsDataURL(blob);
-            });
-            const r = await api.post('/ia/transcrever', { base64, mimetype: blob.type });
-            const texto = (r.text || '').trim();
-            if (!texto) {
-                notify?.('Áudio transcrito vazio. Tente gravar mais claramente.', 'warn');
-                setSimAudioState('idle');
-                setSimAudioElapsed(0);
-                return;
-            }
-            // Manda direto pro sandbox (não precisa editar no input)
-            setSimAudioState('idle');
-            setSimAudioElapsed(0);
-            await simEnviar(texto, true);
-        } catch (e) {
-            notify?.(`Falha ao transcrever: ${e.error || e.message}`, 'error');
-            setSimAudioState('idle');
-            setSimAudioElapsed(0);
-        }
-    };
-
-    const simCancelarRec = () => {
-        const rec = simRecRef.current;
-        if (!rec) return;
-        try { clearInterval(rec.tick); } catch (_) { /* silencioso */ }
-        try { rec.recorder.onstop = null; rec.recorder.stop(); } catch (_) { /* silencioso */ }
-        try { rec.stream.getTracks().forEach(t => t.stop()); } catch (_) { /* silencioso */ }
-        simRecRef.current = null;
-        setSimAudioState('idle');
-        setSimAudioElapsed(0);
     };
 
     const resetIaPrompt = async () => {
@@ -2756,11 +2647,6 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                         lineHeight: 1.5,
                                                         border: m.role === 'assistant' ? '1px solid var(--border)' : 'none',
                                                     }}>
-                                                        {m._audio && (
-                                                            <div className="flex items-center gap-1 text-[10px] mb-1 opacity-70" style={{ color: '#555' }}>
-                                                                <Mic size={10} /> áudio (transcrito)
-                                                            </div>
-                                                        )}
                                                         {m.content}
                                                     </div>
                                                 ))}
@@ -2784,58 +2670,17 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                 </div>
                                             )}
 
-                                            {/* Estado de gravação / transcrevendo — banner acima do input */}
-                                            {simAudioState === 'recording' && (
-                                                <div className="px-3 py-2 text-[11px] flex items-center gap-2" style={{ background: '#ef444415', borderTop: '1px solid #ef444440', color: '#ef4444' }}>
-                                                    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: '#ef4444', animation: 'pulse-dot 1s ease-in-out infinite' }} />
-                                                    <span className="flex-1">
-                                                        <strong>Gravando áudio...</strong> {simAudioElapsed}s
-                                                    </span>
-                                                    <button onClick={simCancelarRec} className="underline" style={{ color: '#ef4444' }}>cancelar</button>
-                                                </div>
-                                            )}
-                                            {simAudioState === 'transcribing' && (
-                                                <div className="px-3 py-2 text-[11px] flex items-center gap-2" style={{ background: '#3b82f615', borderTop: '1px solid #3b82f640', color: '#3b82f6' }}>
-                                                    <RefreshCw size={12} className="spin" />
-                                                    <span>Transcrevendo áudio... (Sofia vai receber o texto em instantes)</span>
-                                                </div>
-                                            )}
-
                                             <div className="p-2 flex gap-2 items-center" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
-                                                <button
-                                                    type="button"
-                                                    onClick={simAudioState === 'recording' ? simStopRec : simStartRec}
-                                                    disabled={simSending || simBloqueado || simAudioState === 'transcribing'}
-                                                    title={
-                                                        simAudioState === 'recording' ? 'Clique pra parar e enviar o áudio transcrito'
-                                                            : simAudioState === 'transcribing' ? 'Transcrevendo...'
-                                                                : 'Gravar áudio — Sofia recebe como "[áudio transcrito] ..." (igual cliente real)'
-                                                    }
-                                                    className="p-2 rounded-md transition-colors"
-                                                    style={{
-                                                        background: simAudioState === 'recording' ? '#ef4444' : 'transparent',
-                                                        color: simAudioState === 'recording' ? '#fff' : 'var(--text-muted)',
-                                                        border: `1px solid ${simAudioState === 'recording' ? '#ef4444' : 'var(--border)'}`,
-                                                        cursor: simAudioState === 'transcribing' ? 'wait' : 'pointer',
-                                                    }}
-                                                >
-                                                    <Mic size={14} />
-                                                </button>
                                                 <input
                                                     value={simInput}
                                                     onChange={e => setSimInput(e.target.value)}
                                                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); simEnviar(); } }}
-                                                    placeholder={
-                                                        simBloqueado ? 'Cliente continua mandando... (API não é chamada)'
-                                                            : simAudioState === 'recording' ? 'Áudio sendo gravado...'
-                                                                : simAudioState === 'transcribing' ? 'Transcrevendo áudio...'
-                                                                    : 'Digite como cliente e pressione Enter... (ou clique 🎤 pra falar)'
-                                                    }
-                                                    disabled={simSending || simAudioState !== 'idle'}
+                                                    placeholder={simBloqueado ? 'Cliente continua mandando... (API não é chamada)' : 'Digite como cliente e pressione Enter...'}
+                                                    disabled={simSending}
                                                     className={Z.inp}
                                                     style={{ fontSize: 12, flex: 1, opacity: simBloqueado ? 0.7 : 1 }}
                                                 />
-                                                <button onClick={() => simEnviar()} disabled={simSending || simAudioState !== 'idle' || !simInput.trim()} className={Z.btn} style={{ fontSize: 11 }}>
+                                                <button onClick={simEnviar} disabled={simSending || !simInput.trim()} className={Z.btn} style={{ fontSize: 11 }}>
                                                     Enviar
                                                 </button>
                                             </div>

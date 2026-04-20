@@ -148,36 +148,70 @@ export async function baixarMidiaBase64(messageKey) {
 }
 
 // ═══ Ativa syncFullHistory na instância ═══════════════════════════
-// Necessário re-parear o QR depois. Tenta múltiplos endpoints:
-//   - Evolution v1.x: POST /instance/update/{instance} ou /settings/set/{instance}
-//   - Evolution v2.x: POST /settings/set/{instance}
+// Evolution v2.x: POST /settings/set/{instance} com SCHEMA COMPLETO.
+// (só mandar { syncFullHistory: true } dá 400 — o endpoint valida todos os campos)
+// Estratégia: GET /settings/find → merge → POST /settings/set
 export async function enableFullHistorySync() {
     const cfg = getConfig();
     if (!isConfigured()) throw new Error('WhatsApp não configurado');
 
     const headers = { 'Content-Type': 'application/json', apikey: cfg.wa_api_key };
+    const baseUrl = `${cfg.wa_instance_url}`;
+
+    // 1. Busca config atual (se existir)
+    let currentSettings = {};
+    for (const path of [`/settings/find/${cfg.wa_instance_name}`, `/instance/fetchInstances?instanceName=${cfg.wa_instance_name}`]) {
+        try {
+            const res = await fetch(`${baseUrl}${path}`, { headers });
+            if (res.ok) {
+                const data = await res.json().catch(() => null);
+                if (data && typeof data === 'object') {
+                    // Normaliza — pode vir aninhado em .settings ou em array
+                    currentSettings = data.settings || (Array.isArray(data) ? (data[0]?.settings || data[0]) : data) || {};
+                    console.log(`[evolution] settings atuais via ${path}:`, JSON.stringify(currentSettings).slice(0, 200));
+                    break;
+                }
+            }
+        } catch (_) { /* tenta próximo */ }
+    }
+
+    // 2. Schema completo Evolution v2 — com fallback seguro
+    const fullBody = {
+        rejectCall: currentSettings.rejectCall ?? false,
+        msgCall: currentSettings.msgCall ?? '',
+        groupsIgnore: currentSettings.groupsIgnore ?? true,
+        alwaysOnline: currentSettings.alwaysOnline ?? false,
+        readMessages: currentSettings.readMessages ?? false,
+        readStatus: currentSettings.readStatus ?? false,
+        syncFullHistory: true, // ← o que queremos ligar
+    };
+
+    // 3. Tenta vários endpoints/métodos pra cobrir forks
     const candidatos = [
-        { path: `/settings/set/${cfg.wa_instance_name}`, body: { syncFullHistory: true } },
-        { path: `/instance/update/${cfg.wa_instance_name}`, body: { syncFullHistory: true } },
-        { path: `/instance/updateSettings/${cfg.wa_instance_name}`, body: { syncFullHistory: true } },
+        { path: `/settings/set/${cfg.wa_instance_name}`, method: 'POST', body: fullBody },
+        { path: `/settings/set/${cfg.wa_instance_name}`, method: 'PUT', body: fullBody },
+        { path: `/instance/update/${cfg.wa_instance_name}`, method: 'POST', body: fullBody },
+        { path: `/instance/update/${cfg.wa_instance_name}`, method: 'PUT', body: fullBody },
     ];
+
     const erros = [];
     for (const c of candidatos) {
         try {
-            const res = await fetch(`${cfg.wa_instance_url}${c.path}`, {
-                method: 'POST', headers, body: JSON.stringify(c.body),
+            const res = await fetch(`${baseUrl}${c.path}`, {
+                method: c.method, headers, body: JSON.stringify(c.body),
             });
             if (res.ok) {
                 const data = await res.json().catch(() => ({}));
-                console.log(`[evolution] syncFullHistory ativado via ${c.path}`);
-                return { ok: true, endpoint: c.path, response: data };
+                console.log(`[evolution] syncFullHistory ativado via ${c.method} ${c.path}`);
+                return { ok: true, endpoint: `${c.method} ${c.path}`, response: data };
             }
-            erros.push(`${c.path}: ${res.status}`);
+            const txt = await res.text().catch(() => '');
+            erros.push(`${c.method} ${c.path}: ${res.status} ${txt.slice(0, 150)}`);
         } catch (e) {
-            erros.push(`${c.path}: ${e.message}`);
+            erros.push(`${c.method} ${c.path}: ${e.message}`);
         }
     }
-    throw new Error(`Não consegui ativar syncFullHistory. Tentativas: ${erros.join(' | ')}`);
+    throw new Error(`Não consegui ativar syncFullHistory. Tentativas: ${erros.slice(0, 3).join(' | ')}`);
 }
 
 // ═══ Desconecta a instância (logout) ═══════════════════════════════

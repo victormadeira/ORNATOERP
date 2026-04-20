@@ -533,62 +533,82 @@ export default function Mensagens({ notify }) {
                             <MessageCircle size={20} style={{ color: 'var(--success)' }} />
                             <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0, flex: 1 }}>Inbox</h2>
 
-                            {/* Status da IA (Sofia) — clicável pra abrir diagnóstico */}
-                            {diag && (() => {
-                                const s = diag.status_geral;
-                                const cor = s === 'online' ? 'var(--success)' : s === 'parcial' ? 'var(--warning)' : 'var(--danger)';
-                                const corBg = s === 'online' ? 'var(--success-bg)' : s === 'parcial' ? 'var(--warning-bg)' : 'var(--danger-bg)';
-                                const corBr = s === 'online' ? 'var(--success-border)' : s === 'parcial' ? 'var(--warning-border)' : 'var(--danger-border)';
-                                const label = s === 'online' ? 'IA: Online' : s === 'parcial' ? 'IA: Parcial' : 'IA: Offline';
+                            {/* ═══ Ações do header — padronizadas ═══
+                                Todas compartilham: height 28, padding 5x10, font 11/600,
+                                ícone 12px, radius 6, gap 6. Cor = semântica (status/ação). */}
+                            {(() => {
+                                const btnBase = {
+                                    height: 28,
+                                    padding: '0 10px',
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    lineHeight: 1,
+                                    whiteSpace: 'nowrap',
+                                    transition: 'opacity 120ms ease',
+                                };
                                 return (
-                                    <button
-                                        onClick={() => setDiagOpen(true)}
-                                        title="Ver diagnóstico da IA (Sofia)"
-                                        style={{
-                                            fontSize: 11, padding: '4px 9px', borderRadius: 6,
-                                            border: `1px solid ${corBr}`, background: corBg,
-                                            color: cor, cursor: 'pointer', fontWeight: 700,
-                                            display: 'flex', alignItems: 'center', gap: 4,
-                                        }}
-                                    >
-                                        <Activity size={10} />
-                                        {label}
-                                    </button>
+                                    <>
+                                        {/* Status da IA (Sofia) — clicável pra abrir diagnóstico */}
+                                        {diag && (() => {
+                                            const s = diag.status_geral;
+                                            const cor = s === 'online' ? 'var(--success)' : s === 'parcial' ? 'var(--warning)' : 'var(--danger)';
+                                            const corBg = s === 'online' ? 'var(--success-bg)' : s === 'parcial' ? 'var(--warning-bg)' : 'var(--danger-bg)';
+                                            const corBr = s === 'online' ? 'var(--success-border)' : s === 'parcial' ? 'var(--warning-border)' : 'var(--danger-border)';
+                                            const label = s === 'online' ? 'IA Online' : s === 'parcial' ? 'IA Parcial' : 'IA Offline';
+                                            return (
+                                                <button
+                                                    onClick={() => setDiagOpen(true)}
+                                                    title="Ver diagnóstico da IA (Sofia)"
+                                                    style={{ ...btnBase, border: `1px solid ${corBr}`, background: corBg, color: cor }}
+                                                >
+                                                    <span style={{ width: 7, height: 7, borderRadius: 999, background: cor, flexShrink: 0 }} />
+                                                    {label}
+                                                </button>
+                                            );
+                                        })()}
+
+                                        {isGerente && (
+                                            <>
+                                                <button
+                                                    onClick={rodarBackfill}
+                                                    disabled={backfilling}
+                                                    title="Puxar histórico já conhecido pela Evolution (rápido)"
+                                                    style={{
+                                                        ...btnBase,
+                                                        border: `1px solid ${colorBorder('#8b5cf6')}`,
+                                                        background: colorBg('#8b5cf6'),
+                                                        color: '#8b5cf6',
+                                                        opacity: backfilling ? 0.6 : 1,
+                                                    }}
+                                                >
+                                                    {backfilling ? <RefreshCw size={12} className="spin" /> : <History size={12} />}
+                                                    {backfilling ? 'Puxando…' : 'Histórico'}
+                                                </button>
+                                                <button
+                                                    onClick={rodarFullHistorySync}
+                                                    disabled={backfilling}
+                                                    title="Puxar ~6 meses do CELULAR (desconecta e precisa re-escanear QR)"
+                                                    style={{
+                                                        ...btnBase,
+                                                        border: `1px solid ${colorBorder('#0891b2')}`,
+                                                        background: colorBg('#0891b2'),
+                                                        color: '#0891b2',
+                                                        opacity: backfilling ? 0.6 : 1,
+                                                    }}
+                                                >
+                                                    <RefreshCw size={12} />
+                                                    Completo
+                                                </button>
+                                            </>
+                                        )}
+                                    </>
                                 );
                             })()}
-
-                            {isGerente && (
-                                <>
-                                    <button
-                                        onClick={rodarBackfill}
-                                        disabled={backfilling}
-                                        title="Puxar histórico já conhecido pela Evolution (rápido)"
-                                        style={{
-                                            fontSize: 11, padding: '4px 9px', borderRadius: 6,
-                                            border: `1px solid ${colorBorder('#8b5cf6')}`, background: colorBg('#8b5cf6'),
-                                            color: '#8b5cf6', cursor: 'pointer', fontWeight: 600,
-                                            display: 'flex', alignItems: 'center', gap: 4,
-                                        }}
-                                    >
-                                        {backfilling ? <RefreshCw size={10} className="spin" /> : <History size={10} />}
-                                        {backfilling ? 'Puxando...' : 'Histórico'}
-                                    </button>
-                                    <button
-                                        onClick={rodarFullHistorySync}
-                                        disabled={backfilling}
-                                        title="Puxar ~6 meses do CELULAR (desconecta e precisa re-escanear QR)"
-                                        style={{
-                                            fontSize: 11, padding: '4px 9px', borderRadius: 6,
-                                            border: `1px solid ${colorBorder('#0891b2')}`, background: colorBg('#0891b2'),
-                                            color: '#0891b2', cursor: 'pointer', fontWeight: 600,
-                                            display: 'flex', alignItems: 'center', gap: 4,
-                                        }}
-                                    >
-                                        <RefreshCw size={10} />
-                                        Histórico completo
-                                    </button>
-                                </>
-                            )}
                         </div>
 
                         {/* Tabs de filtro */}

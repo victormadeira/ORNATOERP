@@ -974,36 +974,6 @@ router.post('/prompt/reset', requireAuth, requireRole('gerente'), (req, res) => 
     }
 });
 
-// ═══════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════
-// POST /api/ia/transcrever — transcreve um áudio gravado no sandbox
-// Body: { base64: 'data:audio/webm;base64,...' | 'AAAA...', mimetype?: 'audio/webm' }
-// Retorna: { text }
-// Usado pelo sandbox em Cfg.jsx para testar transcrição ponta-a-ponta
-// (mesma função que o webhook real usa quando cliente manda áudio).
-// ═══════════════════════════════════════════════════════
-router.post('/transcrever', requireAuth, async (req, res) => {
-    try {
-        let { base64, mimetype = 'audio/webm' } = req.body || {};
-        if (!base64) return res.status(400).json({ error: 'base64 obrigatório' });
-
-        // Aceita tanto dataURL ("data:audio/webm;base64,XXX") quanto base64 puro
-        if (base64.startsWith('data:')) {
-            const m = base64.match(/^data:([^;]+);base64,(.+)$/);
-            if (m) {
-                mimetype = m[1] || mimetype;
-                base64 = m[2];
-            }
-        }
-
-        const text = await ai.transcreverAudio(base64, mimetype);
-        res.json({ text: text || '' });
-    } catch (e) {
-        console.error('[ia/transcrever]', e.message);
-        res.status(500).json({ error: e.message || 'Falha ao transcrever' });
-    }
-});
-
 // POST /api/ia/simulate — sandbox de conversa (não envia WhatsApp, não salva em chat_conversas)
 // Body: { history: [{role:'user'|'assistant', content:''}], message: '...' }
 // Retorna: { text, dossie, score, classificacao, tags, violations, sanitized }
