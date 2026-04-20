@@ -2213,6 +2213,12 @@ const migrations = [
     ultima_leitura_em DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, conversa_id)
   )`,
+
+  // WhatsApp: dedup persistente via UNIQUE INDEX parcial
+  // (ignora linhas antigas com wa_message_id = '' ou NULL)
+  // Se já existem duplicatas reais, este CREATE vai falhar → cleanup antes.
+  "DELETE FROM chat_mensagens WHERE id NOT IN (SELECT MIN(id) FROM chat_mensagens WHERE wa_message_id IS NOT NULL AND wa_message_id != '' GROUP BY wa_message_id) AND wa_message_id IS NOT NULL AND wa_message_id != ''",
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_mensagens_wa_msg_unique ON chat_mensagens(wa_message_id) WHERE wa_message_id IS NOT NULL AND wa_message_id != ''",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

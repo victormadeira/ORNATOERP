@@ -124,7 +124,7 @@ async function handleMessagesSet(data) {
             const remetente = msg.key.fromMe ? 'usuario' : 'cliente';
 
             db.prepare(`
-                INSERT INTO chat_mensagens
+                INSERT OR IGNORE INTO chat_mensagens
                     (conversa_id, wa_message_id, direcao, tipo, conteudo, remetente, importado, status_envio, criado_em)
                 VALUES (?, ?, ?, ?, ?, ?, 1, 'enviado', ?)
             `).run(conversa.id, msgId, direcao, tipo, conteudo, remetente, ts);
@@ -275,10 +275,12 @@ async function handleIncomingMessage(data, wsBroadcast = null) {
     }
 
     // ── 8. Salvar mensagem (com conteúdo enriquecido) ──
+    // INSERT OR IGNORE — UNIQUE INDEX em wa_message_id garante dedup
     const insertResult = db.prepare(`
-        INSERT INTO chat_mensagens (conversa_id, wa_message_id, direcao, tipo, conteudo, media_url, remetente, criado_em)
+        INSERT OR IGNORE INTO chat_mensagens (conversa_id, wa_message_id, direcao, tipo, conteudo, media_url, remetente, criado_em)
         VALUES (?, ?, 'entrada', ?, ?, ?, 'cliente', CURRENT_TIMESTAMP)
     `).run(conversa.id, msgId, messageType, enrichedContent || `[${messageType}]`, mediaUrl);
+    if (insertResult.changes === 0) return; // race: outra request salvou essa msg primeiro
 
     console.log(`[WH] Msg salva | conv #${conversa.id} | ${messageType} | ${pushName}`);
 
@@ -397,17 +399,31 @@ async function downloadMedia(messageKey, messageType) {
 }
 
 // ═══ Atualizar status de entrega/leitura ═══
-async function handleMessageStatusUpdate(data, wsBroadcast = null) {
-    if (!data?.key?.id) return;
-    const statusMap = { 3: 'lido', 2: 'entregue', 1: 'enviado' };
-    const status = statusMap[data.status] || 'enviado';
-    const r = db.prepare('UPDATE chat_mensagens SET status_envio = ? WHERE wa_message_id = ?').run(status, data.key.id);
-    if (r.changes > 0) {
-        try {
-            const row = db.prepare('SELECT conversa_id FROM chat_mensagens WHERE wa_message_id = ?').get(data.key.id);
-            if (row) wsBroadcast?.('chat.message-status', { conversa_id: row.conversa_id, wa_message_id: data.key.id, status });
-        } catch (_) { /* silencioso */ }
+// Evolution v1.8 manda formatos variados:
+//   A) { key: { id: "..." }, status: 3 }
+//   B) { keyId: "...", status: 3 }
+//   C) { id: "...", status: 3 }
+//   D) Array de updates: [{ keyId, status }, ...]
+async function handleMessageStatusUpdate(raw, wsBroadcast = null) {
+    const statusMap = { 3: 'lido', 2: 'entregue', 1: 'enviado', READ: 'lido', DELIVERY_ACK: 'entregue', SERVER_ACK: 'enviado' };
+    const items = Array.isArray(raw) ? raw : [raw];
+    let updates = 0;
+    for (const data of items) {
+        if (!data) continue;
+        const msgId = data?.key?.id || data?.keyId || data?.id || data?.messageId || '';
+        if (!msgId) continue;
+        const rawStatus = data.status ?? data.ack;
+        const status = statusMap[rawStatus] || (typeof rawStatus === 'string' ? rawStatus.toLowerCase() : 'enviado');
+        const r = db.prepare('UPDATE chat_mensagens SET status_envio = ? WHERE wa_message_id = ?').run(status, msgId);
+        if (r.changes > 0) {
+            updates++;
+            try {
+                const row = db.prepare('SELECT conversa_id FROM chat_mensagens WHERE wa_message_id = ?').get(msgId);
+                if (row) wsBroadcast?.('chat.message-status', { conversa_id: row.conversa_id, wa_message_id: msgId, status });
+            } catch (_) { /* silencioso */ }
+        }
     }
+    if (updates > 0) console.log(`[WH] ACK atualizado em ${updates} msg(s)`);
 }
 
 export default router;

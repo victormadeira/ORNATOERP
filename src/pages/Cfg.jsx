@@ -4,7 +4,7 @@ import api from '../api';
 import { useAuth } from '../auth';
 import { applyPrimaryColor } from '../theme';
 import { DEFAULT_CONTRATO_TEMPLATE } from './ContratoHtml';
-import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle, Mic } from 'lucide-react';
 
 const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
@@ -214,6 +214,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [simScore, setSimScore] = useState(null); // { score, classificacao, tags, violations, detalhes }
     const [simBloqueado, setSimBloqueado] = useState(null); // { motivo } — uma vez bloqueada, nada mais vai pra API
     const [simOpen, setSimOpen] = useState(false);
+    const [simModoAudio, setSimModoAudio] = useState(false); // quando true, próxima mensagem é enviada como áudio transcrito
     // Escalação pós-handoff
     const [escCfg, setEscCfg] = useState({ ativa: true, sla: null });
     const [escSaved, setEscSaved] = useState(false);
@@ -573,8 +574,11 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     // ═══ Sandbox de simulação ═══
     const simEnviar = async () => {
         if (!simInput.trim() || simSending) return;
-        const texto = simInput.trim();
-        const newHistory = [...simHistory, { role: 'user', content: texto }];
+        const raw = simInput.trim();
+        // Se modo áudio ativo, envia prefixado (exatamente como o webhook faz quando
+        // transcreve um áudio real — ai.transcreverAudio → "[áudio transcrito] ...")
+        const texto = simModoAudio ? `[áudio transcrito] ${raw}` : raw;
+        const newHistory = [...simHistory, { role: 'user', content: texto, _audio: simModoAudio }];
 
         // Uma vez bloqueada, nada mais vai pra API — cliente real nem veria resposta
         if (simBloqueado) {
@@ -633,6 +637,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         setSimScore(null);
         setSimInput('');
         setSimBloqueado(null);
+        setSimModoAudio(false);
     };
 
     const resetIaPrompt = async () => {
@@ -2647,6 +2652,11 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                         lineHeight: 1.5,
                                                         border: m.role === 'assistant' ? '1px solid var(--border)' : 'none',
                                                     }}>
+                                                        {m._audio && (
+                                                            <div className="flex items-center gap-1 text-[10px] mb-1 opacity-70" style={{ color: '#555' }}>
+                                                                <Mic size={10} /> áudio (transcrito)
+                                                            </div>
+                                                        )}
                                                         {m.content}
                                                     </div>
                                                 ))}
@@ -2670,18 +2680,36 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                 </div>
                                             )}
 
-                                            <div className="p-2 flex gap-2" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
+                                            <div className="p-2 flex gap-2 items-center" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSimModoAudio(v => !v)}
+                                                    disabled={simSending}
+                                                    title={simModoAudio ? 'Modo áudio ativado — próxima mensagem será enviada como áudio transcrito (clique pra voltar a texto)' : 'Simular áudio — mensagem será tratada como se viesse de um áudio transcrito pela IA'}
+                                                    className="p-2 rounded-md transition-colors"
+                                                    style={{
+                                                        background: simModoAudio ? 'var(--success-bg, #16a34a22)' : 'transparent',
+                                                        color: simModoAudio ? 'var(--success, #16a34a)' : 'var(--text-muted)',
+                                                        border: `1px solid ${simModoAudio ? 'var(--success, #16a34a)' : 'var(--border)'}`,
+                                                    }}
+                                                >
+                                                    <Mic size={14} />
+                                                </button>
                                                 <input
                                                     value={simInput}
                                                     onChange={e => setSimInput(e.target.value)}
                                                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); simEnviar(); } }}
-                                                    placeholder={simBloqueado ? 'Cliente continua mandando... (API não é chamada)' : 'Digite como cliente e pressione Enter...'}
+                                                    placeholder={
+                                                        simBloqueado ? 'Cliente continua mandando... (API não é chamada)'
+                                                            : simModoAudio ? 'Digite o texto do áudio e pressione Enter...'
+                                                                : 'Digite como cliente e pressione Enter...'
+                                                    }
                                                     disabled={simSending}
                                                     className={Z.inp}
                                                     style={{ fontSize: 12, flex: 1, opacity: simBloqueado ? 0.7 : 1 }}
                                                 />
                                                 <button onClick={simEnviar} disabled={simSending || !simInput.trim()} className={Z.btn} style={{ fontSize: 11 }}>
-                                                    Enviar
+                                                    {simModoAudio ? 'Enviar áudio' : 'Enviar'}
                                                 </button>
                                             </div>
                                         </div>

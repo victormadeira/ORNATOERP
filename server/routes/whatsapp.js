@@ -662,16 +662,17 @@ router.post('/conversas/:id/sugerir', requireAuth, requireConversaAccess(db), as
 router.post('/backfill', requireAuth, async (req, res) => {
     if (!isGerente(req.user)) return res.status(403).json({ error: 'Apenas gerentes podem rodar backfill' });
     const { chat_id, limit } = req.body || {};
+    console.log(`[backfill] Request recebida — user=${req.user?.id} chat_id=${chat_id || 'ALL'} limit=${limit || 'default'}`);
     try {
         let result;
         if (chat_id) {
-            result = await backfillOneChat(chat_id, { limit: limit || 500 });
+            result = await backfillOneChat(chat_id, { limit: limit || 1000 });
         } else {
-            result = await backfillFromEvolution({ perChatLimit: limit || 300, onProgress: null });
+            result = await backfillFromEvolution({ perChatLimit: limit || 1000, onProgress: null });
         }
         res.json(result);
     } catch (e) {
-        console.error('[backfill]', e);
+        console.error('[backfill] FALHA:', e.message, e.stack);
         res.status(500).json({ error: e.message });
     }
 });
