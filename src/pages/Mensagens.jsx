@@ -192,6 +192,38 @@ export default function Mensagens({ notify }) {
 
     useEffect(() => { loadConversas(); loadContadores(); }, [loadConversas, loadContadores]);
 
+    // ═══ Abrir conversa vinda de deep-link (Funil, Cliente etc.) ═══
+    // Outra página stasha `sessionStorage.mens_open_conv = <convId>` e navega
+    // pra cá. Aqui, assim que a lista de conversas carrega, abrimos a conversa
+    // alvo. Se ela não estiver no filtro atual (ex: está em "todas" e a aba é
+    // "minhas"), tenta trocar pra "todas" uma vez antes de desistir.
+    const pendingOpenTriedAll = useRef(false);
+    useEffect(() => {
+        let targetId;
+        try { targetId = sessionStorage.getItem('mens_open_conv'); } catch { /* */ }
+        if (!targetId) return;
+        if (!conversas || conversas.length === 0) return;
+
+        const target = conversas.find(c => String(c.id) === String(targetId));
+        if (target) {
+            setActiveConv(target.id);
+            setActiveConvData(target);
+            loadMensagens(target.id);
+            setMobileShowChat(true);
+            setConversas(prev => prev.map(c => c.id === target.id ? { ...c, nao_lidas: 0 } : c));
+            try { sessionStorage.removeItem('mens_open_conv'); } catch { /* */ }
+            pendingOpenTriedAll.current = false;
+        } else if (!pendingOpenTriedAll.current && filtroAba !== 'todas') {
+            // Não achou no filtro atual — tenta aba "todas"
+            pendingOpenTriedAll.current = true;
+            setFiltroAba('todas');
+        } else {
+            // Tentou "todas" e mesmo assim não achou: descarta
+            try { sessionStorage.removeItem('mens_open_conv'); } catch { /* */ }
+            pendingOpenTriedAll.current = false;
+        }
+    }, [conversas, filtroAba, loadMensagens]);
+
     // ═══ WebSocket: atualização em tempo real ═══
     const activeConvRef = useRef(activeConv);
     activeConvRef.current = activeConv;

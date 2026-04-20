@@ -205,7 +205,16 @@ function DraggableCard({ lead, onEdit, onOpen, nav, onNewOrc, onLinkOrc }) {
                                 </div>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     {lead.conversa_id && (
-                                        <button onClick={(e) => { e.stopPropagation(); nav?.('mensagens'); }} className="p-1 rounded hover:bg-[var(--bg-card)]" title="Abrir conversa">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                // Deixa a Mensagens saber qual conversa abrir
+                                                try { sessionStorage.setItem('mens_open_conv', String(lead.conversa_id)); } catch { /* */ }
+                                                nav?.('whatsapp');
+                                            }}
+                                            className="p-1 rounded hover:bg-[var(--bg-card)]"
+                                            title="Abrir conversa no WhatsApp"
+                                        >
                                             <MessageCircle size={11} style={{ color: '#25D366' }} />
                                         </button>
                                     )}
