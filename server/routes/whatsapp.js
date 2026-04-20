@@ -691,4 +691,37 @@ router.post('/conversas/:id/backfill', requireAuth, requireConversaAccess(db), a
     }
 });
 
+// ═══════════════════════════════════════════════════════
+// POST /api/whatsapp/enable-full-history — ativa syncFullHistory + logout
+// Fluxo: ativa a flag na Evolution → desconecta → cliente re-escaneia o QR.
+// No pareamento seguinte, Evolution dispara messages.set com ~6 meses de
+// histórico do celular, que nosso webhook captura em handleMessagesSet.
+// ═══════════════════════════════════════════════════════
+router.post('/enable-full-history', requireAuth, async (req, res) => {
+    if (!isGerente(req.user)) return res.status(403).json({ error: 'Apenas gerentes podem ativar sincronização completa' });
+    const { logout = true } = req.body || {};
+    try {
+        console.log(`[whatsapp] Ativando syncFullHistory — user=${req.user?.id}`);
+        const enable = await evolution.enableFullHistorySync();
+        let logoutResult = null;
+        if (logout) {
+            try {
+                logoutResult = await evolution.logoutInstance();
+            } catch (e) {
+                // Ativamos a flag mas não conseguimos deslogar — cliente desloga manualmente
+                logoutResult = { ok: false, error: e.message };
+            }
+        }
+        res.json({
+            ok: true,
+            enable,
+            logout: logoutResult,
+            instrucoes: 'Agora abra a tela de QR Code e escaneie pelo celular novamente. A Evolution vai puxar o histórico completo (pode levar alguns minutos).',
+        });
+    } catch (e) {
+        console.error('[whatsapp] enable-full-history FALHOU:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 export default router;

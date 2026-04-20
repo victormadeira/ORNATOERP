@@ -411,12 +411,35 @@ export default function Mensagens({ notify }) {
         if (!confirm('Puxar histórico de conversas antigas da Evolution? Pode demorar alguns minutos.')) return;
         setBackfilling(true);
         try {
-            const r = await api.post('/whatsapp/backfill', { limit: 300 });
-            notify?.(`✓ ${r.chats_processados} chats | ${r.mensagens_inseridas} mensagens importadas`);
+            const r = await api.post('/whatsapp/backfill', { limit: 1000 });
+            const msg = r.chats_processados === 0
+                ? `⚠ Nenhum chat encontrado no cache da Evolution. Use "Histórico completo (re-parear)" pra puxar tudo do celular.`
+                : `✓ ${r.chats_processados} chats | ${r.mensagens_inseridas} mensagens importadas`;
+            notify?.(msg);
             loadConversas();
             loadContadores();
         } catch (e) {
             notify?.(e.error || 'Erro ao puxar histórico');
+        } finally { setBackfilling(false); }
+    };
+
+    // ═══ Re-parear com syncFullHistory (puxa ~6 meses do celular) ═══
+    const rodarFullHistorySync = async () => {
+        const ok = confirm(
+            'ATENÇÃO: vou ativar a sincronização completa e DESCONECTAR a instância.\n\n' +
+            'Depois você precisa:\n' +
+            '1. Abrir a tela de QR Code\n' +
+            '2. Escanear o QR com o celular\n\n' +
+            'A Evolution vai puxar até ~6 meses de histórico (pode levar alguns minutos).\n\n' +
+            'Continuar?'
+        );
+        if (!ok) return;
+        setBackfilling(true);
+        try {
+            const r = await api.post('/whatsapp/enable-full-history', { logout: true });
+            notify?.(`✓ Sincronização completa ativada. ${r.instrucoes || 'Re-escaneie o QR Code agora.'}`, 'success');
+        } catch (e) {
+            notify?.(`Erro: ${e.error || e.message}. Você pode tentar manualmente: nas configs da Evolution, ative syncFullHistory e re-escaneie o QR.`, 'error');
         } finally { setBackfilling(false); }
     };
 
@@ -535,20 +558,36 @@ export default function Mensagens({ notify }) {
                             })()}
 
                             {isGerente && (
-                                <button
-                                    onClick={rodarBackfill}
-                                    disabled={backfilling}
-                                    title="Puxar histórico de conversas antigas da Evolution API"
-                                    style={{
-                                        fontSize: 11, padding: '4px 9px', borderRadius: 6,
-                                        border: `1px solid ${colorBorder('#8b5cf6')}`, background: colorBg('#8b5cf6'),
-                                        color: '#8b5cf6', cursor: 'pointer', fontWeight: 600,
-                                        display: 'flex', alignItems: 'center', gap: 4,
-                                    }}
-                                >
-                                    {backfilling ? <RefreshCw size={10} className="spin" /> : <History size={10} />}
-                                    {backfilling ? 'Puxando...' : 'Histórico'}
-                                </button>
+                                <>
+                                    <button
+                                        onClick={rodarBackfill}
+                                        disabled={backfilling}
+                                        title="Puxar histórico já conhecido pela Evolution (rápido)"
+                                        style={{
+                                            fontSize: 11, padding: '4px 9px', borderRadius: 6,
+                                            border: `1px solid ${colorBorder('#8b5cf6')}`, background: colorBg('#8b5cf6'),
+                                            color: '#8b5cf6', cursor: 'pointer', fontWeight: 600,
+                                            display: 'flex', alignItems: 'center', gap: 4,
+                                        }}
+                                    >
+                                        {backfilling ? <RefreshCw size={10} className="spin" /> : <History size={10} />}
+                                        {backfilling ? 'Puxando...' : 'Histórico'}
+                                    </button>
+                                    <button
+                                        onClick={rodarFullHistorySync}
+                                        disabled={backfilling}
+                                        title="Puxar ~6 meses do CELULAR (desconecta e precisa re-escanear QR)"
+                                        style={{
+                                            fontSize: 11, padding: '4px 9px', borderRadius: 6,
+                                            border: `1px solid ${colorBorder('#0891b2')}`, background: colorBg('#0891b2'),
+                                            color: '#0891b2', cursor: 'pointer', fontWeight: 600,
+                                            display: 'flex', alignItems: 'center', gap: 4,
+                                        }}
+                                    >
+                                        <RefreshCw size={10} />
+                                        Histórico completo
+                                    </button>
+                                </>
                             )}
                         </div>
 

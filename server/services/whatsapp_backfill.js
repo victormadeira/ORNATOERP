@@ -166,62 +166,81 @@ function extractArray(raw) {
     return [];
 }
 
+// ═══ Cache do endpoint findMessages que funciona (evita tentar 404 todo chat) ═
+let _msgsEndpoint = null; // { path, style: 'v1-noPage' | 'v2-paged' | 'get' }
+
+async function _descobrirEndpointMensagens(remoteJid) {
+    const tentativas = [
+        { path: '/chat/findMessages/{instance}', style: 'v2-paged' },   // Evolution v2
+        { path: '/chat/findMessages/{instance}', style: 'v1-noPage' },  // Evolution v1 (sem page)
+        { path: '/chat/fetchMessages/{instance}', style: 'v1-noPage' }, // alguns forks legados
+        { path: '/chat/findMessages/{instance}', style: 'get' },        // GET com querystring
+    ];
+    for (const t of tentativas) {
+        try {
+            const body = t.style === 'v2-paged'
+                ? { where: { key: { remoteJid } }, limit: 1, page: 1 }
+                : t.style === 'v1-noPage'
+                    ? { where: { key: { remoteJid } }, limit: 1 }
+                    : null;
+            const method = t.style === 'get' ? 'GET' : 'POST';
+            const path = t.style === 'get'
+                ? `${t.path}?remoteJid=${encodeURIComponent(remoteJid)}&limit=1`
+                : t.path;
+            await evoFetch(path, { method, body });
+            console.log(`[backfill] endpoint mensagens: ${t.path} (${t.style})`);
+            return t;
+        } catch (_) { /* tenta próximo */ }
+    }
+    throw new Error('Nenhum endpoint findMessages/fetchMessages respondeu');
+}
+
 // ═══ Buscar mensagens de um chat com paginação ═══════════════════
 async function fetchMessagesPaginated(remoteJid, limit) {
+    // Descobre endpoint 1x e reusa nos demais chats
+    if (!_msgsEndpoint) _msgsEndpoint = await _descobrirEndpointMensagens(remoteJid);
+
     const all = [];
+    const { path, style } = _msgsEndpoint;
+
+    // Estilos v1 (sem page) e GET não paginam — faz uma request só com limit=limit
+    if (style === 'v1-noPage' || style === 'get') {
+        try {
+            const body = style === 'v1-noPage' ? { where: { key: { remoteJid } }, limit } : null;
+            const method = style === 'get' ? 'GET' : 'POST';
+            const url = style === 'get'
+                ? `${path}?remoteJid=${encodeURIComponent(remoteJid)}&limit=${limit}`
+                : path;
+            const raw = await evoFetch(url, { method, body });
+            const arr = extractArray(raw);
+            return arr.slice(0, limit);
+        } catch (e) {
+            console.warn(`[backfill] fetchMessages falhou ${remoteJid}: ${e.message}`);
+            return [];
+        }
+    }
+
+    // v2-paged
     let page = 1;
     const maxPages = Math.ceil(limit / PAGE_SIZE);
-
     while (page <= maxPages && all.length < limit) {
-        let batch = null;
-
-        // Tentativa 1: POST com { where, limit, page } (Evolution v1.8 padrão)
+        let batch;
         try {
-            batch = await evoFetch('/chat/findMessages/{instance}', {
+            batch = await evoFetch(path, {
                 method: 'POST',
-                body: {
-                    where: { key: { remoteJid } },
-                    limit: PAGE_SIZE,
-                    page,
-                },
+                body: { where: { key: { remoteJid } }, limit: PAGE_SIZE, page },
             });
         } catch (e) {
-            // Tentativa 2: POST sem page (alguns forks não suportam)
-            if (page === 1) {
-                try {
-                    batch = await evoFetch('/chat/findMessages/{instance}', {
-                        method: 'POST',
-                        body: {
-                            where: { key: { remoteJid } },
-                            limit,
-                        },
-                    });
-                } catch (e2) {
-                    // Tentativa 3: GET com querystring
-                    try {
-                        batch = await evoFetch(
-                            `/chat/findMessages/{instance}?remoteJid=${encodeURIComponent(remoteJid)}&limit=${limit}`
-                        );
-                    } catch (e3) {
-                        throw new Error(`findMessages falhou em todas tentativas: ${e.message}`);
-                    }
-                }
-            } else {
-                break; // Se falhar em página >1, aceita o que já tem
-            }
+            console.warn(`[backfill] findMessages page=${page} ${remoteJid}: ${e.message}`);
+            break;
         }
-
         const arr = extractArray(batch);
         if (!arr.length) break;
-
         all.push(...arr);
-
-        // Se retornou menos que o page size, chegou ao fim
         if (arr.length < PAGE_SIZE) break;
         page++;
         await sleep(100);
     }
-
     return all.slice(0, limit);
 }
 
@@ -278,24 +297,72 @@ export async function backfillOneChat(remoteJid, { limit = 1000 } = {}) {
     };
 }
 
+// ═══ Tenta listar chats em múltiplos endpoints (forks da Evolution variam) ═══
+// Evolution v1.x usa "fetchChats" — Evolution v2.x usa "findChats"
+async function listarChats() {
+    const candidatos = [
+        // Evolution v1.x (mais comum em instâncias auto-hospedadas)
+        { path: '/chat/fetchChats/{instance}', method: 'POST', body: {} },
+        { path: '/chat/fetchChats/{instance}', method: 'GET' },
+        // Evolution v2.x
+        { path: '/chat/findChats/{instance}', method: 'POST', body: {} },
+        { path: '/chat/findChats/{instance}', method: 'POST', body: { where: {} } },
+        { path: '/chat/findChats/{instance}', method: 'GET' },
+        // Fallback: contatos
+        { path: '/chat/findContacts/{instance}', method: 'POST', body: { where: {} } },
+        { path: '/chat/fetchContacts/{instance}', method: 'GET' },
+    ];
+
+    for (const c of candidatos) {
+        try {
+            const raw = await evoFetch(c.path, { method: c.method, body: c.body || null });
+            const arr = extractArray(raw);
+            const sample = JSON.stringify(raw).slice(0, 300);
+            console.log(`[backfill] ${c.path} (${c.method}) → ${arr.length} items | sample=${sample}`);
+            if (arr.length > 0) {
+                return { arr, endpoint: c.path };
+            }
+        } catch (e) {
+            console.warn(`[backfill] ${c.path} (${c.method}) falhou: ${e.message}`);
+        }
+    }
+    return { arr: [], endpoint: null };
+}
+
+// ═══ Fallback: usar conversas locais como fonte de jids ═════════════
+// Se a Evolution não listar chats, ao menos faz backfill das conversas
+// que já existem no banco (mensagens novas em telefones conhecidos)
+function listarChatsLocais() {
+    const rows = db.prepare(`
+        SELECT wa_jid, wa_phone FROM chat_conversas
+        WHERE (wa_jid IS NOT NULL AND wa_jid != '')
+           OR (wa_phone IS NOT NULL AND wa_phone != '')
+        ORDER BY ultimo_msg_em DESC
+    `).all();
+    return rows
+        .map(r => r.wa_jid || `${r.wa_phone}@s.whatsapp.net`)
+        .filter(jid => jid && !jid.includes('@g.us') && !jid.includes('@broadcast'));
+}
+
 // ═══ Backfill de TODOS os chats ═══════════════════════════════════
 export async function backfillFromEvolution({ perChatLimit = 1000, onProgress = null } = {}) {
     console.log(`[backfill] Iniciando backfill completo — perChatLimit=${perChatLimit}`);
 
-    // 1. Lista todos os chats
-    let raw = null;
-    try {
-        raw = await evoFetch('/chat/findChats/{instance}', { method: 'POST', body: {} });
-    } catch (e) {
-        try {
-            raw = await evoFetch('/chat/findChats/{instance}');
-        } catch (e2) {
-            throw new Error(`findChats falhou: ${e.message}`);
+    let { arr: chats, endpoint } = await listarChats();
+
+    // Fallback: se a Evolution não listou nada, usa conversas do banco local
+    let usouFallback = false;
+    if (chats.length === 0) {
+        const jidsLocais = listarChatsLocais();
+        if (jidsLocais.length > 0) {
+            chats = jidsLocais.map(jid => ({ id: jid }));
+            endpoint = '(fallback: conversas locais)';
+            usouFallback = true;
+            console.log(`[backfill] Fallback: usando ${chats.length} conversas locais como fonte de jids`);
         }
     }
 
-    const chats = extractArray(raw);
-    console.log(`[backfill] ${chats.length} chats encontrados na Evolution`);
+    console.log(`[backfill] ${chats.length} chats via ${endpoint || '(nenhum endpoint respondeu com dados — talvez você precise mandar/receber 1 msg pra popular o cache da Evolution)'}`);
 
     const results = [];
     let totalInseridas = 0;

@@ -147,6 +147,63 @@ export async function baixarMidiaBase64(messageKey) {
     return data.base64 || '';
 }
 
+// ═══ Ativa syncFullHistory na instância ═══════════════════════════
+// Necessário re-parear o QR depois. Tenta múltiplos endpoints:
+//   - Evolution v1.x: POST /instance/update/{instance} ou /settings/set/{instance}
+//   - Evolution v2.x: POST /settings/set/{instance}
+export async function enableFullHistorySync() {
+    const cfg = getConfig();
+    if (!isConfigured()) throw new Error('WhatsApp não configurado');
+
+    const headers = { 'Content-Type': 'application/json', apikey: cfg.wa_api_key };
+    const candidatos = [
+        { path: `/settings/set/${cfg.wa_instance_name}`, body: { syncFullHistory: true } },
+        { path: `/instance/update/${cfg.wa_instance_name}`, body: { syncFullHistory: true } },
+        { path: `/instance/updateSettings/${cfg.wa_instance_name}`, body: { syncFullHistory: true } },
+    ];
+    const erros = [];
+    for (const c of candidatos) {
+        try {
+            const res = await fetch(`${cfg.wa_instance_url}${c.path}`, {
+                method: 'POST', headers, body: JSON.stringify(c.body),
+            });
+            if (res.ok) {
+                const data = await res.json().catch(() => ({}));
+                console.log(`[evolution] syncFullHistory ativado via ${c.path}`);
+                return { ok: true, endpoint: c.path, response: data };
+            }
+            erros.push(`${c.path}: ${res.status}`);
+        } catch (e) {
+            erros.push(`${c.path}: ${e.message}`);
+        }
+    }
+    throw new Error(`Não consegui ativar syncFullHistory. Tentativas: ${erros.join(' | ')}`);
+}
+
+// ═══ Desconecta a instância (logout) ═══════════════════════════════
+// Depois precisa escanear o QR de novo pra reconectar.
+export async function logoutInstance() {
+    const cfg = getConfig();
+    if (!isConfigured()) throw new Error('WhatsApp não configurado');
+
+    const headers = { apikey: cfg.wa_api_key };
+    const candidatos = [
+        { method: 'DELETE', path: `/instance/logout/${cfg.wa_instance_name}` },
+        { method: 'POST', path: `/instance/logout/${cfg.wa_instance_name}` },
+    ];
+    for (const c of candidatos) {
+        try {
+            const res = await fetch(`${cfg.wa_instance_url}${c.path}`, { method: c.method, headers });
+            if (res.ok) {
+                const data = await res.json().catch(() => ({}));
+                console.log(`[evolution] logout via ${c.method} ${c.path}`);
+                return { ok: true, endpoint: c.path, response: data };
+            }
+        } catch (_) { /* tenta próximo */ }
+    }
+    throw new Error('Não consegui desconectar a instância');
+}
+
 // ═══ Formatar número de telefone ═══
 export function formatPhone(phone) {
     // Remove tudo que não é número
@@ -160,4 +217,5 @@ export default {
     sendText, sendMedia, getConnectionStatus, getQRCode,
     isConfigured, getWebhookToken, formatPhone,
     sendPresence, baixarMidiaBase64,
+    enableFullHistorySync, logoutInstance,
 };
