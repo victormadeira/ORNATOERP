@@ -583,8 +583,17 @@ export function SectionHeader({ icon: Icon, title, accent, children }) {
 
 // ─── ConfirmModal — confirmacao antes de acoes destrutivas ──
 export function ConfirmModal({ title = 'Confirmar', message, confirmLabel = 'Confirmar', cancelLabel = 'Cancelar', danger = false, onConfirm, onCancel }) {
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.key === 'Escape' && typeof onCancel === 'function') onCancel();
+            if (e.key === 'Enter' && typeof onConfirm === 'function') onConfirm();
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [onCancel, onConfirm]);
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onCancel}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onCancel} role="alertdialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined}>
             <div className="glass-card shadow-xl modal-content" style={{ maxWidth: 400, width: '100%' }} onClick={e => e.stopPropagation()}>
                 <div className="p-5">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -599,7 +608,7 @@ export function ConfirmModal({ title = 'Confirmar', message, confirmLabel = 'Con
                     <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 20, paddingLeft: 46 }}>{message}</p>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                         <button onClick={onCancel} className="btn-secondary" style={{ fontSize: 13, padding: '8px 16px' }}>{cancelLabel}</button>
-                        <button onClick={onConfirm} className={danger ? 'btn-danger' : 'btn-primary'}
+                        <button onClick={onConfirm} autoFocus className={danger ? 'btn-danger' : 'btn-primary'}
                             style={{ fontSize: 13, padding: '8px 16px', ...(danger ? { background: 'var(--danger)', color: '#fff', fontWeight: 600 } : {}) }}>
                             {confirmLabel}
                         </button>
@@ -611,18 +620,30 @@ export function ConfirmModal({ title = 'Confirmar', message, confirmLabel = 'Con
 }
 
 export function Modal({ title, close, children, w = 500 }) {
-    // Bloquear scroll do body enquanto modal está aberto
+    // Bloquear scroll do body enquanto modal está aberto + ESC para fechar
     useEffect(() => {
         document.body.style.overflow = 'hidden';
-        return () => { document.body.style.overflow = ''; };
-    }, []);
+        const onKey = (e) => { if (e.key === 'Escape' && typeof close === 'function') close(); };
+        window.addEventListener('keydown', onKey);
+        return () => {
+            document.body.style.overflow = '';
+            window.removeEventListener('keydown', onKey);
+        };
+    }, [close]);
 
     return createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 md:p-4 modal-overlay" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={close}>
+        <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-2 md:p-4 modal-overlay"
+            style={{ background: 'rgba(0,0,0,0.45)' }}
+            onClick={close}
+            role="dialog"
+            aria-modal="true"
+            aria-label={typeof title === 'string' ? title : undefined}
+        >
             <div className="glass-card w-[95vw] max-h-[90vh] overflow-y-auto modal-content" style={{ maxWidth: w, boxShadow: 'var(--shadow-xl)' }} onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center px-4 md:px-5 py-3 md:py-4" style={{ borderBottom: '1px solid var(--border)', background: 'linear-gradient(180deg, var(--bg-muted) 0%, transparent 100%)' }}>
                     <span className="font-semibold text-sm md:text-base truncate mr-2" style={{ color: 'var(--text-primary)' }}>{title}</span>
-                    <button onClick={close} className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors cursor-pointer shrink-0" style={{ color: 'var(--text-muted)' }}>
+                    <button onClick={close} aria-label="Fechar" className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors cursor-pointer shrink-0" style={{ color: 'var(--text-muted)' }}>
                         <Ic.X />
                     </button>
                 </div>
