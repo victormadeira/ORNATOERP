@@ -1,14 +1,18 @@
 // Tab "Lotes" — lista dos lotes importados (CRUD + quick-actions).
-// Refatorado visual em Fase B para alinhar com o design system Ornato.
+// Fase C: usa SectionHeader + StatusBadge + EmptyState + ConfirmModal do design system.
 
 import { useState } from 'react';
 import api from '../../../api';
-import { Z, tagStyle, tagClass } from '../../../ui';
-import { Package, RefreshCw, Eye, Scissors, Trash2 } from 'lucide-react';
-import { STATUS_COLORS } from '../shared/constants.js';
+import {
+    SectionHeader, StatusBadge, EmptyState, ConfirmModal,
+} from '../../../ui';
+import {
+    Package, RefreshCw, Eye, Scissors, Trash2, Layers,
+} from 'lucide-react';
 
 export function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
     const [selectedLotes, setSelectedLotes] = useState(new Set());
+    const [deleteTarget, setDeleteTarget] = useState(null);
 
     const toggleLoteSelection = (id) => {
         setSelectedLotes(prev => {
@@ -22,122 +26,158 @@ export function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
         else setSelectedLotes(new Set(lotes.map(l => l.id)));
     };
 
-    const deleteLote = async (id) => {
-        if (!confirm('Excluir este lote e todas as peças?')) return;
+    const confirmDelete = async () => {
+        if (!deleteTarget) return;
         try {
-            await api.del(`/cnc/lotes/${id}`);
+            await api.del(`/cnc/lotes/${deleteTarget.id}`);
             notify('Lote excluído');
             loadLotes();
         } catch (err) {
             notify('Erro ao excluir lote: ' + (err.message || ''), 'error');
+        } finally {
+            setDeleteTarget(null);
         }
     };
 
-    return (
-        <div className="glass-card" style={{ padding: 16 }}>
-            {/* Header */}
-            <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                marginBottom: 16, gap: 12,
-            }}>
-                <h3 style={{
-                    fontSize: 14, fontWeight: 700, color: 'var(--text-primary)',
-                    display: 'flex', alignItems: 'center', gap: 8, margin: 0,
-                }}>
-                    <Package size={16} style={{ color: 'var(--primary)' }} />
-                    Lotes Importados
-                    <span style={{
-                        fontSize: 12, fontWeight: 600, color: 'var(--text-muted)',
-                        background: 'var(--bg-muted)', padding: '2px 8px', borderRadius: 8,
-                    }}>
-                        {lotes.length}
-                    </span>
-                </h3>
-                <button onClick={loadLotes} className="btn-secondary" style={{ fontSize: 12, gap: 6 }}>
-                    <RefreshCw size={13} />
-                    Atualizar
-                </button>
+    if (lotes.length === 0) {
+        return (
+            <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+                <SectionHeader icon={Package} title="Lotes Importados" accent="var(--primary)" />
+                <EmptyState
+                    icon={Package}
+                    title="Nenhum lote importado"
+                    description="Importe um arquivo JSON (SketchUp) ou DXF na aba Importar para começar."
+                />
             </div>
+        );
+    }
 
-            {lotes.length === 0 ? (
-                <div style={{
-                    padding: 32, textAlign: 'center', color: 'var(--text-muted)',
-                    fontSize: 13, background: 'var(--bg-muted)', borderRadius: 8,
-                    border: '1px dashed var(--border)',
-                }}>
-                    <Package size={24} style={{ opacity: 0.4, marginBottom: 8 }} />
-                    <div>Nenhum lote importado ainda</div>
-                </div>
-            ) : (
-                <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid var(--border)' }}>
-                    <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13 }}>
+    return (
+        <>
+            <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+                <SectionHeader
+                    icon={Package}
+                    title="Lotes Importados"
+                    accent="var(--primary)"
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{
+                            fontSize: 11, fontWeight: 700, color: 'var(--text-muted)',
+                            textTransform: 'uppercase', letterSpacing: '0.06em',
+                        }}>
+                            {lotes.length} {lotes.length === 1 ? 'lote' : 'lotes'}
+                        </span>
+                        <button
+                            onClick={loadLotes}
+                            className="btn-secondary btn-sm"
+                            style={{ fontSize: 12, gap: 6 }}
+                            aria-label="Atualizar lista"
+                        >
+                            <RefreshCw size={13} />
+                            Atualizar
+                        </button>
+                    </div>
+                </SectionHeader>
+
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                             <tr>
-                                <th className={Z.th} style={thStyle({ width: 32 })}>
+                                <th className="th-glass" style={{ width: 40, textAlign: 'center' }}>
                                     <input
                                         type="checkbox"
                                         checked={selectedLotes.size === lotes.length && lotes.length > 0}
                                         onChange={toggleAllLotes}
-                                        style={{ cursor: 'pointer' }}
+                                        style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
+                                        aria-label="Selecionar todos os lotes"
                                     />
                                 </th>
-                                {['#', 'Nome', 'Cliente', 'Projeto', 'Peças', 'Chapas', 'Aprov.', 'Status', 'Data', ''].map(h => (
-                                    <th key={h} className={Z.th} style={thStyle()}>{h}</th>
-                                ))}
+                                <th className="th-glass" style={{ width: 50 }}>#</th>
+                                <th className="th-glass">Nome</th>
+                                <th className="th-glass">Cliente</th>
+                                <th className="th-glass">Projeto</th>
+                                <th className="th-glass" style={{ textAlign: 'center' }}>Peças</th>
+                                <th className="th-glass" style={{ textAlign: 'center' }}>Chapas</th>
+                                <th className="th-glass" style={{ textAlign: 'center' }}>Aprov.</th>
+                                <th className="th-glass">Status</th>
+                                <th className="th-glass" style={{ whiteSpace: 'nowrap' }}>Data</th>
+                                <th className="th-glass" style={{ width: 130 }}></th>
                             </tr>
                         </thead>
                         <tbody>
-                            {lotes.map((l, i) => {
+                            {lotes.map(l => {
                                 const isSelected = selectedLotes.has(l.id);
                                 return (
                                     <tr
                                         key={l.id}
                                         onClick={() => abrirLote(l)}
                                         style={{
-                                            background: isSelected
-                                                ? 'var(--primary-alpha)'
-                                                : i % 2 === 0 ? 'transparent' : 'var(--bg-muted)',
-                                            transition: 'background .15s', cursor: 'pointer',
-                                        }}
-                                        onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--primary-alpha)'; }}
-                                        onMouseLeave={e => {
-                                            if (!isSelected) e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'var(--bg-muted)';
+                                            cursor: 'pointer',
+                                            background: isSelected ? 'var(--primary-alpha)' : undefined,
                                         }}
                                     >
-                                        <td style={tdStyle({ textAlign: 'center' })} onClick={e => e.stopPropagation()}>
+                                        <td
+                                            className="td-glass"
+                                            style={{ textAlign: 'center' }}
+                                            onClick={e => e.stopPropagation()}
+                                        >
                                             <input
                                                 type="checkbox"
                                                 checked={isSelected}
                                                 onChange={() => toggleLoteSelection(l.id)}
-                                                style={{ cursor: 'pointer' }}
+                                                style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
+                                                aria-label={`Selecionar lote ${l.nome}`}
                                             />
                                         </td>
-                                        <td style={tdStyle({ fontWeight: 600 })}>{l.id}</td>
-                                        <td style={tdStyle({
+                                        <td className="td-glass" style={{
+                                            fontWeight: 700, color: 'var(--text-muted)',
+                                            fontVariantNumeric: 'tabular-nums',
+                                        }}>
+                                            {l.id}
+                                        </td>
+                                        <td className="td-glass" style={{
                                             fontWeight: 600, maxWidth: 220,
                                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                        })}>
+                                        }}>
                                             {l.nome}
                                         </td>
-                                        <td style={tdStyle()}>{l.cliente || '—'}</td>
-                                        <td style={tdStyle({ color: 'var(--text-muted)' })}>{l.projeto || '—'}</td>
-                                        <td style={tdStyle({ textAlign: 'center' })}>{l.total_pecas}</td>
-                                        <td style={tdStyle({ textAlign: 'center' })}>{l.total_chapas || '—'}</td>
-                                        <td style={tdStyle({ textAlign: 'center' })}>
+                                        <td className="td-glass">{l.cliente || '—'}</td>
+                                        <td className="td-glass" style={{ color: 'var(--text-muted)' }}>
+                                            {l.projeto || '—'}
+                                        </td>
+                                        <td className="td-glass" style={{
+                                            textAlign: 'center', fontVariantNumeric: 'tabular-nums',
+                                        }}>
+                                            {l.total_pecas}
+                                        </td>
+                                        <td className="td-glass" style={{
+                                            textAlign: 'center', fontVariantNumeric: 'tabular-nums',
+                                        }}>
+                                            {l.total_chapas || '—'}
+                                        </td>
+                                        <td className="td-glass" style={{
+                                            textAlign: 'center', fontWeight: 700,
+                                            fontVariantNumeric: 'tabular-nums',
+                                            color: l.aproveitamento
+                                                ? (l.aproveitamento >= 80 ? 'var(--success)'
+                                                   : l.aproveitamento >= 60 ? 'var(--warning)'
+                                                   : 'var(--danger)')
+                                                : 'var(--text-muted)',
+                                        }}>
                                             {l.aproveitamento ? `${l.aproveitamento}%` : '—'}
                                         </td>
-                                        <td style={tdStyle()}>
+                                        <td className="td-glass">
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                <span className={tagClass} style={tagStyle(STATUS_COLORS[l.status])}>
-                                                    {l.status}
-                                                </span>
+                                                <StatusBadge status={l.status || 'importado'} size="sm" />
                                                 {l.grupo_otimizacao && (
                                                     <span
                                                         title="Otimizado em grupo"
                                                         style={{
-                                                            fontSize: 10, padding: '2px 6px', borderRadius: 6,
-                                                            background: 'var(--primary-alpha)', color: 'var(--primary)',
-                                                            fontWeight: 700, letterSpacing: 0.3,
+                                                            fontSize: 9, padding: '2px 6px', borderRadius: 6,
+                                                            background: 'var(--primary-alpha)',
+                                                            color: 'var(--primary)',
+                                                            border: '1px solid var(--primary)',
+                                                            fontWeight: 800, letterSpacing: 0.3,
                                                         }}
                                                     >
                                                         MULTI
@@ -145,32 +185,39 @@ export function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
                                                 )}
                                             </div>
                                         </td>
-                                        <td style={tdStyle({ whiteSpace: 'nowrap', color: 'var(--text-muted)' })}>
+                                        <td className="td-glass" style={{
+                                            color: 'var(--text-muted)',
+                                            fontVariantNumeric: 'tabular-nums',
+                                            whiteSpace: 'nowrap',
+                                        }}>
                                             {new Date(l.criado_em).toLocaleDateString('pt-BR')}
                                         </td>
-                                        <td style={tdStyle()} onClick={e => e.stopPropagation()}>
-                                            <div style={{ display: 'flex', gap: 6 }}>
+                                        <td className="td-glass" onClick={e => e.stopPropagation()}>
+                                            <div style={{ display: 'flex', gap: 4 }}>
                                                 <button
                                                     onClick={() => abrirLote(l, 'pecas')}
                                                     title="Ver peças"
-                                                    className="btn-secondary"
-                                                    style={actBtnStyle}
+                                                    aria-label={`Ver peças de ${l.nome}`}
+                                                    className="btn-secondary btn-sm"
+                                                    style={actBtn}
                                                 >
-                                                    <Eye size={13} />
+                                                    <Layers size={13} />
                                                 </button>
                                                 <button
                                                     onClick={() => abrirLote(l, 'plano')}
                                                     title="Plano de corte"
-                                                    className="btn-secondary"
-                                                    style={actBtnStyle}
+                                                    aria-label={`Plano de corte de ${l.nome}`}
+                                                    className="btn-secondary btn-sm"
+                                                    style={actBtn}
                                                 >
                                                     <Scissors size={13} />
                                                 </button>
                                                 <button
-                                                    onClick={() => deleteLote(l.id)}
+                                                    onClick={() => setDeleteTarget(l)}
                                                     title="Excluir"
-                                                    className={Z.btnD}
-                                                    style={actBtnStyle}
+                                                    aria-label={`Excluir ${l.nome}`}
+                                                    className="btn-danger btn-sm"
+                                                    style={actBtn}
                                                 >
                                                     <Trash2 size={13} />
                                                 </button>
@@ -182,23 +229,21 @@ export function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            {deleteTarget && (
+                <ConfirmModal
+                    danger
+                    title="Excluir lote"
+                    message={`Isto remove o lote "${deleteTarget.nome}" e todas as suas peças, chapas e operações. Esta ação não pode ser desfeita.`}
+                    confirmLabel="Excluir"
+                    cancelLabel="Cancelar"
+                    onConfirm={confirmDelete}
+                    onCancel={() => setDeleteTarget(null)}
+                />
             )}
-        </div>
+        </>
     );
 }
 
-// ── Helpers locais pra style consistency ──
-const thStyle = (extra = {}) => ({
-    padding: '10px 12px', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 600,
-    textAlign: 'left', color: 'var(--text-muted)', textTransform: 'uppercase',
-    letterSpacing: 0.3, borderBottom: '1px solid var(--border)',
-    ...extra,
-});
-
-const tdStyle = (extra = {}) => ({
-    padding: '10px 12px', fontSize: 13,
-    borderBottom: '1px solid var(--border)',
-    ...extra,
-});
-
-const actBtnStyle = { padding: '5px 10px', minHeight: 0, fontSize: 12 };
+const actBtn = { padding: '6px 10px', minHeight: 0, fontSize: 12 };

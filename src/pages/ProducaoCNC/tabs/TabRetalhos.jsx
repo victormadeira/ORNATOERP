@@ -1,9 +1,15 @@
 // Tab "Retalhos" — gerenciamento de sobras reaproveitáveis de chapas.
-// Refatorado em Fase B: imports enxutos + tokens do design system.
+// Fase C: usa SectionHeader + EmptyState + ConfirmModal + Modal do design system.
+
 import { useState, useEffect } from 'react';
 import api from '../../../api';
-import { Z, Modal, Spinner, SearchableSelect } from '../../../ui';
-import { Trash2, Plus, Minus, Check, Search as SearchIcon } from 'lucide-react';
+import {
+    Z, Modal, Spinner, SearchableSelect, SectionHeader, EmptyState, ConfirmModal,
+} from '../../../ui';
+import {
+    Trash2, Plus, Box, Search as SearchIcon,
+    ArrowUpDown, ArrowUp, ArrowDown,
+} from 'lucide-react';
 
 export function TabRetalhos({ notify }) {
     const [retalhos, setRetalhos] = useState([]);
@@ -13,9 +19,12 @@ export function TabRetalhos({ notify }) {
     const [filterEspessura, setFilterEspessura] = useState('');
     const [selected, setSelected] = useState(new Set());
     const [showAddModal, setShowAddModal] = useState(false);
-    const [novoRetalho, setNovoRetalho] = useState({ nome: '', material_code: '', espessura_real: 15, comprimento: 0, largura: 0 });
+    const [novoRetalho, setNovoRetalho] = useState({
+        nome: '', material_code: '', espessura_real: 15, comprimento: 0, largura: 0,
+    });
     const [sortBy, setSortBy] = useState('criado_em');
     const [sortDir, setSortDir] = useState('desc');
+    const [deleteTarget, setDeleteTarget] = useState(null); // { ids: Set|[id], label }
 
     const loadRetalhos = async () => {
         try {
@@ -27,11 +36,9 @@ export function TabRetalhos({ notify }) {
 
     useEffect(() => { loadRetalhos(); }, []);
 
-    // Unique material codes and espessuras for filters
     const materiais = [...new Set(retalhos.map(r => r.material_code).filter(Boolean))].sort();
     const espessuras = [...new Set(retalhos.map(r => r.espessura_real).filter(Boolean))].sort((a, b) => a - b);
 
-    // Filter + search
     const filtered = retalhos.filter(r => {
         if (filterMaterial && r.material_code !== filterMaterial) return false;
         if (filterEspessura && r.espessura_real !== Number(filterEspessura)) return false;
@@ -45,7 +52,6 @@ export function TabRetalhos({ notify }) {
         return true;
     });
 
-    // Sort
     const sorted = [...filtered].sort((a, b) => {
         let va, vb;
         switch (sortBy) {
@@ -53,7 +59,9 @@ export function TabRetalhos({ notify }) {
             case 'comprimento': va = a.comprimento; vb = b.comprimento; break;
             case 'largura': va = a.largura; vb = b.largura; break;
             case 'espessura': va = a.espessura_real; vb = b.espessura_real; break;
-            case 'material': va = a.material_code || ''; vb = b.material_code || ''; return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+            case 'material':
+                va = a.material_code || ''; vb = b.material_code || '';
+                return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
             default: va = new Date(a.criado_em || 0).getTime(); vb = new Date(b.criado_em || 0).getTime();
         }
         return sortDir === 'asc' ? va - vb : vb - va;
@@ -66,24 +74,35 @@ export function TabRetalhos({ notify }) {
     });
 
     const selectAllFiltered = () => {
-        if (selected.size === sorted.length) {
+        if (selected.size === sorted.length) setSelected(new Set());
+        else setSelected(new Set(sorted.map(r => r.id)));
+    };
+
+    const confirmBulkDelete = async () => {
+        const ids = [...selected];
+        try {
+            for (const id of ids) await api.del(`/cnc/retalhos/${id}`);
+            notify(`${ids.length} retalho(s) excluído(s)`);
             setSelected(new Set());
-        } else {
-            setSelected(new Set(sorted.map(r => r.id)));
+            loadRetalhos();
+        } catch (err) {
+            notify('Erro: ' + (err.error || err.message));
+        } finally {
+            setDeleteTarget(null);
         }
     };
 
-    const deleteSelected = async () => {
-        if (selected.size === 0) return;
-        if (!confirm(`Excluir ${selected.size} retalho(s) permanentemente?`)) return;
+    const confirmSingleDelete = async () => {
         try {
-            for (const id of selected) {
-                await api.del(`/cnc/retalhos/${id}`);
-            }
-            notify(`${selected.size} retalho(s) excluído(s)`);
-            setSelected(new Set());
+            await api.del(`/cnc/retalhos/${deleteTarget.single}`);
+            notify('Retalho excluído');
+            setSelected(prev => { const n = new Set(prev); n.delete(deleteTarget.single); return n; });
             loadRetalhos();
-        } catch (err) { notify('Erro: ' + (err.error || err.message)); }
+        } catch (err) {
+            notify('Erro: ' + (err.error || err.message));
+        } finally {
+            setDeleteTarget(null);
+        }
     };
 
     const addRetalho = async () => {
@@ -99,197 +118,374 @@ export function TabRetalhos({ notify }) {
         } catch (err) { notify('Erro: ' + (err.error || err.message)); }
     };
 
-    const SortHeader = ({ label, field, w }) => (
-        <th onClick={() => { if (sortBy === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortBy(field); setSortDir('desc'); } }}
-            style={{ cursor: 'pointer', padding: '10px 12px', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)',
-                letterSpacing: 0.3, textAlign: 'left', userSelect: 'none', width: w, whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>
-            {label} {sortBy === field && (sortDir === 'asc' ? '↑' : '↓')}
+    const SortIcon = ({ field }) => {
+        if (sortBy !== field) return <ArrowUpDown size={11} style={{ opacity: 0.4 }} />;
+        return sortDir === 'asc'
+            ? <ArrowUp size={11} style={{ color: 'var(--primary)' }} />
+            : <ArrowDown size={11} style={{ color: 'var(--primary)' }} />;
+    };
+
+    const sortTh = (label, field, width) => (
+        <th
+            className="th-glass"
+            style={{ width, cursor: 'pointer', userSelect: 'none' }}
+            onClick={() => {
+                if (sortBy === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setSortBy(field); setSortDir('desc'); }
+            }}
+        >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                {label} <SortIcon field={field} />
+            </span>
         </th>
     );
 
-    if (loading) return <div style={{ padding: 40, textAlign: 'center' }}><Spinner /></div>;
+    if (loading) return <Spinner size={32} text="Carregando retalhos…" />;
 
     return (
-        <div style={{ maxWidth: 1100 }}>
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <div>
-                    <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Gerenciar Retalhos</h2>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{retalhos.length} retalhos disponíveis · {filtered.length} exibidos</div>
-                </div>
-                <button onClick={() => setShowAddModal(true)} className={Z.btn} style={{ padding: '8px 16px', fontSize: 12, gap: 6 }}>
-                    <Plus size={14} /> Adicionar Retalho
-                </button>
-            </div>
-
-            {/* Filters bar */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-                {/* Search */}
-                <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 180 }}>
-                    <SearchIcon size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome, material, dimensão..."
-                        className={Z.inp} style={{ paddingLeft: 32, fontSize: 12, width: '100%' }} />
-                </div>
-                {/* Material filter — searchable */}
-                <SearchableSelect
-                    value={filterMaterial}
-                    onChange={v => setFilterMaterial(v)}
-                    emptyOption="Todos os materiais"
-                    options={materiais.map(m => ({ value: m, label: m.replace(/_/g, ' ') }))}
-                    placeholder="Buscar material..."
-                    className={Z.inp}
-                    style={{ minWidth: 200 }}
-                />
-                {/* Espessura filter — searchable */}
-                <SearchableSelect
-                    value={filterEspessura}
-                    onChange={v => setFilterEspessura(v)}
-                    emptyOption="Todas espessuras"
-                    options={espessuras.map(e => ({ value: String(e), label: `${e}mm` }))}
-                    placeholder="Buscar esp..."
-                    className={Z.inp}
-                    style={{ minWidth: 120 }}
-                />
-                {/* Bulk actions */}
-                {selected.size > 0 && (
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 'auto' }}>
-                        <span style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 600 }}>{selected.size} selecionado(s)</span>
-                        <button onClick={deleteSelected} className="btn-secondary"
-                            style={{ padding: '5px 12px', fontSize: 12, color: 'var(--danger)', borderColor: 'var(--danger)', gap: 4 }}>
-                            <Trash2 size={12} /> Excluir
+        <>
+            <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+                <SectionHeader
+                    icon={Box}
+                    title="Retalhos"
+                    accent="var(--accent)"
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{
+                            fontSize: 11, fontWeight: 700, color: 'var(--text-muted)',
+                            textTransform: 'uppercase', letterSpacing: '0.06em',
+                        }}>
+                            {filtered.length} / {retalhos.length}
+                        </span>
+                        <button
+                            onClick={() => setShowAddModal(true)}
+                            className="btn-primary btn-sm"
+                            style={{ fontSize: 12, gap: 6 }}
+                        >
+                            <Plus size={13} /> Adicionar
                         </button>
+                    </div>
+                </SectionHeader>
+
+                {/* Toolbar de filtros */}
+                <div style={{
+                    display: 'flex', gap: 10, padding: '12px 20px', flexWrap: 'wrap',
+                    alignItems: 'center', borderBottom: '1px solid var(--border)',
+                    background: 'var(--bg-subtle)',
+                }}>
+                    <div style={{ position: 'relative', flex: '1 1 240px', minWidth: 200 }}>
+                        <SearchIcon
+                            size={14}
+                            style={{
+                                position: 'absolute', left: 12, top: '50%',
+                                transform: 'translateY(-50%)',
+                                color: 'var(--text-muted)',
+                                pointerEvents: 'none',
+                            }}
+                        />
+                        <input
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            placeholder="Buscar por nome, material ou dimensão…"
+                            className={Z.inp}
+                            style={{ paddingLeft: 34, fontSize: 13, width: '100%' }}
+                            aria-label="Buscar retalho"
+                        />
+                    </div>
+                    <SearchableSelect
+                        value={filterMaterial}
+                        onChange={v => setFilterMaterial(v)}
+                        emptyOption="Todos os materiais"
+                        options={materiais.map(m => ({ value: m, label: m.replace(/_/g, ' ') }))}
+                        placeholder="Buscar material…"
+                        className={Z.inp}
+                        style={{ minWidth: 200 }}
+                    />
+                    <SearchableSelect
+                        value={filterEspessura}
+                        onChange={v => setFilterEspessura(v)}
+                        emptyOption="Todas espessuras"
+                        options={espessuras.map(e => ({ value: String(e), label: `${e}mm` }))}
+                        placeholder="Buscar esp…"
+                        className={Z.inp}
+                        style={{ minWidth: 140 }}
+                    />
+                    {selected.size > 0 && (
+                        <div style={{
+                            display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto',
+                            padding: '4px 10px', borderRadius: 8,
+                            background: 'var(--primary-alpha)',
+                            border: '1px solid var(--primary)',
+                        }}>
+                            <span style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 700 }}>
+                                {selected.size} selecionado(s)
+                            </span>
+                            <button
+                                onClick={() => setDeleteTarget({ bulk: true })}
+                                className="btn-danger btn-sm"
+                                style={{ fontSize: 11, gap: 4, padding: '4px 10px' }}
+                            >
+                                <Trash2 size={12} /> Excluir
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* Tabela ou empty state */}
+                {sorted.length === 0 ? (
+                    <EmptyState
+                        icon={Box}
+                        title={
+                            search || filterMaterial || filterEspessura
+                                ? 'Nenhum retalho encontrado'
+                                : 'Nenhum retalho disponível'
+                        }
+                        description={
+                            search || filterMaterial || filterEspessura
+                                ? 'Tente limpar os filtros ou buscar por outro termo.'
+                                : 'Os retalhos gerados ao cortar lotes aparecem aqui, e também podem ser cadastrados manualmente.'
+                        }
+                        action={
+                            !(search || filterMaterial || filterEspessura)
+                                ? { label: 'Adicionar retalho', onClick: () => setShowAddModal(true) }
+                                : null
+                        }
+                    />
+                ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr>
+                                    <th className="th-glass" style={{ width: 40, textAlign: 'center' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selected.size > 0 && selected.size === sorted.length}
+                                            ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < sorted.length; }}
+                                            onChange={selectAllFiltered}
+                                            style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
+                                            aria-label="Selecionar todos"
+                                        />
+                                    </th>
+                                    {sortTh('Nome', 'nome')}
+                                    {sortTh('Material', 'material')}
+                                    {sortTh('Esp.', 'espessura', 70)}
+                                    {sortTh('Comp.', 'comprimento', 90)}
+                                    {sortTh('Larg.', 'largura', 90)}
+                                    {sortTh('Área', 'area', 90)}
+                                    {sortTh('Data', 'criado_em', 100)}
+                                    <th className="th-glass" style={{ width: 50 }}></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sorted.map(r => (
+                                    <tr
+                                        key={r.id}
+                                        style={{
+                                            background: selected.has(r.id) ? 'var(--primary-alpha)' : undefined,
+                                        }}
+                                    >
+                                        <td className="td-glass" style={{ textAlign: 'center' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selected.has(r.id)}
+                                                onChange={() => toggleSelect(r.id)}
+                                                style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
+                                                aria-label={`Selecionar ${r.nome}`}
+                                            />
+                                        </td>
+                                        <td className="td-glass" style={{ fontWeight: 600 }}>
+                                            {r.nome || `Retalho ${r.comprimento}×${r.largura}`}
+                                        </td>
+                                        <td className="td-glass">
+                                            <span style={{
+                                                display: 'inline-block',
+                                                padding: '3px 8px', borderRadius: 6,
+                                                background: 'var(--bg-muted)',
+                                                fontSize: 11, color: 'var(--text-muted)',
+                                                fontWeight: 500,
+                                            }}>
+                                                {(r.material_code || '—').replace(/_/g, ' ')}
+                                            </span>
+                                        </td>
+                                        <td className="td-glass" style={{
+                                            textAlign: 'center', fontVariantNumeric: 'tabular-nums',
+                                        }}>
+                                            {r.espessura_real}mm
+                                        </td>
+                                        <td className="td-glass" style={{
+                                            textAlign: 'right', fontWeight: 600,
+                                            fontVariantNumeric: 'tabular-nums',
+                                        }}>
+                                            {r.comprimento}
+                                        </td>
+                                        <td className="td-glass" style={{
+                                            textAlign: 'right', fontVariantNumeric: 'tabular-nums',
+                                        }}>
+                                            {r.largura}
+                                        </td>
+                                        <td className="td-glass" style={{
+                                            textAlign: 'right', color: 'var(--text-muted)',
+                                            fontVariantNumeric: 'tabular-nums',
+                                        }}>
+                                            {(r.comprimento * r.largura / 1000000).toFixed(3)} m²
+                                        </td>
+                                        <td className="td-glass" style={{
+                                            color: 'var(--text-muted)',
+                                            fontVariantNumeric: 'tabular-nums',
+                                            whiteSpace: 'nowrap',
+                                        }}>
+                                            {r.criado_em ? new Date(r.criado_em).toLocaleDateString('pt-BR') : '—'}
+                                        </td>
+                                        <td className="td-glass">
+                                            <button
+                                                onClick={() => setDeleteTarget({ single: r.id, label: r.nome || `Retalho ${r.comprimento}×${r.largura}` })}
+                                                title="Excluir"
+                                                aria-label={`Excluir retalho ${r.nome || r.id}`}
+                                                style={{
+                                                    padding: 6, borderRadius: 6,
+                                                    background: 'transparent', border: 'none',
+                                                    color: 'var(--text-muted)', cursor: 'pointer',
+                                                    transition: 'all .15s',
+                                                }}
+                                                onMouseEnter={e => {
+                                                    e.currentTarget.style.color = 'var(--danger)';
+                                                    e.currentTarget.style.background = 'var(--danger-bg)';
+                                                }}
+                                                onMouseLeave={e => {
+                                                    e.currentTarget.style.color = 'var(--text-muted)';
+                                                    e.currentTarget.style.background = 'transparent';
+                                                }}
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 )}
             </div>
 
-            {/* Table */}
-            <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-card)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                        <tr style={{ background: 'var(--bg-muted)' }}>
-                            <th style={{ width: 36, padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>
-                                <div onClick={selectAllFiltered}
-                                    style={{
-                                        width: 16, height: 16, borderRadius: 3, cursor: 'pointer',
-                                        border: `2px solid ${selected.size > 0 && selected.size === sorted.length ? 'var(--primary)' : 'var(--border)'}`,
-                                        background: selected.size > 0 && selected.size === sorted.length ? 'var(--primary)' : 'transparent',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    }}>
-                                    {selected.size > 0 && selected.size === sorted.length && <Check size={10} color="#fff" />}
-                                    {selected.size > 0 && selected.size < sorted.length && <Minus size={10} color="var(--primary)" />}
-                                </div>
-                            </th>
-                            <SortHeader label="Nome" field="nome" />
-                            <SortHeader label="Material" field="material" />
-                            <SortHeader label="Esp." field="espessura" w={60} />
-                            <SortHeader label="Comprimento" field="comprimento" w={90} />
-                            <SortHeader label="Largura" field="largura" w={80} />
-                            <SortHeader label="Área" field="area" w={80} />
-                            <SortHeader label="Data" field="criado_em" w={90} />
-                            <th style={{ width: 50, padding: '8px 10px', borderBottom: '1px solid var(--border)' }}></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {sorted.length === 0 ? (
-                            <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                                {search || filterMaterial || filterEspessura ? 'Nenhum retalho encontrado com os filtros aplicados' : 'Nenhum retalho disponível'}
-                            </td></tr>
-                        ) : sorted.map(r => (
-                            <tr key={r.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background .1s' }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                                onMouseLeave={e => e.currentTarget.style.background = ''}>
-                                <td style={{ padding: '6px 10px' }}>
-                                    <div onClick={() => toggleSelect(r.id)}
-                                        style={{
-                                            width: 16, height: 16, borderRadius: 3, cursor: 'pointer',
-                                            border: `2px solid ${selected.has(r.id) ? 'var(--primary)' : 'var(--border)'}`,
-                                            background: selected.has(r.id) ? 'var(--primary)' : 'transparent',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        }}>
-                                        {selected.has(r.id) && <Check size={10} color="#fff" />}
-                                    </div>
-                                </td>
-                                <td style={{ padding: '10px 12px', fontSize: 13, fontWeight: 600 }}>{r.nome || `Retalho ${r.comprimento}x${r.largura}`}</td>
-                                <td style={{ padding: '10px 12px', fontSize: 12 }}>
-                                    <span style={{ padding: '3px 8px', borderRadius: 6, background: 'var(--bg-muted)', fontSize: 11, color: 'var(--text-muted)' }}>
-                                        {(r.material_code || '').replace(/_/g, ' ')}
-                                    </span>
-                                </td>
-                                <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{r.espessura_real}mm</td>
-                                <td style={{ padding: '10px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.comprimento}mm</td>
-                                <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.largura}mm</td>
-                                <td style={{ padding: '10px 12px', fontSize: 12, textAlign: 'right', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                                    {(r.comprimento * r.largura / 1000000).toFixed(3)} m²
-                                </td>
-                                <td style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)' }}>
-                                    {r.criado_em ? new Date(r.criado_em).toLocaleDateString('pt-BR') : '—'}
-                                </td>
-                                <td style={{ padding: '6px 10px' }}>
-                                    <button onClick={async () => {
-                                        if (!confirm('Excluir este retalho permanentemente?')) return;
-                                        try {
-                                            await api.del(`/cnc/retalhos/${r.id}`);
-                                            notify('Retalho excluído');
-                                            loadRetalhos();
-                                            setSelected(prev => { const next = new Set(prev); next.delete(r.id); return next; });
-                                        } catch (err) { notify('Erro: ' + (err.error || err.message)); }
-                                    }} style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', borderRadius: 4 }}
-                                        onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'}
-                                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
-                                        <Trash2 size={13} />
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* Add Retalho Modal */}
+            {/* Modal adicionar retalho */}
             {showAddModal && (
-                <Modal title="Adicionar Retalho" close={() => setShowAddModal(false)} w={450}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        <div>
-                            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Nome (opcional)</label>
-                            <input value={novoRetalho.nome} onChange={e => setNovoRetalho(p => ({ ...p, nome: e.target.value }))}
-                                className={Z.inp} placeholder="Ex: Sobra bancada cozinha" style={{ width: '100%', fontSize: 12 }} />
-                        </div>
-                        <div>
-                            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Código do Material</label>
-                            <input value={novoRetalho.material_code} onChange={e => setNovoRetalho(p => ({ ...p, material_code: e.target.value }))}
-                                className={Z.inp} placeholder="Ex: MDF_15.5_BRANCO_TX" style={{ width: '100%', fontSize: 12 }}
-                                list="materiais-list" />
+                <Modal title="Adicionar Retalho" close={() => setShowAddModal(false)} w={480}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        <Field label="Nome (opcional)">
+                            <input
+                                value={novoRetalho.nome}
+                                onChange={e => setNovoRetalho(p => ({ ...p, nome: e.target.value }))}
+                                className={Z.inp}
+                                placeholder="Ex: Sobra bancada cozinha"
+                                style={{ width: '100%', fontSize: 13 }}
+                            />
+                        </Field>
+                        <Field label="Código do material">
+                            <input
+                                value={novoRetalho.material_code}
+                                onChange={e => setNovoRetalho(p => ({ ...p, material_code: e.target.value }))}
+                                className={Z.inp}
+                                placeholder="Ex: MDF_15.5_BRANCO_TX"
+                                style={{ width: '100%', fontSize: 13 }}
+                                list="materiais-list"
+                            />
                             <datalist id="materiais-list">
                                 {materiais.map(m => <option key={m} value={m} />)}
                             </datalist>
-                        </div>
+                        </Field>
                         <div style={{ display: 'flex', gap: 12 }}>
-                            <div style={{ flex: 1 }}>
-                                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Espessura (mm)</label>
-                                <input type="number" value={novoRetalho.espessura_real} onChange={e => setNovoRetalho(p => ({ ...p, espessura_real: Number(e.target.value) }))}
-                                    className={Z.inp} style={{ width: '100%', fontSize: 12 }} min={0} step={0.5} />
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Comprimento (mm)</label>
-                                <input type="number" value={novoRetalho.comprimento} onChange={e => setNovoRetalho(p => ({ ...p, comprimento: Number(e.target.value) }))}
-                                    className={Z.inp} style={{ width: '100%', fontSize: 12 }} min={0} />
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Largura (mm)</label>
-                                <input type="number" value={novoRetalho.largura} onChange={e => setNovoRetalho(p => ({ ...p, largura: Number(e.target.value) }))}
-                                    className={Z.inp} style={{ width: '100%', fontSize: 12 }} min={0} />
-                            </div>
+                            <Field label="Espessura (mm)" flex={1}>
+                                <input
+                                    type="number"
+                                    value={novoRetalho.espessura_real}
+                                    onChange={e => setNovoRetalho(p => ({ ...p, espessura_real: Number(e.target.value) }))}
+                                    className={Z.inp}
+                                    style={{ width: '100%', fontSize: 13 }}
+                                    min={0} step={0.5}
+                                />
+                            </Field>
+                            <Field label="Comprimento (mm)" flex={1}>
+                                <input
+                                    type="number"
+                                    value={novoRetalho.comprimento}
+                                    onChange={e => setNovoRetalho(p => ({ ...p, comprimento: Number(e.target.value) }))}
+                                    className={Z.inp}
+                                    style={{ width: '100%', fontSize: 13 }}
+                                    min={0}
+                                />
+                            </Field>
+                            <Field label="Largura (mm)" flex={1}>
+                                <input
+                                    type="number"
+                                    value={novoRetalho.largura}
+                                    onChange={e => setNovoRetalho(p => ({ ...p, largura: Number(e.target.value) }))}
+                                    className={Z.inp}
+                                    style={{ width: '100%', fontSize: 13 }}
+                                    min={0}
+                                />
+                            </Field>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-                            <button onClick={() => setShowAddModal(false)} className="btn-secondary" style={{ padding: '8px 16px', fontSize: 12 }}>Cancelar</button>
-                            <button onClick={addRetalho} className={Z.btn} style={{ padding: '8px 20px', fontSize: 12, fontWeight: 700 }}>
+                        <div style={{
+                            display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4,
+                        }}>
+                            <button
+                                onClick={() => setShowAddModal(false)}
+                                className="btn-secondary"
+                                style={{ padding: '8px 16px', fontSize: 13 }}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={addRetalho}
+                                className="btn-primary"
+                                style={{ padding: '8px 20px', fontSize: 13, gap: 6 }}
+                            >
                                 <Plus size={14} /> Adicionar
                             </button>
                         </div>
                     </div>
                 </Modal>
             )}
-        </div>
+
+            {/* Confirmação de exclusão */}
+            {deleteTarget?.single && (
+                <ConfirmModal
+                    danger
+                    title="Excluir retalho"
+                    message={`Deseja excluir permanentemente "${deleteTarget.label}"? Esta ação não pode ser desfeita.`}
+                    confirmLabel="Excluir"
+                    onConfirm={confirmSingleDelete}
+                    onCancel={() => setDeleteTarget(null)}
+                />
+            )}
+            {deleteTarget?.bulk && (
+                <ConfirmModal
+                    danger
+                    title="Excluir retalhos selecionados"
+                    message={`Deseja excluir ${selected.size} retalho(s) permanentemente? Esta ação não pode ser desfeita.`}
+                    confirmLabel={`Excluir ${selected.size}`}
+                    onConfirm={confirmBulkDelete}
+                    onCancel={() => setDeleteTarget(null)}
+                />
+            )}
+        </>
     );
 }
 
+// Campo de formulário com label padronizado.
+function Field({ label, flex, children }) {
+    return (
+        <div style={{ flex }}>
+            <label style={{
+                display: 'block', marginBottom: 6,
+                fontSize: 11, fontWeight: 700,
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+            }}>
+                {label}
+            </label>
+            {children}
+        </div>
+    );
+}

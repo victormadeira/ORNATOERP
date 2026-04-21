@@ -1,12 +1,12 @@
 // Tab "G-code / CNC" — geração + preview + simulação de percurso.
-// Refatorado em Fase B: tokens, imports enxutos, sub-tab Etiquetas via lazy.
+// Fase C: usa SectionHeader + TabBar + ConfirmModal + EmptyState do design system.
 
 import { useState, useEffect, lazy, Suspense } from 'react';
 import api from '../../../api';
-import { Z } from '../../../ui';
+import { Z, TabBar, SectionHeader, EmptyState, ConfirmModal } from '../../../ui';
 import {
     Monitor, Cpu, Tag as TagIcon, AlertTriangle, CheckCircle2,
-    X, Play, Download,
+    X, Play, Download, ShieldCheck, FileCode2,
 } from 'lucide-react';
 import ToolpathSimulator, { parseGcodeToMoves } from '../../../components/ToolpathSimulator';
 
@@ -26,6 +26,7 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
     const [toolpathOpen, setToolpathOpen] = useState(false);
     const [toolpathMoves, setToolpathMoves] = useState([]);
     const [toolpathChapa, setToolpathChapa] = useState(null);
+    const [pendingConfirm, setPendingConfirm] = useState(null); // { conflicts }
 
     // Carrega máquinas disponíveis uma vez.
     useEffect(() => {
@@ -39,25 +40,7 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
 
     const maquinaSel = maquinas.find(m => String(m.id) === maquinaId);
 
-    const gerar = async () => {
-        if (!loteAtual) return;
-        // Pré-validação: avisa se há erros de usinagem conhecidos.
-        try {
-            const val = await api.get(`/cnc/validar-usinagens/${loteAtual.id}`);
-            setGcodeValidation(val);
-            const erros = (val.conflicts || []).filter(c => c.severidade === 'erro');
-            if (erros.length > 0) {
-                setShowGcodeConflicts(true);
-                const proceed = window.confirm(
-                    `${erros.length} erro(s) de usinagem detectado(s):\n\n` +
-                    erros.slice(0, 5).map(c => `- ${c.pecaDesc}: ${c.mensagem}`).join('\n') +
-                    (erros.length > 5 ? `\n...e mais ${erros.length - 5}` : '') +
-                    '\n\nDeseja gerar o G-code mesmo assim?'
-                );
-                if (!proceed) return;
-            }
-        } catch (_) { /* validação falhou — segue em frente */ }
-
+    const doGerar = async () => {
         setGerando(true);
         try {
             const body = maquinaId ? { maquina_id: Number(maquinaId) } : {};
@@ -69,7 +52,24 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
             notify('Erro: ' + (err.error || err.message));
         } finally {
             setGerando(false);
+            setPendingConfirm(null);
         }
+    };
+
+    const gerar = async () => {
+        if (!loteAtual) return;
+        // Pré-validação: avisa se há erros de usinagem conhecidos.
+        try {
+            const val = await api.get(`/cnc/validar-usinagens/${loteAtual.id}`);
+            setGcodeValidation(val);
+            const erros = (val.conflicts || []).filter(c => c.severidade === 'erro');
+            if (erros.length > 0) {
+                setShowGcodeConflicts(true);
+                setPendingConfirm({ conflicts: erros });
+                return;
+            }
+        } catch (_) { /* validação falhou — segue em frente */ }
+        doGerar();
     };
 
     const downloadGcode = () => {
@@ -85,38 +85,17 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
     };
 
     return (
-        <div>
-            {/* Sub-tabs: G-code | Etiquetas */}
-            <div style={{
-                display: 'flex', gap: 4, marginBottom: 16,
-                borderBottom: '2px solid var(--border)', paddingBottom: 0,
-            }}>
-                {[
-                    { id: 'gcode', lb: 'G-code / CNC', ic: Cpu },
-                    { id: 'etiquetas', lb: 'Etiquetas', ic: TagIcon },
-                ].map(st => {
-                    const active = gcodeSubTab === st.id;
-                    return (
-                        <button
-                            key={st.id}
-                            onClick={() => setGcodeSubTab(st.id)}
-                            style={{
-                                padding: '8px 18px', fontSize: 13,
-                                fontWeight: active ? 700 : 500,
-                                border: 'none', cursor: 'pointer',
-                                display: 'flex', alignItems: 'center', gap: 6,
-                                borderBottom: active
-                                    ? '2px solid var(--primary)'
-                                    : '2px solid transparent',
-                                marginBottom: -2, background: 'transparent',
-                                color: active ? 'var(--primary)' : 'var(--text-muted)',
-                                transition: 'all .15s',
-                            }}
-                        >
-                            <st.ic size={14} /> {st.lb}
-                        </button>
-                    );
-                })}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Sub-tabs — usando TabBar do design system */}
+            <div style={{ marginBottom: -4 }}>
+                <TabBar
+                    tabs={[
+                        { id: 'gcode', label: 'G-code / CNC', icon: Cpu },
+                        { id: 'etiquetas', label: 'Etiquetas', icon: TagIcon },
+                    ]}
+                    active={gcodeSubTab}
+                    onChange={setGcodeSubTab}
+                />
             </div>
 
             {/* Etiquetas sub-tab (lazy) */}
@@ -135,19 +114,22 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
             {gcodeSubTab === 'gcode' && (
                 <>
                     {/* Seletor de máquina */}
-                    <div className="glass-card" style={{ padding: 16, marginBottom: 16 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <Monitor size={16} style={{ color: 'var(--primary)' }} />
-                                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-                                    Máquina CNC:
-                                </span>
-                            </div>
+                    <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+                        <SectionHeader
+                            icon={Monitor}
+                            title="Máquina CNC"
+                            accent="var(--primary)"
+                        />
+                        <div style={{
+                            padding: '14px 20px',
+                            display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+                        }}>
                             <select
                                 value={maquinaId}
                                 onChange={e => { setMaquinaId(e.target.value); setResult(null); }}
                                 className={Z.inp}
-                                style={{ minWidth: 260, fontSize: 13 }}
+                                style={{ minWidth: 280, fontSize: 13 }}
+                                aria-label="Selecionar máquina CNC"
                             >
                                 {maquinas.length === 0 && <option value="">Nenhuma máquina cadastrada</option>}
                                 {maquinas.map(m => (
@@ -159,105 +141,67 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                             </select>
                             {maquinaSel && (
                                 <div style={{
-                                    display: 'flex', gap: 14, fontSize: 12, color: 'var(--text-muted)',
-                                    flexWrap: 'wrap',
+                                    display: 'flex', gap: 6, fontSize: 11, flexWrap: 'wrap',
                                 }}>
-                                    <span>Ext: <b style={{ color: 'var(--text-primary)' }}>{maquinaSel.extensao_arquivo || '.nc'}</b></span>
-                                    <span>Tipo: <b style={{ color: 'var(--text-primary)' }}>{maquinaSel.tipo_pos || 'generic'}</b></span>
-                                    <span>Área: <b style={{ color: 'var(--text-primary)' }}>{maquinaSel.x_max}×{maquinaSel.y_max}mm</b></span>
+                                    <InfoChip label="Ext" value={maquinaSel.extensao_arquivo || '.nc'} />
+                                    <InfoChip label="Tipo" value={maquinaSel.tipo_pos || 'generic'} />
+                                    <InfoChip label="Área" value={`${maquinaSel.x_max}×${maquinaSel.y_max}mm`} />
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    {/* Validação de ferramentas (pós-geração) */}
-                    {result?.validacao && (
-                        <div className="glass-card" style={{ padding: 16, marginBottom: 16 }}>
-                            <div style={{
-                                display: 'flex', alignItems: 'center',
-                                justifyContent: 'space-between', marginBottom: 12,
-                            }}>
-                                <h3 style={{
-                                    fontSize: 13, fontWeight: 700,
-                                    color: 'var(--text-primary)', margin: 0,
-                                }}>
-                                    Validação de Ferramentas
-                                </h3>
-                                {result.validacao.maquina && (
-                                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                        Máquina: <b style={{ color: 'var(--text-primary)' }}>{result.validacao.maquina.nome}</b>
-                                    </span>
-                                )}
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                {(result.validacao.ferramentas_necessarias || []).map((f, i) => {
-                                    const color = f.ok ? 'var(--success)' : 'var(--danger)';
-                                    const Icon = f.ok ? CheckCircle2 : AlertTriangle;
-                                    return (
-                                        <div key={i} style={{
-                                            display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
-                                        }}>
-                                            <Icon size={14} style={{ color, flexShrink: 0 }} />
-                                            <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{f.tool_code}</span>
-                                            <span style={{ color }}>
-                                                {f.ok ? f.ferramenta : 'Não cadastrada!'}
-                                            </span>
-                                        </div>
-                                    );
-                                })}
-                                {(result.validacao.ferramentas_necessarias || []).length === 0 && (
-                                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                                        Nenhuma operação de usinagem encontrada nas peças
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
                     {/* Conflitos pré-geração */}
                     {showGcodeConflicts && gcodeValidation?.conflicts?.length > 0 && (
-                        <div
-                            className="glass-card"
-                            style={{
-                                padding: 16, marginBottom: 16,
-                                borderLeft: '3px solid var(--danger)',
-                            }}
-                        >
-                            <div style={{
-                                display: 'flex', alignItems: 'center',
-                                justifyContent: 'space-between', marginBottom: 8,
-                            }}>
-                                <span style={{
-                                    fontSize: 13, fontWeight: 700, color: 'var(--danger)',
-                                    display: 'flex', alignItems: 'center', gap: 6,
-                                }}>
-                                    <AlertTriangle size={14} />
-                                    Conflitos detectados ({gcodeValidation.conflicts.length})
-                                </span>
+                        <div className="glass-card" style={{
+                            padding: 0, overflow: 'hidden',
+                            borderLeft: '3px solid var(--danger)',
+                        }}>
+                            <SectionHeader
+                                icon={AlertTriangle}
+                                title={`Conflitos detectados (${gcodeValidation.conflicts.length})`}
+                                accent="var(--danger)"
+                            >
                                 <button
                                     onClick={() => setShowGcodeConflicts(false)}
+                                    aria-label="Fechar conflitos"
                                     style={{
-                                        background: 'none', border: 'none',
+                                        background: 'transparent', border: 'none',
                                         cursor: 'pointer', color: 'var(--text-muted)',
+                                        padding: 4, borderRadius: 6,
+                                        display: 'flex', alignItems: 'center',
                                     }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                                 >
                                     <X size={14} />
                                 </button>
-                            </div>
+                            </SectionHeader>
                             <div style={{
-                                maxHeight: 150, overflowY: 'auto',
+                                padding: '10px 20px',
+                                maxHeight: 180, overflowY: 'auto',
                                 display: 'flex', flexDirection: 'column', gap: 4,
                             }}>
                                 {gcodeValidation.conflicts.map((c, i) => {
                                     const isErr = c.severidade === 'erro';
                                     return (
                                         <div key={i} style={{
-                                            fontSize: 12, display: 'flex', alignItems: 'center', gap: 6,
-                                            color: isErr ? 'var(--danger)' : 'var(--warning)',
+                                            fontSize: 12, display: 'flex', alignItems: 'flex-start', gap: 8,
+                                            padding: '6px 8px', borderRadius: 6,
+                                            background: isErr ? 'var(--danger-bg)' : 'var(--warning-bg)',
+                                            border: `1px solid ${isErr ? 'var(--danger-border)' : 'var(--warning-border)'}`,
                                         }}>
-                                            <AlertTriangle size={11} style={{ flexShrink: 0 }} />
-                                            <span style={{ fontWeight: 600 }}>{c.pecaDesc}</span>
-                                            <span style={{ color: 'var(--text-muted)' }}>{c.mensagem}</span>
+                                            <AlertTriangle
+                                                size={12}
+                                                style={{
+                                                    flexShrink: 0, marginTop: 2,
+                                                    color: isErr ? 'var(--danger)' : 'var(--warning)',
+                                                }}
+                                            />
+                                            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                                {c.pecaDesc}
+                                            </span>
+                                            <span style={{ color: 'var(--text-secondary)' }}>{c.mensagem}</span>
                                         </div>
                                     );
                                 })}
@@ -265,63 +209,124 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                         </div>
                     )}
 
-                    {/* Ações */}
-                    <div style={{
-                        marginBottom: 16, display: 'flex',
-                        gap: 10, alignItems: 'center', flexWrap: 'wrap',
+                    {/* Validação de ferramentas (pós-geração) */}
+                    {result?.validacao && (
+                        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+                            <SectionHeader
+                                icon={ShieldCheck}
+                                title="Validação de Ferramentas"
+                                accent="var(--accent)"
+                            >
+                                {result.validacao.maquina && (
+                                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                        Máquina: <b style={{ color: 'var(--text-primary)' }}>{result.validacao.maquina.nome}</b>
+                                    </span>
+                                )}
+                            </SectionHeader>
+                            <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {(result.validacao.ferramentas_necessarias || []).map((f, i) => {
+                                    const color = f.ok ? 'var(--success)' : 'var(--danger)';
+                                    const bg = f.ok ? 'var(--success-bg)' : 'var(--danger-bg)';
+                                    const border = f.ok ? 'var(--success-border)' : 'var(--danger-border)';
+                                    const Icon = f.ok ? CheckCircle2 : AlertTriangle;
+                                    return (
+                                        <div key={i} style={{
+                                            display: 'flex', alignItems: 'center', gap: 10,
+                                            padding: '7px 10px', borderRadius: 6,
+                                            background: bg, border: `1px solid ${border}`,
+                                            fontSize: 13,
+                                        }}>
+                                            <Icon size={14} style={{ color, flexShrink: 0 }} />
+                                            <span style={{
+                                                fontWeight: 700, fontFamily: 'var(--font-mono, monospace)',
+                                                background: 'var(--bg-card)', padding: '2px 8px',
+                                                borderRadius: 4, fontSize: 12,
+                                                border: '1px solid var(--border)',
+                                            }}>
+                                                {f.tool_code}
+                                            </span>
+                                            <span style={{ color, fontWeight: 500 }}>
+                                                {f.ok ? f.ferramenta : 'Não cadastrada!'}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                                {(result.validacao.ferramentas_necessarias || []).length === 0 && (
+                                    <EmptyState
+                                        icon={ShieldCheck}
+                                        title="Nenhuma operação de usinagem"
+                                        description="Este lote não contém operações que exijam ferramenta cadastrada."
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Toolbar de ações */}
+                    <div className="glass-card" style={{
+                        padding: '12px 16px',
+                        display: 'flex', gap: 10,
+                        alignItems: 'center', flexWrap: 'wrap',
                     }}>
                         <button
                             onClick={gerar}
                             disabled={gerando || maquinas.length === 0}
                             className="btn-primary"
-                            style={{ padding: '10px 20px', fontSize: 13, gap: 6 }}
+                            style={{ padding: '10px 22px', fontSize: 13, gap: 8 }}
+                            aria-label="Gerar G-code"
                         >
                             <Cpu size={14} />
                             {gerando ? 'Gerando…' : 'Gerar G-code'}
                         </button>
                         {result?.ok && (
-                            <button
-                                onClick={downloadGcode}
-                                className="btn-secondary"
-                                style={{ padding: '10px 20px', fontSize: 13, gap: 6 }}
-                            >
-                                <Download size={14} /> Baixar {result.extensao || '.nc'}
-                            </button>
-                        )}
-                        {result?.ok && result?.gcode && (
-                            <button
-                                onClick={() => {
-                                    const moves = parseGcodeToMoves(result.gcode);
-                                    setToolpathMoves(moves);
-                                    setToolpathChapa(null);
-                                    setToolpathOpen(true);
-                                }}
-                                className="btn-secondary"
-                                style={{ padding: '10px 20px', fontSize: 13, gap: 6 }}
-                            >
-                                <Play size={14} /> Simular Percurso
-                            </button>
-                        )}
-                        {result?.ok && (
-                            <span style={{
-                                fontSize: 13, color: 'var(--success)', fontWeight: 600,
-                            }}>
-                                {result.total_pecas} peça(s), {result.total_operacoes} operação(ões)
-                                {result.onion_skin_ops > 0 && ` (${result.onion_skin_ops} onion-skin)`}
-                            </span>
+                            <>
+                                <button
+                                    onClick={downloadGcode}
+                                    className="btn-secondary"
+                                    style={{ padding: '10px 18px', fontSize: 13, gap: 8 }}
+                                    aria-label={`Baixar ${result.extensao || '.nc'}`}
+                                >
+                                    <Download size={14} /> Baixar {result.extensao || '.nc'}
+                                </button>
+                                {result.gcode && (
+                                    <button
+                                        onClick={() => {
+                                            const moves = parseGcodeToMoves(result.gcode);
+                                            setToolpathMoves(moves);
+                                            setToolpathChapa(null);
+                                            setToolpathOpen(true);
+                                        }}
+                                        className="btn-secondary"
+                                        style={{ padding: '10px 18px', fontSize: 13, gap: 8 }}
+                                        aria-label="Simular percurso da ferramenta"
+                                    >
+                                        <Play size={14} /> Simular Percurso
+                                    </button>
+                                )}
+                                <div style={{
+                                    marginLeft: 'auto',
+                                    display: 'flex', alignItems: 'center', gap: 6,
+                                    padding: '6px 12px', borderRadius: 20,
+                                    background: 'var(--success-bg)',
+                                    border: '1px solid var(--success-border)',
+                                    fontSize: 12, color: 'var(--success)', fontWeight: 700,
+                                }}>
+                                    <CheckCircle2 size={13} />
+                                    {result.total_pecas} peça(s), {result.total_operacoes} op(s)
+                                    {result.onion_skin_ops > 0 && ` · ${result.onion_skin_ops} onion-skin`}
+                                </div>
+                            </>
                         )}
                     </div>
 
                     {/* Preview do G-code */}
                     {result?.gcode && (
                         <div className="glass-card" style={{ overflow: 'hidden', padding: 0 }}>
-                            <div style={{
-                                padding: '10px 14px', borderBottom: '1px solid var(--border)',
-                                fontSize: 12, fontWeight: 600, color: 'var(--text-muted)',
-                                textTransform: 'uppercase', letterSpacing: 0.3,
-                            }}>
-                                Preview G-code ({result.gcode.split('\n').length} linhas)
-                            </div>
+                            <SectionHeader
+                                icon={FileCode2}
+                                title={`Preview G-code — ${result.gcode.split('\n').length} linhas`}
+                                accent="var(--primary)"
+                            />
                             <pre style={{
                                 margin: 0, padding: 14, maxHeight: 500, overflowY: 'auto',
                                 fontSize: 12, fontFamily: 'JetBrains Mono, Consolas, monospace',
@@ -362,8 +367,40 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                             setToolpathChapa(null);
                         }}
                     />
+
+                    {/* Confirmação ao gerar com erros detectados */}
+                    {pendingConfirm && (
+                        <ConfirmModal
+                            danger
+                            title="Gerar G-code com erros detectados?"
+                            message={
+                                `${pendingConfirm.conflicts.length} erro(s) de usinagem foram detectados nas peças deste lote. ` +
+                                `Deseja gerar o G-code mesmo assim?`
+                            }
+                            confirmLabel="Gerar Assim Mesmo"
+                            cancelLabel="Cancelar"
+                            onConfirm={doGerar}
+                            onCancel={() => setPendingConfirm(null)}
+                        />
+                    )}
                 </>
             )}
         </div>
+    );
+}
+
+// Chip de informação inline — usado no cabeçalho da máquina selecionada.
+function InfoChip({ label, value }) {
+    return (
+        <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            padding: '4px 10px', borderRadius: 20,
+            background: 'var(--bg-muted)',
+            border: '1px solid var(--border)',
+            fontSize: 11, color: 'var(--text-muted)', fontWeight: 500,
+        }}>
+            {label}:&nbsp;
+            <b style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{value}</b>
+        </span>
     );
 }

@@ -175,61 +175,96 @@ export default function ProducaoCNC({ notify }) {
             {/* Nível 2 — Workspace do lote (aparece só com lote aberto) */}
             {isInsideLote && (
                 <div style={{
-                    display: 'flex', alignItems: 'center', gap: 0,
-                    borderBottom: '2px solid var(--border)', marginBottom: 20,
-                    background: 'var(--bg-muted)', borderRadius: '8px 8px 0 0',
+                    display: 'flex', alignItems: 'stretch', gap: 0,
+                    marginBottom: 20, borderRadius: 10, overflow: 'hidden',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border)',
+                    boxShadow: 'var(--shadow-sm)',
                 }}>
                     <button
                         onClick={voltarLotes}
-                        className="btn-secondary"
+                        aria-label="Voltar aos lotes"
                         style={{
-                            borderRadius: '8px 0 0 0', border: 'none',
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '10px 16px', fontSize: 12, fontWeight: 600,
+                            color: 'var(--text-secondary)', cursor: 'pointer',
+                            background: 'var(--bg-subtle)', border: 'none',
                             borderRight: '1px solid var(--border)',
-                            padding: '8px 14px', fontSize: 12, gap: 6, minHeight: 0,
+                            fontFamily: 'var(--font-sans)', transition: 'all .15s',
+                        }}
+                        onMouseEnter={e => {
+                            e.currentTarget.style.background = 'var(--bg-hover)';
+                            e.currentTarget.style.color = 'var(--text-primary)';
+                        }}
+                        onMouseLeave={e => {
+                            e.currentTarget.style.background = 'var(--bg-subtle)';
+                            e.currentTarget.style.color = 'var(--text-secondary)';
                         }}
                     >
                         <ArrowLeft size={14} />
-                        <span style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{
+                            maxWidth: 180, overflow: 'hidden',
+                            textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
                             {loteAtual.nome || `Lote #${loteAtual.id}`}
                         </span>
                     </button>
 
-                    {TABS_LOTE.map((t, idx) => {
-                        const active = tab === t.id;
-                        const I = t.ic;
-                        const stepIdx = TABS_LOTE.findIndex(x => x.id === tab);
-                        const isDone = idx < stepIdx;
-                        return (
-                            <button
-                                key={t.id}
-                                onClick={() => setTab(t.id)}
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px',
-                                    fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
-                                    color: active ? 'var(--primary)' : isDone ? 'var(--success, #22c55e)' : 'var(--text-muted)',
-                                    borderBottom: active ? '2px solid var(--primary)' : '2px solid transparent',
-                                    background: 'none', border: 'none',
-                                    borderBottomWidth: 2, borderBottomStyle: 'solid',
-                                    marginBottom: -2, whiteSpace: 'nowrap', transition: 'all .15s',
-                                    fontFamily: 'var(--font-sans)',
-                                }}
-                            >
-                                <span style={{
-                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                    width: 20, height: 20, borderRadius: '50%',
-                                    fontSize: 10, fontWeight: 700,
-                                    background: active ? 'var(--primary)' : isDone ? 'var(--success, #22c55e)' : 'transparent',
-                                    color: (active || isDone) ? '#fff' : 'var(--text-muted)',
-                                    border: `1.5px solid ${active ? 'var(--primary)' : isDone ? 'var(--success, #22c55e)' : 'var(--border)'}`,
-                                    flexShrink: 0, transition: 'all .2s',
-                                }}>
-                                    {isDone ? '\u2713' : t.step}
-                                </span>
-                                <I size={13} />
-                                <span>{t.lb}</span>
-                            </button>
-                        );
-                    })}
+                    <div style={{
+                        display: 'flex', alignItems: 'center',
+                        flex: 1, overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+                    }}>
+                        {TABS_LOTE.map((t, idx) => {
+                            const active = tab === t.id;
+                            const I = t.ic;
+                            const stepIdx = TABS_LOTE.findIndex(x => x.id === tab);
+                            const isDone = idx < stepIdx;
+                            const isLast = idx === TABS_LOTE.length - 1;
+                            return (
+                                <div key={t.id} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                                    <button
+                                        onClick={() => setTab(t.id)}
+                                        aria-current={active ? 'step' : undefined}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 8,
+                                            padding: '10px 16px', fontSize: 12.5,
+                                            fontWeight: active ? 700 : 500, cursor: 'pointer',
+                                            color: active ? 'var(--primary)' : isDone ? 'var(--success)' : 'var(--text-muted)',
+                                            background: active ? 'var(--primary-alpha)' : 'transparent',
+                                            border: 'none', whiteSpace: 'nowrap',
+                                            transition: 'all .15s',
+                                            fontFamily: 'var(--font-sans)',
+                                        }}
+                                        onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                                        onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}
+                                    >
+                                        <span style={{
+                                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                            width: 22, height: 22, borderRadius: '50%',
+                                            fontSize: 10, fontWeight: 800,
+                                            background: active ? 'var(--primary)' : isDone ? 'var(--success)' : 'var(--bg-muted)',
+                                            color: (active || isDone) ? '#fff' : 'var(--text-muted)',
+                                            border: `1.5px solid ${active ? 'var(--primary)' : isDone ? 'var(--success)' : 'var(--border)'}`,
+                                            flexShrink: 0, transition: 'all .2s',
+                                            fontVariantNumeric: 'tabular-nums',
+                                        }}>
+                                            {isDone ? '\u2713' : t.step}
+                                        </span>
+                                        <I size={13} />
+                                        <span>{t.lb}</span>
+                                    </button>
+                                    {!isLast && (
+                                        <div style={{
+                                            width: 24, height: 2,
+                                            background: isDone ? 'var(--success)' : 'var(--border)',
+                                            transition: 'background .3s',
+                                            flexShrink: 0,
+                                        }} />
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             )}
 
@@ -266,68 +301,116 @@ export default function ProducaoCNC({ notify }) {
 
             {/* Grouping suggestions */}
             {isInsideLote && sugestoes.length > 0 && (
-                <div className="glass-card" style={{ marginBottom: 12, overflow: 'hidden' }}>
+                <div className="glass-card" style={{ marginBottom: 12, overflow: 'hidden', padding: 0 }}>
                     <button
                         onClick={() => setSugestoesOpen(!sugestoesOpen)}
+                        aria-expanded={sugestoesOpen}
                         style={{
-                            display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                            padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer',
-                            fontSize: 12, fontWeight: 600, color: 'var(--text-primary)',
+                            display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                            padding: '10px 16px', background: 'linear-gradient(180deg, var(--bg-subtle) 0%, transparent 100%)',
+                            border: 'none', cursor: 'pointer',
+                            fontSize: 13, fontWeight: 700, color: 'var(--text-primary)',
                             borderBottom: sugestoesOpen ? '1px solid var(--border)' : 'none',
+                            transition: 'all .15s',
                         }}
                     >
-                        <GitCompare size={14} style={{ color: 'var(--accent, #8b5cf6)' }} />
+                        <div style={{
+                            width: 26, height: 26, borderRadius: 8,
+                            background: 'var(--accent-alpha, rgba(139,92,246,0.1))',
+                            border: '1px solid var(--accent)',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                            <GitCompare size={13} style={{ color: 'var(--accent)' }} />
+                        </div>
                         <span>Sugestões de Agrupamento</span>
-                        <span style={{ marginLeft: 4, fontSize: 10, color: 'var(--accent, #8b5cf6)', fontWeight: 700 }}>
-                            {sugestoes.length} lote{sugestoes.length > 1 ? 's' : ''}
+                        <span style={{
+                            fontSize: 10, fontWeight: 800,
+                            color: 'var(--accent)',
+                            background: 'var(--accent-alpha, rgba(139,92,246,0.1))',
+                            border: '1px solid var(--accent)',
+                            padding: '2px 8px', borderRadius: 20,
+                            fontVariantNumeric: 'tabular-nums',
+                        }}>
+                            {sugestoes.length} LOTE{sugestoes.length > 1 ? 'S' : ''}
                         </span>
-                        <ChevronDown size={13} style={{ marginLeft: 'auto', transition: 'transform .2s', transform: sugestoesOpen ? 'rotate(180deg)' : '' }} />
+                        <ChevronDown
+                            size={14}
+                            style={{
+                                marginLeft: 'auto',
+                                transition: 'transform .2s',
+                                transform: sugestoesOpen ? 'rotate(180deg)' : '',
+                                color: 'var(--text-muted)',
+                            }}
+                        />
                     </button>
                     {sugestoesOpen && (
-                        <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+                        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: 0, marginBottom: 2 }}>
                                 Lotes que usam os mesmos materiais e podem ser otimizados juntos para reduzir desperdício:
                             </p>
                             {sugestoes.map((s, i) => (
                                 <div
                                     key={i}
                                     style={{
-                                        display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px',
-                                        background: 'var(--bg-muted)', borderRadius: 6, border: '1px solid var(--border)',
+                                        display: 'flex', alignItems: 'center', gap: 10,
+                                        padding: '8px 12px', borderRadius: 8,
+                                        background: 'var(--bg-subtle)',
+                                        border: '1px solid var(--border)',
+                                        transition: 'all .15s',
                                     }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-subtle)'; }}
                                 >
-                                    <Package size={13} style={{ color: 'var(--accent, #8b5cf6)', flexShrink: 0 }} />
+                                    <div style={{
+                                        width: 26, height: 26, borderRadius: 8,
+                                        background: 'var(--accent-alpha, rgba(139,92,246,0.1))',
+                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                        flexShrink: 0,
+                                    }}>
+                                        <Package size={13} style={{ color: 'var(--accent)' }} />
+                                    </div>
                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        <div style={{
+                                            fontSize: 12.5, fontWeight: 600,
+                                            color: 'var(--text-primary)',
+                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                        }}>
                                             {s.lote_nome}
                                         </div>
-                                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                                        <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 1 }}>
                                             {s.pecas_count} peça(s) em comum
-                                            {s.material_codes.length > 0 && ` — ${s.material_codes.join(', ')}`}
+                                            {s.material_codes.length > 0 && ` · ${s.material_codes.join(', ')}`}
                                         </div>
                                     </div>
                                     {s.economia_estimada_pct > 0 && (
                                         <span style={{
-                                            fontSize: 10, fontWeight: 700, color: 'var(--success, #16a34a)',
-                                            background: 'rgba(34,197,94,.1)', padding: '2px 6px', borderRadius: 4,
+                                            fontSize: 10, fontWeight: 800,
+                                            color: 'var(--success)',
+                                            background: 'var(--success-bg)',
+                                            border: '1px solid var(--success-border)',
+                                            padding: '2px 8px', borderRadius: 20,
                                             whiteSpace: 'nowrap',
+                                            fontVariantNumeric: 'tabular-nums',
                                         }}>
-                                            -{s.economia_estimada_pct}% desperdício
+                                            −{s.economia_estimada_pct}% desperdício
                                         </span>
                                     )}
                                     <span style={{
-                                        fontSize: 9, padding: '2px 6px', borderRadius: 4,
-                                        background: STATUS_COLORS[s.lote_status] || '#888', color: '#fff',
-                                        fontWeight: 600, textTransform: 'uppercase', whiteSpace: 'nowrap',
+                                        fontSize: 9, padding: '2px 8px', borderRadius: 20,
+                                        background: STATUS_COLORS[s.lote_status] || 'var(--text-muted)',
+                                        color: '#fff', fontWeight: 700,
+                                        textTransform: 'uppercase', whiteSpace: 'nowrap',
+                                        letterSpacing: '0.05em',
                                     }}>
                                         {s.lote_status}
                                     </span>
                                     <button
                                         onClick={() => abrirLote({ id: s.lote_id, nome: s.lote_nome }, 'plano')}
-                                        className="btn-secondary"
-                                        style={{ fontSize: 10, padding: '3px 8px', minHeight: 0 }}
+                                        className="btn-secondary btn-sm"
+                                        style={{ fontSize: 11, gap: 4 }}
+                                        aria-label={`Abrir lote ${s.lote_nome}`}
                                     >
-                                        Abrir
+                                        Abrir <ChevronDown size={11} style={{ transform: 'rotate(-90deg)' }} />
                                     </button>
                                 </div>
                             ))}
