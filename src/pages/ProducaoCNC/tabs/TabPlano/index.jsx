@@ -2395,6 +2395,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                             chapa={plano.chapas[selectedChapa]}
                                             idx={selectedChapa}
                                             pecasMap={pecasMap}
+                                            notify={notify}
                                             modo={plano.modo}
                                             zoomLevel={zoomLevel}
                                             setZoomLevel={setZoomLevel}

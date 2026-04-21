@@ -114,12 +114,17 @@ export function recordError(e) {
 router.post('/', (req, res) => {
     if (!ENABLED) return res.json({ ok: true, disabled: true });
     const b = req.body || {};
+    // Mensagem obrigatória — sem isso não há o que registrar
+    const message = clipStr(b.message, 2000);
+    if (!message || !message.trim()) {
+        return res.status(400).json({ error: 'message é obrigatório' });
+    }
     // Whitelist rígida de campos — cliente não controla source/level arbitrariamente
     const level = ['error', 'warn', 'info'].includes(b.level) ? b.level : 'error';
     const id = recordError({
         source: 'frontend',
         level,
-        message: clipStr(b.message, 2000),
+        message,
         stack: clipStr(b.stack, 8000),
         url: clipStr(b.url || req.get('referer') || '', 500),
         method: '',
@@ -130,6 +135,16 @@ router.post('/', (req, res) => {
     });
     res.json({ ok: true, id });
 });
+
+// Helper: valida que :id é inteiro positivo; 400 caso contrário
+function parseId(req, res) {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id) || id <= 0) {
+        res.status(400).json({ error: 'ID inválido' });
+        return null;
+    }
+    return id;
+}
 
 // ═══════════════════════════════════════════════════════
 // Tudo abaixo é admin-only
@@ -183,21 +198,29 @@ router.get('/stats', (req, res) => {
 
 // GET /api/errors/:id — detalhe completo (stack + meta)
 router.get('/:id', (req, res) => {
-    const row = db.prepare(`SELECT * FROM error_log WHERE id = ?`).get(parseInt(req.params.id));
+    const id = parseId(req, res);
+    if (id === null) return;
+    const row = db.prepare(`SELECT * FROM error_log WHERE id = ?`).get(id);
     if (!row) return res.status(404).json({ error: 'Erro não encontrado' });
     res.json(row);
 });
 
 // PUT /api/errors/:id/resolve — marca resolvido/aberto
 router.put('/:id/resolve', (req, res) => {
-    const resolved = req.body.resolved ? 1 : 0;
-    db.prepare('UPDATE error_log SET resolved = ? WHERE id = ?').run(resolved, parseInt(req.params.id));
+    const id = parseId(req, res);
+    if (id === null) return;
+    const resolved = req.body?.resolved ? 1 : 0;
+    const info = db.prepare('UPDATE error_log SET resolved = ? WHERE id = ?').run(resolved, id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Erro não encontrado' });
     res.json({ ok: true, resolved });
 });
 
 // DELETE /api/errors/:id
 router.delete('/:id', (req, res) => {
-    db.prepare('DELETE FROM error_log WHERE id = ?').run(parseInt(req.params.id));
+    const id = parseId(req, res);
+    if (id === null) return;
+    const info = db.prepare('DELETE FROM error_log WHERE id = ?').run(id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Erro não encontrado' });
     res.json({ ok: true });
 });
 

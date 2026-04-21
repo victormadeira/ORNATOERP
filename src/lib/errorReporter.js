@@ -6,6 +6,7 @@
 // Fire-and-forget: nunca joga exceção, nunca bloqueia a UI.
 
 const DEDUP_MS = 10_000;
+const MAX_RECENT = 100;     // teto do Map — evita vazamento em caso de 100 erros distintos/s
 const recent = new Map(); // key → timestamp
 
 function shouldSend(key) {
@@ -15,6 +16,12 @@ function shouldSend(key) {
         if (now - t > DEDUP_MS) recent.delete(k);
     }
     if (recent.has(key)) return false;
+    // Teto duro: se chegou no limite e nenhuma entrada velha foi purgada,
+    // descarta a mais antiga (FIFO, Map preserva ordem de inserção).
+    if (recent.size >= MAX_RECENT) {
+        const firstKey = recent.keys().next().value;
+        if (firstKey !== undefined) recent.delete(firstKey);
+    }
     recent.set(key, now);
     return true;
 }

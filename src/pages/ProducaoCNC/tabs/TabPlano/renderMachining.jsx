@@ -27,7 +27,10 @@ export function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, p
 
     const elements = [];
     const ghostElements = []; // opposite side elements (rendered behind, ghost style)
-    const clipId = `mach-clip-${piece.id || (++_machClipId)}`;
+    // Contador local — evita ReferenceError quando piece.id é falsy.
+    // (O antigo `_machClipId` vivia em buildMillingOutline.js mas nunca era exportado.)
+    if (typeof renderMachining._clipSeq !== 'number') renderMachining._clipSeq = 0;
+    const clipId = `mach-clip-${piece.id || (++renderMachining._clipSeq)}`;
     const hitPad = 3; // extra hit area padding
 
     // Helper: wrap element with hover hit area for tooltip
@@ -373,7 +376,7 @@ export function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, p
 }
 
 // ─── SVG visualization with collision detection, magnetic snap, kerf, lock, context menu ──
-export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, espacoPecas = 7, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, onGerarGcodePeca, gcodeLoading, onView3D, onPrintLabel, onPrintSingleLabel, onPrintFolha, onSaveRetalhos, setTab, sobraMinW = 300, sobraMinH = 600, validationConflicts = [], machineArea, timerInfo, loteAtual, bandejaPieces = [] }) {
+export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, espacoPecas = 7, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, onGerarGcodePeca, gcodeLoading, onView3D, onPrintLabel, onPrintSingleLabel, onPrintFolha, onSaveRetalhos, setTab, sobraMinW = 300, sobraMinH = 600, validationConflicts = [], machineArea, timerInfo, loteAtual, bandejaPieces = [], notify }) {
     const [hovered, setHovered] = useState(null);
     const [showCuts, setShowCuts] = useState(false);
     const [showMachining, setShowMachining] = useState(true);
