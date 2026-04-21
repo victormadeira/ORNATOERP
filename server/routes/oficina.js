@@ -47,16 +47,38 @@ db.exec(`
     tipo       TEXT    DEFAULT 'link',
     criado_em  TEXT    DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS oficina_marceneiros (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome          TEXT    NOT NULL,
+    cor           TEXT    DEFAULT '#C9A96E',
+    foto          TEXT    DEFAULT '',
+    especialidade TEXT    DEFAULT '',
+    ativo         INTEGER DEFAULT 1,
+    posicao       INTEGER DEFAULT 0,
+    criado_em     TEXT    DEFAULT (datetime('now'))
+  );
 `);
+
+// ─── Migration: adiciona marceneiro_id em tarefas (idempotente) ──
+try {
+  const cols = db.prepare(`PRAGMA table_info(oficina_tarefas)`).all().map(c => c.name);
+  if (!cols.includes('marceneiro_id')) {
+    db.exec(`ALTER TABLE oficina_tarefas ADD COLUMN marceneiro_id INTEGER DEFAULT NULL`);
+  }
+} catch (e) { /* migration best-effort */ }
 
 // ─── Helpers ──────────────────────────────────────────
 const listQ = `
   SELECT t.*,
+    m.nome AS marceneiro_nome,
+    m.cor  AS marceneiro_cor,
+    m.foto AS marceneiro_foto,
     (SELECT COUNT(*) FROM oficina_checklist  c WHERE c.tarefa_id = t.id)               AS checklist_total,
     (SELECT COUNT(*) FROM oficina_checklist  c WHERE c.tarefa_id = t.id AND c.feito=1) AS checklist_done,
     (SELECT COUNT(*) FROM oficina_anexos     a WHERE a.tarefa_id = t.id)               AS anexos_count,
     (SELECT COUNT(*) FROM oficina_comentarios k WHERE k.tarefa_id = t.id)              AS comentarios_count
   FROM oficina_tarefas t
+  LEFT JOIN oficina_marceneiros m ON m.id = t.marceneiro_id
 `;
 
 // ─── GET / — lista todas as tarefas ───────────────────
@@ -71,17 +93,17 @@ router.get('/', (req, res) => {
 router.post('/', (req, res) => {
   try {
     const { projeto_id, projeto_nome, cliente_nome, ambiente, descricao,
-            etapa = 'corte', responsavel, cor = '#C9A96E', prazo } = req.body;
+            etapa = 'corte', responsavel, marceneiro_id, cor = '#C9A96E', prazo } = req.body;
     if (!ambiente?.trim()) return res.status(400).json({ error: 'Ambiente obrigatório' });
     const maxPos = db.prepare('SELECT MAX(posicao) AS m FROM oficina_tarefas WHERE etapa = ?').get(etapa);
     const posicao = (maxPos?.m ?? -1) + 1;
     const r = db.prepare(`
       INSERT INTO oficina_tarefas
-        (projeto_id,projeto_nome,cliente_nome,ambiente,descricao,etapa,responsavel,cor,prazo,posicao)
-      VALUES (?,?,?,?,?,?,?,?,?,?)
+        (projeto_id,projeto_nome,cliente_nome,ambiente,descricao,etapa,responsavel,marceneiro_id,cor,prazo,posicao)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)
     `).run(projeto_id ?? null, projeto_nome ?? '', cliente_nome ?? '',
            ambiente.trim(), descricao ?? '', etapa, responsavel ?? '',
-           cor, prazo ?? null, posicao);
+           marceneiro_id ?? null, cor, prazo ?? null, posicao);
     res.json(db.prepare(listQ + ' WHERE t.id = ?').get(r.lastInsertRowid));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -102,15 +124,25 @@ router.get('/:id', (req, res) => {
 router.put('/:id', (req, res) => {
   try {
     const { projeto_id, projeto_nome, cliente_nome, ambiente, descricao,
-            etapa, responsavel, cor, prazo } = req.body;
+            etapa, responsavel, marceneiro_id, cor, prazo } = req.body;
     db.prepare(`
       UPDATE oficina_tarefas
       SET projeto_id=?,projeto_nome=?,cliente_nome=?,ambiente=?,descricao=?,
-          etapa=?,responsavel=?,cor=?,prazo=?,atualizado_em=datetime('now')
+          etapa=?,responsavel=?,marceneiro_id=?,cor=?,prazo=?,atualizado_em=datetime('now')
       WHERE id=?
     `).run(projeto_id ?? null, projeto_nome ?? '', cliente_nome ?? '',
            ambiente ?? '', descricao ?? '', etapa ?? 'corte', responsavel ?? '',
-           cor ?? '#C9A96E', prazo ?? null, req.params.id);
+           marceneiro_id ?? null, cor ?? '#C9A96E', prazo ?? null, req.params.id);
+    res.json(db.prepare(listQ + ' WHERE t.id = ?').get(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── PATCH /:id/marceneiro — atribuir rápido ──────────
+router.patch('/:id/marceneiro', (req, res) => {
+  try {
+    const { marceneiro_id } = req.body;
+    db.prepare(`UPDATE oficina_tarefas SET marceneiro_id=?, atualizado_em=datetime('now') WHERE id=?`)
+      .run(marceneiro_id ?? null, req.params.id);
     res.json(db.prepare(listQ + ' WHERE t.id = ?').get(req.params.id));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -196,6 +228,60 @@ router.post('/:id/anexos', (req, res) => {
 router.delete('/anexos/:aid', (req, res) => {
   try {
     db.prepare('DELETE FROM oficina_anexos WHERE id = ?').run(req.params.aid);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════════
+// Marceneiros (equipe da oficina)
+// ═══════════════════════════════════════════════════════
+
+// GET lista — default só ativos, ?todos=1 retorna inativos também
+router.get('/marceneiros/list', (req, res) => {
+  try {
+    const todos = req.query.todos === '1';
+    const rows = db.prepare(
+      `SELECT m.*,
+         (SELECT COUNT(*) FROM oficina_tarefas t WHERE t.marceneiro_id = m.id) AS total_cards
+       FROM oficina_marceneiros m
+       ${todos ? '' : 'WHERE m.ativo = 1'}
+       ORDER BY m.posicao, m.nome`
+    ).all();
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST — cria
+router.post('/marceneiros/list', (req, res) => {
+  try {
+    const { nome, cor = '#C9A96E', foto = '', especialidade = '' } = req.body;
+    if (!nome?.trim()) return res.status(400).json({ error: 'Nome obrigatório' });
+    const maxPos = db.prepare('SELECT MAX(posicao) AS m FROM oficina_marceneiros').get();
+    const r = db.prepare(
+      `INSERT INTO oficina_marceneiros (nome, cor, foto, especialidade, posicao)
+       VALUES (?,?,?,?,?)`
+    ).run(nome.trim(), cor, foto, especialidade, (maxPos?.m ?? -1) + 1);
+    res.json(db.prepare('SELECT * FROM oficina_marceneiros WHERE id = ?').get(r.lastInsertRowid));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT — atualiza
+router.put('/marceneiros/list/:id', (req, res) => {
+  try {
+    const { nome, cor, foto, especialidade, ativo } = req.body;
+    db.prepare(
+      `UPDATE oficina_marceneiros SET nome=?, cor=?, foto=?, especialidade=?, ativo=? WHERE id=?`
+    ).run(nome ?? '', cor ?? '#C9A96E', foto ?? '', especialidade ?? '',
+          ativo === undefined ? 1 : (ativo ? 1 : 0), req.params.id);
+    res.json(db.prepare('SELECT * FROM oficina_marceneiros WHERE id = ?').get(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE — deleta (zera marceneiro_id das tarefas primeiro)
+router.delete('/marceneiros/list/:id', (req, res) => {
+  try {
+    db.prepare('UPDATE oficina_tarefas SET marceneiro_id = NULL WHERE marceneiro_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM oficina_marceneiros WHERE id = ?').run(req.params.id);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

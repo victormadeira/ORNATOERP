@@ -119,16 +119,31 @@ function CardContent({ card, onOpen }) {
         </div>
       )}
 
-      {/* Chips: prazo, responsável */}
+      {/* Marceneiro — avatar + nome (destaque) */}
+      {(card.marceneiro_id || card.responsavel) && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '4px 8px 4px 4px', background: '#F1F5F9', borderRadius: 99,
+          marginBottom: 6, width: 'fit-content', maxWidth: '100%',
+        }}>
+          {card.marceneiro_id ? (
+            <MarcenaroAvatar marceneiro={{ nome: card.marceneiro_nome, cor: card.marceneiro_cor, foto: card.marceneiro_foto }} size={20} />
+          ) : (
+            <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#CBD5E1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+              <User size={11} />
+            </div>
+          )}
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {card.marceneiro_nome || card.responsavel}
+          </span>
+        </div>
+      )}
+
+      {/* Chips: prazo */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: pct !== null ? 8 : 0 }}>
         {pz && (
           <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: pz.bg, color: pz.color, fontVariantNumeric: 'tabular-nums' }}>
             <Calendar size={9} style={{ display: 'inline', marginRight: 3, verticalAlign: 'middle' }} />{dtFmt(card.prazo)}
-          </span>
-        )}
-        {card.responsavel && (
-          <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: '#F1F5F9', color: '#475569' }}>
-            <User size={9} style={{ display: 'inline', marginRight: 3, verticalAlign: 'middle' }} />{card.responsavel}
           </span>
         )}
       </div>
@@ -243,7 +258,7 @@ function KanbanColumn({ etapa, cards, onOpen, onAddCard }) {
 }
 
 // ─── Modal de detalhe do card ──────────────────────────────────
-function CardModal({ cardId, cards, onClose, onUpdate, onDelete, notify }) {
+function CardModal({ cardId, cards, onClose, onUpdate, onDelete, notify, team }) {
   const [data, setData]       = useState(null);
   const [edit, setEdit]       = useState(false);
   const [form, setForm]       = useState({});
@@ -434,8 +449,8 @@ function CardModal({ cardId, cards, onClose, onUpdate, onDelete, notify }) {
                 </select>
               </label>
               <label>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Responsável</div>
-                <input value={form.responsavel || ''} onChange={e => setForm(f => ({ ...f, responsavel: e.target.value }))} style={inputStyle} placeholder="Nome do marceneiro" />
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Marceneiro</div>
+                <MarcenaroPicker value={form.marceneiro_id} onChange={id => setForm(f => ({ ...f, marceneiro_id: id }))} team={team || []} />
               </label>
               <label>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Prazo</div>
@@ -459,11 +474,16 @@ function CardModal({ cardId, cards, onClose, onUpdate, onDelete, notify }) {
             </div>
           ) : (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-              {data.responsavel && (
+              {data.marceneiro_id ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F1F5F9', padding: '4px 10px 4px 4px', borderRadius: 99 }}>
+                  <MarcenaroAvatar marceneiro={{ nome: data.marceneiro_nome, cor: data.marceneiro_cor, foto: data.marceneiro_foto }} size={24} />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#0F172A' }}>{data.marceneiro_nome}</span>
+                </div>
+              ) : data.responsavel ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#475569', background: '#F1F5F9', padding: '5px 10px', borderRadius: 99 }}>
                   <User size={12} /><span>{data.responsavel}</span>
                 </div>
-              )}
+              ) : null}
               {pz && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: pz.color, background: pz.bg, padding: '5px 10px', borderRadius: 99, fontWeight: 700 }}>
                   <Calendar size={12} /><span>{dtFmt(data.prazo)} {pz.label !== dtFmt(data.prazo) ? `(${pz.label})` : ''}</span>
@@ -572,8 +592,282 @@ function CardModal({ cardId, cards, onClose, onUpdate, onDelete, notify }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// MARCENEIROS (equipe da oficina)
+// ═══════════════════════════════════════════════════════════════
+
+// Avatar redondo com iniciais (ou foto se houver)
+function MarcenaroAvatar({ marceneiro, size = 28, legacy = false }) {
+  if (!marceneiro) {
+    return (
+      <div style={{
+        width: size, height: size, borderRadius: '50%',
+        background: legacy ? '#94a3b8' : '#E2E8F0',
+        color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: Math.round(size * 0.38), fontWeight: 700, flexShrink: 0,
+      }}>—</div>
+    );
+  }
+  const cor = marceneiro.cor || '#C9A96E';
+  const iniciais = (marceneiro.nome || '').split(' ').filter(Boolean).slice(0, 2)
+    .map(s => s[0]?.toUpperCase()).join('') || '·';
+  if (marceneiro.foto) {
+    return (
+      <img src={marceneiro.foto} alt={marceneiro.nome}
+        style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', border: `2px solid ${cor}`, flexShrink: 0 }} />
+    );
+  }
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: cor, color: '#0b0e13',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: Math.round(size * 0.4), fontWeight: 800, flexShrink: 0,
+      lineHeight: 1,
+    }} title={marceneiro.nome}>{iniciais}</div>
+  );
+}
+
+// Picker: seleciona marceneiro. Compact quando colapsado, abre lista.
+function MarcenaroPicker({ value, onChange, team, placeholder = 'Atribuir marceneiro…' }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const selected = team.find(m => m.id === value);
+
+  useEffect(() => {
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+          padding: '7px 10px', border: '1px solid #E2E8F0', borderRadius: 8,
+          background: '#FAFAFA', cursor: 'pointer', textAlign: 'left',
+        }}>
+        <MarcenaroAvatar marceneiro={selected} size={26} />
+        <span style={{ flex: 1, fontSize: 13, color: selected ? '#0F172A' : '#94a3b8', fontWeight: selected ? 600 : 400 }}>
+          {selected?.nome || placeholder}
+        </span>
+        {selected && (
+          <span role="button" aria-label="Remover atribuição"
+            onClick={(e) => { e.stopPropagation(); onChange(null); }}
+            style={{ color: '#CBD5E1', display: 'flex', padding: 2 }}><X size={13} /></span>
+        )}
+        <ChevronRight size={13} style={{ color: '#94a3b8', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
+          background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 1000,
+          maxHeight: 260, overflowY: 'auto', padding: 4,
+        }}>
+          {team.length === 0 ? (
+            <div style={{ padding: 14, textAlign: 'center', fontSize: 12, color: '#94a3b8' }}>
+              Nenhum marceneiro cadastrado.<br/>Use "Equipe" para cadastrar.
+            </div>
+          ) : (
+            <>
+              <button type="button" onClick={() => { onChange(null); setOpen(false); }}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '7px 9px', border: 0, background: 'transparent', cursor: 'pointer', borderRadius: 6, fontSize: 12, color: '#94a3b8' }}>
+                <div style={{ width: 26, height: 26 }} />— sem atribuição —
+              </button>
+              {team.map(m => (
+                <button key={m.id} type="button" onClick={() => { onChange(m.id); setOpen(false); }}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '7px 9px', border: 0, background: value === m.id ? '#F1F5F9' : 'transparent',
+                    cursor: 'pointer', borderRadius: 6, textAlign: 'left',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+                  onMouseLeave={e => e.currentTarget.style.background = value === m.id ? '#F1F5F9' : 'transparent'}>
+                  <MarcenaroAvatar marceneiro={m} size={26} />
+                  <span style={{ flex: 1, fontSize: 13, color: '#0F172A', fontWeight: value === m.id ? 700 : 500 }}>{m.nome}</span>
+                  {m.especialidade && <span style={{ fontSize: 10, color: '#94a3b8' }}>{m.especialidade}</span>}
+                  {value === m.id && <Check size={13} style={{ color: '#10B981' }} />}
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Modal de gestão da equipe (CRUD)
+function TeamModal({ onClose, onSaved, notify }) {
+  const [team, setTeam]   = useState([]);
+  const [editing, setEditing] = useState(null); // null|object (blank=new)
+  const [loading, setLoading] = useState(true);
+
+  const load = () => {
+    setLoading(true);
+    japi('/marceneiros/list?todos=1').then(d => { if (Array.isArray(d)) setTeam(d); }).finally(() => setLoading(false));
+  };
+  useEffect(() => {
+    load();
+    const h = e => e.key === 'Escape' && !editing && onClose();
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose, editing]);
+
+  const saveOne = async (m) => {
+    if (!m.nome?.trim()) return notify?.('error', 'Nome obrigatório');
+    try {
+      if (m.id) {
+        await japi(`/marceneiros/list/${m.id}`, { method: 'PUT', body: JSON.stringify(m) });
+        notify?.('success', `${m.nome} atualizado`);
+      } else {
+        await japi('/marceneiros/list', { method: 'POST', body: JSON.stringify(m) });
+        notify?.('success', `${m.nome} adicionado à equipe`);
+      }
+      setEditing(null);
+      load();
+      onSaved?.();
+    } catch (e) { notify?.('error', 'Erro ao salvar'); }
+  };
+
+  const delOne = async (m) => {
+    if (!confirm(`Remover ${m.nome} da equipe? Cards atribuídos ficarão sem responsável.`)) return;
+    try {
+      await japi(`/marceneiros/list/${m.id}`, { method: 'DELETE' });
+      notify?.('success', `${m.nome} removido`);
+      load();
+      onSaved?.();
+    } catch { notify?.('error', 'Erro ao remover'); }
+  };
+
+  const inp = { border: '1px solid #E2E8F0', borderRadius: 7, padding: '8px 10px', fontSize: 13, outline: 'none', background: '#FAFAFA', boxSizing: 'border-box' };
+
+  return createPortal(
+    <div role="dialog" aria-modal="true" aria-label="Equipe da oficina"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #F1F5F9' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0F172A' }}>Equipe da Oficina</h3>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Cadastre os marceneiros que aparecem nos cards</div>
+          </div>
+          <button onClick={onClose} aria-label="Fechar" style={{ border: 0, background: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}><X size={18} /></button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 24, color: '#94a3b8', fontSize: 13 }}>Carregando…</div>
+          ) : team.length === 0 && !editing ? (
+            <div style={{ textAlign: 'center', padding: '32px 16px', color: '#94a3b8' }}>
+              <User size={36} style={{ opacity: 0.3, margin: '0 auto 10px' }} />
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>Sem marceneiros cadastrados</div>
+              <div style={{ fontSize: 12 }}>Adicione sua equipe pra atribuir cards no kanban</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {team.map(m => (
+                editing?.id === m.id ? (
+                  <TeamRowForm key={m.id} initial={m} onCancel={() => setEditing(null)} onSave={saveOne} />
+                ) : (
+                  <div key={m.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '10px 12px', border: '1px solid #E2E8F0', borderRadius: 10,
+                    background: m.ativo ? '#fff' : '#F8FAFC', opacity: m.ativo ? 1 : 0.6,
+                  }}>
+                    <MarcenaroAvatar marceneiro={m} size={36} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>
+                        {m.nome}{!m.ativo && <span style={{ fontSize: 10, marginLeft: 6, color: '#94a3b8', fontWeight: 500 }}>(inativo)</span>}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                        {m.especialidade || 'Marceneiro'}
+                        {m.total_cards > 0 && <span style={{ marginLeft: 8 }}>· {m.total_cards} card{m.total_cards > 1 ? 's' : ''}</span>}
+                      </div>
+                    </div>
+                    <button onClick={() => setEditing(m)} title="Editar"
+                      style={{ padding: 7, border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', cursor: 'pointer', color: '#64748b', display: 'flex' }}>
+                      <Edit2 size={13} />
+                    </button>
+                    <button onClick={() => delOne(m)} title="Remover"
+                      style={{ padding: 7, border: '1px solid #FEE2E2', borderRadius: 7, background: '#fff', cursor: 'pointer', color: '#EF4444', display: 'flex' }}>
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                )
+              ))}
+
+              {editing && !editing.id && (
+                <TeamRowForm initial={editing} onCancel={() => setEditing(null)} onSave={saveOne} />
+              )}
+            </div>
+          )}
+
+          {!editing && (
+            <button onClick={() => setEditing({ nome: '', cor: PROJ_COLORS[team.length % PROJ_COLORS.length], foto: '', especialidade: '', ativo: 1 })}
+              style={{
+                marginTop: 10, width: '100%', padding: '10px', border: '1px dashed #CBD5E1', borderRadius: 10,
+                background: '#fff', color: '#64748b', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}>
+              <Plus size={14} /> Adicionar marceneiro
+            </button>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function TeamRowForm({ initial, onCancel, onSave }) {
+  const [form, setForm] = useState({ ...initial });
+  const inp = { border: '1px solid #E2E8F0', borderRadius: 7, padding: '8px 10px', fontSize: 13, outline: 'none', background: '#FAFAFA', boxSizing: 'border-box' };
+  return (
+    <div style={{ padding: 12, border: `2px solid ${form.cor || '#C9A96E'}`, borderRadius: 10, background: '#fff', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <MarcenaroAvatar marceneiro={form} size={44} />
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8 }}>
+          <input autoFocus value={form.nome || ''} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
+            placeholder="Nome *" style={inp} />
+          <input value={form.especialidade || ''} onChange={e => setForm(f => ({ ...f, especialidade: e.target.value }))}
+            placeholder="Função (corte, cola…)" style={inp} />
+        </div>
+      </div>
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 6 }}>Cor / identidade visual</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {PROJ_COLORS.map(c => (
+            <button key={c} type="button" onClick={() => setForm(f => ({ ...f, cor: c }))}
+              style={{ width: 26, height: 26, borderRadius: '50%', background: c, border: form.cor === c ? '3px solid #0F172A' : '2px solid transparent', cursor: 'pointer', boxSizing: 'border-box' }}
+              title={c} />
+          ))}
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {initial.id && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748b', cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!form.ativo} onChange={e => setForm(f => ({ ...f, ativo: e.target.checked ? 1 : 0 }))} />
+            Ativo
+          </label>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <button type="button" onClick={onCancel}
+            style={{ padding: '7px 12px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', fontSize: 12, cursor: 'pointer', color: '#64748b' }}>Cancelar</button>
+          <button type="button" onClick={() => onSave(form)}
+            style={{ padding: '7px 14px', border: 0, borderRadius: 7, background: '#0E1116', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            {initial.id ? 'Salvar' : 'Adicionar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Modal: novo card ──────────────────────────────────────────
-function NewCardModal({ initialEtapa, onClose, onCreate, notify }) {
+function NewCardModal({ initialEtapa, onClose, onCreate, notify, team }) {
   const [form, setForm] = useState({ ambiente: '', etapa: initialEtapa, cor: '#C9A96E', projeto_nome: '', cliente_nome: '', responsavel: '', prazo: '', descricao: '' });
   const [projList, setProjList] = useState([]);
   const [saving, setSaving]    = useState(false);
@@ -645,8 +939,8 @@ function NewCardModal({ initialEtapa, onClose, onCreate, notify }) {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Responsável</label>
-              <input value={form.responsavel} onChange={e => setForm(f => ({ ...f, responsavel: e.target.value }))} placeholder="Marceneiro…" style={inp} />
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Marceneiro</label>
+              <MarcenaroPicker value={form.marceneiro_id} onChange={id => setForm(f => ({ ...f, marceneiro_id: id }))} team={team || []} />
             </div>
             <div>
               <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Prazo</label>
@@ -679,18 +973,25 @@ function NewCardModal({ initialEtapa, onClose, onCreate, notify }) {
 // ─── Desktop principal ─────────────────────────────────────────
 function OficinaDesktop({ notify }) {
   const [cards, setCards]         = useState([]);
+  const [team, setTeam]           = useState([]);
   const [loading, setLoading]     = useState(true);
   const [openId, setOpenId]       = useState(null);
   const [newCardEtapa, setNewCardEtapa] = useState(null);
+  const [showTeam, setShowTeam]   = useState(false);
   const [filterProj, setFilterProj] = useState('');
   const [filterResp, setFilterResp] = useState('');
   const [activeId, setActiveId]   = useState(null);
 
   const load = () => {
     setLoading(true);
-    japi('').then(d => { if (Array.isArray(d)) setCards(d); }).finally(() => setLoading(false));
+    Promise.all([
+      japi('').then(d => Array.isArray(d) && setCards(d)),
+      japi('/marceneiros/list').then(d => Array.isArray(d) && setTeam(d)),
+    ]).finally(() => setLoading(false));
   };
   useEffect(load, []);
+
+  const reloadTeam = () => japi('/marceneiros/list').then(d => Array.isArray(d) && setTeam(d));
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -725,11 +1026,10 @@ function OficinaDesktop({ notify }) {
 
   // Filtragem
   const projetos = useMemo(() => [...new Set(cards.map(c => c.projeto_nome).filter(Boolean))], [cards]);
-  const resps    = useMemo(() => [...new Set(cards.map(c => c.responsavel).filter(Boolean))], [cards]);
 
   const filtered = cards.filter(c =>
     (!filterProj || c.projeto_nome === filterProj) &&
-    (!filterResp || c.responsavel  === filterResp)
+    (!filterResp || String(c.marceneiro_id) === filterResp || c.responsavel === filterResp)
   );
 
   const byEtapa  = (etapaId) => filtered.filter(c => c.etapa === etapaId);
@@ -773,7 +1073,7 @@ function OficinaDesktop({ notify }) {
           </div>
 
           {/* Filtros */}
-          {(projetos.length > 0 || resps.length > 0) && (
+          {(projetos.length > 0 || team.length > 0) && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <Filter size={13} style={{ color: '#94a3b8' }} aria-hidden="true" />
               {projetos.length > 0 && (
@@ -783,19 +1083,26 @@ function OficinaDesktop({ notify }) {
                   {projetos.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               )}
-              {resps.length > 0 && (
+              {team.length > 0 && (
                 <select value={filterResp} onChange={e => setFilterResp(e.target.value)}
                   style={{ fontSize: 12, padding: '5px 10px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#FAFAFA', outline: 'none', color: '#334155' }}>
                   <option value="">Todos os marceneiros</option>
-                  {resps.map(r => <option key={r} value={r}>{r}</option>)}
+                  {team.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
                 </select>
               )}
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button onClick={load} title="Atualizar" style={{ padding: '8px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', color: '#64748b', display: 'flex' }}>
               <RefreshCw size={14} />
+            </button>
+            <button onClick={() => setShowTeam(true)} title="Gerenciar equipe"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#334155' }}>
+              <User size={14} /> Equipe
+              {team.length > 0 && (
+                <span style={{ background: '#C9A96E22', color: '#8B6F47', fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 99, fontVariantNumeric: 'tabular-nums' }}>{team.length}</span>
+              )}
             </button>
             <button onClick={openTV}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#334155' }}>
@@ -836,6 +1143,7 @@ function OficinaDesktop({ notify }) {
           onUpdate={updated => setCards(prev => prev.map(c => c.id === updated.id ? { ...updated } : c))}
           onDelete={id => setCards(prev => prev.filter(c => c.id !== id))}
           notify={notify}
+          team={team}
         />
       )}
       {newCardEtapa && (
@@ -843,6 +1151,14 @@ function OficinaDesktop({ notify }) {
           initialEtapa={newCardEtapa}
           onClose={() => setNewCardEtapa(null)}
           onCreate={card => setCards(prev => [...prev, card])}
+          notify={notify}
+          team={team}
+        />
+      )}
+      {showTeam && (
+        <TeamModal
+          onClose={() => setShowTeam(false)}
+          onSaved={() => { reloadTeam(); load(); }}
           notify={notify}
         />
       )}
@@ -855,35 +1171,98 @@ function TVCard({ card }) {
   const age = ageDot(card.atualizado_em || card.criado_em);
   const pz  = prazoClass(card.prazo);
   const e   = ETAPA_MAP[card.etapa];
+  const projCor = card.cor || '#C9A96E';
+
+  // Prioriza marceneiro cadastrado; fallback para campo texto legacy
+  const marceneiroNome = card.marceneiro_nome || card.responsavel || '';
+  const marceneiroCor  = card.marceneiro_cor  || projCor;
+  const marceneiroFoto = card.marceneiro_foto || '';
+  const hasMarceneiro  = !!marceneiroNome;
+
+  // Iniciais p/ avatar (ex: "José Silva" → "JS")
+  const iniciais = marceneiroNome.split(' ').filter(Boolean).slice(0, 2)
+    .map(s => s[0]?.toUpperCase()).join('') || '—';
 
   return (
     <div style={{
       background: '#141920',
-      borderRadius: 10,
-      borderLeft: `5px solid ${card.cor || '#C9A96E'}`,
-      padding: '12px 14px',
-      marginBottom: 8,
+      borderRadius: 12,
+      borderLeft: `6px solid ${projCor}`,
+      padding: '14px 16px',
+      marginBottom: 10,
+      position: 'relative',
     }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-        <div style={{ width: 9, height: 9, borderRadius: '50%', background: age, flexShrink: 0, marginTop: 4 }} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, color: '#F8FAFC', lineHeight: 1.25, marginBottom: 3 }}>{card.ambiente}</div>
-          {card.projeto_nome && (
-            <div style={{ fontSize: 11, color: card.cor || '#C9A96E', fontWeight: 600, marginBottom: pz || card.responsavel ? 5 : 0 }}>
-              {card.projeto_nome}{card.cliente_nome ? ` · ${card.cliente_nome}` : ''}
-            </div>
+      {/* linha topo: bolinha de idade + ambiente */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: hasMarceneiro ? 10 : 4 }}>
+        <div style={{ width: 10, height: 10, borderRadius: '50%', background: age, flexShrink: 0 }} />
+        <div style={{ fontWeight: 800, fontSize: 19, color: '#F8FAFC', lineHeight: 1.15, flex: 1, minWidth: 0 }}>
+          {card.ambiente}
+        </div>
+      </div>
+
+      {/* MARCENEIRO — destaque principal (visível do chão de fábrica) */}
+      {hasMarceneiro ? (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          background: `linear-gradient(90deg, ${marceneiroCor}26 0%, ${marceneiroCor}0D 100%)`,
+          border: `1px solid ${marceneiroCor}55`,
+          borderRadius: 10,
+          padding: '8px 10px',
+          marginBottom: 8,
+        }}>
+          {marceneiroFoto ? (
+            <img src={marceneiroFoto} alt={marceneiroNome}
+              style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', border: `2px solid ${marceneiroCor}`, boxShadow: `0 0 0 2px #141920`, flexShrink: 0 }} />
+          ) : (
+            <div style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: marceneiroCor, color: '#0b0e13',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 14, fontWeight: 800, flexShrink: 0,
+              boxShadow: `0 0 0 2px #141920, 0 0 0 3px ${marceneiroCor}55`,
+            }}>{iniciais}</div>
           )}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {card.responsavel && (
-              <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>
-                <User size={9} style={{ display: 'inline', marginRight: 2, verticalAlign: 'middle' }} />{card.responsavel}
-              </span>
-            )}
-            {pz && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: pz.color }}>{dtFmt(card.prazo)}</span>
-            )}
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 9, color: '#64748b', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', lineHeight: 1 }}>
+              Marceneiro
+            </div>
+            <div style={{
+              fontSize: 17, fontWeight: 800, color: '#F8FAFC',
+              lineHeight: 1.15, marginTop: 2,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {marceneiroNome}
+            </div>
           </div>
         </div>
+      ) : (
+        <div style={{
+          fontSize: 11, fontWeight: 700, color: '#ef4444',
+          background: '#ef44441a', border: '1px dashed #ef444466',
+          borderRadius: 8, padding: '6px 8px', marginBottom: 8, textAlign: 'center',
+          letterSpacing: 0.4, textTransform: 'uppercase',
+        }}>Sem responsável</div>
+      )}
+
+      {/* linha inferior: projeto · cliente + prazo */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        {card.projeto_nome && (
+          <div style={{
+            fontSize: 12, color: projCor, fontWeight: 600,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0,
+          }}>
+            {card.projeto_nome}{card.cliente_nome ? ` · ${card.cliente_nome}` : ''}
+          </div>
+        )}
+        {pz && (
+          <span style={{
+            fontSize: 11, fontWeight: 800, color: pz.color,
+            background: `${pz.color}1a`, padding: '3px 7px', borderRadius: 6,
+            whiteSpace: 'nowrap', flexShrink: 0,
+          }}>{dtFmt(card.prazo)}</span>
+        )}
       </div>
     </div>
   );
