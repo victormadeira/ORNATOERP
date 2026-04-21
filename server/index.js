@@ -45,6 +45,7 @@ import extRoutes from './routes/ext.js';
 import templatesRoutes from './routes/templates.js';
 import digitalTwinRoutes from './routes/digital-twin.js';
 import errorsRoutes, { recordError } from './routes/errors.js';
+import oficinaRoutes from './routes/oficina.js';
 
 // Inicializa DB (efeito colateral — cria tabelas e seed)
 import './db.js';
@@ -191,6 +192,8 @@ app.use('/api/leads', leadsRoutes);
 app.use('/api/ext', extRoutes);
 app.use('/api/templates', templatesRoutes);
 app.use('/api/digital-twin', digitalTwinRoutes);
+
+app.use('/api/oficina', oficinaRoutes);
 
 // Observabilidade — POST /api/errors é público (erros pré-login) mas limitado.
 // GET/DELETE/PUT exigem admin (aplicado no próprio router).

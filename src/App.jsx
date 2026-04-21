@@ -38,6 +38,7 @@ const PluginDownload = lazy(() => import('./pages/PluginDownload'));
 const Ponto = lazy(() => import('./pages/Ponto'));
 const FunilLeads = lazy(() => import('./pages/FunilLeads'));
 const ErrorsPage = lazy(() => import('./pages/Errors'));
+const Oficina    = lazy(() => import('./pages/Oficina'));
 
 // ── Skeleton Fallback ──────────────────────────────────────────
 const LazyFallback = () => (
@@ -124,7 +125,7 @@ class ErrorBoundary extends Component {
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
     // ── Roteamento com History API ──────────────────────────────────────────
-    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download','ponto','funil','errors'];
+    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download','ponto','funil','errors','oficina','oficina_tv'];
     // Páginas aposentadas — redirecionam para o destino atual
     const LEGACY_REDIRECTS = { digital_twin: 'cnc' };
     const [pg, setPg] = useState(() => {
@@ -554,6 +555,7 @@ export default function App() {
             { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         ]},
         { id: 'producao', label: 'Produção', icon: Ic.Factory, items: [
+            { id: "oficina", lb: "Oficina", ic: Ic.LayoutGrid },
             { id: "industrializacao", lb: "Ordens", ic: Ic.ClipList },
             { id: "cnc", lb: "Corte & CNC", ic: Ic.Scissors },
             { id: "expedicao", lb: "Expedição", ic: Ic.Truck },
@@ -665,6 +667,8 @@ export default function App() {
             case "compras": return <Compras notify={notify} />;
             case "gestao": return <GestaoAvancada notify={notify} />;
             case "producao_tv": return <ProducaoTV />;
+            case "oficina":    return <Oficina notify={notify} />;
+            case "oficina_tv": return <Oficina notify={notify} tvMode />;
             case "produtividade": return <Produtividade notify={notify} />;
             case "plugin_download": return <PluginDownload notify={notify} />;
             case "ponto": return <Ponto notify={notify} />;
