@@ -902,64 +902,113 @@ export default function Ponto({ notify }) {
 
     return (
         <div className={Z.pg}>
-            <PageHeader icon={Clock} title="Controle de Ponto" subtitle="Frequência e jornada">
-                <button className={Z.btn2Sm} onClick={() => setShowFuncionarios(true)} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Users size={13} /> Funcionários
-                </button>
-                <button className={Z.btn2Sm} onClick={() => setShowConfig(true)} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Settings size={13} /> Jornada
-                </button>
-                <button className={Z.btn2Sm} onClick={() => setShowFeriados(true)} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <CalendarDays size={13} /> Feriados
-                </button>
-                <button className={Z.btnSm} onClick={async () => {
-                    if (!funcionarios.length) { notify('Cadastre funcionários primeiro'); return; }
-                    if (!confirm(`Preencher ${MESES[mes]}/${ano} com horário padrão para TODOS os ${funcionarios.length} funcionários ativos?\n\nDias já preenchidos NÃO serão sobrescritos.`)) return;
-                    try {
-                        const r = await api.post('/ponto/registros/lote-todos', { mes: mesKey, sobrescrever: false });
-                        notify(`${r.inseridos} registros criados para ${r.funcionarios} funcionários`, 'success');
-                        loadData();
-                    } catch (e) { notify(e.error || 'Erro ao preencher', 'error'); }
-                }} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, background: '#7c3aed', borderColor: '#7c3aed', color: '#fff' }}>
-                    <CalendarDays size={13} /> Preencher Mês
-                </button>
-                <button className={Z.btn2Sm} onClick={() => setShowRelatorio(true)} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <FileText size={13} /> Painel
-                </button>
-                <button className={Z.btnSm} onClick={async () => {
-                    notify?.('Gerando relatório PDF...', 'info');
-                    try {
-                        const token = localStorage.getItem('erp_token');
-                        const r = await fetch(`/api/ponto/relatorio-pdf?mes=${mesKey}`, { headers: { Authorization: `Bearer ${token}` } });
-                        if (!r.ok) throw { error: 'Erro ao gerar PDF' };
-                        const blob = await r.blob();
-                        const url = URL.createObjectURL(blob);
-                        window.open(url, '_blank');
-                        notify?.('Relatório PDF gerado', 'success');
-                    } catch (e) { notify?.(e.error || 'Erro ao gerar PDF', 'error'); }
-                }} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, background: 'var(--danger-hover)', borderColor: 'var(--danger-hover)', color: '#fff' }}>
-                    <FileText size={13} /> PDF
-                </button>
-                <button className={Z.btn2Sm} onClick={exportCSV} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Download size={13} /> CSV
-                </button>
-                <button className={Z.btn2Sm} onClick={() => fileInputRef.current?.click()} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Upload size={13} /> Importar
-                </button>
-                <input ref={fileInputRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) importCSV(e.target.files[0]); }} />
+            <PageHeader icon={Clock} title="Controle de Ponto" subtitle={`Frequência e jornada — ${MESES[mes]} ${ano}`} accent="accent">
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button className={Z.btn2Sm} onClick={() => setShowFuncionarios(true)} style={{ fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <Users size={13} /> Funcionários
+                    </button>
+                    <button className={Z.btn2Sm} onClick={() => setShowConfig(true)} style={{ fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <Settings size={13} /> Jornada
+                    </button>
+                    <button className={Z.btn2Sm} onClick={() => setShowFeriados(true)} style={{ fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <CalendarDays size={13} /> Feriados
+                    </button>
+                    <span style={{ width: 1, height: 18, background: 'var(--border)' }} />
+                    <button onClick={async () => {
+                        if (!funcionarios.length) { notify('Cadastre funcionários primeiro'); return; }
+                        if (!confirm(`Preencher ${MESES[mes]}/${ano} com horário padrão para TODOS os ${funcionarios.length} funcionários ativos?\n\nDias já preenchidos NÃO serão sobrescritos.`)) return;
+                        try {
+                            const r = await api.post('/ponto/registros/lote-todos', { mes: mesKey, sobrescrever: false });
+                            notify(`${r.inseridos} registros criados para ${r.funcionarios} funcionários`, 'success');
+                            loadData();
+                        } catch (e) { notify(e.error || 'Erro ao preencher', 'error'); }
+                    }} style={{ fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, background: 'var(--accent-gradient)', border: '1px solid var(--accent-bright)', color: '#fff', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 8px rgba(201,169,110,0.25)' }}>
+                        <CalendarDays size={13} /> Preencher Mês
+                    </button>
+                    <button className={Z.btn2Sm} onClick={() => setShowRelatorio(true)} style={{ fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <FileText size={13} /> Painel
+                    </button>
+                    <button className={Z.btn2Sm} onClick={exportCSV} style={{ fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <Download size={13} /> CSV
+                    </button>
+                    <button className={Z.btn2Sm} onClick={() => fileInputRef.current?.click()} style={{ fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <Upload size={13} /> Importar
+                    </button>
+                    <button onClick={async () => {
+                        notify?.('Gerando relatório PDF...', 'info');
+                        try {
+                            const token = localStorage.getItem('erp_token');
+                            const r = await fetch(`/api/ponto/relatorio-pdf?mes=${mesKey}`, { headers: { Authorization: `Bearer ${token}` } });
+                            if (!r.ok) throw { error: 'Erro ao gerar PDF' };
+                            const blob = await r.blob();
+                            const url = URL.createObjectURL(blob);
+                            window.open(url, '_blank');
+                            notify?.('Relatório PDF gerado', 'success');
+                        } catch (e) { notify?.(e.error || 'Erro ao gerar PDF', 'error'); }
+                    }} style={{ fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 10, background: 'var(--danger)', border: '1px solid var(--danger)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
+                        <FileText size={13} /> PDF
+                    </button>
+                    <input ref={fileInputRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) importCSV(e.target.files[0]); }} />
+                </div>
             </PageHeader>
 
             {/* Nav mês */}
-            <div className={Z.card} style={{ marginBottom: 12, padding: '10px 16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-                    <button className={Z.btn2Sm} onClick={prevMes} style={{ padding: '4px 8px' }}><ChevronLeft size={16} /></button>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', minWidth: 150, textAlign: 'center' }}>{MESES[mes]} {ano}</span>
-                    <button className={Z.btn2Sm} onClick={nextMes} style={{ padding: '4px 8px' }}><ChevronRight size={16} /></button>
+            <div className="glass-card" style={{ marginBottom: 14, padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <button
+                        onClick={prevMes}
+                        style={{
+                            width: 36, height: 36, borderRadius: 10,
+                            background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                            color: 'var(--text-secondary)', cursor: 'pointer',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'all 160ms var(--ease-out)',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-bright)'; e.currentTarget.style.color = 'var(--accent-bright)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                        title="Mês anterior"
+                    >
+                        <ChevronLeft size={18} />
+                    </button>
+                    <div className="font-display" style={{ minWidth: 180, textAlign: 'center' }}>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1.1 }}>{MESES[mes]}</div>
+                        <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', letterSpacing: '0.04em' }}>{ano} · {daysCount} dias</div>
+                    </div>
+                    <button
+                        onClick={nextMes}
+                        style={{
+                            width: 36, height: 36, borderRadius: 10,
+                            background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                            color: 'var(--text-secondary)', cursor: 'pointer',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'all 160ms var(--ease-out)',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-bright)'; e.currentTarget.style.color = 'var(--accent-bright)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                        title="Próximo mês"
+                    >
+                        <ChevronRight size={18} />
+                    </button>
                 </div>
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 8, flexWrap: 'wrap' }}>
-                    {[{ c: 'var(--success)', l: 'Normal' }, { c: 'var(--warning)', l: 'Atraso' }, { c: 'var(--danger)', l: 'Falta' }, { c: 'var(--info)', l: 'Atestado/Férias' }, { c: 'var(--muted)', l: 'Folga/Feriado' }, { c: '#a855f7', l: 'Compensação' }].map(x => (
-                        <div key={x.l} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'var(--text-muted)' }}>
-                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: x.c, display: 'inline-block' }} />{x.l}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {[
+                        { c: 'var(--success)', l: 'Normal' },
+                        { c: 'var(--warning)', l: 'Atraso' },
+                        { c: 'var(--danger)', l: 'Falta' },
+                        { c: 'var(--info)', l: 'Atestado / Férias' },
+                        { c: 'var(--muted)', l: 'Folga / Feriado' },
+                        { c: '#a855f7', l: 'Compensação' },
+                    ].map(x => (
+                        <div key={x.l} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                            fontSize: 10.5, fontWeight: 500,
+                            color: 'var(--text-secondary)',
+                            padding: '4px 10px', borderRadius: 999,
+                            background: 'var(--bg-muted)',
+                            border: '1px solid var(--border)',
+                        }}>
+                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: x.c, display: 'inline-block', boxShadow: `0 0 0 2px ${x.c}22` }} />
+                            {x.l}
                         </div>
                     ))}
                 </div>

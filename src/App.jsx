@@ -163,6 +163,7 @@ export default function App() {
     const buscaRef = useRef(null);
     const buscaTimer = useRef(null);
     const [pageKey, setPageKey] = useState(0); // for page transitions
+    const [navDepth, setNavDepth] = useState(0); // nav stack depth for back button
 
     // Estado de colapso dos grupos do menu (default: tudo colapsado)
     const [collapsed, setCollapsed] = useState(() => {
@@ -405,15 +406,26 @@ export default function App() {
 
     const nav = (p, orc) => {
         window.scrollTo(0, 0);
+        // Não incrementa quando é navegação para a mesma página
+        const sameTarget = p === pg && !(p === 'novo' && orc?.id !== editOrc?.id);
         if (p === "novo" && orc !== undefined) setEditOrc(orc);
         else if (p !== "novo") setEditOrc(null);
         setPg(p);
         setPageKey(k => k + 1); // trigger page transition
+        if (!sameTarget) setNavDepth(d => d + 1);
         localStorage.setItem('erp_page', p);
         let url = p === 'dash' ? '/' : `/${p}`;
         if (p === 'novo' && orc?.id) url = `/novo/${orc.id}`;
-        window.history.pushState({ page: p, orcId: orc?.id || null }, '', url);
+        window.history.pushState({ page: p, orcId: orc?.id || null, depth: navDepth + (sameTarget ? 0 : 1) }, '', url);
         if (isMobile) setMobileOpen(false);
+    };
+
+    const goBack = () => {
+        if (navDepth > 0) {
+            window.history.back();
+        } else {
+            nav('dash');
+        }
     };
 
     // Listen for keyboard shortcut navigation events
@@ -423,6 +435,23 @@ export default function App() {
         return () => window.removeEventListener('erp-nav', handleNav);
     }); // intentionally no deps — nav changes each render
 
+    // Keyboard shortcut: Alt+← (or Cmd+[ on Mac) — voltar
+    useEffect(() => {
+        const handleKey = (e) => {
+            const tag = (e.target?.tagName || '').toUpperCase();
+            const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable;
+            if (isInput) return;
+            const altLeft = e.altKey && e.key === 'ArrowLeft';
+            const cmdBracket = (e.metaKey || e.ctrlKey) && e.key === '[';
+            if (altLeft || cmdBracket) {
+                e.preventDefault();
+                if (navDepth > 0) window.history.back();
+            }
+        };
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+    }, [navDepth]);
+
     useEffect(() => {
         let initUrl = pg === 'dash' ? '/' : `/${pg}`;
         if (pg === 'novo' && editOrc?.id) initUrl = `/novo/${editOrc.id}`;
@@ -431,8 +460,10 @@ export default function App() {
         const handlePopState = (e) => {
             const page = e.state?.page || 'dash';
             const orcId = e.state?.orcId;
+            const depth = e.state?.depth ?? 0;
             setPg(page);
             setPageKey(k => k + 1);
+            setNavDepth(Math.max(0, depth));
             localStorage.setItem('erp_page', page);
             if (page === 'novo' && orcId) setEditOrc({ id: orcId });
             else if (page !== 'novo') setEditOrc(null);
@@ -664,6 +695,7 @@ export default function App() {
             <main className="flex-1 relative overflow-y-auto overflow-x-hidden">
                 <Topbar
                     isMobile={isMobile} setMobileOpen={setMobileOpen} pg={pg} ALL_MENUS={ALL_MENUS} nav={nav}
+                    canGoBack={navDepth > 0} goBack={goBack}
                     buscaRef={buscaRef} buscaQuery={buscaQuery} setBuscaQuery={setBuscaQuery}
                     buscaResults={buscaResults} buscaOpen={buscaOpen} setBuscaOpen={setBuscaOpen}
                     waUnread={waUnread} notifsRef={notifsRef} showNotifs={showNotifs} setShowNotifs={setShowNotifs}

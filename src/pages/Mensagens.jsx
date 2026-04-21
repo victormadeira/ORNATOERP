@@ -919,11 +919,27 @@ export default function Mensagens({ notify }) {
                             }}>
                                 <button
                                     onClick={() => { setMobileShowChat(false); setActiveConv(null); }}
-                                    className="md:hidden"
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+                                    aria-label="Voltar para lista de conversas"
                                     title="Voltar"
+                                    style={{
+                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                        width: 34, height: 34, borderRadius: 10,
+                                        background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                                        color: 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0,
+                                        transition: 'all 160ms var(--ease-out)',
+                                    }}
+                                    onMouseEnter={e => {
+                                        e.currentTarget.style.background = 'var(--bg-card)';
+                                        e.currentTarget.style.borderColor = 'var(--accent-bright)';
+                                        e.currentTarget.style.color = 'var(--text-primary)';
+                                    }}
+                                    onMouseLeave={e => {
+                                        e.currentTarget.style.background = 'var(--bg-muted)';
+                                        e.currentTarget.style.borderColor = 'var(--border)';
+                                        e.currentTarget.style.color = 'var(--text-secondary)';
+                                    }}
                                 >
-                                    <ArrowLeft size={18} style={{ color: 'var(--text-muted)' }} />
+                                    <ArrowLeft size={16} strokeWidth={2.4} />
                                 </button>
 
                                 {(() => {

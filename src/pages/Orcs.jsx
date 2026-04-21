@@ -526,7 +526,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                 {expandedAditivos === o.id && aditivoMap[o.id] && (
                                                     <div
                                                         ref={aditivoPopupRef}
-                                                        className="absolute right-0 top-full mt-1 z-50 rounded-lg shadow-lg border p-3 text-left min-w-[280px]"
+                                                        className="absolute right-0 top-full mt-1 z-50 rounded-lg shadow-lg border p-3 text-left min-w-[min(280px,95vw)] max-w-[95vw]"
                                                         style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
                                                     >
                                                         <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
@@ -579,7 +579,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                 {expandedVersoes === o.id && versaoMap[o.id] && (
                                                     <div
                                                         ref={versaoPopupRef}
-                                                        className="absolute right-0 top-full mt-1 z-50 rounded-lg shadow-lg border p-3 text-left min-w-[280px]"
+                                                        className="absolute right-0 top-full mt-1 z-50 rounded-lg shadow-lg border p-3 text-left min-w-[min(280px,95vw)] max-w-[95vw]"
                                                         style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
                                                     >
                                                         <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
@@ -775,7 +775,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                             if (topAmb) metrics.push({ label: 'Amb. Foco', value: topAmb.nome?.split(' ')[0] || topAmb.id, color: 'var(--danger)', sub: `${Math.floor(topAmb.tempo / 60)}m${topAmb.tempo % 60}s` });
                             if (totalInteracoes > 0) metrics.push({ label: 'Interações', value: totalInteracoes, color: '#0ea5e9' });
                             return (
-                                <div className={`grid gap-2 ${metrics.length > 4 ? 'grid-cols-3' : 'grid-cols-4'}`}>
+                                <div className={`grid gap-2 grid-cols-2 ${metrics.length > 4 ? 'sm:grid-cols-3' : 'sm:grid-cols-4'}`}>
                                     {metrics.map((m, i) => (
                                         <div key={i} className="text-center p-2 rounded-lg" style={{ background: `${m.color}08`, border: `1px solid ${m.color}20` }}>
                                             <div className="text-sm font-bold" style={{ color: m.color }}>{m.value}</div>

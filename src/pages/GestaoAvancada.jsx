@@ -103,12 +103,34 @@ function TabDRE() {
     if (loading) return <LoadingSpinner />;
     if (!data) return <EmptyState icon={BarChart3} title="Sem dados DRE" description="Nenhum dado encontrado para este periodo." />;
 
-    const receitas = data.receitas || [];
-    const despesas = data.despesas || [];
-    const totalReceita = data.total_receitas ?? receitas.reduce((s, r) => s + (r.valor || 0), 0);
-    const totalDespesa = data.total_despesas ?? despesas.reduce((s, d) => s + (d.valor || 0), 0);
+    // Shape real retornado pelo backend:
+    //   { receitas: number, despesas: { projetos: [{total,categoria}], contas: [{total,categoria}], custoFixo: number, total: number }, lucro, margem }
+    // Normalização defensiva — aceita tanto number quanto array (compat legada)
+    const totalReceita = typeof data.receitas === 'number'
+        ? data.receitas
+        : Array.isArray(data.receitas)
+            ? data.receitas.reduce((s, r) => s + (r.valor || 0), 0)
+            : 0;
+
+    const despObj = (data.despesas && typeof data.despesas === 'object' && !Array.isArray(data.despesas)) ? data.despesas : null;
+    const despProjetos = despObj ? (Array.isArray(despObj.projetos) ? despObj.projetos : []) : [];
+    const despContas   = despObj ? (Array.isArray(despObj.contas)   ? despObj.contas   : []) : [];
+    const custoFixo    = despObj ? (Number(despObj.custoFixo) || 0) : 0;
+    const totalDespesa = despObj
+        ? (Number(despObj.total) || 0)
+        : Array.isArray(data.despesas)
+            ? data.despesas.reduce((s, d) => s + (d.valor || d.total || 0), 0)
+            : 0;
+
     const lucro = data.lucro ?? (totalReceita - totalDespesa);
     const margem = data.margem ?? (totalReceita > 0 ? (lucro / totalReceita) * 100 : 0);
+
+    // Lista unificada de linhas de despesa para exibição
+    const despesasRows = [
+        ...despProjetos.map(d => ({ categoria: d.categoria || 'Sem categoria', valor: d.total || 0, origem: 'Projeto' })),
+        ...despContas.map(d => ({ categoria: d.categoria || 'Sem categoria', valor: d.total || 0, origem: 'Conta a Pagar' })),
+        ...(custoFixo > 0 ? [{ categoria: 'Custo Fixo Mensal', valor: custoFixo, origem: 'Centro de Custo' }] : []),
+    ].sort((a, b) => b.valor - a.valor);
 
     return (
         <div>
@@ -133,19 +155,17 @@ function TabDRE() {
                     <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                         <ArrowUpCircle size={18} style={{ color: 'var(--success)' }} /> Receitas
                     </h3>
-                    {receitas.length === 0 ? (
+                    {totalReceita === 0 ? (
                         <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Nenhuma receita registrada</p>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            {receitas.map((r, i) => (
-                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                                    <div>
-                                        <div style={{ fontSize: 14, fontWeight: 600 }}>{r.descricao || r.categoria || 'Receita'}</div>
-                                        {r.projeto && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{r.projeto}</div>}
-                                    </div>
-                                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)' }}>{R$(r.valor)}</span>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                                <div>
+                                    <div style={{ fontSize: 14, fontWeight: 600 }}>Contas a Receber Pagas</div>
+                                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Recebimentos do período</div>
                                 </div>
-                            ))}
+                                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)' }}>{R$(totalReceita)}</span>
+                            </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, fontWeight: 800, fontSize: 15 }}>
                                 <span>Total</span>
                                 <span style={{ color: 'var(--success)' }}>{R$(totalReceita)}</span>
@@ -154,20 +174,20 @@ function TabDRE() {
                     )}
                 </div>
 
-                {/* Despesas */}
+                {/* Despesas por categoria */}
                 <div className={Z.card}>
                     <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <ArrowDownCircle size={18} style={{ color: 'var(--danger)' }} /> Despesas
+                        <ArrowDownCircle size={18} style={{ color: 'var(--danger)' }} /> Despesas por Categoria
                     </h3>
-                    {despesas.length === 0 ? (
+                    {despesasRows.length === 0 ? (
                         <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Nenhuma despesa registrada</p>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            {despesas.map((d, i) => (
+                            {despesasRows.map((d, i) => (
                                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                                     <div>
-                                        <div style={{ fontSize: 14, fontWeight: 600 }}>{d.descricao || d.categoria || 'Despesa'}</div>
-                                        {d.projeto && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{d.projeto}</div>}
+                                        <div style={{ fontSize: 14, fontWeight: 600 }}>{d.categoria}</div>
+                                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{d.origem}</div>
                                     </div>
                                     <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--danger)' }}>{R$(d.valor)}</span>
                                 </div>
@@ -205,9 +225,10 @@ function TabRentabilidade() {
     }, []);
 
     if (loading) return <LoadingSpinner />;
-    if (!data.length) return <EmptyState icon={TrendingUp} title="Sem dados de rentabilidade" description="Nenhum projeto com dados financeiros." />;
+    if (!Array.isArray(data) || data.length === 0) return <EmptyState icon={TrendingUp} title="Sem dados de rentabilidade" description="Nenhum projeto com dados financeiros." />;
 
-    const maxReceita = Math.max(...data.map(p => p.receita || p.valor_total || 0), 1);
+    // Backend retorna: { id, nome, cliente_nome, valor_venda, recebido, custoTotal, lucro, margem, ... }
+    const maxReceita = Math.max(...data.map(p => p.recebido || p.receita || p.valor_venda || p.valor_total || 0), 1);
 
     return (
         <div>
@@ -224,18 +245,19 @@ function TabRentabilidade() {
                         </tr>
                     </thead>
                     <tbody>
-                        {data.sort((a, b) => (b.margem || 0) - (a.margem || 0)).map((p, i) => {
-                            const receita = p.receita || p.valor_total || 0;
-                            const custo = p.custo || p.custo_total || 0;
+                        {[...data].sort((a, b) => (b.margem || 0) - (a.margem || 0)).map((p, i) => {
+                            const receita = p.recebido || p.receita || p.valor_venda || p.valor_total || 0;
+                            const custo = p.custoTotal || p.custo || p.custo_total || 0;
                             const lucro = p.lucro ?? (receita - custo);
                             const margem = p.margem ?? (receita > 0 ? (lucro / receita) * 100 : 0);
                             const margemColor = margem >= 30 ? 'var(--success)' : margem >= 15 ? '#eab308' : 'var(--danger)';
+                            const clienteNome = p.cliente_nome || p.cliente;
 
                             return (
                                 <tr key={p.id || i} style={{ borderBottom: '1px solid var(--border)' }}>
                                     <td style={{ padding: '10px 12px', fontWeight: 600 }}>
                                         {p.nome || p.projeto}
-                                        {p.cliente && <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>{p.cliente}</div>}
+                                        {clienteNome && <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>{clienteNome}</div>}
                                     </td>
                                     <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 600 }}>{R$(receita)}</td>
                                     <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--danger)', fontWeight: 600 }}>{R$(custo)}</td>
@@ -279,81 +301,62 @@ function TabPrevisaoCaixa() {
     if (loading) return <LoadingSpinner />;
     if (!data) return <EmptyState icon={DollarSign} title="Sem previsao de caixa" description="Nenhum dado de fluxo de caixa disponivel." />;
 
-    const saldoAtual = data.saldo_atual ?? 0;
-    const periodos = data.periodos || [];
-    const aReceber = data.a_receber ?? 0;
-    const aPagar = data.a_pagar ?? 0;
+    // Backend retorna: { "30d": { receber, pagar, saldo }, "60d": {...}, "90d": {...} }
+    // Normalização defensiva — cobre ambos os shapes
+    const buckets = [
+        { key: '30d', label: '30 dias' },
+        { key: '60d', label: '60 dias' },
+        { key: '90d', label: '90 dias' },
+    ].map(b => {
+        const raw = data[b.key] || {};
+        return {
+            label: b.label,
+            receber: Number(raw.receber) || 0,
+            pagar:   Number(raw.pagar)   || 0,
+            saldo:   raw.saldo !== undefined ? Number(raw.saldo) : (Number(raw.receber) || 0) - (Number(raw.pagar) || 0),
+        };
+    });
+
+    // KPIs agregados (usa bucket 30d como janela próxima)
+    const aReceber = buckets[0].receber;
+    const aPagar   = buckets[0].pagar;
+    const saldoAtual = Number(data.saldo_atual) || 0;
+    const saldoProjetado = saldoAtual + aReceber - aPagar;
 
     return (
         <div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
                 <KPI icon={Landmark} label="Saldo Atual" value={R$(saldoAtual)} color={saldoAtual >= 0 ? 'var(--success)' : 'var(--danger)'} />
-                <KPI icon={ArrowUpCircle} label="A Receber" value={R$(aReceber)} color="var(--info)" />
-                <KPI icon={ArrowDownCircle} label="A Pagar" value={R$(aPagar)} color="var(--warning)" />
-                <KPI icon={Target} label="Saldo Projetado" value={R$(saldoAtual + aReceber - aPagar)} color="#a855f7" />
+                <KPI icon={ArrowUpCircle} label="A Receber (30d)" value={R$(aReceber)} color="var(--info)" />
+                <KPI icon={ArrowDownCircle} label="A Pagar (30d)" value={R$(aPagar)} color="var(--warning)" />
+                <KPI icon={Target} label="Saldo Projetado (30d)" value={R$(saldoProjetado)} color={saldoProjetado >= 0 ? '#a855f7' : 'var(--danger)'} />
             </div>
 
             <div className={Z.card}>
                 <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Projecao 30 / 60 / 90 dias</h3>
-                {periodos.length === 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        {[
-                            { label: '30 dias', receber: data.receber_30 ?? 0, pagar: data.pagar_30 ?? 0 },
-                            { label: '60 dias', receber: data.receber_60 ?? 0, pagar: data.pagar_60 ?? 0 },
-                            { label: '90 dias', receber: data.receber_90 ?? 0, pagar: data.pagar_90 ?? 0 },
-                        ].map((p, i) => {
-                            const saldo = saldoAtual + p.receber - p.pagar;
-                            return (
-                                <div key={i} style={{
-                                    display: 'grid', gridTemplateColumns: '100px 1fr 1fr 1fr',
-                                    gap: 16, alignItems: 'center', padding: '12px 0',
-                                    borderBottom: i < 2 ? '1px solid var(--border)' : 'none',
-                                }}>
-                                    <span style={{ fontSize: 15, fontWeight: 700 }}>{p.label}</span>
-                                    <div>
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Entradas</div>
-                                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--success)' }}>{R$(p.receber)}</div>
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Saidas</div>
-                                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--danger)' }}>{R$(p.pagar)}</div>
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Saldo Projetado</div>
-                                        <div style={{ fontSize: 15, fontWeight: 800, color: saldo >= 0 ? 'var(--success)' : 'var(--danger)' }}>{R$(saldo)}</div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {periodos.map((p, i) => {
-                            const saldo = p.saldo_projetado ?? (saldoAtual + (p.entradas || 0) - (p.saidas || 0));
-                            return (
-                                <div key={i} style={{
-                                    display: 'grid', gridTemplateColumns: '120px 1fr 1fr 1fr',
-                                    gap: 16, alignItems: 'center', padding: '12px 0',
-                                    borderBottom: i < periodos.length - 1 ? '1px solid var(--border)' : 'none',
-                                }}>
-                                    <span style={{ fontSize: 14, fontWeight: 700 }}>{p.label || p.periodo}</span>
-                                    <div>
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Entradas</div>
-                                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--success)' }}>{R$(p.entradas || 0)}</div>
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Saidas</div>
-                                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--danger)' }}>{R$(p.saidas || 0)}</div>
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Saldo</div>
-                                        <div style={{ fontSize: 15, fontWeight: 800, color: saldo >= 0 ? 'var(--success)' : 'var(--danger)' }}>{R$(saldo)}</div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {buckets.map((p, i) => (
+                        <div key={p.label} style={{
+                            display: 'grid', gridTemplateColumns: '100px 1fr 1fr 1fr',
+                            gap: 16, alignItems: 'center', padding: '12px 0',
+                            borderBottom: i < buckets.length - 1 ? '1px solid var(--border)' : 'none',
+                        }}>
+                            <span style={{ fontSize: 15, fontWeight: 700 }}>{p.label}</span>
+                            <div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Entradas</div>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--success)' }}>{R$(p.receber)}</div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Saidas</div>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--danger)' }}>{R$(p.pagar)}</div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Saldo Projetado</div>
+                                <div style={{ fontSize: 15, fontWeight: 800, color: p.saldo >= 0 ? 'var(--success)' : 'var(--danger)' }}>{R$(p.saldo)}</div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );
@@ -866,15 +869,21 @@ function TabManutencao() {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-    const [form, setForm] = useState({ maquina: '', tipo: 'preventiva', data_prevista: '', descricao: '', responsavel: '', status: 'pendente' });
+    const [form, setForm] = useState({ maquina_nome: '', tipo: 'preventiva', data_proxima: '', data_realizada: '', descricao: '', responsavel: '', custo: '', obs: '' });
     const [editId, setEditId] = useState(null);
 
     const load = useCallback(async () => {
         try {
             const res = await api.get('/gestao/manutencao');
-            setData(res.manutencoes || res || []);
+            // Backend retorna { rows, vencidas } — aceita array direto também (compat)
+            const rows = Array.isArray(res) ? res
+                : Array.isArray(res?.rows) ? res.rows
+                : Array.isArray(res?.manutencoes) ? res.manutencoes
+                : [];
+            setData(rows);
         } catch (e) {
             console.error('Manutencao error:', e);
+            setData([]);
         } finally {
             setLoading(false);
         }
@@ -884,14 +893,24 @@ function TabManutencao() {
 
     const save = async () => {
         try {
+            const payload = {
+                maquina_nome: form.maquina_nome,
+                tipo: form.tipo,
+                descricao: form.descricao,
+                data_realizada: form.data_realizada || null,
+                data_proxima: form.data_proxima || null,
+                custo: Number(form.custo) || 0,
+                responsavel: form.responsavel,
+                obs: form.obs,
+            };
             if (editId) {
-                await api.put(`/gestao/manutencao/${editId}`, form);
+                await api.put(`/gestao/manutencao/${editId}`, payload);
             } else {
-                await api.post('/gestao/manutencao', form);
+                await api.post('/gestao/manutencao', payload);
             }
             setShowModal(false);
             setEditId(null);
-            setForm({ maquina: '', tipo: 'preventiva', data_prevista: '', descricao: '', responsavel: '', status: 'pendente' });
+            setForm({ maquina_nome: '', tipo: 'preventiva', data_proxima: '', data_realizada: '', descricao: '', responsavel: '', custo: '', obs: '' });
             load();
         } catch (e) {
             alert(e.error || 'Erro ao salvar manutencao');
@@ -901,20 +920,32 @@ function TabManutencao() {
     const openEdit = (item) => {
         setEditId(item.id);
         setForm({
-            maquina: item.maquina || '',
+            maquina_nome: item.maquina_nome || item.maquina || '',
             tipo: item.tipo || 'preventiva',
-            data_prevista: dtInput(item.data_prevista),
+            data_proxima: dtInput(item.data_proxima || item.data_prevista),
+            data_realizada: dtInput(item.data_realizada),
             descricao: item.descricao || '',
             responsavel: item.responsavel || '',
-            status: item.status || 'pendente',
+            custo: item.custo || '',
+            obs: item.obs || '',
         });
         setShowModal(true);
     };
 
     if (loading) return <LoadingSpinner />;
 
+    // Status é derivado (backend não tem coluna status): realizada → concluída, vencida (sem realizada + data_proxima no passado) → atrasada, senão pendente
+    const getStatus = (m) => {
+        if (m.status) return m.status;
+        if (m.data_realizada) return 'concluida';
+        const dataProx = m.data_proxima || m.data_prevista;
+        if (dataProx && new Date(dataProx + 'T12:00:00') < new Date()) return 'atrasada';
+        return 'pendente';
+    };
+
     const statusMap = {
         pendente: { color: 'var(--warning-hover)', bg: 'var(--warning-bg)', label: 'Pendente' },
+        atrasada: { color: 'var(--danger-hover)', bg: 'var(--danger-bg)', label: 'Atrasada' },
         em_andamento: { color: 'var(--info-hover)', bg: 'var(--info-bg)', label: 'Em andamento' },
         concluida: { color: 'var(--success-hover)', bg: 'var(--success-bg)', label: 'Concluida' },
         cancelada: { color: 'var(--danger-hover)', bg: 'var(--danger-bg)', label: 'Cancelada' },
@@ -926,12 +957,8 @@ function TabManutencao() {
         preditiva: { color: '#a855f7', label: 'Preditiva' },
     };
 
-    const pendentes = data.filter(m => m.status === 'pendente' || m.status === 'em_andamento');
-    const atrasadas = data.filter(m => {
-        if (m.status === 'concluida' || m.status === 'cancelada') return false;
-        if (!m.data_prevista) return false;
-        return new Date(m.data_prevista + 'T12:00:00') < new Date();
-    });
+    const pendentes = data.filter(m => { const s = getStatus(m); return s === 'pendente' || s === 'em_andamento' || s === 'atrasada'; });
+    const atrasadas = data.filter(m => getStatus(m) === 'atrasada');
 
     return (
         <div>
@@ -939,11 +966,11 @@ function TabManutencao() {
                 <KPI icon={Wrench} label="Total" value={data.length} color="var(--info)" />
                 <KPI icon={Clock} label="Pendentes" value={pendentes.length} color="var(--warning-hover)" />
                 <KPI icon={AlertTriangle} label="Atrasadas" value={atrasadas.length} color="var(--danger)" />
-                <KPI icon={CheckCircle2} label="Concluidas" value={data.filter(m => m.status === 'concluida').length} color="var(--success)" />
+                <KPI icon={CheckCircle2} label="Concluidas" value={data.filter(m => getStatus(m) === 'concluida').length} color="var(--success)" />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-                <button className={Z.btnSm} onClick={() => { setEditId(null); setForm({ maquina: '', tipo: 'preventiva', data_prevista: '', descricao: '', responsavel: '', status: 'pendente' }); setShowModal(true); }}>
+                <button className={Z.btnSm} onClick={() => { setEditId(null); setForm({ maquina_nome: '', tipo: 'preventiva', data_proxima: '', data_realizada: '', descricao: '', responsavel: '', custo: '', obs: '' }); setShowModal(true); }}>
                     <Plus size={14} /> Nova Manutencao
                 </button>
             </div>
@@ -965,20 +992,22 @@ function TabManutencao() {
                         </thead>
                         <tbody>
                             {data.map((m, i) => {
-                                const st = statusMap[m.status] || statusMap.pendente;
+                                const sKey = getStatus(m);
+                                const st = statusMap[sKey] || statusMap.pendente;
                                 const tp = tipoMap[m.tipo] || tipoMap.preventiva;
-                                const isAtrasada = m.status !== 'concluida' && m.status !== 'cancelada' && m.data_prevista && new Date(m.data_prevista + 'T12:00:00') < new Date();
+                                const isAtrasada = sKey === 'atrasada';
+                                const dataProx = m.data_proxima || m.data_prevista;
                                 return (
                                     <tr key={m.id || i} style={{ borderBottom: '1px solid var(--border)', background: isAtrasada ? '#fef2f215' : 'transparent' }}>
                                         <td style={{ padding: '10px 12px' }}>
-                                            <div style={{ fontWeight: 700 }}>{m.maquina}</div>
+                                            <div style={{ fontWeight: 700 }}>{m.maquina_nome || m.maquina}</div>
                                             {m.descricao && <div style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.descricao}</div>}
                                         </td>
                                         <td style={{ padding: '10px 12px' }}>
                                             <span style={{ fontSize: 11, fontWeight: 700, color: tp.color }}>{tp.label}</span>
                                         </td>
                                         <td style={{ padding: '10px 12px', color: isAtrasada ? 'var(--danger)' : 'inherit', fontWeight: isAtrasada ? 700 : 400 }}>
-                                            {dtFmt(m.data_prevista)}
+                                            {dataProx ? dtFmt(dataProx) : '—'}
                                             {isAtrasada && <AlertTriangle size={12} style={{ marginLeft: 4, color: 'var(--danger)' }} />}
                                         </td>
                                         <td style={{ padding: '10px 12px' }}>{m.responsavel || '--'}</td>
@@ -1008,7 +1037,7 @@ function TabManutencao() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                         <label className={Z.lbl}>
                             Maquina
-                            <input className={Z.inp} value={form.maquina} onChange={e => setForm(f => ({ ...f, maquina: e.target.value }))} placeholder="Nome da maquina" />
+                            <input className={Z.inp} value={form.maquina_nome} onChange={e => setForm(f => ({ ...f, maquina_nome: e.target.value }))} placeholder="Nome da maquina" />
                         </label>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                             <label className={Z.lbl}>
@@ -1020,8 +1049,18 @@ function TabManutencao() {
                                 </select>
                             </label>
                             <label className={Z.lbl}>
-                                Data Prevista
-                                <input className={Z.inp} type="date" value={form.data_prevista} onChange={e => setForm(f => ({ ...f, data_prevista: e.target.value }))} />
+                                Custo (R$)
+                                <input className={Z.inp} type="number" step="0.01" value={form.custo} onChange={e => setForm(f => ({ ...f, custo: e.target.value }))} placeholder="0,00" />
+                            </label>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <label className={Z.lbl}>
+                                Data Realizada
+                                <input className={Z.inp} type="date" value={form.data_realizada} onChange={e => setForm(f => ({ ...f, data_realizada: e.target.value }))} />
+                            </label>
+                            <label className={Z.lbl}>
+                                Proxima Manutencao
+                                <input className={Z.inp} type="date" value={form.data_proxima} onChange={e => setForm(f => ({ ...f, data_proxima: e.target.value }))} />
                             </label>
                         </div>
                         <label className={Z.lbl}>
@@ -1033,13 +1072,8 @@ function TabManutencao() {
                             <textarea className={Z.inp} rows={3} value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} placeholder="Descreva o servico..." />
                         </label>
                         <label className={Z.lbl}>
-                            Status
-                            <select className={Z.inp} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                                <option value="pendente">Pendente</option>
-                                <option value="em_andamento">Em andamento</option>
-                                <option value="concluida">Concluida</option>
-                                <option value="cancelada">Cancelada</option>
-                            </select>
+                            Observacoes
+                            <textarea className={Z.inp} rows={2} value={form.obs} onChange={e => setForm(f => ({ ...f, obs: e.target.value }))} placeholder="Notas adicionais..." />
                         </label>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
                             <button className={Z.btn2Sm} onClick={() => setShowModal(false)}>Cancelar</button>

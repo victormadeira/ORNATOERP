@@ -828,8 +828,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 <input value={emp.endereco} onChange={e => setEmp({ ...emp, endereco: e.target.value })}
                                     className={Z.inp} placeholder="Rua, Av., Alameda..." disabled={!isGerente} />
                             </div>
-                            <div className="grid grid-cols-3 gap-3">
-                                <div className="col-span-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div className="sm:col-span-2">
                                     <label className={Z.lbl}>Cidade</label>
                                     <input value={emp.cidade} onChange={e => setEmp({ ...emp, cidade: e.target.value })}
                                         className={Z.inp} placeholder="São Luís" disabled={!isGerente} />
@@ -1212,7 +1212,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         className={Z.inp}
                                     />
                                 </div>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                     <div>
                                         <label className={Z.lbl}>Anos de Experiência</label>
                                         <input

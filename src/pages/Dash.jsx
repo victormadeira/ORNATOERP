@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
-import { Z, Ic, Spinner, Badge, SectionHeader, PageHeader, TabBar, KpiCard, Sparkline, Skeleton, SkeletonCard } from '../ui';
+import { Z, Ic, Badge, SectionHeader, TabBar, Sparkline, Skeleton, SkeletonCard } from '../ui';
 import { STATUS_PROJ, CAT_COLOR, CAT_LABEL } from '../theme';
 import { R$, N } from '../engine';
 import {
@@ -9,7 +9,9 @@ import {
     Calendar, Eye, ChevronRight, Activity, BarChart3, Wallet,
     CheckCircle2, XCircle, PauseCircle, Zap, PieChart, ArrowUpRight,
     ArrowDownRight, Receipt, Plus, Trash2, Edit3, Check, X,
-    Factory, Truck, Package, Wrench, ChevronDown, RefreshCw
+    Factory, Truck, Package, Wrench, ChevronDown, RefreshCw,
+    Sparkles, LayoutGrid, Target, Users, Flame, Layers, ArrowUp, ArrowDown,
+    Minus
 } from 'lucide-react';
 
 const greet = () => {
@@ -17,187 +19,310 @@ const greet = () => {
     return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
 };
 
-// ── EmptyState ───────────────────────────────────────────
-function EmptyState({ icon: Icon, msg, cta, onClick }) {
+// ══════════════════════════════════════════════════════════════════
+// HERO — saudação premium com aurora + faturamento destacado
+// ══════════════════════════════════════════════════════════════════
+function HeroCard({ user, headline, today, refreshing, onRefresh }) {
+    const up = headline?.pct_variacao > 0;
+    const down = headline?.pct_variacao < 0;
+    const nome = (user?.nome || '').split(' ')[0] || '';
+    const dateMain = today.split(',')[0];
+    const dateRest = today.split(',').slice(1).join(',').trim();
+
     return (
-        <div className="animate-fade-up" style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-            <div className="empty-state-icon" style={{ marginBottom: 12 }}>
-                <Icon size={28} style={{ opacity: 0.5 }} />
+        <div className="hero-card animate-fade-up" style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 28, flexWrap: 'wrap' }}>
+                {/* Left — saudação */}
+                <div style={{ flex: '1 1 300px', minWidth: 0 }}>
+                    <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 8,
+                        padding: '5px 11px', borderRadius: 99,
+                        background: 'rgba(201, 169, 110, 0.14)',
+                        border: '1px solid rgba(201, 169, 110, 0.30)',
+                        fontSize: 10.5, fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase',
+                        color: '#D4B47C', marginBottom: 18,
+                    }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#D4B47C', boxShadow: '0 0 8px #D4B47C' }} />
+                        {dateMain}
+                    </div>
+                    <h1 className="hero-card-title">
+                        {greet()}{nome ? ',' : ''}
+                        {nome && <span className="text-gradient-accent" style={{ marginLeft: 12 }}>{nome}</span>}
+                    </h1>
+                    <p className="hero-card-subtitle">{dateRest}</p>
+                </div>
+
+                {/* Right — faturamento stat */}
+                {headline && (
+                    <div className="hero-stat-block" style={{ flex: '1 1 260px', minWidth: 0 }}>
+                        <div className="hero-stat-label">
+                            Faturamento · {headline.mes_atual}
+                        </div>
+                        <div className="hero-stat-value">{R$(headline.faturamento_mes)}</div>
+                        <div className="hero-stat-meta" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
+                            <span style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                padding: '4px 10px', borderRadius: 99,
+                                background: up ? 'rgba(159, 191, 126, 0.18)' : down ? 'rgba(217, 117, 96, 0.18)' : 'rgba(244,236,219,0.10)',
+                                color: up ? '#B6CF98' : down ? '#E5907D' : 'rgba(244,236,219,0.8)',
+                                fontWeight: 700, fontSize: 12,
+                                border: `1px solid ${up ? 'rgba(159, 191, 126, 0.30)' : down ? 'rgba(217, 117, 96, 0.30)' : 'rgba(244,236,219,0.16)'}`,
+                            }}>
+                                {up ? <TrendingUp size={13} /> : down ? <TrendingDown size={13} /> : <Minus size={13} />}
+                                {up && '+'}{headline.pct_variacao}%
+                            </span>
+                            <span style={{ fontSize: 11.5, color: 'rgba(244, 236, 219, 0.55)', fontWeight: 500 }}>
+                                {headline.qtd_fechados} fechado{headline.qtd_fechados !== 1 ? 's' : ''}
+                            </span>
+                        </div>
+                    </div>
+                )}
             </div>
-            <p style={{ fontSize: 13, marginBottom: cta ? 12 : 0 }}>{msg}</p>
-            {cta && (
-                <button onClick={onClick} className={`${Z.btn} text-xs`}>
-                    <Ic.Plus /> {cta}
+
+            {/* Bottom — live feed + refresh */}
+            <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                marginTop: 26, paddingTop: 20, borderTop: '1px solid rgba(244, 236, 219, 0.08)',
+                gap: 16, flexWrap: 'wrap',
+            }}>
+                <div style={{ fontSize: 11.5, color: 'rgba(244, 236, 219, 0.5)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#9FBF7E', boxShadow: '0 0 8px #9FBF7E' }} />
+                    Dados em tempo real · sincronização a cada 60s
+                </div>
+                <button
+                    onClick={onRefresh}
+                    aria-label={refreshing ? 'Atualizando…' : 'Atualizar dados'}
+                    style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        padding: '7px 14px', borderRadius: 10,
+                        background: 'rgba(244, 236, 219, 0.08)', border: '1px solid rgba(244, 236, 219, 0.12)',
+                        color: 'rgba(244, 236, 219, 0.85)', fontSize: 12, fontWeight: 600,
+                        cursor: 'pointer', transition: 'all 180ms var(--ease-out)', touchAction: 'manipulation',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(244, 236, 219, 0.14)'; e.currentTarget.style.borderColor = 'rgba(201, 169, 110, 0.4)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(244, 236, 219, 0.08)'; e.currentTarget.style.borderColor = 'rgba(244, 236, 219, 0.12)'; }}
+                >
+                    <RefreshCw size={13} style={refreshing ? { animation: 'spin 1s linear infinite' } : undefined} />
+                    {refreshing ? 'Atualizando…' : 'Atualizar'}
                 </button>
-            )}
+            </div>
         </div>
     );
 }
 
-// ── ProducaoResume ────────────────────────────────────────
-function ProducaoResume({ data, nav }) {
-    if (!data) return null;
-    const items = [
-        { icon: Factory, label: 'Em Produção', value: data.projetos_ativos, color: 'var(--primary)', sub: data.projetos_atrasados > 0 ? `${data.projetos_atrasados} atrasado${data.projetos_atrasados > 1 ? 's' : ''}` : 'todos no prazo' },
-        { icon: Clock, label: 'Horas/Semana', value: `${data.horas_semana}h`, color: '#8b5cf6', sub: 'apontadas' },
-        { icon: Truck, label: 'Entregas', value: data.entregas_semana, color: 'var(--warning)', sub: 'esta semana' },
-        { icon: Wrench, label: 'Instalações', value: data.instalacoes_semana, color: 'var(--success)', sub: 'esta semana' },
+// ══════════════════════════════════════════════════════════════════
+// KPI STRIP — 4 cards horizontais com trend + sparkline
+// ══════════════════════════════════════════════════════════════════
+function TrendChip({ value, suffix = '%' }) {
+    if (value === undefined || value === null) return null;
+    const up = value > 0;
+    const down = value < 0;
+    const cls = up ? 'trend-up' : down ? 'trend-down' : 'trend-flat';
+    const Icon = up ? ArrowUp : down ? ArrowDown : Minus;
+    return (
+        <span className={`trend-chip ${cls}`}>
+            <Icon size={11} strokeWidth={2.6} />
+            {up && '+'}{value}{suffix}
+        </span>
+    );
+}
+
+function KpiProCard({ label, value, icon: Icon, sub, trend, spark, sparkColor = 'var(--accent)', onClick }) {
+    return (
+        <div
+            className="kpi-pro animate-fade-up"
+            onClick={onClick}
+            style={onClick ? { cursor: 'pointer' } : undefined}
+            role={onClick ? 'button' : undefined}
+            tabIndex={onClick ? 0 : undefined}
+            onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+        >
+            <div className="kpi-pro-head">
+                <span className="kpi-pro-label">{label}</span>
+                <span className="kpi-pro-icon" aria-hidden="true">
+                    <Icon size={15} strokeWidth={2.2} />
+                </span>
+            </div>
+            <div className="kpi-pro-value">{value}</div>
+            <div className="kpi-pro-foot">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    {trend !== undefined && trend !== null && <TrendChip value={trend} />}
+                    {sub && <span className="kpi-pro-sub" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</span>}
+                </div>
+                {spark && spark.length > 1 && (
+                    <Sparkline data={spark} width={64} height={22} color={sparkColor} />
+                )}
+            </div>
+        </div>
+    );
+}
+
+function KpiStrip({ data, isVendedor, nav }) {
+    const h = data?.headline;
+    const pipeTotal = data?.pipeline_total || 0;
+    const pipelineQtd = (data?.pipeline || []).reduce((s, d) => s + (d.qtd || 0), 0);
+    const projAtivos = data?.total_projetos_ativos || 0;
+    const fc = data?.fluxo_caixa || {};
+    const aRec = (fc.entradas_30d || 0);
+    const recebidoMes = fc.recebido_mes || 0;
+
+    // Sparkline — últimos 6 meses de faturamento (mock para preview se ausente)
+    const spark = (data?.historico_faturamento || []).slice(-8);
+
+    // Taxa de conversão (pipeline): ok/total
+    const aprovados = (data?.pipeline || []).find(d => d.id === 'ok')?.qtd || 0;
+    const txConv = pipelineQtd > 0 ? Math.round((aprovados / pipelineQtd) * 100) : 0;
+
+    const cards = isVendedor && data?.vendedor ? [
+        { label: 'Orçamentos no mês', value: String(data.vendedor.orcs_mes), icon: FileText, sub: R$(data.vendedor.orcs_valor_mes), onClick: () => nav('orcs') },
+        { label: 'Aprovados no mês', value: String(data.vendedor.aprovados_mes), icon: CheckCircle2, sub: R$(data.vendedor.aprovados_valor_mes), onClick: () => nav('orcs') },
+        { label: 'Conversão', value: `${data.vendedor.taxa_conversao}%`, icon: Target, sub: 'orçamentos → aprovados' },
+        { label: 'Novos clientes', value: String(data.vendedor.novos_clientes_mes), icon: Users, sub: 'neste mês', onClick: () => nav('cli') },
+    ] : [
+        {
+            label: 'Faturamento mês',
+            value: R$(h?.faturamento_mes || 0),
+            icon: Flame,
+            trend: h?.pct_variacao,
+            sub: `${h?.qtd_fechados || 0} fechados`,
+            spark,
+            sparkColor: 'var(--accent)',
+            onClick: () => nav('orcs'),
+        },
+        {
+            label: 'Pipeline ativo',
+            value: R$(pipeTotal),
+            icon: Layers,
+            sub: `${pipelineQtd} propostas`,
+            onClick: () => nav('kb'),
+        },
+        {
+            label: 'Conversão',
+            value: `${txConv}%`,
+            icon: Target,
+            sub: `${aprovados} aprovados`,
+            onClick: () => nav('kb'),
+        },
+        {
+            label: 'Projetos ativos',
+            value: String(projAtivos),
+            icon: Briefcase,
+            sub: data?.producao_resumo?.projetos_atrasados > 0
+                ? `${data.producao_resumo.projetos_atrasados} atrasado${data.producao_resumo.projetos_atrasados > 1 ? 's' : ''}`
+                : 'todos no prazo',
+            onClick: () => nav('proj'),
+        },
     ];
 
     return (
-        <div className="glass-card animate-fade-up" style={{ padding: '18px 22px', marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Factory size={18} style={{ color: 'var(--primary)' }} />
-                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Produção & Expedição</span>
-                </div>
-                <button onClick={() => nav('producao_fabrica')} className="text-xs" style={{
-                    display: 'flex', alignItems: 'center', gap: 4, color: 'var(--primary)',
-                    background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 12,
-                }}>
-                    Ver detalhes <ChevronRight size={14} />
-                </button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-                {items.map((it, i) => {
-                    const I = it.icon;
-                    return (
-                        <div key={i} style={{
-                            display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                            borderRadius: 10, background: 'var(--bg-muted)',
-                        }}>
-                            <div style={{
-                                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                                background: `${it.color}12`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            }}>
-                                <I size={18} style={{ color: it.color }} />
-                            </div>
-                            <div>
-                                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{it.value}</div>
-                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{it.sub}</div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-            {data.gargalos?.length > 0 && (
-                <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {data.gargalos.map((g, i) => {
-                        const severity = g.qtd >= 8 ? { bg: 'rgba(239,68,68,0.10)', color: 'var(--danger)', pulse: true }
-                            : g.qtd >= 4 ? { bg: 'rgba(249,115,22,0.10)', color: '#f97316', pulse: false }
-                            : { bg: 'rgba(245,158,11,0.10)', color: 'var(--warning)', pulse: false };
-                        return (
-                            <span key={i} style={{
-                                fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 6,
-                                background: severity.bg, color: severity.color,
-                                animation: severity.pulse ? 'pulse 2s ease-in-out infinite' : 'none',
-                            }}>
-                                {g.etapa}: {g.qtd} pendente{g.qtd > 1 ? 's' : ''}
-                            </span>
-                        );
-                    })}
-                </div>
-            )}
-        </div>
-    );
-}
-
-// ── HeadlineMes ──────────────────────────────────────────
-function HeadlineMes({ data }) {
-    if (!data) return null;
-    const up = data.pct_variacao >= 0;
-    return (
-        <div className="glass-card animate-fade-up" style={{
-            padding: '22px 28px', marginBottom: 16,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap',
-            background: 'linear-gradient(135deg, var(--glass-bg), var(--bg-card))',
+        <div className="stagger-children" style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 14,
+            marginBottom: 20,
         }}>
-            <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
-                    Faturamento em {data.mes_atual}
-                </div>
-                <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1, color: 'var(--primary)', letterSpacing: '-0.02em' }}>
-                    {R$(data.faturamento_mes)}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-                    {data.qtd_fechados} negocio{data.qtd_fechados !== 1 ? 's' : ''} fechado{data.qtd_fechados !== 1 ? 's' : ''}
-                </div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-                <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                    padding: '4px 12px', borderRadius: 20,
-                    background: up ? 'rgba(22,163,74,0.08)' : 'rgba(220,38,38,0.08)',
-                    color: up ? 'var(--success)' : 'var(--danger)',
-                    fontWeight: 600, fontSize: 12,
-                    border: `1px solid ${up ? 'rgba(22,163,74,0.15)' : 'rgba(220,38,38,0.15)'}`,
-                }}>
-                    {up ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                    {up && '+'}{data.pct_variacao}%
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-                    vs {data.mes_anterior} ({R$(data.faturamento_anterior)})
-                </div>
-            </div>
+            {cards.map((c, i) => <KpiProCard key={i} {...c} />)}
         </div>
     );
 }
 
-// ── FilaAtencao ──────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+// QUICK ACTIONS — command bar com pills
+// ══════════════════════════════════════════════════════════════════
+function QuickActions({ nav, isVendedor }) {
+    const actions = [
+        { label: 'Novo orçamento', icon: FileText, pg: 'orcs', primary: true },
+        { label: 'Novo cliente', icon: UserIcon, pg: 'cli' },
+        ...(!isVendedor ? [{ label: 'Novo projeto', icon: Briefcase, pg: 'proj' }] : []),
+        { label: 'Pipeline CRM', icon: LayoutGrid, pg: 'kb' },
+        ...(!isVendedor ? [{ label: 'Financeiro', icon: Wallet, pg: 'financeiro' }] : []),
+        { label: 'Biblioteca', icon: Package, pg: 'cat' },
+    ];
+    return (
+        <div className="command-bar" role="toolbar" aria-label="Ações rápidas">
+            {actions.map((a, i) => {
+                const Icon = a.icon;
+                return (
+                    <button
+                        key={i}
+                        onClick={() => nav(a.pg)}
+                        className={`quick-pill ${a.primary ? 'quick-pill-primary' : ''}`}
+                    >
+                        <span className="quick-pill-icon"><Icon size={13} strokeWidth={2.4} /></span>
+                        {a.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FILA DE ATENÇÃO — cards de alerta lado a lado
+// ══════════════════════════════════════════════════════════════════
 function FilaAtencao({ data, nav }) {
     if (!data || (data.total_parados === 0 && data.total_vencidas === 0)) return null;
 
     return (
-        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
-            <div style={{
-                padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 8,
-                borderBottom: '1px solid var(--border)',
-                background: 'linear-gradient(135deg, rgba(245,158,11,0.06), transparent)',
+        <div className="chart-card-pro animate-fade-up" style={{ marginBottom: 20 }}>
+            <div className="chart-card-pro-head" style={{
+                background: 'linear-gradient(180deg, rgba(176, 120, 32, 0.06), transparent)',
             }}>
-                <AlertTriangle size={16} style={{ color: 'var(--warning)' }} />
-                <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--warning)' }}>Fila de Atencao</span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
-                    {data.total_parados > 0 && `${data.total_parados} orc. parado${data.total_parados > 1 ? 's' : ''}`}
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon" style={{
+                        background: 'rgba(176, 120, 32, 0.10)',
+                        borderColor: 'rgba(176, 120, 32, 0.25)',
+                        color: 'var(--warning)',
+                    }}>
+                        <AlertTriangle size={15} strokeWidth={2.2} />
+                    </span>
+                    <h3>Fila de atenção</h3>
+                </div>
+                <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 500 }}>
+                    {data.total_parados > 0 && `${data.total_parados} orçamento${data.total_parados > 1 ? 's' : ''} parado${data.total_parados > 1 ? 's' : ''}`}
                     {data.total_parados > 0 && data.total_vencidas > 0 && ' · '}
-                    {data.total_vencidas > 0 && `${data.total_vencidas} conta${data.total_vencidas > 1 ? 's' : ''} vencida${data.total_vencidas > 1 ? 's' : ''} (${R$(data.valor_vencido)})`}
+                    {data.total_vencidas > 0 && `${data.total_vencidas} conta${data.total_vencidas > 1 ? 's' : ''} vencida${data.total_vencidas > 1 ? 's' : ''}`}
                 </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: data.total_parados > 0 && data.total_vencidas > 0 ? '1fr 1fr' : '1fr', minHeight: 0 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: data.total_parados > 0 && data.total_vencidas > 0 ? '1fr 1fr' : '1fr' }}>
                 {data.total_parados > 0 && (
                     <div style={{ borderRight: data.total_vencidas > 0 ? '1px solid var(--border)' : 'none' }}>
-                        <div style={{ padding: '10px 16px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)' }}>
-                            <Clock size={10} style={{ display: 'inline', marginRight: 4 }} /> Orcamentos Parados ({'>'}7 dias)
+                        <div style={{ padding: '10px 22px', fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.10em', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Clock size={11} strokeWidth={2.4} /> Orçamentos parados (&gt;7 dias)
                         </div>
-                        {data.orcamentos_parados.map((o, i) => {
-                            const urgency = o.dias_parado > 14 ? { bg: 'var(--danger-bg)', color: 'var(--danger)' }
-                                : o.dias_parado >= 7 ? { bg: '#f9731618', color: '#f97316' }
-                                : { bg: 'var(--warning-bg)', color: 'var(--warning)' };
+                        {data.orcamentos_parados.slice(0, 5).map((o, i) => {
+                            const urgency = o.dias_parado > 14 ? { color: 'var(--danger)', bg: 'rgba(160,71,58,0.12)', border: 'rgba(160,71,58,0.28)' }
+                                : o.dias_parado >= 7 ? { color: 'var(--warning)', bg: 'rgba(176,120,32,0.12)', border: 'rgba(176,120,32,0.28)' }
+                                    : { color: 'var(--text-muted)', bg: 'var(--bg-muted)', border: 'var(--border)' };
                             return (
-                            <div
-                                key={o.id}
-                                onClick={() => nav('orcs')}
-                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nav('orcs'); } }}
-                                role="button"
-                                tabIndex={0}
-                                aria-label={`Orçamento de ${o.cliente_nome}, ${o.dias_parado} dias parado`}
-                                style={{
-                                    padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                                    animation: `stagger-in 0.25s ease ${i * 40}ms both`,
-                                    background: `linear-gradient(90deg, ${urgency.color}0a, transparent 30%)`,
-                                }}
-                                className="hover:bg-[var(--bg-hover)] transition-colors">
-                                <div style={{ minWidth: 0 }}>
-                                    <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.cliente_nome}</div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{o.ambiente || '—'} · {R$(o.valor_venda)}</div>
+                                <div
+                                    key={o.id}
+                                    onClick={() => nav('orcs')}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nav('orcs'); } }}
+                                    role="button" tabIndex={0}
+                                    aria-label={`Orçamento de ${o.cliente_nome}, ${o.dias_parado} dias parado`}
+                                    style={{
+                                        padding: '12px 22px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                                        animation: `stagger-in 0.25s ease ${i * 40}ms both`,
+                                        transition: 'background 150ms var(--ease-out)',
+                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-subtle)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+                                >
+                                    <div style={{ minWidth: 0 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>{o.cliente_nome}</div>
+                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{o.ambiente || '—'} · <span className="font-tabular">{R$(o.valor_venda)}</span></div>
+                                    </div>
+                                    <span style={{
+                                        fontSize: 10.5, fontWeight: 700, padding: '4px 10px', borderRadius: 99,
+                                        background: urgency.bg, color: urgency.color,
+                                        border: `1px solid ${urgency.border}`,
+                                        whiteSpace: 'nowrap', flexShrink: 0,
+                                        fontVariantNumeric: 'tabular-nums',
+                                    }}>{o.dias_parado}d</span>
                                 </div>
-                                <span style={{
-                                    fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
-                                    background: urgency.bg, color: urgency.color,
-                                    whiteSpace: 'nowrap', flexShrink: 0,
-                                }}>{o.dias_parado}d</span>
-                            </div>
                             );
                         })}
                     </div>
@@ -205,30 +330,32 @@ function FilaAtencao({ data, nav }) {
 
                 {data.total_vencidas > 0 && (
                     <div>
-                        <div style={{ padding: '10px 16px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)' }}>
-                            <XCircle size={10} style={{ display: 'inline', marginRight: 4, color: 'var(--danger)' }} /> Contas Vencidas
+                        <div style={{ padding: '10px 22px', fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.10em', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <XCircle size={11} strokeWidth={2.4} style={{ color: 'var(--danger)' }} /> Contas vencidas · <span className="font-tabular" style={{ color: 'var(--danger)' }}>{R$(data.valor_vencido)}</span>
                         </div>
-                        {data.contas_vencidas.map((c, i) => (
+                        {data.contas_vencidas.slice(0, 5).map((c, i) => (
                             <div
                                 key={c.id}
                                 onClick={() => nav('financeiro')}
                                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nav('financeiro'); } }}
-                                role="button"
-                                tabIndex={0}
+                                role="button" tabIndex={0}
                                 aria-label={`Conta vencida: ${c.descricao}, ${c.dias_atraso} dias atraso, ${R$(c.valor)}`}
                                 style={{
-                                    padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                                    padding: '12px 22px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
                                     animation: `stagger-in 0.25s ease ${i * 40}ms both`,
+                                    transition: 'background 150ms var(--ease-out)',
                                 }}
-                                className="hover:bg-[var(--bg-hover)] transition-colors">
+                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-subtle)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+                            >
                                 <div style={{ minWidth: 0 }}>
-                                    <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.descricao}</div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.projeto_nome}</div>
+                                    <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>{c.descricao}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{c.projeto_nome}</div>
                                 </div>
                                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--danger)' }}>{R$(c.valor)}</div>
-                                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{c.dias_atraso}d atraso</div>
+                                    <div className="font-display font-tabular" style={{ fontSize: 14, fontWeight: 700, color: 'var(--danger)', letterSpacing: '-0.02em' }}>{R$(c.valor)}</div>
+                                    <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 2 }}>{c.dias_atraso}d atraso</div>
                                 </div>
                             </div>
                         ))}
@@ -239,150 +366,73 @@ function FilaAtencao({ data, nav }) {
     );
 }
 
-// ── PipelineVisual (Funil de Vendas) ─────────────────────
-function PipelineVisual({ data, total, nav }) {
-    if (!data || data.length === 0) return null;
-    const totalQtd = data.reduce((s, d) => s + d.qtd, 0);
-    const firstQtd = data[0]?.qtd || 1;
-
-    return (
-        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
-            <SectionHeader icon={PieChart} title="Funil de Vendas">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{totalQtd} propostas</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)' }}>{R$(total)}</span>
-                </div>
-            </SectionHeader>
-            <div style={{ padding: '16px 20px' }}>
-                {data.map((s, i) => {
-                    const funnelPct = firstQtd > 0 ? Math.max((s.qtd / firstQtd) * 100, s.qtd > 0 ? 15 : 5) : 5;
-                    return (
-                        <div key={s.id} style={{ animation: `stagger-in 0.35s ease ${i * 60}ms both` }}>
-                            <div onClick={() => nav('kb')}
-                                style={{
-                                    display: 'flex', alignItems: 'center', cursor: 'pointer',
-                                    padding: '10px 14px', borderRadius: 10, marginBottom: 2, position: 'relative', overflow: 'hidden',
-                                    background: `linear-gradient(90deg, ${s.cor}08, transparent ${funnelPct}%)`,
-                                    transition: 'all 0.2s',
-                                }}
-                                className="hover:opacity-80 transition-opacity">
-                                <div style={{
-                                    position: 'absolute', left: 0, top: 0, bottom: 0,
-                                    width: `${funnelPct}%`, borderRadius: 10,
-                                    background: `linear-gradient(90deg, ${s.cor}10, ${s.cor}05)`,
-                                    animation: 'chartSlideRight 0.6s ease 0.1s both',
-                                    transformOrigin: 'left',
-                                }} />
-                                <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                                    background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    position: 'relative', zIndex: 1,
-                                }}>
-                                    <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)' }}>{s.qtd}</span>
-                                </div>
-                                <div style={{ marginLeft: 12, flex: 1, position: 'relative', zIndex: 1 }}>
-                                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{s.nome}</div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{R$(s.valor)}</div>
-                                </div>
-                                <div style={{ position: 'relative', zIndex: 1, textAlign: 'right' }}>
-                                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                                        {total > 0 ? ((s.valor / total) * 100).toFixed(0) : 0}%
-                                    </div>
-                                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>do total</div>
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-            {data.length >= 2 && (
-                <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                    {(() => {
-                        const leads = data[0]?.qtd || 0;
-                        const aprovados = data.find(d => d.id === 'ok')?.qtd || 0;
-                        const txConv = leads > 0 ? ((aprovados / leads) * 100).toFixed(1) : '0';
-                        const ticketMedio = totalQtd > 0 ? total / totalQtd : 0;
-                        return (<>
-                            <div style={{ flex: 1, minWidth: 100, textAlign: 'center' }}>
-                                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>{txConv}%</div>
-                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Taxa de Conversao</div>
-                            </div>
-                            <div style={{ flex: 1, minWidth: 100, textAlign: 'center' }}>
-                                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--primary)' }}>{R$(ticketMedio)}</div>
-                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Ticket Medio</div>
-                            </div>
-                            <div style={{ flex: 1, minWidth: 100, textAlign: 'center' }}>
-                                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>{totalQtd}</div>
-                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Total no Pipeline</div>
-                            </div>
-                        </>);
-                    })()}
-                </div>
-            )}
-        </div>
-    );
-}
-
-// ── FluxoCaixa ───────────────────────────────────────────
-function FluxoCaixa({ data }) {
+// ══════════════════════════════════════════════════════════════════
+// PRODUÇÃO RESUME — stat tiles com ícone accent
+// ══════════════════════════════════════════════════════════════════
+function ProducaoResume({ data, nav }) {
     if (!data) return null;
     const items = [
-        { label: 'Recebido este mes', value: data.recebido_mes, color: 'var(--success)', icon: CheckCircle2 },
-        { label: 'A receber (30d)', value: data.entradas_30d, color: 'var(--text-secondary)', icon: Calendar },
-        { label: 'A receber (60d)', value: data.entradas_60d, color: 'var(--text-muted)', icon: Calendar },
-        { label: 'Vencido (a receber)', value: data.entradas_vencidas, color: 'var(--danger)', icon: AlertTriangle },
+        { icon: Factory, label: 'Em produção', value: data.projetos_ativos, color: 'var(--primary)', sub: data.projetos_atrasados > 0 ? `${data.projetos_atrasados} atrasado${data.projetos_atrasados > 1 ? 's' : ''}` : 'no prazo' },
+        { icon: Clock, label: 'Horas/semana', value: `${data.horas_semana}h`, color: 'var(--accent)', sub: 'apontadas' },
+        { icon: Truck, label: 'Entregas', value: data.entregas_semana, color: 'var(--warning)', sub: 'esta semana' },
+        { icon: Wrench, label: 'Instalações', value: data.instalacoes_semana, color: 'var(--success)', sub: 'esta semana' },
     ];
-    const maxVal = Math.max(...items.map(i => i.value), 1);
 
     return (
-        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
-            <SectionHeader icon={Wallet} title="Fluxo de Caixa" />
-            <div style={{ padding: '14px 20px' }}>
-                {items.map((it, i) => {
-                    const Icon = it.icon;
-                    const pct = Math.max((it.value / maxVal) * 100, it.value > 0 ? 4 : 0);
-                    return (
-                        <div key={i} style={{ marginBottom: i < items.length - 1 ? 14 : 0, animation: `stagger-in 0.35s ease ${i * 70}ms both` }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-                                <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                                    <Icon size={12} style={{ color: it.color }} /> {it.label}
-                                </span>
-                                <span style={{ fontSize: 13, fontWeight: 700, color: it.color }}>{R$(it.value)}</span>
-                            </div>
-                            <div
-                                role="progressbar"
-                                aria-label={it.label}
-                                aria-valuenow={Math.round(pct)}
-                                aria-valuemin={0}
-                                aria-valuemax={100}
-                                style={{ background: 'var(--bg-muted)', borderRadius: 99, height: 8, overflow: 'hidden' }}
-                            >
+        <div className="chart-card-pro animate-fade-up" style={{ marginBottom: 20 }}>
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon"><Factory size={15} strokeWidth={2.2} /></span>
+                    <h3>Produção &amp; Expedição</h3>
+                </div>
+                <button onClick={() => nav('producao_fabrica')} className="btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }}>
+                    Ver detalhes <ChevronRight size={14} />
+                </button>
+            </div>
+            <div className="chart-card-pro-body">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
+                    {items.map((it, i) => {
+                        const I = it.icon;
+                        return (
+                            <div key={i} className="hover-lift" style={{
+                                display: 'flex', alignItems: 'center', gap: 12,
+                                padding: '14px 16px', borderRadius: 12,
+                                background: 'var(--bg-subtle)',
+                                border: '1px solid var(--border)',
+                                animation: `stagger-in 0.3s ease ${i * 50}ms both`,
+                            }}>
                                 <div style={{
-                                    width: `${pct}%`, height: '100%', borderRadius: 99,
-                                    background: it.color,
-                                    transformOrigin: 'left',
-                                    animation: `chartSlideRight 0.5s ease ${i * 70 + 100}ms both`,
-                                }} />
-                            </div>
-                        </div>
-                    );
-                })}
-
-                {(data.saidas_30d > 0 || data.saidas_vencidas > 0 || data.pago_mes > 0) && (
-                    <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.05em' }}>Saidas (Contas a Pagar)</div>
-                        {[
-                            { label: 'Pago este mes', value: data.pago_mes, color: 'var(--text-muted)', icon: CheckCircle2 },
-                            { label: 'A pagar (30d)', value: data.saidas_30d, color: 'var(--text-secondary)', icon: Calendar },
-                            { label: 'Vencido (a pagar)', value: data.saidas_vencidas, color: 'var(--danger)', icon: AlertTriangle },
-                        ].filter(it => it.value > 0).map((it, i) => {
-                            const Icon = it.icon;
-                            return (
-                                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, animation: `stagger-in 0.3s ease ${i * 60 + 300}ms both` }}>
-                                    <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                                        <Icon size={12} style={{ color: it.color }} /> {it.label}
-                                    </span>
-                                    <span style={{ fontSize: 13, fontWeight: 700, color: it.color }}>{R$(it.value)}</span>
+                                    width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+                                    background: `${it.color}14`,
+                                    border: `1px solid ${it.color}22`,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    boxShadow: `inset 0 1px 0 rgba(255,255,255,0.4), 0 2px 8px ${it.color}18`,
+                                }}>
+                                    <I size={20} style={{ color: it.color }} strokeWidth={2.2} />
                                 </div>
+                                <div>
+                                    <div className="font-display font-tabular" style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1, letterSpacing: '-0.025em' }}>{it.value}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontWeight: 500 }}>{it.label} · {it.sub}</div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+                {data.gargalos?.length > 0 && (
+                    <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {data.gargalos.map((g, i) => {
+                            const severity = g.qtd >= 8 ? { bg: 'rgba(160,71,58,0.10)', color: 'var(--danger)', border: 'rgba(160,71,58,0.25)', pulse: true }
+                                : g.qtd >= 4 ? { bg: 'rgba(176,120,32,0.10)', color: 'var(--warning)', border: 'rgba(176,120,32,0.25)', pulse: false }
+                                    : { bg: 'rgba(176,120,32,0.06)', color: 'var(--warning)', border: 'rgba(176,120,32,0.15)', pulse: false };
+                            return (
+                                <span key={i} style={{
+                                    fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 99,
+                                    background: severity.bg, color: severity.color,
+                                    border: `1px solid ${severity.border}`,
+                                    animation: severity.pulse ? 'pulse 2s ease-in-out infinite' : 'none',
+                                }}>
+                                    {g.etapa}: {g.qtd}
+                                </span>
                             );
                         })}
                     </div>
@@ -392,46 +442,237 @@ function FluxoCaixa({ data }) {
     );
 }
 
-// ── ProjetosAtivos ───────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+// PIPELINE VISUAL — funil horizontal premium
+// ══════════════════════════════════════════════════════════════════
+function PipelineVisual({ data, total, nav }) {
+    if (!data || data.length === 0) return null;
+    const totalQtd = data.reduce((s, d) => s + d.qtd, 0);
+    const firstQtd = data[0]?.qtd || 1;
+    const aprovados = data.find(d => d.id === 'ok')?.qtd || 0;
+    const txConv = totalQtd > 0 ? ((aprovados / totalQtd) * 100).toFixed(1) : '0';
+    const ticketMedio = totalQtd > 0 ? total / totalQtd : 0;
+
+    return (
+        <div className="chart-card-pro animate-fade-up">
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon"><LayoutGrid size={15} strokeWidth={2.2} /></span>
+                    <h3>Funil de vendas</h3>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 500 }}>{totalQtd} propostas</span>
+                    <span className="font-display font-tabular" style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{R$(total)}</span>
+                </div>
+            </div>
+            <div className="chart-card-pro-body" style={{ paddingTop: 8 }}>
+                {data.map((s, i) => {
+                    const funnelPct = firstQtd > 0 ? Math.max((s.qtd / firstQtd) * 100, s.qtd > 0 ? 6 : 2) : 2;
+                    const pctTotal = total > 0 ? ((s.valor / total) * 100).toFixed(0) : 0;
+                    return (
+                        <div key={s.id} className="funnel-row" onClick={() => nav('kb')}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nav('kb'); } }}
+                            role="button" tabIndex={0}
+                            style={{ animation: `stagger-in 0.35s ease ${i * 60}ms both` }}
+                            aria-label={`${s.nome}: ${s.qtd} propostas, ${R$(s.valor)}`}
+                        >
+                            <div className="funnel-row-count">{s.qtd}</div>
+                            <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'baseline' }}>
+                                    <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.005em' }}>{s.nome}</span>
+                                    <span className="font-tabular" style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>{R$(s.valor)}</span>
+                                </div>
+                                <div className="funnel-row-bar">
+                                    <div className="funnel-row-bar-fill" style={{
+                                        width: `${funnelPct}%`,
+                                        background: `linear-gradient(90deg, ${s.cor}, ${s.cor}cc)`,
+                                        animationDelay: `${i * 60 + 100}ms`,
+                                    }} />
+                                </div>
+                            </div>
+                            <div style={{ textAlign: 'right', minWidth: 42 }}>
+                                <div className="font-tabular" style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>{pctTotal}%</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>do total</div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            <div style={{
+                padding: '14px 12px', borderTop: '1px solid var(--border)',
+                display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8,
+                background: 'var(--bg-subtle)',
+            }}>
+                <div style={{ textAlign: 'center' }}>
+                    <div className="font-display font-tabular" style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.025em' }}>{txConv}%</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', marginTop: 2 }}>Conversão</div>
+                </div>
+                <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}>
+                    <div className="font-display font-tabular" style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)', letterSpacing: '-0.025em' }}>{R$(ticketMedio)}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', marginTop: 2 }}>Ticket médio</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                    <div className="font-display font-tabular" style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.025em' }}>{totalQtd}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', marginTop: 2 }}>Total</div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FLUXO DE CAIXA — segmented bar + stat list
+// ══════════════════════════════════════════════════════════════════
+function FluxoCaixa({ data }) {
+    if (!data) return null;
+    const totalEntradas = (data.recebido_mes || 0) + (data.entradas_30d || 0) + (data.entradas_vencidas || 0);
+    const totalSaidas = (data.pago_mes || 0) + (data.saidas_30d || 0) + (data.saidas_vencidas || 0);
+    const saldoMes = (data.recebido_mes || 0) - (data.pago_mes || 0);
+    const totalFlux = Math.max(totalEntradas + totalSaidas, 1);
+    const pctEntrada = (totalEntradas / totalFlux) * 100;
+    const pctSaida = (totalSaidas / totalFlux) * 100;
+
+    const entradas = [
+        { label: 'Recebido no mês', value: data.recebido_mes || 0, color: 'var(--success)', icon: CheckCircle2 },
+        { label: 'A receber (30d)', value: data.entradas_30d || 0, color: 'var(--primary)', icon: Calendar },
+        { label: 'A receber (60d)', value: data.entradas_60d || 0, color: 'var(--text-muted)', icon: Calendar },
+        ...(data.entradas_vencidas > 0 ? [{ label: 'Vencido a receber', value: data.entradas_vencidas, color: 'var(--danger)', icon: AlertTriangle }] : []),
+    ];
+    const saidas = [
+        ...(data.pago_mes > 0 ? [{ label: 'Pago no mês', value: data.pago_mes, color: 'var(--text-muted)', icon: CheckCircle2 }] : []),
+        ...(data.saidas_30d > 0 ? [{ label: 'A pagar (30d)', value: data.saidas_30d, color: 'var(--text-secondary)', icon: Calendar }] : []),
+        ...(data.saidas_vencidas > 0 ? [{ label: 'Vencido a pagar', value: data.saidas_vencidas, color: 'var(--danger)', icon: AlertTriangle }] : []),
+    ];
+
+    return (
+        <div className="chart-card-pro animate-fade-up">
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon"><Wallet size={15} strokeWidth={2.2} /></span>
+                    <h3>Fluxo de caixa</h3>
+                </div>
+                <span className={`trend-chip ${saldoMes >= 0 ? 'trend-up' : 'trend-down'}`}>
+                    {saldoMes >= 0 ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
+                    Saldo mês: {R$(saldoMes)}
+                </span>
+            </div>
+            <div className="chart-card-pro-body">
+                {/* Segmented bar */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 11, fontWeight: 600 }}>
+                    <span style={{ color: 'var(--success)' }}>
+                        <ArrowUpRight size={11} style={{ display: 'inline', marginRight: 3, verticalAlign: 'middle' }} />
+                        Entradas · <span className="font-tabular">{R$(totalEntradas)}</span>
+                    </span>
+                    <span style={{ color: 'var(--danger)' }}>
+                        Saídas · <span className="font-tabular">{R$(totalSaidas)}</span>
+                        <ArrowDownRight size={11} style={{ display: 'inline', marginLeft: 3, verticalAlign: 'middle' }} />
+                    </span>
+                </div>
+                <div className="segmented-bar" style={{ marginBottom: 18 }}>
+                    <span style={{ width: `${pctEntrada}%`, background: 'linear-gradient(90deg, #7A9F5E, #5C7B43)' }} />
+                    <span style={{ width: `${pctSaida}%`, background: 'linear-gradient(90deg, #A0473A, #8A3C30)', animationDelay: '150ms' }} />
+                </div>
+
+                {/* Entradas list */}
+                <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.10em', textTransform: 'uppercase', marginBottom: 8 }}>Entradas</div>
+                    <div className="stat-bar-mini">
+                        {entradas.map((it, i) => {
+                            const Icon = it.icon;
+                            return (
+                                <div key={i} className="stat-bar-mini-row" style={{ animation: `stagger-in 0.3s ease ${i * 50}ms both` }}>
+                                    <span className="stat-bar-mini-label">
+                                        <Icon size={12} style={{ color: it.color }} strokeWidth={2.4} /> {it.label}
+                                    </span>
+                                    <span className="stat-bar-mini-value" style={{ color: it.color }}>{R$(it.value)}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Saidas list */}
+                {saidas.length > 0 && (
+                    <div style={{ paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.10em', textTransform: 'uppercase', marginBottom: 8 }}>Saídas</div>
+                        <div className="stat-bar-mini">
+                            {saidas.map((it, i) => {
+                                const Icon = it.icon;
+                                return (
+                                    <div key={i} className="stat-bar-mini-row" style={{ animation: `stagger-in 0.3s ease ${i * 50 + 200}ms both` }}>
+                                        <span className="stat-bar-mini-label">
+                                            <Icon size={12} style={{ color: it.color }} strokeWidth={2.4} /> {it.label}
+                                        </span>
+                                        <span className="stat-bar-mini-value" style={{ color: it.color }}>{R$(it.value)}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PROJETOS ATIVOS — grid de cards premium
+// ══════════════════════════════════════════════════════════════════
 function ProjetosAtivos({ data, total, nav }) {
     if (!data || data.length === 0) {
         return (
-            <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
-                <SectionHeader icon={Briefcase} title="Projetos Ativos" />
-                <EmptyState icon={Briefcase} msg="Nenhum projeto ativo" cta="Ver projetos" onClick={() => nav('proj')} />
+            <div className="chart-card-pro" style={{ marginBottom: 20 }}>
+                <div className="chart-card-pro-head">
+                    <div className="chart-card-pro-title">
+                        <span className="kpi-pro-icon"><Briefcase size={15} strokeWidth={2.2} /></span>
+                        <h3>Projetos ativos</h3>
+                    </div>
+                </div>
+                <div style={{ padding: '40px 22px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <p style={{ fontSize: 13 }}>Nenhum projeto ativo</p>
+                    <button onClick={() => nav('proj')} className="btn-ghost" style={{ marginTop: 12 }}>
+                        <Plus size={14} /> Ver projetos
+                    </button>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
-            <SectionHeader icon={Briefcase} title={<>Projetos Ativos <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>({total})</span></>}>
-                <button onClick={() => nav('proj')} className={`${Z.btn2} text-xs py-1.5 px-3`}>Ver todos</button>
-            </SectionHeader>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 0 }}>
+        <div className="chart-card-pro animate-fade-up" style={{ marginBottom: 20 }}>
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon"><Briefcase size={15} strokeWidth={2.2} /></span>
+                    <h3>Projetos ativos <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 6 }}>({total})</span></h3>
+                </div>
+                <button onClick={() => nav('proj')} className="btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }}>
+                    Ver todos <ChevronRight size={14} />
+                </button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
                 {data.map((p, idx) => {
-                    const color = (STATUS_PROJ[p.status]?.color || 'var(--muted)');
+                    const color = STATUS_PROJ[p.status]?.color || 'var(--muted)';
                     const pct = p.progresso_pct || 0;
-                    const diasLabel = p.dias_restantes > 0
-                        ? `${p.dias_restantes}d restantes`
+                    const diasLabel = p.dias_restantes > 0 ? `${p.dias_restantes}d restantes`
                         : p.dias_restantes === 0 ? 'Vence hoje'
-                        : `${Math.abs(p.dias_restantes)}d atrasado`;
+                            : `${Math.abs(p.dias_restantes)}d atrasado`;
                     const diasColor = p.dias_restantes < 0 ? 'var(--danger)' : p.dias_restantes <= 7 ? 'var(--warning)' : 'var(--text-muted)';
 
                     return (
-                        <div key={p.id} onClick={() => nav('proj')}
+                        <div
+                            key={p.id}
+                            onClick={() => nav('proj')}
+                            className="project-card-pro"
                             style={{
-                                padding: '14px 20px', borderBottom: '1px solid var(--border)', borderRight: '1px solid var(--border)', cursor: 'pointer',
+                                '--status-color': color,
                                 animation: `stagger-in 0.3s ease ${idx * 50}ms both`,
-                                transition: 'background 0.15s',
                             }}
-                            className="hover:bg-[var(--bg-hover)]">
-
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
                                 <div style={{ minWidth: 0, flex: 1 }}>
-                                    <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome}</div>
+                                    <div className="font-display" style={{ fontSize: 13.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.015em', color: 'var(--text-primary)' }}>{p.nome}</div>
                                     {p.cliente_nome && (
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
                                             <UserIcon size={10} /> {p.cliente_nome}
                                         </div>
                                     )}
@@ -439,7 +680,7 @@ function ProjetosAtivos({ data, total, nav }) {
                                 <Badge label={STATUS_PROJ[p.status]?.label || p.status} color={color} />
                             </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                                 <div style={{ flex: 1, background: 'var(--bg-muted)', borderRadius: 99, height: 6, overflow: 'hidden' }}>
                                     <div style={{
                                         width: `${pct}%`, height: '100%', borderRadius: 99,
@@ -448,36 +689,36 @@ function ProjetosAtivos({ data, total, nav }) {
                                         animation: 'chartSlideRight 0.6s ease 0.1s both',
                                     }} />
                                 </div>
-                                <span style={{ fontSize: 11, fontWeight: 600, color, minWidth: 32, textAlign: 'right' }}>{pct}%</span>
+                                <span className="font-tabular" style={{ fontSize: 11.5, fontWeight: 700, color, minWidth: 34, textAlign: 'right' }}>{pct}%</span>
                             </div>
 
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                                <div style={{ display: 'flex', gap: 12 }}>
-                                    <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>
-                                        <DollarSign size={10} style={{ display: 'inline', marginRight: 2 }} />
+                                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                                    <span className="font-tabular" style={{ fontSize: 11.5, color: 'var(--success)', fontWeight: 600 }}>
+                                        <DollarSign size={11} style={{ display: 'inline', marginRight: 2, verticalAlign: '-1px' }} strokeWidth={2.4} />
                                         {R$(p.recebido)}
                                     </span>
                                     {p.pendente > 0 && (
-                                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                        <span className="font-tabular" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                                             pendente: {R$(p.pendente)}
                                         </span>
                                     )}
                                 </div>
-                                <span style={{ fontSize: 10, color: diasColor, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                <span style={{ fontSize: 10.5, color: diasColor, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
                                     <Calendar size={10} /> {diasLabel}
                                 </span>
                             </div>
 
                             {(p.ocorrencias_abertas > 0 || p.contas_vencidas > 0) && (
-                                <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+                                <div style={{ display: 'flex', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
                                     {p.ocorrencias_abertas > 0 && (
-                                        <span style={{ fontSize: 10, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 3 }}>
-                                            <AlertTriangle size={10} /> {p.ocorrencias_abertas} ocorrencia{p.ocorrencias_abertas > 1 ? 's' : ''}
+                                        <span style={{ fontSize: 10.5, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 3, fontWeight: 600 }}>
+                                            <AlertTriangle size={11} /> {p.ocorrencias_abertas} ocorrência{p.ocorrencias_abertas > 1 ? 's' : ''}
                                         </span>
                                     )}
                                     {p.contas_vencidas > 0 && (
-                                        <span style={{ fontSize: 10, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 3 }}>
-                                            <XCircle size={10} /> {p.contas_vencidas} conta{p.contas_vencidas > 1 ? 's' : ''} vencida{p.contas_vencidas > 1 ? 's' : ''}
+                                        <span style={{ fontSize: 10.5, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 3, fontWeight: 600 }}>
+                                            <XCircle size={11} /> {p.contas_vencidas} conta{p.contas_vencidas > 1 ? 's' : ''} vencida{p.contas_vencidas > 1 ? 's' : ''}
                                         </span>
                                     )}
                                 </div>
@@ -490,52 +731,70 @@ function ProjetosAtivos({ data, total, nav }) {
     );
 }
 
-// ── TimelineRecente ────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+// TIMELINE — activity feed com avatar pro
+// ══════════════════════════════════════════════════════════════════
 const ACAO_CONFIG = {
-    criar:               { icon: Plus,      color: 'var(--primary)', label: 'Criou' },
-    aprovar:             { icon: Check,     color: 'var(--success)', label: 'Aprovou' },
-    mover_pipeline:      { icon: ArrowRight,color: 'var(--primary)', label: 'Moveu' },
-    atualizar_status:    { icon: Activity,  color: 'var(--primary)', label: 'Status' },
-    editar:              { icon: Edit3,     color: 'var(--primary)', label: 'Editou' },
-    pagar:               { icon: DollarSign,color: 'var(--success)', label: 'Pagou' },
-    receber_pagamento:   { icon: DollarSign,color: 'var(--success)', label: 'Recebeu' },
-    registrar_despesa:   { icon: DollarSign,color: 'var(--text-muted)', label: 'Despesa' },
-    criar_conta_pagar:   { icon: DollarSign,color: 'var(--text-muted)', label: 'Conta' },
-    consumir_material:   { icon: Briefcase, color: 'var(--text-muted)', label: 'Consumo' },
-    entrada_estoque:     { icon: Plus,      color: 'var(--primary)', label: 'Entrada' },
-    excluir_movimentacao:{ icon: Trash2,    color: 'var(--text-muted)', label: 'Excluiu' },
+    criar: { icon: Plus, color: 'var(--primary)', label: 'Criou' },
+    aprovar: { icon: Check, color: 'var(--success)', label: 'Aprovou' },
+    mover_pipeline: { icon: ArrowRight, color: 'var(--primary)', label: 'Moveu' },
+    atualizar_status: { icon: Activity, color: 'var(--primary)', label: 'Status' },
+    editar: { icon: Edit3, color: 'var(--primary)', label: 'Editou' },
+    pagar: { icon: DollarSign, color: 'var(--success)', label: 'Pagou' },
+    receber_pagamento: { icon: DollarSign, color: 'var(--success)', label: 'Recebeu' },
+    registrar_despesa: { icon: DollarSign, color: 'var(--text-muted)', label: 'Despesa' },
+    criar_conta_pagar: { icon: DollarSign, color: 'var(--text-muted)', label: 'Conta' },
+    consumir_material: { icon: Briefcase, color: 'var(--text-muted)', label: 'Consumo' },
+    entrada_estoque: { icon: Plus, color: 'var(--primary)', label: 'Entrada' },
+    excluir_movimentacao: { icon: Trash2, color: 'var(--text-muted)', label: 'Excluiu' },
 };
 
 function tempoRelativo(dateStr) {
     if (!dateStr) return '';
     const diff = Date.now() - new Date(dateStr).getTime();
     const min = Math.floor(diff / 60000);
-    if (min < 1) return 'Agora';
-    if (min < 60) return `Ha ${min}min`;
+    if (min < 1) return 'agora';
+    if (min < 60) return `${min}min`;
     const hrs = Math.floor(min / 60);
-    if (hrs < 24) return `Ha ${hrs}h`;
+    if (hrs < 24) return `${hrs}h`;
     const dias = Math.floor(hrs / 24);
-    if (dias === 1) return 'Ontem';
-    if (dias < 30) return `Ha ${dias}d`;
+    if (dias === 1) return 'ontem';
+    if (dias < 30) return `${dias}d`;
     return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 
 function TimelineRecente({ data, nav }) {
     if (!data || data.length === 0) return (
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
-            <SectionHeader icon={Activity} title="Atividade Recente" />
-            <EmptyState icon={Activity} msg="Nenhuma atividade registrada ainda" />
+        <div className="chart-card-pro">
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon"><Activity size={15} strokeWidth={2.2} /></span>
+                    <h3>Atividade recente</h3>
+                </div>
+            </div>
+            <div style={{ padding: '36px 22px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                Nenhuma atividade registrada ainda
+            </div>
         </div>
     );
 
     return (
-        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
-            <SectionHeader icon={Activity} title="Atividade Recente" />
-            <div style={{ padding: '4px 0' }}>
+        <div className="chart-card-pro animate-fade-up">
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon"><Activity size={15} strokeWidth={2.2} /></span>
+                    <h3>Atividade recente</h3>
+                </div>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
+                    <span className="live-dot" /> Live
+                </span>
+            </div>
+            <div style={{ padding: '6px 0' }}>
                 {data.map((ev, i) => {
-                    const cfg = ACAO_CONFIG[ev.acao] || { icon: Activity, color: 'var(--primary)', label: ev.acao };
+                    const cfg = ACAO_CONFIG[ev.acao] || { icon: Activity, color: 'var(--text-muted)', label: ev.acao };
                     const Icon = cfg.icon;
                     const inicial = (ev.user_nome || '?')[0].toUpperCase();
+                    const isAccent = i === 0;
 
                     const clickTarget = () => {
                         if (ev.referencia_tipo === 'orcamento') nav('orcs');
@@ -545,38 +804,41 @@ function TimelineRecente({ data, nav }) {
                     };
 
                     return (
-                        <div key={ev.id || `${ev.acao}-${i}`} onClick={clickTarget}
+                        <div key={ev.id || `${ev.acao}-${i}`}
+                            onClick={clickTarget}
+                            role="button" tabIndex={0}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); clickTarget(); } }}
                             style={{
-                                display: 'flex', alignItems: 'center', gap: 12,
-                                padding: '10px 20px', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', gap: 14,
+                                padding: '12px 22px', cursor: 'pointer',
                                 borderBottom: i < data.length - 1 ? '1px solid var(--border)' : 'none',
                                 animation: `stagger-in 0.25s ease ${i * 30}ms both`,
-                                transition: 'background 0.15s',
+                                transition: 'background 150ms var(--ease-out)',
                             }}
-                            className="hover:bg-[var(--bg-hover)]">
-                            <div style={{
-                                width: 32, height: 32, borderRadius: '50%',
-                                background: 'var(--primary-alpha)', color: 'var(--primary)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                                fontSize: 13, fontWeight: 800,
-                            }}>
+                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-subtle)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+                        >
+                            <div className={`activity-avatar ${isAccent ? 'activity-avatar-accent' : ''}`}>
                                 {inicial}
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4, color: 'var(--text-primary)' }}>
                                     {ev.descricao}
                                 </div>
-                                <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 }}>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
                                     <span style={{
-                                        fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 8,
-                                        background: 'var(--bg-muted)', color: 'var(--text-muted)',
+                                        fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99,
+                                        background: `${cfg.color}14`,
+                                        color: cfg.color,
+                                        border: `1px solid ${cfg.color}22`,
+                                        letterSpacing: '0.02em',
                                     }}>{cfg.label}</span>
                                     <span>{ev.user_nome}</span>
-                                    <span style={{ opacity: 0.4 }}>·</span>
+                                    <span style={{ opacity: 0.35 }}>·</span>
                                     <span>{tempoRelativo(ev.criado_em)}</span>
                                 </div>
                             </div>
-                            <Icon size={14} style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.4 }} />
+                            <Icon size={14} style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.45 }} strokeWidth={2.2} />
                         </div>
                     );
                 })}
@@ -585,69 +847,84 @@ function TimelineRecente({ data, nav }) {
     );
 }
 
-// ═══════════════════════════════════════════════════════════
-// DASHBOARD FINANCEIRO
-// ═══════════════════════════════════════════════════════════
-
+// ══════════════════════════════════════════════════════════════════
+// TAB FINANCEIRO
+// ══════════════════════════════════════════════════════════════════
 function FinanceiroKPI({ data }) {
     if (!data) return null;
+    const lucro = data.lucro_mes || 0;
+    const margem = data.margem_pct || 0;
     const cards = [
-        { label: 'Receita do Mes', value: R$(data.receita_mes), icon: ArrowUpRight },
-        { label: 'Despesas do Mes', value: R$(data.despesa_mes), icon: ArrowDownRight },
-        { label: 'Lucro do Mes', value: R$(data.lucro_mes), icon: DollarSign },
-        { label: 'Margem', value: `${data.margem_pct}%`, icon: PieChart },
+        { label: 'Receita do mês', value: R$(data.receita_mes), icon: ArrowUpRight },
+        { label: 'Despesas do mês', value: R$(data.despesa_mes), icon: ArrowDownRight },
+        { label: 'Lucro do mês', value: R$(lucro), icon: DollarSign, trend: lucro >= 0 ? Math.abs(margem) : -Math.abs(margem) },
+        { label: 'Margem', value: `${margem}%`, icon: Target },
     ];
 
     return (
-        <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
-            {cards.map((c, i) => (
-                <KpiCard key={i} label={c.label} value={c.value} icon={c.icon} />
-            ))}
+        <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 20 }}>
+            {cards.map((c, i) => <KpiProCard key={i} {...c} />)}
         </div>
     );
 }
 
-function GraficoBarras6Meses({ data }) {
+// Simple SVG area chart for revenue vs expense (6 months)
+function GraficoAreaSix({ data }) {
     if (!data || data.length === 0) return null;
+    const W = 100, H = 100;
     const maxVal = Math.max(...data.map(d => Math.max(d.receita, d.despesa)), 1);
+    const xStep = W / Math.max(data.length - 1, 1);
+    const toY = v => H - (v / maxVal) * H;
+    const toX = i => i * xStep;
+
+    const rPath = data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toY(d.receita)}`).join(' ');
+    const rArea = `${rPath} L ${toX(data.length - 1)} ${H} L 0 ${H} Z`;
+    const dPath = data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toY(d.despesa)}`).join(' ');
 
     return (
-        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
-            <SectionHeader icon={BarChart3} title="Receita vs Despesas (6 meses)">
-                <div style={{ display: 'flex', gap: 12, fontSize: 10, fontWeight: 600 }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 3, background: 'var(--primary)', display: 'inline-block' }} /> Receita</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 3, background: 'var(--muted)', display: 'inline-block' }} /> Despesas</span>
+        <div className="chart-card-pro animate-fade-up">
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon"><BarChart3 size={15} strokeWidth={2.2} /></span>
+                    <h3>Receita vs despesas (6 meses)</h3>
                 </div>
-            </SectionHeader>
-            <div style={{ padding: '20px', display: 'flex', alignItems: 'flex-end', gap: 12, height: 220, position: 'relative' }}>
-                {[0, 25, 50, 75].map(pct => (
-                    <div key={pct} style={{ position: 'absolute', left: 0, right: 0, bottom: `${pct + 14}%`, borderTop: '1px dashed var(--border)', opacity: 0.5, pointerEvents: 'none' }} />
-                ))}
-                {data.map((m, i) => {
-                    const rPct = Math.max((m.receita / maxVal) * 100, m.receita > 0 ? 4 : 0);
-                    const dPct = Math.max((m.despesa / maxVal) * 100, m.despesa > 0 ? 4 : 0);
-                    return (
-                        <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end', zIndex: 1 }}>
-                            <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', flex: 1, width: '100%' }}>
-                                <div style={{
-                                    flex: 1, borderRadius: '6px 6px 0 0', minHeight: m.receita > 0 ? 4 : 0,
-                                    height: `${rPct}%`,
-                                    background: 'var(--primary-gradient)',
-                                    transformOrigin: 'bottom',
-                                    animation: `chartGrowUp 0.5s ease ${i * 80}ms both`,
-                                }} title={`Receita: ${R$(m.receita)}`} />
-                                <div style={{
-                                    flex: 1, borderRadius: '6px 6px 0 0', minHeight: m.despesa > 0 ? 4 : 0,
-                                    height: `${dPct}%`,
-                                    background: 'var(--muted)',
-                                    transformOrigin: 'bottom',
-                                    animation: `chartGrowUp 0.5s ease ${i * 80 + 50}ms both`,
-                                }} title={`Despesas: ${R$(m.despesa)}`} />
-                            </div>
-                            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{m.label}</div>
-                        </div>
-                    );
-                })}
+                <div style={{ display: 'flex', gap: 14, fontSize: 11, fontWeight: 600 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--text-secondary)' }}>
+                        <span style={{ width: 10, height: 3, borderRadius: 2, background: 'var(--primary)' }} /> Receita
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--text-secondary)' }}>
+                        <span style={{ width: 10, height: 3, borderRadius: 2, background: 'var(--danger)' }} /> Despesas
+                    </span>
+                </div>
+            </div>
+            <div className="chart-card-pro-body" style={{ paddingTop: 16 }}>
+                <div className="chart-area-responsive" style={{ position: 'relative' }}>
+                    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                        <defs>
+                            <linearGradient id="areaR" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.35" />
+                                <stop offset="100%" stopColor="var(--primary)" stopOpacity="0" />
+                            </linearGradient>
+                        </defs>
+                        {[0, 25, 50, 75, 100].map(p => (
+                            <line key={p} x1="0" y1={p} x2={W} y2={p} stroke="var(--border)" strokeWidth="0.2" strokeDasharray="0.8 0.8" />
+                        ))}
+                        <path d={rArea} fill="url(#areaR)" vectorEffect="non-scaling-stroke" />
+                        <path d={rPath} stroke="var(--primary)" strokeWidth="2" fill="none" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d={dPath} stroke="var(--danger)" strokeWidth="1.6" strokeDasharray="3 2" fill="none" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
+                        {data.map((d, i) => (
+                            <g key={i}>
+                                <circle cx={toX(i)} cy={toY(d.receita)} r="1.4" fill="var(--primary)" vectorEffect="non-scaling-stroke" />
+                                <circle cx={toX(i)} cy={toY(d.despesa)} r="1.2" fill="var(--danger)" vectorEffect="non-scaling-stroke" />
+                            </g>
+                        ))}
+                    </svg>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${data.length}, 1fr)`, marginTop: 10, gap: 4 }}>
+                    {data.map((m, i) => (
+                        <div key={i} style={{ textAlign: 'center', fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'capitalize', letterSpacing: '0.02em' }}>{m.label}</div>
+                    ))}
+                </div>
             </div>
         </div>
     );
@@ -655,31 +932,40 @@ function GraficoBarras6Meses({ data }) {
 
 function GraficoPizzaDespesas({ data }) {
     if (!data || data.length === 0) return (
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
-            <SectionHeader icon={PieChart} title="Despesas por Categoria" />
-            <EmptyState icon={PieChart} msg="Sem despesas no periodo" />
+        <div className="chart-card-pro">
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon"><PieChart size={15} strokeWidth={2.2} /></span>
+                    <h3>Despesas por categoria</h3>
+                </div>
+            </div>
+            <div style={{ padding: '40px 22px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Sem despesas no período</div>
         </div>
     );
 
     const total = data.reduce((s, d) => s + d.total, 0);
 
     return (
-        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
-            <SectionHeader icon={PieChart} title="Despesas por Categoria">
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{R$(total)}</span>
-            </SectionHeader>
-            <div style={{ padding: '14px 20px' }}>
+        <div className="chart-card-pro animate-fade-up">
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon"><PieChart size={15} strokeWidth={2.2} /></span>
+                    <h3>Despesas por categoria</h3>
+                </div>
+                <span className="font-display font-tabular" style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{R$(total)}</span>
+            </div>
+            <div className="chart-card-pro-body">
                 {data.map((d, i) => {
                     const pct = total > 0 ? Math.round((d.total / total) * 100) : 0;
                     const color = CAT_COLOR[d.categoria] || 'var(--muted)';
                     return (
-                        <div key={i} style={{ marginBottom: 10, animation: `stagger-in 0.35s ease ${i * 50}ms both` }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                <span style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <span style={{ width: 8, height: 8, borderRadius: 3, display: 'inline-block', background: color }} />
+                        <div key={i} style={{ marginBottom: 12, animation: `stagger-in 0.35s ease ${i * 50}ms both` }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                                <span style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 500 }}>
+                                    <span style={{ width: 10, height: 10, borderRadius: 3, background: color, boxShadow: `0 0 8px ${color}44` }} />
                                     {CAT_LABEL[d.categoria] || d.categoria}
                                 </span>
-                                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>{R$(d.total)} ({pct}%)</span>
+                                <span className="font-tabular" style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{R$(d.total)} · {pct}%</span>
                             </div>
                             <div style={{ background: 'var(--bg-muted)', borderRadius: 99, height: 8, overflow: 'hidden' }}>
                                 <div style={{
@@ -699,77 +985,84 @@ function GraficoPizzaDespesas({ data }) {
 
 function TabelaTopProjetos({ data }) {
     if (!data || data.length === 0) return null;
-
     return (
-        <div className="glass-card animate-fade-up table-stagger" style={{ padding: 0, overflow: 'hidden' }}>
-            <SectionHeader icon={Briefcase} title="Top Projetos por Lucro" />
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                    <tr>
-                        <th className="th-glass" style={{ textAlign: 'left' }}>Projeto</th>
-                        <th className="th-glass" style={{ textAlign: 'right' }}>Valor</th>
-                        <th className="th-glass" style={{ textAlign: 'right' }}>Despesas</th>
-                        <th className="th-glass" style={{ textAlign: 'right' }}>Lucro</th>
-                        <th className="th-glass" style={{ textAlign: 'center', width: 60 }}>Margem</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {data.map((p, i) => (
-                        <tr key={p.id}>
-                            <td className="td-glass">
-                                <div style={{ fontSize: 13, fontWeight: 600 }}>{p.nome}</div>
-                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{p.cliente_nome}</div>
-                            </td>
-                            <td className="td-glass" style={{ textAlign: 'right', fontSize: 12, fontWeight: 600 }}>{R$(p.valor_venda)}</td>
-                            <td className="td-glass" style={{ textAlign: 'right', fontSize: 12, color: '#B86565' }}>{R$(p.despesas)}</td>
-                            <td className="td-glass" style={{ textAlign: 'right', fontSize: 12, fontWeight: 700, color: p.lucro >= 0 ? '#5B8C6B' : '#B86565' }}>{R$(p.lucro)}</td>
-                            <td className="td-glass" style={{ textAlign: 'center' }}>
-                                <Badge label={`${p.margem}%`} color={p.margem >= 20 ? '#5B8C6B' : p.margem >= 0 ? '#C4924C' : '#B86565'} />
-                            </td>
+        <div className="chart-card-pro animate-fade-up table-stagger">
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon"><Briefcase size={15} strokeWidth={2.2} /></span>
+                    <h3>Top projetos por lucro</h3>
+                </div>
+            </div>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
+                    <thead>
+                        <tr>
+                            <th className="th-glass" style={{ textAlign: 'left' }}>Projeto</th>
+                            <th className="th-glass" style={{ textAlign: 'right' }}>Valor</th>
+                            <th className="th-glass" style={{ textAlign: 'right' }}>Despesas</th>
+                            <th className="th-glass" style={{ textAlign: 'right' }}>Lucro</th>
+                            <th className="th-glass" style={{ textAlign: 'center', width: 72 }}>Margem</th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {data.map((p) => (
+                            <tr key={p.id}>
+                                <td className="td-glass">
+                                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{p.nome}</div>
+                                    <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 2 }}>{p.cliente_nome}</div>
+                                </td>
+                                <td className="td-glass font-tabular" style={{ textAlign: 'right', fontSize: 12.5, fontWeight: 600 }}>{R$(p.valor_venda)}</td>
+                                <td className="td-glass font-tabular" style={{ textAlign: 'right', fontSize: 12.5, color: 'var(--danger)' }}>{R$(p.despesas)}</td>
+                                <td className="td-glass font-tabular" style={{ textAlign: 'right', fontSize: 12.5, fontWeight: 700, color: p.lucro >= 0 ? 'var(--success)' : 'var(--danger)' }}>{R$(p.lucro)}</td>
+                                <td className="td-glass" style={{ textAlign: 'center' }}>
+                                    <Badge label={`${p.margem}%`} color={p.margem >= 20 ? 'var(--success)' : p.margem >= 0 ? 'var(--warning)' : 'var(--danger)'} />
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }
 
 function FluxoProjetado({ data }) {
     if (!data || data.length === 0) return null;
-
     return (
-        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
-            <SectionHeader icon={Wallet} title="Fluxo de Caixa Projetado (90 dias)" />
-            <div style={{ padding: '14px 20px' }}>
+        <div className="chart-card-pro animate-fade-up">
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon"><Wallet size={15} strokeWidth={2.2} /></span>
+                    <h3>Fluxo projetado (90 dias)</h3>
+                </div>
+            </div>
+            <div className="chart-card-pro-body">
                 {data.map((m, i) => {
-                    const accentColor = m.saldo >= 0 ? 'var(--primary)' : '#B86565';
-                    const totalFlux = (m.entradas || 1) + (m.saidas || 1);
+                    const positive = m.saldo >= 0;
+                    const totalFlux = Math.max((m.entradas || 0) + (m.saidas || 0), 1);
+                    const pctIn = ((m.entradas || 0) / totalFlux) * 100;
+                    const pctOut = ((m.saidas || 0) / totalFlux) * 100;
                     return (
                         <div key={i} style={{
-                            marginBottom: i < data.length - 1 ? 16 : 0, padding: 12, borderRadius: 10,
-                            background: `linear-gradient(135deg, ${accentColor === 'var(--primary)' ? 'var(--primary-alpha)' : 'rgba(184,101,101,0.08)'}, var(--bg-muted) 60%)`,
-                            border: `1px solid ${accentColor === 'var(--primary)' ? 'var(--primary-ring)' : 'rgba(184,101,101,0.18)'}`,
+                            marginBottom: i < data.length - 1 ? 14 : 0,
+                            padding: 14, borderRadius: 12,
+                            background: positive ? 'linear-gradient(135deg, rgba(92,123,67,0.06), var(--bg-subtle) 60%)' : 'linear-gradient(135deg, rgba(160,71,58,0.06), var(--bg-subtle) 60%)',
+                            border: `1px solid ${positive ? 'rgba(92,123,67,0.18)' : 'rgba(160,71,58,0.18)'}`,
                             animation: `stagger-in 0.35s ease ${i * 80}ms both`,
                         }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, textTransform: 'capitalize', color: 'var(--text-primary)' }}>{m.label}</div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
-                                <span style={{ color: 'var(--primary)', fontWeight: 600 }}>Entradas: {R$(m.entradas)}</span>
-                                <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Saidas: {R$(m.saidas)}</span>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                                <span className="font-display" style={{ fontSize: 13, fontWeight: 700, textTransform: 'capitalize', letterSpacing: '-0.015em', color: 'var(--text-primary)' }}>{m.label}</span>
+                                <span className={`trend-chip ${positive ? 'trend-up' : 'trend-down'}`}>
+                                    Saldo: {positive ? '+' : ''}{R$(m.saldo)}
+                                </span>
                             </div>
-                            <div style={{ display: 'flex', gap: 3, marginBottom: 4, height: 8, borderRadius: 99, overflow: 'hidden', background: 'var(--bg-card)' }}>
-                                <div style={{
-                                    width: `${((m.entradas || 1) / totalFlux) * 100}%`, height: '100%',
-                                    background: 'var(--primary-gradient)', borderRadius: 99,
-                                    transformOrigin: 'left', animation: `chartSlideRight 0.5s ease ${i * 80 + 100}ms both`,
-                                }} />
-                                <div style={{
-                                    width: `${((m.saidas || 1) / totalFlux) * 100}%`, height: '100%',
-                                    background: 'var(--muted)', borderRadius: 99,
-                                    transformOrigin: 'left', animation: `chartSlideRight 0.5s ease ${i * 80 + 150}ms both`,
-                                }} />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 6 }}>
+                                <span className="font-tabular" style={{ color: 'var(--success)', fontWeight: 600 }}>Entradas: {R$(m.entradas)}</span>
+                                <span className="font-tabular" style={{ color: 'var(--danger)', fontWeight: 600 }}>Saídas: {R$(m.saidas)}</span>
                             </div>
-                            <div style={{ textAlign: 'right', fontSize: 12, fontWeight: 700, color: m.saldo >= 0 ? 'var(--primary)' : '#B86565' }}>
-                                Saldo: {m.saldo >= 0 ? '+' : ''}{R$(m.saldo)}
+                            <div className="segmented-bar">
+                                <span style={{ width: `${pctIn}%`, background: 'linear-gradient(90deg, #7A9F5E, #5C7B43)', animationDelay: `${i * 80 + 100}ms` }} />
+                                <span style={{ width: `${pctOut}%`, background: 'linear-gradient(90deg, #A0473A, #8A3C30)', animationDelay: `${i * 80 + 150}ms` }} />
                             </div>
                         </div>
                     );
@@ -781,40 +1074,52 @@ function FluxoProjetado({ data }) {
 
 function ContasPagarProximas({ data, vencidas }) {
     if (!data || data.length === 0) return (
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
-            <SectionHeader icon={Receipt} title="Contas a Pagar" />
-            <EmptyState icon={Receipt} msg="Nenhuma conta a pagar pendente" />
+        <div className="chart-card-pro">
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon"><Receipt size={15} strokeWidth={2.2} /></span>
+                    <h3>Contas a pagar</h3>
+                </div>
+            </div>
+            <div style={{ padding: '36px 22px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhuma conta a pagar pendente</div>
         </div>
     );
 
     return (
-        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
-            <SectionHeader icon={Receipt} title="Contas a Pagar">
+        <div className="chart-card-pro animate-fade-up">
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon"><Receipt size={15} strokeWidth={2.2} /></span>
+                    <h3>Contas a pagar</h3>
+                </div>
                 {vencidas && vencidas.qtd > 0 && (
-                    <Badge label={`${vencidas.qtd} vencida${vencidas.qtd > 1 ? 's' : ''} (${R$(vencidas.total)})`} color="#B86565" pulse />
+                    <Badge label={`${vencidas.qtd} vencida${vencidas.qtd > 1 ? 's' : ''} (${R$(vencidas.total)})`} color="var(--danger)" pulse />
                 )}
-            </SectionHeader>
+            </div>
             {data.map((c, i) => {
                 const isVencida = c.dias_ate < 0;
                 const isProxima = c.dias_ate >= 0 && c.dias_ate <= 7;
-                const color = isVencida ? '#B86565' : isProxima ? '#C4924C' : 'var(--text-muted)';
+                const color = isVencida ? 'var(--danger)' : isProxima ? 'var(--warning)' : 'var(--text-muted)';
                 return (
                     <div key={c.id} style={{
-                        padding: '10px 20px', borderBottom: '1px solid var(--border)',
+                        padding: '12px 22px', borderBottom: '1px solid var(--border)',
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
                         animation: `stagger-in 0.25s ease ${i * 40}ms both`,
-                        transition: 'background 0.15s',
-                    }} className="hover:bg-[var(--bg-hover)]">
+                        transition: 'background 150ms var(--ease-out)',
+                    }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-subtle)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+                    >
                         <div style={{ minWidth: 0, flex: 1 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.descricao}</div>
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>{c.descricao}</div>
+                            <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 2 }}>
                                 {c.fornecedor && `${c.fornecedor} · `}{CAT_LABEL[c.categoria] || c.categoria}
                             </div>
                         </div>
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color }}>{R$(c.valor)}</div>
-                            <div style={{ fontSize: 10, color }}>
-                                {isVencida ? `${Math.abs(c.dias_ate)}d atraso` : c.dias_ate === 0 ? 'Vence hoje' : `em ${c.dias_ate}d`}
+                            <div className="font-display font-tabular" style={{ fontSize: 13.5, fontWeight: 700, color, letterSpacing: '-0.02em' }}>{R$(c.valor)}</div>
+                            <div style={{ fontSize: 10.5, color, marginTop: 2, fontWeight: 500 }}>
+                                {isVencida ? `${Math.abs(c.dias_ate)}d atraso` : c.dias_ate === 0 ? 'vence hoje' : `em ${c.dias_ate}d`}
                             </div>
                         </div>
                     </div>
@@ -826,43 +1131,49 @@ function ContasPagarProximas({ data, vencidas }) {
 
 function TopClientes({ data }) {
     if (!data || data.length === 0) return null;
-
     return (
-        <div className="glass-card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
-            <SectionHeader icon={UserIcon} title="Top Clientes por Faturamento" />
-            {data.map((c, i) => (
-                <div key={i} style={{
-                    padding: '10px 20px', borderBottom: '1px solid var(--border)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-                    animation: `stagger-in 0.25s ease ${i * 40}ms both`,
-                    transition: 'background 0.15s',
-                }} className="hover:bg-[var(--bg-hover)]">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{
-                            width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 11, fontWeight: 700,
-                            background: i === 0 ? 'linear-gradient(135deg, #f59e0b22, var(--warning-bg))' : 'var(--bg-muted)',
-                            color: i === 0 ? 'var(--warning)' : 'var(--text-muted)',
-                            border: i === 0 ? '1px solid var(--warning-border)' : 'none',
-                        }}>{i + 1}</span>
-                        <div>
-                            <div style={{ fontSize: 13, fontWeight: 600 }}>{c.cliente_nome}</div>
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{c.total_projetos} projeto{c.total_projetos > 1 ? 's' : ''}</div>
+        <div className="chart-card-pro animate-fade-up">
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon"><UserIcon size={15} strokeWidth={2.2} /></span>
+                    <h3>Top clientes por faturamento</h3>
+                </div>
+            </div>
+            {data.map((c, i) => {
+                const isFirst = i === 0;
+                return (
+                    <div key={i} style={{
+                        padding: '12px 22px', borderBottom: i < data.length - 1 ? '1px solid var(--border)' : 'none',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                        animation: `stagger-in 0.25s ease ${i * 40}ms both`,
+                        transition: 'background 150ms var(--ease-out)',
+                    }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-subtle)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <span className={`activity-avatar ${isFirst ? 'activity-avatar-accent' : ''}`} style={{ fontSize: 12 }}>
+                                {isFirst ? <Sparkles size={15} strokeWidth={2.4} /> : i + 1}
+                            </span>
+                            <div>
+                                <div className="font-display" style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text-primary)' }}>{c.cliente_nome}</div>
+                                <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 2 }}>{c.total_projetos} projeto{c.total_projetos > 1 ? 's' : ''}</div>
+                            </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                            <div className="font-display font-tabular" style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{R$(c.valor_total)}</div>
+                            <div className="font-tabular" style={{ fontSize: 10.5, color: 'var(--success)', marginTop: 2, fontWeight: 500 }}>recebido: {R$(c.recebido)}</div>
                         </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{R$(c.valor_total)}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>recebido: {R$(c.recebido)}</div>
-                    </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 }
 
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
 // DASH — Componente principal
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
 export default function Dash({ nav, notify, user }) {
     const [data, setData] = useState(null);
     const [finData, setFinData] = useState(null);
@@ -872,7 +1183,6 @@ export default function Dash({ nav, notify, user }) {
     const [tab, setTab] = useState('geral');
     const [finLoading, setFinLoading] = useState(false);
     const [atividades, setAtividades] = useState([]);
-    const [maisDetalhes, setMaisDetalhes] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
 
     const load = useCallback((manual) => {
@@ -883,7 +1193,7 @@ export default function Dash({ nav, notify, user }) {
         }).catch(() => {
             setErr(true);
         }).finally(() => { setLoading(false); setRefreshing(false); });
-        api.get('/atividades?limit=10').then(setAtividades).catch(err => console.error('Dash atividades:', err));
+        api.get('/atividades?limit=12').then(setAtividades).catch(err => console.error('Dash atividades:', err));
     }, []);
 
     const loadFin = useCallback(() => {
@@ -891,7 +1201,7 @@ export default function Dash({ nav, notify, user }) {
         api.get('/dashboard/financeiro').then(d => {
             setFinData(d);
         }).catch(e => notify(e.error || 'Erro ao carregar financeiro')).finally(() => setFinLoading(false));
-    }, []);
+    }, [notify]);
 
     useEffect(() => {
         load();
@@ -908,29 +1218,20 @@ export default function Dash({ nav, notify, user }) {
     });
     const today = todayRaw.charAt(0).toUpperCase() + todayRaw.slice(1);
 
-    const shortcuts = [
-        { lb: 'Clientes', ic: Ic.Usr, pg: 'cli' },
-        { lb: 'Orcamentos', ic: Ic.File, pg: 'orcs' },
-        { lb: 'Pipeline CRM', ic: Ic.Kb, pg: 'kb' },
-        { lb: 'Projetos', ic: Ic.Briefcase, pg: 'proj' },
-        { lb: 'Biblioteca', ic: Ic.Box, pg: 'cat' },
-        { lb: 'Configuracoes', ic: Ic.Gear, pg: 'cfg' },
-    ];
-
     if (loading) {
         return (
             <div className={Z.pg}>
-                <div className="mb-6">
-                    <Skeleton width={220} height={24} />
-                    <div style={{ height: 8 }} />
-                    <Skeleton width={300} height={14} />
+                <div className="hero-card" style={{ marginBottom: 24, minHeight: 180 }}>
+                    <Skeleton width={220} height={18} />
+                    <div style={{ height: 12 }} />
+                    <Skeleton width={320} height={38} />
                 </div>
-                <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
+                <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 20 }}>
                     <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-                    <div className="skeleton skeleton-card" style={{ height: 300 }} />
-                    <div className="skeleton skeleton-card" style={{ height: 300 }} />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+                    <div className="skeleton skeleton-card" style={{ height: 320 }} />
+                    <div className="skeleton skeleton-card" style={{ height: 320 }} />
                 </div>
             </div>
         );
@@ -943,7 +1244,7 @@ export default function Dash({ nav, notify, user }) {
                     <h1 className={Z.h1}>{greet()}, bem-vindo!</h1>
                     <p className={Z.sub}>{today}</p>
                 </div>
-                <div className="glass-card animate-fade-up" style={{ textAlign: 'center', padding: 40 }}>
+                <div className="chart-card-pro animate-fade-up" style={{ textAlign: 'center', padding: 40 }}>
                     <div className="empty-state-icon">
                         <AlertTriangle size={28} style={{ color: 'var(--warning)' }} />
                     </div>
@@ -956,21 +1257,21 @@ export default function Dash({ nav, notify, user }) {
 
     return (
         <div className={Z.pg}>
-            <PageHeader icon={Activity} title={`${greet()}, bem-vindo!`} subtitle={today}>
-                <button
-                    onClick={() => load(true)}
-                    className="btn-secondary"
-                    style={{ padding: '7px 12px', minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', touchAction: 'manipulation' }}
-                    title="Atualizar dados"
-                    aria-label={refreshing ? 'Atualizando dados…' : 'Atualizar dados do dashboard'}
-                    aria-busy={refreshing}
-                >
-                    <RefreshCw size={14} style={refreshing ? { animation: 'spin 1s linear infinite' } : undefined} aria-hidden="true" />
-                </button>
-            </PageHeader>
+            <HeroCard
+                user={user}
+                headline={!isVendedor ? data.headline : null}
+                today={today}
+                refreshing={refreshing}
+                onRefresh={() => load(true)}
+            />
+
+            <KpiStrip data={data} isVendedor={isVendedor} nav={nav} />
+
+            <QuickActions nav={nav} isVendedor={isVendedor} />
+
             <TabBar
                 tabs={[
-                    { id: 'geral', label: 'Visao Geral', icon: Activity },
+                    { id: 'geral', label: 'Visão geral', icon: Activity },
                     ...(!isVendedor ? [{ id: 'financeiro', label: 'Financeiro', icon: DollarSign }] : []),
                 ]}
                 active={tab}
@@ -979,22 +1280,7 @@ export default function Dash({ nav, notify, user }) {
 
             {tab === 'geral' && (
                 <>
-                    {!isVendedor && <HeadlineMes data={data.headline} />}
-
-                    {isVendedor && data.vendedor && (
-                        <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
-                            {[
-                                { label: 'Orcamentos no mes', value: String(data.vendedor.orcs_mes), sub: R$(data.vendedor.orcs_valor_mes), icon: FileText },
-                                { label: 'Aprovados no mes', value: String(data.vendedor.aprovados_mes), sub: R$(data.vendedor.aprovados_valor_mes), icon: CheckCircle2 },
-                                { label: 'Taxa de conversao', value: `${data.vendedor.taxa_conversao}%`, sub: 'orcamentos → aprovados', icon: TrendingUp },
-                                { label: 'Novos clientes', value: String(data.vendedor.novos_clientes_mes), sub: 'neste mes', icon: UserIcon },
-                            ].map((m, i) => (
-                                <KpiCard key={i} label={m.label} value={m.value} icon={m.icon} sub={m.sub} />
-                            ))}
-                        </div>
-                    )}
-
-                    {/* HERO: Fila de Atencao — first after KPIs */}
+                    {/* Fila de atenção — topo por urgência */}
                     {!isVendedor ? (
                         <FilaAtencao data={data.atencao} nav={nav} />
                     ) : data.atencao?.total_parados > 0 && (
@@ -1005,63 +1291,14 @@ export default function Dash({ nav, notify, user }) {
                         <ProducaoResume data={data.producao_resumo} nav={nav} />
                     )}
 
-                    <div style={{ display: 'grid', gridTemplateColumns: isVendedor ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 16 }}>
+                    <div className="dash-split" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, marginBottom: 20 }}>
                         <PipelineVisual data={data.pipeline} total={data.pipeline_total} nav={nav} />
                         {!isVendedor && <FluxoCaixa data={data.fluxo_caixa} />}
                     </div>
 
-                    {/* Collapsible: less-critical sections */}
-                    <div style={{ marginBottom: 16 }}>
-                        <button
-                            onClick={() => setMaisDetalhes(v => !v)}
-                            aria-expanded={maisDetalhes}
-                            aria-controls="dash-mais-detalhes"
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                                padding: '12px 20px', borderRadius: 12, minHeight: 44,
-                                background: 'var(--bg-muted)', border: '1px solid var(--border)',
-                                cursor: 'pointer', transition: 'all 0.2s',
-                                color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600,
-                                touchAction: 'manipulation',
-                            }}>
-                            <ChevronDown size={16} aria-hidden="true" style={{
-                                transition: 'transform 0.25s',
-                                transform: maisDetalhes ? 'rotate(180deg)' : 'rotate(0deg)',
-                            }} />
-                            Mais detalhes
-                            <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 4 }}>
-                                Projetos ativos, atalhos, atividade recente
-                            </span>
-                        </button>
-                        {maisDetalhes && (
-                            <div id="dash-mais-detalhes" style={{ marginTop: 16 }}>
-                                <ProjetosAtivos data={data.projetos_ativos} total={data.total_projetos_ativos} nav={nav} />
-                                <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10, marginBottom: 16 }}>
-                                    {shortcuts.filter(s => !(isVendedor && s.pg === 'cfg')).map((s, i) => {
-                                        const I = s.ic;
-                                        return (
-                                            <button key={i} onClick={() => nav(s.pg)}
-                                                className="glass-card flex flex-col items-center gap-2 py-4 cursor-pointer"
-                                                style={{ transition: 'all 0.2s' }}
-                                                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = 'var(--shadow-lg)'; }}
-                                                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow-card)'; }}>
-                                                <div style={{
-                                                    width: 40, height: 40, borderRadius: 12,
-                                                    background: 'var(--primary-alpha)', color: 'var(--primary)',
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    transition: 'all 0.2s',
-                                                }}>
-                                                    <I />
-                                                </div>
-                                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.3 }}>{s.lb}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                                <TimelineRecente data={atividades} nav={nav} />
-                            </div>
-                        )}
-                    </div>
+                    <ProjetosAtivos data={data.projetos_ativos} total={data.total_projetos_ativos} nav={nav} />
+
+                    <TimelineRecente data={atividades} nav={nav} />
                 </>
             )}
 
@@ -1074,16 +1311,16 @@ export default function Dash({ nav, notify, user }) {
                     <>
                         <FinanceiroKPI data={finData.resumo} />
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 16 }}>
-                            <GraficoBarras6Meses data={finData.ultimos_6_meses} />
+                        <div className="dash-split-even" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, marginBottom: 20 }}>
+                            <GraficoAreaSix data={finData.ultimos_6_meses} />
                             <GraficoPizzaDespesas data={finData.despesas_por_categoria} />
                         </div>
 
-                        <div style={{ marginBottom: 16 }}>
+                        <div style={{ marginBottom: 20 }}>
                             <TabelaTopProjetos data={finData.top_projetos} />
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 16 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginBottom: 20 }}>
                             <FluxoProjetado data={finData.fluxo_projetado} />
                             <ContasPagarProximas data={finData.contas_pagar_proximas} vencidas={finData.pagar_vencidas} />
                         </div>
@@ -1091,7 +1328,7 @@ export default function Dash({ nav, notify, user }) {
                         <TopClientes data={finData.top_clientes} />
                     </>
                 ) : (
-                    <div className="glass-card animate-fade-up" style={{ textAlign: 'center', padding: 40 }}>
+                    <div className="chart-card-pro animate-fade-up" style={{ textAlign: 'center', padding: 40 }}>
                         <div className="empty-state-icon">
                             <AlertTriangle size={28} style={{ color: 'var(--warning)' }} />
                         </div>

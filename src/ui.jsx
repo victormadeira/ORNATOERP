@@ -105,11 +105,14 @@ export const Z = {
     btn: "btn-primary",
     btn2: "btn-secondary",
     btnD: "btn-danger",
+    btnA: "btn-accent",
+    btnG: "btn-ghost",
     btnSm: "btn-primary btn-sm",
     btn2Sm: "btn-secondary btn-sm",
     btnDSm: "btn-danger btn-sm",
+    btnASm: "btn-accent btn-sm",
     card: "glass-card p-3 sm:p-5",
-    h1: "text-xl font-semibold mb-0.5",
+    h1: "font-display text-xl font-semibold mb-0.5",
     sub: "text-sm text-[var(--text-muted)] mb-5",
     lbl: "label-text",
     th: "th-glass text-left",
@@ -117,43 +120,51 @@ export const Z = {
 };
 
 // ─── PageHeader — cabecalho padronizado de pagina ─────────
-// UX Pro Max: hierarchy via size/weight/contrast (não cor só). Icon chip com highlight
-// interno (inset white) simulando elevação física; box-shadow menos saturado.
-export function PageHeader({ icon: Icon, title, subtitle, children }) {
+// Editorial v3: chip com acent cobre, typography com Space Grotesk
+export function PageHeader({ icon: Icon, title, subtitle, children, accent = 'primary' }) {
+    const isAccent = accent === 'accent';
+    const chipBg = isAccent ? 'var(--accent-gradient)' : 'var(--primary-gradient)';
+    const chipShadow = isAccent
+        ? 'inset 0 1px 0 rgba(255,255,255,0.22), 0 1px 2px rgba(184,147,90,0.32), 0 8px 20px rgba(184,147,90,0.20)'
+        : 'inset 0 1px 0 rgba(255,255,255,0.22), 0 1px 2px rgba(19,121,240,0.30), 0 8px 20px rgba(19,121,240,0.20)';
     return (
-        <div className="animate-fade-up" style={{
+        <div className="animate-fade-up page-header-root" style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             gap: 12, marginBottom: 24, flexWrap: 'wrap',
         }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: '1 1 220px' }}>
                 {Icon && (
-                    <div style={{
-                        width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                        background: 'var(--primary-gradient)',
+                    <div className="page-header-chip" style={{
+                        width: 46, height: 46, borderRadius: 14, flexShrink: 0,
+                        background: chipBg,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow:
-                            'inset 0 1px 0 rgba(255,255,255,0.2), 0 1px 2px rgba(19,121,240,0.25), 0 6px 16px rgba(19,121,240,0.18)',
+                        boxShadow: chipShadow,
+                        position: 'relative',
                     }}>
-                        <Icon size={21} style={{ color: '#fff' }} />
+                        <Icon size={22} style={{ color: '#fff' }} strokeWidth={2.2} />
                     </div>
                 )}
-                <div style={{ minWidth: 0 }}>
-                    <h1 style={{
-                        fontSize: '1.35rem', fontWeight: 700, letterSpacing: '-0.02em',
-                        margin: 0, lineHeight: 1.2,
+                <div style={{ minWidth: 0, flex: 1 }}>
+                    <h1 className="font-display page-header-title" style={{
+                        fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.035em',
+                        margin: 0, lineHeight: 1.1,
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                         color: 'var(--text-primary)',
                     }}>{title}</h1>
                     {subtitle && (
-                        <p style={{
-                            fontSize: 13, color: 'var(--text-muted)', margin: '3px 0 0',
-                            fontWeight: 500,
+                        <p className="page-header-subtitle" style={{
+                            fontSize: 13, color: 'var(--text-muted)', margin: '5px 0 0',
+                            fontWeight: 500, letterSpacing: '0.005em',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         }}>{subtitle}</p>
                     )}
                 </div>
             </div>
             {children && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div className="page-header-actions" style={{
+                    display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                    justifyContent: 'flex-end',
+                }}>
                     {children}
                 </div>
             )}
@@ -507,31 +518,32 @@ export function KpiCard({ label, value, color, icon: Icon, sub, sparkData, accen
     return (
         <div className="glass-card animate-fade-up hover-lift" style={{
             padding: '18px 20px', position: 'relative', overflow: 'hidden',
-            borderLeft: `3px solid ${accentColor}`,
+            borderTop: `2px solid ${accentColor}`,
         }}>
             {/* Subtle gradient accent background */}
             <div style={{
-                position: 'absolute', top: 0, right: 0, width: 80, height: '100%',
-                background: `linear-gradient(135deg, transparent 0%, ${accentColor}06 100%)`,
+                position: 'absolute', top: 0, right: 0, width: 100, height: '100%',
+                background: `linear-gradient(135deg, transparent 0%, ${accentColor}08 100%)`,
                 pointerEvents: 'none',
             }} />
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10, position: 'relative' }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12, position: 'relative' }}>
+                <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.10em' }}>{label}</span>
                 {Icon && (
                     <div style={{
-                        width: 36, height: 36, borderRadius: 10,
-                        background: `${accentColor}15`,
+                        width: 38, height: 38, borderRadius: 11,
+                        background: `${accentColor}14`,
+                        border: `1px solid ${accentColor}22`,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: `0 2px 8px ${accentColor}20`,
+                        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.3), 0 2px 10px ${accentColor}22`,
                     }}>
-                        <Icon size={17} style={{ color: accentColor }} />
+                        <Icon size={18} style={{ color: accentColor }} strokeWidth={2.1} />
                     </div>
                 )}
             </div>
-            <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1, letterSpacing: '-0.02em', position: 'relative' }}>
+            <div className="font-display font-tabular" style={{ fontSize: '1.875rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.05, letterSpacing: '-0.035em', position: 'relative' }}>
                 {formatAnimated()}
             </div>
-            {sub && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, position: 'relative' }}>{sub}</div>}
+            {sub && <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 8, position: 'relative', fontWeight: 500 }}>{sub}</div>}
             {sparkData && sparkData.length > 1 && (
                 <div className="kpi-sparkline">
                     <Sparkline data={sparkData} color={accentColor} width={200} height={40} />
@@ -543,20 +555,23 @@ export function KpiCard({ label, value, color, icon: Icon, sub, sparkData, accen
 
 // ─── SectionHeader — header padronizado para cards ──────
 export function SectionHeader({ icon: Icon, title, accent, children }) {
-    const c = accent || 'var(--primary)';
+    const c = accent || 'var(--accent)';
     return (
         <div style={{
             padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             borderBottom: '1px solid var(--border)',
-            background: 'linear-gradient(180deg, var(--bg-muted) 0%, transparent 100%)',
+            background: 'linear-gradient(180deg, var(--bg-subtle) 0%, transparent 100%)',
         }}>
-            <span style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-primary)' }}>
+            <span className="font-display" style={{ fontWeight: 700, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
                 {Icon && (
                     <div style={{
-                        width: 28, height: 28, borderRadius: 8,
-                        background: `${c}12`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        width: 30, height: 30, borderRadius: 9,
+                        background: `${c}14`,
+                        border: `1px solid ${c}22`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.3), 0 1px 4px ${c}16`,
                     }}>
-                        <Icon size={14} style={{ color: c }} />
+                        <Icon size={14} style={{ color: c }} strokeWidth={2.2} />
                     </div>
                 )}
                 {title}

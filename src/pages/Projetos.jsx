@@ -548,7 +548,7 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
                         {(orcs || []).map(o => <option key={o.id} value={o.id}>{o.cliente_nome} · {o.ambiente || 'Orçamento #' + o.id}</option>)}
                     </select>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
                     <div>
                         <label className={Z.lbl}>Data de Início</label>
                         <input type="date" className={Z.inp} value={dataInicio} onChange={e => setDataInicio(e.target.value)} />
@@ -581,6 +581,8 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
                             <button className={Z.btn} style={{ fontSize: 11, padding: '4px 12px' }} onClick={saveAsTemplate}>Salvar</button>
                         </div>
                     )}
+                    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    <div style={{ minWidth: 480 }}>
                     {/* Header */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 100px 100px auto', gap: 6, alignItems: 'center', marginBottom: 4, padding: '0 2px' }}>
                         <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nome</span>
@@ -600,9 +602,11 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
                             </div>
                         ))}
                     </div>
+                    </div>
+                    </div>
                 </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20, flexWrap: 'wrap' }}>
                 <button className={Z.btn2} onClick={onClose}>Cancelar</button>
                 <button className={Z.btn} onClick={handleSave} disabled={saving}>{saving ? 'Salvando...' : <><Ic.Check /> Criar Projeto</>}</button>
             </div>
@@ -651,11 +655,11 @@ function EditEtapaModal({ etapa, etapas, users, onSave, onClose }) {
                     <label className={Z.lbl}>Descricao</label>
                     <textarea className={Z.inp} rows={2} style={{ resize: 'vertical' }} value={descricao} onChange={e => setDescricao(e.target.value)} />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
                     <div><label className={Z.lbl}>Data inicio</label><input type="date" className={Z.inp} value={dataInicio} onChange={e => setDataInicio(e.target.value)} /></div>
                     <div><label className={Z.lbl}>Data entrega</label><input type="date" className={Z.inp} value={dataVencimento} onChange={e => setDataVencimento(e.target.value)} /></div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
                     <div>
                         <label className={Z.lbl}>Status</label>
                         <select className={Z.inp} value={status} onChange={e => setStatus(e.target.value)}>
@@ -832,7 +836,7 @@ function TabCronograma({ data, load, notify, users }) {
 
                 {showEtapaForm && (
                     <div style={{ background: 'var(--bg-muted)', borderRadius: 10, padding: 14, marginBottom: 14 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, alignItems: 'end' }}>
                             <div><label className={Z.lbl}>Nome</label><input className={Z.inp} style={{ fontSize: 13 }} value={newEtapa.nome} onChange={e => setNewEtapa(x => ({ ...x, nome: e.target.value }))} placeholder="Ex: Montagem" /></div>
                             <div><label className={Z.lbl}>Início</label><input type="date" className={Z.inp} style={{ fontSize: 13 }} value={newEtapa.data_inicio} onChange={e => setNewEtapa(x => ({ ...x, data_inicio: e.target.value }))} /></div>
                             <div><label className={Z.lbl}>Entrega</label><input type="date" className={Z.inp} style={{ fontSize: 13 }} value={newEtapa.data_vencimento} onChange={e => setNewEtapa(x => ({ ...x, data_vencimento: e.target.value }))} /></div>

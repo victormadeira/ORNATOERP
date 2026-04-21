@@ -294,7 +294,7 @@ function SecaoPagar({ notify, projetos, user }) {
             {showForm && (
                 <div className={Z.card} style={{ padding: 20, marginBottom: 16 }}>
                     <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14 }}>Nova Conta a Pagar</div>
-                    <div style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
+                    <div style={{ display: 'flex', gap: 16, marginBottom: 14, flexWrap: 'wrap' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
                             <input type="checkbox" checked={form.parcelado} onChange={e => setForm({ ...form, parcelado: e.target.checked, recorrente: false })} />
                             <span style={{ fontWeight: 500 }}>Parcelado</span>
@@ -372,7 +372,7 @@ function SecaoPagar({ notify, projetos, user }) {
             )}
 
             {/* Aba Toggle */}
-            <div style={{ display: 'flex', marginBottom: 12 }}>
+            <div style={{ display: 'flex', marginBottom: 12, overflowX: 'auto' }}>
                 {['pendentes', 'pagos'].map((t, i) => (
                     <button key={t} onClick={() => setAba(t)} style={{
                         padding: '8px 20px', fontSize: 12, fontWeight: 600,
@@ -380,6 +380,7 @@ function SecaoPagar({ notify, projetos, user }) {
                         background: aba === t ? 'var(--primary)' : 'var(--bg-card)',
                         color: aba === t ? '#fff' : 'var(--text-secondary)',
                         borderRadius: i === 0 ? '8px 0 0 8px' : '0 8px 8px 0', cursor: 'pointer',
+                        whiteSpace: 'nowrap', flexShrink: 0,
                     }}>
                         {t === 'pendentes' ? 'Pendentes' : 'Pagos / Arquivo'}
                     </button>
@@ -844,7 +845,7 @@ function SecaoReceber({ notify, projetos, user }) {
             )}
 
             {/* Abas */}
-            <div style={{ display: 'flex', marginBottom: 12 }}>
+            <div style={{ display: 'flex', marginBottom: 12, overflowX: 'auto' }}>
                 {['pendentes', 'pagos'].map((t, i) => (
                     <button key={t} onClick={() => setAba(t)} style={{
                         padding: '8px 20px', fontSize: 12, fontWeight: 600,
@@ -852,6 +853,7 @@ function SecaoReceber({ notify, projetos, user }) {
                         background: aba === t ? 'var(--primary)' : 'var(--bg-card)',
                         color: aba === t ? '#fff' : 'var(--text-secondary)',
                         borderRadius: i === 0 ? '8px 0 0 8px' : '0 8px 8px 0', cursor: 'pointer',
+                        whiteSpace: 'nowrap', flexShrink: 0,
                     }}>
                         {t === 'pendentes' ? 'Pendentes' : 'Recebidos'}
                     </button>
@@ -1371,7 +1373,7 @@ function HistoricoModal({ tipo, id, onClose, onReload, notify, isAdmin }) {
 
     return (
         <Modal onClose={onClose} title={`Histórico — ${tipo === 'pagar' ? 'Conta a Pagar' : tipo === 'receber' ? 'Conta a Receber' : 'Despesa'} #${id}`}>
-            <div style={{ minWidth: 420, maxWidth: 600, maxHeight: '70vh', overflowY: 'auto' }}>
+            <div style={{ width: 'min(420px, 95vw)', maxWidth: 'min(600px, 95vw)', maxHeight: '70vh', overflowY: 'auto' }}>
                 {loading ? <Spinner text="Carregando histórico..." />
                 : entries.length === 0 ? (
                     <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
@@ -1594,7 +1596,7 @@ export default function Financeiro({ notify, user, nav }) {
     ];
 
     return (
-        <div style={{ padding: '24px 32px', maxWidth: 1280, margin: '0 auto' }}>
+        <div style={{ padding: 'clamp(14px, 3vw, 24px) clamp(14px, 3vw, 32px)', maxWidth: 1280, margin: '0 auto' }}>
             {/* Header */}
             <PageHeader icon={DollarSign} title="Financeiro" subtitle="Controle de contas, recebimentos, notas fiscais e fluxo de caixa" />
 

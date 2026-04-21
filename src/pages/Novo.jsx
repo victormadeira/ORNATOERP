@@ -431,7 +431,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                                 </button>
                             )}
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <div>
                                 <label className={Z.lbl}>Material Interno</label>
                                 <SearchableSelect
@@ -658,7 +658,7 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove, precoVenda }) {
             {exp && (
                 <div className="px-4 pb-4 pt-3 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
                     {/* Nome + tipo */}
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
                             <label className={Z.lbl}>Nome</label>
                             <input className={Z.inp} value={painel.nome || ''} onChange={e => up({ nome: e.target.value })} placeholder="Painel ripado..." />
@@ -678,7 +678,7 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove, precoVenda }) {
                     </div>
 
                     {/* Dimensões + qtd */}
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         <div><label className={Z.lbl}>Largura (mm)</label><input type="number" className={Z.inp} min={100} value={painel.L || 2400} onChange={e => up({ L: +e.target.value })} /></div>
                         <div><label className={Z.lbl}>Altura (mm)</label><input type="number" className={Z.inp} min={100} value={painel.A || 2200} onChange={e => up({ A: +e.target.value })} /></div>
                         <div><label className={Z.lbl}>Qtd</label><input type="number" className={Z.inp} min={1} value={painel.qtd || 1} onChange={e => up({ qtd: Math.max(1, +e.target.value) })} /></div>
@@ -687,7 +687,7 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove, precoVenda }) {
                     {/* Ripas V */}
                     <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--warning-border)', borderLeft: '3px solid var(--warning)' }}>
                         <span className="text-[10px] uppercase tracking-widest font-bold block mb-2" style={{ color: 'var(--warning)' }}>Ripas Verticais</span>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                             <div><label className={Z.lbl}>Largura (mm)</label><input type="number" className={Z.inp} min={5} value={painel.wV || 40} onChange={e => up({ wV: +e.target.value })} /></div>
                             <div><label className={Z.lbl}>Espessura (mm)</label><input type="number" className={Z.inp} min={3} value={painel.eV || 18} onChange={e => up({ eV: +e.target.value })} /></div>
                             <div><label className={Z.lbl}>Espaçamento (mm)</label><input type="number" className={Z.inp} min={0} value={painel.sV || 15} onChange={e => up({ sV: +e.target.value })} /></div>
@@ -712,7 +712,7 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove, precoVenda }) {
                                 </label>
                             </div>
                             {painel.mesmasRipas === false && (
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                     <div><label className={Z.lbl}>Largura (mm)</label><input type="number" className={Z.inp} min={5} value={painel.wH || 40} onChange={e => up({ wH: +e.target.value })} /></div>
                                     <div><label className={Z.lbl}>Espessura (mm)</label><input type="number" className={Z.inp} min={3} value={painel.eH || 18} onChange={e => up({ eH: +e.target.value })} /></div>
                                     <div><label className={Z.lbl}>Espaçamento (mm)</label><input type="number" className={Z.inp} min={0} value={painel.sH || 15} onChange={e => up({ sH: +e.target.value })} /></div>
@@ -738,7 +738,7 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove, precoVenda }) {
                     )}
 
                     {/* Coeficiente de dificuldade */}
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
                             <label className={Z.lbl}>Coef. Dificuldade</label>
                             <input type="number" className={Z.inp} min={1} step={0.05}
@@ -3334,7 +3334,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
                 {/* ── Resumo Financeiro ── */}
                 <div className="lg:col-span-1">
-                    <div className="glass-card sticky top-[68px] overflow-hidden flex flex-col" style={{ borderTop: '2px solid var(--primary)', maxHeight: 'calc(100vh - 84px)' }}>
+                    <div className="glass-card overflow-hidden flex flex-col" style={{ borderTop: '2px solid var(--primary)', minHeight: 560, maxHeight: 'calc(100vh - 24px)' }}>
                         <div className="p-4 overflow-y-auto flex-1" style={{ scrollbarWidth: 'thin' }}>
                             <h3 className="font-semibold text-sm mb-4" style={{ color: 'var(--text-primary)' }}>Resumo Financeiro</h3>
                             {ambientes.length > 0 && (

@@ -1,24 +1,73 @@
 import { Ic } from '../../ui';
-import { Search } from 'lucide-react';
+import { Search, ArrowLeft } from 'lucide-react';
 
 export default function Topbar({
     isMobile, setMobileOpen, pg, ALL_MENUS, nav,
+    canGoBack, goBack,
     buscaRef, buscaQuery, setBuscaQuery, buscaResults, buscaOpen, setBuscaOpen,
     waUnread, notifsRef, showNotifs, setShowNotifs,
     notifs, notifBadgeColor, markAllRead, goToNotif, getNotifStyle,
 }) {
+    const isHome = pg === 'dash';
+    const showBack = canGoBack && !isHome;
+
     return (
-        <div className="sticky top-0 z-10 flex items-center justify-between px-3 md:px-6 h-[56px] no-print"
+        <div className="topbar-fixed sticky top-0 z-10 flex items-center justify-between px-3 md:px-6 h-[56px] no-print"
             style={{
                 background: 'var(--glass-bg)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
                 borderBottom: '1px solid var(--border)',
             }}>
-            <div className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text-muted)' }}>
+            <div className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text-muted)', minWidth: 0, flex: 1 }}>
                 {isMobile && (
-                    <button onClick={() => setMobileOpen(true)} className="p-1.5 mr-1 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
+                    <button
+                        onClick={() => setMobileOpen(true)}
+                        className="mr-1 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
+                        style={{
+                            color: 'var(--text-primary)',
+                            width: 40, height: 40,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            touchAction: 'manipulation', flexShrink: 0,
+                        }}
+                        aria-label="Abrir menu"
+                    >
                         <Ic.Menu />
+                    </button>
+                )}
+                {showBack && (
+                    <button
+                        onClick={goBack}
+                        aria-label="Voltar"
+                        title="Voltar"
+                        className="topbar-back"
+                        style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                            height: 34, padding: '0 10px 0 8px', marginRight: 6,
+                            borderRadius: 10,
+                            background: 'var(--bg-muted)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--text-secondary)',
+                            fontSize: 12.5, fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 160ms var(--ease-out)',
+                            touchAction: 'manipulation',
+                        }}
+                        onMouseEnter={e => {
+                            e.currentTarget.style.background = 'var(--bg-card)';
+                            e.currentTarget.style.borderColor = 'var(--accent-bright)';
+                            e.currentTarget.style.color = 'var(--text-primary)';
+                            e.currentTarget.style.boxShadow = '0 2px 10px rgba(184, 147, 90, 0.18)';
+                        }}
+                        onMouseLeave={e => {
+                            e.currentTarget.style.background = 'var(--bg-muted)';
+                            e.currentTarget.style.borderColor = 'var(--border)';
+                            e.currentTarget.style.color = 'var(--text-secondary)';
+                            e.currentTarget.style.boxShadow = 'none';
+                        }}
+                    >
+                        <ArrowLeft size={15} strokeWidth={2.4} />
+                        <span className="hidden sm:inline">Voltar</span>
                     </button>
                 )}
                 <span className="hidden md:inline"><Ic.Home /></span>
@@ -26,7 +75,7 @@ export default function Topbar({
                 <span style={{ color: 'var(--text-primary)' }} className="font-medium truncate">{[...ALL_MENUS, { id: "novo", lb: "Novo Orcamento" }, { id: "users", lb: "Usuarios" }].find(m => m.id === pg)?.lb || 'Home'}</span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             {/* Busca Global */}
             <div ref={buscaRef} style={{ position: 'relative' }} className="hidden md:block">
                 <div style={{ position: 'relative' }}>
@@ -114,7 +163,8 @@ export default function Topbar({
                     onClick={() => nav('whatsapp')}
                     style={{
                         position: 'relative', background: 'none', border: 'none', cursor: 'pointer',
-                        padding: 8, borderRadius: 10, transition: 'background 0.15s', color: 'var(--success)',
+                        padding: 8, borderRadius: 10, transition: 'background 0.15s',
+                        minWidth: 40, minHeight: 40, touchAction: 'manipulation', color: 'var(--success)',
                     }}
                     className="hover:bg-[var(--bg-hover)]"
                     title={`${waUnread} mensagem(ns) nao lida(s)`}
@@ -137,6 +187,7 @@ export default function Topbar({
                     style={{
                         position: 'relative', background: 'none', border: 'none', cursor: 'pointer',
                         padding: 8, borderRadius: 10, transition: 'background 0.15s',
+                        minWidth: 40, minHeight: 40, touchAction: 'manipulation',
                         color: notifBadgeColor || 'var(--text-muted)',
                     }}
                     className="hover:bg-[var(--bg-hover)]"

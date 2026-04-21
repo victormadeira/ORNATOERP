@@ -381,9 +381,8 @@ export default function Sidebar({
                 <aside
                     onMouseEnter={() => {}}
                     onMouseLeave={() => {}}
-                    className="relative z-20 shrink-0 flex flex-col"
+                    className="sidebar-dark relative z-20 shrink-0 flex flex-col"
                     style={{
-                        background: 'var(--bg-sidebar)',
                         borderRight: '1px solid var(--border)',
                         width: sidebarExpanded ? 'var(--sidebar-width)' : 'var(--sidebar-compact)',
                         transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -520,7 +519,7 @@ export default function Sidebar({
                             <div className="flex items-center gap-2.5 px-2.5 py-2">
                                 <div onClick={() => setShowPerfil(true)} className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer rounded-lg px-1 py-0.5 transition-colors hover:bg-[var(--bg-hover)]">
                                     <div className="relative shrink-0">
-                                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--primary-gradient)' }}>
+                                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--accent-gradient)' }}>
                                             {user.nome?.[0]?.toUpperCase()}
                                         </div>
                                         <span className="status-online" />
@@ -546,7 +545,7 @@ export default function Sidebar({
 
             {/* Mobile Sidebar (overlay) */}
             {isMobile && mobileOpen && (
-                <aside className="fixed inset-y-0 left-0 z-40 w-64 flex flex-col animate-slide-left" style={{ background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)' }}>
+                <aside className="sidebar-dark fixed inset-y-0 left-0 z-40 w-64 flex flex-col animate-slide-left" style={{ borderRight: '1px solid var(--border)' }}>
                     <div className="flex items-center gap-2.5 px-3 min-h-[56px]" style={{ borderBottom: '1px solid var(--border)' }}>
                         <button onClick={() => setMobileOpen(false)} className="p-1.5 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
                             <Ic.X />
@@ -592,7 +591,7 @@ export default function Sidebar({
                                                 const I = m.ic;
                                                 const badge = !active ? getBadge(m.id) : null;
                                                 return (
-                                                    <button key={m.id} onClick={() => nav(m.id)}
+                                                    <button key={m.id} onClick={() => { nav(m.id); setMobileOpen(false); }}
                                                         className={`sidebar-item w-full flex items-center gap-2.5 px-2.5 py-2.5 cursor-pointer ${active ? 'sidebar-item-active font-semibold' : ''}`}
                                                         style={!active ? { color: 'var(--text-secondary)' } : undefined}>
                                                         <span className="shrink-0"><I /></span>
