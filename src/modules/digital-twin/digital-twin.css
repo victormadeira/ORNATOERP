@@ -1,0 +1,762 @@
+/* ═══════════════════════════════════════════════════════════
+   DIGITAL TWIN CNC — scoped styles
+   Herda do design system Ornato (--bg-*, --border, --primary, --accent).
+   Apenas cores G-Code (G0/G1/G2/G3) são fixas — convenção CNC universal.
+   ═══════════════════════════════════════════════════════════ */
+
+.dt-shell {
+  /* tokens do sistema (herdados) */
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: 300px 1fr 300px;
+  grid-template-rows: 52px 1fr;
+  grid-template-areas:
+    "topbar topbar topbar"
+    "left main right";
+  background: var(--bg-body);
+  color: var(--text-primary);
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 13px;
+  overflow: hidden;
+
+  /* cores fixas G-Code (não-temáveis — padrão CNC) */
+  --dt-g0: #E0513F;
+  --dt-g1: #2E7FD6;
+  --dt-g2: #3D9B47;
+  --dt-g3: #2E8A42;
+  --dt-toolpath-bg: rgba(19, 121, 240, 0.08);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Tipografia
+   ═══════════════════════════════════════════════════════════ */
+.dt-mono {
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.dt-label {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Topbar
+   ═══════════════════════════════════════════════════════════ */
+.dt-topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+}
+.dt-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 14px;
+  border-right: 1px solid var(--border);
+  height: 100%;
+}
+.dt-brand-chip {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  background: var(--accent-gradient, linear-gradient(135deg, #D4B47C 0%, #A8854D 100%));
+  display: flex; align-items: center; justify-content: center;
+  color: white;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.dt-brand-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.dt-brand-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
+.dt-tabs {
+  display: flex;
+  gap: 2px;
+  height: 100%;
+  align-items: center;
+}
+.dt-tab {
+  display: flex; align-items: center; gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+  white-space: nowrap;
+}
+.dt-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.dt-tab-active {
+  background: var(--primary-alpha, rgba(19, 121, 240, 0.07));
+  color: var(--primary);
+  border-color: var(--primary-ring, rgba(19, 121, 240, 0.18));
+}
+.dt-tab svg { flex-shrink: 0; }
+
+.dt-topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Scan input herda visual de input-glass mas compacto */
+.dt-scan-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 4px 0 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input, var(--border));
+  border-radius: 8px;
+  min-width: 300px;
+  transition: all 0.15s ease-out;
+}
+.dt-scan-wrap:focus-within {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-focus, 0 0 0 3px var(--primary-ring, rgba(19, 121, 240, 0.18)));
+}
+.dt-scan-input {
+  flex: 1;
+  height: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  min-width: 0;
+}
+.dt-scan-input::placeholder {
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.dt-scan-btn {
+  display: flex; align-items: center; gap: 5px;
+  height: 28px; padding: 0 12px;
+  background: var(--primary);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+  min-height: 28px;
+}
+.dt-scan-btn:hover:not(:disabled) { background: var(--primary-hover); }
+.dt-scan-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.dt-icon-btn {
+  width: 34px; height: 34px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+}
+.dt-icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.dt-icon-btn-danger:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Sidebars
+   ═══════════════════════════════════════════════════════════ */
+.dt-sidebar-left { grid-area: left; }
+.dt-sidebar-right { grid-area: right; }
+.dt-sidebar {
+  background: var(--bg-card);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.dt-sidebar-left { border-right: 1px solid var(--border); }
+.dt-sidebar-right { border-left: 1px solid var(--border); }
+
+.dt-section {
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.dt-section:last-child { border-bottom: none; }
+.dt-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.dt-section-title::before {
+  content: '';
+  width: 2px; height: 12px;
+  background: var(--accent);
+  border-radius: 1px;
+}
+.dt-section-count {
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.dt-scroll { overflow-y: auto; flex: 1; }
+.dt-scroll::-webkit-scrollbar { width: 6px; }
+.dt-scroll::-webkit-scrollbar-track { background: transparent; }
+.dt-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.dt-scroll::-webkit-scrollbar-thumb:hover { background: var(--border-strong, var(--border-hover)); }
+
+/* ═══════════════════════════════════════════════════════════
+   PieceCard — lista sidebar esquerda
+   ═══════════════════════════════════════════════════════════ */
+.dt-piece-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  background: var(--bg-subtle, var(--bg-hover));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+  position: relative;
+  min-height: 52px;
+}
+.dt-piece-card:hover {
+  border-color: var(--primary);
+  background: var(--primary-alpha);
+}
+.dt-piece-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.dt-piece-card-active {
+  border-color: var(--primary);
+  background: var(--primary-alpha);
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+.dt-piece-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dt-piece-id {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.02em;
+}
+.dt-piece-name {
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.35;
+}
+.dt-piece-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   StatusChip
+   ═══════════════════════════════════════════════════════════ */
+.dt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.dt-chip::before {
+  content: '';
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.dt-chip-ok       { color: var(--success); background: var(--success-bg); border-color: var(--success-border); }
+.dt-chip-pendente { color: var(--warning); background: var(--warning-bg); border-color: var(--warning-border); }
+.dt-chip-erro     { color: var(--danger);  background: var(--danger-bg);  border-color: var(--danger-border); }
+.dt-chip-usinado  { color: var(--primary); background: var(--primary-alpha); border-color: var(--primary-ring); }
+
+/* ═══════════════════════════════════════════════════════════
+   OperationItem
+   ═══════════════════════════════════════════════════════════ */
+.dt-op {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  margin-bottom: 4px;
+  border-radius: 7px;
+  border-left: 3px solid var(--border-strong, var(--border));
+  background: var(--bg-subtle, var(--bg-hover));
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+  min-height: 44px;
+}
+.dt-op:hover { background: var(--primary-alpha); }
+.dt-op:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.dt-op-hover {
+  background: var(--primary-alpha) !important;
+  border-left-color: var(--primary) !important;
+  box-shadow: inset 0 0 0 1px var(--primary-ring);
+}
+.dt-op-furo_cego,
+.dt-op-furo_passante  { border-left-color: var(--primary); }
+.dt-op-rasgo          { border-left-color: var(--accent); }
+.dt-op-rebaixo        { border-left-color: #8b5cf6; }
+.dt-op-freza_circular { border-left-color: var(--success); }
+.dt-op-chanfro        { border-left-color: var(--warning); }
+
+.dt-op-icon {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.dt-op-body { flex: 1; min-width: 0; }
+.dt-op-label {
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dt-op-dim {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Main canvas
+   ═══════════════════════════════════════════════════════════ */
+.dt-main {
+  grid-area: main;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-body);
+  background-image:
+    radial-gradient(circle at 25% 20%, rgba(19, 121, 240, 0.035), transparent 50%),
+    radial-gradient(circle at 75% 80%, rgba(184, 147, 90, 0.025), transparent 50%);
+}
+.dt-canvas-wrap {
+  position: absolute;
+  inset: 0;
+}
+
+/* Overlay piece badge (nome da peça flutuante) */
+.dt-piece-badge {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 5;
+  padding: 10px 14px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 220px;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.dt-piece-badge-id {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--primary);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.dt-piece-badge-name {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.dt-piece-badge-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LayerToggle — bottom floating controls
+   ═══════════════════════════════════════════════════════════ */
+.dt-layer-controls {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  max-width: calc(100% - 32px);
+  overflow-x: auto;
+}
+.dt-layer-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+  white-space: nowrap;
+  min-height: 30px;
+}
+.dt-layer-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+.dt-layer-btn-active {
+  color: var(--primary);
+  background: var(--primary-alpha);
+  border-color: var(--primary-ring);
+}
+.dt-layer-btn-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--border-strong, var(--text-muted));
+}
+.dt-layer-btn-active .dt-layer-btn-dot { background: var(--primary); }
+
+.dt-layer-controls .dt-layer-btn-g0-active .dt-layer-btn-dot { background: var(--dt-g0); }
+.dt-layer-controls .dt-layer-btn-g1-active .dt-layer-btn-dot { background: var(--dt-g1); }
+
+/* ═══════════════════════════════════════════════════════════
+   Stats grid (sidebar right)
+   ═══════════════════════════════════════════════════════════ */
+.dt-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.dt-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 10px;
+  background: var(--bg-subtle, var(--bg-hover));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.dt-stat-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.dt-stat-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+.dt-stat-value-accent { color: var(--primary); }
+.dt-stat-value-g0     { color: var(--dt-g0); }
+.dt-stat-value-g1     { color: var(--dt-g1); }
+
+/* ═══════════════════════════════════════════════════════════
+   Skeleton + empty
+   ═══════════════════════════════════════════════════════════ */
+.dt-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-hover) 0%,
+    var(--bg-subtle, var(--bg-card)) 50%,
+    var(--bg-hover) 100%
+  );
+  background-size: 200% 100%;
+  animation: dt-shimmer 1.4s infinite ease-in-out;
+  border-radius: 6px;
+}
+@keyframes dt-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.dt-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 40px 20px;
+}
+.dt-empty-icon {
+  width: 72px; height: 72px;
+  border-radius: 18px;
+  background: var(--bg-card);
+  border: 1px dashed var(--border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted);
+}
+.dt-empty-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.dt-empty-sub { font-size: 12px; max-width: 280px; line-height: 1.5; }
+
+/* ═══════════════════════════════════════════════════════════
+   Nesting canvas
+   ═══════════════════════════════════════════════════════════ */
+.dt-nest-wrap {
+  position: absolute;
+  inset: 20px 20px 60px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  overflow: auto;
+}
+.dt-nest-sheet-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.dt-nest-sheet-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.dt-nest-sheet {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-width: 100%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.dt-nest-piece {
+  cursor: pointer;
+  transition: filter 0.15s ease-out;
+}
+.dt-nest-piece:hover { filter: brightness(0.92) saturate(1.2); }
+
+.dt-nest-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   QR Scanner
+   ═══════════════════════════════════════════════════════════ */
+.dt-scanner-wrap {
+  max-width: 480px;
+  margin: 24px auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+.dt-scanner-video {
+  aspect-ratio: 1;
+  background: #000;
+  position: relative;
+  overflow: hidden;
+}
+.dt-scanner-video video,
+.dt-scanner-video canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dt-scanner-placeholder {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 10px;
+  color: rgba(255,255,255,0.7);
+  font-size: 12px;
+}
+.dt-scanner-overlay {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to right, transparent 10%, rgba(19, 121, 240, 0.2) 50%, transparent 90%);
+  opacity: 0;
+  animation: dt-scan-line 2s ease-in-out infinite;
+}
+@keyframes dt-scan-line {
+  0%, 100% { transform: translateY(0); opacity: 0; }
+  50% { transform: translateY(100%); opacity: 1; }
+}
+.dt-scanner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+}
+.dt-scanner-manual {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+}
+.dt-scanner-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: white;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.dt-scanner-error {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 12px;
+  padding: 8px 10px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Responsivo
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 1200px) {
+  .dt-shell { grid-template-columns: 260px 1fr 260px; }
+}
+@media (max-width: 1024px) {
+  .dt-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: 52px 1fr auto;
+    grid-template-areas:
+      "topbar"
+      "main"
+      "left";
+  }
+  .dt-sidebar-right { display: none; }
+  .dt-sidebar-left {
+    border-top: 1px solid var(--border);
+    border-right: none;
+    max-height: 38vh;
+  }
+  .dt-scan-wrap { min-width: 0; flex: 1; }
+  .dt-brand-sub { display: none; }
+}
+@media (max-width: 640px) {
+  .dt-topbar { gap: 6px; padding: 0 8px; }
+  .dt-brand { padding-right: 8px; gap: 6px; }
+  .dt-brand-title { display: none; }
+  .dt-tab { padding: 0 8px; font-size: 11px; gap: 4px; }
+  .dt-tab-label { display: none; }
+  .dt-layer-btn { padding: 0 7px; font-size: 9px; }
+  .dt-layer-btn-label { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Reduced motion
+   ═══════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .dt-skeleton { animation: none; }
+  .dt-scanner-overlay { animation: none; }
+  .dt-tab, .dt-layer-btn, .dt-piece-card, .dt-op, .dt-icon-btn, .dt-scan-btn { transition: none; }
+}

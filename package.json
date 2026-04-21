@@ -20,6 +20,8 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
     "adm-zip": "^0.5.17",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.10.0",
@@ -28,7 +30,9 @@
     "dxf-parser": "^1.1.2",
     "express": "^4.21.0",
     "express-rate-limit": "^8.2.1",
+    "gcode-toolpath": "^3.0.0",
     "googleapis": "^171.4.0",
+    "html5-qrcode": "^2.3.8",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.575.0",
     "multer": "^2.1.1",
@@ -37,7 +41,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.183.2",
-    "three-bvh-csg": "^0.0.18"
+    "three-bvh-csg": "^0.0.18",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

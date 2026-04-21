@@ -27,6 +27,7 @@ const Financeiro = lazy(() => import('./pages/Financeiro'));
 const ProducaoCNC = lazy(() => import('./pages/ProducaoCNC'));
 const PlanoCorte = lazy(() => import('./pages/PlanoCorte'));
 const Industrializacao = lazy(() => import('./pages/Industrializacao'));
+const DigitalTwin = lazy(() => import('./modules/digital-twin/DigitalTwin'));
 const ProducaoFabrica = lazy(() => import('./pages/ProducaoFabrica'));
 const Expedicao = lazy(() => import('./pages/Expedicao'));
 const Compras = lazy(() => import('./pages/Compras'));
@@ -113,7 +114,7 @@ class ErrorBoundary extends Component {
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
     // ── Roteamento com History API ──────────────────────────────────────────
-    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download','ponto','funil'];
+    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download','ponto','funil','digital_twin'];
     const [pg, setPg] = useState(() => {
         const rawPath = window.location.pathname.replace(/^\/+/, '');
         const parts = rawPath.split('/');
@@ -535,6 +536,7 @@ export default function App() {
         { id: 'producao', label: 'Produção', icon: Ic.Factory, items: [
             { id: "industrializacao", lb: "Ordens", ic: Ic.ClipList },
             { id: "cnc", lb: "Corte & CNC", ic: Ic.Scissors },
+            { id: "digital_twin", lb: "Digital Twin CNC", ic: Ic.Box },
             { id: "expedicao", lb: "Expedição", ic: Ic.Truck },
         ]},
         { id: 'cadastros', label: 'Cadastros', icon: Ic.Box, items: [
@@ -577,6 +579,7 @@ export default function App() {
         { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         { id: "industrializacao", lb: "Ordens de Produção", ic: Ic.ClipList },
         { id: "cnc", lb: "Corte & CNC", ic: Ic.Scissors },
+        { id: "digital_twin", lb: "Digital Twin CNC (3D)", ic: Ic.Box },
         { id: "producao_fabrica", lb: "Acompanhamento Fábrica", ic: Ic.HardHat },
         { id: "producao_tv", lb: "TV Fábrica", ic: Ic.Monitor },
         { id: "expedicao", lb: "Expedição", ic: Ic.Truck },
@@ -634,6 +637,7 @@ export default function App() {
             case "relatorios": return <Relatorios notify={notify} />;
             case "plano_corte": return <PlanoCorte notify={notify} />;
             case "cnc": return <ProducaoCNC notify={notify} />;
+            case "digital_twin": return <DigitalTwin notify={notify} nav={nav} />;
             case "cfg": return <Cfg taxas={taxas} reload={loadTaxas} notify={notify} allMenuItems={MENU_GROUPS} menusOcultos={menusOcultos} onMenusChange={() => loadEmpresa()} />;
             case "users": return isAdmin ? <Users notify={notify} meUser={user} /> : <Dash nav={nav} notify={notify} />;
             case "industrializacao": return <Industrializacao notify={notify} nav={nav} />;
