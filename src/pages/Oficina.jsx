@@ -889,10 +889,163 @@ function TVCard({ card }) {
   );
 }
 
+// ─── Mini Calendário de Prazos (TV sidebar) ───────────────────
+function TVCalendar({ cards }) {
+  const now   = new Date();
+  const year  = now.getFullYear();
+  const month = now.getMonth();
+  const today = now.getDate();
+
+  const daysInMonth  = new Date(year, month + 1, 0).getDate();
+  // 0=Dom…6=Sab; ajusta para semana começar na segunda (0=Seg)
+  const firstDow     = (new Date(year, month, 1).getDay() + 6) % 7;
+  const monthName    = now.toLocaleDateString('pt-BR', { month: 'long' });
+
+  // Agrupa prazos por dia do mês atual
+  const byDay = {};
+  cards.forEach(c => {
+    if (!c.prazo) return;
+    const d = new Date(c.prazo + 'T12:00:00');
+    if (d.getFullYear() !== year || d.getMonth() !== month) return;
+    const day = d.getDate();
+    if (!byDay[day]) byDay[day] = [];
+    byDay[day].push(c);
+  });
+
+  // Próximos 30 dias com prazo (para a lista)
+  const upcoming = cards
+    .filter(c => c.prazo)
+    .map(c => {
+      const diff = Math.floor((new Date(c.prazo + 'T12:00:00') - now) / 86400000);
+      return { ...c, diff };
+    })
+    .filter(c => c.diff >= -1 && c.diff <= 30)
+    .sort((a, b) => a.diff - b.diff)
+    .slice(0, 8);
+
+  const dayColor = (d) => {
+    const items = byDay[d] || [];
+    if (!items.length) return null;
+    const diffs = items.map(c => Math.floor((new Date(c.prazo + 'T12:00:00') - now) / 86400000));
+    const min = Math.min(...diffs);
+    if (min < 0)  return '#EF4444';
+    if (min === 0) return '#F97316';
+    if (min <= 3)  return '#F59E0B';
+    return '#C9A96E';
+  };
+
+  const DAYS_HEADER = ['S','T','Q','Q','S','S','D'];
+
+  // Células: padding inicial + dias do mês
+  const cells = Array(firstDow).fill(null).concat(Array.from({ length: daysInMonth }, (_, i) => i + 1));
+  // Completar última semana
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {/* Título mês */}
+      <div style={{ textAlign: 'center', marginBottom: 10 }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: '#C9A96E', textTransform: 'capitalize', letterSpacing: '0.06em' }}>
+          {monthName} {year}
+        </span>
+      </div>
+
+      {/* Grid cabeçalho dias */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, marginBottom: 2 }}>
+        {DAYS_HEADER.map((d, i) => (
+          <div key={i} style={{ textAlign: 'center', fontSize: 9, fontWeight: 700, color: '#3a4555', paddingBottom: 3 }}>{d}</div>
+        ))}
+      </div>
+
+      {/* Grid dias */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
+        {cells.map((d, i) => {
+          if (!d) return <div key={`e${i}`} />;
+          const color = dayColor(d);
+          const isToday = d === today;
+          const count = (byDay[d] || []).length;
+          return (
+            <div key={d} style={{
+              position: 'relative',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              width: '100%', aspectRatio: '1',
+              borderRadius: 4,
+              background: isToday ? '#1e2d40' : color ? `${color}18` : 'transparent',
+              border: isToday ? '1px solid #C9A96E' : color ? `1px solid ${color}40` : '1px solid transparent',
+            }}>
+              <span style={{
+                fontSize: 10, fontWeight: isToday ? 800 : color ? 700 : 400,
+                color: isToday ? '#C9A96E' : color ? color : '#475569',
+                lineHeight: 1,
+              }}>{d}</span>
+              {count > 0 && (
+                <div style={{
+                  width: count > 1 ? 12 : 6, height: 3, borderRadius: 99,
+                  background: color, marginTop: 2, flexShrink: 0,
+                }} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Legenda */}
+      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {[['#EF4444','Vencido'],['#F97316','Hoje'],['#F59E0B','≤3d'],['#C9A96E','Próximo']].map(([c, l]) => (
+          <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#475569' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: c, display: 'inline-block', flexShrink: 0 }} />{l}
+          </span>
+        ))}
+      </div>
+
+      {/* Divisor */}
+      {upcoming.length > 0 && (
+        <div style={{ borderTop: '1px solid #1e2530', margin: '12px 0 8px' }} />
+      )}
+
+      {/* Lista de prazos próximos */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {upcoming.map(c => {
+          const isPast  = c.diff < 0;
+          const isToday2 = c.diff === 0;
+          const col     = isPast ? '#EF4444' : isToday2 ? '#F97316' : c.diff <= 3 ? '#F59E0B' : '#C9A96E';
+          const label   = isPast ? `${Math.abs(c.diff)}d atraso` : isToday2 ? 'Hoje' : c.diff === 1 ? 'Amanhã' : `${c.diff}d`;
+          return (
+            <div key={c.id} style={{
+              background: '#141920', borderRadius: 6, padding: '6px 8px',
+              borderLeft: `3px solid ${c.cor || col}`,
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#E2E8F0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {c.ambiente}
+                </div>
+                {c.projeto_nome && (
+                  <div style={{ fontSize: 9, color: c.cor || '#C9A96E', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {c.projeto_nome}
+                  </div>
+                )}
+              </div>
+              <span style={{ fontSize: 9, fontWeight: 800, color: col, whiteSpace: 'nowrap', background: `${col}15`, padding: '2px 5px', borderRadius: 4 }}>
+                {label}
+              </span>
+            </div>
+          );
+        })}
+        {upcoming.length === 0 && (
+          <div style={{ textAlign: 'center', fontSize: 10, color: '#2a3040', padding: '8px 0' }}>Sem prazos próximos</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Modo TV ───────────────────────────────────────────────────
 function OficinaTVMode() {
-  const [cards, setCards] = useState([]);
-  const [clock, setClock] = useState('');
+  const [cards, setCards]           = useState([]);
+  const [clock, setClock]           = useState('');
   const [lastRefresh, setLastRefresh] = useState('');
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const load = useCallback(() => {
     japi('').then(d => {
@@ -901,6 +1054,7 @@ function OficinaTVMode() {
     });
   }, []);
 
+  // Polling + relógio
   useEffect(() => {
     load();
     const poll = setInterval(load, 10000);
@@ -908,82 +1062,141 @@ function OficinaTVMode() {
   }, [load]);
 
   useEffect(() => {
-    const tick = setInterval(() => {
-      setClock(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-    }, 1000);
+    const tick = setInterval(() =>
+      setClock(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
+    , 1000);
     return () => clearInterval(tick);
   }, []);
+
+  // Auto-fullscreen ao montar
+  useEffect(() => {
+    const req = async () => {
+      try {
+        await document.documentElement.requestFullscreen?.();
+        setIsFullscreen(true);
+      } catch { /* usuário recusou ou browser bloqueou */ }
+    };
+    req();
+    const onFSChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFSChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFSChange);
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    };
+  }, []);
+
+  const toggleFullscreen = async () => {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen?.();
+    } else {
+      await document.documentElement.requestFullscreen?.();
+    }
+  };
 
   const totalEmProd = cards.filter(c => c.etapa !== 'expedicao').length;
   const prontos     = cards.filter(c => c.etapa === 'expedicao').length;
   const atrasados   = cards.filter(c => c.prazo && new Date(c.prazo + 'T12:00:00') < new Date()).length;
 
   return (
-    <div style={{ background: '#0E1116', minHeight: '100dvh', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', system-ui, sans-serif", overflow: 'hidden' }}>
-      {/* Header TV */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderBottom: '1px solid #1e2530', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span style={{ fontSize: 18, fontWeight: 900, color: '#C9A96E', letterSpacing: '-0.02em' }}>Oficina</span>
-          <span style={{ fontSize: 12, color: '#475569', fontWeight: 500 }}>Produção em andamento</span>
-        </div>
-        <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: 14 }}>
-            <span style={{ fontSize: 11, color: '#64748b' }}>
-              <span style={{ fontWeight: 800, color: '#F8FAFC', fontSize: 18, fontVariantNumeric: 'tabular-nums' }}>{totalEmProd}</span>
-              <span style={{ marginLeft: 5 }}>em prod.</span>
+    <div style={{ background: '#0E1116', height: '100dvh', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', system-ui, sans-serif", overflow: 'hidden' }}>
+
+      {/* ── Header ───────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 18px', borderBottom: '1px solid #1e2530', flexShrink: 0 }}>
+        {/* Esquerda: título + stats */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          <span style={{ fontSize: 17, fontWeight: 900, color: '#C9A96E', letterSpacing: '-0.02em' }}>Oficina</span>
+          <div style={{ display: 'flex', gap: 16 }}>
+            <span style={{ fontSize: 10, color: '#64748b' }}>
+              <span style={{ fontWeight: 800, color: '#F8FAFC', fontSize: 17, fontVariantNumeric: 'tabular-nums' }}>{totalEmProd}</span>
+              <span style={{ marginLeft: 4 }}>em prod.</span>
             </span>
-            <span style={{ fontSize: 11, color: '#64748b' }}>
-              <span style={{ fontWeight: 800, color: '#10B981', fontSize: 18, fontVariantNumeric: 'tabular-nums' }}>{prontos}</span>
-              <span style={{ marginLeft: 5 }}>p/ expedir</span>
+            <span style={{ fontSize: 10, color: '#64748b' }}>
+              <span style={{ fontWeight: 800, color: '#10B981', fontSize: 17, fontVariantNumeric: 'tabular-nums' }}>{prontos}</span>
+              <span style={{ marginLeft: 4 }}>p/ expedir</span>
             </span>
             {atrasados > 0 && (
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#EF4444' }}>
-                <span style={{ fontSize: 18, fontVariantNumeric: 'tabular-nums' }}>{atrasados}</span>
-                <span style={{ marginLeft: 5 }}>atrasado{atrasados > 1 ? 's' : ''}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#EF4444' }}>
+                <span style={{ fontSize: 17, fontVariantNumeric: 'tabular-nums' }}>{atrasados}</span>
+                <span style={{ marginLeft: 4 }}>atrasado{atrasados > 1 ? 's' : ''}</span>
               </span>
             )}
           </div>
+        </div>
+
+        {/* Direita: legenda de idade + relógio + fullscreen */}
+        <div style={{ display: 'flex', gap: 18, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {[['#10B981','até 1d'],['#F59E0B','2–3d'],['#EF4444','4+d']].map(([c, l]) => (
+              <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#475569' }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: c, display: 'inline-block' }} />{l}
+              </span>
+            ))}
+            <span style={{ fontSize: 9, color: '#2a3040', marginLeft: 4 }}>↑ atualiz. card</span>
+          </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: '#F8FAFC', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{clock}</div>
-            <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#F8FAFC', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{clock}</div>
+            <div style={{ fontSize: 9, color: '#475569', marginTop: 1 }}>
               {new Date().toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
             </div>
           </div>
+          <button
+            onClick={toggleFullscreen}
+            title={isFullscreen ? 'Sair do modo tela cheia' : 'Tela cheia'}
+            aria-label={isFullscreen ? 'Sair da tela cheia' : 'Entrar em tela cheia'}
+            style={{ border: '1px solid #1e2530', background: 'none', borderRadius: 6, padding: 6, cursor: 'pointer', color: '#475569', display: 'flex', transition: 'color 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#C9A96E'}
+            onMouseLeave={e => e.currentTarget.style.color = '#475569'}
+          >
+            <Maximize2 size={14} />
+          </button>
         </div>
       </div>
 
-      {/* Legenda de cores */}
-      <div style={{ display: 'flex', gap: 4, padding: '6px 24px', borderBottom: '1px solid #141920', flexShrink: 0 }}>
-        <span style={{ fontSize: 9, color: '#475569', marginRight: 8, alignSelf: 'center', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Atualização:</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#475569' }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10B981', display: 'inline-block' }} /> até 1 dia</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#475569', marginLeft: 8 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} /> 2–3 dias</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#475569', marginLeft: 8 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: '#EF4444', display: 'inline-block' }} /> 4+ dias</span>
-        <span style={{ marginLeft: 'auto', fontSize: 9, color: '#475569' }}>Atualizado: {lastRefresh}</span>
-      </div>
+      {/* ── Body: kanban + calendário ─────────────────────── */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-      {/* Colunas */}
-      <div style={{ flex: 1, display: 'flex', gap: 0, overflowX: 'auto', padding: '12px 8px' }}>
-        {ETAPAS.map(etapa => {
-          const colCards = cards.filter(c => c.etapa === etapa.id);
-          const { Icon } = etapa;
-          return (
-            <div key={etapa.id} style={{ flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', padding: '0 8px', borderRight: '1px solid #1e2530' }}>
-              {/* Cabeçalho da coluna */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, paddingBottom: 8, borderBottom: `2px solid ${etapa.col}` }}>
-                <Icon size={14} style={{ color: etapa.col }} aria-hidden="true" />
-                <span style={{ fontSize: 11, fontWeight: 800, color: '#F8FAFC', letterSpacing: '0.1em' }}>{etapa.label}</span>
-                <span style={{ marginLeft: 'auto', fontSize: 16, fontWeight: 800, color: etapa.col, fontVariantNumeric: 'tabular-nums' }}>{colCards.length}</span>
+        {/* Colunas kanban */}
+        <div style={{ flex: 1, display: 'flex', gap: 0, overflowX: 'auto', padding: '10px 6px' }}>
+          {ETAPAS.map(etapa => {
+            const colCards = cards.filter(c => c.etapa === etapa.id);
+            const { Icon } = etapa;
+            return (
+              <div key={etapa.id} style={{ flex: 1, minWidth: 180, display: 'flex', flexDirection: 'column', padding: '0 7px', borderRight: '1px solid #1e2530' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8, paddingBottom: 7, borderBottom: `2px solid ${etapa.col}` }}>
+                  <Icon size={13} style={{ color: etapa.col }} aria-hidden="true" />
+                  <span style={{ fontSize: 10, fontWeight: 800, color: '#F8FAFC', letterSpacing: '0.1em' }}>{etapa.label}</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 15, fontWeight: 800, color: etapa.col, fontVariantNumeric: 'tabular-nums' }}>{colCards.length}</span>
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                  {colCards.map(card => <TVCard key={card.id} card={card} />)}
+                  {colCards.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '20px 0', color: '#2a3040', fontSize: 11 }}>Sem cards</div>
+                  )}
+                </div>
               </div>
-              {/* Cards */}
-              <div style={{ flex: 1, overflowY: 'auto' }}>
-                {colCards.map(card => <TVCard key={card.id} card={card} />)}
-                {colCards.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '24px 0', color: '#2a3040', fontSize: 12 }}>Sem cards</div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+
+        {/* Sidebar: calendário de prazos */}
+        <div style={{
+          width: 204, flexShrink: 0,
+          borderLeft: '1px solid #1e2530',
+          background: '#0b0e13',
+          padding: '12px 10px',
+          overflowY: 'auto',
+          display: 'flex', flexDirection: 'column',
+        }}>
+          {/* Header sidebar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #1e2530' }}>
+            <Calendar size={12} style={{ color: '#C9A96E' }} aria-hidden="true" />
+            <span style={{ fontSize: 10, fontWeight: 800, color: '#C9A96E', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Prazos</span>
+          </div>
+          <TVCalendar cards={cards} />
+          <div style={{ marginTop: 'auto', paddingTop: 10, fontSize: 8, color: '#1e2530', textAlign: 'center' }}>
+            ↻ {lastRefresh}
+          </div>
+        </div>
       </div>
     </div>
   );
