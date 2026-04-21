@@ -21,8 +21,11 @@ export default defineConfig({
                     if (id.includes('node_modules/lucide-react/')) {
                         return 'vendor-icons';
                     }
-                    // three.js + extensões CSG — ~2MB raw, precisa estar isolado
-                    if (id.match(/node_modules[\\/](three|three-bvh-csg|@react-three)[\\/]/)) {
+                    // three.js + todos os satélites e deps internas do @react-three/fiber
+                    // — ~2MB raw. Incluir as deps do fiber (react-reconciler, its-fine,
+                    // react-use-measure, suspend-react) evita chunk circular
+                    // vendor-misc ↔ vendor-three.
+                    if (id.match(/node_modules[\\/](three|three-[\w-]+|troika-three-[\w-]+|@react-three|camera-controls|maath|meshline|stats-gl|react-reconciler|react-use-measure|its-fine|suspend-react)[\\/]/)) {
                         return 'vendor-three';
                     }
                     // Scanner QR — pesado, só usado em QRScanModal/ScanPeca3D
@@ -41,8 +44,11 @@ export default defineConfig({
                     if (id.includes('node_modules/zustand/')) {
                         return 'vendor-zustand';
                     }
-                    // Tudo o mais de node_modules: vendor-misc
-                    return 'vendor-misc';
+                    // Tudo o mais: rollup decide (split automático por rota).
+                    // NÃO agrupar em vendor-misc — várias deps transitivas de
+                    // @react-three/drei importam three e causariam chunk circular
+                    // (@react-spring/*, @monogrid/gainmap-js, troika-worker-utils etc).
+                    return undefined;
                 },
             },
         },

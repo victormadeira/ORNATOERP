@@ -492,8 +492,9 @@ tr:hover .td-glass {
   border-radius: 8px;
   transition: background-color 200ms var(--ease-out);
 }
-*:hover > ::-webkit-scrollbar-thumb,
-::-webkit-scrollbar:hover ::-webkit-scrollbar-thumb {
+/* Pseudo-elements não podem ser filhos de outro seletor (>) —
+   a sintaxe correta é justapor :hover ao pseudo-element. */
+*:hover::-webkit-scrollbar-thumb {
   background-color: var(--border-strong);
   background-clip: padding-box;
 }
