@@ -10,8 +10,10 @@ import ToolpathSimulator, { parseGcodeToMoves } from '../components/ToolpathSimu
 import GcodeSimWrapper from '../components/GcodeSimWrapper';
 import SlidePanel from '../components/SlidePanel';
 import ToolbarDropdown from '../components/ToolbarDropdown';
-import { Search as SearchIcon, Grid, List, LayoutGrid, Tv } from 'lucide-react';
+import { Search as SearchIcon, Grid, List, LayoutGrid, Tv, QrCode, Maximize } from 'lucide-react';
 import useWebSocket from '../hooks/useWebSocket';
+import { Piece3DModal } from '../modules/digital-twin/components/modals/Piece3DModal.jsx';
+import { QRScanModal } from '../modules/digital-twin/components/modals/QRScanModal.jsx';
 
 // Nível 1 — sempre visível
 const TABS_MAIN = [
@@ -49,6 +51,10 @@ export default function ProducaoCNC({ notify }) {
     const [materialAlertsDismissed, setMaterialAlertsDismissed] = useState(false);
     const [sugestoes, setSugestoes] = useState([]);
     const [sugestoesOpen, setSugestoesOpen] = useState(false);
+
+    // Digital Twin — modais embutidos (3D CSG real + scanner QR)
+    const [modal3DPeca, setModal3DPeca] = useState(null);  // row cnc_pecas para CSG 3D
+    const [modalScanOpen, setModalScanOpen] = useState(false);
 
     // WebSocket real-time (#23) + Push Notifications (#35)
     const { connected: wsConnected } = useWebSocket(useCallback((msg) => {
@@ -127,7 +133,23 @@ export default function ProducaoCNC({ notify }) {
     // ── MODO NORMAL ───────────────────────────────────────
     return (
         <div className="w-full page-enter" style={{ padding: '8px 12px 12px' }}>
-            <PageHeader icon={Cpu} title="Produção CNC" subtitle="Importar JSON, otimizar corte, etiquetas e G-code" />
+            <PageHeader icon={Cpu} title="Produção CNC" subtitle="Importar JSON, otimizar corte, etiquetas e G-code">
+                <button
+                    onClick={() => setModalScanOpen(true)}
+                    title="Escanear QR de uma peça para ver 3D/G-Code"
+                    style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 8,
+                        padding: '8px 14px', borderRadius: 10,
+                        background: 'var(--accent-gradient, linear-gradient(135deg, #C9A574 0%, #B8935A 100%))',
+                        color: '#fff', border: 'none', cursor: 'pointer',
+                        fontSize: 13, fontWeight: 600,
+                        boxShadow: '0 4px 12px rgba(184,147,90,0.28)',
+                    }}
+                >
+                    <QrCode size={16} />
+                    Escanear Peça
+                </button>
+            </PageHeader>
 
             {/* Alerta global de desgaste de ferramentas */}
             {toolAlerts.length > 0 && (
@@ -306,11 +328,25 @@ export default function ProducaoCNC({ notify }) {
             {tab === 'lotes' && !isInsideLote && <TabLotes lotes={lotes} loadLotes={loadLotes} notify={notify} abrirLote={abrirLote} />}
             {tab === 'dashboard' && !isInsideLote && <TabDashboard notify={notify} />}
             {tab === 'retalhos' && !isInsideLote && <TabRetalhos notify={notify} />}
-            {tab === 'pecas' && isInsideLote && <TabPecas lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} setTab={setTab} />}
+            {tab === 'pecas' && isInsideLote && <TabPecas lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} setTab={setTab} onOpen3DCSG={setModal3DPeca} />}
             {tab === 'plano' && isInsideLote && <TabPlano lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} loadLotes={loadLotes} setTab={setTab} />}
             {tab === 'etiquetas' && isInsideLote && <TabEtiquetas lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} />}
             {tab === 'gcode' && isInsideLote && <TabGcode lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} />}
             {tab === 'config' && <TabConfig notify={notify} setEditorMode={setEditorMode} setEditorTemplateId={setEditorTemplateId} initialSection={configSection} setConfigSection={setConfigSection} />}
+
+            {/* ═══ Digital Twin — modais 3D CSG + Scanner QR ═══ */}
+            {modal3DPeca && (
+                <Piece3DModal
+                    peca={modal3DPeca}
+                    onClose={() => setModal3DPeca(null)}
+                />
+            )}
+            {modalScanOpen && (
+                <QRScanModal
+                    onClose={() => setModalScanOpen(false)}
+                    notify={notify}
+                />
+            )}
         </div>
     );
 }
@@ -1281,7 +1317,7 @@ function RelatorioDesperdicio({ loteId, notify }) {
 // ═══════════════════════════════════════════════════════
 // ABA 2: PEÇAS
 // ═══════════════════════════════════════════════════════
-function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab }) {
+function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpen3DCSG }) {
     const [pecas, setPecas] = useState([]);
     const [loading, setLoading] = useState(false);
     const [filtroMat, setFiltroMat] = useState('');
@@ -1499,6 +1535,16 @@ function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab }) {
                                                     padding: '3px 7px', fontSize: 10, fontWeight: 600,
                                                 }}>2D</button>
                                             </div>
+                                            <button
+                                                onClick={() => onOpen3DCSG?.(pecaSel)}
+                                                title="Abrir em 3D CSG (furos reais + toolpath)"
+                                                style={{
+                                                    background: 'var(--accent, #C9A574)', border: 'none',
+                                                    cursor: 'pointer', color: '#fff',
+                                                    borderRadius: 5, padding: '3px 7px', display: 'flex', alignItems: 'center', gap: 3,
+                                                    fontSize: 10, fontWeight: 600,
+                                                }}
+                                            ><Maximize size={12} /> CSG</button>
                                             <button onClick={() => setPecaSel(null)} title="Fechar" style={{
                                                 background: 'var(--bg-muted)', border: '1px solid var(--border)',
                                                 cursor: 'pointer', color: 'var(--text-muted)',
@@ -1698,7 +1744,7 @@ function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab }) {
                                                 <td style={{ padding: '6px 8px', color: 'var(--text-muted)' }}>{p.observacao || '-'}</td>
                                                 <td style={{ padding: '6px 4px', whiteSpace: 'nowrap' }}>
                                                     <div style={{ display: 'flex', gap: 2 }} onClick={e => e.stopPropagation()}>
-                                                        <button onClick={() => setPecaSel(sel ? null : p)} title="Ver 3D"
+                                                        <button onClick={() => setPecaSel(sel ? null : p)} title="Ver 3D (preview)"
                                                             style={{
                                                                 background: sel ? 'var(--primary)' : 'none',
                                                                 border: sel ? 'none' : '1px solid var(--border)',
@@ -1708,6 +1754,15 @@ function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab }) {
                                                                 display: 'flex', alignItems: 'center',
                                                             }}>
                                                             <Eye size={13} />
+                                                        </button>
+                                                        <button onClick={() => onOpen3DCSG?.(p)} title="Abrir 3D CSG (furos reais + G-Code)"
+                                                            style={{
+                                                                background: 'none', border: '1px solid var(--accent, #C9A574)',
+                                                                cursor: 'pointer', color: 'var(--accent, #C9A574)',
+                                                                padding: '2px 5px', borderRadius: 4,
+                                                                display: 'flex', alignItems: 'center',
+                                                            }}>
+                                                            <Maximize size={13} />
                                                         </button>
                                                         <button onClick={() => setEditorPeca(p)} title="Editar"
                                                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: 2 }}>

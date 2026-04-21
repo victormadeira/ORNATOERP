@@ -760,3 +760,160 @@
   .dt-scanner-overlay { animation: none; }
   .dt-tab, .dt-layer-btn, .dt-piece-card, .dt-op, .dt-icon-btn, .dt-scan-btn { transition: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   MODAIS — Piece3DModal, QRScanModal (embutidos em ProducaoCNC)
+   ═══════════════════════════════════════════════════════════ */
+.dt-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(10, 14, 20, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  animation: dt-modal-fade 160ms ease-out;
+}
+@keyframes dt-modal-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.dt-modal-card {
+  width: min(1200px, 100%);
+  height: min(82vh, 900px);
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border, rgba(0,0,0,0.08));
+  border-radius: 14px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.35);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: dt-modal-pop 200ms cubic-bezier(.2,.9,.3,1.15);
+}
+.dt-modal-card-scan {
+  width: min(640px, 100%);
+  height: auto;
+  max-height: 86vh;
+}
+@keyframes dt-modal-pop {
+  from { transform: scale(0.96); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+.dt-modal-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border, rgba(0,0,0,0.08));
+  background: var(--bg-muted, rgba(0,0,0,0.02));
+}
+.dt-modal-head-left { flex: 1; min-width: 0; }
+.dt-modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary, #111827);
+  line-height: 1.25;
+  margin-bottom: 4px;
+}
+.dt-modal-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-muted, #6b7280);
+  align-items: center;
+}
+.dt-chip-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  padding: 2px 7px;
+  background: var(--bg-muted, rgba(0,0,0,0.04));
+  border: 1px solid var(--border, rgba(0,0,0,0.08));
+  border-radius: 4px;
+  color: var(--text-primary, #111827);
+  font-weight: 600;
+}
+
+.dt-modal-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: linear-gradient(180deg, var(--bg-card, #fff) 0%, var(--bg-muted, #f3f4f6) 100%);
+}
+.dt-modal-canvas-hint {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  background: rgba(0,0,0,0.72);
+  color: #fff;
+  font-size: 11px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.dt-modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border, rgba(0,0,0,0.08));
+  background: var(--bg-muted, rgba(0,0,0,0.02));
+  flex-wrap: wrap;
+}
+.dt-modal-foot-spacer { flex: 1; min-width: 8px; }
+.dt-modal-hint {
+  font-size: 10px;
+  color: var(--text-muted, #6b7280);
+  white-space: nowrap;
+}
+
+.dt-layer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--border, rgba(0,0,0,0.1));
+  background: var(--bg-card, #fff);
+  color: var(--text-muted, #6b7280);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.dt-layer-btn:hover:not(:disabled) {
+  border-color: var(--primary, #1379F0);
+  color: var(--text-primary, #111827);
+}
+.dt-layer-btn-active {
+  background: var(--primary, #1379F0);
+  color: #fff;
+  border-color: var(--primary, #1379F0);
+}
+.dt-layer-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.dt-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.4);
+}
+
+@media (max-width: 900px) {
+  .dt-modal-overlay { padding: 10px; }
+  .dt-modal-card { height: min(92vh, 900px); border-radius: 10px; }
+  .dt-modal-hint { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dt-modal-overlay, .dt-modal-card { animation: none; }
+}
