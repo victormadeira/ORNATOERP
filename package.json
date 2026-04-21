@@ -32,6 +32,7 @@
     "express-rate-limit": "^8.2.1",
     "gcode-toolpath": "^3.0.0",
     "googleapis": "^171.4.0",
+    "helmet": "^8.1.0",
     "html5-qrcode": "^2.3.8",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.575.0",

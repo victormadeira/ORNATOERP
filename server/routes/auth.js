@@ -8,16 +8,23 @@ const router = Router();
 // ═══════════════════════════════════════════════════════
 // POST /api/auth/login
 // ═══════════════════════════════════════════════════════
+// Hash "fantasma" usado quando o email não existe — evita timing attack
+// (sem isso, login de email inexistente retorna em 0ms, email existente em 70ms+).
+const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing-resistance', 10);
+
 router.post('/login', (req, res) => {
     const { email, senha } = req.body;
     if (!email || !senha) return res.status(400).json({ error: 'Email e senha são obrigatórios' });
+    // Normaliza e limita payload (defesa contra DoS via senha longa — bcrypt é caro)
+    if (typeof email !== 'string' || typeof senha !== 'string') return res.status(400).json({ error: 'Payload inválido' });
+    if (senha.length > 256) return res.status(400).json({ error: 'Credenciais inválidas' });
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-    if (!user) return res.status(401).json({ error: 'Credenciais inválidas' });
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.trim().toLowerCase());
+    // Sempre roda bcrypt (mesmo sem user) pra normalizar tempo de resposta e não vazar existência de email
+    const hashToCheck = user ? user.senha_hash : DUMMY_HASH;
+    const valid = bcrypt.compareSync(senha, hashToCheck);
+    if (!user || !valid) return res.status(401).json({ error: 'Credenciais inválidas' });
     if (!user.ativo) return res.status(401).json({ error: 'Usuário desativado' });
-
-    const valid = bcrypt.compareSync(senha, user.senha_hash);
-    if (!valid) return res.status(401).json({ error: 'Credenciais inválidas' });
 
     // Registra último acesso
     db.prepare('UPDATE users SET ultimo_acesso = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);
@@ -48,7 +55,7 @@ router.post('/register', requireAuth, requireRole('admin'), (req, res) => {
 
     const validRoles = ['admin', 'gerente', 'vendedor'];
     const r = validRoles.includes(role) ? role : 'vendedor';
-    const hash = bcrypt.hashSync(senha, 10);
+    const hash = bcrypt.hashSync(senha, 12);
 
     const result = db.prepare('INSERT INTO users (nome, email, senha_hash, role) VALUES (?, ?, ?, ?)').run(nome, email, hash, r);
     res.status(201).json({ id: result.lastInsertRowid, nome, email, role: r });

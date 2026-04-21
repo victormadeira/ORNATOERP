@@ -8643,11 +8643,21 @@ const __cncDirname = dirname(__cncFilename);
 const uploadDir = join(__cncDirname, '..', 'uploads', 'expedicao');
 if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
 
+// Segurança: extensão derivada do mimetype (whitelist), nunca do originalname.
+// Se viesse do originalname, um atacante autenticado podia subir `img.html` com
+// mimetype falsificado e obter XSS stored via /uploads servido como estático.
+const MIME_TO_EXT = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/heic': 'heic',
+    'image/heif': 'heif',
+};
 const fotoStorage = multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, uploadDir),
     filename: (_req, file, cb) => {
         const unique = Date.now() + '-' + Math.round(Math.random() * 1e6);
-        const ext = file.originalname.split('.').pop();
+        const ext = MIME_TO_EXT[file.mimetype.toLowerCase()] || 'bin';
         cb(null, `foto-${unique}.${ext}`);
     },
 });
@@ -8655,7 +8665,7 @@ const uploadFoto = multer({
     storage: fotoStorage,
     limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
     fileFilter: (_req, file, cb) => {
-        if (/^image\/(jpeg|png|webp|heic|heif)$/i.test(file.mimetype)) cb(null, true);
+        if (MIME_TO_EXT[file.mimetype.toLowerCase()]) cb(null, true);
         else cb(new Error('Tipo de arquivo não permitido'));
     },
 });
@@ -8730,7 +8740,7 @@ const retalhoFotoStorage = multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, retalhoUploadDir),
     filename: (_req, file, cb) => {
         const unique = Date.now() + '-' + Math.round(Math.random() * 1e6);
-        const ext = file.originalname.split('.').pop();
+        const ext = MIME_TO_EXT[file.mimetype.toLowerCase()] || 'bin';
         cb(null, `retalho-${unique}.${ext}`);
     },
 });
@@ -8738,7 +8748,7 @@ const uploadRetalhoFoto = multer({
     storage: retalhoFotoStorage,
     limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
-        if (/^image\/(jpeg|png|webp|heic|heif)$/i.test(file.mimetype)) cb(null, true);
+        if (MIME_TO_EXT[file.mimetype.toLowerCase()]) cb(null, true);
         else cb(new Error('Tipo de arquivo não permitido'));
     },
 });

@@ -1,6 +1,7 @@
 import express from 'express';
 import compression from 'compression';
 import cors from 'cors';
+import helmet from 'helmet';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import rateLimit from 'express-rate-limit';
@@ -79,9 +80,12 @@ app.use('/api/webhook', express.json({ limit: '50mb' }), webhookRoutes);
 // ═══ Landing endpoints públicos (sem CORS, com rate limit) ═══
 app.use('/api/landing', publicLimiter, express.json(), landingRoutes);
 
+// CORS: em produção aceita só HTTPS (evita downgrade). Em dev, libera localhost.
 const corsOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
-    : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5175', 'http://127.0.0.1:5175', 'https://gestaoornato.com', 'http://gestaoornato.com'];
+    : (process.env.NODE_ENV === 'production'
+        ? ['https://gestaoornato.com']
+        : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5175', 'http://127.0.0.1:5175', 'https://gestaoornato.com']);
 app.use(cors({ origin: corsOrigins }));
 // Rotas pesadas (CNC, plano-corte, importacao) precisam de body maior
 app.use('/api/cnc', express.json({ limit: '50mb' }));
@@ -100,16 +104,19 @@ app.use('/api', (req, res, next) => {
     next();
 });
 
-// ═══ Security headers ═══
-app.use((req, res, next) => {
-    res.set({
-        'X-Content-Type-Options': 'nosniff',
-        'X-Frame-Options': 'SAMEORIGIN',
-        'X-XSS-Protection': '1; mode=block',
-        'Referrer-Policy': 'strict-origin-when-cross-origin',
-    });
-    next();
-});
+// ═══ Security headers (Helmet + HSTS em produção) ═══
+// - contentSecurityPolicy desligado (o SPA usa inline scripts do build Vite)
+// - crossOriginEmbedderPolicy desligado (quebra <img> cross-origin legítimo)
+// - HSTS só em produção: evita confusão em dev HTTP
+app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    hsts: process.env.NODE_ENV === 'production'
+        ? { maxAge: 15552000, includeSubDomains: true, preload: false }
+        : false,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+}));
 
 // ═══ Request logging — loga só /api lentas (>2s) ou com erro (>=500) ═══
 app.use('/api', (req, res, next) => {

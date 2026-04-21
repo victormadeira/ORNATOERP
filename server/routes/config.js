@@ -438,6 +438,19 @@ router.get('/backup', requireAuth, requireRole('admin'), (req, res) => {
     }
 });
 
+// Cache de colunas reais por tabela (PRAGMA table_info) — usado para whitelist
+// de nomes de coluna ao importar backup, prevenindo SQL injection via chaves
+// maliciosas em `rows[0]`. Resetado a cada import para pegar migrations novas.
+function colunasReais(tabela) {
+    try {
+        // better-sqlite3: pragma retorna array de { name, type, ... }
+        const rows = db.pragma(`table_info(${tabela})`);
+        return new Set(rows.map(r => r.name));
+    } catch (_) {
+        return new Set();
+    }
+}
+
 // ── POST /api/config/backup — Importar backup ──
 router.post('/backup', requireAuth, requireRole('admin'), (req, res) => {
     try {
@@ -464,19 +477,24 @@ router.post('/backup', requireAuth, requireRole('admin'), (req, res) => {
                     continue;
                 }
 
-                // Pegar colunas da primeira row
-                const colunas = Object.keys(rows[0]);
+                // Segurança: só aceitar colunas que REALMENTE existem no schema da tabela.
+                // Antes: Object.keys(rows[0]) era interpolado direto em SQL → SQL injection
+                // via chaves maliciosas como "id, senha_hash=(SELECT ...) --".
+                const schemaCols = colunasReais(tabela);
+                if (schemaCols.size === 0) { resumo[tabela] = 0; continue; }
+                const colunas = Object.keys(rows[0]).filter(c => schemaCols.has(c));
                 if (colunas.length === 0) { resumo[tabela] = 0; continue; }
 
                 // Para users: preservar senhas existentes
                 if (tabela === 'users') {
                     for (const row of rows) {
                         const existing = db.prepare('SELECT id, senha_hash FROM users WHERE id = ?').get(row.id);
-                        const cols = Object.keys(row);
+                        // Whitelist: só colunas que realmente existem
+                        const cols = Object.keys(row).filter(c => schemaCols.has(c));
 
                         if (existing) {
                             // Update campos do backup sem tocar na senha_hash
-                            const updateCols = cols.filter(c => c !== 'id');
+                            const updateCols = cols.filter(c => c !== 'id' && c !== 'senha_hash');
                             if (updateCols.length === 0) continue;
                             const setCols = updateCols.map(c => `${c}=?`).join(', ');
                             const setVals = updateCols.map(c => row[c] ?? null);
@@ -484,9 +502,10 @@ router.post('/backup', requireAuth, requireRole('admin'), (req, res) => {
                         } else {
                             // Insert novo user com senha_hash padrao (bcrypt de 'trocarsenha')
                             const defaultHash = '$2a$10$XKEr5J5L5Z5Z5Z5Z5Z5Z5eplaceholder00000000000000000000';
-                            const colsComSenha = [...cols, 'senha_hash'];
+                            const insertCols = cols.filter(c => c !== 'senha_hash');
+                            const colsComSenha = [...insertCols, 'senha_hash'];
                             const placeholders = colsComSenha.map(() => '?').join(', ');
-                            const values = [...cols.map(c => row[c] ?? null), defaultHash];
+                            const values = [...insertCols.map(c => row[c] ?? null), defaultHash];
                             try {
                                 db.prepare(`INSERT OR IGNORE INTO users (${colsComSenha.join(', ')}) VALUES (${placeholders})`).run(...values);
                             } catch { /* ignora se user ja existe */ }
@@ -502,7 +521,8 @@ router.post('/backup', requireAuth, requireRole('admin'), (req, res) => {
                     const existing = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
                     const row = rows[0];
                     if (existing && row) {
-                        const cols = Object.keys(row).filter(c => c !== 'id');
+                        const cols = Object.keys(row).filter(c => c !== 'id' && schemaCols.has(c));
+                        if (cols.length === 0) { resumo[tabela] = 0; continue; }
                         const setCols = cols.map(c => `${c}=?`).join(', ');
                         const values = cols.map(c => row[c] ?? null);
                         db.prepare(`UPDATE empresa_config SET ${setCols} WHERE id=1`).run(...values);
@@ -516,7 +536,8 @@ router.post('/backup', requireAuth, requireRole('admin'), (req, res) => {
                 if (tabela === 'config_taxas') {
                     const row = rows[0];
                     if (row) {
-                        const cols = Object.keys(row).filter(c => c !== 'id');
+                        const cols = Object.keys(row).filter(c => c !== 'id' && schemaCols.has(c));
+                        if (cols.length === 0) { resumo[tabela] = 0; continue; }
                         const setCols = cols.map(c => `${c}=?`).join(', ');
                         const values = cols.map(c => row[c] ?? null);
                         db.prepare(`UPDATE config_taxas SET ${setCols} WHERE id=1`).run(...values);

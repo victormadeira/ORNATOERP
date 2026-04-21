@@ -98,6 +98,9 @@ export function registrarAudit(userId, userNome, acao, entidade, entidadeId, dad
 // GESTÃO DE PESSOAS — Ponto, Férias
 // ═══════════════════════════════════════════════════════
 
+// Whitelist de campos — impede SQL injection via req.body.tipo
+const PONTO_CAMPOS_VALIDOS = new Set(['entrada', 'saida_almoco', 'retorno_almoco', 'saida']);
+
 router.post('/ponto', requireAuth, (req, res) => {
     const { colaborador_id, tipo } = req.body; // tipo: entrada, saida_almoco, retorno_almoco, saida
     const hoje = new Date().toISOString().slice(0, 10);
@@ -109,7 +112,16 @@ router.post('/ponto', requireAuth, (req, res) => {
         return res.json({ ok: true, tipo: 'entrada', hora: agora });
     }
 
-    const campo = tipo || (!registro.saida_almoco ? 'saida_almoco' : !registro.retorno_almoco ? 'retorno_almoco' : 'saida');
+    // Se tipo vier do body, validar contra whitelist; caso contrário, inferir pelo estado.
+    let campo;
+    if (tipo !== undefined) {
+        if (!PONTO_CAMPOS_VALIDOS.has(tipo)) {
+            return res.status(400).json({ error: 'tipo inválido' });
+        }
+        campo = tipo;
+    } else {
+        campo = !registro.saida_almoco ? 'saida_almoco' : !registro.retorno_almoco ? 'retorno_almoco' : 'saida';
+    }
     db.prepare(`UPDATE controle_ponto SET ${campo} = ? WHERE id = ?`).run(agora, registro.id);
 
     // Calcular horas se saída final

@@ -34,9 +34,16 @@ function alreadyProcessed(msgId) {
 // PÚBLICO (sem auth JWT) — validado via webhook token
 // ═══════════════════════════════════════════════════════
 router.post('/whatsapp', async (req, res) => {
-    // Validar webhook token (opcional — só valida se configurado)
+    // Validar webhook token.
+    // Em produção: obrigatório. Se não estiver configurado, rejeita — evita que
+    // qualquer fonte anônima abra conversas, envie payloads de 50MB e consuma IA.
+    // Em dev: tolera ausência pra facilitar testes locais.
     const expectedToken = evolution.getWebhookToken();
     const receivedToken = req.headers['apikey'] || req.query.token || '';
+    if (!expectedToken && process.env.NODE_ENV === 'production') {
+        console.error('[WH] BLOQUEADO: webhook token não configurado em produção');
+        return res.status(503).json({ error: 'Webhook não configurado' });
+    }
     if (expectedToken && receivedToken !== expectedToken) {
         return res.status(401).json({ error: 'Invalid webhook token' });
     }
