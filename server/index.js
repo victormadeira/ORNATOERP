@@ -42,6 +42,7 @@ import pontoRoutes from './routes/ponto.js';
 import leadsRoutes from './routes/leads.js';
 import extRoutes from './routes/ext.js';
 import templatesRoutes from './routes/templates.js';
+import digitalTwinRoutes from './routes/digital-twin.js';
 
 // Inicializa DB (efeito colateral — cria tabelas e seed)
 import './db.js';
@@ -181,6 +182,7 @@ app.use('/api/ponto', pontoRoutes);
 app.use('/api/leads', leadsRoutes);
 app.use('/api/ext', extRoutes);
 app.use('/api/templates', templatesRoutes);
+app.use('/api/digital-twin', digitalTwinRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));

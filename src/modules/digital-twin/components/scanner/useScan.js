@@ -1,9 +1,9 @@
 // @ts-check
 import { useCallback, useState } from 'react';
 import { useCNCStore } from '../../store/useCNCStore.js';
-import { MOCK_PIECES, MOCK_GCODE } from '../../data/mockPieces.js';
+import { apiScan } from '../../api.js';
 
-const CODE_REGEX = /^[A-Z]{2,6}-[0-9]{2,6}$/;
+const CODE_REGEX = /^[A-Z]{2,10}[-_]?[0-9A-Z]{2,10}$/;
 
 /**
  * Normaliza código escaneado (espaços, lowercase, URL → parte final).
@@ -12,15 +12,14 @@ const CODE_REGEX = /^[A-Z]{2,6}-[0-9]{2,6}$/;
 function normalize(raw) {
   if (!raw) return '';
   let cleaned = String(raw).trim().toUpperCase();
-  // Se vier URL tipo https://ornato.app/p/PNL-001, extrai último segmento
-  const urlMatch = cleaned.match(/\/([A-Z]{2,6}-[0-9]{2,6})$/i);
+  const urlMatch = cleaned.match(/\/([A-Z0-9_-]{3,20})$/i);
   if (urlMatch) cleaned = urlMatch[1].toUpperCase();
   return cleaned;
 }
 
 /**
  * Hook que encapsula o fluxo de escaneamento/resolução de peça.
- * Pode evoluir pra fetch('/api/scan/:code') quando backend existir.
+ * Usa a API real com fallback transparente para mocks.
  */
 export function useScan() {
   const setPiece = useCNCStore((s) => s.setPiece);
@@ -35,27 +34,31 @@ export function useScan() {
     const code = normalize(rawCode);
     setLastCode(code);
 
+    if (!code) {
+      setError('Código vazio.');
+      return { ok: false, reason: 'empty' };
+    }
     if (!CODE_REGEX.test(code)) {
-      setError(`Código inválido: "${code}". Use formato AAA-000.`);
+      setError(`Código inválido: "${code}".`);
       return { ok: false, reason: 'invalid_format', code };
     }
 
     setLoading(true);
     setError(null);
     try {
-      // Por enquanto, resolve direto do mock. Depois: await fetch(`/api/pieces/${code}`)
-      const piece = MOCK_PIECES.find((p) => p.id === code);
-      if (!piece) {
-        setError(`Peça "${code}" não encontrada.`);
-        return { ok: false, reason: 'not_found', code };
-      }
+      const { piece, gcode } = await apiScan(code);
       setPiece(piece);
-      setGCode(MOCK_GCODE[code] ?? null);
+      setGCode(gcode);
       setActiveTab('render');
       return { ok: true, piece };
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'desconhecido';
+      if (msg.includes('404') || msg.includes('not_found')) {
+        setError(`Peça "${code}" não encontrada.`);
+        return { ok: false, reason: 'not_found', code };
+      }
       console.error('[useScan]', err);
-      setError(`Erro ao buscar peça: ${err instanceof Error ? err.message : 'desconhecido'}`);
+      setError(`Erro ao buscar peça: ${msg}`);
       return { ok: false, reason: 'error', code };
     } finally {
       setLoading(false);

@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import './digital-twin.css';
 
 import { useCNCStore } from './store/useCNCStore.js';
-import { MOCK_PIECES, MOCK_GCODE } from './data/mockPieces.js';
+import { apiListPieces, apiGCode, apiNesting } from './api.js';
 
 import { TopbarCNC } from './components/ui/TopbarCNC.jsx';
 import { SidebarLeft } from './components/ui/SidebarLeft.jsx';
@@ -15,7 +15,6 @@ import { PieceViewer } from './components/3d/PieceViewer.jsx';
 import { QRScanner } from './components/scanner/QRScanner.jsx';
 import { useScan } from './components/scanner/useScan.js';
 
-import { computeNesting } from './components/nesting/nestingEngine.js';
 import { NestingCanvas } from './components/nesting/NestingCanvas.jsx';
 import { NestingStats } from './components/nesting/NestingStats.jsx';
 
@@ -31,19 +30,38 @@ export default function DigitalTwin({ notify, nav }) {
   const gcodeText = useCNCStore((s) => s.gcodeText);
   const layers = useCNCStore((s) => s.layers);
   const error = useCNCStore((s) => s.error);
+  const pieces = useCNCStore((s) => s.pieces);
+  const setPieces = useCNCStore((s) => s.setPieces);
   const setPiece = useCNCStore((s) => s.setPiece);
   const setGCode = useCNCStore((s) => s.setGCode);
   const setActiveTab = useCNCStore((s) => s.setActiveTab);
+  const setLoading = useCNCStore((s) => s.setLoading);
 
   const { onScan } = useScan();
 
-  // Carrega primeira peça mock ao abrir, se nada ativo
+  // Carrega peças do backend ao montar (fallback: mocks)
   useEffect(() => {
-    if (!activePiece && MOCK_PIECES.length > 0) {
-      setPiece(MOCK_PIECES[0]);
-      setGCode(MOCK_GCODE[MOCK_PIECES[0].id] ?? null);
-    }
-  }, [activePiece, setPiece, setGCode]);
+    let cancelled = false;
+    setLoading(true);
+    apiListPieces()
+      .then(({ pieces: list, source }) => {
+        if (cancelled) return;
+        setPieces(list, source);
+        if (list.length > 0 && !useCNCStore.getState().activePiece) {
+          const first = list[0];
+          setPiece(first);
+          apiGCode(first.id)
+            .then(({ gcode }) => { if (!cancelled) setGCode(gcode); })
+            .catch(() => { /* noop */ });
+        }
+      })
+      .catch((err) => {
+        console.error('[DigitalTwin] load pieces failed', err);
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ESC fecha
   useEffect(() => {
@@ -72,6 +90,7 @@ export default function DigitalTwin({ notify, nav }) {
           activePiece={activePiece}
           gcodeText={gcodeText}
           layers={layers}
+          pieces={pieces}
           onScan={onScan}
           onCloseScan={() => setActiveTab('render')}
         />
@@ -84,28 +103,15 @@ export default function DigitalTwin({ notify, nav }) {
 /**
  * @param {{
  *   activeTab: string,
- *   activePiece: import('./types/cnc.types.js').PieceGeometry | null,
+ *   activePiece: any | null,
  *   gcodeText: string | null,
  *   layers: any,
+ *   pieces: any[],
  *   onScan: (code: string) => any,
  *   onCloseScan: () => void,
  * }} props
  */
-function MainContent({ activeTab, activePiece, gcodeText, layers, onScan, onCloseScan }) {
-  // Nesting usa todas as peças mock
-  const nestingInput = useMemo(() => {
-    return MOCK_PIECES.map((p) => ({
-      pieceId: p.id,
-      width: p.width,
-      height: p.height,
-      quantity: 1,
-      allowRotation: true,
-      material: p.material,
-    }));
-  }, []);
-
-  const nestingResult = useMemo(() => computeNesting(nestingInput), [nestingInput]);
-
+function MainContent({ activeTab, activePiece, gcodeText, layers, pieces, onScan, onCloseScan }) {
   // --- RENDER TAB ---
   if (activeTab === 'render') {
     if (!activePiece) return <EmptyState label="Selecione uma peça para visualizar em 3D" />;
@@ -127,40 +133,12 @@ function MainContent({ activeTab, activePiece, gcodeText, layers, onScan, onClos
   // --- G-CODE TAB ---
   if (activeTab === 'gcode') {
     if (!activePiece) return <EmptyState label="Selecione uma peça para ver o G-Code" />;
-    return (
-      <GCodeView piece={activePiece} gcodeText={gcodeText} />
-    );
+    return <GCodeView piece={activePiece} gcodeText={gcodeText} />;
   }
 
   // --- NESTING TAB ---
   if (activeTab === 'nesting') {
-    return (
-      <>
-        <div className="dt-nest-controls">
-          <NestingStats result={nestingResult} />
-        </div>
-        <div className="dt-nest-wrap">
-          {Array.from({ length: nestingResult.sheetsUsed }, (_, i) => (
-            <div key={i} className="dt-nest-sheet-wrap">
-              <div
-                className="dt-nest-sheet"
-                style={{
-                  width: 'min(92%, 1100px)',
-                  aspectRatio: `${nestingResult.config.sheetWidth} / ${nestingResult.config.sheetHeight}`,
-                }}
-              >
-                <NestingCanvas
-                  sheetIndex={i}
-                  placed={nestingResult.placed}
-                  pieces={nestingInput}
-                  config={nestingResult.config}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </>
-    );
+    return <NestingView pieces={pieces} />;
   }
 
   // --- SCAN TAB ---
@@ -190,10 +168,7 @@ function EmptyState({ label }) {
 
 /**
  * Editor read-only de G-Code com highlight básico.
- * @param {{
- *   piece: import('./types/cnc.types.js').PieceGeometry,
- *   gcodeText: string | null,
- * }} props
+ * @param {{ piece: any, gcodeText: string | null }} props
  */
 function GCodeView({ piece, gcodeText }) {
   const [copied, setCopied] = useState(false);
@@ -268,5 +243,74 @@ function GCodeLine({ n, line }) {
       </span>
       <span style={{ color }}>{line || '\u00a0'}</span>
     </div>
+  );
+}
+
+/**
+ * Nesting view: busca resultado no backend, fallback client-side.
+ * @param {{ pieces: any[] }} props
+ */
+function NestingView({ pieces }) {
+  const [result, setResult] = useState(/** @type {any|null} */ (null));
+  const [loading, setLoading] = useState(false);
+
+  const nestingInput = useMemo(() => pieces.map((p) => ({
+    pieceId: p.id,
+    width: p.width,
+    height: p.height,
+    quantity: 1,
+    allowRotation: true,
+    material: p.material,
+  })), [pieces]);
+
+  useEffect(() => {
+    if (nestingInput.length === 0) return;
+    let cancelled = false;
+    setLoading(true);
+    apiNesting(nestingInput)
+      .then(({ result: r }) => { if (!cancelled) setResult(r); })
+      .catch((err) => { console.error('[nesting]', err); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [nestingInput]);
+
+  if (loading && !result) {
+    return (
+      <div className="dt-nest-wrap">
+        <div className="dt-skeleton" style={{ width: '92%', maxWidth: 1100, aspectRatio: '2750 / 1840' }} />
+      </div>
+    );
+  }
+
+  if (!result) {
+    return <EmptyState label="Sem peças para otimizar" />;
+  }
+
+  return (
+    <>
+      <div className="dt-nest-controls">
+        <NestingStats result={result} />
+      </div>
+      <div className="dt-nest-wrap">
+        {Array.from({ length: result.sheetsUsed }, (_, i) => (
+          <div key={i} className="dt-nest-sheet-wrap">
+            <div
+              className="dt-nest-sheet"
+              style={{
+                width: 'min(92%, 1100px)',
+                aspectRatio: `${result.config.sheetWidth} / ${result.config.sheetHeight}`,
+              }}
+            >
+              <NestingCanvas
+                sheetIndex={i}
+                placed={result.placed}
+                pieces={nestingInput}
+                config={result.config}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }

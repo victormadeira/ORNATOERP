@@ -11,6 +11,11 @@ import { create } from 'zustand';
  * Segue PRD Seção 7 — CNCStore.
  */
 export const useCNCStore = create((set) => ({
+  /** @type {PieceGeometry[]} */
+  pieces: [],
+  /** @type {'api'|'mock'|null} */
+  piecesSource: null,
+
   /** @type {PieceGeometry | null} */
   activePiece: null,
   /** @type {string | null} */
@@ -38,6 +43,7 @@ export const useCNCStore = create((set) => ({
   /** @type {string | null} */
   hoveredOpId: null,
 
+  setPieces: (list, source) => set({ pieces: list, piecesSource: source ?? null }),
   setPiece: (p) => set({ activePiece: p }),
   setGCode: (g) => set({ gcodeText: g }),
   setLoading: (v) => set({ isLoading: v }),
