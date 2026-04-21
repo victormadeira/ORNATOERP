@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Fragment, lazy, Suspense } from 'react';
 import api from '../api';
 import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar, SearchableSelect } from '../ui';
 import { colorBg, colorBorder, getStatus, STATUS_COLORS as GLOBAL_STATUS } from '../theme';
@@ -12,8 +12,9 @@ import SlidePanel from '../components/SlidePanel';
 import ToolbarDropdown from '../components/ToolbarDropdown';
 import { Search as SearchIcon, Grid, List, LayoutGrid, Tv, QrCode, Maximize } from 'lucide-react';
 import useWebSocket from '../hooks/useWebSocket';
-import { Piece3DModal } from '../modules/digital-twin/components/modals/Piece3DModal.jsx';
-import { QRScanModal } from '../modules/digital-twin/components/modals/QRScanModal.jsx';
+// Lazy — só carrega three.js + CSG + html5-qrcode quando o usuário clicar
+const Piece3DModal = lazy(() => import('../modules/digital-twin/components/modals/Piece3DModal.jsx').then(m => ({ default: m.Piece3DModal })));
+const QRScanModal = lazy(() => import('../modules/digital-twin/components/modals/QRScanModal.jsx').then(m => ({ default: m.QRScanModal })));
 
 // Nível 1 — sempre visível
 const TABS_MAIN = [
@@ -334,18 +335,22 @@ export default function ProducaoCNC({ notify }) {
             {tab === 'gcode' && isInsideLote && <TabGcode lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} />}
             {tab === 'config' && <TabConfig notify={notify} setEditorMode={setEditorMode} setEditorTemplateId={setEditorTemplateId} initialSection={configSection} setConfigSection={setConfigSection} />}
 
-            {/* ═══ Digital Twin — modais 3D CSG + Scanner QR ═══ */}
-            {modal3DPeca && (
-                <Piece3DModal
-                    peca={modal3DPeca}
-                    onClose={() => setModal3DPeca(null)}
-                />
-            )}
-            {modalScanOpen && (
-                <QRScanModal
-                    onClose={() => setModalScanOpen(false)}
-                    notify={notify}
-                />
+            {/* ═══ Digital Twin — modais 3D CSG + Scanner QR (lazy) ═══ */}
+            {(modal3DPeca || modalScanOpen) && (
+                <Suspense fallback={null}>
+                    {modal3DPeca && (
+                        <Piece3DModal
+                            peca={modal3DPeca}
+                            onClose={() => setModal3DPeca(null)}
+                        />
+                    )}
+                    {modalScanOpen && (
+                        <QRScanModal
+                            onClose={() => setModalScanOpen(false)}
+                            notify={notify}
+                        />
+                    )}
+                </Suspense>
             )}
         </div>
     );

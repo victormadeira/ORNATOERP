@@ -27,7 +27,6 @@ const Financeiro = lazy(() => import('./pages/Financeiro'));
 const ProducaoCNC = lazy(() => import('./pages/ProducaoCNC'));
 const PlanoCorte = lazy(() => import('./pages/PlanoCorte'));
 const Industrializacao = lazy(() => import('./pages/Industrializacao'));
-const DigitalTwin = lazy(() => import('./modules/digital-twin/DigitalTwin'));
 const ProducaoFabrica = lazy(() => import('./pages/ProducaoFabrica'));
 const Expedicao = lazy(() => import('./pages/Expedicao'));
 const Compras = lazy(() => import('./pages/Compras'));
@@ -114,16 +113,26 @@ class ErrorBoundary extends Component {
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
     // ── Roteamento com History API ──────────────────────────────────────────
-    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download','ponto','funil','digital_twin'];
+    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download','ponto','funil'];
+    // Páginas aposentadas — redirecionam para o destino atual
+    const LEGACY_REDIRECTS = { digital_twin: 'cnc' };
     const [pg, setPg] = useState(() => {
         const rawPath = window.location.pathname.replace(/^\/+/, '');
         const parts = rawPath.split('/');
-        const pathPage = parts[0] || '';
+        let pathPage = parts[0] || '';
+        if (LEGACY_REDIRECTS[pathPage]) pathPage = LEGACY_REDIRECTS[pathPage];
         if (pathPage && VALID_PAGES.includes(pathPage)) {
             localStorage.setItem('erp_page', pathPage);
+            // Corrige URL quando veio de legacy
+            if (parts[0] && LEGACY_REDIRECTS[parts[0]]) {
+                window.history.replaceState({}, '', pathPage === 'dash' ? '/' : `/${pathPage}`);
+            }
             return pathPage;
         }
-        return localStorage.getItem('erp_page') || 'dash';
+        const saved = localStorage.getItem('erp_page') || 'dash';
+        const finalPage = LEGACY_REDIRECTS[saved] || saved;
+        if (LEGACY_REDIRECTS[saved]) localStorage.setItem('erp_page', finalPage);
+        return finalPage;
     });
     const [sb, setSb] = useState(() => localStorage.getItem('erp_sidebar') !== 'collapsed');
     const [sidebarHover, setSidebarHover] = useState(false);
@@ -536,7 +545,6 @@ export default function App() {
         { id: 'producao', label: 'Produção', icon: Ic.Factory, items: [
             { id: "industrializacao", lb: "Ordens", ic: Ic.ClipList },
             { id: "cnc", lb: "Corte & CNC", ic: Ic.Scissors },
-            { id: "digital_twin", lb: "Digital Twin CNC", ic: Ic.Box },
             { id: "expedicao", lb: "Expedição", ic: Ic.Truck },
         ]},
         { id: 'cadastros', label: 'Cadastros', icon: Ic.Box, items: [
@@ -579,7 +587,6 @@ export default function App() {
         { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         { id: "industrializacao", lb: "Ordens de Produção", ic: Ic.ClipList },
         { id: "cnc", lb: "Corte & CNC", ic: Ic.Scissors },
-        { id: "digital_twin", lb: "Digital Twin CNC (3D)", ic: Ic.Box },
         { id: "producao_fabrica", lb: "Acompanhamento Fábrica", ic: Ic.HardHat },
         { id: "producao_tv", lb: "TV Fábrica", ic: Ic.Monitor },
         { id: "expedicao", lb: "Expedição", ic: Ic.Truck },
@@ -637,7 +644,6 @@ export default function App() {
             case "relatorios": return <Relatorios notify={notify} />;
             case "plano_corte": return <PlanoCorte notify={notify} />;
             case "cnc": return <ProducaoCNC notify={notify} />;
-            case "digital_twin": return <DigitalTwin notify={notify} nav={nav} />;
             case "cfg": return <Cfg taxas={taxas} reload={loadTaxas} notify={notify} allMenuItems={MENU_GROUPS} menusOcultos={menusOcultos} onMenusChange={() => loadEmpresa()} />;
             case "users": return isAdmin ? <Users notify={notify} meUser={user} /> : <Dash nav={nav} notify={notify} />;
             case "industrializacao": return <Industrializacao notify={notify} nav={nav} />;
