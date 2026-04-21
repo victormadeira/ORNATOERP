@@ -117,55 +117,94 @@ export const Z = {
 };
 
 // ─── PageHeader — cabecalho padronizado de pagina ─────────
+// UX Pro Max: hierarchy via size/weight/contrast (não cor só). Icon chip com highlight
+// interno (inset white) simulando elevação física; box-shadow menos saturado.
 export function PageHeader({ icon: Icon, title, subtitle, children }) {
     return (
-        <div className="animate-fade-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
+        <div className="animate-fade-up" style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 12, marginBottom: 24, flexWrap: 'wrap',
+        }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
                 {Icon && (
                     <div style={{
-                        width: 44, height: 44, borderRadius: 13, flexShrink: 0,
-                        background: 'var(--primary-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: '0 4px 12px rgba(19, 121, 240, 0.25)',
+                        width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                        background: 'var(--primary-gradient)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow:
+                            'inset 0 1px 0 rgba(255,255,255,0.2), 0 1px 2px rgba(19,121,240,0.25), 0 6px 16px rgba(19,121,240,0.18)',
                     }}>
                         <Icon size={21} style={{ color: '#fff' }} />
                     </div>
                 )}
                 <div style={{ minWidth: 0 }}>
-                    <h1 style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.02em', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>{title}</h1>
-                    {subtitle && <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '2px 0 0' }}>{subtitle}</p>}
+                    <h1 style={{
+                        fontSize: '1.35rem', fontWeight: 700, letterSpacing: '-0.02em',
+                        margin: 0, lineHeight: 1.2,
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        color: 'var(--text-primary)',
+                    }}>{title}</h1>
+                    {subtitle && (
+                        <p style={{
+                            fontSize: 13, color: 'var(--text-muted)', margin: '3px 0 0',
+                            fontWeight: 500,
+                        }}>{subtitle}</p>
+                    )}
                 </div>
             </div>
-            {children && <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>{children}</div>}
+            {children && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    {children}
+                </div>
+            )}
         </div>
     );
 }
 
 // ─── TabBar — abas padronizadas ───────────────────────────
+// UX Pro Max: nav-state-active (active highlight), hover foreshadowing via text color,
+// transitions só em color/border (evita reflow), touch-action pra reduzir tap-delay.
 export function TabBar({ tabs, active, onChange }) {
     return (
         <div style={{
-            display: 'flex', gap: 0, borderBottom: '2px solid var(--border)',
+            display: 'flex', gap: 0, borderBottom: '1px solid var(--border)',
             overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
             marginBottom: 20,
         }}>
             {tabs.map(t => {
                 const isActive = active === t.id;
                 return (
-                    <button key={t.id} onClick={() => onChange(t.id)} style={{
-                        display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px',
-                        fontSize: 13, fontWeight: isActive ? 700 : 500, cursor: 'pointer',
-                        color: isActive ? 'var(--primary)' : 'var(--text-muted)',
-                        borderBottom: isActive ? '2px solid var(--primary)' : '2px solid transparent',
-                        background: 'none', border: 'none', borderBottomWidth: 2,
-                        marginBottom: -2, whiteSpace: 'nowrap', transition: 'all .2s',
-                        fontFamily: 'var(--font-sans)',
-                    }}>
+                    <button
+                        key={t.id}
+                        onClick={() => onChange(t.id)}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 7, padding: '11px 16px',
+                            fontSize: 13, fontWeight: isActive ? 600 : 500,
+                            color: isActive ? 'var(--primary)' : 'var(--text-muted)',
+                            borderBottom: `2px solid ${isActive ? 'var(--primary)' : 'transparent'}`,
+                            background: 'none', border: 'none', borderBottomWidth: 2,
+                            marginBottom: -1, whiteSpace: 'nowrap',
+                            transition: 'color 180ms var(--ease-out), border-color 180ms var(--ease-out)',
+                            fontFamily: 'var(--font-sans)', cursor: 'pointer',
+                            touchAction: 'manipulation',
+                            minHeight: 40,
+                        }}
+                        onMouseEnter={(e) => {
+                            if (!isActive) e.currentTarget.style.color = 'var(--text-primary)';
+                        }}
+                        onMouseLeave={(e) => {
+                            if (!isActive) e.currentTarget.style.color = 'var(--text-muted)';
+                        }}
+                    >
                         {t.icon && <t.icon size={15} />}
                         {t.label}
                         {t.badge != null && t.badge > 0 && (
                             <span className="badge-pulse" style={{
-                                fontSize: 10, fontWeight: 700, background: 'var(--danger)', color: '#fff',
-                                padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center',
+                                fontSize: 10, fontWeight: 700,
+                                background: isActive ? 'var(--primary)' : 'var(--danger)',
+                                color: '#fff',
+                                padding: '1px 6px', borderRadius: 999, minWidth: 18,
+                                textAlign: 'center', lineHeight: 1.4,
                             }}>{t.badge}</span>
                         )}
                     </button>

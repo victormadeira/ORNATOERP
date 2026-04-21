@@ -14,33 +14,37 @@
   --primary: #1379F0;
   --primary-hover: #0B63D4;
   --primary-light: #EBF5FF;
-  --primary-gradient: linear-gradient(135deg, #1379F0 0%, #0B63D4 50%, #0952A5 100%);
-  --primary-glow: 0 0 20px rgba(19, 121, 240, 0.3);
+  /* Gradiente mais limpo — 2 stops em vez de 3; evita o "muddy middle" */
+  --primary-gradient: linear-gradient(135deg, #2088F5 0%, #0E6BD6 100%);
+  --primary-glow: 0 0 20px rgba(19, 121, 240, 0.28);
 
-  --bg-body: #F5F7FA;
+  --bg-body: #F4F6FA;
   --bg-sidebar: #FFFFFF;
   --bg-card: #FFFFFF;
   --bg-input: #FFFFFF;
   --bg-hover: #F1F5F9;
-  --bg-muted: #F1F5F9;
+  --bg-muted: #F4F6FA;
+  --bg-subtle: #FAFBFD;       /* superfície mais suave p/ tonal elevation */
 
-  --border: #E2E8F0;
+  --border: #E4E8EF;
   --border-hover: #CBD5E1;
-  --border-input: #D1D9E5;
+  --border-input: #D8DEE8;
   --border-glow: rgba(19, 121, 240, 0.15);
+  --border-strong: #C4CBD6;
 
   --text-primary: #0F172A;
   --text-secondary: #475569;
-  --text-muted: #64748B;
+  --text-muted: #6B7684;
   --text-on-primary: #FFFFFF;
 
-  /* Shadow system */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.03);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
-  --shadow-xl: 0 20px 50px -12px rgba(0, 0, 0, 0.15);
-  --shadow-glow: 0 0 30px rgba(19, 121, 240, 0.12);
+  /* Shadow system — multi-layer sutil (ambient + direct light) */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-card: 0 1px 1px rgba(15, 23, 42, 0.03), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 2px 4px rgba(15, 23, 42, 0.04), 0 6px 12px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 4px 8px rgba(15, 23, 42, 0.05), 0 16px 32px rgba(15, 23, 42, 0.08);
+  --shadow-xl: 0 12px 24px rgba(15, 23, 42, 0.08), 0 32px 64px rgba(15, 23, 42, 0.12);
+  --shadow-glow: 0 0 32px rgba(19, 121, 240, 0.12);
+  --shadow-focus: 0 0 0 3px var(--primary-ring);
 
   /* Glassmorphism */
   --glass-bg: rgba(255, 255, 255, 0.88);
@@ -85,45 +89,56 @@
   --sidebar-active-bg: var(--primary-gradient);
   --sidebar-indicator: var(--primary);
 
-  /* Transition tokens */
-  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-spring: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Transition tokens — ease padronizado + spring mais suave */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);        /* out quart — entrada natural */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);    /* in-out — transições de estado */
+  --ease-spring: cubic-bezier(0.22, 1.2, 0.36, 1);  /* spring suave (overshoot leve) */
+  --transition-fast: 150ms var(--ease-out);
+  --transition-base: 220ms var(--ease-out);
+  --transition-slow: 320ms var(--ease-out);
+  --transition-spring: 420ms var(--ease-spring);
 
-  /* Radius tokens */
+  /* Radius tokens — escala progressiva */
+  --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
-  --radius-lg: 10px;
-  --radius-xl: 20px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
   --radius-full: 9999px;
 }
 
 /* ─── Dark Mode Premium ─── */
 .dark {
-  --bg-body: #0B1121;
-  --bg-sidebar: #0F1629;
+  /* Tonal elevation: cada superfície mais "elevada" fica mais clara (MD dark theme) */
+  --bg-body: #0A1020;
+  --bg-sidebar: #0E1528;
   --bg-card: #141D30;
-  --bg-input: #0F172A;
+  --bg-input: #111A2E;
   --bg-hover: #1C2840;
-  --bg-muted: #182236;
+  --bg-muted: #172138;
+  --bg-subtle: #111A2E;
 
-  --border: rgba(255, 255, 255, 0.06);
-  --border-hover: rgba(255, 255, 255, 0.12);
-  --border-input: rgba(255, 255, 255, 0.08);
-  --border-glow: rgba(19, 121, 240, 0.2);
+  /* Borders mais visíveis p/ separar cartões do fundo escuro (antes 0.06 sumia) */
+  --border: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.16);
+  --border-input: rgba(255, 255, 255, 0.10);
+  --border-glow: rgba(19, 121, 240, 0.22);
+  --border-strong: rgba(255, 255, 255, 0.14);
 
-  --text-primary: rgba(241, 245, 249, 0.95);
-  --text-secondary: rgba(148, 163, 184, 0.85);
-  --text-muted: rgba(148, 163, 184, 0.8);
+  --text-primary: rgba(241, 245, 249, 0.96);
+  --text-secondary: rgba(186, 198, 214, 0.88);
+  --text-muted: rgba(148, 163, 184, 0.78);
   --text-on-primary: #FFFFFF;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --shadow-xl: 0 25px 60px rgba(0, 0, 0, 0.45);
-  --shadow-glow: 0 0 40px rgba(19, 121, 240, 0.15);
+  /* Dark shadows: mais spread que o light pra preservar separação de planos */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 2px 4px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.4), 0 20px 40px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.5), 0 40px 80px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 40px rgba(19, 121, 240, 0.18);
+  --shadow-focus: 0 0 0 3px rgba(19, 121, 240, 0.35);
 
   --glass-bg: rgba(20, 29, 48, 0.85);
   --glass-border: rgba(255, 255, 255, 0.06);
@@ -176,13 +191,13 @@ h1, h2, h3 { letter-spacing: -0.015em; }
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
-  transition: box-shadow var(--transition-base), transform var(--transition-base), border-color var(--transition-base);
+  transition: box-shadow var(--transition-base), border-color var(--transition-base);
 }
 
+/* Hover: apenas suavizar borda + sombra. SEM translateY (evita jitter em listas densas de ERP).
+   O translate só acontece em .hover-lift / .prod-card que são explicitamente interativos. */
 .glass-card:hover {
-  box-shadow: var(--shadow-md);
   border-color: var(--border-hover);
-  transform: translateY(-1px);
 }
 
 .glass-panel {
@@ -191,126 +206,148 @@ h1, h2, h3 { letter-spacing: -0.015em; }
   border-radius: var(--radius-md);
 }
 
-/* ─── Buttons ─── */
-.btn-primary {
-  background: var(--primary-gradient);
-  color: var(--text-on-primary);
-  font-weight: 600;
+/* ─── Buttons — escala de interação consistente (scale-feedback) ─── */
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+  /* shared base — garante consistência visual e de rhythm */
   font-family: var(--font-sans);
-  padding: 0.5rem 1.25rem;
+  font-size: 0.8125rem;           /* 13px — mais denso, casa com ERP */
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.005em;
+  padding: 0.5rem 0.95rem;
+  min-height: 36px;               /* touch-friendly sem inflar */
   border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
   cursor: pointer;
-  border: none;
-  font-size: 0.875rem;
-  box-shadow: var(--shadow-sm), 0 1px 2px var(--primary-ring);
   position: relative;
   overflow: hidden;
+  border: 1px solid transparent;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform 120ms var(--ease-out);
   /* UX Pro Max: tap-delay — reduz 300ms de delay em mobile */
   touch-action: manipulation;
+  white-space: nowrap;
 }
 
+.btn-primary {
+  background: var(--primary-gradient);
+  color: var(--text-on-primary);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 1px 2px rgba(19, 121, 240, 0.3),
+    0 2px 6px rgba(19, 121, 240, 0.18);
+}
+
+/* sheen sutil ao hover, sem translateY (evita jitter em layouts densos) */
 .btn-primary::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 50%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, transparent 50%);
   opacity: 0;
   transition: opacity var(--transition-fast);
+  pointer-events: none;
 }
 
 .btn-primary:hover {
-  box-shadow: var(--shadow-md), 0 4px 12px var(--primary-ring);
-  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 2px 4px rgba(19, 121, 240, 0.32),
+    0 6px 16px rgba(19, 121, 240, 0.24);
 }
 
 .btn-primary:hover::before { opacity: 1; }
 
 .btn-primary:active {
-  transform: translateY(0) scale(0.98);
-  box-shadow: var(--shadow-sm);
+  transform: scale(0.97);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.12),
+    0 1px 2px rgba(19, 121, 240, 0.2);
 }
 
 .btn-secondary {
   background: var(--bg-card);
   color: var(--text-secondary);
-  border: 1px solid var(--border);
-  padding: 0.5rem 1.25rem;
-  border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  font-family: var(--font-sans);
-  font-size: 0.875rem;
-  touch-action: manipulation;
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-secondary:hover {
   background: var(--bg-hover);
   border-color: var(--border-hover);
   color: var(--text-primary);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
 }
 
-.btn-secondary:active {
-  transform: translateY(0) scale(0.98);
-}
+.btn-secondary:active { transform: scale(0.97); }
 
 .btn-danger {
   background: transparent;
   color: var(--danger);
-  border: 1px solid rgba(220, 38, 38, 0.2);
-  padding: 0.375rem 0.75rem;
-  border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  font-family: var(--font-sans);
-  touch-action: manipulation;
+  border-color: var(--danger-border);
 }
 
 .btn-danger:hover {
-  background: rgba(220, 38, 38, 0.06);
-  border-color: rgba(220, 38, 38, 0.3);
-  transform: translateY(-1px);
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  color: var(--danger-hover);
 }
 
-.btn-danger:active {
-  transform: translateY(0) scale(0.98);
+.btn-danger:active { transform: scale(0.97); }
+
+/* Focus-visible padronizado em todos os botões (acessibilidade keyboard nav) */
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.btn-danger:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bg-body),
+    0 0 0 4px var(--primary),
+    var(--shadow-sm);
 }
 
 /* ─── Inputs ─── */
 .input-glass {
   background: var(--bg-input);
-  border: 1.5px solid var(--border-input);
+  border: 1px solid var(--border-input);  /* 1px crisp em high-DPI (antes 1.5 renderizava borrado) */
   color: var(--text-primary);
   padding: 0.5rem 0.75rem;
+  min-height: 36px;                       /* casa com .btn — alinha horizontalmente em forms */
   border-radius: var(--radius-md);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
   outline: none;
   width: 100%;
   font-family: var(--font-sans);
-  font-size: 0.875rem;
+  font-size: 0.875rem;                    /* 14px desktop */
+  line-height: 1.4;
 }
 
-.input-glass:focus {
+.input-glass:hover:not(:disabled):not(:focus) {
+  border-color: var(--border-hover);
+}
+
+.input-glass:focus,
+.input-glass:focus-visible {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-ring), var(--shadow-sm);
+  box-shadow: 0 0 0 3px var(--primary-ring);
 }
 
 .input-glass::placeholder {
   color: var(--text-muted);
+  opacity: 0.85;
+}
+
+/* iOS anti-zoom: inputs precisam ≥16px em mobile, senão Safari dá zoom automático */
+@media (max-width: 640px) {
+  .input-glass { font-size: 16px; }
 }
 
 /* ─── Labels ─── */
@@ -324,47 +361,56 @@ h1, h2, h3 { letter-spacing: -0.015em; }
   letter-spacing: 0.01em;
 }
 
-/* ─── Table ─── */
+/* ─── Table ─── cabeçalho mais sóbrio, hover mais nítido, linhas uniformes */
 .th-glass {
-  background: var(--bg-muted);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: var(--bg-subtle);
   border-bottom: 1px solid var(--border);
   color: var(--text-muted);
-  font-size: 0.7rem;
-  font-weight: 600;
+  font-size: 0.6875rem;               /* 11px */
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 0.625rem 1rem;
+  letter-spacing: 0.06em;
+  padding: 0.6875rem 1rem;            /* 11px/16px */
   font-family: var(--font-sans);
   position: sticky;
   top: 0;
   z-index: 5;
+  white-space: nowrap;
+  user-select: none;
 }
 
 .td-glass {
-  padding: 0.625rem 1rem;
+  padding: 0.6875rem 1rem;
   border-bottom: 1px solid var(--border);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;               /* 13px — casa com btn font */
   color: var(--text-primary);
   transition: background var(--transition-fast);
 }
 
-tr:nth-child(even) .td-glass {
-  background: rgba(0, 0, 0, 0.012);
-}
-.dark tr:nth-child(even) .td-glass {
-  background: rgba(255, 255, 255, 0.015);
-}
+/* Removido zebra striping (nth-child) — estava criando ruído visual.
+   Hover é suficiente pra mostrar qual linha está focada (padrão Linear/Notion). */
 tr:hover .td-glass {
   background: var(--bg-hover);
 }
 
-/* ─── Scrollbar ─── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+/* ─── Scrollbar — mais elegante, transparente por padrão, aparece em hover ─── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 8px;
+  transition: background-color 200ms var(--ease-out);
+}
+*:hover > ::-webkit-scrollbar-thumb,
+::-webkit-scrollbar:hover ::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background-color: var(--text-muted) !important; background-clip: padding-box; }
+/* Firefox */
+* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 
 /* ═══════════════════════════════════════════════════════════
    ANIMATIONS
@@ -557,18 +603,27 @@ tr:hover .td-glass {
 /* ─── Sidebar ─── */
 .sidebar-item {
   position: relative;
-  transition: all var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
   border-radius: var(--radius-md);
 }
 
 .sidebar-item:hover {
   background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
+/* Ativo: tint primário + texto/ícone em primary — mais moderno que flood de gradiente.
+   (Pattern usado por Linear, Notion, Vercel, GitHub.) */
 .sidebar-item-active {
-  background: var(--primary-gradient) !important;
-  color: #fff !important;
-  box-shadow: 0 2px 10px var(--primary-ring);
+  background: var(--primary-light) !important;
+  color: var(--primary) !important;
+  font-weight: 600;
+}
+
+.sidebar-item-active :is(svg, img) {
+  color: var(--primary);
 }
 
 .sidebar-item-active::before {
@@ -578,10 +633,10 @@ tr:hover .td-glass {
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
-  height: 24px;
+  height: 20px;
   background: var(--primary);
   border-radius: 0 3px 3px 0;
-  animation: sidebar-indicator 0.3s ease both;
+  animation: sidebar-indicator 0.3s var(--ease-spring) both;
 }
 
 .sidebar-tooltip {
@@ -659,16 +714,24 @@ tr:hover .td-glass {
 }
 
 /* ─── Button Sizes ─── */
-.btn-sm { padding: 0.25rem 0.625rem; font-size: 0.75rem; gap: 0.25rem; }
-.btn-lg { padding: 0.75rem 1.5rem; font-size: 0.9375rem; }
+.btn-sm { padding: 0.3rem 0.7rem; font-size: 0.75rem; min-height: 28px; gap: 0.3rem; }
+.btn-lg { padding: 0.75rem 1.3rem; font-size: 0.9375rem; min-height: 44px; }
 
 /* ─── Selection ─── */
 ::selection { background: var(--primary-ring); color: var(--text-primary); }
 
-/* ─── Focus visible (keyboard nav) ─── */
+/* ─── Focus visible (keyboard nav) ─── Prioridade 1 do skill: accessibility */
 :focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+/* Remove outline pra inputs que já têm box-shadow ring */
+.input-glass:focus-visible,
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.btn-danger:focus-visible {
+  outline: none;
 }
 
 /* ─── Hover lift utility ─── */
@@ -684,12 +747,13 @@ tr:hover .td-glass {
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
+  gap: 8px;
+  padding: 10px 14px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   flex-wrap: wrap;
+  box-shadow: var(--shadow-sm);
 }
 
 .toolbar-group {
@@ -741,29 +805,40 @@ tr:hover .td-glass {
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 11px;
+  gap: 5px;
+  padding: 5px 11px;
+  min-height: 28px;                   /* touch-friendly sem ocupar muito */
+  border-radius: var(--radius-full);
+  font-size: 11.5px;
   font-weight: 600;
+  letter-spacing: 0.01em;
   cursor: pointer;
   border: 1px solid var(--border);
   background: var(--bg-card);
-  color: var(--text-muted);
-  transition: all var(--transition-fast);
+  color: var(--text-secondary);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    transform 120ms var(--ease-out);
   font-family: var(--font-sans);
   white-space: nowrap;
+  touch-action: manipulation;
 }
 
 .chip:hover {
   border-color: var(--border-hover);
   background: var(--bg-hover);
+  color: var(--text-primary);
 }
+
+.chip:active { transform: scale(0.96); }
 
 .chip-active {
   background: var(--primary-light);
   color: var(--primary);
   border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary) inset;
 }
 
 /* ─── Column header (kanban) ─── */
@@ -878,16 +953,18 @@ tr.tr-clickable:hover .td-glass { background: var(--primary-alpha); }
   background: var(--success);
 }
 
-/* ─── Alert banner ─── */
+/* ─── Alert banner ─── accent à esquerda (pattern claro e acessível) */
 .alert-banner {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   padding: 10px 14px;
   border-radius: var(--radius-md);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 12.5px;
+  line-height: 1.55;
   border: 1px solid;
+  border-left-width: 3px;
+  position: relative;
 }
 
 .alert-banner-warning {
@@ -932,47 +1009,57 @@ tr.tr-clickable:hover .td-glass { background: var(--primary-alpha); }
   display: flex;
   align-items: center;
   justify-content: space-around;
-  height: 60px;
+  height: 62px;
   background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
   border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.04);
 }
 
 .mobile-bottom-nav-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 6px 12px;
-  min-height: 44px;
-  min-width: 44px;
+  gap: 3px;
+  padding: 6px 10px;
+  min-height: 48px;                   /* Material 48dp */
+  min-width: 48px;
   justify-content: center;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition:
+    color var(--transition-fast),
+    transform 120ms var(--ease-out);
   color: var(--text-muted);
   background: none;
   border: none;
   font-family: var(--font-sans);
   position: relative;
+  touch-action: manipulation;
 }
 
-.mobile-bottom-nav-item span { font-size: 9px; font-weight: 600; }
+.mobile-bottom-nav-item:active { transform: scale(0.94); }
+
+.mobile-bottom-nav-item span {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
 
 .mobile-bottom-nav-item-active { color: var(--primary); }
 
-.mobile-bottom-nav-item-active::after {
+/* Active: pill suave atrás do ícone (iOS 18 style) em vez de barra em cima */
+.mobile-bottom-nav-item-active::before {
   content: '';
   position: absolute;
-  top: -1px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 20px;
-  height: 2px;
-  background: var(--primary);
-  border-radius: 0 0 2px 2px;
+  inset: 4px 8px auto 8px;
+  height: 28px;
+  background: var(--primary-light);
+  border-radius: var(--radius-full);
+  z-index: -1;
+  animation: scale-in 220ms var(--ease-spring) both;
 }
 
 /* ═══════════════════════════════════════════════════════════
