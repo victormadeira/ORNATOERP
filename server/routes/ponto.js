@@ -705,128 +705,313 @@ router.get('/relatorio-pdf', requireAuth, async (req, res) => {
     empData.forEach(e => { totals.trabalhadas += e.trabalhadas; totals.previstas += e.previstas; totals.atrasos += e.atrasos; totals.faltas += e.faltas; totals.atestados += e.atestados; });
     totals.saldo = Math.round((totals.trabalhadas - totals.previstas) * 60);
 
-    const fmtH = (hrs) => { const m = Math.round(hrs * 60); const s = m < 0 ? '-' : ''; const a = Math.abs(m); return `${s}${Math.floor(a/60)}h${String(a%60).padStart(2,'0')}`; };
-    const fmtMin = (mins) => { const s = mins < 0 ? '-' : ''; const a = Math.abs(mins); return `${s}${Math.floor(a/60)}h${String(a%60).padStart(2,'0')}`; };
+    const fmtH = (hrs) => { const m = Math.round(hrs * 60); const s = m < 0 ? '−' : ''; const a = Math.abs(m); return `${s}${Math.floor(a/60)}h${String(a%60).padStart(2,'0')}`; };
+    const fmtMin = (mins) => { const s = mins < 0 ? '−' : ''; const a = Math.abs(mins); return `${s}${Math.floor(a/60)}h${String(a%60).padStart(2,'0')}`; };
+    const initials = (name) => String(name || '?').trim().split(/\s+/).slice(0,2).map(p=>p[0]||'').join('').toUpperCase();
 
-    const statusColor = { normal:'#22c55e', atraso:'#f59e0b', falta:'#ef4444', atestado:'#3b82f6', ferias:'#818cf8', feriado:'#9ca3af', folga:'#d1d5db', compensacao:'#a855f7', futuro:'#e5e7eb' };
+    // Paleta — identidade Ornato (grafite + cobre) com feedback semântico sóbrio
+    const INK       = '#0E1116';
+    const INK_SOFT  = '#1B1F26';
+    const COBRE     = '#C9A96E';
+    const COBRE_DK  = '#A8864D';
+    const TEXT      = '#1D232B';
+    const TEXT_2    = '#5B6472';
+    const TEXT_3    = '#8B94A3';
+    const LINE      = '#E6E9EF';
+    const LINE_2    = '#F2F4F8';
+    const BG_SOFT   = '#FAFBFD';
+    const POS       = '#16A34A';
+    const NEG       = '#DC2626';
+    const WARN      = '#D97706';
+    const INFO      = '#2563EB';
+    const FERIAS    = '#7C3AED';
+    const MUTED     = '#9CA3AF';
+
+    const statusColor = { normal:POS, atraso:WARN, falta:NEG, atestado:INFO, ferias:FERIAS, feriado:MUTED, folga:MUTED, compensacao:'#8B5CF6', futuro:'#E5E7EB' };
     const statusLabel = { normal:'Normal', atraso:'Atraso', falta:'Falta', atestado:'Atestado', ferias:'Férias', feriado:'Feriado', folga:'Folga', compensacao:'Comp.', futuro:'' };
 
+    const dataGeracao = new Date().toLocaleDateString('pt-BR');
+    const horaGeracao = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
     // ── Build HTML ──
-    let html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
+    let html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/>
 <style>
-  @page { size: A4 portrait; margin: 8mm; }
+  @page { size: A4 portrait; margin: 10mm 9mm 12mm 9mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; color: #1a1a2e; background: #fff; }
-  .page { page-break-after: always; padding: 0; position: relative; }
+  html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    font-size: 10px; color: ${TEXT}; background: #fff;
+    font-feature-settings: 'ss01', 'cv11'; -webkit-font-smoothing: antialiased;
+  }
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+  .page { page-break-after: always; position: relative; padding-bottom: 18px; }
   .page:last-child { page-break-after: auto; }
-  .hdr { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: linear-gradient(135deg, ${COR} 0%, ${COR}dd 100%); color: #fff; border-radius: 10px; margin-bottom: 16px; }
-  .hdr h1 { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; }
-  .hdr .sub { font-size: 11px; opacity: 0.85; margin-top: 2px; }
-  .hdr .periodo { font-size: 13px; font-weight: 700; text-align: right; }
-  .hdr .empresa { font-size: 10px; opacity: 0.7; }
-  .cards { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
-  .card { flex: 1 1 0; min-width: 80px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 8px; text-align: center; }
-  .card .val { font-size: 20px; font-weight: 800; line-height: 1; }
-  .card .lbl { font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-top: 4px; }
-  .tbl { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
-  .tbl th { background: ${COR}12; padding: 6px 8px; font-size: 9px; font-weight: 700; text-align: left; border-bottom: 2px solid ${COR}30; color: #334155; text-transform: uppercase; letter-spacing: 0.3px; }
-  .tbl td { padding: 6px 8px; font-size: 10px; border-bottom: 1px solid #f1f5f9; }
-  .tbl tr:nth-child(even) { background: #fafbfc; }
-  .emp-hdr { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: linear-gradient(135deg, ${COR} 0%, ${COR}cc 100%); color: #fff; border-radius: 10px; margin-bottom: 14px; }
-  .emp-hdr h2 { font-size: 16px; font-weight: 800; }
-  .emp-hdr .cargo { font-size: 10px; opacity: 0.8; margin-top: 2px; }
-  .emp-hdr .banco-box { text-align: right; }
-  .emp-hdr .banco-label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7; }
-  .emp-hdr .banco-val { font-size: 22px; font-weight: 900; line-height: 1; margin-top: 2px; }
-  .stats { display: flex; gap: 6px; margin-bottom: 12px; }
-  .stat { flex: 1 1 0; padding: 8px 6px; border-radius: 8px; text-align: center; }
-  .stat .sv { font-size: 16px; font-weight: 800; line-height: 1; }
-  .stat .sl { font-size: 7px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; margin-top: 3px; }
-  .prog-wrap { margin-bottom: 12px; }
-  .prog-label { display: flex; justify-content: space-between; font-size: 8px; color: #64748b; margin-bottom: 3px; font-weight: 600; }
-  .prog-bar { height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden; }
-  .prog-fill { height: 100%; border-radius: 5px; }
-  .delays { padding: 10px 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; margin-bottom: 12px; }
-  .delays h4 { font-size: 10px; font-weight: 700; color: #92400e; margin-bottom: 6px; }
-  .delay-item { display: inline-block; padding: 2px 8px; margin: 2px; font-size: 9px; background: #fff; border-radius: 4px; border: 1px solid #fde68a; }
-  .dtbl { width: 100%; border-collapse: collapse; font-size: 8px; }
-  .dtbl th { padding: 4px 4px; font-weight: 700; text-align: center; background: ${COR}10; border: 1px solid ${COR}20; color: #334155; }
-  .dtbl td { padding: 3px 4px; text-align: center; border: 1px solid #f1f5f9; }
-  .dtbl .weekend { background: #f8fafc; color: #94a3b8; }
-  .badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 8px; font-weight: 700; }
-  .banco-detail { display: flex; gap: 10px; padding: 10px 14px; background: ${COR}08; border: 1px solid ${COR}25; border-radius: 8px; margin-bottom: 12px; align-items: center; }
-  .banco-detail .bd-item { text-align: center; flex: 1; }
-  .banco-detail .bd-val { font-size: 14px; font-weight: 800; }
-  .banco-detail .bd-lbl { font-size: 7px; color: #64748b; text-transform: uppercase; font-weight: 600; }
-  .banco-detail .bd-sep { font-size: 16px; color: #94a3b8; font-weight: 300; }
-  .footer { position: absolute; bottom: 0; left: 0; right: 0; text-align: center; font-size: 7px; color: #94a3b8; padding: 6px; }
+
+  /* Hero header */
+  .hero {
+    position: relative; padding: 22px 26px 20px; color: #fff; border-radius: 14px;
+    background: linear-gradient(135deg, ${INK} 0%, ${INK_SOFT} 60%, #22262F 100%);
+    overflow: hidden; margin-bottom: 16px;
+  }
+  .hero::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, ${COBRE} 0%, ${COBRE_DK} 100%); }
+  .hero::after { content: ''; position: absolute; right: -80px; top: -80px; width: 240px; height: 240px; background: radial-gradient(circle, ${COBRE}22 0%, transparent 70%); border-radius: 50%; }
+  .hero-inner { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; }
+  .hero-kicker { font-size: 9px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: ${COBRE}; margin-bottom: 6px; }
+  .hero h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.1; margin-bottom: 4px; }
+  .hero .hero-sub { font-size: 10.5px; color: rgba(255,255,255,0.65); font-weight: 400; }
+  .hero .hero-meta { text-align: right; }
+  .hero .hero-periodo { font-size: 14px; font-weight: 700; color: #fff; letter-spacing: -0.2px; }
+  .hero .hero-empresa { font-size: 9.5px; color: rgba(255,255,255,0.55); margin-top: 3px; font-weight: 500; }
+  .hero .hero-divider { width: 32px; height: 1px; background: ${COBRE}; margin: 8px 0 0 auto; opacity: 0.6; }
+
+  /* KPI cards */
+  .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 16px; }
+  .kpi { background: #fff; border: 1px solid ${LINE}; border-radius: 10px; padding: 11px 10px 10px 14px; position: relative; overflow: hidden; }
+  .kpi::before { content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 3px; background: ${COBRE}; opacity: 0.9; }
+  .kpi.k-pos::before { background: ${POS}; }
+  .kpi.k-neg::before { background: ${NEG}; }
+  .kpi.k-warn::before { background: ${WARN}; }
+  .kpi.k-info::before { background: ${INFO}; }
+  .kpi-label { font-size: 7.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: ${TEXT_3}; margin-bottom: 5px; }
+  .kpi-value { font-size: 19px; font-weight: 800; color: ${TEXT}; line-height: 1; letter-spacing: -0.5px; }
+  .kpi-value.pos { color: ${POS}; }
+  .kpi-value.neg { color: ${NEG}; }
+  .kpi-value.warn { color: ${WARN}; }
+  .kpi-value.info { color: ${INFO}; }
+
+  /* Section heading */
+  .section-head { display: flex; align-items: center; gap: 10px; margin: 18px 0 10px; }
+  .section-head::before { content: ''; width: 3px; height: 14px; background: ${COBRE}; border-radius: 2px; }
+  .section-head h3 { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: ${TEXT}; }
+  .section-head .sh-sub { font-size: 9.5px; color: ${TEXT_3}; font-weight: 500; margin-left: auto; }
+
+  /* Tabela resumo */
+  .tbl { width: 100%; border-collapse: collapse; }
+  .tbl thead th {
+    padding: 9px 10px; font-size: 8px; font-weight: 700; letter-spacing: 0.8px;
+    text-transform: uppercase; color: ${TEXT_2}; text-align: left;
+    border-bottom: 1.5px solid ${INK}; background: #fff;
+  }
+  .tbl tbody td { padding: 9px 10px; font-size: 10px; border-bottom: 1px solid ${LINE_2}; vertical-align: middle; }
+  .tbl tbody tr:last-child td { border-bottom: 1px solid ${LINE}; }
+  .tbl .tc { text-align: center; }
+  .tbl .name { font-weight: 600; color: ${TEXT}; }
+  .tbl .cargo { color: ${TEXT_3}; font-size: 9px; }
+  .tbl .av { display: inline-flex; align-items: center; gap: 8px; }
+  .tbl .av-ball {
+    width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 8.5px; font-weight: 700; color: #fff;
+    background: linear-gradient(135deg, ${INK_SOFT}, ${INK});
+    box-shadow: inset 0 0 0 1.5px ${COBRE}55;
+  }
+  .tbl .zero { color: ${TEXT_3}; }
+  .tbl .strong-pos { color: ${POS}; font-weight: 700; }
+  .tbl .strong-neg { color: ${NEG}; font-weight: 700; }
+
+  /* Comparativo bar chart */
+  .cmp { margin-top: 8px; padding: 14px 16px 4px; background: ${BG_SOFT}; border: 1px solid ${LINE}; border-radius: 12px; }
+  .cmp-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px dashed ${LINE}; }
+  .cmp-row:last-child { border-bottom: none; }
+  .cmp-name { width: 90px; font-size: 9.5px; font-weight: 600; color: ${TEXT}; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cmp-bars { flex: 1; position: relative; height: 18px; }
+  .cmp-prev { position: absolute; top: 2px; height: 6px; background: ${LINE}; border-radius: 3px; }
+  .cmp-trab { position: absolute; top: 10px; height: 6px; border-radius: 3px; }
+  .cmp-vals { width: 110px; font-size: 8.5px; color: ${TEXT_2}; text-align: left; }
+  .cmp-vals .v-t { font-weight: 700; color: ${TEXT}; }
+  .cmp-legend { display: flex; gap: 14px; justify-content: flex-end; margin-top: 8px; padding-top: 6px; border-top: 1px solid ${LINE_2}; font-size: 8px; color: ${TEXT_3}; font-weight: 600; }
+  .cmp-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+  /* Employee page */
+  .emp-hero {
+    position: relative; padding: 20px 24px; color: #fff; border-radius: 14px;
+    background: linear-gradient(135deg, ${INK} 0%, ${INK_SOFT} 100%);
+    overflow: hidden; margin-bottom: 14px;
+  }
+  .emp-hero::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: ${COBRE}; }
+  .emp-hero::after { content: ''; position: absolute; right: -60px; bottom: -60px; width: 180px; height: 180px; background: radial-gradient(circle, ${COBRE}18 0%, transparent 70%); border-radius: 50%; }
+  .emp-inner { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 18px; }
+  .emp-id { display: flex; align-items: center; gap: 14px; }
+  .emp-avatar { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, ${COBRE}, ${COBRE_DK}); color: ${INK}; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; letter-spacing: -0.5px; box-shadow: 0 0 0 2px rgba(255,255,255,0.08); }
+  .emp-id h2 { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; line-height: 1.1; }
+  .emp-id .emp-cargo { font-size: 9.5px; color: rgba(255,255,255,0.6); margin-top: 4px; font-weight: 500; }
+  .emp-id .emp-cargo span { color: ${COBRE}; margin: 0 6px; }
+  .emp-banco { text-align: right; padding-left: 16px; border-left: 1px solid rgba(255,255,255,0.1); }
+  .emp-banco-kicker { font-size: 7.5px; letter-spacing: 1.5px; text-transform: uppercase; color: ${COBRE}; font-weight: 700; margin-bottom: 3px; }
+  .emp-banco-val { font-size: 26px; font-weight: 900; letter-spacing: -1px; line-height: 1; }
+  .emp-banco-val.pos { color: #4ADE80; }
+  .emp-banco-val.neg { color: #F87171; }
+  .emp-banco-sub { font-size: 8.5px; color: rgba(255,255,255,0.5); margin-top: 4px; font-weight: 500; }
+
+  /* Decomposição do banco */
+  .bk-flow { display: grid; grid-template-columns: 1fr 20px 1fr 20px 1.1fr; gap: 0; align-items: stretch; padding: 12px 8px; background: #fff; border: 1px solid ${LINE}; border-radius: 10px; margin-bottom: 12px; }
+  .bk-item { text-align: center; padding: 4px 8px; }
+  .bk-item .bk-lbl { font-size: 7.5px; letter-spacing: 0.8px; text-transform: uppercase; color: ${TEXT_3}; font-weight: 700; margin-bottom: 3px; }
+  .bk-item .bk-val { font-size: 15px; font-weight: 800; letter-spacing: -0.3px; }
+  .bk-total { background: ${BG_SOFT}; border-radius: 8px; margin: -4px 0; }
+  .bk-total .bk-val { font-size: 17px; }
+  .bk-total .bk-lbl { color: ${COBRE_DK}; }
+  .bk-op { display: flex; align-items: center; justify-content: center; font-size: 16px; color: ${TEXT_3}; font-weight: 300; }
+
+  /* Stats row */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(82px, 1fr)); gap: 7px; margin-bottom: 12px; }
+  .stat { padding: 9px 10px; border-radius: 9px; background: #fff; border: 1px solid ${LINE}; position: relative; }
+  .stat .s-top { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; }
+  .stat .sv { font-size: 15px; font-weight: 800; color: ${TEXT}; letter-spacing: -0.3px; line-height: 1; }
+  .stat .sv.pos { color: ${POS}; }
+  .stat .sv.neg { color: ${NEG}; }
+  .stat .sv.warn { color: ${WARN}; }
+  .stat .sv.info { color: ${INFO}; }
+  .stat .s-dot { width: 6px; height: 6px; border-radius: 50%; background: ${TEXT_3}; }
+  .stat .s-dot.pos { background: ${POS}; }
+  .stat .s-dot.neg { background: ${NEG}; }
+  .stat .s-dot.warn { background: ${WARN}; }
+  .stat .s-dot.info { background: ${INFO}; }
+  .stat .sl { font-size: 7.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.9px; color: ${TEXT_2}; margin-top: 5px; }
+
+  /* Progresso */
+  .prog { margin-bottom: 12px; padding: 10px 12px; background: #fff; border: 1px solid ${LINE}; border-radius: 9px; }
+  .prog-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .prog-top .p-title { font-size: 8px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: ${TEXT_2}; }
+  .prog-top .p-pct { font-size: 13px; font-weight: 800; color: ${TEXT}; letter-spacing: -0.3px; }
+  .prog-top .p-pct .p-frac { font-size: 9px; color: ${TEXT_3}; font-weight: 600; margin-left: 6px; }
+  .prog-bar { height: 6px; background: ${LINE}; border-radius: 3px; overflow: hidden; position: relative; }
+  .prog-fill { height: 100%; border-radius: 3px; position: relative; }
+
+  /* Atrasos */
+  .delays { padding: 11px 14px; background: #FFFBEB; border: 1px solid #FCD97B; border-radius: 10px; margin-bottom: 12px; border-left: 3px solid ${WARN}; }
+  .delays-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+  .delays-head h4 { font-size: 9.5px; font-weight: 700; color: #854D0E; letter-spacing: 0.5px; text-transform: uppercase; }
+  .delays-head .d-count { font-size: 9px; font-weight: 700; color: ${WARN}; background: #fff; padding: 2px 8px; border-radius: 10px; border: 1px solid #FCD97B; }
+  .delay-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; margin: 2px 3px 2px 0; font-size: 8.5px; background: #fff; border-radius: 14px; border: 1px solid #FCD97B; color: #78350F; }
+  .delay-chip strong { color: ${WARN}; font-weight: 700; }
+
+  /* Day-by-day table */
+  .dtbl { width: 100%; border-collapse: collapse; font-size: 8.5px; }
+  .dtbl thead th {
+    padding: 6px 5px; font-size: 7.5px; font-weight: 700; letter-spacing: 0.7px;
+    text-transform: uppercase; text-align: center; color: ${TEXT_2};
+    background: ${BG_SOFT}; border-bottom: 1.5px solid ${INK}; border-top: 1px solid ${LINE};
+  }
+  .dtbl thead th:first-child { border-top-left-radius: 6px; text-align: left; padding-left: 10px; }
+  .dtbl thead th:last-child { border-top-right-radius: 6px; padding-right: 10px; }
+  .dtbl tbody td { padding: 4.5px 5px; text-align: center; border-bottom: 1px solid ${LINE_2}; }
+  .dtbl tbody td:first-child { text-align: left; padding-left: 10px; }
+  .dtbl tbody td:last-child { padding-right: 10px; }
+  .dtbl .d-num { font-weight: 700; color: ${TEXT}; }
+  .dtbl .d-dow { font-size: 7.5px; color: ${TEXT_3}; font-weight: 600; text-transform: uppercase; }
+  .dtbl tr.weekend td { background: ${BG_SOFT}; color: ${TEXT_3}; }
+  .dtbl tr.weekend .d-num { color: ${TEXT_2}; }
+  .dtbl .time { color: ${TEXT}; font-weight: 500; }
+  .dtbl .time-empty { color: ${TEXT_3}; }
+
+  /* Status pill */
+  .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 8px; font-weight: 700; letter-spacing: 0.2px; }
+  .pill .pdot { width: 5px; height: 5px; border-radius: 50%; }
+
+  /* Footer */
+  .footer {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 2px 0; margin-top: 14px;
+    font-size: 7.5px; color: ${TEXT_3}; font-weight: 500;
+    border-top: 1px solid ${LINE};
+  }
+  .footer .f-brand { color: ${TEXT_2}; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  .footer .f-brand span { color: ${COBRE_DK}; }
 </style></head><body>`;
 
     // ══════════════════════════════════════════════════════
     // PAGE 1: RESUMO GERAL
     // ══════════════════════════════════════════════════════
     html += `<div class="page">
-      <div class="hdr">
-        <div><h1>Relatório de Ponto</h1><div class="sub">Resumo geral de todos os colaboradores</div></div>
-        <div><div class="periodo">${nomeMes}</div><div class="empresa">${nomeEmpresa}</div></div>
+      <header class="hero">
+        <div class="hero-inner">
+          <div>
+            <div class="hero-kicker">Relatório Mensal · Controle de Ponto</div>
+            <h1>Resumo Consolidado</h1>
+            <div class="hero-sub">${funcionarios.length} colaborador${funcionarios.length === 1 ? '' : 'es'} · ${ultimoDia} dias no período</div>
+          </div>
+          <div class="hero-meta">
+            <div class="hero-periodo">${nomeMes}</div>
+            <div class="hero-empresa">${nomeEmpresa}</div>
+            <div class="hero-divider"></div>
+          </div>
+        </div>
+      </header>
+
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-label">Colaboradores</div><div class="kpi-value num">${funcionarios.length}</div></div>
+        <div class="kpi"><div class="kpi-label">Horas Trabalhadas</div><div class="kpi-value num">${fmtH(totals.trabalhadas)}</div></div>
+        <div class="kpi ${totals.saldo >= 0 ? 'k-pos' : 'k-neg'}"><div class="kpi-label">Saldo Geral</div><div class="kpi-value num ${totals.saldo >= 0 ? 'pos' : 'neg'}">${totals.saldo >= 0 ? '+' : ''}${fmtMin(totals.saldo)}</div></div>
+        <div class="kpi k-warn"><div class="kpi-label">Atrasos</div><div class="kpi-value num warn">${totals.atrasos}</div></div>
+        <div class="kpi k-neg"><div class="kpi-label">Faltas</div><div class="kpi-value num neg">${totals.faltas}</div></div>
+        <div class="kpi k-info"><div class="kpi-label">Atestados</div><div class="kpi-value num info">${totals.atestados}</div></div>
       </div>
 
-      <div class="cards">
-        <div class="card"><div class="val" style="color:${COR}">${funcionarios.length}</div><div class="lbl">Colaboradores</div></div>
-        <div class="card"><div class="val" style="color:#334155">${fmtH(totals.trabalhadas)}</div><div class="lbl">Horas Trabalhadas</div></div>
-        <div class="card"><div class="val" style="color:${totals.saldo >= 0 ? '#22c55e' : '#ef4444'}">${fmtMin(totals.saldo)}</div><div class="lbl">Saldo Geral</div></div>
-        <div class="card"><div class="val" style="color:#f59e0b">${totals.atrasos}</div><div class="lbl">Atrasos</div></div>
-        <div class="card"><div class="val" style="color:#ef4444">${totals.faltas}</div><div class="lbl">Faltas</div></div>
-        <div class="card"><div class="val" style="color:#3b82f6">${totals.atestados}</div><div class="lbl">Atestados</div></div>
-      </div>
+      <div class="section-head"><h3>Colaboradores · visão individual</h3><span class="sh-sub">${empData.length} linha${empData.length === 1 ? '' : 's'}</span></div>
 
       <table class="tbl">
         <thead><tr>
-          <th>Colaborador</th><th>Cargo</th><th style="text-align:center">Trab.</th><th style="text-align:center">Prev.</th>
-          <th style="text-align:center">Saldo Mês</th><th style="text-align:center">Banco Acum.</th>
-          <th style="text-align:center">Atrasos</th><th style="text-align:center">Faltas</th><th style="text-align:center">Atestados</th>
+          <th>Colaborador</th>
+          <th>Cargo</th>
+          <th class="tc">Trab.</th>
+          <th class="tc">Prev.</th>
+          <th class="tc">Saldo Mês</th>
+          <th class="tc">Banco Acum.</th>
+          <th class="tc">Atr.</th>
+          <th class="tc">Falt.</th>
+          <th class="tc">Atest.</th>
         </tr></thead>
         <tbody>`;
 
     empData.forEach(e => {
-      const sColor = e.saldoMes >= 0 ? '#22c55e' : '#ef4444';
-      const bColor = e.bancoTotal >= 0 ? '#22c55e' : '#ef4444';
+      const sClass = e.saldoMes >= 0 ? 'strong-pos' : 'strong-neg';
+      const bClass = e.bancoTotal >= 0 ? 'strong-pos' : 'strong-neg';
       html += `<tr>
-        <td style="font-weight:600">${e.func.nome}</td>
-        <td style="color:#64748b">${e.func.cargo || '—'}</td>
-        <td style="text-align:center;font-weight:600">${fmtH(e.trabalhadas)}</td>
-        <td style="text-align:center;color:#64748b">${fmtH(e.previstas)}</td>
-        <td style="text-align:center;font-weight:700;color:${sColor}">${e.saldoMes >= 0 ? '+' : ''}${fmtMin(e.saldoMes)}</td>
-        <td style="text-align:center;font-weight:800;color:${bColor}">${e.bancoTotal >= 0 ? '+' : ''}${fmtMin(e.bancoTotal)}</td>
-        <td style="text-align:center;color:${e.atrasos ? '#f59e0b' : '#94a3b8'};font-weight:600">${e.atrasos || '—'}</td>
-        <td style="text-align:center;color:${e.faltas ? '#ef4444' : '#94a3b8'};font-weight:600">${e.faltas || '—'}</td>
-        <td style="text-align:center;color:${e.atestados ? '#3b82f6' : '#94a3b8'};font-weight:600">${e.atestados || '—'}</td>
+        <td><span class="av"><span class="av-ball">${initials(e.func.nome)}</span><span class="name">${e.func.nome}</span></span></td>
+        <td class="cargo">${e.func.cargo || '—'}</td>
+        <td class="tc num" style="font-weight:600">${fmtH(e.trabalhadas)}</td>
+        <td class="tc num" style="color:${TEXT_3}">${fmtH(e.previstas)}</td>
+        <td class="tc num ${sClass}">${e.saldoMes >= 0 ? '+' : ''}${fmtMin(e.saldoMes)}</td>
+        <td class="tc num ${bClass}" style="font-weight:800">${e.bancoTotal >= 0 ? '+' : ''}${fmtMin(e.bancoTotal)}</td>
+        <td class="tc num ${e.atrasos ? '' : 'zero'}" style="font-weight:600;${e.atrasos ? `color:${WARN}` : ''}">${e.atrasos || '—'}</td>
+        <td class="tc num ${e.faltas ? '' : 'zero'}" style="font-weight:600;${e.faltas ? `color:${NEG}` : ''}">${e.faltas || '—'}</td>
+        <td class="tc num ${e.atestados ? '' : 'zero'}" style="font-weight:600;${e.atestados ? `color:${INFO}` : ''}">${e.atestados || '—'}</td>
       </tr>`;
     });
 
     html += `</tbody></table>
 
-      <!-- Mini gráfico de barras comparativo -->
-      <div style="margin-top:8px">
-        <div style="font-size:9px;font-weight:700;color:#334155;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Horas Trabalhadas vs Previstas</div>`;
+      <div class="section-head"><h3>Horas Trabalhadas vs Previstas</h3><span class="sh-sub">comparativo mensal</span></div>
+      <div class="cmp">`;
 
     const maxH = Math.max(...empData.map(e => Math.max(e.trabalhadas, e.previstas)), 1);
     empData.forEach(e => {
-      const pctT = Math.round((e.trabalhadas / maxH) * 100);
-      const pctP = Math.round((e.previstas / maxH) * 100);
+      const pctT = Math.min(Math.round((e.trabalhadas / maxH) * 100), 100);
+      const pctP = Math.min(Math.round((e.previstas / maxH) * 100), 100);
       const firstName = e.func.nome.split(' ')[0];
-      html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-        <div style="width:70px;font-size:9px;font-weight:600;text-align:right;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${firstName}</div>
-        <div style="flex:1;position:relative;height:14px">
-          <div style="position:absolute;top:0;left:0;height:7px;width:${pctP}%;background:#e2e8f0;border-radius:3px"></div>
-          <div style="position:absolute;top:0;left:0;height:7px;width:${pctT}%;background:${e.trabalhadas >= e.previstas ? '#22c55e' : '#f59e0b'};border-radius:3px;opacity:0.85"></div>
-          <div style="position:absolute;bottom:0;left:0;height:5px;line-height:5px;font-size:7px;color:#64748b">${fmtH(e.trabalhadas)} / ${fmtH(e.previstas)}</div>
+      const barColor = e.trabalhadas >= e.previstas ? POS : WARN;
+      html += `<div class="cmp-row">
+        <div class="cmp-name">${firstName}</div>
+        <div class="cmp-bars">
+          <div class="cmp-prev" style="width:${pctP}%"></div>
+          <div class="cmp-trab" style="width:${pctT}%;background:${barColor}"></div>
         </div>
+        <div class="cmp-vals num"><span class="v-t">${fmtH(e.trabalhadas)}</span> / ${fmtH(e.previstas)}</div>
       </div>`;
     });
 
-    html += `</div>
-      <div class="footer">Relatório gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})} — ${nomeEmpresa}</div>
+    html += `<div class="cmp-legend">
+        <span><span class="dot" style="background:${LINE}"></span>Previsto</span>
+        <span><span class="dot" style="background:${POS}"></span>Trabalhado (meta atingida)</span>
+        <span><span class="dot" style="background:${WARN}"></span>Trabalhado (abaixo)</span>
+      </div></div>
+
+      <div class="footer">
+        <div class="f-brand">Ornato<span> · ERP</span></div>
+        <div>Gerado em ${dataGeracao} às ${horaGeracao} · ${nomeEmpresa}</div>
+        <div>Pág. 1 / ${empData.length + 1}</div>
+      </div>
     </div>`;
 
     // ══════════════════════════════════════════════════════
@@ -834,121 +1019,120 @@ router.get('/relatorio-pdf', requireAuth, async (req, res) => {
     // ══════════════════════════════════════════════════════
     empData.forEach((e, idx) => {
       const pctTrab = e.previstas > 0 ? Math.min(Math.round((e.trabalhadas / e.previstas) * 100), 150) : 0;
-      const barColor = pctTrab > 100 ? '#22c55e' : COR;
+      const barColor = pctTrab >= 100 ? POS : (pctTrab >= 90 ? COBRE : WARN);
       const extras = e.trabalhadas > e.previstas ? (e.trabalhadas - e.previstas) : 0;
       const deficit = e.previstas > e.trabalhadas ? (e.previstas - e.trabalhadas) : 0;
+      const diasRegistrados = e.diasDetail.filter(d => d.status !== 'futuro').length;
 
       html += `<div class="page">
-        <!-- Employee header -->
-        <div class="emp-hdr">
-          <div>
-            <h2>${e.func.nome}</h2>
-            <div class="cargo">${e.func.cargo || 'Sem cargo definido'} ${e.func.cpf ? '| CPF: ' + e.func.cpf : ''}</div>
+        <section class="emp-hero">
+          <div class="emp-inner">
+            <div class="emp-id">
+              <div class="emp-avatar">${initials(e.func.nome)}</div>
+              <div>
+                <h2>${e.func.nome}</h2>
+                <div class="emp-cargo">${e.func.cargo || 'Sem cargo'}${e.func.cpf ? `<span>·</span>CPF ${e.func.cpf}` : ''}<span>·</span>${nomeMes}</div>
+              </div>
+            </div>
+            <div class="emp-banco">
+              <div class="emp-banco-kicker">Banco de Horas</div>
+              <div class="emp-banco-val num ${e.bancoTotal >= 0 ? 'pos' : 'neg'}">${e.bancoTotal >= 0 ? '+' : ''}${fmtMin(e.bancoTotal)}</div>
+              <div class="emp-banco-sub">saldo acumulado</div>
+            </div>
           </div>
-          <div class="banco-box">
-            <div class="banco-label">Banco de Horas</div>
-            <div class="banco-val" style="color:${e.bancoTotal >= 0 ? '#4ade80' : '#f87171'}">${e.bancoTotal >= 0 ? '+' : ''}${fmtMin(e.bancoTotal)}</div>
+        </section>
+
+        <div class="bk-flow">
+          <div class="bk-item">
+            <div class="bk-lbl">Meses Anteriores</div>
+            <div class="bk-val num" style="color:${e.bhAnterior >= 0 ? POS : NEG}">${e.bhAnterior >= 0 ? '+' : ''}${fmtMin(e.bhAnterior)}</div>
+          </div>
+          <div class="bk-op">+</div>
+          <div class="bk-item">
+            <div class="bk-lbl">Saldo ${meses[mesNum-1]}</div>
+            <div class="bk-val num" style="color:${e.saldoMes >= 0 ? POS : NEG}">${e.saldoMes >= 0 ? '+' : ''}${fmtMin(e.saldoMes)}</div>
+          </div>
+          <div class="bk-op">=</div>
+          <div class="bk-item bk-total">
+            <div class="bk-lbl">Acumulado Total</div>
+            <div class="bk-val num" style="color:${e.bancoTotal >= 0 ? POS : NEG}">${e.bancoTotal >= 0 ? '+' : ''}${fmtMin(e.bancoTotal)}</div>
           </div>
         </div>
 
-        <!-- Banco decomposition -->
-        <div class="banco-detail">
-          <div class="bd-item">
-            <div class="bd-val" style="color:${e.bhAnterior >= 0 ? '#22c55e' : '#ef4444'}">${e.bhAnterior >= 0 ? '+' : ''}${fmtMin(e.bhAnterior)}</div>
-            <div class="bd-lbl">Meses Anteriores</div>
-          </div>
-          <div class="bd-sep">+</div>
-          <div class="bd-item">
-            <div class="bd-val" style="color:${e.saldoMes >= 0 ? '#22c55e' : '#ef4444'}">${e.saldoMes >= 0 ? '+' : ''}${fmtMin(e.saldoMes)}</div>
-            <div class="bd-lbl">Saldo ${meses[mesNum-1]}</div>
-          </div>
-          <div class="bd-sep">=</div>
-          <div class="bd-item">
-            <div class="bd-val" style="color:${e.bancoTotal >= 0 ? '#22c55e' : '#ef4444'};font-size:18px">${e.bancoTotal >= 0 ? '+' : ''}${fmtMin(e.bancoTotal)}</div>
-            <div class="bd-lbl">Acumulado Total</div>
-          </div>
-        </div>
-
-        <!-- Stats cards -->
         <div class="stats">
-          <div class="stat" style="background:#f0fdf4;border:1px solid #bbf7d0">
-            <div class="sv" style="color:#16a34a">${fmtH(e.trabalhadas)}</div>
-            <div class="sl" style="color:#16a34a">Trabalhadas</div>
-          </div>
-          <div class="stat" style="background:#f8fafc;border:1px solid #e2e8f0">
-            <div class="sv" style="color:#475569">${fmtH(e.previstas)}</div>
-            <div class="sl" style="color:#64748b">Previstas</div>
-          </div>
-          ${extras > 0 ? `<div class="stat" style="background:#f0fdf4;border:1px solid #bbf7d0">
-            <div class="sv" style="color:#22c55e">+${fmtH(extras)}</div>
-            <div class="sl" style="color:#16a34a">Extras</div>
-          </div>` : ''}
-          ${deficit > 0 ? `<div class="stat" style="background:#fef2f2;border:1px solid #fecaca">
-            <div class="sv" style="color:#ef4444">-${fmtH(deficit)}</div>
-            <div class="sl" style="color:#dc2626">Deficit</div>
-          </div>` : ''}
-          <div class="stat" style="background:#fffbeb;border:1px solid #fde68a">
-            <div class="sv" style="color:#d97706">${e.atrasos}</div>
-            <div class="sl" style="color:#92400e">Atrasos</div>
-          </div>
-          <div class="stat" style="background:#fef2f2;border:1px solid #fecaca">
-            <div class="sv" style="color:#ef4444">${e.faltas}</div>
-            <div class="sl" style="color:#dc2626">Faltas</div>
-          </div>
-          <div class="stat" style="background:#eff6ff;border:1px solid #bfdbfe">
-            <div class="sv" style="color:#2563eb">${e.atestados}</div>
-            <div class="sl" style="color:#1d4ed8">Atestados</div>
-          </div>
+          <div class="stat"><div class="s-top"><div class="sv num pos">${fmtH(e.trabalhadas)}</div><div class="s-dot pos"></div></div><div class="sl">Trabalhadas</div></div>
+          <div class="stat"><div class="s-top"><div class="sv num">${fmtH(e.previstas)}</div><div class="s-dot"></div></div><div class="sl">Previstas</div></div>
+          ${extras > 0 ? `<div class="stat"><div class="s-top"><div class="sv num pos">+${fmtH(extras)}</div><div class="s-dot pos"></div></div><div class="sl">Extras</div></div>` : ''}
+          ${deficit > 0 ? `<div class="stat"><div class="s-top"><div class="sv num neg">−${fmtH(deficit)}</div><div class="s-dot neg"></div></div><div class="sl">Déficit</div></div>` : ''}
+          <div class="stat"><div class="s-top"><div class="sv num warn">${e.atrasos}</div><div class="s-dot warn"></div></div><div class="sl">Atrasos</div></div>
+          <div class="stat"><div class="s-top"><div class="sv num neg">${e.faltas}</div><div class="s-dot neg"></div></div><div class="sl">Faltas</div></div>
+          <div class="stat"><div class="s-top"><div class="sv num info">${e.atestados}</div><div class="s-dot info"></div></div><div class="sl">Atestados</div></div>
         </div>
 
-        <!-- Progress bar -->
-        <div class="prog-wrap">
-          <div class="prog-label">
-            <span>Progresso: ${pctTrab}%</span>
-            <span>${fmtH(e.trabalhadas)} / ${fmtH(e.previstas)}</span>
+        <div class="prog">
+          <div class="prog-top">
+            <div class="p-title">Cumprimento do mês</div>
+            <div class="p-pct num">${pctTrab}<span style="font-size:10px;color:${TEXT_3}">%</span><span class="p-frac">${fmtH(e.trabalhadas)} / ${fmtH(e.previstas)}</span></div>
           </div>
           <div class="prog-bar">
-            <div class="prog-fill" style="width:${Math.min(pctTrab, 100)}%;background:${barColor}"></div>
+            <div class="prog-fill" style="width:${Math.min(pctTrab, 100)}%;background:linear-gradient(90deg, ${barColor} 0%, ${barColor}cc 100%)"></div>
           </div>
         </div>`;
 
       // Atrasos detail
       if (e.atrasosDetail.length > 0) {
-        html += `<div class="delays"><h4>Detalhamento de Atrasos (${e.atrasos})</h4><div>`;
+        html += `<div class="delays">
+          <div class="delays-head">
+            <h4>Detalhamento de Atrasos</h4>
+            <span class="d-count num">${e.atrasos} ocorrência${e.atrasos === 1 ? '' : 's'}</span>
+          </div>
+          <div>`;
         e.atrasosDetail.forEach(a => {
           const [,, dd] = a.data.split('-');
-          html += `<span class="delay-item">${dd}/${String(mesNum).padStart(2,'0')} <strong style="color:#d97706">+${a.min}min</strong></span>`;
+          html += `<span class="delay-chip"><span class="num">${dd}/${String(mesNum).padStart(2,'0')}</span> <strong class="num">+${a.min}min</strong></span>`;
         });
         html += `</div></div>`;
       }
 
       // Day-by-day table
-      html += `<table class="dtbl"><thead><tr>
-        <th style="width:26px">Dia</th><th style="width:26px">DS</th><th>Status</th>
-        <th>Entrada</th><th>Saída</th><th>Trab.</th><th>Prev.</th><th>Saldo</th>
-      </tr></thead><tbody>`;
+      html += `<div class="section-head"><h3>Agenda diária</h3><span class="sh-sub">${diasRegistrados} dia${diasRegistrados === 1 ? '' : 's'} registrado${diasRegistrados === 1 ? '' : 's'}</span></div>
+      <table class="dtbl">
+        <thead><tr>
+          <th style="width:36px">Dia</th>
+          <th style="width:32px">Sem</th>
+          <th style="width:90px;text-align:left">Status</th>
+          <th>Entrada</th>
+          <th>Saída</th>
+          <th>Trab.</th>
+          <th>Prev.</th>
+          <th>Saldo</th>
+        </tr></thead><tbody>`;
 
       e.diasDetail.forEach(dd => {
         if (dd.status === 'futuro') return;
         const isWe = dd.dow === 0 || dd.dow === 6;
-        const cls = isWe ? ' class="weekend"' : '';
+        const cls = isWe ? 'weekend' : '';
         const saldoD = dd.ht - dd.hp;
-        const saldoDColor = saldoD >= 0 ? '#22c55e' : '#ef4444';
-        const sc = statusColor[dd.status] || '#d1d5db';
-        html += `<tr${cls}>
-          <td style="font-weight:600">${String(dd.dia).padStart(2,'0')}</td>
-          <td>${diasSemana[dd.dow]}</td>
-          <td><span class="badge" style="background:${sc}20;color:${sc};border:1px solid ${sc}40">${statusLabel[dd.status] || dd.status}</span></td>
-          <td>${dd.entrada || '—'}</td>
-          <td>${dd.saida || '—'}</td>
-          <td style="font-weight:600">${dd.ht ? fmtH(dd.ht) : '—'}</td>
-          <td style="color:#64748b">${dd.hp ? fmtH(dd.hp) : '—'}</td>
-          <td style="font-weight:700;color:${saldoDColor}">${dd.ht || dd.hp ? (saldoD >= 0 ? '+' : '') + fmtH(saldoD) : '—'}</td>
+        const saldoDColor = saldoD >= 0 ? POS : NEG;
+        const sc = statusColor[dd.status] || MUTED;
+        html += `<tr${cls ? ` class="${cls}"` : ''}>
+          <td><span class="d-num num">${String(dd.dia).padStart(2,'0')}</span></td>
+          <td><span class="d-dow">${diasSemana[dd.dow]}</span></td>
+          <td style="text-align:left"><span class="pill" style="background:${sc}15;color:${sc}"><span class="pdot" style="background:${sc}"></span>${statusLabel[dd.status] || dd.status}</span></td>
+          <td class="${dd.entrada ? 'time num' : 'time-empty'}">${dd.entrada || '—'}</td>
+          <td class="${dd.saida ? 'time num' : 'time-empty'}">${dd.saida || '—'}</td>
+          <td class="num" style="font-weight:600">${dd.ht ? fmtH(dd.ht) : '<span class="time-empty">—</span>'}</td>
+          <td class="num" style="color:${TEXT_3}">${dd.hp ? fmtH(dd.hp) : '—'}</td>
+          <td class="num" style="font-weight:700;color:${saldoDColor}">${dd.ht || dd.hp ? (saldoD >= 0 ? '+' : '') + fmtH(saldoD) : '<span class="time-empty">—</span>'}</td>
         </tr>`;
       });
 
       html += `</tbody></table>
-        <div class="footer">Pág. ${idx + 2} — ${e.func.nome} — ${nomeMes} — ${nomeEmpresa}</div>
+        <div class="footer">
+          <div class="f-brand">Ornato<span> · ERP</span></div>
+          <div>${e.func.nome} · ${nomeMes}</div>
+          <div>Pág. ${idx + 2} / ${empData.length + 1}</div>
+        </div>
       </div>`;
     });
 

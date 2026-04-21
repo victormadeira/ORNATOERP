@@ -934,19 +934,35 @@ export default function Ponto({ notify }) {
                     <button className={Z.btn2Sm} onClick={() => fileInputRef.current?.click()} style={{ fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         <Upload size={13} /> Importar
                     </button>
-                    <button onClick={async () => {
-                        notify?.('Gerando relatório PDF...', 'info');
-                        try {
-                            const token = localStorage.getItem('erp_token');
-                            const r = await fetch(`/api/ponto/relatorio-pdf?mes=${mesKey}`, { headers: { Authorization: `Bearer ${token}` } });
-                            if (!r.ok) throw { error: 'Erro ao gerar PDF' };
-                            const blob = await r.blob();
-                            const url = URL.createObjectURL(blob);
-                            window.open(url, '_blank');
-                            notify?.('Relatório PDF gerado', 'success');
-                        } catch (e) { notify?.(e.error || 'Erro ao gerar PDF', 'error'); }
-                    }} style={{ fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 10, background: 'var(--danger)', border: '1px solid var(--danger)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
-                        <FileText size={13} /> PDF
+                    <button
+                        onClick={async () => {
+                            notify?.('Gerando relatório PDF...', 'info');
+                            try {
+                                const token = localStorage.getItem('erp_token');
+                                const r = await fetch(`/api/ponto/relatorio-pdf?mes=${mesKey}`, { headers: { Authorization: `Bearer ${token}` } });
+                                if (!r.ok) throw { error: 'Erro ao gerar PDF' };
+                                const blob = await r.blob();
+                                const url = URL.createObjectURL(blob);
+                                const w = window.open(url, '_blank');
+                                // Libera a URL depois que a aba abriu o PDF — evita vazamento
+                                if (w) setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                                notify?.('Relatório PDF gerado', 'success');
+                            } catch (e) { notify?.(e.error || 'Erro ao gerar PDF', 'error'); }
+                        }}
+                        title="Gerar relatório PDF do mês"
+                        style={{
+                            fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6,
+                            padding: '7px 14px', borderRadius: 10,
+                            background: 'linear-gradient(135deg, #1B1F26 0%, #0E1116 100%)',
+                            border: '1px solid rgba(201,169,110,0.45)',
+                            color: '#fff', fontWeight: 600, cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(14,17,22,0.25), inset 0 1px 0 rgba(201,169,110,0.15)',
+                            transition: 'all 160ms var(--ease-out)',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-bright)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(201,169,110,0.35), inset 0 1px 0 rgba(201,169,110,0.25)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(201,169,110,0.45)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(14,17,22,0.25), inset 0 1px 0 rgba(201,169,110,0.15)'; }}
+                    >
+                        <FileText size={13} style={{ color: '#C9A96E' }} /> Relatório PDF
                     </button>
                     <input ref={fileInputRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) importCSV(e.target.files[0]); }} />
                 </div>
