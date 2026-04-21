@@ -720,6 +720,7 @@ function PortalChat({ token, mensagens: initialMsgs, accent, primary, clienteNom
             <div style={{ display: 'flex', gap: 8 }}>
                 <input
                     type="text"
+                    aria-label="Mensagem para a marcenaria"
                     value={text}
                     onChange={e => setText(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviar()}
@@ -764,7 +765,17 @@ function PortalDocumentos({ token, accent }) {
     }, [token]);
 
     if (loading) return null;
-    if (arquivos.length === 0) return null;
+    if (arquivos.length === 0) return (
+        <div style={{ background: '#fff', padding: '48px 32px', textAlign: 'center' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: `${accent}12`, border: `1px solid ${accent}30`, margin: '0 auto 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <FileText size={24} style={{ color: accent }} aria-hidden="true" />
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#0E1116', marginBottom: 6 }}>Ainda não há documentos</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', maxWidth: 360, margin: '0 auto' }}>
+                Quando a marcenaria disponibilizar projetos, contratos ou desenhos, eles aparecerão aqui para download.
+            </div>
+        </div>
+    );
 
     const fmtSize = (bytes) => bytes > 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`;
     const isImage = (tipo) => ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(tipo);
@@ -872,7 +883,17 @@ function PortalGaleria({ token, accent, primary }) {
     }, [lightbox, fotosFiltradas.length]);
 
     if (loading) return null;
-    if (fotos.length === 0) return null;
+    if (fotos.length === 0) return (
+        <div style={{ background: '#fff', padding: '48px 32px', textAlign: 'center' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: `${accent}12`, border: `1px solid ${accent}30`, margin: '0 auto 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Camera size={24} style={{ color: accent }} aria-hidden="true" />
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#0E1116', marginBottom: 6 }}>Nenhuma foto ainda</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', maxWidth: 380, margin: '0 auto' }}>
+                Conforme a montagem avançar, nossa equipe vai postar aqui fotos de cada ambiente para você acompanhar.
+            </div>
+        </div>
+    );
 
     return (
         <div style={{ background: '#fff', padding: '24px 32px', borderBottom: '1px solid #e2e8f0' }}>
@@ -1118,26 +1139,33 @@ export default function PortalCliente({ token, isPreview = false }) {
         if (data.projeto?.numero) setClarityTag('projeto_numero', data.projeto.numero);
     }, [data, isPreview]);
 
-    const primary = data?.empresa?.proposta_cor_primaria || '#1B2A4A';
-    const accent = data?.empresa?.proposta_cor_accent || '#C9A96E';
-    const font = 'system-ui, -apple-system, sans-serif';
+    // Identidade Ornato: cobre é hero, grafite é base (default quando empresa não customiza)
+    const primary = data?.empresa?.proposta_cor_primaria || '#0E1116';   // grafite profundo
+    const accent  = data?.empresa?.proposta_cor_accent  || '#C9A96E';   // cobre / rose gold
+    const ink   = '#0E1116';  // texto display (headings)
+    const paper = '#FAFAF8';  // off-white warm
+    const font = "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
     if (loading) return (
-        <div style={{ minHeight: '100vh', background: 'var(--muted-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: font }}>
-            <div style={{ textAlign: 'center', color: 'var(--muted)' }}>
-                <div style={{ width: 40, height: 40, border: `3px solid #e2e8f0`, borderTopColor: primary, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
-                <p>Carregando portal do cliente...</p>
+        <div style={{ minHeight: '100vh', background: paper, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: font }}>
+            <div style={{ textAlign: 'center', color: '#64748b' }}>
+                <div style={{ position: 'relative', width: 56, height: 56, margin: '0 auto 20px' }}>
+                    <div style={{ position: 'absolute', inset: 0, border: `2px solid ${accent}22`, borderTopColor: accent, borderRadius: '50%', animation: 'spinPortal 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite' }} />
+                    <div style={{ position: 'absolute', inset: 8, border: `2px solid ${accent}15`, borderRightColor: accent, borderRadius: '50%', animation: 'spinPortal 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite reverse' }} />
+                </div>
+                <p style={{ fontSize: 13, color: ink, fontWeight: 600, letterSpacing: '0.02em' }}>Carregando seu portal</p>
+                <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 4, letterSpacing: '0.04em' }}>um instante…</p>
             </div>
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            <style>{`@keyframes spinPortal { to { transform: rotate(360deg); } }`}</style>
         </div>
     );
 
     if (error) return (
-        <div style={{ minHeight: '100vh', background: 'var(--muted-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: font }}>
-            <div style={{ textAlign: 'center', maxWidth: 400, padding: 32 }}>
-                <div style={{ width: 64, height: 64, background: 'var(--danger-bg)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: 'var(--danger)' }}><Lock size={28} /></div>
-                <h2 style={{ color: '#1e293b', marginBottom: 8 }}>Link inválido ou expirado</h2>
-                <p style={{ color: 'var(--muted)', fontSize: 14 }}>{error}</p>
+        <div style={{ minHeight: '100vh', background: paper, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: font }}>
+            <div style={{ textAlign: 'center', maxWidth: 420, padding: 40, background: '#fff', borderRadius: 16, border: `1px solid ${accent}25`, borderTop: `3px solid ${accent}` }}>
+                <div style={{ width: 64, height: 64, background: `${accent}12`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: accent, border: `1.5px solid ${accent}40` }}><Lock size={28} aria-hidden="true" /></div>
+                <h2 style={{ color: ink, marginBottom: 8, fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em' }}>Link inválido ou expirado</h2>
+                <p style={{ color: '#64748b', fontSize: 14, lineHeight: 1.5 }}>{error}</p>
             </div>
         </div>
     );
@@ -1160,18 +1188,28 @@ export default function PortalCliente({ token, isPreview = false }) {
     const statusProj = STATUS_PROJ[portalStatus] || STATUS_PROJ.nao_iniciado;
 
     return (
-        <div style={{ minHeight: '100vh', background: 'var(--muted-bg)', fontFamily: font, padding: '32px 16px' }}>
+        <div style={{ minHeight: '100vh', background: paper, fontFamily: font, padding: '32px 16px' }}>
             <style>{`
                 @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
                 @keyframes ganttBarShine { 0% { left: -40%; } 100% { left: 140%; } }
+                @keyframes pulseDot { 0%, 100% { box-shadow: 0 0 0 0 ${accent}55; } 50% { box-shadow: 0 0 0 6px ${accent}00; } }
+                @keyframes progressDraw { from { stroke-dashoffset: 377; } }
                 .gantt-progress-active { position: relative; overflow: hidden; }
                 .gantt-progress-active::after {
                     content: ''; position: absolute; top: 0; left: -40%; width: 30%; height: 100%;
-                    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
-                    animation: ganttBarShine 2.4s ease-in-out infinite;
+                    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+                    animation: ganttBarShine 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
                 }
-                .portal-card { animation: fadeUp 0.4s ease; max-width: 800px; margin: 0 auto; }
-                .portal-card button { border: 0; outline: none; box-shadow: none; }
+                .portal-card { animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1); max-width: 820px; margin: 0 auto; }
+                .portal-card button { border: 0; box-shadow: none; }
+                .portal-card button:focus-visible { outline: 2px solid ${accent}; outline-offset: 2px; border-radius: 6px; }
+                .portal-card a:focus-visible { outline: 2px solid ${accent}; outline-offset: 2px; border-radius: 6px; }
+                .portal-tab { transition: color 180ms cubic-bezier(0.4, 0, 0.2, 1), border-color 180ms cubic-bezier(0.4, 0, 0.2, 1); }
+                .portal-tab:hover { color: ${ink} !important; }
+                @media (prefers-reduced-motion: reduce) {
+                    .portal-card, .gantt-progress-active::after { animation: none !important; }
+                }
                 @media print { body { background: white !important; } .no-print { display: none !important; } }
             `}</style>
 
@@ -1189,76 +1227,97 @@ export default function PortalCliente({ token, isPreview = false }) {
 
             <div className="portal-card">
 
-                {/* ─── Cabeçalho ──────────────────────────────── */}
+                {/* ─── Cabeçalho editorial ───────────────────── */}
                 <div style={{
                     background: '#fff', borderRadius: '16px 16px 0 0',
-                    padding: '28px 32px 24px', borderBottom: '1px solid #e2e8f0',
+                    padding: '28px 32px 26px', borderBottom: `1px solid ${accent}20`,
+                    position: 'relative', overflow: 'hidden',
                 }}>
-                    {/* Logo + nome empresa */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-                        {empresa.logo_header_path ? (
-                            <img src={empresa.logo_header_path} alt={empresa.nome} style={{ height: 40, maxWidth: 160, objectFit: 'contain' }} />
-                        ) : (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <div style={{
-                                    width: 36, height: 36, background: primary, borderRadius: 8,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontWeight: 800, fontSize: 16, color: '#fff',
-                                }}>
-                                    {(empresa.nome || 'M')[0]}
+                    {/* Top stripe cobre — detalhe editorial */}
+                    <div aria-hidden="true" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${accent} 0%, ${accent}cc 50%, ${accent} 100%)` }} />
+
+                    {/* Logo + kicker */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, marginBottom: 22 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            {empresa.logo_header_path ? (
+                                <img src={empresa.logo_header_path} alt={empresa.nome || 'Logo'} style={{ height: 40, maxWidth: 160, objectFit: 'contain' }} />
+                            ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <div style={{
+                                        width: 38, height: 38, background: `${accent}15`, color: accent, borderRadius: 10,
+                                        border: `1.5px solid ${accent}`,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontWeight: 800, fontSize: 16, letterSpacing: '-0.02em',
+                                    }} aria-hidden="true">{(empresa.nome || 'M')[0]}</div>
+                                    <span style={{ fontWeight: 700, fontSize: 15, color: ink, letterSpacing: '-0.01em' }}>{empresa.nome || 'Marcenaria'}</span>
                                 </div>
-                                <span style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>{empresa.nome || 'Marcenaria'}</span>
+                            )}
+                        </div>
+                        {/* Kicker editorial — só aparece em telas >= 500px */}
+                        <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: accent }}>
+                            <span aria-hidden="true" style={{ width: 16, height: 1, background: accent, opacity: 0.6 }} />
+                            Portal do Cliente
+                        </div>
+                    </div>
+
+                    {/* Hero split: saudação à esquerda + progresso ring à direita */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
+                        <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+                            <h1 style={{ color: ink, fontSize: 26, fontWeight: 800, margin: '0 0 6px', lineHeight: 1.1, letterSpacing: '-0.03em' }}>
+                                Olá, {(projeto.cliente_nome || '').trim() || 'Cliente'}
+                            </h1>
+                            <p style={{ color: '#475569', fontSize: 13.5, margin: 0, lineHeight: 1.5, maxWidth: 420 }}>
+                                {concluidasPct >= 100 ? '🎉 Seu projeto foi concluído! Um prazer trabalhar com você.' :
+                                 concluidasPct > 0 ? `Seu projeto está em andamento — ${concluidasPct}% concluído.` :
+                                 'Acompanhe aqui todas as etapas do seu projeto.'}
+                            </p>
+                        </div>
+
+                        {/* Progresso ring SVG — momento hero */}
+                        <div style={{ flexShrink: 0 }} role="img" aria-label={`Progresso geral: ${concluidasPct}%`}>
+                            <div style={{ position: 'relative', width: 120, height: 120 }}>
+                                <svg width="120" height="120" viewBox="0 0 140 140" aria-hidden="true">
+                                    <circle cx="70" cy="70" r="60" fill="none" stroke={`${accent}18`} strokeWidth="8" />
+                                    <circle cx="70" cy="70" r="60" fill="none" stroke={accent} strokeWidth="8" strokeLinecap="round" strokeDasharray={377} strokeDashoffset={377 - (377 * concluidasPct / 100)} transform="rotate(-90 70 70)" style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1)' }} />
+                                </svg>
+                                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                                    <div style={{ fontSize: 30, fontWeight: 800, color: ink, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{concluidasPct}<span style={{ fontSize: 14, color: accent, fontWeight: 700 }}>%</span></div>
+                                    <div style={{ fontSize: 8.5, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.18em', textTransform: 'uppercase', marginTop: 4 }}>concluído</div>
+                                </div>
                             </div>
-                        )}
-                    </div>
-
-                    {/* Saudação personalizada */}
-                    <h1 style={{ color: '#0f172a', fontSize: 22, fontWeight: 800, margin: '0 0 4px', lineHeight: 1.3 }}>
-                        Olá, {(projeto.cliente_nome || '').trim() || 'Cliente'}!
-                    </h1>
-                    <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 18px' }}>
-                        {concluidasPct >= 100 ? 'Seu projeto foi concluído!' :
-                         concluidasPct > 0 ? `Seu projeto está ${concluidasPct}% concluído` :
-                         'Acompanhe o progresso do seu projeto'}
-                    </p>
-
-                    {/* Barra de progresso */}
-                    <div style={{ marginBottom: 18 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                            <span style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Progresso geral</span>
-                            <span style={{ color: primary, fontSize: 16, fontWeight: 800 }}>{concluidasPct}%</span>
-                        </div>
-                        <div style={{ background: 'var(--muted-bg)', borderRadius: 99, height: 8, overflow: 'hidden' }}>
-                            <div className={concluidasPct < 100 ? 'gantt-progress-active' : ''} style={{ width: `${concluidasPct}%`, height: '100%', background: accent, borderRadius: 99, transition: 'width 0.8s ease' }} />
                         </div>
                     </div>
 
-                    {/* Info grid — sempre 3 cards */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                        <div style={{ background: 'var(--bg-muted)', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
-                            <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Projeto</div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{projeto.nome || '—'}</div>
+                    {/* Info grid — sempre 3 cards, refinados */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginTop: 22 }}>
+                        <div style={{ background: paper, borderRadius: 10, padding: '11px 14px', border: `1px solid ${accent}18`, borderLeft: `3px solid ${accent}` }}>
+                            <div style={{ fontSize: 9.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4, fontWeight: 700 }}>Projeto</div>
+                            <div style={{ fontSize: 13.5, fontWeight: 700, color: ink, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{projeto.nome || '—'}</div>
                         </div>
-                        <div style={{ background: 'var(--bg-muted)', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
-                            <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Status</div>
+                        <div style={{ background: paper, borderRadius: 10, padding: '11px 14px', border: `1px solid ${accent}18` }}>
+                            <div style={{ fontSize: 9.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4, fontWeight: 700 }}>Status</div>
                             <span style={{
-                                background: `${statusProj.color}15`, color: statusProj.color,
-                                fontSize: 12, fontWeight: 700, padding: '2px 10px', borderRadius: 99,
-                                border: `1px solid ${statusProj.color}30`,
-                            }}>{statusProj.label}</span>
+                                display: 'inline-flex', alignItems: 'center', gap: 5,
+                                background: `${statusProj.color}12`, color: statusProj.color,
+                                fontSize: 11.5, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
+                                border: `1px solid ${statusProj.color}33`,
+                            }}>
+                                <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: statusProj.color }} />
+                                {statusProj.label}
+                            </span>
                         </div>
                         {projeto.data_inicio ? (
-                            <div style={{ background: 'var(--bg-muted)', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
-                                <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Período</div>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
-                                    {dtFmt(projeto.data_inicio)} → {dtFmt(projeto.data_vencimento)}
+                            <div style={{ background: paper, borderRadius: 10, padding: '11px 14px', border: `1px solid ${accent}18` }}>
+                                <div style={{ fontSize: 9.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4, fontWeight: 700 }}>Período</div>
+                                <div style={{ fontSize: 12.5, fontWeight: 600, color: ink, fontVariantNumeric: 'tabular-nums' }}>
+                                    {dtFmt(projeto.data_inicio)} <span style={{ color: accent, margin: '0 2px' }}>→</span> {dtFmt(projeto.data_vencimento)}
                                 </div>
                             </div>
                         ) : (
-                            <div style={{ background: 'var(--bg-muted)', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
-                                <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Etapas</div>
-                                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
-                                    {etapas.filter(e => e.status === 'concluida').length}/{etapas.length} concluídas
+                            <div style={{ background: paper, borderRadius: 10, padding: '11px 14px', border: `1px solid ${accent}18` }}>
+                                <div style={{ fontSize: 9.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4, fontWeight: 700 }}>Etapas</div>
+                                <div style={{ fontSize: 13.5, fontWeight: 700, color: ink, fontVariantNumeric: 'tabular-nums' }}>
+                                    {etapas.filter(e => e.status === 'concluida').length}<span style={{ color: '#94a3b8', fontWeight: 500 }}>/{etapas.length}</span> <span style={{ fontSize: 10, color: '#64748b', fontWeight: 500 }}>concluídas</span>
                                 </div>
                             </div>
                         )}
@@ -1320,12 +1379,12 @@ export default function PortalCliente({ token, isPreview = false }) {
                         { id: 'fotos', label: 'Fotos', icon: Camera },
                         { id: 'docs', label: 'Documentos', icon: FileText },
                     ].map(t => (
-                        <button key={t.id} onClick={() => setTab(t.id)} style={{
+                        <button key={t.id} className="portal-tab" onClick={() => setTab(t.id)} aria-pressed={tab === t.id} style={{
                             padding: '14px 20px', border: 0, borderTop: 0, borderLeft: 0, borderRight: 0,
                             background: 'none', outline: 'none',
                             cursor: 'pointer', fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
-                            color: tab === t.id ? primary : 'var(--muted)',
-                            borderBottom: tab === t.id ? `2px solid ${primary}` : '2px solid transparent',
+                            color: tab === t.id ? ink : 'var(--muted)',
+                            borderBottom: tab === t.id ? `2px solid ${accent}` : '2px solid transparent',
                             marginBottom: -2, display: 'flex', alignItems: 'center', gap: 6,
                             whiteSpace: 'nowrap', transition: 'all 0.2s',
                         }}>
@@ -1348,7 +1407,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                 <div style={{ background: '#fff', padding: '24px 32px' }}>
                     <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}><Calendar size={16} style={{ color: accent }} /> Cronograma</h2>
 
-                    <GanttPublic etapas={etapas} primary={primary} accent={accent} />
+                    <GanttPublic etapas={etapas} primary={accent} accent={primary} />
 
                 </div>
 

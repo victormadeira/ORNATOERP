@@ -748,22 +748,22 @@ router.get('/relatorio-pdf', requireAuth, async (req, res) => {
   .page { page-break-after: always; position: relative; padding-bottom: 18px; }
   .page:last-child { page-break-after: auto; }
 
-  /* Hero header */
+  /* Hero header — editorial, impressão econômica (print-friendly) */
   .hero {
-    position: relative; padding: 22px 26px 20px; color: #fff; border-radius: 14px;
-    background: linear-gradient(135deg, ${INK} 0%, ${INK_SOFT} 60%, #22262F 100%);
-    overflow: hidden; margin-bottom: 16px;
+    position: relative; padding: 18px 20px 16px 24px; color: ${INK};
+    background: #fff; border-left: 4px solid ${COBRE};
+    border-bottom: 1px solid ${LINE}; margin-bottom: 18px;
   }
-  .hero::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, ${COBRE} 0%, ${COBRE_DK} 100%); }
-  .hero::after { content: ''; position: absolute; right: -80px; top: -80px; width: 240px; height: 240px; background: radial-gradient(circle, ${COBRE}22 0%, transparent 70%); border-radius: 50%; }
-  .hero-inner { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; }
-  .hero-kicker { font-size: 9px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: ${COBRE}; margin-bottom: 6px; }
-  .hero h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.1; margin-bottom: 4px; }
-  .hero .hero-sub { font-size: 10.5px; color: rgba(255,255,255,0.65); font-weight: 400; }
-  .hero .hero-meta { text-align: right; }
-  .hero .hero-periodo { font-size: 14px; font-weight: 700; color: #fff; letter-spacing: -0.2px; }
-  .hero .hero-empresa { font-size: 9.5px; color: rgba(255,255,255,0.55); margin-top: 3px; font-weight: 500; }
-  .hero .hero-divider { width: 32px; height: 1px; background: ${COBRE}; margin: 8px 0 0 auto; opacity: 0.6; }
+  .hero::before { content: ''; position: absolute; top: 0; left: -4px; right: 0; height: 2px; background: ${COBRE}; }
+  .hero-inner { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; }
+  .hero-kicker { font-size: 8.5px; font-weight: 700; letter-spacing: 2.8px; text-transform: uppercase; color: ${COBRE_DK}; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .hero-kicker::after { content: ''; flex: 0 0 18px; height: 1px; background: ${COBRE}; opacity: 0.6; }
+  .hero h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.8px; line-height: 1.05; color: ${INK}; margin-bottom: 6px; }
+  .hero .hero-sub { font-size: 10.5px; color: ${TEXT_2}; font-weight: 500; }
+  .hero .hero-meta { text-align: right; padding-left: 16px; border-left: 1px solid ${LINE}; }
+  .hero .hero-periodo { font-size: 14px; font-weight: 700; color: ${INK}; letter-spacing: -0.3px; }
+  .hero .hero-empresa { font-size: 9.5px; color: ${TEXT_3}; margin-top: 4px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; }
+  .hero .hero-divider { display: none; }
 
   /* KPI cards */
   .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 16px; }
@@ -822,26 +822,31 @@ router.get('/relatorio-pdf', requireAuth, async (req, res) => {
   .cmp-legend { display: flex; gap: 14px; justify-content: flex-end; margin-top: 8px; padding-top: 6px; border-top: 1px solid ${LINE_2}; font-size: 8px; color: ${TEXT_3}; font-weight: 600; }
   .cmp-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
 
-  /* Employee page */
+  /* Employee page — editorial, print-friendly */
   .emp-hero {
-    position: relative; padding: 20px 24px; color: #fff; border-radius: 14px;
-    background: linear-gradient(135deg, ${INK} 0%, ${INK_SOFT} 100%);
-    overflow: hidden; margin-bottom: 14px;
+    position: relative; padding: 16px 20px 16px 24px; color: ${INK};
+    background: #fff; border-left: 4px solid ${COBRE};
+    border-bottom: 1px solid ${LINE}; margin-bottom: 14px;
   }
-  .emp-hero::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: ${COBRE}; }
-  .emp-hero::after { content: ''; position: absolute; right: -60px; bottom: -60px; width: 180px; height: 180px; background: radial-gradient(circle, ${COBRE}18 0%, transparent 70%); border-radius: 50%; }
-  .emp-inner { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 18px; }
+  .emp-hero::before { content: ''; position: absolute; top: 0; left: -4px; right: 0; height: 2px; background: ${COBRE}; }
+  .emp-inner { display: flex; justify-content: space-between; align-items: center; gap: 18px; }
   .emp-id { display: flex; align-items: center; gap: 14px; }
-  .emp-avatar { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, ${COBRE}, ${COBRE_DK}); color: ${INK}; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; letter-spacing: -0.5px; box-shadow: 0 0 0 2px rgba(255,255,255,0.08); }
-  .emp-id h2 { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; line-height: 1.1; }
-  .emp-id .emp-cargo { font-size: 9.5px; color: rgba(255,255,255,0.6); margin-top: 4px; font-weight: 500; }
-  .emp-id .emp-cargo span { color: ${COBRE}; margin: 0 6px; }
-  .emp-banco { text-align: right; padding-left: 16px; border-left: 1px solid rgba(255,255,255,0.1); }
-  .emp-banco-kicker { font-size: 7.5px; letter-spacing: 1.5px; text-transform: uppercase; color: ${COBRE}; font-weight: 700; margin-bottom: 3px; }
+  .emp-avatar {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: ${COBRE}15; color: ${COBRE_DK};
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 800; letter-spacing: -0.5px;
+    border: 1.5px solid ${COBRE};
+  }
+  .emp-id h2 { font-size: 18px; font-weight: 800; letter-spacing: -0.4px; line-height: 1.05; color: ${INK}; }
+  .emp-id .emp-cargo { font-size: 9.5px; color: ${TEXT_2}; margin-top: 4px; font-weight: 500; }
+  .emp-id .emp-cargo span { color: ${COBRE_DK}; margin: 0 6px; font-weight: 700; }
+  .emp-banco { text-align: right; padding-left: 16px; border-left: 1px solid ${LINE}; }
+  .emp-banco-kicker { font-size: 7.5px; letter-spacing: 1.8px; text-transform: uppercase; color: ${COBRE_DK}; font-weight: 700; margin-bottom: 4px; }
   .emp-banco-val { font-size: 26px; font-weight: 900; letter-spacing: -1px; line-height: 1; }
-  .emp-banco-val.pos { color: #4ADE80; }
-  .emp-banco-val.neg { color: #F87171; }
-  .emp-banco-sub { font-size: 8.5px; color: rgba(255,255,255,0.5); margin-top: 4px; font-weight: 500; }
+  .emp-banco-val.pos { color: ${POS}; }
+  .emp-banco-val.neg { color: ${NEG}; }
+  .emp-banco-sub { font-size: 8.5px; color: ${TEXT_3}; margin-top: 4px; font-weight: 500; letter-spacing: 0.3px; }
 
   /* Decomposição do banco */
   .bk-flow { display: grid; grid-template-columns: 1fr 20px 1fr 20px 1.1fr; gap: 0; align-items: stretch; padding: 12px 8px; background: #fff; border: 1px solid ${LINE}; border-radius: 10px; margin-bottom: 12px; }
