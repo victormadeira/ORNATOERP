@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
-import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState } from '../ui';
+import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, ConfirmModal } from '../ui';
 import { R$, N } from '../engine';
 import { useAuth } from '../auth';
 import {
@@ -159,6 +159,7 @@ function SaidaLoteModal({ materiais, projetos, onClose, onSave, notify }) {
     const [loadingOrc, setLoadingOrc] = useState(false);
     const [addSearch, setAddSearch] = useState('');
     const [showAdd, setShowAdd] = useState(false);
+    const [confirmSaldo, setConfirmSaldo] = useState(false);
 
     // Map de estoque por material_id
     const estoqueMap = {};
@@ -227,9 +228,7 @@ function SaidaLoteModal({ materiais, projetos, onClose, onSave, notify }) {
     }, 0);
     const temErroSaldo = selecionados.some(i => i.qtdSaida > i.estoque);
 
-    const confirmar = async () => {
-        if (selecionados.length === 0) return notify('Selecione ao menos 1 item');
-        if (temErroSaldo && !window.confirm('Alguns itens excedem o saldo disponível. Deseja continuar mesmo assim?')) return;
+    const executar = async () => {
         setSaving(true);
         try {
             const res = await api.post('/estoque/saida-lote', {
@@ -249,12 +248,19 @@ function SaidaLoteModal({ materiais, projetos, onClose, onSave, notify }) {
         setSaving(false);
     };
 
+    const confirmar = () => {
+        if (selecionados.length === 0) return notify('Selecione ao menos 1 item');
+        if (temErroSaldo) { setConfirmSaldo(true); return; }
+        executar();
+    };
+
     const addFiltered = materiais.filter(m => {
         const q = addSearch.toLowerCase();
         return q && (m.nome.toLowerCase().includes(q) || (m.cod || '').toLowerCase().includes(q));
     }).slice(0, 8);
 
     return (
+        <>
         <Modal title="Saída em Lote" close={onClose} w={750}>
             <div style={{ display: 'grid', gap: 14 }}>
                 {/* Projeto + Descrição */}
@@ -388,6 +394,18 @@ function SaidaLoteModal({ materiais, projetos, onClose, onSave, notify }) {
                 </button>
             </div>
         </Modal>
+        {confirmSaldo && (
+            <ConfirmModal
+                title="Saldo insuficiente"
+                message="Alguns itens excedem o saldo disponível em estoque. Registrar as saídas mesmo assim gerará saldo negativo para os itens afetados."
+                confirmLabel="Registrar mesmo assim"
+                cancelLabel="Revisar itens"
+                danger
+                onConfirm={async () => { setConfirmSaldo(false); await executar(); }}
+                onCancel={() => setConfirmSaldo(false)}
+            />
+        )}
+        </>
     );
 }
 

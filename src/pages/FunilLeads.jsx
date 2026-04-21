@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Z, Ic, PageHeader, Modal } from '../ui';
+import { Z, Ic, PageHeader, Modal, ConfirmModal } from '../ui';
 import { colorBg, colorBorder } from '../theme';
 import api from '../api';
 import { useAuth } from '../auth';
@@ -367,6 +367,9 @@ export default function FunilLeads({ notify, nav }) {
     const [editColForm, setEditColForm] = useState({ nome: '', cor: '' });
     const [showLinkOrc, setShowLinkOrc] = useState(null); // lead para vincular orçamento
     const [orcsDisponiveis, setOrcsDisponiveis] = useState([]);
+    // Confirmação visual (substitui window.confirm)
+    const [confirmCfg, setConfirmCfg] = useState(null);
+    const askConfirm = (cfg) => setConfirmCfg(cfg);
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -428,8 +431,14 @@ export default function FunilLeads({ notify, nav }) {
             await api.put(`/leads/${leadId}/mover`, { coluna_id: toCol });
             if (isConvertido) {
                 const lead = leads.find(l => l.id === leadId);
-                if (lead && window.confirm(`Lead "${lead.nome}" convertido! Deseja criar um orçamento agora?`)) {
-                    nav?.('novo');
+                if (lead) {
+                    askConfirm({
+                        title: 'Lead convertido',
+                        message: `Lead "${lead.nome}" convertido! Deseja criar um orçamento agora?`,
+                        confirmLabel: 'Criar orçamento',
+                        cancelLabel: 'Depois',
+                        onConfirm: () => nav?.('novo'),
+                    });
                 }
             }
             loadAll();
@@ -455,12 +464,20 @@ export default function FunilLeads({ notify, nav }) {
     };
 
     const deleteLead = async (id) => {
-        if (!window.confirm('Excluir este lead?')) return;
-        try {
-            await api.del(`/leads/${id}`);
-            loadAll();
-            notify?.('Lead excluído');
-        } catch { notify?.('Erro ao excluir'); }
+        const lead = leads.find(l => l.id === id);
+        askConfirm({
+            title: 'Excluir lead',
+            message: lead ? `Excluir o lead "${lead.nome}"? Esta ação não pode ser desfeita.` : 'Excluir este lead? Esta ação não pode ser desfeita.',
+            confirmLabel: 'Excluir',
+            danger: true,
+            onConfirm: async () => {
+                try {
+                    await api.del(`/leads/${id}`);
+                    loadAll();
+                    notify?.('Lead excluído');
+                } catch { notify?.('Erro ao excluir'); }
+            },
+        });
     };
 
     const addColumn = async () => {
@@ -489,12 +506,19 @@ export default function FunilLeads({ notify, nav }) {
     };
 
     const deleteColumn = async (id) => {
-        if (!window.confirm('Desativar esta coluna? Os leads serão movidos para a primeira coluna.')) return;
-        try {
-            await api.del(`/leads/colunas/${id}`);
-            loadAll();
-            notify?.('Coluna removida');
-        } catch (err) { notify?.(err?.error || 'Erro ao remover coluna'); }
+        askConfirm({
+            title: 'Desativar coluna',
+            message: 'Desativar esta coluna? Os leads serão movidos para a primeira coluna do funil.',
+            confirmLabel: 'Desativar',
+            danger: true,
+            onConfirm: async () => {
+                try {
+                    await api.del(`/leads/colunas/${id}`);
+                    loadAll();
+                    notify?.('Coluna removida');
+                } catch (err) { notify?.(err?.error || 'Erro ao remover coluna'); }
+            },
+        });
     };
 
     // ── Orçamento ──
@@ -524,12 +548,19 @@ export default function FunilLeads({ notify, nav }) {
     };
 
     const handleUnlinkOrc = async (leadId) => {
-        if (!window.confirm('Desvincular orçamento deste lead?')) return;
-        try {
-            await api.del(`/leads/${leadId}/vincular-orcamento`);
-            loadAll();
-            notify?.('Orçamento desvinculado');
-        } catch { notify?.('Erro ao desvincular'); }
+        askConfirm({
+            title: 'Desvincular orçamento',
+            message: 'Desvincular o orçamento deste lead? O orçamento continua existindo, apenas deixa de estar associado ao lead.',
+            confirmLabel: 'Desvincular',
+            danger: true,
+            onConfirm: async () => {
+                try {
+                    await api.del(`/leads/${leadId}/vincular-orcamento`);
+                    loadAll();
+                    notify?.('Orçamento desvinculado');
+                } catch { notify?.('Erro ao desvincular'); }
+            },
+        });
     };
 
     // ── Filtro ──
@@ -745,6 +776,22 @@ export default function FunilLeads({ notify, nav }) {
                         </div>
                     </div>
                 </Modal>
+            )}
+
+            {/* Confirmação visual — substitui window.confirm */}
+            {confirmCfg && (
+                <ConfirmModal
+                    title={confirmCfg.title}
+                    message={confirmCfg.message}
+                    confirmLabel={confirmCfg.confirmLabel}
+                    cancelLabel={confirmCfg.cancelLabel}
+                    danger={confirmCfg.danger}
+                    onConfirm={async () => {
+                        try { await confirmCfg.onConfirm?.(); }
+                        finally { setConfirmCfg(null); }
+                    }}
+                    onCancel={() => setConfirmCfg(null)}
+                />
             )}
         </div>
     );
