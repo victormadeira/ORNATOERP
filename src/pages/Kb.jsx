@@ -5,6 +5,7 @@ import { Archive, XCircle, RotateCcw, Search, Filter, Calendar, GripVertical, Ka
 import api from '../api';
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { snapCenterToCursor } from '@dnd-kit/modifiers';
 
 // ── Status labels para arquivo ──
 const STATUS_LABEL = { arquivo: 'Arquivado', perdido: 'Perdido' };
@@ -260,7 +261,7 @@ export default function Kb({ orcs, reload, notify, nav }) {
                         })}
                     </div>
 
-                    <DragOverlay>
+                    <DragOverlay modifiers={[snapCenterToCursor]}>
                         <DragOverlayCard o={activeOrc} />
                     </DragOverlay>
                 </DndContext>

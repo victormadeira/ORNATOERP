@@ -522,10 +522,11 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
     const pixelToMM = (clientX, clientY) => {
         if (!svgRef.current) return { x: 0, y: 0 };
         const rect = svgRef.current.getBoundingClientRect();
-        // viewBox: -marginDim, -14, svgW+marginDim*2+2, svgH+marginDim+20
-        const vbW = svgW + marginDim * 2 + 2;
+        // viewBox inclui toda a largura do SVG: chapa + margem + bandeja
+        // vbW deve bater com o atributo viewBox do elemento SVG
+        const vbW = svgW + marginDim * 2 + 2 + trayGap + trayW;
         const vbH = svgH + marginDim + 20;
-        // pixel → SVG coord
+        // pixel → SVG coord (getBoundingClientRect já corrige zoom/pan do CSS transform)
         const svgX = -marginDim + ((clientX - rect.left) / rect.width) * vbW;
         const svgY = -14 + ((clientY - rect.top) / rect.height) * vbH;
         // SVG coord → usable mm (pieces render at (x + refilo) * scale)

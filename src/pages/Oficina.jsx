@@ -6,6 +6,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { DndContext, DragOverlay, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import {
   Scissors, Layers, Wrench, Package, Truck, Plus, X, Monitor, ChevronRight,
   Paperclip, Link, MessageSquare, CheckSquare, Clock, AlertCircle, User,
@@ -821,7 +822,7 @@ function OficinaDesktop({ notify }) {
                 <KanbanColumn key={etapa.id} etapa={etapa} cards={byEtapa(etapa.id)} onOpen={setOpenId} onAddCard={setNewCardEtapa} />
               ))}
             </div>
-            <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
+            <DragOverlay modifiers={[snapCenterToCursor]} dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
               {activeCard && <CardContent card={activeCard} onOpen={() => {}} />}
             </DragOverlay>
           </DndContext>
