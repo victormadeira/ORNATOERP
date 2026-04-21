@@ -44,6 +44,7 @@ import leadsRoutes from './routes/leads.js';
 import extRoutes from './routes/ext.js';
 import templatesRoutes from './routes/templates.js';
 import digitalTwinRoutes from './routes/digital-twin.js';
+import errorsRoutes, { recordError } from './routes/errors.js';
 
 // Inicializa DB (efeito colateral — cria tabelas e seed)
 import './db.js';
@@ -191,6 +192,10 @@ app.use('/api/ext', extRoutes);
 app.use('/api/templates', templatesRoutes);
 app.use('/api/digital-twin', digitalTwinRoutes);
 
+// Observabilidade — POST /api/errors é público (erros pré-login) mas limitado.
+// GET/DELETE/PUT exigem admin (aplicado no próprio router).
+app.use('/api/errors', publicLimiter, errorsRoutes);
+
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
 
@@ -221,15 +226,60 @@ app.get('*', (req, res) => {
 // Captura qualquer next(err) vindo de qualquer rota /api/*.
 app.use((err, req, res, next) => {
     const errorId = `E${Date.now().toString(36)}`;
+    const statusCode = err.statusCode || 500;
     // Log estruturado sem derrubar o processo
     console.error(`[${errorId}] ${req.method} ${req.originalUrl || req.path} | user=${req.user?.id || '-'}`);
     console.error(err.stack || err);
+    // Persiste no error_log — só 5xx (4xx é expected/validação)
+    if (statusCode >= 500) {
+        try {
+            recordError({
+                source: 'backend',
+                level: 'error',
+                errorId,
+                message: err.message || String(err),
+                stack: err.stack || '',
+                url: req.originalUrl || req.path,
+                method: req.method,
+                statusCode,
+                userId: req.user?.id || null,
+                userAgent: req.get('user-agent') || '',
+                ip: req.ip || '',
+            });
+        } catch (_) { /* tracker não pode derrubar o handler */ }
+    }
     // Se a resposta já começou, delega ao default handler do express
     if (res.headersSent) return next(err);
-    res.status(err.statusCode || 500).json({
+    res.status(statusCode).json({
         error: process.env.NODE_ENV === 'production' ? 'Erro interno do servidor' : (err.message || 'Erro interno'),
         errorId,
     });
+});
+
+// ═══ Handlers globais de Node — processo inteiro caindo é pior que logar ═══
+process.on('unhandledRejection', (reason) => {
+    console.error('[unhandledRejection]', reason);
+    try {
+        recordError({
+            source: 'unhandled',
+            level: 'error',
+            message: (reason && reason.message) || String(reason),
+            stack: (reason && reason.stack) || '',
+            meta: { kind: 'unhandledRejection' },
+        });
+    } catch (_) {}
+});
+process.on('uncaughtException', (err) => {
+    console.error('[uncaughtException]', err);
+    try {
+        recordError({
+            source: 'unhandled',
+            level: 'error',
+            message: err.message || String(err),
+            stack: err.stack || '',
+            meta: { kind: 'uncaughtException' },
+        });
+    } catch (_) {}
 });
 
 // ═══ WebSocket Server (real-time updates) ═══

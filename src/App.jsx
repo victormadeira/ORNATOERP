@@ -3,7 +3,8 @@ import { useAuth } from './auth';
 import api from './api';
 import { Ic, Z, Skeleton } from './ui';
 import { applyPrimaryColor } from './theme';
-import { AlertTriangle, Clock, CheckCircle2, Folder, BarChart2, AlertCircle, DollarSign, Calendar, Bell, MessageCircle, Camera, Gift, FileText, ClipboardList, Eye, Search, RefreshCw, Share2, Printer, LayoutDashboard, FileSpreadsheet, Wallet, FolderKanban, Settings } from 'lucide-react';
+import { reportError } from './lib/errorReporter';
+import { AlertTriangle, Clock, CheckCircle2, Folder, BarChart2, AlertCircle, DollarSign, Calendar, Bell, MessageCircle, Camera, Gift, FileText, ClipboardList, Eye, Search, RefreshCw, Share2, Printer, LayoutDashboard, FileSpreadsheet, Wallet, FolderKanban, Settings, Bug } from 'lucide-react';
 import LoginPage from './pages/Login';
 import Dash from './pages/Dash';
 import Sidebar from './components/layout/Sidebar';
@@ -36,6 +37,7 @@ const Produtividade = lazy(() => import('./pages/Produtividade'));
 const PluginDownload = lazy(() => import('./pages/PluginDownload'));
 const Ponto = lazy(() => import('./pages/Ponto'));
 const FunilLeads = lazy(() => import('./pages/FunilLeads'));
+const ErrorsPage = lazy(() => import('./pages/Errors'));
 
 // ── Skeleton Fallback ──────────────────────────────────────────
 const LazyFallback = () => (
@@ -76,7 +78,16 @@ import { Component } from 'react';
 class ErrorBoundary extends Component {
     constructor(props) { super(props); this.state = { hasError: false, error: null }; }
     static getDerivedStateFromError(error) { return { hasError: true, error }; }
-    componentDidCatch(error, info) { console.error('ErrorBoundary:', error, info.componentStack); }
+    componentDidCatch(error, info) {
+        console.error('ErrorBoundary:', error, info.componentStack);
+        try {
+            reportError({
+                message: error?.message || String(error),
+                stack: error?.stack || '',
+                meta: { kind: 'ErrorBoundary', componentStack: (info?.componentStack || '').slice(0, 3000) },
+            });
+        } catch (_) { /* noop */ }
+    }
     render() {
         if (this.state.hasError) {
             return (
@@ -113,7 +124,7 @@ class ErrorBoundary extends Component {
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
     // ── Roteamento com History API ──────────────────────────────────────────
-    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download','ponto','funil'];
+    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download','ponto','funil','errors'];
     // Páginas aposentadas — redirecionam para o destino atual
     const LEGACY_REDIRECTS = { digital_twin: 'cnc' };
     const [pg, setPg] = useState(() => {
@@ -564,6 +575,7 @@ export default function App() {
             { id: "plugin_download", lb: "Plugin SketchUp", ic: Ic.Plug },
             { id: "cfg", lb: "Configurações", ic: Ic.Gear },
             ...(isAdmin ? [{ id: "users", lb: "Usuários", ic: Ic.Users }] : []),
+            ...(isAdmin ? [{ id: "errors", lb: "Erros do Sistema", ic: Bug }] : []),
         ]},
     ];
 
@@ -602,6 +614,7 @@ export default function App() {
         { id: "plugin_download", lb: "Plugin SketchUp", ic: Ic.Plug },
         { id: "cfg", lb: "Configurações", ic: Ic.Gear },
         ...(isAdmin ? [{ id: "users", lb: "Usuários", ic: Ic.Users }] : []),
+        ...(isAdmin ? [{ id: "errors", lb: "Erros do Sistema", ic: Bug }] : []),
     ].filter(p => canSee(p.id));
 
     // Mobile bottom nav items (5 main)
@@ -656,6 +669,7 @@ export default function App() {
             case "plugin_download": return <PluginDownload notify={notify} />;
             case "ponto": return <Ponto notify={notify} />;
             case "funil": return <FunilLeads notify={notify} nav={nav} />;
+            case "errors": return isAdmin ? <ErrorsPage notify={notify} /> : <Dash nav={nav} notify={notify} />;
             default: return <Dash nav={nav} notify={notify} />;
         }
     };

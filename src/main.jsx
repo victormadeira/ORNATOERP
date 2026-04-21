@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client';
 import { AuthProvider } from './auth';
 import './index.css';
 import App from './App';
+import { installGlobalErrorHandlers } from './lib/errorReporter';
+
+// Instala listeners globais de erro ANTES de montar — pega erros de init também
+installGlobalErrorHandlers();
 
 // ── Páginas públicas lazy (cada rota puxa só seu próprio chunk) ──
 // Antes eram import eager → inflavam o main chunk em ~2MB (three.js + pages)

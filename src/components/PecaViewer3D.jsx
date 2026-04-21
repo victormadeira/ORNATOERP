@@ -34,7 +34,8 @@ function getRenderer() {
         });
         r.setPixelRatio(1);
         r.shadowMap.enabled = false;
-        r.toneMapping = THREE.NoToneMapping;
+        r.toneMapping = THREE.ACESFilmicToneMapping;
+        r.toneMappingExposure = 1.05;
         r.outputColorSpace = THREE.SRGBColorSpace;
         r.domElement.style.cssText = 'position:fixed;top:-9999px;left:-9999px;pointer-events:none;';
         document.body.appendChild(r.domElement);
@@ -589,10 +590,21 @@ function buildCSGPiece(peca, sc) {
     // Material for the piece surface
     const grainType = peca.grain || 'sem_veio';
     const matColor = getMaterialColor(peca.material_code || peca.material);
+    const wantsGrain = hasGrain(peca.material_code || peca.material);
+    // Aplica textura de madeira se o material tiver veio (e o veio estiver definido)
+    let surfaceMap = null;
+    if (wantsGrain && grainType !== 'sem_veio') {
+        try {
+            surfaceMap = createWoodTexture(grainType, comp, larg);
+            surfaceMap.colorSpace = THREE.SRGBColorSpace;
+        } catch { surfaceMap = null; }
+    }
     const surfaceMat = new THREE.MeshStandardMaterial({
-        color: matColor,
-        roughness: 0.5,
-        metalness: 0,
+        color: surfaceMap ? 0xffffff : matColor,
+        map: surfaceMap,
+        roughness: 0.58,
+        metalness: 0.02,
+        envMapIntensity: 0.6,
         polygonOffset: true,
         polygonOffsetFactor: -1,
         polygonOffsetUnits: -1,
@@ -602,8 +614,9 @@ function buildCSGPiece(peca, sc) {
     // polygonOffset avoids Z-fighting where cut faces meet surface faces
     const cutMat = new THREE.MeshStandardMaterial({
         color: 0x9E8060,
-        roughness: 0.85,
+        roughness: 0.92,
         metalness: 0,
+        envMapIntensity: 0.3,
         polygonOffset: true,
         polygonOffsetFactor: 1,
         polygonOffsetUnits: 1,
@@ -789,8 +802,12 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
                     mats.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
                 }
             });
+            if (s.scene.background && typeof s.scene.background.dispose === 'function') {
+                s.scene.background.dispose();
+            }
             s.scene = null;
         }
+        if (s._envTex) { try { s._envTex.dispose(); } catch {} s._envTex = null; }
         s.cam = null;
     }, []);
 
@@ -850,19 +867,20 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
         stateRef.current.dims = { SX, SY, SZ };
 
         // ── Scene with gradient background ──
+        // NOTE: addColorStop DOES NOT accept CSS variables — must be hex/rgb.
         const scene = new THREE.Scene();
-        // Create gradient background texture
         const bgCanvas = document.createElement('canvas');
         bgCanvas.width = 2; bgCanvas.height = 256;
         const bgCtx = bgCanvas.getContext('2d');
         const bgGrad = bgCtx.createLinearGradient(0, 0, 0, 256);
-        bgGrad.addColorStop(0, 'var(--bg-muted)');
-        bgGrad.addColorStop(0.5, 'var(--muted-bg)');
-        bgGrad.addColorStop(1, '#e2e8f0');
+        bgGrad.addColorStop(0, '#f8fafc');   // slate-50 (topo)
+        bgGrad.addColorStop(0.55, '#e8edf3'); // transição
+        bgGrad.addColorStop(1, '#cbd5e1');   // slate-300 (base — sombra ambiente)
         bgCtx.fillStyle = bgGrad;
         bgCtx.fillRect(0, 0, 2, 256);
         const bgTex = new THREE.CanvasTexture(bgCanvas);
         bgTex.minFilter = THREE.LinearFilter;
+        bgTex.colorSpace = THREE.SRGBColorSpace;
         scene.background = bgTex;
         stateRef.current.scene = scene;
 
@@ -885,21 +903,31 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
         ctrl.maxPolarAngle = Math.PI * 0.95;
         stateRef.current.ctrl = ctrl;
 
-        // ── Lighting (improved 3-point + environment) ──
-        const ambient = new THREE.AmbientLight(0xffffff, 0.55);
-        scene.add(ambient);
-        const keyLight = new THREE.DirectionalLight(0xffffff, 0.85);
-        keyLight.position.set(SX * 2, SY * 20, SZ * 1.5);
+        // ── Lighting (3-point + hemisphere + subtle environment) ──
+        // IMPORTANT: posições baseadas em maxD (dimensão 3D da cena) e NÃO SY (espessura ≈ 2-3 unidades).
+        const maxD = Math.max(SX, SZ);
+        const hemi = new THREE.HemisphereLight(0xe6f0ff, 0xb8a585, 0.55);
+        scene.add(hemi);
+        const keyLight = new THREE.DirectionalLight(0xfff5e8, 0.95);
+        keyLight.position.set(SX * 0.6, maxD * 1.4, SZ * 0.9);
         scene.add(keyLight);
-        const fillLight = new THREE.DirectionalLight(0xffffff, 0.35);
-        fillLight.position.set(-SX * 2.5, SY * 8, -SZ * 2);
+        const fillLight = new THREE.DirectionalLight(0xd6e4ff, 0.35);
+        fillLight.position.set(-SX * 1.2, maxD * 0.8, -SZ * 1.2);
         scene.add(fillLight);
-        const rimLight = new THREE.DirectionalLight(0xffffff, 0.2);
-        rimLight.position.set(-SX, -SY * 5, SZ * 2);
+        const rimLight = new THREE.DirectionalLight(0xffffff, 0.4);
+        rimLight.position.set(-SX * 0.5, maxD * 0.3, SZ * 2);
         scene.add(rimLight);
-        const bottomLight = new THREE.DirectionalLight(0xffffff, 0.15);
-        bottomLight.position.set(0, -SY * 15, 0);
-        scene.add(bottomLight);
+
+        // ── Environment map (PMREM) para reflexos PBR sutis ──
+        try {
+            const pmrem = new THREE.PMREMGenerator(renderer);
+            const envScene = new THREE.Scene();
+            envScene.background = bgTex;
+            const envTex = pmrem.fromScene(envScene, 0.04).texture;
+            scene.environment = envTex;
+            pmrem.dispose();
+            stateRef.current._envTex = envTex;
+        } catch { /* PMREM pode falhar em contextos limitados */ }
 
         // ── Grid (subtle floor reference) ──
         const gridSize = Math.max(SX, SZ) * 1.5;

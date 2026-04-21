@@ -2,12 +2,23 @@
 // useWebSocket.js — Hook para WebSocket real-time (#23)
 // ═══════════════════════════════════════════════════════
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import * as React from 'react';
 
 const WS_RECONNECT_DELAY = 3000;
 const WS_MAX_RETRIES = 10;
 
 export default function useWebSocket(onMessage) {
+    // Guarda defensiva contra bug raro de HMR/chunk split em dev onde o
+    // módulo React é avaliado antes dos hooks serem expostos. Se acontecer,
+    // devolve stub — o React re-renderiza no próximo tick e tudo funciona.
+    // Em produção isso nunca dispara; em dev evita derrubar a ErrorBoundary
+    // da página de Produção CNC inteira por conta de um null transitório.
+    if (!React || typeof React.useState !== 'function') {
+        return { connected: false };
+    }
+
+    const { useState, useEffect, useRef, useCallback } = React;
+
     const [connected, setConnected] = useState(false);
     const wsRef = useRef(null);
     const retriesRef = useRef(0);

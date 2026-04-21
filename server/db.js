@@ -2219,6 +2219,33 @@ const migrations = [
   // Se já existem duplicatas reais, este CREATE vai falhar → cleanup antes.
   "DELETE FROM chat_mensagens WHERE id NOT IN (SELECT MIN(id) FROM chat_mensagens WHERE wa_message_id IS NOT NULL AND wa_message_id != '' GROUP BY wa_message_id) AND wa_message_id IS NOT NULL AND wa_message_id != ''",
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_mensagens_wa_msg_unique ON chat_mensagens(wa_message_id) WHERE wa_message_id IS NOT NULL AND wa_message_id != ''",
+
+  // ═══ Observabilidade — error_log ═══
+  // Guarda erros do backend (via error handler do express) e do frontend (via /api/errors).
+  // fingerprint agrupa erros "iguais" (mesma mensagem + top frame). count incrementa na janela de 1h.
+  `CREATE TABLE IF NOT EXISTS error_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    error_id TEXT DEFAULT '',
+    fingerprint TEXT DEFAULT '',
+    source TEXT NOT NULL,
+    level TEXT DEFAULT 'error',
+    message TEXT DEFAULT '',
+    stack TEXT DEFAULT '',
+    url TEXT DEFAULT '',
+    method TEXT DEFAULT '',
+    status_code INTEGER,
+    user_id INTEGER REFERENCES users(id),
+    user_agent TEXT DEFAULT '',
+    ip TEXT DEFAULT '',
+    meta_json TEXT DEFAULT '{}',
+    count INTEGER DEFAULT 1,
+    resolved INTEGER DEFAULT 0,
+    first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_seen DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_error_log_fingerprint ON error_log(fingerprint, last_seen)",
+  "CREATE INDEX IF NOT EXISTS idx_error_log_last_seen ON error_log(last_seen DESC)",
+  "CREATE INDEX IF NOT EXISTS idx_error_log_source_resolved ON error_log(source, resolved, last_seen DESC)",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
