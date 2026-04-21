@@ -1,17 +1,9 @@
-// Extraído automaticamente de ProducaoCNC.jsx (linhas 11870-12160).
-import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
+// Tab "Retalhos" — gerenciamento de sobras reaproveitáveis de chapas.
+// Refatorado em Fase B: imports enxutos + tokens do design system.
+import { useState, useEffect } from 'react';
 import api from '../../../api';
-import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar, SearchableSelect } from '../../../ui';
-import { colorBg, colorBorder, getStatus, STATUS_COLORS as GLOBAL_STATUS } from '../../../theme';
-import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send, Circle, Square, Minus, Check, Search as SearchIcon, Grid, List, LayoutGrid, Tv, QrCode, Maximize } from 'lucide-react';
-import EditorEtiquetas, { EtiquetaSVG } from '../../../components/EditorEtiquetas';
-import PecaViewer3D from '../../../components/PecaViewer3D';
-import PecaEditor from '../../../components/PecaEditor';
-import ToolpathSimulator, { parseGcodeToMoves } from '../../../components/ToolpathSimulator';
-import GcodeSimWrapper from '../../../components/GcodeSimWrapper';
-import SlidePanel from '../../../components/SlidePanel';
-import ToolbarDropdown from '../../../components/ToolbarDropdown';
-import { STATUS_COLORS } from '../shared/constants.js';
+import { Z, Modal, Spinner, SearchableSelect } from '../../../ui';
+import { Trash2, Plus, Minus, Check, Search as SearchIcon } from 'lucide-react';
 
 export function TabRetalhos({ notify }) {
     const [retalhos, setRetalhos] = useState([]);
@@ -109,8 +101,8 @@ export function TabRetalhos({ notify }) {
 
     const SortHeader = ({ label, field, w }) => (
         <th onClick={() => { if (sortBy === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortBy(field); setSortDir('desc'); } }}
-            style={{ cursor: 'pointer', padding: '8px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)',
-                textAlign: 'left', userSelect: 'none', width: w, whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>
+            style={{ cursor: 'pointer', padding: '10px 12px', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)',
+                letterSpacing: 0.3, textAlign: 'left', userSelect: 'none', width: w, whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>
             {label} {sortBy === field && (sortDir === 'asc' ? '↑' : '↓')}
         </th>
     );
@@ -161,9 +153,9 @@ export function TabRetalhos({ notify }) {
                 {/* Bulk actions */}
                 {selected.size > 0 && (
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 'auto' }}>
-                        <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 600 }}>{selected.size} selecionado(s)</span>
+                        <span style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 600 }}>{selected.size} selecionado(s)</span>
                         <button onClick={deleteSelected} className="btn-secondary"
-                            style={{ padding: '5px 12px', fontSize: 11, color: '#ef4444', borderColor: '#ef4444', gap: 4 }}>
+                            style={{ padding: '5px 12px', fontSize: 12, color: 'var(--danger)', borderColor: 'var(--danger)', gap: 4 }}>
                             <Trash2 size={12} /> Excluir
                         </button>
                     </div>
@@ -199,7 +191,7 @@ export function TabRetalhos({ notify }) {
                     </thead>
                     <tbody>
                         {sorted.length === 0 ? (
-                            <tr><td colSpan={9} style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                            <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
                                 {search || filterMaterial || filterEspessura ? 'Nenhum retalho encontrado com os filtros aplicados' : 'Nenhum retalho disponível'}
                             </td></tr>
                         ) : sorted.map(r => (
@@ -217,20 +209,20 @@ export function TabRetalhos({ notify }) {
                                         {selected.has(r.id) && <Check size={10} color="#fff" />}
                                     </div>
                                 </td>
-                                <td style={{ padding: '8px 10px', fontSize: 12, fontWeight: 600 }}>{r.nome || `Retalho ${r.comprimento}x${r.largura}`}</td>
-                                <td style={{ padding: '8px 10px', fontSize: 11 }}>
-                                    <span style={{ padding: '2px 8px', borderRadius: 4, background: 'var(--bg-muted)', fontSize: 10 }}>
+                                <td style={{ padding: '10px 12px', fontSize: 13, fontWeight: 600 }}>{r.nome || `Retalho ${r.comprimento}x${r.largura}`}</td>
+                                <td style={{ padding: '10px 12px', fontSize: 12 }}>
+                                    <span style={{ padding: '3px 8px', borderRadius: 6, background: 'var(--bg-muted)', fontSize: 11, color: 'var(--text-muted)' }}>
                                         {(r.material_code || '').replace(/_/g, ' ')}
                                     </span>
                                 </td>
-                                <td style={{ padding: '8px 10px', fontSize: 12, textAlign: 'center' }}>{r.espessura_real}mm</td>
-                                <td style={{ padding: '8px 10px', fontSize: 12, fontWeight: 600, textAlign: 'right' }}>{r.comprimento}mm</td>
-                                <td style={{ padding: '8px 10px', fontSize: 12, textAlign: 'right' }}>{r.largura}mm</td>
-                                <td style={{ padding: '8px 10px', fontSize: 11, textAlign: 'right', color: 'var(--text-muted)' }}>
+                                <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{r.espessura_real}mm</td>
+                                <td style={{ padding: '10px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.comprimento}mm</td>
+                                <td style={{ padding: '10px 12px', fontSize: 13, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.largura}mm</td>
+                                <td style={{ padding: '10px 12px', fontSize: 12, textAlign: 'right', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
                                     {(r.comprimento * r.largura / 1000000).toFixed(3)} m²
                                 </td>
-                                <td style={{ padding: '8px 10px', fontSize: 10, color: 'var(--text-muted)' }}>
-                                    {r.criado_em ? new Date(r.criado_em).toLocaleDateString('pt-BR') : '-'}
+                                <td style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)' }}>
+                                    {r.criado_em ? new Date(r.criado_em).toLocaleDateString('pt-BR') : '—'}
                                 </td>
                                 <td style={{ padding: '6px 10px' }}>
                                     <button onClick={async () => {
@@ -242,7 +234,7 @@ export function TabRetalhos({ notify }) {
                                             setSelected(prev => { const next = new Set(prev); next.delete(r.id); return next; });
                                         } catch (err) { notify('Erro: ' + (err.error || err.message)); }
                                     }} style={{ padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', borderRadius: 4 }}
-                                        onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                                        onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'}
                                         onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
                                         <Trash2 size={13} />
                                     </button>
@@ -301,6 +293,3 @@ export function TabRetalhos({ notify }) {
     );
 }
 
-// ═══════════════════════════════════════════════════════
-// ABA 6: CONFIGURAÇÕES
-// ═══════════════════════════════════════════════════════
