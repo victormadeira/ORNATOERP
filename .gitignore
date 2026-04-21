@@ -11,9 +11,11 @@ dist/
 *.db-journal
 *.sqlite
 *.sqlite3
+*.bak
 server/marcenaria.db
 server/database.sqlite
 server/database.db
+server/backups/
 server/.jwt_secret
 
 # Environment variables
