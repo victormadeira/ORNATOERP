@@ -1967,6 +1967,9 @@ function OficinaTVMode() {
   const [clock, setClock]           = useState('');
   const [activeCardId, setActiveCardId] = useState(null);
   const [lastRefresh, setLastRefresh] = useState('');
+  // Logo da empresa — lê do cache localStorage, busca da API em background
+  const [logo, setLogo] = useState(() => localStorage.getItem('logo_sistema') || '');
+  const [empNome, setEmpNome] = useState(() => localStorage.getItem('emp_nome') || 'Oficina');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [view, setView]             = useState('kanban'); // 'kanban' | 'team'
   const [autoRotate, setAutoRotate] = useState(true);
@@ -1978,6 +1981,18 @@ function OficinaTVMode() {
     ]).finally(() => {
       setLastRefresh(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     });
+  }, []);
+
+  // Busca logo da empresa uma vez ao montar
+  useEffect(() => {
+    fetch('/api/config/empresa', { headers: { Authorization: `Bearer ${tok()}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return;
+        if (d.logo_sistema) { setLogo(d.logo_sistema); localStorage.setItem('logo_sistema', d.logo_sistema); }
+        if (d.nome)         { setEmpNome(d.nome);       localStorage.setItem('emp_nome', d.nome); }
+      })
+      .catch(() => {});
   }, []);
 
   // Polling + relógio
@@ -2037,7 +2052,15 @@ function OficinaTVMode() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 18px', borderBottom: '1px solid #1e2530', flexShrink: 0 }}>
         {/* Esquerda: título + stats */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-          <span style={{ fontSize: 17, fontWeight: 900, color: '#C9A96E', letterSpacing: '-0.02em' }}>Oficina</span>
+          {logo ? (
+            <img
+              src={logo}
+              alt={empNome}
+              style={{ height: 36, maxWidth: 140, objectFit: 'contain', filter: 'brightness(0) invert(1)', opacity: 0.92 }}
+            />
+          ) : (
+            <span style={{ fontSize: 17, fontWeight: 900, color: '#C9A96E', letterSpacing: '-0.02em' }}>{empNome}</span>
+          )}
           <div style={{ display: 'flex', gap: 16 }}>
             <span style={{ fontSize: 10, color: '#64748b' }}>
               <span style={{ fontWeight: 800, color: '#F8FAFC', fontSize: 17, fontVariantNumeric: 'tabular-nums' }}>{totalEmProd}</span>
