@@ -1362,8 +1362,10 @@ function OficinaDesktop({ notify }) {
   const activeCard = cards.find(c => c.id === activeId);
 
   const openTV = () => {
-    const w = window.open(`${window.location.origin}${window.location.pathname}#tv`, '_blank', 'noopener');
-    if (!w) window.open(`${window.location.origin}${window.location.pathname}#tv`);
+    // Abre /oficina_tv na nova aba — o App.jsx lê o pathname e renderiza OficinaTVMode
+    const url = `${window.location.origin}/oficina_tv`;
+    const w = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!w) window.location.assign(url); // fallback se popup bloqueado
   };
 
   const totalEmProd = cards.filter(c => c.etapa !== 'expedicao').length;

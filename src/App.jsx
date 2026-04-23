@@ -707,6 +707,20 @@ export default function App() {
         ? (notifs.notificacoes.some(n => !n.lida && (n.tipo === 'financeiro_vencido' || n.tipo === 'pagar_vencido')) ? 'var(--danger)' : 'var(--info)')
         : null;
 
+    // ── Páginas standalone (sem sidebar/topbar) — ex: modos TV ──
+    const FULLSCREEN_PAGES = ['producao_tv', 'oficina_tv'];
+    if (FULLSCREEN_PAGES.includes(pg)) {
+        return (
+            <div style={{ width: '100vw', height: '100dvh', overflow: 'hidden' }}>
+                <ErrorBoundary>
+                    <Suspense fallback={<div style={{ background: '#0E1116', width: '100%', height: '100%' }} />}>
+                        {renderPage()}
+                    </Suspense>
+                </ErrorBoundary>
+            </div>
+        );
+    }
+
     return (
         <div className="flex h-screen w-full overflow-hidden" style={{ background: 'var(--bg-body)', color: 'var(--text-primary)' }}>
             <Sidebar
