@@ -11,7 +11,8 @@ import {
   Scissors, Layers, Wrench, Package, Truck, Plus, X, Monitor, ChevronRight,
   Paperclip, Link, MessageSquare, CheckSquare, Clock, AlertCircle, User,
   Edit2, Trash2, GripVertical, ExternalLink, Send, Check, Square, ArrowRight,
-  Calendar, FolderOpen, Tag, RefreshCw, Maximize2, Filter,
+  Calendar, FolderOpen, Tag, RefreshCw, Maximize2, Filter, Play, Pause,
+  CheckCircle, Lock, Unlock, Settings, ChevronDown, ZapOff, Zap,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
@@ -970,6 +971,330 @@ function NewCardModal({ initialEtapa, onClose, onCreate, notify, team }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// AÇÕES NO TV — toque no card abre botões touch-friendly
+// ═══════════════════════════════════════════════════════════════
+
+// Ordem das etapas pra saber "próxima"
+const ETAPA_ORDER = ETAPAS.map(e => e.id);
+
+function nextEtapa(atual) {
+  const i = ETAPA_ORDER.indexOf(atual);
+  return i >= 0 && i < ETAPA_ORDER.length - 1 ? ETAPA_ORDER[i + 1] : null;
+}
+
+// Status labels / cores
+const STATUS_CFG = {
+  pendente:  { label: 'Não iniciado', color: '#64748b', bg: '#1e2530' },
+  ativo:     { label: 'Em andamento', color: '#10B981', bg: '#10B98120' },
+  pausado:   { label: 'Pausado',      color: '#F59E0B', bg: '#F59E0B20' },
+  bloqueado: { label: 'Bloqueado',    color: '#EF4444', bg: '#EF444420' },
+};
+
+function TVCardActions({ card, onClose, onUpdate, onMove }) {
+  const [loading, setLoading] = useState(false);
+  const [motivo, setMotivo]   = useState('');
+  const [showBloquear, setShowBloquear] = useState(false);
+
+  const proxEtapa = nextEtapa(card.etapa);
+  const proxEtapaInfo = proxEtapa ? ETAPA_MAP[proxEtapa] : null;
+  const sc = STATUS_CFG[card.status] || STATUS_CFG.pendente;
+
+  // Fecha no Escape
+  useEffect(() => {
+    const h = e => e.key === 'Escape' && !showBloquear && onClose();
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose, showBloquear]);
+
+  const acao = async (tipo, extra = {}) => {
+    setLoading(true);
+    try {
+      const updated = await japi(`/${card.id}/status`, { method: 'PATCH', body: JSON.stringify({ acao: tipo, ...extra }) });
+      onUpdate(updated);
+      if (tipo !== 'bloquear') onClose();
+    } finally { setLoading(false); }
+  };
+
+  const finalizar = async () => {
+    setLoading(true);
+    try {
+      if (proxEtapa) {
+        await japi(`/${card.id}/etapa`, { method: 'PATCH', body: JSON.stringify({ etapa: proxEtapa }) });
+        onMove(card.id, proxEtapa);
+      }
+      onClose();
+    } finally { setLoading(false); }
+  };
+
+  const btnBase = {
+    border: 0, borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit',
+    fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    gap: 12, fontSize: 18, padding: '18px 24px', width: '100%',
+    transition: 'opacity 0.15s, transform 0.1s',
+    minHeight: 64,
+  };
+
+  return createPortal(
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+      onClick={onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ background: '#141920', borderRadius: 20, width: '100%', maxWidth: 480, border: `2px solid ${card.cor || '#C9A96E'}33`, overflow: 'hidden' }}
+      >
+        {/* Header do card */}
+        <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid #1e2530' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: '#F8FAFC', lineHeight: 1.15 }}>{card.ambiente}</div>
+              {card.marceneiro_nome && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: '50%', background: card.marceneiro_cor || '#C9A96E',
+                    color: '#0b0e13', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, fontWeight: 800, flexShrink: 0,
+                  }}>
+                    {(card.marceneiro_nome || '').split(' ').filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('')}
+                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8' }}>{card.marceneiro_nome}</span>
+                </div>
+              )}
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: ETAPA_MAP[card.etapa]?.col, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                {ETAPA_MAP[card.etapa]?.label}
+              </div>
+              <div style={{ marginTop: 4, fontSize: 11, padding: '3px 8px', borderRadius: 6, background: sc.bg, color: sc.color, fontWeight: 700 }}>
+                {sc.label}
+              </div>
+            </div>
+          </div>
+          {card.bloqueio_motivo && (
+            <div style={{ marginTop: 10, padding: '8px 10px', background: '#EF444415', border: '1px solid #EF444433', borderRadius: 8, fontSize: 12, color: '#EF4444' }}>
+              🛑 {card.bloqueio_motivo}
+            </div>
+          )}
+        </div>
+
+        {/* Botões de ação */}
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {showBloquear ? (
+            <>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#F8FAFC', marginBottom: 4 }}>Motivo do bloqueio:</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
+                {['Aguardando material','Decisão do cliente','Máquina quebrada','Faltou acessório'].map(m => (
+                  <button key={m} onClick={() => setMotivo(m)} style={{
+                    ...btnBase, fontSize: 12, minHeight: 46, padding: '10px 12px',
+                    background: motivo === m ? '#EF444430' : '#1e2530',
+                    color: motivo === m ? '#EF4444' : '#94a3b8',
+                    border: motivo === m ? '2px solid #EF444466' : '2px solid transparent',
+                  }}>{m}</button>
+                ))}
+              </div>
+              <input value={motivo} onChange={e => setMotivo(e.target.value)}
+                placeholder="Ou descreva o motivo…"
+                style={{ padding: '12px 14px', border: '1px solid #2a3040', borderRadius: 10, background: '#0b0e13', color: '#F8FAFC', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button onClick={() => setShowBloquear(false)} style={{ ...btnBase, background: '#1e2530', color: '#64748b', flex: 1, fontSize: 14 }}>Cancelar</button>
+                <button onClick={() => acao('bloquear', { motivo })} disabled={!motivo.trim() || loading}
+                  style={{ ...btnBase, background: '#EF4444', color: '#fff', flex: 2, fontSize: 14, opacity: (!motivo.trim() || loading) ? 0.5 : 1 }}>
+                  <Lock size={16} /> Confirmar bloqueio
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* INICIAR / RETOMAR */}
+              {(card.status === 'pendente' || card.status === 'pausado') && (
+                <button onClick={() => acao(card.status === 'pausado' ? 'retomar' : 'iniciar')} disabled={loading}
+                  style={{ ...btnBase, background: '#10B981', color: '#fff', opacity: loading ? 0.6 : 1 }}>
+                  <Play size={24} fill="#fff" />
+                  {card.status === 'pausado' ? 'RETOMAR' : 'INICIAR'}
+                </button>
+              )}
+
+              {/* PAUSAR */}
+              {card.status === 'ativo' && (
+                <button onClick={() => acao('pausar')} disabled={loading}
+                  style={{ ...btnBase, background: '#1e2530', border: '2px solid #F59E0B44', color: '#F59E0B', opacity: loading ? 0.6 : 1 }}>
+                  <Pause size={24} /> PAUSAR
+                </button>
+              )}
+
+              {/* DESBLOQUEAR */}
+              {card.status === 'bloqueado' && (
+                <button onClick={() => acao('desbloquear')} disabled={loading}
+                  style={{ ...btnBase, background: '#10B98120', border: '2px solid #10B98144', color: '#10B981', opacity: loading ? 0.6 : 1 }}>
+                  <Unlock size={24} /> DESBLOQUEAR
+                </button>
+              )}
+
+              {/* FINALIZAR → próxima etapa */}
+              {proxEtapaInfo && card.status !== 'bloqueado' && (
+                <button onClick={finalizar} disabled={loading}
+                  style={{ ...btnBase, background: `${proxEtapaInfo.col}22`, border: `2px solid ${proxEtapaInfo.col}55`, color: proxEtapaInfo.col, opacity: loading ? 0.6 : 1 }}>
+                  <CheckCircle size={24} />
+                  <span>FINALIZAR <span style={{ fontSize: 13, opacity: 0.8 }}>→ {proxEtapaInfo.short}</span></span>
+                </button>
+              )}
+
+              {/* CONCLUÍDO (expedição → marca como concluído) */}
+              {!proxEtapaInfo && card.status !== 'bloqueado' && (
+                <button onClick={() => acao('pausar')} disabled={loading}
+                  style={{ ...btnBase, background: '#10B98120', border: '2px solid #10B98144', color: '#10B981', opacity: loading ? 0.6 : 1 }}>
+                  <CheckCircle size={24} /> MARCAR CONCLUÍDO
+                </button>
+              )}
+
+              {/* BLOQUEAR */}
+              {card.status !== 'bloqueado' && (
+                <button onClick={() => setShowBloquear(true)}
+                  style={{ ...btnBase, background: 'transparent', color: '#475569', fontSize: 13, minHeight: 44, padding: '10px 16px' }}>
+                  <Lock size={16} /> Bloquear (aguardando algo)
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TEMPLATES DE CHECKLIST — modal de configuração
+// ═══════════════════════════════════════════════════════════════
+function TemplatesModal({ onClose, notify }) {
+  const [templates, setTemplates] = useState([]);
+  const [activeEtapa, setActiveEtapa] = useState(ETAPAS[0].id);
+  const [newText, setNewText]       = useState('');
+  const [editId, setEditId]         = useState(null);
+  const [editText, setEditText]     = useState('');
+
+  const load = () => japi('/templates/checklist').then(d => Array.isArray(d) && setTemplates(d));
+  useEffect(() => {
+    load();
+    const h = e => e.key === 'Escape' && !editId && onClose();
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose, editId]);
+
+  const byEtapa = templates.filter(t => t.etapa === activeEtapa);
+
+  const addItem = async () => {
+    if (!newText.trim()) return;
+    await japi('/templates/checklist', { method: 'POST', body: JSON.stringify({ etapa: activeEtapa, texto: newText }) });
+    setNewText('');
+    load();
+  };
+
+  const saveEdit = async () => {
+    if (!editText.trim()) return;
+    await japi(`/templates/checklist/${editId}`, { method: 'PUT', body: JSON.stringify({ texto: editText }) });
+    setEditId(null); setEditText(''); load();
+  };
+
+  const del = async (id) => {
+    await japi(`/templates/checklist/${id}`, { method: 'DELETE' });
+    load();
+  };
+
+  const inp = { border: '1px solid #E2E8F0', borderRadius: 7, padding: '8px 10px', fontSize: 13, outline: 'none', background: '#FAFAFA', boxSizing: 'border-box' };
+
+  return createPortal(
+    <div role="dialog" aria-modal="true" aria-label="Templates de Checklist"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 600, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #F1F5F9' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0F172A' }}>Templates de Checklist</h3>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+              Itens aplicados automaticamente ao criar ou mover um card para cada etapa
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Fechar" style={{ border: 0, background: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}><X size={18} /></button>
+        </div>
+
+        {/* Abas de etapa */}
+        <div style={{ display: 'flex', borderBottom: '1px solid #F1F5F9', overflowX: 'auto', flexShrink: 0 }}>
+          {ETAPAS.map(e => {
+            const { Icon } = e;
+            const count = templates.filter(t => t.etapa === e.id).length;
+            return (
+              <button key={e.id} onClick={() => { setActiveEtapa(e.id); setEditId(null); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', border: 0,
+                  background: 'none', cursor: 'pointer', fontSize: 12, fontWeight: activeEtapa === e.id ? 700 : 500,
+                  color: activeEtapa === e.id ? e.col : '#94a3b8',
+                  borderBottom: activeEtapa === e.id ? `2px solid ${e.col}` : '2px solid transparent',
+                  flexShrink: 0, marginBottom: -1,
+                }}>
+                <Icon size={13} />
+                {e.short}
+                {count > 0 && (
+                  <span style={{ background: `${e.col}20`, color: e.col, fontSize: 9, fontWeight: 800, padding: '1px 5px', borderRadius: 99 }}>{count}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Lista de itens */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+          {byEtapa.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px 16px', color: '#94a3b8' }}>
+              <CheckSquare size={32} style={{ opacity: 0.3, margin: '0 auto 10px' }} />
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>Sem itens para esta etapa</div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>Adicione abaixo. Serão aplicados automaticamente em novos cards.</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {byEtapa.map((t, idx) => (
+                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, background: '#F8FAFC', border: '1px solid #F1F5F9' }}>
+                  <span style={{ fontSize: 12, color: '#CBD5E1', fontVariantNumeric: 'tabular-nums', width: 18, textAlign: 'center', flexShrink: 0 }}>{idx + 1}</span>
+                  {editId === t.id ? (
+                    <>
+                      <input autoFocus value={editText} onChange={e => setEditText(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditId(null); }}
+                        style={{ ...inp, flex: 1, padding: '5px 8px' }} />
+                      <button onClick={saveEdit} style={{ border: 0, background: '#10B981', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', color: '#fff', fontSize: 11, fontWeight: 700 }}>OK</button>
+                      <button onClick={() => setEditId(null)} style={{ border: 0, background: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 4 }}><X size={13} /></button>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ flex: 1, fontSize: 13, color: '#334155' }}>{t.texto}</span>
+                      <button onClick={() => { setEditId(t.id); setEditText(t.texto); }} style={{ border: 0, background: 'none', cursor: 'pointer', color: '#CBD5E1', padding: 4, display: 'flex' }}><Edit2 size={13} /></button>
+                      <button onClick={() => del(t.id)} style={{ border: 0, background: 'none', cursor: 'pointer', color: '#CBD5E1', padding: 4, display: 'flex' }}><Trash2 size={13} /></button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Adicionar item */}
+        <div style={{ padding: '12px 16px', borderTop: '1px solid #F1F5F9', display: 'flex', gap: 8 }}>
+          <input value={newText} onChange={e => setNewText(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addItem()}
+            placeholder={`Novo item para ${ETAPA_MAP[activeEtapa]?.short}…`}
+            style={{ ...inp, flex: 1 }} />
+          <button onClick={addItem} disabled={!newText.trim()}
+            style={{ padding: '9px 16px', border: 0, borderRadius: 8, background: ETAPA_MAP[activeEtapa]?.col || '#0E1116', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: !newText.trim() ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Plus size={14} /> Adicionar
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ─── Desktop principal ─────────────────────────────────────────
 function OficinaDesktop({ notify }) {
   const [cards, setCards]         = useState([]);
@@ -977,7 +1302,8 @@ function OficinaDesktop({ notify }) {
   const [loading, setLoading]     = useState(true);
   const [openId, setOpenId]       = useState(null);
   const [newCardEtapa, setNewCardEtapa] = useState(null);
-  const [showTeam, setShowTeam]   = useState(false);
+  const [showTeam, setShowTeam]       = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [filterProj, setFilterProj] = useState('');
   const [filterResp, setFilterResp] = useState('');
   const [activeId, setActiveId]   = useState(null);
@@ -1097,6 +1423,10 @@ function OficinaDesktop({ notify }) {
             <button onClick={load} title="Atualizar" style={{ padding: '8px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', color: '#64748b', display: 'flex' }}>
               <RefreshCw size={14} />
             </button>
+            <button onClick={() => setShowTemplates(true)} title="Templates de checklist por etapa"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#334155' }}>
+              <Settings size={14} /> Templates
+            </button>
             <button onClick={() => setShowTeam(true)} title="Gerenciar equipe"
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#334155' }}>
               <User size={14} /> Equipe
@@ -1162,15 +1492,19 @@ function OficinaDesktop({ notify }) {
           notify={notify}
         />
       )}
+      {showTemplates && (
+        <TemplatesModal onClose={() => setShowTemplates(false)} notify={notify} />
+      )}
     </div>
   );
 }
 
 // ─── Modo TV — painel de chão de fábrica ───────────────────────
-function TVCard({ card }) {
+function TVCard({ card, onClick }) {
   const age = ageDot(card.atualizado_em || card.criado_em);
   const pz  = prazoClass(card.prazo);
   const e   = ETAPA_MAP[card.etapa];
+  const sc  = STATUS_CFG[card.status] || STATUS_CFG.pendente;
   const projCor = card.cor || '#C9A96E';
 
   // Prioriza marceneiro cadastrado; fallback para campo texto legacy
@@ -1184,16 +1518,37 @@ function TVCard({ card }) {
     .map(s => s[0]?.toUpperCase()).join('') || '—';
 
   return (
-    <div style={{
-      background: '#141920',
-      borderRadius: 12,
-      borderLeft: `6px solid ${projCor}`,
-      padding: '14px 16px',
-      marginBottom: 10,
-      position: 'relative',
-    }}>
+    <div
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? e => e.key === 'Enter' && onClick() : undefined}
+      style={{
+        background: '#141920',
+        borderRadius: 12,
+        borderLeft: `6px solid ${projCor}`,
+        padding: '14px 16px',
+        marginBottom: 10,
+        position: 'relative',
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'filter 0.15s',
+        outline: 'none',
+      }}
+      onMouseEnter={onClick ? e => e.currentTarget.style.filter = 'brightness(1.15)' : undefined}
+      onMouseLeave={onClick ? e => e.currentTarget.style.filter = 'brightness(1)' : undefined}
+    >
+      {/* Status badge (topo direito) */}
+      {card.status && card.status !== 'pendente' && (
+        <div style={{
+          position: 'absolute', top: 8, right: 10,
+          fontSize: 9, fontWeight: 800, letterSpacing: 0.4, textTransform: 'uppercase',
+          padding: '2px 7px', borderRadius: 99,
+          background: sc.bg, color: sc.color,
+        }}>{sc.label}</div>
+      )}
+
       {/* linha topo: bolinha de idade + ambiente */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: hasMarceneiro ? 10 : 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: hasMarceneiro ? 10 : 4, paddingRight: card.status && card.status !== 'pendente' ? 80 : 0 }}>
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: age, flexShrink: 0 }} />
         <div style={{ fontWeight: 800, fontSize: 19, color: '#F8FAFC', lineHeight: 1.15, flex: 1, minWidth: 0 }}>
           {card.ambiente}
@@ -1420,7 +1775,7 @@ function TVCalendar({ cards }) {
 }
 
 // ─── Painel de Marceneiros (TV — alterna com kanban) ──────────
-function TVMarceneirosPanel({ team, cards }) {
+function TVMarceneirosPanel({ team, cards, onCardClick }) {
   const [, setTick] = useState(0);
   // Tick a cada 30s pra atualizar a duração "trabalhando há X"
   useEffect(() => { const t = setInterval(() => setTick(x => x + 1), 30000); return () => clearInterval(t); }, []);
@@ -1522,22 +1877,42 @@ function TVMarceneirosPanel({ team, cards }) {
               textAlign: 'center', marginBottom: 10,
             }}>{st.label}{duracao ? ` · ${duracao}` : ''}</div>
 
-            {/* Card atual */}
+            {/* Card atual — clicável pra abrir ações */}
             {atual ? (
-              <div style={{
-                background: `${(atual.cor || '#C9A96E')}18`,
-                borderLeft: `4px solid ${atual.cor || '#C9A96E'}`,
-                borderRadius: 8, padding: '8px 10px', marginBottom: 8,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <div
+                onClick={() => onCardClick?.(atual.id)}
+                role={onCardClick ? 'button' : undefined}
+                tabIndex={onCardClick ? 0 : undefined}
+                onKeyDown={onCardClick ? e => e.key === 'Enter' && onCardClick(atual.id) : undefined}
+                style={{
+                  background: `${(atual.cor || '#C9A96E')}18`,
+                  borderLeft: `4px solid ${atual.cor || '#C9A96E'}`,
+                  borderRadius: 8, padding: '8px 10px', marginBottom: 8,
+                  cursor: onCardClick ? 'pointer' : 'default',
+                  transition: 'filter 0.15s', outline: 'none',
+                }}
+                onMouseEnter={onCardClick ? e => e.currentTarget.style.filter = 'brightness(1.2)' : undefined}
+                onMouseLeave={onCardClick ? e => e.currentTarget.style.filter = 'brightness(1)' : undefined}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
                   <span style={{ fontSize: 9, fontWeight: 800, color: ETAPA_MAP[atual.etapa]?.col, letterSpacing: 0.6 }}>
                     {ETAPA_MAP[atual.etapa]?.label || atual.etapa}
                   </span>
+                  {atual.status && atual.status !== 'pendente' && (
+                    <span style={{ fontSize: 8, fontWeight: 800, color: STATUS_CFG[atual.status]?.color, letterSpacing: 0.4 }}>
+                      {STATUS_CFG[atual.status]?.label?.toUpperCase()}
+                    </span>
+                  )}
                 </div>
                 <div style={{ fontSize: 14, fontWeight: 800, color: '#F8FAFC', lineHeight: 1.2 }}>{atual.ambiente}</div>
                 {atual.projeto_nome && (
                   <div style={{ fontSize: 10, color: atual.cor || '#C9A96E', fontWeight: 600, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {atual.projeto_nome}
+                  </div>
+                )}
+                {onCardClick && (
+                  <div style={{ fontSize: 9, color: '#475569', marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Toque para ações
                   </div>
                 )}
               </div>
@@ -1588,6 +1963,7 @@ function OficinaTVMode() {
   const [cards, setCards]           = useState([]);
   const [team, setTeam]             = useState([]);
   const [clock, setClock]           = useState('');
+  const [activeCardId, setActiveCardId] = useState(null);
   const [lastRefresh, setLastRefresh] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [view, setView]             = useState('kanban'); // 'kanban' | 'team'
@@ -1762,7 +2138,7 @@ function OficinaTVMode() {
                     <span style={{ marginLeft: 'auto', fontSize: 15, fontWeight: 800, color: etapa.col, fontVariantNumeric: 'tabular-nums' }}>{colCards.length}</span>
                   </div>
                   <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {colCards.map(card => <TVCard key={card.id} card={card} />)}
+                    {colCards.map(card => <TVCard key={card.id} card={card} onClick={() => setActiveCardId(card.id)} />)}
                     {colCards.length === 0 && (
                       <div style={{ textAlign: 'center', padding: '20px 0', color: '#2a3040', fontSize: 11 }}>Sem cards</div>
                     )}
@@ -1773,7 +2149,7 @@ function OficinaTVMode() {
           </div>
         ) : (
           /* Painel de Marceneiros */
-          <TVMarceneirosPanel team={team} cards={cards} />
+          <TVMarceneirosPanel team={team} cards={cards} onCardClick={setActiveCardId} />
         )}
 
         {/* Sidebar: calendário de prazos */}
@@ -1796,6 +2172,25 @@ function OficinaTVMode() {
           </div>
         </div>
       </div>
+
+      {/* Modal de ações ao tocar num card */}
+      {activeCardId && (() => {
+        const ac = cards.find(c => c.id === activeCardId);
+        if (!ac) return null;
+        return (
+          <TVCardActions
+            card={ac}
+            onClose={() => setActiveCardId(null)}
+            onUpdate={updated => {
+              setCards(prev => prev.map(c => c.id === updated.id ? updated : c));
+              setActiveCardId(null);
+            }}
+            onMove={(id, novaEtapa) => {
+              setCards(prev => prev.map(c => c.id === id ? { ...c, etapa: novaEtapa, status: 'pendente' } : c));
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }
