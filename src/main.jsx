@@ -14,6 +14,7 @@ const ProposalPublic        = lazy(() => import('./pages/ProposalPublic'));
 const PortalCliente         = lazy(() => import('./pages/PortalCliente'));
 const MontadorUpload        = lazy(() => import('./pages/MontadorUpload'));
 const LandingPage           = lazy(() => import('./pages/LandingPage'));
+const LandingPageV2         = lazy(() => import('./pages/LandingPageV2'));
 const PropostaApresentacao  = lazy(() => import('./pages/PropostaApresentacao'));
 const AssinaturaPublic      = lazy(() => import('./pages/AssinaturaPublic'));
 const VerificacaoAssinatura = lazy(() => import('./pages/VerificacaoAssinatura'));
@@ -79,7 +80,9 @@ const isScanPage = path === '/scan' || path === '/scan/';
 const pecaPublicId = (path.match(/^\/p\/(\d+)$/i) || [])[1] || null;
 
 // Landing page pública: /contato, /landing ou /landingpage
-const isLanding = ['/contato', '/landing', '/landingpage', '/landingpage/'].includes(path);
+const isLanding   = ['/contato', '/landing', '/landingpage', '/landingpage/'].includes(path);
+// Landing V2 (nova versão com diferenciais + portfolio por categoria + depoimentos com foto)
+const isLandingV2 = ['/lp2', '/lp2/'].includes(path);
 
 // TV Corte CNC: /tv-corte
 const isTVCorte = path === '/tv-corte' || path === '/tv-corte/';
@@ -95,6 +98,7 @@ function renderRoute() {
     if (pecaPublicId)           return <ScanPeca3D codigo={pecaPublicId} />;
     if (scanCodigo || isScanPage) return <ScanPeca3D codigo={scanCodigo} />;
     if (isLanding)              return <LandingPage />;
+    if (isLandingV2)            return <LandingPageV2 />;
     if (apresentacaoToken)      return <PropostaApresentacao token={apresentacaoToken} />;
     if (previewPropostaToken)   return <ProposalPublic token={previewPropostaToken} isPreview />;
     if (previewPortalToken)     return <PortalCliente token={previewPortalToken} isPreview />;

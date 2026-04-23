@@ -25,7 +25,8 @@ router.get('/config', (req, res) => {
                landing_cor_fundo, landing_cor_destaque, landing_cor_neutra, landing_cor_clara,
                landing_servicos_json, landing_diferenciais_json, landing_etapas_json,
                clarity_project_id,
-               instagram, facebook
+               instagram, facebook,
+               fb_pixel_id, google_ads_id
         FROM empresa_config WHERE id = 1
     `).get();
 
@@ -53,8 +54,10 @@ router.get('/stats', (req, res) => {
 // POST /api/leads/captura — captação de lead (PÚBLICO, sem auth)
 // ═══════════════════════════════════════════════════════
 router.post('/captura', (req, res) => {
-    const { nome, telefone, email, tipo_projeto, faixa_investimento, mensagem,
-            utm_source, utm_medium, utm_campaign } = req.body;
+    const { nome, telefone, email, tipo_projeto, ambiente, faixa_investimento, mensagem,
+            utm_source, utm_medium, utm_campaign, origem: origemParam } = req.body;
+    // ambiente é o campo novo (dropdown "qual ambiente?"), tipo_projeto é compat legado
+    const ambienteReal = ambiente || tipo_projeto || 'Consulta';
 
     if (!nome || !telefone) {
         return res.status(400).json({ error: 'Nome e telefone são obrigatórios' });
@@ -101,17 +104,17 @@ router.post('/captura', (req, res) => {
 
         // Criar orçamento como lead
         const obsText = [
-            tipo_projeto ? `Tipo: ${tipo_projeto}` : '',
+            ambienteReal !== 'Consulta' ? `Ambiente: ${ambienteReal}` : '',
             faixa_investimento ? `Faixa de investimento: ${faixa_investimento}` : '',
             mensagem ? `Mensagem: ${mensagem}` : '',
-            `Origem: Landing Page`,
+            `Origem: ${origemParam || 'Landing Page'}`,
             utm_source ? `UTM: ${utm_source}/${utm_medium || ''}/${utm_campaign || ''}` : '',
         ].filter(Boolean).join('\n');
 
         const orc = db.prepare(`
             INSERT INTO orcamentos (user_id, cliente_id, cliente_nome, ambiente, numero, kb_col, obs, mods_json, valor_venda, custo_material)
             VALUES (?, ?, ?, ?, ?, 'lead', ?, '{}', 0, 0)
-        `).run(userId, cliente.id, nome, tipo_projeto || 'Consulta', numero, obsText);
+        `).run(userId, cliente.id, nome, ambienteReal, numero, obsText);
 
         // Log da automação
         db.prepare(`
@@ -119,19 +122,51 @@ router.post('/captura', (req, res) => {
             VALUES ('lead_captado', ?, 'cliente', ?, 'sucesso')
         `).run(cliente.id, `Lead captado via landing page: ${nome} (${telefone})`);
 
-        // Tentar enviar WhatsApp de boas-vindas (opcional)
+        // ── Notificação em tempo real no dashboard (WebSocket) ──
         try {
-            const emp = db.prepare('SELECT wa_instance_url, wa_instance_name, wa_api_key, nome FROM empresa_config WHERE id = 1').get();
+            const wsBroadcast = req.app.locals.wsBroadcast;
+            if (typeof wsBroadcast === 'function') {
+                wsBroadcast('novo_lead', {
+                    nome,
+                    telefone,
+                    ambiente: ambienteReal,
+                    origem: origemParam || 'landing_page',
+                    orc_id: orc.lastInsertRowid,
+                    cliente_id: cliente.id,
+                });
+            }
+        } catch (_) {}
+
+        // ── WhatsApp: boas-vindas ao lead + alerta ao dono ──
+        try {
+            const emp = db.prepare('SELECT wa_instance_url, wa_instance_name, wa_api_key, nome, telefone AS tel_empresa FROM empresa_config WHERE id = 1').get();
             if (emp?.wa_instance_url && emp?.wa_api_key) {
                 const phoneClean = telLimpo.startsWith('55') ? telLimpo : `55${telLimpo}`;
+
+                // 1. Mensagem de boas-vindas ao lead
                 fetch(`${emp.wa_instance_url}/message/sendText/${emp.wa_instance_name}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', apikey: emp.wa_api_key },
                     body: JSON.stringify({
                         number: phoneClean,
-                        text: `Olá ${nome.split(' ')[0]}!\n\nRecebemos seu contato na ${emp.nome || 'nossa marcenaria'}. Em breve um de nossos consultores entrará em contato.\n\nObrigado pelo interesse!`,
+                        text: `Olá ${nome.split(' ')[0]}! 👋\n\nRecebemos seu contato na *${emp.nome || 'nossa marcenaria'}*.\n\nEm breve um de nossos consultores entrará em contato. 🪵`,
                     }),
                 }).catch(() => {});
+
+                // 2. Alerta ao dono (telefone da empresa configurado)
+                const telEmpresa = (emp.tel_empresa || '').replace(/\D/g, '');
+                if (telEmpresa) {
+                    const donoDest = telEmpresa.startsWith('55') ? telEmpresa : `55${telEmpresa}`;
+                    const ambienteInfo = ambienteReal !== 'Consulta' ? `\n🏠 *Ambiente:* ${ambienteReal}` : '';
+                    fetch(`${emp.wa_instance_url}/message/sendText/${emp.wa_instance_name}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', apikey: emp.wa_api_key },
+                        body: JSON.stringify({
+                            number: donoDest,
+                            text: `🔔 *Novo lead via site!*\n\n👤 *Nome:* ${nome}\n📱 *Telefone:* ${telefone}${ambienteInfo}\n📍 *Origem:* ${origemParam || 'landing_page'}\n\nAcesse o sistema para atender! 🚀`,
+                        }),
+                    }).catch(() => {});
+                }
             }
         } catch (_) {}
 
