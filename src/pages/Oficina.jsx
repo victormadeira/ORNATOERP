@@ -1419,16 +1419,185 @@ function TVCalendar({ cards }) {
   );
 }
 
+// ─── Painel de Marceneiros (TV — alterna com kanban) ──────────
+function TVMarceneirosPanel({ team, cards }) {
+  const [, setTick] = useState(0);
+  // Tick a cada 30s pra atualizar a duração "trabalhando há X"
+  useEffect(() => { const t = setInterval(() => setTick(x => x + 1), 30000); return () => clearInterval(t); }, []);
+
+  // Para cada marceneiro: card atual (mais recentemente mexido, não expedido), próximo da fila, total de cards
+  const rows = team.map(m => {
+    const meus = cards.filter(c => c.marceneiro_id === m.id);
+    const ativos = meus.filter(c => c.etapa !== 'expedicao');
+    const atual = ativos.slice().sort((a, b) => new Date(b.atualizado_em) - new Date(a.atualizado_em))[0] || null;
+    const proximos = ativos.filter(c => c.id !== atual?.id)
+      .sort((a, b) => {
+        // ordena: com prazo primeiro (mais próximo), depois sem prazo
+        if (a.prazo && !b.prazo) return -1;
+        if (!a.prazo && b.prazo) return 1;
+        if (a.prazo && b.prazo) return new Date(a.prazo) - new Date(b.prazo);
+        return 0;
+      });
+    // status: com atual → "trabalhando", sem ativos → "sem tarefa"
+    let status = 'sem_tarefa';
+    let duracao = '';
+    if (atual) {
+      status = 'trabalhando';
+      const mins = Math.floor((Date.now() - new Date(atual.atualizado_em)) / 60000);
+      if (mins < 60)         duracao = `${mins}min`;
+      else if (mins < 1440)  duracao = `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}`;
+      else                   duracao = `${Math.floor(mins / 1440)}d parado`;
+      // se passou muito tempo sem atualização = parado
+      if (mins > 180) status = 'parado';
+    }
+    return { m, atual, proximos, status, duracao, total: ativos.length };
+  });
+
+  const statusStyle = {
+    trabalhando: { label: 'TRABALHANDO',  bg: '#10B98120', color: '#10B981', border: '#10B98144' },
+    parado:      { label: '⚠ SEM MEXER', bg: '#F97316',   color: '#fff',    border: '#F97316',    pulse: true },
+    sem_tarefa:  { label: 'SEM TAREFA',   bg: '#EF444420', color: '#EF4444', border: '#EF444444', pulse: true },
+  };
+
+  if (rows.length === 0) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10, color: '#475569' }}>
+        <User size={48} style={{ opacity: 0.3 }} />
+        <div style={{ fontSize: 16, fontWeight: 600 }}>Nenhum marceneiro cadastrado</div>
+        <div style={{ fontSize: 12 }}>Cadastre a equipe no modo desktop → botão "Equipe"</div>
+      </div>
+    );
+  }
+
+  // Grid adaptativo: até 5 colunas
+  const cols = rows.length <= 5 ? rows.length : rows.length <= 10 ? 5 : 6;
+
+  return (
+    <div style={{
+      flex: 1, overflow: 'auto', padding: '14px 16px',
+      display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 12,
+      alignContent: 'start',
+    }}>
+      {rows.map(({ m, atual, proximos, status, duracao, total }) => {
+        const st = statusStyle[status];
+        return (
+          <div key={m.id} style={{
+            background: '#141920',
+            border: `2px solid ${st.border}`,
+            borderRadius: 14,
+            padding: '14px 14px 12px',
+            display: 'flex', flexDirection: 'column',
+            position: 'relative',
+            animation: st.pulse ? 'tvPulseBorder 2s ease-in-out infinite' : 'none',
+          }}>
+            {/* Header do marceneiro */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              {m.foto ? (
+                <img src={m.foto} alt={m.nome}
+                  style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', border: `3px solid ${m.cor || '#C9A96E'}`, flexShrink: 0 }} />
+              ) : (
+                <div style={{
+                  width: 52, height: 52, borderRadius: '50%',
+                  background: m.cor || '#C9A96E', color: '#0b0e13',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 20, fontWeight: 800, flexShrink: 0,
+                  boxShadow: `0 0 0 3px #141920, 0 0 0 4px ${(m.cor || '#C9A96E')}44`,
+                }}>{(m.nome || '').split(' ').filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('')}</div>
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#F8FAFC', lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {m.nome}
+                </div>
+                {m.especialidade && (
+                  <div style={{ fontSize: 10, color: '#64748b', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>{m.especialidade}</div>
+                )}
+              </div>
+            </div>
+
+            {/* Status badge */}
+            <div style={{
+              fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
+              padding: '4px 8px', borderRadius: 6,
+              background: st.bg, color: st.color,
+              textAlign: 'center', marginBottom: 10,
+            }}>{st.label}{duracao ? ` · ${duracao}` : ''}</div>
+
+            {/* Card atual */}
+            {atual ? (
+              <div style={{
+                background: `${(atual.cor || '#C9A96E')}18`,
+                borderLeft: `4px solid ${atual.cor || '#C9A96E'}`,
+                borderRadius: 8, padding: '8px 10px', marginBottom: 8,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <span style={{ fontSize: 9, fontWeight: 800, color: ETAPA_MAP[atual.etapa]?.col, letterSpacing: 0.6 }}>
+                    {ETAPA_MAP[atual.etapa]?.label || atual.etapa}
+                  </span>
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#F8FAFC', lineHeight: 1.2 }}>{atual.ambiente}</div>
+                {atual.projeto_nome && (
+                  <div style={{ fontSize: 10, color: atual.cor || '#C9A96E', fontWeight: 600, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {atual.projeto_nome}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{
+                background: '#0b0e13', border: '1px dashed #2a3040',
+                borderRadius: 8, padding: '14px', marginBottom: 8,
+                textAlign: 'center', fontSize: 11, color: '#475569', fontWeight: 600,
+              }}>— sem tarefa atribuída —</div>
+            )}
+
+            {/* Próximos (max 2) */}
+            {proximos.length > 0 && (
+              <div>
+                <div style={{ fontSize: 8, color: '#475569', fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>
+                  Próximos ({proximos.length})
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {proximos.slice(0, 2).map(c => (
+                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#94a3b8' }}>
+                      <span style={{ width: 4, height: 4, borderRadius: '50%', background: c.cor || '#C9A96E', flexShrink: 0 }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{c.ambiente}</span>
+                      <span style={{ fontSize: 8, color: ETAPA_MAP[c.etapa]?.col, fontWeight: 700 }}>{ETAPA_MAP[c.etapa]?.short}</span>
+                    </div>
+                  ))}
+                  {proximos.length > 2 && (
+                    <div style={{ fontSize: 9, color: '#475569', textAlign: 'center', marginTop: 2 }}>+{proximos.length - 2} mais</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <style>{`
+        @keyframes tvPulseBorder {
+          0%, 100% { box-shadow: 0 0 0 0 transparent; }
+          50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 // ─── Modo TV ───────────────────────────────────────────────────
 function OficinaTVMode() {
   const [cards, setCards]           = useState([]);
+  const [team, setTeam]             = useState([]);
   const [clock, setClock]           = useState('');
   const [lastRefresh, setLastRefresh] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [view, setView]             = useState('kanban'); // 'kanban' | 'team'
+  const [autoRotate, setAutoRotate] = useState(true);
 
   const load = useCallback(() => {
-    japi('').then(d => {
-      if (Array.isArray(d)) setCards(d);
+    Promise.all([
+      japi('').then(d => Array.isArray(d) && setCards(d)),
+      japi('/marceneiros/list').then(d => Array.isArray(d) && setTeam(d)),
+    ]).finally(() => {
       setLastRefresh(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     });
   }, []);
@@ -1439,6 +1608,13 @@ function OficinaTVMode() {
     const poll = setInterval(load, 10000);
     return () => clearInterval(poll);
   }, [load]);
+
+  // Auto-rotação entre kanban e painel de marceneiros (a cada 25s)
+  useEffect(() => {
+    if (!autoRotate || team.length === 0) return;
+    const rot = setInterval(() => setView(v => v === 'kanban' ? 'team' : 'kanban'), 25000);
+    return () => clearInterval(rot);
+  }, [autoRotate, team.length]);
 
   useEffect(() => {
     const tick = setInterval(() =>
@@ -1502,16 +1678,54 @@ function OficinaTVMode() {
           </div>
         </div>
 
-        {/* Direita: legenda de idade + relógio + fullscreen */}
-        <div style={{ display: 'flex', gap: 18, alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: 10 }}>
-            {[['#10B981','até 1d'],['#F59E0B','2–3d'],['#EF4444','4+d']].map(([c, l]) => (
-              <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#475569' }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: c, display: 'inline-block' }} />{l}
-              </span>
-            ))}
-            <span style={{ fontSize: 9, color: '#2a3040', marginLeft: 4 }}>↑ atualiz. card</span>
-          </div>
+        {/* Direita: toggle views + relógio + fullscreen */}
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+          {/* Toggle: kanban ↔ equipe */}
+          {team.length > 0 && (
+            <div style={{ display: 'flex', gap: 4, background: '#1a1f28', borderRadius: 8, padding: 3 }}>
+              <button
+                onClick={() => { setView('kanban'); setAutoRotate(false); }}
+                style={{
+                  padding: '6px 12px', border: 0, borderRadius: 6, cursor: 'pointer',
+                  background: view === 'kanban' ? '#C9A96E' : 'transparent',
+                  color: view === 'kanban' ? '#0b0e13' : '#94a3b8',
+                  fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
+                  display: 'flex', alignItems: 'center', gap: 5,
+                }}
+                title="Exibir kanban de produção"
+              >
+                <FolderOpen size={11} />KANBAN
+              </button>
+              <button
+                onClick={() => { setView('team'); setAutoRotate(false); }}
+                style={{
+                  padding: '6px 12px', border: 0, borderRadius: 6, cursor: 'pointer',
+                  background: view === 'team' ? '#C9A96E' : 'transparent',
+                  color: view === 'team' ? '#0b0e13' : '#94a3b8',
+                  fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
+                  display: 'flex', alignItems: 'center', gap: 5,
+                }}
+                title="Exibir painel de marceneiros"
+              >
+                <User size={11} />EQUIPE
+              </button>
+              <button
+                onClick={() => setAutoRotate(a => !a)}
+                title={autoRotate ? 'Pausar alternância automática' : 'Ativar alternância automática'}
+                style={{
+                  padding: '6px 10px', border: 0, borderRadius: 6, cursor: 'pointer',
+                  background: autoRotate ? '#1e2530' : 'transparent',
+                  color: autoRotate ? '#10B981' : '#475569',
+                  fontSize: 10, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', gap: 4,
+                }}
+              >
+                <RefreshCw size={10} style={{ animation: autoRotate ? 'spin 4s linear infinite' : 'none' }} />
+                {autoRotate ? 'AUTO' : 'OFF'}
+              </button>
+            </div>
+          )}
+
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: '#F8FAFC', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{clock}</div>
             <div style={{ fontSize: 9, color: '#475569', marginTop: 1 }}>
@@ -1531,31 +1745,36 @@ function OficinaTVMode() {
         </div>
       </div>
 
-      {/* ── Body: kanban + calendário ─────────────────────── */}
+      {/* ── Body: kanban OU painel de equipe + sidebar ────── */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-        {/* Colunas kanban */}
-        <div style={{ flex: 1, display: 'flex', gap: 0, overflowX: 'auto', padding: '10px 6px' }}>
-          {ETAPAS.map(etapa => {
-            const colCards = cards.filter(c => c.etapa === etapa.id);
-            const { Icon } = etapa;
-            return (
-              <div key={etapa.id} style={{ flex: 1, minWidth: 180, display: 'flex', flexDirection: 'column', padding: '0 7px', borderRight: '1px solid #1e2530' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8, paddingBottom: 7, borderBottom: `2px solid ${etapa.col}` }}>
-                  <Icon size={13} style={{ color: etapa.col }} aria-hidden="true" />
-                  <span style={{ fontSize: 10, fontWeight: 800, color: '#F8FAFC', letterSpacing: '0.1em' }}>{etapa.label}</span>
-                  <span style={{ marginLeft: 'auto', fontSize: 15, fontWeight: 800, color: etapa.col, fontVariantNumeric: 'tabular-nums' }}>{colCards.length}</span>
+        {view === 'kanban' ? (
+          /* Colunas kanban */
+          <div style={{ flex: 1, display: 'flex', gap: 0, overflowX: 'auto', padding: '10px 6px' }}>
+            {ETAPAS.map(etapa => {
+              const colCards = cards.filter(c => c.etapa === etapa.id);
+              const { Icon } = etapa;
+              return (
+                <div key={etapa.id} style={{ flex: 1, minWidth: 180, display: 'flex', flexDirection: 'column', padding: '0 7px', borderRight: '1px solid #1e2530' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8, paddingBottom: 7, borderBottom: `2px solid ${etapa.col}` }}>
+                    <Icon size={13} style={{ color: etapa.col }} aria-hidden="true" />
+                    <span style={{ fontSize: 10, fontWeight: 800, color: '#F8FAFC', letterSpacing: '0.1em' }}>{etapa.label}</span>
+                    <span style={{ marginLeft: 'auto', fontSize: 15, fontWeight: 800, color: etapa.col, fontVariantNumeric: 'tabular-nums' }}>{colCards.length}</span>
+                  </div>
+                  <div style={{ flex: 1, overflowY: 'auto' }}>
+                    {colCards.map(card => <TVCard key={card.id} card={card} />)}
+                    {colCards.length === 0 && (
+                      <div style={{ textAlign: 'center', padding: '20px 0', color: '#2a3040', fontSize: 11 }}>Sem cards</div>
+                    )}
+                  </div>
                 </div>
-                <div style={{ flex: 1, overflowY: 'auto' }}>
-                  {colCards.map(card => <TVCard key={card.id} card={card} />)}
-                  {colCards.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '20px 0', color: '#2a3040', fontSize: 11 }}>Sem cards</div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* Painel de Marceneiros */
+          <TVMarceneirosPanel team={team} cards={cards} />
+        )}
 
         {/* Sidebar: calendário de prazos */}
         <div style={{
