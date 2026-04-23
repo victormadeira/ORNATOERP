@@ -79,6 +79,11 @@ export function optionalAuth(req, res, next) {
     next();
 }
 
+// Verifica token e retorna payload — usado fora do middleware (ex: WebSocket)
+export function verifyToken(token) {
+    try { return jwt.verify(token, JWT_SECRET); } catch (_) { return null; }
+}
+
 // Helpers
 export function isAdmin(user) { return user.role === 'admin'; }
 export function isGerente(user) { return user.role === 'gerente' || user.role === 'admin'; }

@@ -43,8 +43,13 @@ router.get('/export-csv', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════════
 router.get('/:id', requireAuth, (req, res) => {
     const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
     const cli = db.prepare('SELECT * FROM clientes WHERE id = ?').get(id);
     if (!cli) return res.status(404).json({ error: 'Cliente não encontrado' });
+    // Vendedores só veem seus próprios clientes
+    if (!canSeeAll(req.user) && cli.user_id !== req.user.id) {
+        return res.status(403).json({ error: 'Sem permissão para este cliente' });
+    }
 
     // Orçamentos do cliente
     const orcamentos = db.prepare(`
@@ -127,6 +132,13 @@ router.get('/:id', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════════
 router.get('/:id/timeline', requireAuth, (req, res) => {
     const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    // Verificar ownership antes de retornar dados da timeline
+    const cliCheck = db.prepare('SELECT user_id FROM clientes WHERE id = ?').get(id);
+    if (!cliCheck) return res.status(404).json({ error: 'Cliente não encontrado' });
+    if (!canSeeAll(req.user) && cliCheck.user_id !== req.user.id) {
+        return res.status(403).json({ error: 'Sem permissão para este cliente' });
+    }
     const events = [];
 
     // Orçamentos

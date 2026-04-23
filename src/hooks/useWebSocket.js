@@ -37,13 +37,24 @@ export default function useWebSocket(onMessage) {
             wsRef.current = ws;
 
             ws.onopen = () => {
-                setConnected(true);
                 retriesRef.current = 0;
+                // Autenticar com JWT — obrigatório antes de receber broadcasts
+                const token = localStorage.getItem('erp_token');
+                if (token) {
+                    ws.send(JSON.stringify({ type: 'auth', token }));
+                } else {
+                    // Sem token (usuário não logado), fechar — não há broadcasts úteis
+                    ws.close();
+                }
             };
 
             ws.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
+                    if (data.type === 'connected') {
+                        // Servidor confirmou autenticação
+                        setConnected(true);
+                    }
                     onMessageRef.current?.(data);
                 } catch (e) { /* ignore parse errors */ }
             };

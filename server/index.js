@@ -49,6 +49,7 @@ import oficinaRoutes from './routes/oficina.js';
 
 // Inicializa DB (efeito colateral — cria tabelas e seed)
 import './db.js';
+import { verifyToken } from './auth.js';
 import { iniciarAutomacoes } from './services/automacoes.js';
 import { iniciarBackupDiario } from './services/backup.js';
 import { iniciarSofiaFollowup } from './services/sofia_followup.js';
@@ -137,6 +138,12 @@ app.use('/api', (req, res, next) => {
 // ═══════════════════════════════════════════════════════
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth/register', loginLimiter);
+
+// Rate limit para troca de senha (bcrypt cost=12 é caro — limitar tentativas)
+app.put('/api/auth/password', sensitiveLimiter);
+
+// Endpoint n8n expõe chaves de API — limitar agressivamente
+app.get('/api/config/n8n', sensitiveLimiter);
 
 // Rate limit para operações sensíveis (DELETE)
 app.delete('/api/projetos/*', sensitiveLimiter);
@@ -306,16 +313,67 @@ const server = app.listen(PORT, () => {
 });
 
 const wss = new WebSocketServer({ server, path: '/ws' });
+
+// Set com apenas clientes autenticados (JWT validado)
 const wsClients = new Set();
 
-wss.on('connection', (ws) => {
-    wsClients.add(ws);
-    ws.on('close', () => wsClients.delete(ws));
-    ws.on('error', () => wsClients.delete(ws));
-    ws.send(JSON.stringify({ type: 'connected', ts: new Date().toISOString() }));
+// Limite de conexões por IP (anti-flood)
+const wsConnectionsByIp = new Map();
+const WS_MAX_PER_IP = 10;
+const WS_AUTH_TIMEOUT_MS = 8000; // 8s para enviar token
+
+wss.on('connection', (ws, req) => {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+
+    // ── Limite de conexões por IP ─────────────────────────────────────────────
+    const ipCount = wsConnectionsByIp.get(ip) || 0;
+    if (ipCount >= WS_MAX_PER_IP) {
+        ws.close(1008, 'Too many connections');
+        return;
+    }
+    wsConnectionsByIp.set(ip, ipCount + 1);
+    ws.on('close', () => {
+        const c = wsConnectionsByIp.get(ip) || 1;
+        if (c <= 1) wsConnectionsByIp.delete(ip); else wsConnectionsByIp.set(ip, c - 1);
+        wsClients.delete(ws);
+    });
+    ws.on('error', () => {
+        wsClients.delete(ws);
+    });
+
+    // ── Autenticação JWT obrigatória ─────────────────────────────────────────
+    // O cliente deve enviar { type: 'auth', token: '<JWT>' } em até 8s.
+    // Antes da autenticação, a conexão fica isolada (não recebe broadcasts).
+    let authenticated = false;
+
+    const authTimeout = setTimeout(() => {
+        if (!authenticated) {
+            ws.close(1008, 'Authentication timeout');
+        }
+    }, WS_AUTH_TIMEOUT_MS);
+
+    ws.on('message', (raw) => {
+        if (authenticated) return; // já autenticado, ignora mensagens subsequentes
+        try {
+            const msg = JSON.parse(raw.toString());
+            if (msg.type === 'auth' && msg.token) {
+                const payload = verifyToken(msg.token);
+                if (payload) {
+                    authenticated = true;
+                    clearTimeout(authTimeout);
+                    wsClients.add(ws);
+                    ws.send(JSON.stringify({ type: 'connected', ts: new Date().toISOString() }));
+                    return;
+                }
+            }
+        } catch (_) { /* parse error — ignorar */ }
+        // Token inválido ou mensagem malformada
+        ws.close(1008, 'Invalid token');
+    });
 });
 
 // Broadcast helper — importável por outros módulos via app.locals
+// Só envia para clientes autenticados
 app.locals.wsBroadcast = (type, data) => {
     const msg = JSON.stringify({ type, data, ts: new Date().toISOString() });
     for (const ws of wsClients) {

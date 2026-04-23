@@ -163,7 +163,7 @@ router.put('/password', requireAuth, (req, res) => {
         return res.status(401).json({ error: 'Senha atual incorreta' });
     }
 
-    const hash = bcrypt.hashSync(novaSenha, 10);
+    const hash = bcrypt.hashSync(novaSenha, 12); // custo 12, igual ao registro
     db.prepare('UPDATE users SET senha_hash = ? WHERE id = ?').run(hash, req.user.id);
     res.json({ ok: true });
 });

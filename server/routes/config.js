@@ -272,11 +272,29 @@ router.put('/escalacao', requireAuth, requireRole('admin', 'gerente'), (req, res
 
 // ═══════════════════════════════════════════════════════
 // GET /api/config/n8n — config usada pelo workflow n8n
-// Autenticado por header x-n8n-token (valor configurado no sistema)
+// Autenticado por header x-n8n-token = wa_webhook_token do sistema
+// NUNCA expor sem validação — retorna chaves de API sensíveis
 // ═══════════════════════════════════════════════════════
 router.get('/n8n', (req, res) => {
-    const emp = db.prepare('SELECT wa_instance_url, wa_instance_name, wa_api_key, wa_owner_phone, ia_api_key, ia_model, ia_ativa, ia_blocked_phones FROM empresa_config WHERE id = 1').get();
+    const emp = db.prepare('SELECT wa_instance_url, wa_instance_name, wa_api_key, wa_owner_phone, ia_api_key, ia_model, ia_ativa, ia_blocked_phones, wa_webhook_token FROM empresa_config WHERE id = 1').get();
     if (!emp) return res.status(404).json({ error: 'Config não encontrada' });
+
+    // ── Validação obrigatória de token ──────────────────────────────────────
+    // Usa o mesmo wa_webhook_token configurado no sistema para autenticar
+    // chamadas server-to-server (n8n, scripts externos).
+    // Se o token não estiver configurado, o endpoint fica inacessível por design.
+    const expectedToken = (emp.wa_webhook_token || '').trim();
+    const receivedToken = (req.headers['x-n8n-token'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '') || '').trim();
+
+    if (!expectedToken) {
+        return res.status(503).json({ error: 'Integração n8n não configurada. Defina o Webhook Token nas configurações do sistema.' });
+    }
+    if (!receivedToken || receivedToken !== expectedToken) {
+        // Log de tentativa de acesso inválido (sem revelar o token esperado)
+        console.warn(`[SEC] /api/config/n8n — token inválido de ${req.ip}`);
+        return res.status(401).json({ error: 'Token inválido' });
+    }
+
     res.json({
         evolution_url: emp.wa_instance_url || '',
         evolution_instance: emp.wa_instance_name || '',

@@ -34,17 +34,17 @@ function alreadyProcessed(msgId) {
 // PÚBLICO (sem auth JWT) — validado via webhook token
 // ═══════════════════════════════════════════════════════
 router.post('/whatsapp', async (req, res) => {
-    // Validar webhook token.
-    // Em produção: obrigatório. Se não estiver configurado, rejeita — evita que
-    // qualquer fonte anônima abra conversas, envie payloads de 50MB e consuma IA.
-    // Em dev: tolera ausência pra facilitar testes locais.
+    // Validar webhook token — SEMPRE obrigatório, dev e produção.
+    // Sem token configurado o endpoint fica inacessível por design:
+    // payloads de 50MB sem autenticação podem esgotar memória e consumir cota de IA.
     const expectedToken = evolution.getWebhookToken();
-    const receivedToken = req.headers['apikey'] || req.query.token || '';
-    if (!expectedToken && process.env.NODE_ENV === 'production') {
-        console.error('[WH] BLOQUEADO: webhook token não configurado em produção');
-        return res.status(503).json({ error: 'Webhook não configurado' });
+    const receivedToken = (req.headers['apikey'] || req.query.token || '').trim();
+    if (!expectedToken) {
+        console.error('[WH] BLOQUEADO: wa_webhook_token não configurado. Configure nas configurações do sistema.');
+        return res.status(503).json({ error: 'Webhook não configurado. Defina wa_webhook_token nas configurações.' });
     }
-    if (expectedToken && receivedToken !== expectedToken) {
+    if (receivedToken !== expectedToken) {
+        console.warn(`[SEC] /api/webhook/whatsapp — token inválido de ${req.ip}`);
         return res.status(401).json({ error: 'Invalid webhook token' });
     }
 
