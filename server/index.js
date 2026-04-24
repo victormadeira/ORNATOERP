@@ -60,6 +60,7 @@ import { iniciarHotSilentWatcher } from './services/hot_silent_watcher.js';
 import { iniciarInativosWatcher } from './services/inativos_watcher.js';
 import { iniciarAssinaturasWatcher } from './services/assinaturas_watcher.js';
 import { iniciarGerenteRevisional } from './services/gerente_revisional.js';
+import { iniciarRetryQueue } from './services/ia_retry_queue.js';
 import automacoesRoutes from './routes/automacoes.js';
 import gerenteRoutes from './routes/gerente.js';
 
@@ -331,6 +332,8 @@ const server = app.listen(PORT, () => {
     iniciarAssinaturasWatcher();
     // Gerente Revisional IA (auditoria diária da operação comercial — Haiku 4.5, 07:30)
     iniciarGerenteRevisional();
+    // Retry Queue — re-envia mensagens que falharam por sobrecarga da IA (10s → 2min → 10min → 30min → 2h)
+    iniciarRetryQueue();
 });
 
 const wss = new WebSocketServer({ server, path: '/ws' });

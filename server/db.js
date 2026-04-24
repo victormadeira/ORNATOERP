@@ -2406,6 +2406,20 @@ const migrations = [
   "ALTER TABLE ia_uso_log ADD COLUMN cache_read_tokens INTEGER DEFAULT 0",
   "ALTER TABLE empresa_config ADD COLUMN portfolio_fotos TEXT DEFAULT '[]'",
 ];
+
+// Tabela de retry queue para mensagens de IA que falharam (criada separado pois é nova, não ALTER)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ia_retry_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversa_id INTEGER NOT NULL,
+    wa_jid TEXT NOT NULL,
+    conteudo TEXT NOT NULL,
+    msg_referencia_id INTEGER DEFAULT 0,
+    tentativas INTEGER DEFAULT 0,
+    proxima_tentativa TEXT NOT NULL,
+    criado_em TEXT DEFAULT (datetime('now'))
+  )
+`);
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
 }

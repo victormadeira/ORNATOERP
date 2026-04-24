@@ -6,6 +6,7 @@ import db from '../db.js';
 import evolution from '../services/evolution.js';
 import ai from '../services/ai.js';
 import sofiaProspeccao from '../services/sofia_prospeccao.js';
+import { enqueue as iaRetryEnqueue } from '../services/ia_retry_queue.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads', 'whatsapp');
@@ -310,6 +311,7 @@ async function handleIncomingMessage(data, wsBroadcast = null) {
     } catch (_) { /* silencioso */ }
 
     // ── 9. Resposta automática da IA (se ativo) ──
+    const msgReferenciaId = insertResult.lastInsertRowid; // ID da msg do cliente — usado pela retry queue
     if (conversa.status === 'ia' && enrichedContent) {
         try {
             // Typing indicator antes de chamar a IA (~3s)
@@ -377,9 +379,13 @@ async function handleIncomingMessage(data, wsBroadcast = null) {
                 } catch (_) { /* silencioso */ }
             }
         } catch (err) {
-            // Silencioso — callAI já tentou com retry+backoff. Conversa permanece em status='ia'.
-            // Na próxima mensagem do cliente Sofia retoma normalmente.
-            console.error('[WH] Erro IA (todos retries esgotados):', err.message);
+            console.error('[WH] Erro IA — enfileirando para retry:', err.message);
+            // Enfileira na retry queue: 10s → 2min → 10min → 30min → 2h
+            try {
+                iaRetryEnqueue({ ...conversa, wa_jid: conversa.wa_jid || remoteJid }, enrichedContent, msgReferenciaId);
+            } catch (qErr) {
+                console.error('[WH] Falha ao enfileirar retry:', qErr.message);
+            }
         }
     }
 }

@@ -1094,26 +1094,14 @@ export async function callAI(messages, systemPrompt, options = {}) {
         }));
         const lastMsg = messages[messages.length - 1];
 
-        // Retry com backoff progressivo para 503 / sobrecarga do Gemini
-        // Delays: 5s → 15s → 30s → 60s (4 tentativas no total)
+        // Sem retry inline — falha rápida para que a retry queue do webhook gerencie
+        // os intervalos progressivos (10s → 2min → 10min → 30min → 2h)
         let result;
-        const RETRY_DELAYS = [5000, 15000, 30000, 60000];
-        for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
-            try {
-                const chat = geminiModel.startChat({ history });
-                result = await chat.sendMessage(lastMsg?.content || '');
-                break; // sucesso
-            } catch (err) {
-                const is503 = err?.message?.includes('503') || err?.status === 503;
-                const isOverload = err?.message?.includes('overloaded') || err?.message?.includes('high demand') || err?.message?.includes('UNAVAILABLE');
-                if ((is503 || isOverload) && attempt < RETRY_DELAYS.length) {
-                    const delay = RETRY_DELAYS[attempt];
-                    console.warn(`[Gemini] sobrecarga attempt ${attempt + 1}/${RETRY_DELAYS.length + 1} — aguardando ${delay / 1000}s`);
-                    await new Promise(r => setTimeout(r, delay));
-                } else {
-                    throw err;
-                }
-            }
+        try {
+            const chat = geminiModel.startChat({ history });
+            result = await chat.sendMessage(lastMsg?.content || '');
+        } catch (err) {
+            throw err; // propaga para o chamador tratar (webhook → retry queue)
         }
 
         const text = result.response.text();
