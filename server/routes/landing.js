@@ -56,6 +56,7 @@ router.get('/stats', (req, res) => {
 // ═══════════════════════════════════════════════════════
 router.post('/captura', (req, res) => {
     const { nome, telefone, email, tipo_projeto, ambiente, faixa_investimento, mensagem,
+            estagio, bairro,
             utm_source, utm_medium, utm_campaign, utm_term, utm_content,
             gclid, fbclid, referrer, origem: origemParam } = req.body;
     // ambiente é o campo novo (dropdown "qual ambiente?"), tipo_projeto é compat legado
@@ -110,6 +111,8 @@ router.post('/captura', (req, res) => {
         const clickIds = [gclid ? `gclid=${gclid}` : '', fbclid ? `fbclid=${fbclid}` : ''].filter(Boolean).join(' ');
         const obsText = [
             ambienteReal !== 'Consulta' ? `Ambiente: ${ambienteReal}` : '',
+            estagio ? `Estágio do imóvel: ${estagio}` : '',
+            bairro ? `Bairro: ${bairro}` : '',
             faixa_investimento ? `Faixa de investimento: ${faixa_investimento}` : '',
             mensagem ? `Mensagem: ${mensagem}` : '',
             `Origem: ${origemParam || 'Landing Page'}`,
@@ -174,12 +177,14 @@ router.post('/captura', (req, res) => {
                 if (telEmpresa) {
                     const donoDest = telEmpresa.startsWith('55') ? telEmpresa : `55${telEmpresa}`;
                     const ambienteInfo = ambienteReal !== 'Consulta' ? `\n🏠 *Ambiente:* ${ambienteReal}` : '';
+                    const estagioInfo  = estagio ? `\n🏗️ *Estágio:* ${estagio}` : '';
+                    const bairroInfo   = bairro  ? `\n📌 *Bairro:* ${bairro}`   : '';
                     fetch(`${emp.wa_instance_url}/message/sendText/${emp.wa_instance_name}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', apikey: emp.wa_api_key },
                         body: JSON.stringify({
                             number: donoDest,
-                            text: `🔔 *Novo lead via site!*\n\n👤 *Nome:* ${nome}\n📱 *Telefone:* ${telefone}${ambienteInfo}\n📍 *Origem:* ${origemParam || 'landing_page'}\n\nAcesse o sistema para atender! 🚀`,
+                            text: `🔔 *Novo lead via site!*\n\n👤 *Nome:* ${nome}\n📱 *Telefone:* ${telefone}${ambienteInfo}${estagioInfo}${bairroInfo}\n📍 *Origem:* ${origemParam || 'landing_page'}\n\nAcesse o sistema para atender! 🚀`,
                         }),
                     }).catch(() => {});
                 }

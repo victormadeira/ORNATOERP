@@ -134,7 +134,7 @@ function useCountUp(end, duration, trigger) {
 export default function LandingPageV2() {
     const [config, setConfig]               = useState(null);
     const [portfolio, setPortfolio]         = useState([]);
-    const [form, setForm]                   = useState({ nome: '', telefone: '', ambiente: '' });
+    const [form, setForm]                   = useState({ nome: '', telefone: '', ambiente: '', estagio: '', bairro: '' });
     const [stats, setStats]                 = useState(null);
     const [enviando, setEnviando]           = useState(false);
     const [enviado, setEnviado]             = useState(false);
@@ -512,10 +512,14 @@ export default function LandingPageV2() {
     const buildWaMsg = () => {
         const nome = form.nome.trim();
         const amb  = form.ambiente;
+        const est  = form.estagio;
+        const bai  = form.bairro.trim();
         const partes = [`Olá, ${empNome}! Vim pelo site.`];
         if (nome) partes.push(`Meu nome é *${nome}*.`);
         if (amb) partes.push(`Gostaria de um orçamento de *${amb}* sob medida.`);
         else partes.push('Gostaria de um orçamento de marcenaria sob medida.');
+        if (est) partes.push(`Estágio: ${est}.`);
+        if (bai) partes.push(`Bairro: ${bai}.`);
         return partes.join(' ');
     };
     const waHrefPersonalizado = waNum ? `https://wa.me/${waNum}?text=${encodeURIComponent(buildWaMsg())}` : '';
@@ -531,6 +535,8 @@ export default function LandingPageV2() {
                 ...form,
                 ambiente: form.ambiente || '',
                 tipo_projeto: form.ambiente || '',
+                estagio: form.estagio || '',
+                bairro: form.bairro || '',
                 mensagem: '', faixa_investimento: '', possui_projeto: '', email: '',
                 origem: 'landing_v2', ...utm,
             }),
@@ -855,7 +861,7 @@ export default function LandingPageV2() {
                                         Deixe só 2 dados — <span className="lp-hl">a gente cuida do resto.</span>
                                     </h3>
                                     <p className="lp-form-sub">
-                                        Sem formulário comprido. Converse direto no WhatsApp — é onde tudo acontece.
+                                        Preenche em 30 segundos — a gente te responde direto no WhatsApp.
                                     </p>
                                     <input className="lp-dark-input lp-input-lg" placeholder="Seu nome *" required value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} />
                                     <input className="lp-dark-input lp-input-lg" placeholder="WhatsApp (com DDD) *" required inputMode="tel" value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: formatTel(e.target.value) }))} />
@@ -869,6 +875,14 @@ export default function LandingPageV2() {
                                         <option>Banheiro</option>
                                         <option>Múltiplos Ambientes</option>
                                     </select>
+                                    <select className="lp-dark-input lp-input-lg lp-select" value={form.estagio} onChange={e => setForm(f => ({ ...f, estagio: e.target.value }))}>
+                                        <option value="">Em que estágio está o imóvel? (opcional)</option>
+                                        <option>Reforma em andamento</option>
+                                        <option>Obra nova / construção</option>
+                                        <option>Mobília para imóvel novo</option>
+                                        <option>Apenas planejando</option>
+                                    </select>
+                                    <input className="lp-dark-input lp-input-lg" placeholder="Bairro / região (opcional)" value={form.bairro} onChange={e => setForm(f => ({ ...f, bairro: e.target.value }))} />
                                     {erro && <div className="lp-form-erro">{erro}</div>}
                                     {waNum ? (
                                         <button type="submit" className="lp-btn-wa-hero" disabled={enviando}>
