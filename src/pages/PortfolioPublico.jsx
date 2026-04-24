@@ -324,7 +324,7 @@ export default function PortfolioPublico() {
 
     const acc   = empresa?.landing_cor_destaque || '#C9A96E';
     const fundo = empresa?.landing_cor_fundo    || '#1E1917';
-    const logo  = empresa?.landing_logo || empresa?.logo_sistema || null;
+    const logo  = empresa?.logo_sistema || empresa?.landing_logo || null;
     const nome  = empresa?.nome || 'Studio Ornato';
 
     // Filtros com itens
