@@ -13,7 +13,6 @@ installGlobalErrorHandlers();
 const ProposalPublic        = lazy(() => import('./pages/ProposalPublic'));
 const PortalCliente         = lazy(() => import('./pages/PortalCliente'));
 const MontadorUpload        = lazy(() => import('./pages/MontadorUpload'));
-const LandingPage           = lazy(() => import('./pages/LandingPage'));
 const LandingPageV2         = lazy(() => import('./pages/LandingPageV2'));
 const PropostaApresentacao  = lazy(() => import('./pages/PropostaApresentacao'));
 const AssinaturaPublic      = lazy(() => import('./pages/AssinaturaPublic'));
@@ -80,10 +79,14 @@ const isScanPage = path === '/scan' || path === '/scan/';
 // Preview peça pública: /p/ID
 const pecaPublicId = (path.match(/^\/p\/(\d+)$/i) || [])[1] || null;
 
-// Landing page pública: /contato, /landing ou /landingpage
-const isLanding   = ['/contato', '/landing', '/landingpage', '/landingpage/'].includes(path);
-// Landing V2 (nova versão com diferenciais + portfolio por categoria + depoimentos com foto)
-const isLandingV2 = ['/lp2', '/lp2/'].includes(path);
+// Landing pública (Studio Ornato — móveis planejados)
+// Aceita /contato, /landing, /landingpage, /lp2 — todos caem na V2
+const isLandingV2 = [
+    '/contato', '/contato/',
+    '/landing', '/landing/',
+    '/landingpage', '/landingpage/',
+    '/lp2', '/lp2/',
+].includes(path);
 
 // Portfolio público — lookbook de projetos realizados
 const isPortfolio = ['/portfolioornato', '/portfolioornato/'].includes(path);
@@ -101,7 +104,6 @@ function renderRoute() {
     if (isTVCorte)              return <ProducaoCNCTV />;
     if (pecaPublicId)           return <ScanPeca3D codigo={pecaPublicId} />;
     if (scanCodigo || isScanPage) return <ScanPeca3D codigo={scanCodigo} />;
-    if (isLanding)              return <LandingPage />;
     if (isLandingV2)            return <LandingPageV2 />;
     if (isPortfolio)            return <PortfolioPublico />;
     if (apresentacaoToken)      return <PropostaApresentacao token={apresentacaoToken} />;
