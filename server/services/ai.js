@@ -603,11 +603,11 @@ PARTE 1 — Texto visível ao cliente:
 - preferencialmente 1 pergunta (máximo 2 combináveis);
 - NÃO mencione dossiê, regras internas ou scoring.
 
-PARTE 2 — Dossiê JSON (OBRIGATÓRIO em TODA resposta, sem exceção):
-Sempre ao final, após o texto visível, no formato exato:
-<dossie>{"campo": valor}</dossie>
-Se nenhum campo novo foi coletado: <dossie>{}</dossie>
-NUNCA omita a tag <dossie>. NUNCA use markdown, código ou outra formatação dentro das tags.
+PARTE 2 — Dossiê JSON (campo "dossie" do objeto de resposta):
+Preencha apenas os campos que foram mencionados/confirmados pelo cliente nesta mensagem.
+Campos não mencionados: omita (não envie null, não envie campos vazios).
+Se NADA foi coletado nesta mensagem: envie dossie vazio {}.
+NUNCA invente dados que o cliente não disse.
 
 ═══ 27. DOSSIÊ JSON OFICIAL ═══
 
@@ -1094,10 +1094,27 @@ export async function callAI(messages, systemPrompt, options = {}) {
     if (cfg.ia_provider === 'gemini') {
         const modelo = cfg.ia_model || 'gemini-2.5-flash';
         const genAI = new GoogleGenerativeAI(cfg.ia_api_key);
+
+        // responseSchema força o Gemini a estruturar a saída em JSON.
+        // Sem isso o modelo ignora a instrução <dossie> e retorna só texto.
+        const responseSchema = {
+            type: 'object',
+            properties: {
+                resposta: { type: 'string' },
+                dossie: { type: 'object' },
+            },
+            required: ['resposta', 'dossie'],
+        };
+
         const geminiModel = genAI.getGenerativeModel({
             model: modelo,
             systemInstruction: systemPrompt,
-            generationConfig: { temperature, maxOutputTokens: maxTokens },
+            generationConfig: {
+                temperature,
+                maxOutputTokens: maxTokens,
+                responseMimeType: 'application/json',
+                responseSchema,
+            },
         });
         const history = messages.slice(0, -1).map(m => ({
             role: m.role === 'assistant' ? 'model' : 'user',
@@ -1108,7 +1125,21 @@ export async function callAI(messages, systemPrompt, options = {}) {
         try {
             const chat = geminiModel.startChat({ history });
             const result = await chat.sendMessage(lastMsg?.content || '');
-            const text = result.response.text();
+            const raw = result.response.text();
+
+            // Parsear o JSON estruturado e reconstruir no formato esperado pelo sistema
+            let resposta = raw;
+            let dossieStr = '<dossie>{}</dossie>';
+            try {
+                const parsed = JSON.parse(raw);
+                resposta = parsed.resposta || raw;
+                const dossieObj = parsed.dossie || {};
+                dossieStr = `<dossie>${JSON.stringify(dossieObj)}</dossie>`;
+            } catch (_) {
+                // fallback: trata como texto puro se JSON inválido
+            }
+
+            const text = `${resposta}\n${dossieStr}`;
             const est = (str) => Math.ceil((str || '').length / 4);
             logarUso('gemini', modelo, messages.reduce((a, m) => a + est(m.content), 0) + est(systemPrompt), est(text), contexto);
             return text;
