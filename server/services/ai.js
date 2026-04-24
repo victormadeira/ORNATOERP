@@ -1075,43 +1075,54 @@ export async function callAI(messages, systemPrompt, options = {}) {
     const maxTokens = options.maxTokens ?? 1024;
     const contexto = options.contexto || '';
 
-    // ── Gemini ──
+    // ── Gemini (com fallback automático para Haiku se sobrecarga) ──
     if (cfg.ia_provider === 'gemini') {
-        const modelo = cfg.ia_model || 'gemini-2.0-flash';
+        const modelo = cfg.ia_model || 'gemini-2.5-flash';
         const genAI = new GoogleGenerativeAI(cfg.ia_api_key);
         const geminiModel = genAI.getGenerativeModel({
             model: modelo,
             systemInstruction: systemPrompt,
-            generationConfig: {
-                temperature,
-                maxOutputTokens: maxTokens,
-            },
+            generationConfig: { temperature, maxOutputTokens: maxTokens },
         });
-        // Converter histórico para formato Gemini
         const history = messages.slice(0, -1).map(m => ({
             role: m.role === 'assistant' ? 'model' : 'user',
             parts: [{ text: m.content }],
         }));
         const lastMsg = messages[messages.length - 1];
 
-        // Sem retry inline — falha rápida para que a retry queue do webhook gerencie
-        // os intervalos progressivos (10s → 2min → 10min → 30min → 2h)
-        let result;
         try {
             const chat = geminiModel.startChat({ history });
-            result = await chat.sendMessage(lastMsg?.content || '');
+            const result = await chat.sendMessage(lastMsg?.content || '');
+            const text = result.response.text();
+            const est = (str) => Math.ceil((str || '').length / 4);
+            logarUso('gemini', modelo, messages.reduce((a, m) => a + est(m.content), 0) + est(systemPrompt), est(text), contexto);
+            return text;
         } catch (err) {
-            throw err; // propaga para o chamador tratar (webhook → retry queue)
-        }
+            const isOverload = err?.message?.includes('503') || err?.message?.includes('overloaded')
+                || err?.message?.includes('high demand') || err?.message?.includes('UNAVAILABLE');
 
-        const text = result.response.text();
-        // Gemini não expõe contagem de tokens de forma síncrona no SDK básico
-        // Estimativa: 1 token ≈ 4 chars
-        const estimateTokens = (str) => Math.ceil((str || '').length / 4);
-        const inputEst = messages.reduce((acc, m) => acc + estimateTokens(m.content), 0) + estimateTokens(systemPrompt);
-        const outputEst = estimateTokens(text);
-        logarUso('gemini', modelo, inputEst, outputEst, contexto);
-        return text;
+            // Fallback imediato para Haiku se Gemini sobrecarregado e chave disponível
+            const fallbackKey = process.env.ANTHROPIC_FALLBACK_KEY;
+            if (isOverload && fallbackKey) {
+                console.warn(`[IA] Gemini sobrecarregado — fallback para Haiku (esta chamada apenas)`);
+                const anthropicFb = new Anthropic({ apiKey: fallbackKey });
+                const fbModelo = 'claude-haiku-4-5-20251001';
+                const fbResp = await anthropicFb.messages.create({
+                    model: fbModelo,
+                    max_tokens: maxTokens,
+                    system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+                    messages: messages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
+                    temperature,
+                });
+                const fbUsage = fbResp.usage || {};
+                logarUso('anthropic', fbModelo, fbUsage.input_tokens || 0, fbUsage.output_tokens || 0, `${contexto}[fallback]`,
+                    fbUsage.cache_creation_input_tokens || 0, fbUsage.cache_read_input_tokens || 0);
+                return fbResp.content[0]?.text || '';
+            }
+
+            // Sem fallback configurado → propaga para retry queue
+            throw err;
+        }
     }
 
     if (cfg.ia_provider === 'openai') {
