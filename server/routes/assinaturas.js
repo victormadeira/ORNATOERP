@@ -5,6 +5,8 @@ import { requireAuth, optionalAuth } from '../auth.js';
 import { createNotification } from '../services/notificacoes.js';
 import { parseUA, geolocateIP, getClientIP, validarCPF } from '../lib/tracking-utils.js';
 import { htmlToPdf } from '../pdf.js';
+import evolution from '../services/evolution.js';
+import { mensagemEnvioInicial } from '../services/assinaturas_templates.js';
 
 const router = Router();
 
@@ -95,13 +97,64 @@ router.get('/documento/:orc_id', requireAuth, (req, res) => {
 
     docs.forEach(doc => {
         doc.signatarios = db.prepare(`
-            SELECT id, papel, nome, cpf, token, status, assinado_em, cidade, estado
+            SELECT id, papel, nome, cpf, telefone, token, status, assinado_em, cidade, estado,
+                   enviado_em, enviado_via, lembrete_1_em, lembrete_2_em, escalado_em
             FROM assinatura_signatarios WHERE documento_id = ?
         `).all(doc.id);
         doc.signatarios.forEach(s => { s.cpf_masked = mascaraCPF(s.cpf); });
     });
 
     res.json(docs);
+});
+
+// ═══════════════════════════════════════════════════════
+// POST /api/assinaturas/signer/:signerId/enviar-whatsapp
+// Envia link de assinatura direto via Evolution API (WhatsApp oficial da loja).
+// Sem IA — template fixo. Marca enviado_em pra habilitar follow-up automático.
+// ═══════════════════════════════════════════════════════
+router.post('/signer/:signerId/enviar-whatsapp', requireAuth, async (req, res) => {
+    try {
+        const signer = db.prepare('SELECT * FROM assinatura_signatarios WHERE id = ?').get(req.params.signerId);
+        if (!signer) return res.status(404).json({ error: 'Signatário não encontrado' });
+        if (signer.status === 'assinado') return res.status(400).json({ error: 'Signatário já assinou' });
+
+        const doc = db.prepare('SELECT * FROM documento_assinaturas WHERE id = ?').get(signer.documento_id);
+        if (!doc) return res.status(404).json({ error: 'Documento não encontrado' });
+        if (doc.status === 'cancelado') return res.status(400).json({ error: 'Documento cancelado' });
+        if (doc.expira_em && new Date(doc.expira_em) < new Date()) return res.status(400).json({ error: 'Documento expirado' });
+
+        const tel = (signer.telefone || '').replace(/\D/g, '');
+        if (!tel) return res.status(400).json({ error: 'Signatário sem telefone cadastrado' });
+
+        if (!evolution.isConfigured()) {
+            return res.status(400).json({ error: 'WhatsApp (Evolution API) não configurado — use o envio manual' });
+        }
+
+        const emp = db.prepare('SELECT nome FROM empresa_config WHERE id = 1').get();
+        const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+        const url = `${baseUrl}/assinar/${signer.token}`;
+
+        const texto = mensagemEnvioInicial({
+            nome: signer.nome,
+            empresa: emp?.nome || '',
+            tipo: doc.tipo_documento,
+            url,
+        });
+
+        const dest = evolution.formatPhone(tel);
+        await evolution.sendText(dest, texto);
+
+        db.prepare(`
+            UPDATE assinatura_signatarios
+               SET enviado_em = CURRENT_TIMESTAMP, enviado_via = 'whatsapp', enviado_por = ?
+             WHERE id = ?
+        `).run(req.user.id, signer.id);
+
+        res.json({ ok: true, enviado_em: new Date().toISOString() });
+    } catch (err) {
+        console.error('[assinaturas/enviar-whatsapp] Erro:', err.message);
+        res.status(500).json({ error: err.message || 'Erro ao enviar WhatsApp' });
+    }
 });
 
 // POST /api/assinaturas/:id/cancelar

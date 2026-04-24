@@ -58,6 +58,7 @@ import { iniciarSofiaEscalacao } from './services/sofia_escalacao.js';
 import { iniciarSofiaProspeccao } from './services/sofia_prospeccao.js';
 import { iniciarHotSilentWatcher } from './services/hot_silent_watcher.js';
 import { iniciarInativosWatcher } from './services/inativos_watcher.js';
+import { iniciarAssinaturasWatcher } from './services/assinaturas_watcher.js';
 import automacoesRoutes from './routes/automacoes.js';
 
 const app = express();
@@ -323,6 +324,8 @@ const server = app.listen(PORT, () => {
     iniciarHotSilentWatcher();
     // Inativos Watcher (cliente 60d+ sumido → candidato reativação, modo preview/auto)
     iniciarInativosWatcher();
+    // Assinaturas Watcher (lembrete automático de assinatura pendente — sem IA, template fixo)
+    iniciarAssinaturasWatcher();
 });
 
 const wss = new WebSocketServer({ server, path: '/ws' });

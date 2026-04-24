@@ -2353,6 +2353,14 @@ const migrations = [
   )`,
   "CREATE INDEX IF NOT EXISTS idx_reativacao_status ON reativacao_candidatos(status, criado_em)",
   "CREATE INDEX IF NOT EXISTS idx_reativacao_cliente ON reativacao_candidatos(cliente_id)",
+  // ═══ Assinaturas — rastreamento de envio + lembretes automáticos ═══
+  "ALTER TABLE assinatura_signatarios ADD COLUMN enviado_em DATETIME",
+  "ALTER TABLE assinatura_signatarios ADD COLUMN enviado_via TEXT DEFAULT ''",
+  "ALTER TABLE assinatura_signatarios ADD COLUMN enviado_por INTEGER",
+  "ALTER TABLE assinatura_signatarios ADD COLUMN lembrete_1_em DATETIME",
+  "ALTER TABLE assinatura_signatarios ADD COLUMN lembrete_2_em DATETIME",
+  "ALTER TABLE assinatura_signatarios ADD COLUMN escalado_em DATETIME",
+  "CREATE INDEX IF NOT EXISTS idx_assinatura_sig_status ON assinatura_signatarios(status, enviado_em)",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
