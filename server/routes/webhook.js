@@ -377,19 +377,9 @@ async function handleIncomingMessage(data, wsBroadcast = null) {
                 } catch (_) { /* silencioso */ }
             }
         } catch (err) {
-            console.error('[WH] Erro IA:', err.message);
-            // Enviar mensagem de fallback para o cliente não ficar no vácuo.
-            // A conversa permanece em status='ia': na próxima mensagem do cliente, Sofia retoma normalmente.
-            try {
-                const dest = conversa.wa_jid || remoteJid;
-                const fallback = 'Oi! 😊 Tive um soluço técnico aqui agora, mas já registrei sua mensagem. Retorno em segundinhos!';
-                await evolution.sendText(dest, fallback);
-                db.prepare(`
-                    INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, criado_em)
-                    VALUES (?, 'saida', 'texto', ?, 'ia', CURRENT_TIMESTAMP)
-                `).run(conversa.id, fallback);
-                try { wsBroadcast?.('chat.message', { conversa_id: conversa.id, direcao: 'saida', tipo: 'texto', remetente: 'ia' }); } catch (_) {}
-            } catch (_) { /* silencioso se o fallback também falhar */ }
+            // Silencioso — callAI já tentou com retry+backoff. Conversa permanece em status='ia'.
+            // Na próxima mensagem do cliente Sofia retoma normalmente.
+            console.error('[WH] Erro IA (todos retries esgotados):', err.message);
         }
     }
 }
