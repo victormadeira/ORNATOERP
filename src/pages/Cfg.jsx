@@ -2190,7 +2190,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                             value={emp.ia_provider}
                                             onChange={e => {
                                                 const prov = e.target.value;
-                                                const model = prov === 'anthropic' ? 'claude-sonnet-4' : prov === 'openai' ? 'gpt-4o' : 'gemini-2.0-flash';
+                                                const model = prov === 'anthropic' ? 'claude-sonnet-4' : prov === 'openai' ? 'gpt-4o' : 'gemini-2.5-flash';
                                                 setEmp({ ...emp, ia_provider: prov, ia_model: model });
                                             }}
                                             disabled={!isGerente}
@@ -2217,9 +2217,10 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                 </>
                                             ) : emp.ia_provider === 'gemini' ? (
                                                 <>
-                                                    <option value="gemini-2.0-flash">Gemini 2.0 Flash (recomendado)</option>
+                                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (recomendado)</option>
+                                                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                                                    <option value="gemini-2.0-flash">Gemini 2.0 Flash (descontinuado)</option>
                                                     <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                                                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
                                                 </>
                                             ) : (
                                                 <>

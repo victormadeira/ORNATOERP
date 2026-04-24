@@ -1039,7 +1039,9 @@ const PRECOS_MTOK = {
     'gpt-4-turbo':                 { in: 10.00, out: 30.00 },
     'gpt-3.5-turbo':               { in: 0.50, out: 1.50 },
     // Google Gemini
-    'gemini-2.0-flash':            { in: 0.10, out: 0.40 },
+    'gemini-2.5-flash':            { in: 0.30, out: 2.50 },
+    'gemini-2.5-pro':              { in: 1.25, out: 10.00 },
+    'gemini-2.0-flash':            { in: 0.10, out: 0.40 },  // descontinuado 01/06/2026
     'gemini-1.5-flash':            { in: 0.075, out: 0.30 },
     'gemini-1.5-pro':              { in: 1.25, out: 5.00 },
 };
