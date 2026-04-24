@@ -1093,8 +1093,32 @@ export async function callAI(messages, systemPrompt, options = {}) {
             parts: [{ text: m.content }],
         }));
         const lastMsg = messages[messages.length - 1];
-        const chat = geminiModel.startChat({ history });
-        const result = await chat.sendMessage(lastMsg?.content || '');
+
+        // Retry com backoff para 503 (Gemini fica sobrecarregado em picos)
+        let result;
+        const maxRetries = 3;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const chat = geminiModel.startChat({ history });
+                result = await chat.sendMessage(lastMsg?.content || '');
+                break; // sucesso
+            } catch (err) {
+                const is503 = err?.message?.includes('503') || err?.status === 503;
+                const isOverload = err?.message?.includes('overloaded') || err?.message?.includes('high demand') || err?.message?.includes('UNAVAILABLE');
+                if ((is503 || isOverload) && attempt < maxRetries) {
+                    const delay = attempt * 2000; // 2s, 4s
+                    console.warn(`[Gemini] 503 attempt ${attempt}/${maxRetries} — retrying in ${delay}ms`);
+                    await new Promise(r => setTimeout(r, delay));
+                } else {
+                    // Relancar com mensagem amigável
+                    if (is503 || isOverload) {
+                        throw new Error(`O modelo Gemini está temporariamente sobrecarregado. Tente novamente em alguns segundos.`);
+                    }
+                    throw err;
+                }
+            }
+        }
+
         const text = result.response.text();
         // Gemini não expõe contagem de tokens de forma síncrona no SDK básico
         // Estimativa: 1 token ≈ 4 chars
