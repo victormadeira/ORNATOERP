@@ -12,7 +12,7 @@ router.get('/config', (req, res) => {
     const emp = db.prepare(`
         SELECT nome, telefone, email, endereco, cidade,
                proposta_cor_primaria, proposta_cor_accent,
-               logo_sistema, proposta_sobre,
+               logo_sistema, logo_header_path, proposta_sobre,
                landing_ativo,
                landing_titulo, landing_subtitulo, landing_descricao,
                landing_cta_primaria, landing_cta_secundaria,
