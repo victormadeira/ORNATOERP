@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "smoke": "node scripts/smoke-test.js"
+    "smoke": "node scripts/smoke-test.js",
+    "og:gen": "node scripts/gen-og-image.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
