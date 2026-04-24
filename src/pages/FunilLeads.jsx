@@ -79,8 +79,22 @@ function timeAgo(dateStr) {
     return `${Math.floor(diff / 86400)}d`;
 }
 
+// ── Follow-up helpers ──
+function fmtFollowUpDue(due) {
+    if (!due) return '';
+    const d = new Date(due.includes('T') ? due : due.replace(' ', 'T'));
+    const diffMin = Math.round((d - Date.now()) / 60000);
+    const absMin = Math.abs(diffMin);
+    if (diffMin < -60 * 24) return `${Math.round(absMin / (60 * 24))}d atrás`;
+    if (diffMin < -60) return `${Math.round(absMin / 60)}h atrás`;
+    if (diffMin < 0) return `${absMin}min atrás`;
+    if (diffMin < 60) return `em ${diffMin}min`;
+    if (diffMin < 60 * 24) return `em ${Math.round(diffMin / 60)}h`;
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
 // ── Card arrastável ──
-function DraggableCard({ lead, onEdit, onOpen, nav, onNewOrc, onLinkOrc }) {
+function DraggableCard({ lead, onEdit, onOpen, nav, onNewOrc, onLinkOrc, onFollowUpFeito, onFollowUpAdiar }) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: `lead-${lead.id}`,
         data: { leadId: lead.id, fromCol: lead.coluna_id },
@@ -181,6 +195,32 @@ function DraggableCard({ lead, onEdit, onOpen, nav, onNewOrc, onLinkOrc }) {
                                     </span>
                                 )}
                             </div>
+
+                            {/* Follow-up pendente */}
+                            {lead.proximo_followup_em && lead.proximo_followup_id && (() => {
+                                const due = new Date(lead.proximo_followup_em.includes('T') ? lead.proximo_followup_em : lead.proximo_followup_em.replace(' ', 'T'));
+                                const atrasado = due < new Date();
+                                const cor = atrasado ? 'var(--danger)' : 'var(--warning)';
+                                const TipoIcon = lead.proximo_followup_tipo === 'ligacao' ? Phone : lead.proximo_followup_tipo === 'visita' ? MapPin : MessageCircle;
+                                return (
+                                    <div className="text-[9px] mb-1.5 flex items-center gap-1 px-1.5 py-1 rounded" style={{ background: colorBg(cor), color: cor }}>
+                                        <TipoIcon size={9} />
+                                        <span className="font-semibold">Follow-up {fmtFollowUpDue(lead.proximo_followup_em)}</span>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onFollowUpFeito?.(lead.proximo_followup_id, lead.id); }}
+                                            className="ml-auto px-1.5 py-0.5 rounded font-semibold"
+                                            style={{ background: 'var(--bg-card)', color: 'var(--success)', border: '1px solid var(--border)' }}
+                                            title="Marcar como feito"
+                                        >✓ Feito</button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onFollowUpAdiar?.(lead.proximo_followup_id, lead.id, 72); }}
+                                            className="px-1.5 py-0.5 rounded font-semibold"
+                                            style={{ background: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                                            title="Adiar 3 dias"
+                                        >+3d</button>
+                                    </div>
+                                );
+                            })()}
 
                             {/* Orçamento vinculado */}
                             {lead.orc_id && (
@@ -529,6 +569,24 @@ export default function FunilLeads({ notify, nav }) {
         nav?.('novo');
     };
 
+    const handleFollowUpFeito = async (followUpId, leadId) => {
+        try {
+            await api.put(`/follow-ups/${followUpId}/feito`, { motivo_conclusao: 'concluido' });
+            notify?.('Follow-up concluído');
+            setLeads(prev => prev.map(l => l.id === leadId ? { ...l, proximo_followup_em: null, proximo_followup_id: null, proximo_followup_tipo: null } : l));
+        } catch (e) { notify?.(e?.error || 'Erro ao concluir'); }
+    };
+
+    const handleFollowUpAdiar = async (followUpId, leadId, horas) => {
+        try {
+            const updated = await api.put(`/follow-ups/${followUpId}/reagendar`, { horas_adiar: horas });
+            notify?.('Reagendado');
+            if (updated?.due_at) {
+                setLeads(prev => prev.map(l => l.id === leadId ? { ...l, proximo_followup_em: updated.due_at } : l));
+            }
+        } catch (e) { notify?.(e?.error || 'Erro ao reagendar'); }
+    };
+
     const handleOpenLinkOrc = async (lead) => {
         setShowLinkOrc(lead);
         try {
@@ -715,6 +773,8 @@ export default function FunilLeads({ notify, nav }) {
                                         nav={nav}
                                         onNewOrc={handleNewOrc}
                                         onLinkOrc={handleOpenLinkOrc}
+                                        onFollowUpFeito={handleFollowUpFeito}
+                                        onFollowUpAdiar={handleFollowUpAdiar}
                                     />
                                 ))}
                             </DroppableColumn>

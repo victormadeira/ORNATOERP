@@ -131,6 +131,10 @@ export default function Mensagens({ notify }) {
     const [mobileShowChat, setMobileShowChat] = useState(false);
     const [recording, setRecording] = useState(false);
     const [lightbox, setLightbox] = useState(null);
+    const [showPanel, setShowPanel] = useState(() => {
+        try { return localStorage.getItem('mens_panel') !== '0'; } catch { return true; }
+    });
+    const [clientePanel, setClientePanel] = useState(null);
 
     // ─── Inbox: filtros, atribuição, categoria ───
     const [filtroAba, setFiltroAba] = useState(() => localStorage.getItem('mens_filtro') || 'minhas');
@@ -538,6 +542,18 @@ export default function Mensagens({ notify }) {
         }
     }, [showVincular]);
 
+    // Persistir toggle do painel direito
+    useEffect(() => {
+        try { localStorage.setItem('mens_panel', showPanel ? '1' : '0'); } catch { /* */ }
+    }, [showPanel]);
+
+    // Carregar dados ricos do cliente para o painel direito
+    useEffect(() => {
+        const cid = activeConvData?.cliente_id;
+        if (!cid) { setClientePanel(null); return; }
+        api.get(`/clientes/${cid}`).then(setClientePanel).catch(() => setClientePanel(null));
+    }, [activeConvData?.cliente_id]);
+
     // Filtrar conversas
     const filtered = conversas.filter(c => {
         const q = search.toLowerCase();
@@ -911,32 +927,22 @@ export default function Mensagens({ notify }) {
                         </div>
                     ) : (
                         <>
-                            {/* Header do chat */}
+                            {/* Header do chat — compacto */}
                             <div style={{
-                                padding: '10px 20px', borderBottom: '1px solid var(--border)',
+                                padding: '10px 18px', borderBottom: '1px solid var(--border)',
                                 background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: 12,
-                                boxShadow: '0 1px 0 rgba(0,0,0,0.02)',
+                                boxShadow: '0 1px 0 rgba(0,0,0,0.02)', minHeight: 62,
                             }}>
                                 <button
                                     onClick={() => { setMobileShowChat(false); setActiveConv(null); }}
                                     aria-label="Voltar para lista de conversas"
                                     title="Voltar"
+                                    className="chat-back-btn"
                                     style={{
                                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                                         width: 34, height: 34, borderRadius: 10,
                                         background: 'var(--bg-muted)', border: '1px solid var(--border)',
                                         color: 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0,
-                                        transition: 'all 160ms var(--ease-out)',
-                                    }}
-                                    onMouseEnter={e => {
-                                        e.currentTarget.style.background = 'var(--bg-card)';
-                                        e.currentTarget.style.borderColor = 'var(--accent-bright)';
-                                        e.currentTarget.style.color = 'var(--text-primary)';
-                                    }}
-                                    onMouseLeave={e => {
-                                        e.currentTarget.style.background = 'var(--bg-muted)';
-                                        e.currentTarget.style.borderColor = 'var(--border)';
-                                        e.currentTarget.style.color = 'var(--text-secondary)';
                                     }}
                                 >
                                     <ArrowLeft size={16} strokeWidth={2.4} />
@@ -958,253 +964,48 @@ export default function Mensagens({ notify }) {
                                     );
                                 })()}
 
-                                <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                        {activeConvData?.cliente_nome || activeConvData?.wa_name || activeConvData?.wa_phone}
-                                        {/* Status da IA (Sofia) — também aparece aqui dentro da conversa */}
-                                        {diag && (() => {
-                                            const s = diag.status_geral;
-                                            const cor = s === 'online' ? 'var(--success)' : s === 'parcial' ? 'var(--warning)' : 'var(--danger)';
-                                            const corBg = s === 'online' ? 'var(--success-bg)' : s === 'parcial' ? 'var(--warning-bg)' : 'var(--danger-bg)';
-                                            const corBr = s === 'online' ? 'var(--success-border)' : s === 'parcial' ? 'var(--warning-border)' : 'var(--danger-border)';
-                                            const label = s === 'online' ? 'IA: Online' : s === 'parcial' ? 'IA: Parcial' : 'IA: Offline';
-                                            return (
-                                                <button
-                                                    onClick={() => setDiagOpen(true)}
-                                                    title="Ver diagnóstico da IA (Sofia)"
-                                                    style={{
-                                                        fontSize: 10, padding: '2px 7px', borderRadius: 6,
-                                                        border: `1px solid ${corBr}`, background: corBg,
-                                                        color: cor, cursor: 'pointer', fontWeight: 700,
-                                                        display: 'flex', alignItems: 'center', gap: 3,
-                                                    }}
-                                                >
-                                                    <Activity size={9} />
-                                                    {label}
-                                                </button>
-                                            );
-                                        })()}
-                                    </div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Phone size={10} /> {activeConvData?.wa_phone}</span>
-                                        {!activeConvData?.cliente_id && (
-                                            <button
-                                                onClick={() => setShowVincular(true)}
-                                                style={{
-                                                    fontSize: 10, padding: '1px 6px', borderRadius: 4,
-                                                    background: colorBg('var(--warning)'), color: 'var(--warning)', border: `1px solid ${colorBorder('var(--warning)')}`,
-                                                    cursor: 'pointer', fontWeight: 600,
-                                                }}
-                                            >
-                                                <Link2 size={9} /> Vincular cliente
-                                            </button>
-                                        )}
-                                        {activeConvData?.lead_qualificacao && (
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                                            {activeConvData?.cliente_nome || activeConvData?.wa_name || activeConvData?.wa_phone}
+                                        </span>
+                                        {activeConvData?.lead_qualificacao && activeConvData.lead_qualificacao !== 'novo' && (
                                             <span style={{
-                                                fontSize: 10, padding: '1px 8px', borderRadius: 99, fontWeight: 600,
+                                                fontSize: 10, padding: '2px 7px', borderRadius: 99, fontWeight: 700,
                                                 background: colorBg(LEAD_COLORS[activeConvData.lead_qualificacao] || 'var(--muted)'),
                                                 color: LEAD_COLORS[activeConvData.lead_qualificacao] || 'var(--muted)',
-                                                border: `1px solid ${colorBorder(LEAD_COLORS[activeConvData.lead_qualificacao] || 'var(--muted)')}`,
+                                                flexShrink: 0,
                                             }}>
                                                 {LEAD_LABELS[activeConvData.lead_qualificacao] || activeConvData.lead_qualificacao}
-                                                {activeConvData.lead_score > 0 && ` ${activeConvData.lead_score}%`}
+                                                {activeConvData.lead_score > 0 && ` · ${activeConvData.lead_score}%`}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)', display: 'flex', gap: 10, alignItems: 'center', marginTop: 2, flexWrap: 'wrap' }}>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                            <Phone size={10} /> {activeConvData?.wa_phone}
+                                        </span>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                            <span style={{
+                                                width: 6, height: 6, borderRadius: '50%',
+                                                background: (STATUS_COLORS[activeConvData?.status] || STATUS_COLORS.humano).color,
+                                            }} />
+                                            {STATUS_LABELS[activeConvData?.status] || 'Humano'}
+                                        </span>
+                                        {activeConvData?.ia_bloqueada && (
+                                            <span style={{ color: 'var(--danger)', display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 600 }}>
+                                                <BellOff size={10} /> IA pausada
+                                            </span>
+                                        )}
+                                        {activeConvData?.aguardando_cliente && (
+                                            <span style={{ color: 'var(--warning)', display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 600 }}>
+                                                <Hourglass size={10} /> Aguardando
                                             </span>
                                         )}
                                     </div>
                                 </div>
 
-                                {/* ─── Atribuição ─── */}
-                                <div style={{ position: 'relative' }}>
-                                    {activeConvData?.atribuido_user_id ? (
-                                        <button
-                                            onClick={() => setShowAssignMenu(s => !s)}
-                                            title={`Atribuída a ${activeConvData.atribuido_nome}`}
-                                            style={{
-                                                fontSize: 12, padding: '6px 10px', borderRadius: 8,
-                                                border: `1px solid ${activeConvData.atribuido_user_id === user?.id ? colorBorder('var(--success)') : 'var(--border)'}`,
-                                                background: activeConvData.atribuido_user_id === user?.id ? colorBg('var(--success)') : 'var(--bg-muted)',
-                                                color: activeConvData.atribuido_user_id === user?.id ? 'var(--success)' : 'var(--text-primary)',
-                                                cursor: 'pointer', fontWeight: 600,
-                                                display: 'flex', alignItems: 'center', gap: 5,
-                                            }}
-                                        >
-                                            <UserCheck size={12} />
-                                            {activeConvData.atribuido_user_id === user?.id ? 'Você' : activeConvData.atribuido_nome?.split(' ')[0]}
-                                            <ChevronDown size={10} />
-                                        </button>
-                                    ) : (
-                                        <button
-                                            onClick={puxarPraMim}
-                                            title="Puxar esta conversa pra você"
-                                            style={{
-                                                fontSize: 12, padding: '6px 10px', borderRadius: 8,
-                                                border: `1px solid ${colorBorder('var(--warning)')}`,
-                                                background: colorBg('var(--warning)'),
-                                                color: 'var(--warning)', cursor: 'pointer', fontWeight: 600,
-                                                display: 'flex', alignItems: 'center', gap: 5,
-                                            }}
-                                        >
-                                            <UserPlus size={12} /> Puxar pra mim
-                                        </button>
-                                    )}
-                                    {showAssignMenu && (isGerente || activeConvData?.atribuido_user_id === user?.id) && (
-                                        <div
-                                            onMouseLeave={() => setShowAssignMenu(false)}
-                                            style={{
-                                                position: 'absolute', top: '100%', right: 0, marginTop: 4,
-                                                background: 'var(--bg-card)', border: '1px solid var(--border)',
-                                                borderRadius: 8, boxShadow: '0 6px 20px rgba(0,0,0,0.12)',
-                                                minWidth: 220, zIndex: 50, overflow: 'hidden',
-                                            }}
-                                        >
-                                            <div style={{ padding: '8px 12px', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-muted)', fontWeight: 700, borderBottom: '1px solid var(--border)' }}>
-                                                Atribuir a
-                                            </div>
-                                            <button
-                                                onClick={() => atribuir(null, 'liberada pra fila')}
-                                                style={{ width: '100%', padding: '8px 12px', fontSize: 13, background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer', color: 'var(--warning)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
-                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
-                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                            >
-                                                <Inbox size={12} /> Liberar pra fila (ninguém)
-                                            </button>
-                                            {isGerente && usuarios.map(u => (
-                                                <button
-                                                    key={u.id}
-                                                    onClick={() => atribuir(u.id)}
-                                                    style={{
-                                                        width: '100%', padding: '8px 12px', fontSize: 13,
-                                                        background: activeConvData?.atribuido_user_id === u.id ? colorBg('var(--success)') : 'transparent',
-                                                        border: 'none', textAlign: 'left', cursor: 'pointer',
-                                                        color: activeConvData?.atribuido_user_id === u.id ? 'var(--success)' : 'var(--text-primary)',
-                                                        fontWeight: activeConvData?.atribuido_user_id === u.id ? 700 : 500,
-                                                        display: 'flex', alignItems: 'center', gap: 6,
-                                                    }}
-                                                    onMouseEnter={e => { if (activeConvData?.atribuido_user_id !== u.id) e.currentTarget.style.background = 'var(--bg-muted)'; }}
-                                                    onMouseLeave={e => { if (activeConvData?.atribuido_user_id !== u.id) e.currentTarget.style.background = 'transparent'; }}
-                                                >
-                                                    {activeConvData?.atribuido_user_id === u.id ? <Check size={12} /> : <User size={12} />}
-                                                    {u.nome}
-                                                    <span style={{ fontSize: 9, marginLeft: 'auto', opacity: 0.6, textTransform: 'uppercase' }}>{u.role}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* ─── Categoria ─── */}
-                                <div style={{ position: 'relative' }}>
-                                    <button
-                                        onClick={() => setShowCategoriaMenu(s => !s)}
-                                        title="Definir categoria"
-                                        style={{
-                                            fontSize: 12, padding: '6px 10px', borderRadius: 8,
-                                            border: `1px solid ${activeConvData?.categoria ? colorBorder(CAT_MAP[activeConvData.categoria]?.c || 'var(--muted)') : 'var(--border)'}`,
-                                            background: activeConvData?.categoria ? colorBg(CAT_MAP[activeConvData.categoria]?.c || 'var(--muted)') : 'transparent',
-                                            color: activeConvData?.categoria ? CAT_MAP[activeConvData.categoria]?.c : 'var(--text-muted)',
-                                            cursor: 'pointer', fontWeight: 600,
-                                            display: 'flex', alignItems: 'center', gap: 5,
-                                        }}
-                                    >
-                                        <Tag size={12} />
-                                        {activeConvData?.categoria ? CAT_MAP[activeConvData.categoria]?.l : 'Categoria'}
-                                        <ChevronDown size={10} />
-                                    </button>
-                                    {showCategoriaMenu && (
-                                        <div
-                                            onMouseLeave={() => setShowCategoriaMenu(false)}
-                                            style={{
-                                                position: 'absolute', top: '100%', right: 0, marginTop: 4,
-                                                background: 'var(--bg-card)', border: '1px solid var(--border)',
-                                                borderRadius: 8, boxShadow: '0 6px 20px rgba(0,0,0,0.12)',
-                                                minWidth: 200, zIndex: 50, overflow: 'hidden',
-                                            }}
-                                        >
-                                            <div style={{ padding: '8px 12px', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-muted)', fontWeight: 700, borderBottom: '1px solid var(--border)' }}>
-                                                Categoria
-                                            </div>
-                                            {CATEGORIAS.map(c => (
-                                                <button
-                                                    key={c.v || 'none'}
-                                                    onClick={() => setCategoria(c.v)}
-                                                    style={{
-                                                        width: '100%', padding: '8px 12px', fontSize: 13,
-                                                        background: activeConvData?.categoria === c.v ? colorBg(c.c) : 'transparent',
-                                                        border: 'none', textAlign: 'left', cursor: 'pointer',
-                                                        color: activeConvData?.categoria === c.v ? c.c : 'var(--text-primary)',
-                                                        fontWeight: activeConvData?.categoria === c.v ? 700 : 500,
-                                                        display: 'flex', alignItems: 'center', gap: 6,
-                                                    }}
-                                                    onMouseEnter={e => { if (activeConvData?.categoria !== c.v) e.currentTarget.style.background = 'var(--bg-muted)'; }}
-                                                    onMouseLeave={e => { if (activeConvData?.categoria !== c.v) e.currentTarget.style.background = 'transparent'; }}
-                                                >
-                                                    <span style={{ width: 8, height: 8, borderRadius: 2, background: c.c, display: 'inline-block' }} />
-                                                    {c.l}
-                                                </button>
-                                            ))}
-                                            <div style={{ borderTop: '1px solid var(--border)', padding: '8px 12px', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-muted)', fontWeight: 700 }}>
-                                                Prioridade
-                                            </div>
-                                            <div style={{ padding: '6px', display: 'flex', gap: 4 }}>
-                                                {PRIORIDADES.map(p => (
-                                                    <button
-                                                        key={p.v}
-                                                        onClick={() => setPrioridade(p.v)}
-                                                        style={{
-                                                            flex: 1, fontSize: 10, padding: '6px 4px', borderRadius: 5,
-                                                            border: `1px solid ${activeConvData?.prioridade === p.v ? p.c : 'var(--border)'}`,
-                                                            background: activeConvData?.prioridade === p.v ? colorBg(p.c) : 'transparent',
-                                                            color: activeConvData?.prioridade === p.v ? p.c : 'var(--text-muted)',
-                                                            cursor: 'pointer', fontWeight: 700,
-                                                        }}
-                                                    >
-                                                        <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: p.c, marginRight: 4, verticalAlign: 'middle' }} />
-                                                        {p.l}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* IA bloqueio toggle (anti-abuso) */}
-                                <button
-                                    onClick={toggleIABloqueio}
-                                    title={activeConvData?.ia_bloqueada
-                                        ? `IA pausada até ${activeConvData.ia_bloqueio_ate ? new Date(activeConvData.ia_bloqueio_ate).toLocaleString('pt-BR') : '?'} (${activeConvData.ia_bloqueio_motivo || 'manual'})`
-                                        : 'Pausar IA nesta conversa por 24h (anti-abuso)'}
-                                    style={{
-                                        fontSize: 12, padding: '6px 10px', borderRadius: 8,
-                                        border: `1px solid ${activeConvData?.ia_bloqueada ? 'var(--danger)' : 'var(--border)'}`,
-                                        background: activeConvData?.ia_bloqueada ? 'var(--danger-bg)' : 'transparent',
-                                        color: activeConvData?.ia_bloqueada ? 'var(--danger)' : 'var(--text-muted)',
-                                        cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
-                                    }}
-                                >
-                                    {activeConvData?.ia_bloqueada ? <><BellOff size={12} /> IA pausada</> : <><Pause size={12} /> Pausar IA</>}
-                                </button>
-
-                                {/* Aguardando cliente (pausa escalação pós-handoff) */}
-                                {activeConvData?.status === 'humano' && (
-                                    <button
-                                        onClick={toggleAguardandoCliente}
-                                        title={activeConvData?.aguardando_cliente
-                                            ? 'Escalação pausada — Sofia não vai intervir enquanto você aguarda o cliente'
-                                            : 'Marcar como "aguardando cliente" para pausar a escalação automática'}
-                                        style={{
-                                            fontSize: 12, padding: '6px 10px', borderRadius: 8,
-                                            border: `1px solid ${activeConvData?.aguardando_cliente ? 'var(--warning)' : 'var(--border)'}`,
-                                            background: activeConvData?.aguardando_cliente ? 'var(--warning-bg)' : 'transparent',
-                                            color: activeConvData?.aguardando_cliente ? 'var(--warning)' : 'var(--text-muted)',
-                                            cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
-                                        }}
-                                    >
-                                        <Hourglass size={12} />
-                                        {activeConvData?.aguardando_cliente ? 'Aguardando cliente' : 'Aguardar cliente'}
-                                    </button>
-                                )}
-
-                                {/* Badge de escalação ativa */}
+                                {/* Escalação badge — mantém visível pra alertar */}
                                 {activeConvData?.status === 'humano' && Number(activeConvData?.escalacao_nivel) > 0 && !activeConvData?.aguardando_cliente && (
                                     <span
                                         title={`Sofia já agiu neste handoff (nível ${activeConvData.escalacao_nivel})`}
@@ -1213,25 +1014,53 @@ export default function Mensagens({ notify }) {
                                             background: activeConvData.escalacao_nivel >= 3 ? 'var(--danger-bg)' : activeConvData.escalacao_nivel >= 2 ? 'var(--warning-bg)' : 'var(--info-bg)',
                                             color: activeConvData.escalacao_nivel >= 3 ? 'var(--danger)' : activeConvData.escalacao_nivel >= 2 ? 'var(--warning)' : 'var(--info)',
                                             fontWeight: 600,
-                                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                                            display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
                                         }}
                                     >
                                         {activeConvData.abandonada ? <><Moon size={11} /> Abandonada</> : <><Zap size={11} /> N{activeConvData.escalacao_nivel}</>}
                                     </span>
                                 )}
 
-                                {/* Status toggle */}
+                                {/* Diagnóstico IA — compacto */}
+                                {diag && (() => {
+                                    const s = diag.status_geral;
+                                    const cor = s === 'online' ? 'var(--success)' : s === 'parcial' ? 'var(--warning)' : 'var(--danger)';
+                                    return (
+                                        <button
+                                            onClick={() => setDiagOpen(true)}
+                                            title={`Diagnóstico IA (${s})`}
+                                            style={{
+                                                width: 34, height: 34, borderRadius: 10,
+                                                background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                                                color: cor, cursor: 'pointer', flexShrink: 0,
+                                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                                position: 'relative',
+                                            }}
+                                        >
+                                            <Activity size={15} />
+                                            <span style={{
+                                                position: 'absolute', top: 6, right: 6, width: 7, height: 7,
+                                                borderRadius: 99, background: cor,
+                                                boxShadow: '0 0 0 2px var(--bg-muted)',
+                                            }} />
+                                        </button>
+                                    );
+                                })()}
+
+                                {/* Toggle do painel do cliente (direita) */}
                                 <button
-                                    onClick={() => toggleStatus(activeConv, activeConvData?.status)}
+                                    onClick={() => setShowPanel(s => !s)}
+                                    title={showPanel ? 'Ocultar painel do cliente' : 'Mostrar painel do cliente'}
                                     style={{
-                                        fontSize: 12, padding: '6px 12px', borderRadius: 8,
-                                        border: `1px solid ${(STATUS_COLORS[activeConvData?.status] || STATUS_COLORS.humano).border}`,
-                                        background: (STATUS_COLORS[activeConvData?.status] || STATUS_COLORS.humano).bg,
-                                        color: (STATUS_COLORS[activeConvData?.status] || STATUS_COLORS.humano).color,
-                                        cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
+                                        width: 34, height: 34, borderRadius: 10,
+                                        background: showPanel ? colorBg('#1379F0') : 'var(--bg-muted)',
+                                        border: `1px solid ${showPanel ? 'var(--primary)' : 'var(--border)'}`,
+                                        color: showPanel ? 'var(--primary)' : 'var(--text-secondary)',
+                                        cursor: 'pointer', flexShrink: 0,
+                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                                     }}
                                 >
-                                    {STATUS_ICONS[activeConvData?.status] || <User size={12} />} {STATUS_LABELS[activeConvData?.status] || 'Humano'}
+                                    <UsersIcon size={15} />
                                 </button>
                             </div>
 
@@ -1581,6 +1410,406 @@ export default function Mensagens({ notify }) {
                         </>
                     )}
                 </div>
+
+                {/* ═══ Painel Direito: Dados do Cliente / Lead ═══ */}
+                {activeConv && showPanel && (
+                    <div style={{
+                        width: 340, minWidth: 340, borderLeft: '1px solid var(--border)',
+                        background: 'var(--bg-card)', display: 'flex', flexDirection: 'column',
+                        overflowY: 'auto',
+                    }}
+                        className="lead-panel"
+                    >
+                        {/* Header compacto */}
+                        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.6, flex: 1 }}>
+                                Dados do contato
+                            </div>
+                            <button
+                                onClick={() => setShowPanel(false)}
+                                title="Fechar painel"
+                                style={{
+                                    width: 26, height: 26, borderRadius: 6, border: 'none',
+                                    background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer',
+                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                }}
+                            >
+                                <X size={14} />
+                            </button>
+                        </div>
+
+                        {/* Cliente */}
+                        <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
+                            {(() => {
+                                const nome = activeConvData?.cliente_nome || activeConvData?.wa_name || activeConvData?.wa_phone || '';
+                                const ac = avatarColor(nome);
+                                return (
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 8 }}>
+                                        <div style={{
+                                            width: 72, height: 72, borderRadius: '50%',
+                                            background: `linear-gradient(135deg, ${ac}, ${ac}cc)`,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            color: '#fff', fontSize: 24, fontWeight: 700,
+                                            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                                        }}>
+                                            {initials(nome)}
+                                        </div>
+                                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3 }}>
+                                            {nome}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                            <Phone size={11} /> {activeConvData?.wa_phone}
+                                        </div>
+                                        {clientePanel?.email && (
+                                            <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{clientePanel.email}</div>
+                                        )}
+                                        {!activeConvData?.cliente_id && (
+                                            <button
+                                                onClick={() => setShowVincular(true)}
+                                                style={{
+                                                    marginTop: 4, fontSize: 11, padding: '6px 12px', borderRadius: 6,
+                                                    background: colorBg('var(--warning)'), color: 'var(--warning)',
+                                                    border: `1px solid ${colorBorder('var(--warning)')}`,
+                                                    cursor: 'pointer', fontWeight: 600,
+                                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                }}
+                                            >
+                                                <Link2 size={12} /> Vincular a cliente
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
+                        {/* Lead */}
+                        {(activeConvData?.lead_qualificacao || activeConvData?.lead_score > 0) && (
+                            <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>
+                                    Lead
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                    <span style={{
+                                        fontSize: 12, padding: '4px 10px', borderRadius: 99, fontWeight: 700,
+                                        background: colorBg(LEAD_COLORS[activeConvData.lead_qualificacao] || 'var(--muted)'),
+                                        color: LEAD_COLORS[activeConvData.lead_qualificacao] || 'var(--muted)',
+                                    }}>
+                                        {LEAD_LABELS[activeConvData.lead_qualificacao] || activeConvData.lead_qualificacao}
+                                    </span>
+                                    {activeConvData.lead_score > 0 && (
+                                        <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)' }}>
+                                            {activeConvData.lead_score}%
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Status da conversa */}
+                        <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>
+                                Status da conversa
+                            </div>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                                {['ia', 'humano', 'fechado'].map(st => {
+                                    const ativo = activeConvData?.status === st;
+                                    const sc = STATUS_COLORS[st];
+                                    return (
+                                        <button
+                                            key={st}
+                                            onClick={() => ativo ? null : toggleStatus(activeConv, activeConvData?.status === st ? null : (st === 'ia' ? 'fechado' : st === 'humano' ? 'ia' : 'humano'))}
+                                            disabled={ativo}
+                                            style={{
+                                                flex: 1, fontSize: 11, padding: '8px 4px', borderRadius: 6, cursor: ativo ? 'default' : 'pointer',
+                                                border: `1px solid ${ativo ? sc.color : 'var(--border)'}`,
+                                                background: ativo ? sc.bg : 'transparent',
+                                                color: ativo ? sc.color : 'var(--text-muted)',
+                                                fontWeight: 700,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                                            }}
+                                        >
+                                            {STATUS_ICONS[st]} {STATUS_LABELS[st]}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Atribuição */}
+                        <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>
+                                Atendente
+                            </div>
+                            {activeConvData?.atribuido_user_id ? (
+                                <div>
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+                                        background: activeConvData.atribuido_user_id === user?.id ? colorBg('var(--success)') : 'var(--bg-muted)',
+                                        borderRadius: 8, marginBottom: 6,
+                                    }}>
+                                        <UserCheck size={14} style={{ color: activeConvData.atribuido_user_id === user?.id ? 'var(--success)' : 'var(--text-muted)' }} />
+                                        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>
+                                            {activeConvData.atribuido_user_id === user?.id ? 'Você' : activeConvData.atribuido_nome}
+                                        </span>
+                                    </div>
+                                    {(isGerente || activeConvData.atribuido_user_id === user?.id) && (
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                            <button
+                                                onClick={() => atribuir(null, 'liberada pra fila')}
+                                                style={{
+                                                    flex: 1, fontSize: 11, padding: '6px 8px', borderRadius: 6,
+                                                    border: `1px solid ${colorBorder('var(--warning)')}`,
+                                                    background: colorBg('var(--warning)'), color: 'var(--warning)',
+                                                    cursor: 'pointer', fontWeight: 600,
+                                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                                                }}
+                                            >
+                                                <Inbox size={11} /> Liberar
+                                            </button>
+                                            {isGerente && (
+                                                <button
+                                                    onClick={() => setShowAssignMenu(s => !s)}
+                                                    style={{
+                                                        flex: 1, fontSize: 11, padding: '6px 8px', borderRadius: 6,
+                                                        border: '1px solid var(--border)', background: 'transparent',
+                                                        color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 600,
+                                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                                                    }}
+                                                >
+                                                    <UserPlus size={11} /> Transferir
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={puxarPraMim}
+                                    style={{
+                                        width: '100%', fontSize: 12, padding: '10px', borderRadius: 8,
+                                        border: `1px solid ${colorBorder('var(--warning)')}`,
+                                        background: colorBg('var(--warning)'), color: 'var(--warning)',
+                                        cursor: 'pointer', fontWeight: 700,
+                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                    }}
+                                >
+                                    <UserPlus size={13} /> Puxar pra mim
+                                </button>
+                            )}
+                            {showAssignMenu && isGerente && (
+                                <div style={{
+                                    marginTop: 8, background: 'var(--bg-card)', border: '1px solid var(--border)',
+                                    borderRadius: 8, overflow: 'hidden', maxHeight: 220, overflowY: 'auto',
+                                }}>
+                                    {usuarios.map(u => (
+                                        <button
+                                            key={u.id}
+                                            onClick={() => atribuir(u.id)}
+                                            style={{
+                                                width: '100%', padding: '8px 12px', fontSize: 12.5,
+                                                background: activeConvData?.atribuido_user_id === u.id ? colorBg('var(--success)') : 'transparent',
+                                                border: 'none', borderBottom: '1px solid var(--border)', textAlign: 'left', cursor: 'pointer',
+                                                color: activeConvData?.atribuido_user_id === u.id ? 'var(--success)' : 'var(--text-primary)',
+                                                fontWeight: activeConvData?.atribuido_user_id === u.id ? 700 : 500,
+                                                display: 'flex', alignItems: 'center', gap: 6,
+                                            }}
+                                        >
+                                            {activeConvData?.atribuido_user_id === u.id ? <Check size={12} /> : <User size={12} />}
+                                            {u.nome}
+                                            <span style={{ fontSize: 9, marginLeft: 'auto', opacity: 0.6, textTransform: 'uppercase' }}>{u.role}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Categoria */}
+                        <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>
+                                Categoria
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                {CATEGORIAS.map(c => {
+                                    const ativo = (activeConvData?.categoria || '') === c.v;
+                                    return (
+                                        <button
+                                            key={c.v || 'none'}
+                                            onClick={() => setCategoria(c.v)}
+                                            style={{
+                                                fontSize: 11, padding: '4px 10px', borderRadius: 99,
+                                                border: `1px solid ${ativo ? c.c : 'var(--border)'}`,
+                                                background: ativo ? colorBg(c.c) : 'transparent',
+                                                color: ativo ? c.c : 'var(--text-muted)',
+                                                cursor: 'pointer', fontWeight: 600,
+                                            }}
+                                        >
+                                            {c.l}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Prioridade */}
+                        <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>
+                                Prioridade
+                            </div>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                                {PRIORIDADES.map(p => {
+                                    const ativo = activeConvData?.prioridade === p.v;
+                                    return (
+                                        <button
+                                            key={p.v}
+                                            onClick={() => setPrioridade(p.v)}
+                                            style={{
+                                                flex: 1, fontSize: 11, padding: '6px 4px', borderRadius: 6,
+                                                border: `1px solid ${ativo ? p.c : 'var(--border)'}`,
+                                                background: ativo ? colorBg(p.c) : 'transparent',
+                                                color: ativo ? p.c : 'var(--text-muted)',
+                                                cursor: 'pointer', fontWeight: 700,
+                                            }}
+                                        >
+                                            {p.l}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* IA / Escalação */}
+                        <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>
+                                IA (Sofia)
+                            </div>
+                            <button
+                                onClick={toggleIABloqueio}
+                                title={activeConvData?.ia_bloqueada
+                                    ? `Pausada até ${activeConvData.ia_bloqueio_ate ? new Date(activeConvData.ia_bloqueio_ate).toLocaleString('pt-BR') : '?'}`
+                                    : 'Pausar IA nesta conversa por 24h'}
+                                style={{
+                                    width: '100%', fontSize: 12, padding: '8px 10px', borderRadius: 8, marginBottom: 6,
+                                    border: `1px solid ${activeConvData?.ia_bloqueada ? 'var(--danger)' : 'var(--border)'}`,
+                                    background: activeConvData?.ia_bloqueada ? 'var(--danger-bg)' : 'transparent',
+                                    color: activeConvData?.ia_bloqueada ? 'var(--danger)' : 'var(--text-secondary)',
+                                    cursor: 'pointer', fontWeight: 600,
+                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                }}
+                            >
+                                {activeConvData?.ia_bloqueada ? <><BellOff size={12} /> IA pausada — retomar</> : <><Pause size={12} /> Pausar IA nesta conversa</>}
+                            </button>
+                            {activeConvData?.status === 'humano' && (
+                                <button
+                                    onClick={toggleAguardandoCliente}
+                                    title={activeConvData?.aguardando_cliente ? 'Escalação pausada' : 'Pausar escalação até cliente responder'}
+                                    style={{
+                                        width: '100%', fontSize: 12, padding: '8px 10px', borderRadius: 8,
+                                        border: `1px solid ${activeConvData?.aguardando_cliente ? 'var(--warning)' : 'var(--border)'}`,
+                                        background: activeConvData?.aguardando_cliente ? 'var(--warning-bg)' : 'transparent',
+                                        color: activeConvData?.aguardando_cliente ? 'var(--warning)' : 'var(--text-secondary)',
+                                        cursor: 'pointer', fontWeight: 600,
+                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                    }}
+                                >
+                                    <Hourglass size={12} />
+                                    {activeConvData?.aguardando_cliente ? 'Aguardando cliente (ativo)' : 'Aguardar cliente'}
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Orçamentos do cliente */}
+                        {clientePanel?.orcamentos?.length > 0 && (
+                            <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+                                    <span>Orçamentos</span>
+                                    <span style={{ color: 'var(--text-primary)' }}>{clientePanel.orcamentos.length}</span>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                    {clientePanel.orcamentos.slice(0, 5).map(o => (
+                                        <div
+                                            key={o.id}
+                                            style={{
+                                                padding: '8px 10px', borderRadius: 8,
+                                                background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                                                fontSize: 12,
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                                                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                    #{o.numero || o.id}
+                                                </span>
+                                                <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+                                                    {o.kb_col || o.tipo || '—'}
+                                                </span>
+                                            </div>
+                                            <div style={{ color: 'var(--text-muted)', fontSize: 11, marginBottom: 3 }}>
+                                                {o.ambiente || '—'}
+                                            </div>
+                                            <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 12.5 }}>
+                                                R$ {Number(o.valor_venda || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Métricas do cliente */}
+                        {clientePanel?.metricas && clientePanel.metricas.total_orcamentos > 0 && (
+                            <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>
+                                    Métricas
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                                    <div style={{ padding: 8, borderRadius: 6, background: 'var(--bg-muted)' }}>
+                                        <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Faturado</div>
+                                        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--success)', marginTop: 2 }}>
+                                            R$ {Number(clientePanel.metricas.total_faturado || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                                        </div>
+                                    </div>
+                                    <div style={{ padding: 8, borderRadius: 6, background: 'var(--bg-muted)' }}>
+                                        <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Conversão</div>
+                                        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)', marginTop: 2 }}>
+                                            {clientePanel.metricas.taxa_conversao}%
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Ações */}
+                        <div style={{ padding: 16, marginTop: 'auto' }}>
+                            <button
+                                onClick={toggleArquivar}
+                                style={{
+                                    width: '100%', fontSize: 12, padding: '8px 10px', borderRadius: 8,
+                                    border: '1px solid var(--border)', background: 'transparent',
+                                    color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600,
+                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                }}
+                            >
+                                <Archive size={12} />
+                                {activeConvData?.arquivada ? 'Desarquivar' : 'Arquivar conversa'}
+                            </button>
+                            {isGerente && (
+                                <button
+                                    onClick={rodarBackfillConversa}
+                                    disabled={backfilling}
+                                    style={{
+                                        marginTop: 6, width: '100%', fontSize: 11, padding: '6px 10px', borderRadius: 8,
+                                        border: '1px solid var(--border)', background: 'transparent',
+                                        color: 'var(--text-muted)', cursor: backfilling ? 'wait' : 'pointer', fontWeight: 600,
+                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                        opacity: backfilling ? 0.6 : 1,
+                                    }}
+                                >
+                                    {backfilling ? <RefreshCw size={11} className="spin" /> : <History size={11} />}
+                                    Puxar histórico desta conversa
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* ═══ Modal: Vincular Cliente ═══ */}

@@ -4,7 +4,7 @@ import api from '../api';
 import { useAuth } from '../auth';
 import { applyPrimaryColor } from '../theme';
 import { DEFAULT_CONTRATO_TEMPLATE } from './ContratoHtml';
-import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle, Palette, ExternalLink } from 'lucide-react';
+import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle, Palette, ExternalLink, Bell, Clock, MessageCircle, Phone, MapPin } from 'lucide-react';
 
 const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
@@ -264,6 +264,20 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [portCfgSaving, setPortCfgSaving] = useState(false);
     const [depoimentos, setDepoimentos] = useState([]);
     const [depEdit, setDepEdit] = useState(null); // { nome_cliente, texto, estrelas } or null
+    const [fuColunas, setFuColunas] = useState([]);
+    const [fuRegras, setFuRegras] = useState([]);
+    const [fuForm, setFuForm] = useState({ coluna_id: '', tipo: 'whatsapp', horas_apos: 24, notas: '' });
+    const [fuEditId, setFuEditId] = useState(null);
+
+    const loadFollowUps = () => {
+        Promise.all([
+            api.get('/leads/colunas').catch(() => []),
+            api.get('/follow-ups/regras').catch(() => []),
+        ]).then(([cols, regs]) => {
+            setFuColunas(Array.isArray(cols) ? cols : []);
+            setFuRegras(Array.isArray(regs) ? regs : []);
+        });
+    };
 
     useEffect(() => {
         api.get('/config/empresa').then(d => {
@@ -682,7 +696,10 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
             loadIaUso();
             loadIaPrompt();
         }
-         
+        if (activeSection === 'followups') {
+            loadFollowUps();
+        }
+
     }, [activeSection]);
 
     const gerarBaseConhecimento = async () => {
@@ -739,6 +756,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 {sectionBtn('landing', 'Landing Page', <Ic.Star />)}
                 {sectionBtn('portfolio', 'Portfolio', <Images size={16} />)}
                 {sectionBtn('depoimentos', 'Depoimentos', <Ic.Star />)}
+                {sectionBtn('followups', 'Follow-ups', <Bell size={16} />)}
                 {sectionBtn('etapas', 'Etapas do Projeto', <CheckCircle2 size={16} />)}
                 {sectionBtn('custos', 'Centro de Custo', <Ic.Dollar />)}
                 {sectionBtn('modulos', 'Módulos', <Shield size={16} />)}
@@ -4035,6 +4053,190 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                         <div className="mt-4 p-3 rounded-lg text-xs" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
                             Os depoimentos aparecem na <strong>apresentação da proposta</strong> (link de experiência completa).
                             Se nenhum depoimento estiver cadastrado, a seção não aparecerá.
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══ SEÇÃO: Follow-ups automáticos ═══ */}
+            {activeSection === 'followups' && (
+                <div className="max-w-4xl">
+                    <div className={Z.card}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(201,169,110,0.10)', border: '1px solid rgba(201,169,110,0.25)' }}>
+                                <Bell size={20} style={{ color: '#C9A96E' }} />
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Follow-ups automáticos</h3>
+                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Defina quando o sistema cria um lembrete de contato por estágio do funil</p>
+                            </div>
+                        </div>
+
+                        {/* Form criar/editar regra */}
+                        <div className="p-4 rounded-xl mb-4" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                            <div className="text-xs font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
+                                {fuEditId ? 'Editar regra' : 'Nova regra'}
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2">
+                                <div>
+                                    <label className="text-[10px] font-semibold" style={{ color: 'var(--text-muted)' }}>Estágio</label>
+                                    <select
+                                        value={fuForm.coluna_id}
+                                        onChange={e => setFuForm(f => ({ ...f, coluna_id: e.target.value }))}
+                                        className={Z.inp}
+                                        style={{ fontSize: 12 }}
+                                        disabled={!!fuEditId}
+                                    >
+                                        <option value="">Selecione…</option>
+                                        {fuColunas.map(c => (
+                                            <option key={c.id} value={c.id}>{c.nome}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-semibold" style={{ color: 'var(--text-muted)' }}>Canal</label>
+                                    <select
+                                        value={fuForm.tipo}
+                                        onChange={e => setFuForm(f => ({ ...f, tipo: e.target.value }))}
+                                        className={Z.inp}
+                                        style={{ fontSize: 12 }}
+                                    >
+                                        <option value="whatsapp">WhatsApp</option>
+                                        <option value="ligacao">Ligação</option>
+                                        <option value="email">E-mail</option>
+                                        <option value="visita">Visita</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-semibold" style={{ color: 'var(--text-muted)' }}>Disparar após (horas)</label>
+                                    <input
+                                        type="number" min="1"
+                                        value={fuForm.horas_apos}
+                                        onChange={e => setFuForm(f => ({ ...f, horas_apos: e.target.value }))}
+                                        className={Z.inp}
+                                        style={{ fontSize: 12 }}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-semibold" style={{ color: 'var(--text-muted)' }}>Notas (opcional)</label>
+                                    <input
+                                        type="text"
+                                        value={fuForm.notas}
+                                        onChange={e => setFuForm(f => ({ ...f, notas: e.target.value }))}
+                                        placeholder="Mensagem sugerida…"
+                                        className={Z.inp}
+                                        style={{ fontSize: 12 }}
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex gap-2 mt-2">
+                                <button
+                                    onClick={async () => {
+                                        if (!fuForm.coluna_id || !fuForm.horas_apos) { notify?.('Selecione o estágio e defina as horas'); return; }
+                                        try {
+                                            if (fuEditId) {
+                                                await api.put(`/follow-ups/regras/${fuEditId}`, {
+                                                    tipo: fuForm.tipo,
+                                                    horas_apos: parseInt(fuForm.horas_apos),
+                                                    notas: fuForm.notas,
+                                                });
+                                                notify?.('Regra atualizada');
+                                            } else {
+                                                await api.post('/follow-ups/regras', {
+                                                    coluna_id: parseInt(fuForm.coluna_id),
+                                                    tipo: fuForm.tipo,
+                                                    horas_apos: parseInt(fuForm.horas_apos),
+                                                    notas: fuForm.notas,
+                                                });
+                                                notify?.('Regra criada');
+                                            }
+                                            setFuForm({ coluna_id: '', tipo: 'whatsapp', horas_apos: 24, notas: '' });
+                                            setFuEditId(null);
+                                            loadFollowUps();
+                                        } catch (e) { notify?.(e?.error || 'Erro ao salvar'); }
+                                    }}
+                                    className="px-4 py-2 rounded-lg text-xs font-semibold text-white"
+                                    style={{ background: 'var(--primary)' }}
+                                >
+                                    {fuEditId ? 'Salvar' : 'Criar regra'}
+                                </button>
+                                {fuEditId && (
+                                    <button
+                                        onClick={() => { setFuEditId(null); setFuForm({ coluna_id: '', tipo: 'whatsapp', horas_apos: 24, notas: '' }); }}
+                                        className="px-4 py-2 rounded-lg text-xs font-semibold"
+                                        style={{ background: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                                    >
+                                        Cancelar
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Lista de regras existentes */}
+                        <div className="space-y-2">
+                            {fuRegras.length === 0 ? (
+                                <div className="text-center text-xs py-8" style={{ color: 'var(--text-muted)' }}>
+                                    Nenhuma regra cadastrada. Crie uma para automatizar follow-ups.
+                                </div>
+                            ) : fuRegras.map(r => {
+                                const TipoIcon = r.tipo === 'ligacao' ? Phone : r.tipo === 'visita' ? MapPin : r.tipo === 'email' ? Bell : MessageCircle;
+                                return (
+                                    <div key={r.id} className="flex items-center gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)', opacity: r.ativo ? 1 : 0.5 }}>
+                                        <div style={{ width: 10, height: 10, borderRadius: 3, background: r.coluna_cor || 'var(--muted)', flexShrink: 0 }} />
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{r.coluna_nome}</div>
+                                            <div className="text-[11px] flex items-center gap-2 mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                                                <TipoIcon size={10} />
+                                                <span>{r.tipo}</span>
+                                                <span>·</span>
+                                                <Clock size={10} />
+                                                <span>após {r.horas_apos}h</span>
+                                                {r.notas && <><span>·</span><span className="truncate">{r.notas}</span></>}
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    await api.put(`/follow-ups/regras/${r.id}`, { ativo: r.ativo ? 0 : 1 });
+                                                    loadFollowUps();
+                                                } catch (e) { notify?.(e?.error || 'Erro'); }
+                                            }}
+                                            className="px-2 py-1 rounded text-[10px] font-semibold"
+                                            style={{ background: r.ativo ? 'var(--success)' : 'var(--bg-card)', color: r.ativo ? '#fff' : 'var(--text-muted)', border: '1px solid var(--border)' }}
+                                        >
+                                            {r.ativo ? 'Ativa' : 'Inativa'}
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setFuEditId(r.id);
+                                                setFuForm({ coluna_id: r.coluna_id, tipo: r.tipo, horas_apos: r.horas_apos, notas: r.notas || '' });
+                                            }}
+                                            className="p-1.5 rounded hover:bg-[var(--bg-card)]"
+                                            title="Editar"
+                                        >
+                                            <Pencil size={12} style={{ color: 'var(--text-muted)' }} />
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                if (!confirm('Excluir esta regra?')) return;
+                                                try {
+                                                    await api.del(`/follow-ups/regras/${r.id}`);
+                                                    loadFollowUps();
+                                                    notify?.('Regra removida');
+                                                } catch (e) { notify?.(e?.error || 'Erro'); }
+                                            }}
+                                            className="p-1.5 rounded hover:bg-[var(--bg-card)]"
+                                            title="Excluir"
+                                        >
+                                            <Trash2 size={12} style={{ color: 'var(--danger)' }} />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="mt-4 p-3 rounded-lg text-xs" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                            Quando um lead é criado ou movido para um estágio com regra ativa, o sistema gera um follow-up automático para o responsável do lead. Eles aparecem no <strong>Dashboard</strong> e no <strong>Funil</strong>.
                         </div>
                     </div>
                 </div>

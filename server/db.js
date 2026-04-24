@@ -2269,6 +2269,51 @@ const migrations = [
   // ═══ Integracoes externas — webhook outbound (n8n, Zapier, Make) ═══
   "ALTER TABLE empresa_config ADD COLUMN n8n_webhook_url TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN n8n_webhook_secret TEXT DEFAULT ''",
+
+  // ═══ Follow-ups — histórico completo + regras automáticas por coluna ═══
+  `CREATE TABLE IF NOT EXISTS follow_ups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lead_id INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL DEFAULT 'whatsapp',
+    due_at DATETIME NOT NULL,
+    feito_at DATETIME,
+    motivo_conclusao TEXT DEFAULT '',
+    notas TEXT DEFAULT '',
+    responsavel_id INTEGER REFERENCES users(id),
+    criado_por INTEGER REFERENCES users(id),
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    origem TEXT DEFAULT 'auto'
+  )`,
+  `CREATE TABLE IF NOT EXISTS follow_up_regras (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    coluna_id INTEGER NOT NULL REFERENCES lead_colunas(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL DEFAULT 'whatsapp',
+    horas_apos INTEGER NOT NULL DEFAULT 24,
+    notas TEXT DEFAULT '',
+    ativo INTEGER DEFAULT 1,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ═══ Landing analytics — pageviews + atribuição ═══
+  `CREATE TABLE IF NOT EXISTS landing_visitas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT,
+    path TEXT DEFAULT '',
+    utm_source TEXT DEFAULT '',
+    utm_medium TEXT DEFAULT '',
+    utm_campaign TEXT DEFAULT '',
+    utm_term TEXT DEFAULT '',
+    utm_content TEXT DEFAULT '',
+    gclid TEXT DEFAULT '',
+    fbclid TEXT DEFAULT '',
+    referrer TEXT DEFAULT '',
+    user_agent TEXT DEFAULT '',
+    ip_hash TEXT DEFAULT '',
+    lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL,
+    cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  "ALTER TABLE leads ADD COLUMN visita_id INTEGER REFERENCES landing_visitas(id)",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

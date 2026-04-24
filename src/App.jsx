@@ -135,16 +135,14 @@ export default function App() {
         if (LEGACY_REDIRECTS[pathPage]) pathPage = LEGACY_REDIRECTS[pathPage];
         if (pathPage && VALID_PAGES.includes(pathPage)) {
             localStorage.setItem('erp_page', pathPage);
-            // Corrige URL quando veio de legacy
             if (parts[0] && LEGACY_REDIRECTS[parts[0]]) {
                 window.history.replaceState({}, '', pathPage === 'dash' ? '/' : `/${pathPage}`);
             }
             return pathPage;
         }
-        const saved = localStorage.getItem('erp_page') || 'dash';
-        const finalPage = LEGACY_REDIRECTS[saved] || saved;
-        if (LEGACY_REDIRECTS[saved]) localStorage.setItem('erp_page', finalPage);
-        return finalPage;
+        // Sem URL explícita → sempre começa no dashboard (não restaura última página)
+        localStorage.setItem('erp_page', 'dash');
+        return 'dash';
     });
     const [sb, setSb] = useState(() => localStorage.getItem('erp_sidebar') !== 'collapsed');
     const [sidebarHover, setSidebarHover] = useState(false);

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth } from '../auth.js';
+import { criarFollowUpAutomatico } from './follow_ups.js';
 
 const router = Router();
 
@@ -162,7 +163,9 @@ router.get('/', requireAuth, (req, res) => {
                    u.nome as responsavel_nome,
                    (SELECT COUNT(*) FROM chat_mensagens WHERE conversa_id = l.conversa_id AND direcao = 'entrada') as total_msgs,
                    CAST(julianday('now') - julianday(l.atualizado_em) AS INTEGER) as dias_parado,
-                   o.id as orc_id, o.numero as orc_numero, o.valor_venda as orc_valor, o.status_proposta as orc_status
+                   o.id as orc_id, o.numero as orc_numero, o.valor_venda as orc_valor, o.status_proposta as orc_status,
+                   (SELECT f.id FROM follow_ups f WHERE f.lead_id = l.id AND f.feito_at IS NULL ORDER BY f.due_at ASC LIMIT 1) as proximo_followup_id,
+                   (SELECT f.tipo FROM follow_ups f WHERE f.lead_id = l.id AND f.feito_at IS NULL ORDER BY f.due_at ASC LIMIT 1) as proximo_followup_tipo
             FROM leads l
             LEFT JOIN lead_colunas lc ON l.coluna_id = lc.id
             LEFT JOIN clientes c ON l.cliente_id = c.id
@@ -198,6 +201,8 @@ router.post('/', requireAuth, (req, res) => {
 
         const colNome = db.prepare('SELECT nome FROM lead_colunas WHERE id = ?').get(col);
         db.prepare('INSERT INTO lead_historico (lead_id, user_id, acao, para_coluna) VALUES (?, ?, ?, ?)').run(r.lastInsertRowid, req.user.id, 'criado', colNome?.nome || '');
+
+        criarFollowUpAutomatico(r.lastInsertRowid, col, req.user.id);
 
         const lead = db.prepare('SELECT l.*, lc.nome as coluna_nome, lc.cor as coluna_cor FROM leads l LEFT JOIN lead_colunas lc ON l.coluna_id = lc.id WHERE l.id = ?').get(r.lastInsertRowid);
         res.json(lead);
@@ -283,6 +288,10 @@ router.put('/:id/mover', requireAuth, (req, res) => {
         db.prepare('INSERT INTO lead_historico (lead_id, user_id, acao, de_coluna, para_coluna, obs) VALUES (?, ?, ?, ?, ?, ?)').run(
             id, req.user.id, 'movido', deColuna?.nome || '', paraColuna?.nome || '', motivo_perda || ''
         );
+
+        if (lead.coluna_id !== coluna_id) {
+            criarFollowUpAutomatico(id, coluna_id, req.user.id);
+        }
 
         const updated = db.prepare('SELECT l.*, lc.nome as coluna_nome, lc.cor as coluna_cor FROM leads l LEFT JOIN lead_colunas lc ON l.coluna_id = lc.id WHERE l.id = ?').get(id);
         res.json(updated);

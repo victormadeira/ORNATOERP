@@ -11,7 +11,7 @@ import {
     ArrowDownRight, Receipt, Plus, Trash2, Edit3, Check, X,
     Factory, Truck, Package, Wrench, ChevronDown, RefreshCw,
     Sparkles, LayoutGrid, Target, Users, Flame, Layers, ArrowUp, ArrowDown,
-    Minus
+    Minus, MessageCircle, Phone, MapPin, Bell
 } from 'lucide-react';
 
 const greet = () => {
@@ -1172,6 +1172,343 @@ function TopClientes({ data }) {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// ORIGEM DO TRÁFEGO — funil visita → lead → venda por canal
+// ══════════════════════════════════════════════════════════════════
+function OrigemTrafegoWidget() {
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [dias, setDias] = useState(30);
+
+    useEffect(() => {
+        setLoading(true);
+        api.get(`/landing/origens?dias=${dias}`).then(d => {
+            setData(d);
+        }).catch(() => {
+            setData(null);
+        }).finally(() => setLoading(false));
+    }, [dias]);
+
+    if (loading || !data) return null;
+    if ((data.totais?.visitas || 0) === 0) return null;
+
+    const { totais, por_origem } = data;
+    const maxVisitas = Math.max(...por_origem.map(o => o.visitas), 1);
+
+    const ORIGEM_COR = {
+        direto: '#94A3B8', google: '#4285F4', facebook: '#1877F2', instagram: '#E1306C',
+        fb: '#1877F2', ig: '#E1306C', whatsapp: '#25D366', email: '#F59E0B',
+    };
+    const corDe = (o) => ORIGEM_COR[String(o).toLowerCase()] || '#C9A96E';
+
+    return (
+        <div className="chart-card-pro animate-fade-up" style={{ marginBottom: 20 }}>
+            <div className="chart-card-pro-head" style={{
+                background: 'linear-gradient(180deg, rgba(201, 169, 110, 0.06), transparent)',
+            }}>
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon" style={{
+                        background: 'rgba(201, 169, 110, 0.10)',
+                        borderColor: 'rgba(201, 169, 110, 0.25)',
+                        color: '#C9A96E',
+                    }}>
+                        <BarChart3 size={15} strokeWidth={2.2} />
+                    </span>
+                    <h3>Origem do tráfego</h3>
+                </div>
+                <div style={{ display: 'flex', gap: 4, padding: 2, background: 'var(--bg-muted)', borderRadius: 8 }}>
+                    {[7, 30, 90].map(d => (
+                        <button
+                            key={d}
+                            onClick={() => setDias(d)}
+                            style={{
+                                padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6,
+                                background: dias === d ? 'var(--bg-card)' : 'transparent',
+                                color: dias === d ? 'var(--text-primary)' : 'var(--text-muted)',
+                                border: dias === d ? '1px solid var(--border)' : '1px solid transparent',
+                                cursor: 'pointer',
+                            }}
+                        >{d}d</button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Totais */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 1, background: 'var(--border)', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ padding: '14px 18px', background: 'var(--bg-card)' }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Visitas</div>
+                    <div className="font-display font-tabular" style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginTop: 2 }}>{N(totais.visitas)}</div>
+                </div>
+                <div style={{ padding: '14px 18px', background: 'var(--bg-card)' }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Leads</div>
+                    <div className="font-display font-tabular" style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginTop: 2 }}>
+                        {N(totais.leads_unicos)} <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>{totais.taxa_lead}%</span>
+                    </div>
+                </div>
+                <div style={{ padding: '14px 18px', background: 'var(--bg-card)' }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Fechados</div>
+                    <div className="font-display font-tabular" style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginTop: 2 }}>
+                        {N(totais.fechados)} <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>{totais.taxa_fechamento}%</span>
+                    </div>
+                </div>
+                <div style={{ padding: '14px 18px', background: 'var(--bg-card)' }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Faturamento</div>
+                    <div className="font-display font-tabular" style={{ fontSize: 18, fontWeight: 700, color: '#C9A96E', letterSpacing: '-0.02em', marginTop: 2 }}>{R$(totais.faturamento)}</div>
+                </div>
+            </div>
+
+            {/* Por origem — barras */}
+            <div style={{ padding: '6px 22px 18px' }}>
+                <div style={{ padding: '10px 0', fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                    Por canal
+                </div>
+                {por_origem.map((o, i) => {
+                    const cor = corDe(o.origem);
+                    const pct = (o.visitas / maxVisitas) * 100;
+                    return (
+                        <div key={o.origem} style={{
+                            padding: '10px 0', borderBottom: i < por_origem.length - 1 ? '1px solid var(--border)' : 'none',
+                            animation: `stagger-in 0.25s ease ${i * 40}ms both`,
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ width: 10, height: 10, borderRadius: 3, background: cor, flexShrink: 0 }} />
+                                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'capitalize' }}>{o.origem}</span>
+                                </div>
+                                <div className="font-tabular" style={{ display: 'flex', gap: 14, fontSize: 11.5, color: 'var(--text-muted)' }}>
+                                    <span>{N(o.visitas)} visitas</span>
+                                    <span>{N(o.leads_unicos)} leads</span>
+                                    <span>{N(o.fechados)} fechados</span>
+                                    <span style={{ color: '#C9A96E', fontWeight: 700 }}>{R$(o.faturamento)}</span>
+                                </div>
+                            </div>
+                            <div style={{ position: 'relative', height: 6, background: 'var(--bg-muted)', borderRadius: 99, overflow: 'hidden' }}>
+                                <div style={{
+                                    position: 'absolute', inset: 0, width: `${pct}%`, background: cor,
+                                    borderRadius: 99, transition: 'width 400ms var(--ease-out)',
+                                }} />
+                            </div>
+                            <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4, display: 'flex', gap: 14 }}>
+                                <span>visita→lead: <b style={{ color: 'var(--text-primary)' }}>{o.taxa_lead}%</b></span>
+                                <span>lead→venda: <b style={{ color: 'var(--text-primary)' }}>{o.taxa_fechamento}%</b></span>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FOLLOW-UPS WIDGET — tarefas de contato pendentes
+// ══════════════════════════════════════════════════════════════════
+function FollowUpsWidget({ nav, notify }) {
+    const [rows, setRows] = useState([]);
+    const [cont, setCont] = useState({ atrasados: 0, hoje: 0, total_pendentes: 0 });
+    const [loading, setLoading] = useState(true);
+    const [busyId, setBusyId] = useState(null);
+
+    const load = useCallback(() => {
+        Promise.all([
+            api.get('/follow-ups/hoje').catch(() => []),
+            api.get('/follow-ups/contagem').catch(() => ({ atrasados: 0, hoje: 0, total_pendentes: 0 })),
+        ]).then(([list, c]) => {
+            setRows(Array.isArray(list) ? list : []);
+            setCont(c || { atrasados: 0, hoje: 0, total_pendentes: 0 });
+        }).finally(() => setLoading(false));
+    }, []);
+
+    useEffect(() => {
+        load();
+        const iv = setInterval(load, 60000);
+        return () => clearInterval(iv);
+    }, [load]);
+
+    const marcarFeito = async (id) => {
+        setBusyId(id);
+        try {
+            await api.put(`/follow-ups/${id}/feito`, { motivo_conclusao: 'concluido' });
+            notify && notify('Follow-up concluído');
+            load();
+        } catch (e) {
+            notify && notify(e.error || 'Erro ao concluir');
+        } finally { setBusyId(null); }
+    };
+
+    const adiar = async (id, horas) => {
+        setBusyId(id);
+        try {
+            await api.put(`/follow-ups/${id}/reagendar`, { horas_adiar: horas });
+            notify && notify('Reagendado');
+            load();
+        } catch (e) {
+            notify && notify(e.error || 'Erro ao reagendar');
+        } finally { setBusyId(null); }
+    };
+
+    if (loading) return null;
+    if (cont.total_pendentes === 0 && rows.length === 0) return null;
+
+    const fmtDue = (due) => {
+        if (!due) return '';
+        const d = new Date(due.includes('T') ? due : due.replace(' ', 'T'));
+        const now = new Date();
+        const diffMin = Math.round((d - now) / 60000);
+        const absMin = Math.abs(diffMin);
+        if (diffMin < -60 * 24) return `${Math.round(absMin / (60 * 24))}d atrás`;
+        if (diffMin < -60) return `${Math.round(absMin / 60)}h atrás`;
+        if (diffMin < 0) return `${absMin}min atrás`;
+        if (diffMin < 60) return `em ${diffMin}min`;
+        if (diffMin < 60 * 24) return `em ${Math.round(diffMin / 60)}h`;
+        return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    };
+
+    const tipoIcon = (tipo) => {
+        if (tipo === 'ligacao' || tipo === 'telefone') return <Phone size={12} strokeWidth={2.4} />;
+        if (tipo === 'visita') return <MapPin size={12} strokeWidth={2.4} />;
+        return <MessageCircle size={12} strokeWidth={2.4} />;
+    };
+
+    return (
+        <div className="chart-card-pro animate-fade-up" style={{ marginBottom: 20 }}>
+            <div className="chart-card-pro-head" style={{
+                background: 'linear-gradient(180deg, rgba(201, 169, 110, 0.06), transparent)',
+            }}>
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon" style={{
+                        background: 'rgba(201, 169, 110, 0.10)',
+                        borderColor: 'rgba(201, 169, 110, 0.25)',
+                        color: '#C9A96E',
+                    }}>
+                        <Bell size={15} strokeWidth={2.2} />
+                    </span>
+                    <h3>Follow-ups</h3>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    {cont.atrasados > 0 && (
+                        <span style={{
+                            fontSize: 10.5, fontWeight: 700, padding: '4px 10px', borderRadius: 99,
+                            background: 'rgba(160,71,58,0.12)', color: 'var(--danger)',
+                            border: '1px solid rgba(160,71,58,0.28)', fontVariantNumeric: 'tabular-nums',
+                        }}>{cont.atrasados} atrasado{cont.atrasados > 1 ? 's' : ''}</span>
+                    )}
+                    {cont.hoje > 0 && (
+                        <span style={{
+                            fontSize: 10.5, fontWeight: 700, padding: '4px 10px', borderRadius: 99,
+                            background: 'rgba(176,120,32,0.12)', color: 'var(--warning)',
+                            border: '1px solid rgba(176,120,32,0.28)', fontVariantNumeric: 'tabular-nums',
+                        }}>{cont.hoje} hoje</span>
+                    )}
+                    <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 500 }}>
+                        {cont.total_pendentes} pendente{cont.total_pendentes > 1 ? 's' : ''} no total
+                    </span>
+                </div>
+            </div>
+
+            {rows.length === 0 ? (
+                <div style={{ padding: '22px', textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>
+                    Nenhum follow-up para hoje · <span style={{ color: 'var(--success)', fontWeight: 600 }}>em dia!</span>
+                </div>
+            ) : (
+                <>
+                    {rows.slice(0, 5).map((f, i) => {
+                        const atrasado = !!f.atrasado;
+                        const urg = atrasado
+                            ? { color: 'var(--danger)', bg: 'rgba(160,71,58,0.12)', border: 'rgba(160,71,58,0.28)' }
+                            : { color: 'var(--warning)', bg: 'rgba(176,120,32,0.12)', border: 'rgba(176,120,32,0.28)' };
+                        return (
+                            <div
+                                key={f.id}
+                                style={{
+                                    padding: '12px 22px', borderBottom: '1px solid var(--border)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                                    animation: `stagger-in 0.25s ease ${i * 40}ms both`,
+                                    transition: 'background 150ms var(--ease-out)',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-subtle)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+                            >
+                                <div
+                                    onClick={() => nav('leads')}
+                                    role="button" tabIndex={0}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nav('leads'); } }}
+                                    style={{ minWidth: 0, flex: 1, cursor: 'pointer' }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                        <span style={{
+                                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                            width: 22, height: 22, borderRadius: 6,
+                                            background: urg.bg, color: urg.color, border: `1px solid ${urg.border}`,
+                                            flexShrink: 0,
+                                        }}>{tipoIcon(f.tipo)}</span>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {f.lead_nome || 'Lead'}
+                                        </div>
+                                    </div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, marginLeft: 30, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {f.coluna_nome && <span>{f.coluna_nome} · </span>}
+                                        <span style={{ color: urg.color, fontWeight: 600 }}>{fmtDue(f.due_at)}</span>
+                                        {f.notas && <span> · {f.notas}</span>}
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); marcarFeito(f.id); }}
+                                        disabled={busyId === f.id}
+                                        title="Marcar como feito"
+                                        style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                                            padding: '6px 10px', fontSize: 11, fontWeight: 600,
+                                            borderRadius: 8, border: '1px solid rgba(131,165,98,0.3)',
+                                            background: 'rgba(131,165,98,0.10)', color: 'var(--success)',
+                                            cursor: busyId === f.id ? 'not-allowed' : 'pointer',
+                                            opacity: busyId === f.id ? 0.5 : 1,
+                                        }}
+                                    >
+                                        <Check size={12} strokeWidth={2.6} /> Feito
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); adiar(f.id, 72); }}
+                                        disabled={busyId === f.id}
+                                        title="Adiar 3 dias"
+                                        style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                                            padding: '6px 10px', fontSize: 11, fontWeight: 600,
+                                            borderRadius: 8, border: '1px solid var(--border)',
+                                            background: 'var(--bg-muted)', color: 'var(--text-muted)',
+                                            cursor: busyId === f.id ? 'not-allowed' : 'pointer',
+                                            opacity: busyId === f.id ? 0.5 : 1,
+                                        }}
+                                    >
+                                        <Clock size={12} strokeWidth={2.4} /> +3d
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                    {rows.length > 5 && (
+                        <div
+                            onClick={() => nav('leads')}
+                            role="button" tabIndex={0}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nav('leads'); } }}
+                            style={{
+                                padding: '10px 22px', textAlign: 'center', cursor: 'pointer',
+                                fontSize: 12, fontWeight: 600, color: 'var(--text-muted)',
+                                transition: 'background 150ms var(--ease-out)',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-subtle)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                        >
+                            Ver todos os {rows.length} follow-ups <ArrowRight size={11} strokeWidth={2.4} style={{ display: 'inline', verticalAlign: 'middle', marginLeft: 4 }} />
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    );
+}
+
+// ══════════════════════════════════════════════════════════════════
 // DASH — Componente principal
 // ══════════════════════════════════════════════════════════════════
 export default function Dash({ nav, notify, user }) {
@@ -1286,6 +1623,10 @@ export default function Dash({ nav, notify, user }) {
                     ) : data.atencao?.total_parados > 0 && (
                         <FilaAtencao data={{ ...data.atencao, total_vencidas: 0, contas_vencidas: [], valor_vencido: 0 }} nav={nav} />
                     )}
+
+                    <FollowUpsWidget nav={nav} notify={notify} />
+
+                    {!isVendedor && <OrigemTrafegoWidget />}
 
                     {!isVendedor && data.producao_resumo && (
                         <ProducaoResume data={data.producao_resumo} nav={nav} />

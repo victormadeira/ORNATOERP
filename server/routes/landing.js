@@ -86,11 +86,118 @@ router.get('/stats', (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// GET /api/leads/origens — dashboard de atribuição (AUTH)
+// Agrega visitas × conversões por utm_source/origem
+// Query: ?dias=30 (default 30)
+// ═══════════════════════════════════════════════════════
+router.get('/origens', requireAuth, (req, res) => {
+    try {
+        const dias = Math.min(parseInt(req.query.dias || '30') || 30, 365);
+
+        const resumo = db.prepare(`
+            SELECT
+                COALESCE(NULLIF(utm_source, ''), 'direto') as origem,
+                COUNT(*) as visitas,
+                SUM(CASE WHEN cliente_id IS NOT NULL THEN 1 ELSE 0 END) as leads,
+                COUNT(DISTINCT CASE WHEN cliente_id IS NOT NULL THEN cliente_id END) as leads_unicos
+            FROM landing_visitas
+            WHERE criado_em >= datetime('now', '-' || ? || ' days')
+            GROUP BY origem
+            ORDER BY visitas DESC
+        `).all(dias);
+
+        const porOrigem = resumo.map(r => {
+            let fechados = 0, faturamento = 0;
+            try {
+                const fech = db.prepare(`
+                    SELECT COUNT(DISTINCT o.id) as qtd, COALESCE(SUM(o.valor_venda), 0) as total
+                    FROM orcamentos o
+                    JOIN landing_visitas v ON v.cliente_id = o.cliente_id
+                    WHERE v.criado_em >= datetime('now', '-' || ? || ' days')
+                      AND COALESCE(NULLIF(v.utm_source, ''), 'direto') = ?
+                      AND o.status_proposta = 'aprovada'
+                `).get(dias, r.origem);
+                fechados = fech?.qtd || 0;
+                faturamento = fech?.total || 0;
+            } catch (_) {}
+
+            const taxaLead = r.visitas > 0 ? (r.leads / r.visitas * 100) : 0;
+            const taxaFech = r.leads_unicos > 0 ? (fechados / r.leads_unicos * 100) : 0;
+            return {
+                origem: r.origem,
+                visitas: r.visitas,
+                leads: r.leads,
+                leads_unicos: r.leads_unicos,
+                fechados,
+                faturamento,
+                taxa_lead: Math.round(taxaLead * 10) / 10,
+                taxa_fechamento: Math.round(taxaFech * 10) / 10,
+            };
+        });
+
+        const totais = {
+            visitas: porOrigem.reduce((a, x) => a + x.visitas, 0),
+            leads: porOrigem.reduce((a, x) => a + x.leads, 0),
+            leads_unicos: porOrigem.reduce((a, x) => a + x.leads_unicos, 0),
+            fechados: porOrigem.reduce((a, x) => a + x.fechados, 0),
+            faturamento: porOrigem.reduce((a, x) => a + x.faturamento, 0),
+        };
+        totais.taxa_lead = totais.visitas > 0 ? Math.round((totais.leads / totais.visitas) * 1000) / 10 : 0;
+        totais.taxa_fechamento = totais.leads_unicos > 0 ? Math.round((totais.fechados / totais.leads_unicos) * 1000) / 10 : 0;
+
+        res.json({ dias, totais, por_origem: porOrigem });
+    } catch (err) {
+        console.error('[Landing] Erro origens:', err.message);
+        res.status(500).json({ error: 'Erro ao agregar origens' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// POST /api/leads/visita — registra pageview (PÚBLICO)
+// ═══════════════════════════════════════════════════════
+router.post('/visita', (req, res) => {
+    try {
+        const {
+            path, utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+            gclid, fbclid, referrer,
+        } = req.body || {};
+
+        const ua = String(req.get('user-agent') || '').slice(0, 500);
+        const ip = (req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || '').slice(0, 64);
+        const ipHash = ip ? crypto.createHash('sha256').update(ip).digest('hex').slice(0, 32) : '';
+        const sessionId = crypto.randomBytes(12).toString('hex');
+
+        const r = db.prepare(`
+            INSERT INTO landing_visitas
+                (session_id, path, utm_source, utm_medium, utm_campaign, utm_term, utm_content, gclid, fbclid, referrer, user_agent, ip_hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+            sessionId,
+            String(path || '').slice(0, 200),
+            String(utm_source || '').slice(0, 80),
+            String(utm_medium || '').slice(0, 80),
+            String(utm_campaign || '').slice(0, 120),
+            String(utm_term || '').slice(0, 120),
+            String(utm_content || '').slice(0, 120),
+            String(gclid || '').slice(0, 120),
+            String(fbclid || '').slice(0, 120),
+            String(referrer || '').slice(0, 300),
+            ua,
+            ipHash,
+        );
+        res.json({ visit_id: r.lastInsertRowid, session_id: sessionId });
+    } catch (err) {
+        console.error('[Landing] Erro visita:', err.message);
+        res.json({ visit_id: null });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
 // POST /api/leads/captura — captação de lead (PÚBLICO, sem auth)
 // ═══════════════════════════════════════════════════════
 router.post('/captura', (req, res) => {
     const { nome, telefone, email, tipo_projeto, ambiente, faixa_investimento, mensagem,
-            estagio, bairro,
+            estagio, bairro, visit_id,
             utm_source, utm_medium, utm_campaign, utm_term, utm_content,
             gclid, fbclid, referrer, origem: origemParam } = req.body;
     // ambiente é o campo novo (dropdown "qual ambiente?"), tipo_projeto é compat legado
@@ -165,6 +272,13 @@ router.post('/captura', (req, res) => {
             INSERT INTO automacoes_log (tipo, referencia_id, referencia_tipo, descricao, status)
             VALUES ('lead_captado', ?, 'cliente', ?, 'sucesso')
         `).run(cliente.id, `Lead captado via landing page: ${nome} (${telefone})`);
+
+        // ── Linkar visita → cliente (atribuição) ──
+        if (visit_id) {
+            try {
+                db.prepare('UPDATE landing_visitas SET cliente_id = ? WHERE id = ? AND cliente_id IS NULL').run(cliente.id, parseInt(visit_id));
+            } catch (_) {}
+        }
 
         // ── Notificação em tempo real no dashboard (WebSocket) ──
         try {

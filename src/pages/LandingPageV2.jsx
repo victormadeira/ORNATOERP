@@ -4,6 +4,8 @@ import {
     Award,
     CheckCircle2,
     ChevronDown,
+    ChevronLeft,
+    ChevronRight,
     Hammer,
     Instagram,
     Loader2,
@@ -143,6 +145,8 @@ export default function LandingPageV2() {
     const [statsVisible, setStatsVisible]   = useState(false);
     const [heroStatsVisible, setHeroStatsVisible] = useState(false);
     const [categoriaAtiva, setCategoriaAtiva] = useState('Todos');
+    const [carouselIdx, setCarouselIdx]       = useState(0);
+    const carouselTrackRef                    = useRef(null);
     const [showStickyWA, setShowStickyWA]     = useState(false);
     const [popupOpen, setPopupOpen]           = useState(false);
     const [popupShown, setPopupShown]         = useState(false);
@@ -269,12 +273,7 @@ export default function LandingPageV2() {
         const obs = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
-                    if (entry.target.classList.contains('lp-projects-grid')) {
-                        const cards = entry.target.querySelectorAll('.lp-project-card');
-                        cards.forEach((card, i) => setTimeout(() => card.classList.add('active'), i * 150));
-                    } else {
-                        entry.target.classList.add('active');
-                    }
+                    entry.target.classList.add('active');
                     obs.unobserve(entry.target);
                 }
             });
@@ -282,6 +281,36 @@ export default function LandingPageV2() {
         document.querySelectorAll('.lp-reveal').forEach(el => obs.observe(el));
         return () => obs.disconnect();
     }, [config, portfolio, categoriaAtiva]);
+
+    // Carrossel: reset ao trocar categoria + keyboard nav + scroll detection
+    useEffect(() => {
+        setCarouselIdx(0);
+        if (carouselTrackRef.current) carouselTrackRef.current.scrollTo({ left: 0, behavior: 'auto' });
+    }, [categoriaAtiva]);
+
+    useEffect(() => {
+        const track = carouselTrackRef.current;
+        if (!track) return;
+        let raf = 0;
+        const onScroll = () => {
+            cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(() => {
+                const w = track.clientWidth;
+                if (!w) return;
+                const idx = Math.round(track.scrollLeft / w);
+                setCarouselIdx(prev => (prev !== idx ? idx : prev));
+            });
+        };
+        track.addEventListener('scroll', onScroll, { passive: true });
+        return () => { track.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); };
+    }, [portfolio, categoriaAtiva]);
+
+    useEffect(() => {
+        const active = document.querySelector('.lp-thumb.active');
+        if (active && typeof active.scrollIntoView === 'function') {
+            active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+    }, [carouselIdx]);
 
     useEffect(() => {
         const id = config?.fb_pixel_id;
@@ -446,6 +475,24 @@ export default function LandingPageV2() {
         }
     }, []);
 
+    // ── Beacon de pageview (analytics) ──
+    const [visitId, setVisitId] = useState(null);
+    useEffect(() => {
+        try {
+            const cached = sessionStorage.getItem('lp_visit_id');
+            if (cached) { setVisitId(parseInt(cached)); return; }
+        } catch (_) {}
+        fetch('/api/landing/visita', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: window.location.pathname, ...utm }),
+        }).then(r => r.json()).then(d => {
+            if (d?.visit_id) {
+                setVisitId(d.visit_id);
+                try { sessionStorage.setItem('lp_visit_id', String(d.visit_id)); } catch (_) {}
+            }
+        }).catch(() => {});
+    }, [utm]);
+
     const depoimentos = config ? parseJsonList(config?.landing_provas_json, [
         { nome: 'Daniela Ferreira', projeto: 'Cozinha + Área Gourmet', depoimento: 'Investir alto em marcenaria parecia arriscado. Mas quando vi o resultado — e a cara dos meus amigos na primeira visita — entendi que valeu cada centavo. Voltaria a contratar sem pensar duas vezes.', estrelas: 5 },
         { nome: 'Ricardo Abreu',    projeto: 'Closet e Home Office',    depoimento: 'Já tive experiências ruins antes — atraso, acabamento fraco, peça errada. Aqui foi completamente diferente: prazo cumprido, projeto idêntico ao 3D aprovado, e qualidade de material que não encontrei em nenhum outro lugar.', estrelas: 5 },
@@ -494,8 +541,8 @@ export default function LandingPageV2() {
         : [...portfolio, ...PORTFOLIO_PLACEHOLDER.slice(0, 6 - portfolio.length)];
 
     const portfolioFiltrado = categoriaAtiva === 'Todos'
-        ? allItems.slice(0, 6)
-        : allItems.filter(item => getCategoria(item) === categoriaAtiva).slice(0, 9);
+        ? allItems
+        : allItems.filter(item => getCategoria(item) === categoriaAtiva);
 
     const categoriasVisiveis = CATEGORIAS.filter(cat => {
         if (cat === 'Todos') return true;
@@ -538,7 +585,7 @@ export default function LandingPageV2() {
                 estagio: form.estagio || '',
                 bairro: form.bairro || '',
                 mensagem: '', faixa_investimento: '', possui_projeto: '', email: '',
-                origem: 'landing_v2', ...utm,
+                origem: 'landing_v2', visit_id: visitId, ...utm,
             }),
         }).catch(() => {});
         try { if (window.fbq) window.fbq('track', 'Lead', { content_category: form.ambiente || 'marcenaria' }); } catch (_) {}
@@ -747,38 +794,137 @@ export default function LandingPageV2() {
                     </h2>
 
                     {categoriasVisiveis.length > 1 && (
-                        <div className="lp-portfolio-tabs">
-                            {categoriasVisiveis.map(cat => (
-                                <button
-                                    key={cat}
-                                    className={`lp-tab-btn${categoriaAtiva === cat ? ' active' : ''}`}
-                                    onClick={() => setCategoriaAtiva(cat)}
-                                >
-                                    {cat}
-                                </button>
-                            ))}
+                        <div className="lp-portfolio-tabs-wrap">
+                            <div className="lp-portfolio-tabs">
+                                {categoriasVisiveis.map(cat => (
+                                    <button
+                                        key={cat}
+                                        className={`lp-tab-btn${categoriaAtiva === cat ? ' active' : ''}`}
+                                        onClick={(e) => {
+                                            setCategoriaAtiva(cat);
+                                            e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                                        }}
+                                    >
+                                        {cat}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     )}
 
-                    <div className="lp-projects-grid lp-reveal" key={categoriaAtiva}>
-                        {portfolioFiltrado.length > 0 ? (
-                            portfolioFiltrado.map((item, i) => (
-                                <div key={item.id || i} className={`lp-project-card${i === 0 ? ' featured' : ''}`}>
-                                    <div className="lp-project-img-wrap">
-                                        <img src={item.imagem} alt={item.titulo || 'Projeto'} loading="lazy" />
-                                    </div>
-                                    <div className="lp-project-info">
-                                        <h3 className="lp-project-title">{item.titulo || 'Projeto'}</h3>
-                                        {item.descricao && <p className="lp-project-desc">{item.descricao}</p>}
-                                    </div>
+                    {portfolioFiltrado.length > 0 ? (
+                        <div className="lp-carousel lp-reveal" key={categoriaAtiva}>
+                            <div className="lp-carousel-header">
+                                <div className="lp-carousel-counter">
+                                    <span className="lp-counter-current">{String(Math.min(carouselIdx + 1, portfolioFiltrado.length)).padStart(2, '0')}</span>
+                                    <span className="lp-counter-sep">/</span>
+                                    <span className="lp-counter-total">{String(portfolioFiltrado.length).padStart(2, '0')}</span>
                                 </div>
-                            ))
-                        ) : (
-                            <div className="lp-portfolio-empty">
-                                <p>Em breve projetos nessa categoria.</p>
+                                <div className="lp-carousel-cat">{categoriaAtiva}</div>
                             </div>
-                        )}
-                    </div>
+
+                            <div className="lp-carousel-stage">
+                                <button
+                                    type="button"
+                                    className="lp-carousel-arrow lp-arrow-prev"
+                                    onClick={() => {
+                                        const t = carouselTrackRef.current;
+                                        if (!t) return;
+                                        t.scrollTo({ left: Math.max(0, carouselIdx - 1) * t.clientWidth, behavior: 'smooth' });
+                                    }}
+                                    disabled={carouselIdx === 0}
+                                    aria-label="Foto anterior"
+                                >
+                                    <ChevronLeft size={24} strokeWidth={2.2} />
+                                </button>
+
+                                <div ref={carouselTrackRef} className="lp-carousel-track">
+                                    {portfolioFiltrado.map((item, i) => {
+                                        const near = Math.abs(i - carouselIdx) <= 1;
+                                        return (
+                                            <div key={item.id || i} className="lp-carousel-slide">
+                                                <div className="lp-carousel-img-wrap">
+                                                    <img
+                                                        src={item.imagem}
+                                                        alt={item.titulo || 'Projeto'}
+                                                        loading={near ? 'eager' : 'lazy'}
+                                                        decoding="async"
+                                                        fetchpriority={i === carouselIdx ? 'high' : 'auto'}
+                                                        draggable="false"
+                                                    />
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <button
+                                    type="button"
+                                    className="lp-carousel-arrow lp-arrow-next"
+                                    onClick={() => {
+                                        const t = carouselTrackRef.current;
+                                        if (!t) return;
+                                        t.scrollTo({ left: Math.min(portfolioFiltrado.length - 1, carouselIdx + 1) * t.clientWidth, behavior: 'smooth' });
+                                    }}
+                                    disabled={carouselIdx >= portfolioFiltrado.length - 1}
+                                    aria-label="Próxima foto"
+                                >
+                                    <ChevronRight size={24} strokeWidth={2.2} />
+                                </button>
+                            </div>
+
+                            {(portfolioFiltrado[carouselIdx]?.titulo || portfolioFiltrado[carouselIdx]?.descricao || portfolioFiltrado[carouselIdx]?.designer) && (
+                                <div className="lp-carousel-caption" key={`cap-${carouselIdx}`}>
+                                    {portfolioFiltrado[carouselIdx]?.titulo && (
+                                        <h3 className="lp-caption-title">{portfolioFiltrado[carouselIdx].titulo}</h3>
+                                    )}
+                                    {portfolioFiltrado[carouselIdx]?.descricao && (
+                                        <p className="lp-caption-desc">{portfolioFiltrado[carouselIdx].descricao}</p>
+                                    )}
+                                    {portfolioFiltrado[carouselIdx]?.designer && (
+                                        <p className="lp-caption-designer">
+                                            <span className="lp-caption-designer-label">Projeto</span>
+                                            {portfolioFiltrado[carouselIdx].designer}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
+                            {portfolioFiltrado.length > 1 && (
+                                <>
+                                    <div className="lp-carousel-progress" aria-hidden="true">
+                                        <div
+                                            className="lp-carousel-progress-fill"
+                                            style={{ width: `${((carouselIdx + 1) / portfolioFiltrado.length) * 100}%` }}
+                                        />
+                                    </div>
+                                    <div className="lp-carousel-thumbs" role="tablist" aria-label="Navegar fotos">
+                                        {portfolioFiltrado.map((item, i) => (
+                                            <button
+                                                key={item.id || i}
+                                                type="button"
+                                                role="tab"
+                                                aria-selected={i === carouselIdx}
+                                                className={`lp-thumb${i === carouselIdx ? ' active' : ''}`}
+                                                onClick={() => {
+                                                    const t = carouselTrackRef.current;
+                                                    if (!t) return;
+                                                    t.scrollTo({ left: i * t.clientWidth, behavior: 'smooth' });
+                                                }}
+                                                aria-label={`Foto ${i + 1}: ${item.titulo || 'Projeto'}`}
+                                            >
+                                                <img src={item.imagem} alt="" loading="lazy" decoding="async" draggable="false" />
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="lp-portfolio-empty">
+                            <p>Em breve projetos nessa categoria.</p>
+                        </div>
+                    )}
 
                     {igHandle && (
                         <div style={{ textAlign: 'center', marginTop: '3rem' }}>
@@ -999,7 +1145,7 @@ export default function LandingPageV2() {
                                     body: JSON.stringify({
                                         nome: popupForm.nome, telefone: popupForm.telefone, ambiente: '',
                                         tipo_projeto: '', mensagem: 'Via popup de saída', faixa_investimento: '',
-                                        possui_projeto: '', email: '', origem: 'landing_v2_popup', ...utm,
+                                        possui_projeto: '', email: '', origem: 'landing_v2_popup', visit_id: visitId, ...utm,
                                     }),
                                 }).catch(() => {});
                                 try { if (window.fbq) window.fbq('track', 'Lead', { content_category: 'popup' }); } catch (_) {}
@@ -1222,9 +1368,10 @@ function buildCSS(acc) {
 .lp-proj-bg { position:absolute; inset:0; z-index:1; pointer-events:none; background:radial-gradient(ellipse 80% 60% at 20% 80%, ${acc}0d 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 80% 20%, ${acc}08 0%, transparent 50%); }
 .lp-portfolio-container { max-width:1200px; margin:0 auto; position:relative; z-index:5; }
 
+.lp-portfolio-tabs-wrap { position:relative; margin-bottom:2.5rem; }
 .lp-portfolio-tabs {
   display:flex; gap:0.6rem; flex-wrap:wrap;
-  justify-content:center; margin-bottom:2.5rem;
+  justify-content:center;
 }
 .lp-tab-btn {
   padding:0.55rem 1.4rem;
@@ -1248,17 +1395,177 @@ function buildCSS(acc) {
   font-weight:600;
 }
 
-.lp-projects-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1.5rem; animation:tabFadeIn 0.4s ease both; }
-.lp-project-card { border-radius:1.2rem; overflow:hidden; cursor:pointer; opacity:0; transform:translateY(30px); transition:transform 0.4s ease, box-shadow 0.4s ease; background:#FAF7F2; border:1px solid rgba(26,22,20,0.05); }
-.lp-project-card.active { opacity:1; transform:translateY(0); }
-.lp-project-card:hover { transform:translateY(-6px); box-shadow:0 20px 40px rgba(26,22,20,0.1); }
-.lp-project-img-wrap { aspect-ratio:4/3; overflow:hidden; }
-.lp-project-img-wrap img { width:100%; height:100%; object-fit:cover; transition:transform 0.6s ease; display:block; }
-.lp-project-card:hover .lp-project-img-wrap img { transform:scale(1.06); }
-.lp-project-info { padding:1rem 1.2rem 1.2rem; }
-.lp-project-title { font-size:1rem; font-weight:600; margin-bottom:0.3rem; color:#1A1614; }
-.lp-project-desc { font-size:0.8rem; color:rgba(26,22,20,0.55); line-height:1.4; }
-.lp-portfolio-empty { grid-column:1/-1; text-align:center; padding:4rem; color:rgba(26,22,20,0.4); font-size:0.95rem; }
+/* ── Carrossel de projetos (uma foto grande por vez, swipe mobile) ── */
+.lp-carousel { position:relative; opacity:0; transform:translateY(20px); transition:opacity 0.6s ease, transform 0.6s ease; }
+.lp-carousel.active { opacity:1; transform:translateY(0); }
+
+.lp-carousel-header {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:1.25rem; padding:0 0.25rem;
+  font-family:'Geist', system-ui, sans-serif;
+}
+.lp-carousel-counter {
+  display:inline-flex; align-items:center; gap:0.35rem;
+  font-variant-numeric:tabular-nums;
+  font-size:0.9rem; font-weight:500;
+  color:${acc}; letter-spacing:0.08em;
+}
+.lp-carousel-counter .lp-counter-current { color:${acc}; font-weight:600; font-size:1.35rem; line-height:1; }
+.lp-carousel-counter .lp-counter-sep { color:rgba(26,22,20,0.25); font-weight:300; font-size:1.1rem; }
+.lp-carousel-counter .lp-counter-total { color:rgba(26,22,20,0.4); font-size:0.95rem; }
+.lp-carousel-cat {
+  font-size:0.72rem; font-weight:600; letter-spacing:0.18em;
+  text-transform:uppercase; color:rgba(26,22,20,0.5);
+  padding:0.45rem 0.9rem; border:1px solid rgba(26,22,20,0.12);
+  border-radius:9999px; background:rgba(26,22,20,0.02);
+}
+
+.lp-carousel-stage {
+  position:relative;
+  border-radius:1.4rem; overflow:hidden;
+  background:#FAF7F2;
+  box-shadow: 0 20px 60px rgba(26,22,20,0.08), 0 4px 16px rgba(26,22,20,0.05);
+}
+
+.lp-carousel-track {
+  display:flex;
+  overflow-x:auto;
+  scroll-snap-type:x mandatory;
+  scroll-behavior:smooth;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+  overscroll-behavior-x:contain;
+}
+.lp-carousel-track::-webkit-scrollbar { display:none; }
+
+.lp-carousel-slide {
+  flex:0 0 100%;
+  width:100%;
+  scroll-snap-align:start;
+  scroll-snap-stop:always;
+}
+
+.lp-carousel-img-wrap {
+  position:relative;
+  aspect-ratio: 16 / 10;
+  width:100%;
+  overflow:hidden;
+  background:#EFE9DF;
+}
+.lp-carousel-img-wrap img {
+  width:100%; height:100%;
+  object-fit:cover; display:block;
+  user-select:none; -webkit-user-drag:none;
+}
+
+/* Caption abaixo da foto */
+.lp-carousel-caption {
+  padding:1.25rem 0.25rem 0.25rem;
+  animation: captionFade 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes captionFade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.lp-caption-title {
+  font-size:1.35rem; font-weight:600; line-height:1.25;
+  color:#1A1614; letter-spacing:-0.01em;
+  margin:0 0 0.35rem;
+}
+.lp-caption-desc {
+  font-size:0.95rem; line-height:1.5;
+  color:rgba(26,22,20,0.62);
+  max-width:48rem; margin:0;
+}
+.lp-caption-designer {
+  display:inline-flex; align-items:baseline; gap:0.5rem;
+  margin:0.75rem 0 0;
+  font-size:0.82rem; font-weight:500;
+  color:rgba(26,22,20,0.7);
+  letter-spacing:0.01em;
+}
+.lp-caption-designer-label {
+  font-size:0.65rem; font-weight:600;
+  letter-spacing:0.18em; text-transform:uppercase;
+  color:${acc};
+}
+
+/* Setas (desktop) */
+.lp-carousel-arrow {
+  position:absolute; top:50%; z-index:5;
+  transform:translateY(-50%);
+  width:48px; height:48px;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(250,247,242,0.92);
+  color:#1A1614;
+  border:1px solid rgba(26,22,20,0.08);
+  border-radius:50%;
+  cursor:pointer;
+  transition:all 0.25s ease;
+  opacity:0;
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  box-shadow:0 6px 20px rgba(12,8,4,0.25);
+}
+.lp-carousel-stage:hover .lp-carousel-arrow:not(:disabled) { opacity:1; }
+.lp-carousel-arrow:hover:not(:disabled) {
+  background:${acc}; color:#fff;
+  border-color:${acc};
+  transform:translateY(-50%) scale(1.08);
+}
+.lp-carousel-arrow:disabled { opacity:0 !important; pointer-events:none; cursor:default; }
+.lp-arrow-prev { left:1rem; }
+.lp-arrow-next { right:1rem; }
+
+/* Barra de progresso */
+.lp-carousel-progress {
+  position:relative;
+  height:2px; width:100%;
+  margin-top:1.25rem;
+  background:rgba(26,22,20,0.08);
+  border-radius:9999px; overflow:hidden;
+}
+.lp-carousel-progress-fill {
+  position:absolute; left:0; top:0; bottom:0;
+  background:${acc};
+  border-radius:9999px;
+  transition:width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Thumbnails strip */
+.lp-carousel-thumbs {
+  display:flex; gap:0.5rem;
+  margin-top:1rem;
+  padding:0.25rem 0.25rem 0.5rem;
+  overflow-x:auto;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+  scroll-behavior:smooth;
+}
+.lp-carousel-thumbs::-webkit-scrollbar { display:none; }
+.lp-thumb {
+  flex:0 0 auto;
+  width:64px; height:48px;
+  padding:0; border:2px solid transparent;
+  border-radius:0.5rem; overflow:hidden;
+  cursor:pointer; background:#EFE9DF;
+  transition:border-color 0.25s ease, transform 0.2s ease, opacity 0.25s ease;
+  opacity:0.55;
+  position:relative;
+}
+.lp-thumb img {
+  width:100%; height:100%; object-fit:cover; display:block;
+  pointer-events:none;
+}
+.lp-thumb:hover { opacity:0.9; }
+.lp-thumb.active {
+  border-color:${acc};
+  opacity:1;
+  transform:translateY(-2px);
+  box-shadow:0 6px 16px rgba(26,22,20,0.15);
+}
+
+.lp-portfolio-empty { text-align:center; padding:4rem; color:rgba(26,22,20,0.4); font-size:0.95rem; }
 
 /* ══════════════════════════════════════════
    DEPOIMENTOS
@@ -1404,7 +1711,6 @@ function buildCSS(acc) {
   }
   .lp-timeline-card { max-width: 100%; }
 
-  .lp-projects-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; }
   .lp-form-grid { grid-template-columns: 1fr; }
   .lp-cta-card { padding: 4rem 2.5rem; border-radius: 2rem; }
   .lp-cta-actions { flex-direction: column; align-items: stretch; gap: 0.875rem; }
@@ -1450,23 +1756,65 @@ function buildCSS(acc) {
 
   .lp-portfolio-sec { padding: 4.5rem 0 6rem; }
   .lp-portfolio-container { padding: 0 1.25rem; }
+  .lp-portfolio-tabs-wrap {
+    margin-left: -1.25rem;
+    margin-right: -1.25rem;
+    margin-bottom: 1.75rem;
+  }
+  .lp-portfolio-tabs-wrap::before,
+  .lp-portfolio-tabs-wrap::after {
+    content: "";
+    position: absolute; top: 0; bottom: 0;
+    width: 48px; z-index: 2; pointer-events: none;
+  }
+  .lp-portfolio-tabs-wrap::before {
+    left: 0;
+    background: linear-gradient(to right, #FFFFFF 40%, rgba(255,255,255,0) 100%);
+  }
+  .lp-portfolio-tabs-wrap::after {
+    right: 0;
+    background: linear-gradient(to left, #FFFFFF 40%, rgba(255,255,255,0) 100%);
+  }
   .lp-portfolio-tabs {
     overflow-x: auto;
     flex-wrap: nowrap;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+    scroll-snap-type: x proximity;
     justify-content: flex-start;
-    padding-bottom: 4px;
+    padding: 4px 1.25rem 6px;
+    gap: 0.5rem;
+  }
+  .lp-portfolio-tabs::-webkit-scrollbar { display: none; }
+  .lp-tab-btn {
+    flex-shrink: 0;
+    padding: 0.5rem 1.1rem;
+    font-size: 0.8rem;
+    height: 38px;
+    scroll-snap-align: center;
+  }
+  .lp-portfolio-empty { padding: 2.5rem 1rem; }
+
+  /* Carrossel mobile */
+  .lp-carousel-stage { border-radius: 1rem; }
+  .lp-carousel-img-wrap { aspect-ratio: 4 / 5; }
+  .lp-carousel-arrow { display: none; }
+  .lp-carousel-header { margin-bottom: 0.875rem; }
+  .lp-carousel-counter .lp-counter-current { font-size: 1.15rem; }
+  .lp-carousel-counter .lp-counter-total { font-size: 0.85rem; }
+  .lp-carousel-cat { font-size: 0.65rem; padding: 0.35rem 0.7rem; letter-spacing: 0.14em; }
+  .lp-carousel-caption { padding: 1rem 0.125rem 0.25rem; }
+  .lp-caption-title { font-size: 1.15rem; margin-bottom: 0.3rem; }
+  .lp-caption-desc { font-size: 0.88rem; line-height: 1.45; }
+  .lp-carousel-progress { margin-top: 1rem; }
+  .lp-carousel-thumbs {
     margin-left: -1.25rem;
     margin-right: -1.25rem;
     padding-left: 1.25rem;
     padding-right: 1.25rem;
-    gap: 0.5rem;
+    gap: 0.45rem;
   }
-  .lp-portfolio-tabs::-webkit-scrollbar { display: none; }
-  .lp-tab-btn { flex-shrink: 0; padding: 0.5rem 1.1rem; font-size: 0.8rem; height: 38px; }
-  .lp-projects-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
-  .lp-portfolio-empty { padding: 2.5rem 1rem; }
+  .lp-thumb { width: 56px; height: 42px; }
 
   .lp-testimonials-sec { padding: 4.5rem 0; }
   .lp-testimonial-card { width: min(82vw, 340px); padding: 1.75rem 1.5rem; }
@@ -1507,13 +1855,17 @@ function buildCSS(acc) {
   .lp-diferencial-item { padding: 0.875rem 0.75rem; gap: 0.6rem; }
   .lp-diferencial-icon-wrap { width: 34px; height: 34px; min-width: 34px; }
 
-  .lp-projects-grid { grid-template-columns: 1fr; }
-  .lp-portfolio-tabs {
+  .lp-portfolio-tabs-wrap {
     margin-left: -1rem;
     margin-right: -1rem;
-    padding-left: 1rem;
-    padding-right: 1rem;
   }
+  .lp-portfolio-tabs {
+    padding: 4px 1rem 6px;
+  }
+  .lp-carousel-img-wrap { aspect-ratio: 4 / 5; }
+  .lp-caption-title { font-size: 1.05rem; }
+  .lp-caption-desc { font-size: 0.83rem; }
+  .lp-thumb { width: 52px; height: 40px; }
 
   .lp-timeline-card { padding: 1.25rem; }
   .lp-timeline-title { font-size: 1.15rem; }
