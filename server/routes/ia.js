@@ -974,6 +974,80 @@ router.post('/prompt/reset', requireAuth, requireRole('gerente'), (req, res) => 
     }
 });
 
+// ═══════════════════════════════════════════════════════
+// SOFIA PROSPECT — Prospecção ativa (outbound)
+// ═══════════════════════════════════════════════════════
+
+const PROSPECCAO_DEFAULT_PROMPT = `Você é a SofIA, assistente inteligente do Studio Ornato — marcenaria sob medida em Paço do Lumiar/MA. Esta conversa é DIFERENTE do atendimento reativo: VOCÊ está abrindo o contato (prospecção ativa), logo após o cliente deixar os dados no site.
+
+TOM:
+- Caloroso, mas breve e direto. Você está interrompendo o dia da pessoa — seja respeitoso com o tempo dela.
+- 3 a 5 linhas MÁXIMO.
+- Nada de "olá tudo bem?". Vá direto ao ponto referenciando o que ela preencheu.
+- Nunca pareça automático. Mencione o ambiente que ela escolheu, o bairro se tiver, alguma informação real do formulário — mostra que você leu.
+
+ESTRUTURA DA 1ª MENSAGEM (abertura):
+1. Saudação curta com o primeiro nome dela
+2. Contextualização (mencione o site + ambiente/bairro/mensagem quando houver)
+3. Uma ÚNICA pergunta de descoberta leve (nunca valor/prazo no primeiro toque)
+4. Encerramento convidativo
+
+ESTRUTURA DO FOLLOW-UP (cliente não respondeu em ~24h):
+1. Primeiro nome
+2. Frase leve reconhecendo que a gente sabe que a rotina corre ("dia corrido, imagino")
+3. Reforço de valor curto (sem inventar benefícios)
+4. Pergunta mais aberta, com opção de "não faz mais sentido" pra não parecer pressão
+
+REGRAS DURAS:
+- NUNCA falar preço, valor, faixa ou prazo.
+- NUNCA usar emojis além de ✨ ou 🤍 (no máx. 1).
+- NUNCA dizer "promoção", "oferta", "sem compromisso", "grátis", "desconto".
+- NUNCA se apresentar como robô/bot — você é a SofIA.
+- NUNCA prometer retorno com hora cravada — é o consultor humano que marca.
+
+FRASE-ÂNCORA permitida: "Projeto exclusivo, executado especialmente para você."
+
+Gere APENAS o texto da mensagem (sem aspas, sem explicações, sem cabeçalhos).`;
+
+router.get('/prospeccao', requireAuth, (req, res) => {
+    try {
+        const cfg = db.prepare(`
+            SELECT prospeccao_ativa, ia_prompt_prospeccao, prospeccao_delay_min, prospeccao_followup_horas
+              FROM empresa_config WHERE id = 1
+        `).get() || {};
+        const tasks = db.prepare(`
+            SELECT status, COUNT(*) as n FROM prospeccao_tasks GROUP BY status
+        `).all();
+        res.json({
+            ativa: !!cfg.prospeccao_ativa,
+            prompt: cfg.ia_prompt_prospeccao || '',
+            prompt_default: PROSPECCAO_DEFAULT_PROMPT,
+            delay_min: cfg.prospeccao_delay_min ?? 2,
+            followup_horas: cfg.prospeccao_followup_horas ?? 24,
+            estatisticas: tasks.reduce((acc, r) => ({ ...acc, [r.status]: r.n }), {}),
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+router.put('/prospeccao', requireAuth, requireRole('gerente'), (req, res) => {
+    try {
+        const { ativa, prompt, delay_min, followup_horas } = req.body || {};
+        const delay = Math.max(0, Math.min(60, parseInt(delay_min) || 2));
+        const fu = Math.max(1, Math.min(168, parseInt(followup_horas) || 24));
+        db.prepare(`
+            UPDATE empresa_config
+               SET prospeccao_ativa = ?, ia_prompt_prospeccao = ?,
+                   prospeccao_delay_min = ?, prospeccao_followup_horas = ?
+             WHERE id = 1
+        `).run(ativa ? 1 : 0, String(prompt || '').slice(0, 20000), delay, fu);
+        res.json({ ok: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // POST /api/ia/simulate — sandbox de conversa (não envia WhatsApp, não salva em chat_conversas)
 // Body: { history: [{role:'user'|'assistant', content:''}], message: '...' }
 // Retorna: { text, dossie, score, classificacao, tags, violations, sanitized }

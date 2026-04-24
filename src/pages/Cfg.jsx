@@ -211,6 +211,13 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [iaPromptSaving, setIaPromptSaving] = useState(false);
     const [iaPromptMode, setIaPromptMode] = useState('view'); // view | edit | default
     const [iaPromptSaved, setIaPromptSaved] = useState(false);
+    // Prospecção ativa
+    const [prospeccao, setProspeccao] = useState(null); // { ativa, prompt, prompt_default, delay_min, followup_horas, estatisticas }
+    const [prospeccaoDraft, setProspeccaoDraft] = useState({ ativa: false, prompt: '', delay_min: 2, followup_horas: 24 });
+    const [prospeccaoLoading, setProspeccaoLoading] = useState(false);
+    const [prospeccaoSaving, setProspeccaoSaving] = useState(false);
+    const [prospeccaoSaved, setProspeccaoSaved] = useState(false);
+    const [prospeccaoMode, setProspeccaoMode] = useState('view'); // view | edit | default
     // Sandbox de simulação
     const [simHistory, setSimHistory] = useState([]); // [{role:'user'|'assistant', content:''}]
     const [simInput, setSimInput] = useState('');
@@ -679,6 +686,45 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         setSimBloqueado(null);
     };
 
+    const loadProspeccao = async () => {
+        setProspeccaoLoading(true);
+        try {
+            const d = await api.get('/ia/prospeccao');
+            setProspeccao(d);
+            setProspeccaoDraft({
+                ativa: !!d.ativa,
+                prompt: d.prompt || '',
+                delay_min: d.delay_min ?? 2,
+                followup_horas: d.followup_horas ?? 24,
+            });
+        } catch (e) { /* silencioso */ }
+        setProspeccaoLoading(false);
+    };
+
+    const saveProspeccao = async () => {
+        setProspeccaoSaving(true);
+        try {
+            await api.put('/ia/prospeccao', {
+                ativa: prospeccaoDraft.ativa ? 1 : 0,
+                prompt: prospeccaoDraft.prompt,
+                delay_min: Number(prospeccaoDraft.delay_min) || 0,
+                followup_horas: Number(prospeccaoDraft.followup_horas) || 24,
+            });
+            setProspeccaoSaved(true);
+            setTimeout(() => setProspeccaoSaved(false), 2500);
+            await loadProspeccao();
+            setProspeccaoMode('view');
+        } catch (e) { notify?.('Erro ao salvar prospecção: ' + (e.error || e.message), 'error'); }
+        setProspeccaoSaving(false);
+    };
+
+    const resetProspeccaoPrompt = () => {
+        if (!prospeccao?.prompt_default) return;
+        if (!confirm('Substituir o prompt de prospecção pelo texto padrão? O texto atual será perdido ao salvar.')) return;
+        setProspeccaoDraft(d => ({ ...d, prompt: prospeccao.prompt_default }));
+        setProspeccaoMode('edit');
+    };
+
     const resetIaPrompt = async () => {
         if (!confirm('Restaurar o prompt padrão da Sofia? Seu prompt customizado será apagado.')) return;
         setIaPromptSaving(true);
@@ -695,6 +741,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         if (activeSection === 'ia') {
             loadIaUso();
             loadIaPrompt();
+            loadProspeccao();
         }
         if (activeSection === 'followups') {
             loadFollowUps();
@@ -2337,6 +2384,162 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                 )}
                                             </div>
                                         )}
+                                    </>
+                                ) : null}
+                            </div>
+
+                            {/* ═══ Prospecção ativa ═══ */}
+                            <div className="mt-5 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
+                                <div className="flex items-center justify-between mb-3">
+                                    <div>
+                                        <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>
+                                            🎯 Prospecção ativa (pós-captura)
+                                        </h3>
+                                        <div className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                            Depois que o lead preenche o formulário da landing, a IA puxa conversa no WhatsApp com um script próprio (diferente da Sofia reativa). Se o cliente responder, a prospecção para e a Sofia assume.
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setProspeccaoDraft(d => ({ ...d, ativa: !d.ativa }))}
+                                        className="px-3 py-1.5 rounded-lg text-[11px] font-semibold"
+                                        disabled={!isGerente}
+                                        style={{
+                                            background: prospeccaoDraft.ativa ? 'var(--success-bg)' : 'var(--bg-muted)',
+                                            color: prospeccaoDraft.ativa ? 'var(--success)' : 'var(--text-muted)',
+                                            border: `1px solid ${prospeccaoDraft.ativa ? 'var(--success-border)' : 'var(--border)'}`,
+                                        }}
+                                    >
+                                        {prospeccaoDraft.ativa ? 'Ativa' : 'Desligada'}
+                                    </button>
+                                </div>
+
+                                {prospeccaoLoading && !prospeccao ? (
+                                    <div className="text-xs py-4 text-center" style={{ color: 'var(--text-muted)' }}>Carregando...</div>
+                                ) : prospeccao ? (
+                                    <>
+                                        {prospeccao.estatisticas && (
+                                            <div className="grid grid-cols-4 gap-2 mb-3">
+                                                {[
+                                                    ['Agendadas', prospeccao.estatisticas.pending ?? 0, 'var(--primary)'],
+                                                    ['Enviadas', prospeccao.estatisticas.sent ?? 0, 'var(--success)'],
+                                                    ['Canceladas', prospeccao.estatisticas.cancelled ?? 0, 'var(--warning)'],
+                                                    ['Com erro', prospeccao.estatisticas.error ?? 0, 'var(--danger)'],
+                                                ].map(([label, val, cor]) => (
+                                                    <div key={label} className="rounded-lg p-2 text-center" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                                        <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{label}</div>
+                                                        <div className="text-lg font-bold" style={{ color: cor }}>{val}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        <div className="grid grid-cols-2 gap-3 mb-3">
+                                            <div>
+                                                <label className="text-[11px] font-semibold block mb-1" style={{ color: 'var(--text-primary)' }}>
+                                                    Delay da 1ª mensagem (minutos)
+                                                </label>
+                                                <input
+                                                    type="number" min={0} max={60}
+                                                    value={prospeccaoDraft.delay_min}
+                                                    onChange={e => setProspeccaoDraft(d => ({ ...d, delay_min: e.target.value }))}
+                                                    disabled={!isGerente}
+                                                    className="w-full px-3 py-1.5 rounded-lg text-xs"
+                                                    style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                                                />
+                                                <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Tempo entre captura e envio (0–60). Fora do horário comercial, reagenda pra manhã seguinte.</div>
+                                            </div>
+                                            <div>
+                                                <label className="text-[11px] font-semibold block mb-1" style={{ color: 'var(--text-primary)' }}>
+                                                    Follow-up se não responder (horas)
+                                                </label>
+                                                <input
+                                                    type="number" min={1} max={168}
+                                                    value={prospeccaoDraft.followup_horas}
+                                                    onChange={e => setProspeccaoDraft(d => ({ ...d, followup_horas: e.target.value }))}
+                                                    disabled={!isGerente}
+                                                    className="w-full px-3 py-1.5 rounded-lg text-xs"
+                                                    style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                                                />
+                                                <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>1 único follow-up depois da inicial (1–168h). Se cliente responder, nada é enviado.</div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-2 mb-3">
+                                            <button
+                                                onClick={() => { setProspeccaoMode('edit'); }}
+                                                className={Z.btn2}
+                                                style={{ fontSize: 11, background: prospeccaoMode === 'edit' ? 'var(--primary)' : undefined, color: prospeccaoMode === 'edit' ? 'white' : undefined }}
+                                                disabled={!isGerente}
+                                            >
+                                                <Pencil size={11} style={{ display: 'inline', marginRight: 4 }} />
+                                                Editar prompt
+                                            </button>
+                                            <button onClick={() => setProspeccaoMode('default')} className={Z.btn2} style={{ fontSize: 11, background: prospeccaoMode === 'default' ? 'var(--primary)' : undefined, color: prospeccaoMode === 'default' ? 'white' : undefined }}>
+                                                <Bot size={11} style={{ display: 'inline', marginRight: 4 }} />
+                                                Ver padrão prospecção
+                                            </button>
+                                            {isGerente && (
+                                                <button onClick={resetProspeccaoPrompt} className={Z.btn2} style={{ fontSize: 11, color: 'var(--danger)', borderColor: 'var(--danger-border)' }} disabled={prospeccaoSaving}>
+                                                    <Trash2 size={11} style={{ display: 'inline', marginRight: 4 }} />
+                                                    Usar padrão
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {prospeccaoMode === 'default' && (
+                                            <div>
+                                                <textarea
+                                                    value={prospeccao.prompt_default || ''}
+                                                    readOnly
+                                                    rows={18}
+                                                    style={{
+                                                        width: '100%', fontSize: 11, lineHeight: 1.6, padding: 12, borderRadius: 8,
+                                                        background: 'var(--bg-muted)', color: 'var(--text-muted)',
+                                                        border: '1px solid var(--border)', fontFamily: 'monospace', resize: 'vertical',
+                                                    }}
+                                                />
+                                                <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                                    Apenas leitura — prompt padrão de prospecção ativa (hardcoded no sistema).
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {prospeccaoMode === 'edit' && (
+                                            <div>
+                                                <textarea
+                                                    value={prospeccaoDraft.prompt}
+                                                    onChange={e => setProspeccaoDraft(d => ({ ...d, prompt: e.target.value }))}
+                                                    placeholder="Deixe vazio pra usar o padrão do sistema..."
+                                                    rows={18}
+                                                    disabled={!isGerente}
+                                                    style={{
+                                                        width: '100%', fontSize: 11, lineHeight: 1.6, padding: 12, borderRadius: 8,
+                                                        background: 'var(--bg-muted)', color: 'var(--text-primary)',
+                                                        border: '1px solid var(--border)', fontFamily: 'monospace', resize: 'vertical',
+                                                    }}
+                                                />
+                                                <div className="text-[10px] mt-1" style={{ color: 'var(--warning-hover)' }}>
+                                                    Este prompt é <strong>exclusivo da prospecção ativa</strong> — não afeta a Sofia reativa. Deixe em branco pra cair no padrão do sistema.
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {prospeccaoMode === 'view' && (
+                                            <div className="text-[11px] rounded-lg p-3" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                                                {prospeccaoDraft.prompt && prospeccaoDraft.prompt.trim()
+                                                    ? <>Usando <strong style={{ color: 'var(--warning)' }}>prompt customizado</strong> ({prospeccaoDraft.prompt.length.toLocaleString('pt-BR')} caracteres).</>
+                                                    : <>Usando <strong style={{ color: 'var(--success)' }}>prompt padrão</strong> de prospecção ativa.</>
+                                                }
+                                            </div>
+                                        )}
+
+                                        <div className="flex items-center gap-2 mt-3">
+                                            <button onClick={saveProspeccao} className={Z.btn} style={{ fontSize: 11 }} disabled={prospeccaoSaving || !isGerente}>
+                                                {prospeccaoSaving ? 'Salvando...' : 'Salvar prospecção'}
+                                            </button>
+                                            {prospeccaoSaved && <span className="text-[11px]" style={{ color: 'var(--success)' }}>Salvo</span>}
+                                        </div>
                                     </>
                                 ) : null}
                             </div>

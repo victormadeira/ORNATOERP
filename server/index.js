@@ -55,6 +55,7 @@ import { iniciarAutomacoes } from './services/automacoes.js';
 import { iniciarBackupDiario } from './services/backup.js';
 import { iniciarSofiaFollowup } from './services/sofia_followup.js';
 import { iniciarSofiaEscalacao } from './services/sofia_escalacao.js';
+import { iniciarSofiaProspeccao } from './services/sofia_prospeccao.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -312,6 +313,8 @@ const server = app.listen(PORT, () => {
     iniciarSofiaFollowup();
     // Sofia Escalação (pós-handoff: alerta → holding → retomada → abandono)
     iniciarSofiaEscalacao(app);
+    // Sofia Prospect (prospecção ativa de leads vindos da landing)
+    iniciarSofiaProspeccao();
 });
 
 const wss = new WebSocketServer({ server, path: '/ws' });

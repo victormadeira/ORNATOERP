@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import db from '../db.js';
 import { requireAuth } from '../auth.js';
 import { sendCAPIEvent } from '../services/meta-capi.js';
+import sofiaProspeccao from '../services/sofia_prospeccao.js';
 
 const router = Router();
 
@@ -363,6 +364,17 @@ router.post('/captura', (req, res) => {
                 }
             }
         } catch (_) {}
+
+        // ── Sofia Prospect: agendar prospecção ativa (se habilitada) ──
+        try {
+            sofiaProspeccao.agendarProspeccaoInicial(cliente.id, {
+                ambiente: ambienteReal !== 'Consulta' ? ambienteReal : '',
+                bairro: bairro || '',
+                estagio: estagio || '',
+                faixa_investimento: faixa_investimento || '',
+                mensagem: mensagem || '',
+            });
+        } catch (_) { /* fire-and-forget */ }
 
         res.json({ ok: true, cliente_id: cliente.id, orc_id: orc.lastInsertRowid });
 

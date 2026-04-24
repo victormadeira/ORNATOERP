@@ -6,6 +6,7 @@ import {
     ChevronDown,
     ChevronLeft,
     ChevronRight,
+    Factory,
     Hammer,
     Instagram,
     Loader2,
@@ -80,15 +81,17 @@ const DIFERENCIAIS_DEFAULT = [
     { titulo: 'Projeto sob medida',      desc: 'Cada detalhe planejado para o seu espaço e rotina',       icon: 'ruler'  },
     { titulo: 'Acabamento impecável',    desc: 'Materiais selecionados com exigência de alto padrão',     icon: 'award'  },
     { titulo: 'Atendimento consultivo',  desc: 'Do briefing à entrega, você decide cada passo',           icon: 'users'  },
+    { titulo: 'Indústria própria',        desc: 'CNC, coladeira industrial, cabine de pintura e serralheria sob o mesmo teto', icon: 'factory' },
     { titulo: 'Instalação especializada', desc: 'Equipe própria com precisão e cuidado total',            icon: 'hammer' },
 ];
 
 function DiferencialIcon({ type, acc }) {
     const style = { color: acc, flexShrink: 0 };
-    if (type === 'ruler')  return <Ruler size={26} style={style} />;
-    if (type === 'award')  return <Award size={26} style={style} />;
-    if (type === 'users')  return <Users size={26} style={style} />;
-    if (type === 'hammer') return <Hammer size={26} style={style} />;
+    if (type === 'ruler')   return <Ruler size={26} style={style} />;
+    if (type === 'award')   return <Award size={26} style={style} />;
+    if (type === 'users')   return <Users size={26} style={style} />;
+    if (type === 'hammer')  return <Hammer size={26} style={style} />;
+    if (type === 'factory') return <Factory size={26} style={style} />;
     return <Star size={26} style={style} />;
 }
 
@@ -1297,8 +1300,8 @@ function buildCSS(acc) {
   background:radial-gradient(ellipse 80% 100% at 50% 50%, ${acc}08 0%, transparent 70%);
 }
 .lp-diferenciais-grid {
-  display:grid; grid-template-columns:repeat(4,1fr);
-  gap:2rem; position:relative; z-index:1;
+  display:grid; grid-template-columns:repeat(5,1fr);
+  gap:1.5rem; position:relative; z-index:1;
 }
 .lp-diferencial-item {
   display:flex; align-items:flex-start; gap:1.2rem;
@@ -1705,6 +1708,7 @@ function buildCSS(acc) {
   .lp-hero-stats { justify-content:center; gap:2rem; }
 
   .lp-diferenciais-grid { grid-template-columns: repeat(2, 1fr); }
+  .lp-diferencial-item:nth-child(5) { grid-column: span 2; }
 
   .lp-timeline-line, .lp-timeline-progress { left: 24px !important; transform: translateX(-50%) !important; }
   .lp-timeline-dot { left: 24px !important; transform: translate(-50%, -50%) !important; }

@@ -2314,6 +2314,27 @@ const migrations = [
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
   "ALTER TABLE leads ADD COLUMN visita_id INTEGER REFERENCES landing_visitas(id)",
+
+  // ═══ Sofia Prospect — prospecção ativa (outbound) ═══════════════════
+  "ALTER TABLE empresa_config ADD COLUMN prospeccao_ativa INTEGER DEFAULT 0",
+  "ALTER TABLE empresa_config ADD COLUMN ia_prompt_prospeccao TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN prospeccao_delay_min INTEGER DEFAULT 2",
+  "ALTER TABLE empresa_config ADD COLUMN prospeccao_followup_horas INTEGER DEFAULT 24",
+  `CREATE TABLE IF NOT EXISTS prospeccao_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cliente_id INTEGER NOT NULL,
+    conversa_id INTEGER,
+    tipo TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    agendado_para DATETIME NOT NULL,
+    enviado_em DATETIME,
+    cancelado_em DATETIME,
+    motivo_cancel TEXT DEFAULT '',
+    mensagem_enviada TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_prospeccao_status_agendado ON prospeccao_tasks(status, agendado_para)",
+  "CREATE INDEX IF NOT EXISTS idx_prospeccao_cliente ON prospeccao_tasks(cliente_id)",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

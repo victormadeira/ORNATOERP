@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import db from '../db.js';
 import evolution from '../services/evolution.js';
 import ai from '../services/ai.js';
+import sofiaProspeccao from '../services/sofia_prospeccao.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads', 'whatsapp');
@@ -290,6 +291,11 @@ async function handleIncomingMessage(data, wsBroadcast = null) {
     if (insertResult.changes === 0) return; // race: outra request salvou essa msg primeiro
 
     console.log(`[WH] Msg salva | conv #${conversa.id} | ${messageType} | ${pushName}`);
+
+    // ── Sofia Prospect: cliente respondeu → cancelar tasks pendentes ──
+    if (conversa.cliente_id) {
+        try { sofiaProspeccao.cancelarTasksCliente(conversa.cliente_id, 'cliente_respondeu'); } catch (_) {}
+    }
 
     // WS broadcast — mensagem nova do cliente
     try {
