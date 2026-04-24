@@ -80,8 +80,9 @@ const isScanPage = path === '/scan' || path === '/scan/';
 const pecaPublicId = (path.match(/^\/p\/(\d+)$/i) || [])[1] || null;
 
 // Landing pública (Studio Ornato — móveis planejados)
-// Aceita /contato, /landing, /landingpage, /lp2 — todos caem na V2
+// Raiz é a landing pública. Aliases antigos mantidos pra não quebrar links em anúncios.
 const isLandingV2 = [
+    '/', '',
     '/contato', '/contato/',
     '/landing', '/landing/',
     '/landingpage', '/landingpage/',
@@ -114,7 +115,7 @@ function renderRoute() {
     if (montadorToken)          return <MontadorUpload token={montadorToken} />;
     if (assinaturaToken)        return <AssinaturaPublic token={assinaturaToken} />;
     if (verificacaoCodigo)      return <VerificacaoAssinatura codigo={verificacaoCodigo} />;
-    return null; // → cai no App logado
+    return null; // → cai no App logado (/app, /clientes, /orcs, etc.)
 }
 
 const publicRoute = renderRoute();
