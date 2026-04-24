@@ -4,7 +4,7 @@ import api from '../api';
 import { useAuth } from '../auth';
 import { applyPrimaryColor } from '../theme';
 import { DEFAULT_CONTRATO_TEMPLATE } from './ContratoHtml';
-import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle, Palette, ExternalLink, Bell, Clock, MessageCircle, Phone, MapPin } from 'lucide-react';
+import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle, Palette, ExternalLink, Bell, Clock, MessageCircle, Phone, MapPin, Zap } from 'lucide-react';
 
 const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
@@ -218,6 +218,12 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [prospeccaoSaving, setProspeccaoSaving] = useState(false);
     const [prospeccaoSaved, setProspeccaoSaved] = useState(false);
     const [prospeccaoMode, setProspeccaoMode] = useState('view'); // view | edit | default
+    // Automações n8n — reativação de clientes inativos (preview queue)
+    const [reatItems, setReatItems] = useState([]);
+    const [reatStats, setReatStats] = useState({});
+    const [reatAuto, setReatAuto] = useState(false);
+    const [reatLoading, setReatLoading] = useState(false);
+    const [reatActionId, setReatActionId] = useState(null);
     // Sandbox de simulação
     const [simHistory, setSimHistory] = useState([]); // [{role:'user'|'assistant', content:''}]
     const [simInput, setSimInput] = useState('');
@@ -718,6 +724,55 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         setProspeccaoSaving(false);
     };
 
+    const loadReativacao = async () => {
+        setReatLoading(true);
+        try {
+            const d = await api.get('/automacoes/reativacao/preview?status=pending&limit=100');
+            setReatItems(d.items || []);
+            setReatStats(d.stats || {});
+            setReatAuto(!!d.reativacao_auto);
+        } catch (e) { /* silencioso */ }
+        setReatLoading(false);
+    };
+
+    const aprovarReat = async (id) => {
+        setReatActionId(id);
+        try {
+            await api.post(`/automacoes/reativacao/preview/${id}/aprovar`);
+            notify?.('Webhook disparado pro n8n', 'success');
+            await loadReativacao();
+        } catch (e) { notify?.('Erro: ' + (e.error || e.message), 'error'); }
+        setReatActionId(null);
+    };
+
+    const rejeitarReat = async (id) => {
+        const motivo = prompt('Motivo da rejeição (opcional):', '') || '';
+        setReatActionId(id);
+        try {
+            await api.post(`/automacoes/reativacao/preview/${id}/rejeitar`, { motivo });
+            await loadReativacao();
+        } catch (e) { notify?.('Erro: ' + (e.error || e.message), 'error'); }
+        setReatActionId(null);
+    };
+
+    const toggleReatAuto = async () => {
+        try {
+            await api.put('/automacoes/reativacao/config', { reativacao_auto: !reatAuto });
+            setReatAuto(!reatAuto);
+            notify?.(reatAuto ? 'Modo PREVIEW ativado' : 'Modo AUTO ativado — candidatos disparam direto', 'success');
+        } catch (e) { notify?.('Erro: ' + (e.error || e.message), 'error'); }
+    };
+
+    const rodarScanReat = async () => {
+        setReatLoading(true);
+        try {
+            await api.post('/automacoes/reativacao/scan');
+            await loadReativacao();
+            notify?.('Varredura executada', 'success');
+        } catch (e) { notify?.('Erro: ' + (e.error || e.message), 'error'); }
+        setReatLoading(false);
+    };
+
     const resetProspeccaoPrompt = () => {
         if (!prospeccao?.prompt_default) return;
         if (!confirm('Substituir o prompt de prospecção pelo texto padrão? O texto atual será perdido ao salvar.')) return;
@@ -745,6 +800,9 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         }
         if (activeSection === 'followups') {
             loadFollowUps();
+        }
+        if (activeSection === 'automacoes') {
+            loadReativacao();
         }
 
     }, [activeSection]);
@@ -800,6 +858,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 {sectionBtn('drive', 'Google Drive', <Ic.Folder />)}
                 {sectionBtn('whatsapp', 'WhatsApp', <Ic.WhatsApp />)}
                 {sectionBtn('ia', 'Inteligência Artificial', <Ic.Sparkles />)}
+                {sectionBtn('automacoes', 'Automações n8n', <Zap size={16} />)}
                 {sectionBtn('landing', 'Landing Page', <Ic.Star />)}
                 {sectionBtn('portfolio', 'Portfolio', <Images size={16} />)}
                 {sectionBtn('depoimentos', 'Depoimentos', <Ic.Star />)}
@@ -3232,6 +3291,142 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── Automações n8n ─────────────────────────────── */}
+            {activeSection === 'automacoes' && (
+                <div className={Z.card}>
+                    <div className="flex items-start justify-between mb-4">
+                        <div>
+                            <h2 className="font-semibold text-lg flex items-center gap-2" style={{ color: 'var(--primary)' }}>
+                                <Zap size={18} /> Automações n8n
+                            </h2>
+                            <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                                Eventos do ERP que disparam webhook pro seu n8n. Configure a URL em <strong>IA → Integrações</strong>.
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* ═══ Eventos disparados automaticamente ═══ */}
+                    <div className="rounded-lg p-3 mb-5 text-[11px]" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                        <div className="font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Eventos disparando hoje:</div>
+                        <ul style={{ paddingLeft: 16, lineHeight: 1.8 }}>
+                            <li><strong>lead_captado</strong> — assim que alguém preenche o formulário da landing</li>
+                            <li><strong>proposta_enviada</strong> — quando o orçamento muda pra coluna "Enviado" no kanban</li>
+                            <li><strong>lead_quente_silencioso</strong> — lead com score≥65 que parou de responder há 72h+ (cooldown 14 dias)</li>
+                            <li><strong>cliente_inativo_60d</strong> — cliente sumido 60+ dias, com 6 filtros de segurança (abaixo)</li>
+                        </ul>
+                    </div>
+
+                    {/* ═══ Reativação de clientes inativos ═══ */}
+                    <div className="mt-5 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
+                        <div className="flex items-start justify-between mb-3">
+                            <div>
+                                <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>
+                                    💤 Reativação de clientes inativos (60d+)
+                                </h3>
+                                <div className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                    Candidatos filtrados por 6 sinais de segurança: orçamento perdido, IA bloqueada, conversa abandonada, lead com motivo de perda, projeto cancelado e notas negativas.
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={rodarScanReat} className={Z.btn2} style={{ fontSize: 11 }} disabled={reatLoading}>
+                                    <RefreshCw size={11} style={{ display: 'inline', marginRight: 4 }} />
+                                    Varrer agora
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={toggleReatAuto}
+                                    className="px-3 py-1.5 rounded-lg text-[11px] font-semibold"
+                                    disabled={!isGerente}
+                                    style={{
+                                        background: reatAuto ? 'var(--danger-bg)' : 'var(--success-bg)',
+                                        color: reatAuto ? 'var(--danger)' : 'var(--success)',
+                                        border: `1px solid ${reatAuto ? 'var(--danger-border)' : 'var(--success-border)'}`,
+                                    }}
+                                    title={reatAuto ? 'Modo AUTO: dispara direto sem aprovação manual' : 'Modo PREVIEW: aguarda aprovação manual antes de disparar'}
+                                >
+                                    {reatAuto ? 'Modo AUTO' : 'Modo PREVIEW'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-4 gap-2 mb-4">
+                            {[
+                                ['Aguardando', reatStats.pending ?? 0, 'var(--warning)'],
+                                ['Disparadas', reatStats.disparada ?? 0, 'var(--success)'],
+                                ['Rejeitadas', reatStats.rejeitada ?? 0, 'var(--text-muted)'],
+                                ['Aprovadas', reatStats.aprovada ?? 0, 'var(--primary)'],
+                            ].map(([label, val, cor]) => (
+                                <div key={label} className="rounded-lg p-2 text-center" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                    <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{label}</div>
+                                    <div className="text-lg font-bold" style={{ color: cor }}>{val}</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {reatLoading && !reatItems.length ? (
+                            <div className="text-xs py-4 text-center" style={{ color: 'var(--text-muted)' }}>Carregando...</div>
+                        ) : reatItems.length === 0 ? (
+                            <div className="rounded-lg p-6 text-center text-[12px]" style={{ background: 'var(--bg-muted)', border: '1px dashed var(--border)', color: 'var(--text-muted)' }}>
+                                Sem candidatos pendentes. A varredura roda 1x/dia automaticamente.
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {reatItems.map(it => {
+                                    const p = it.payload || {};
+                                    const h = p.historico || {};
+                                    return (
+                                        <div key={it.id} className="rounded-lg p-3" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                            <div className="flex items-start justify-between gap-3 mb-2">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+                                                        {p.nome || 'Sem nome'}
+                                                        <span className="ml-2 text-[11px] font-normal" style={{ color: 'var(--text-muted)' }}>
+                                                            {p.telefone}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                                                        <span style={{ color: 'var(--warning)' }}>{p.dias_inativo}d inativo</span>
+                                                        {' · último contato via '}{p.ultimo_contato_tipo}
+                                                        {h.orcamento_aprovado && <span className="ml-2" style={{ color: 'var(--success)' }}>✓ virou cliente</span>}
+                                                        {!h.orcamento_aprovado && h.orcamentos_count > 0 && <span className="ml-2">🔸 só lead ({h.orcamentos_count} orç)</span>}
+                                                    </div>
+                                                    <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                                        {h.ultimo_ambiente && <>{h.ultimo_ambiente} · </>}
+                                                        {h.ultimo_orcamento_valor > 0 && <>R$ {Number(h.ultimo_orcamento_valor).toLocaleString('pt-BR')} · </>}
+                                                        {h.projetos_concluidos > 0 && <>{h.projetos_concluidos} projeto(s) concluído(s) · </>}
+                                                        {h.ultima_temperatura && <>temp: {h.ultima_temperatura}</>}
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-1 shrink-0">
+                                                    <button
+                                                        onClick={() => aprovarReat(it.id)}
+                                                        disabled={reatActionId === it.id || !isGerente}
+                                                        className="px-3 py-1.5 rounded-lg text-[11px] font-semibold"
+                                                        style={{ background: 'var(--success-bg)', color: 'var(--success)', border: '1px solid var(--success-border)' }}
+                                                    >
+                                                        <Check size={11} style={{ display: 'inline', marginRight: 4 }} />
+                                                        Disparar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => rejeitarReat(it.id)}
+                                                        disabled={reatActionId === it.id || !isGerente}
+                                                        className="px-3 py-1.5 rounded-lg text-[11px] font-semibold"
+                                                        style={{ background: 'var(--bg)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                                                    >
+                                                        <XCircle size={11} style={{ display: 'inline', marginRight: 4 }} />
+                                                        Rejeitar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

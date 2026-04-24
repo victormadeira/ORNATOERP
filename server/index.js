@@ -56,6 +56,9 @@ import { iniciarBackupDiario } from './services/backup.js';
 import { iniciarSofiaFollowup } from './services/sofia_followup.js';
 import { iniciarSofiaEscalacao } from './services/sofia_escalacao.js';
 import { iniciarSofiaProspeccao } from './services/sofia_prospeccao.js';
+import { iniciarHotSilentWatcher } from './services/hot_silent_watcher.js';
+import { iniciarInativosWatcher } from './services/inativos_watcher.js';
+import automacoesRoutes from './routes/automacoes.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -188,6 +191,7 @@ app.use('/api/cnc', cncRoutes);
 app.use('/api/plano-corte', planoCorteRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/industrializacao', industrializacaoRoutes);
+app.use('/api/automacoes', express.json(), automacoesRoutes);
 app.use('/api/assinaturas', assinaturasRoutes);
 app.use('/api/compras', comprasRoutes);
 app.use('/api/producao-av', producaoAvRoutes);
@@ -315,6 +319,10 @@ const server = app.listen(PORT, () => {
     iniciarSofiaEscalacao(app);
     // Sofia Prospect (prospecção ativa de leads vindos da landing)
     iniciarSofiaProspeccao();
+    // Hot Silent Watcher (lead score≥65 silencioso há 72h → webhook n8n retargeting)
+    iniciarHotSilentWatcher();
+    // Inativos Watcher (cliente 60d+ sumido → candidato reativação, modo preview/auto)
+    iniciarInativosWatcher();
 });
 
 const wss = new WebSocketServer({ server, path: '/ws' });

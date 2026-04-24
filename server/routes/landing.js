@@ -4,41 +4,12 @@ import db from '../db.js';
 import { requireAuth } from '../auth.js';
 import { sendCAPIEvent } from '../services/meta-capi.js';
 import sofiaProspeccao from '../services/sofia_prospeccao.js';
+import { dispatchOutbound } from '../services/webhook_outbound.js';
 
 const router = Router();
 
-// ═══════════════════════════════════════════════════════
-// Webhook outbound (n8n / Zapier / Make) — HMAC assinado
-// ═══════════════════════════════════════════════════════
-// Dispara em paralelo ao salvar o lead. Timeout 3s. Nao bloqueia a resposta
-// ao cliente — a resposta HTTP retorna antes do webhook completar.
-async function dispatchLeadWebhook(payload) {
-    const cfg = db.prepare('SELECT n8n_webhook_url, n8n_webhook_secret FROM empresa_config WHERE id = 1').get();
-    const url = (cfg?.n8n_webhook_url || '').trim();
-    if (!url) return; // integracao desligada
-
-    const body = JSON.stringify(payload);
-    const headers = { 'Content-Type': 'application/json', 'User-Agent': 'Ornato-ERP-Webhook/1' };
-    if (cfg.n8n_webhook_secret) {
-        const sig = crypto.createHmac('sha256', cfg.n8n_webhook_secret).update(body).digest('hex');
-        headers['X-Ornato-Signature'] = `sha256=${sig}`;
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
-    try {
-        const r = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
-        if (!r.ok) {
-            db.prepare(`INSERT INTO automacoes_log (tipo, referencia_id, referencia_tipo, descricao, status)
-                        VALUES ('webhook_lead', ?, 'cliente', ?, 'falha')`).run(payload?.lead?.cliente_id || 0, `Webhook n8n retornou ${r.status}`);
-        }
-    } catch (err) {
-        db.prepare(`INSERT INTO automacoes_log (tipo, referencia_id, referencia_tipo, descricao, status)
-                    VALUES ('webhook_lead', ?, 'cliente', ?, 'falha')`).run(payload?.lead?.cliente_id || 0, `Webhook n8n: ${err.name === 'AbortError' ? 'timeout 3s' : err.message}`);
-    } finally {
-        clearTimeout(timeout);
-    }
-}
+// Webhook outbound agora centralizado em services/webhook_outbound.js
+// (dispatchOutbound — reusa HMAC, timeout, log de falhas)
 
 // ═══════════════════════════════════════════════════════
 // GET /api/leads/config — dados públicos da empresa (sem auth)
@@ -306,9 +277,7 @@ router.post('/captura', (req, res) => {
         }).catch(() => {});
 
         // ── Webhook outbound (n8n / Zapier / Make) ──
-        dispatchLeadWebhook({
-            event: 'lead_captado',
-            timestamp: new Date().toISOString(),
+        dispatchOutbound('lead_captado', {
             lead: {
                 cliente_id: cliente.id,
                 orc_id: orc.lastInsertRowid,

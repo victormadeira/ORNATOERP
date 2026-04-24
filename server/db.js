@@ -2335,6 +2335,24 @@ const migrations = [
   )`,
   "CREATE INDEX IF NOT EXISTS idx_prospeccao_status_agendado ON prospeccao_tasks(status, agendado_para)",
   "CREATE INDEX IF NOT EXISTS idx_prospeccao_cliente ON prospeccao_tasks(cliente_id)",
+  // ═══ Automações n8n — rastreamento de disparos ═══
+  "ALTER TABLE chat_conversas ADD COLUMN lead_quente_disparado_em DATETIME",
+  "ALTER TABLE clientes ADD COLUMN reativacao_disparada_em DATETIME",
+  "ALTER TABLE empresa_config ADD COLUMN reativacao_auto INTEGER DEFAULT 0",
+  `CREATE TABLE IF NOT EXISTS reativacao_candidatos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cliente_id INTEGER NOT NULL,
+    payload_json TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    motivo_rejeicao TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    decidido_em DATETIME,
+    decidido_por INTEGER,
+    disparado_em DATETIME,
+    FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_reativacao_status ON reativacao_candidatos(status, criado_em)",
+  "CREATE INDEX IF NOT EXISTS idx_reativacao_cliente ON reativacao_candidatos(cliente_id)",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

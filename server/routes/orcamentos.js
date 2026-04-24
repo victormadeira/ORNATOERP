@@ -5,6 +5,7 @@ import { randomBytes } from 'crypto';
 import { buildMateriaisOrcados } from './estoque.js';
 import { createNotification, logActivity } from '../services/notificacoes.js';
 import { sendCAPIEvent } from '../services/meta-capi.js';
+import { dispatchOutbound } from '../services/webhook_outbound.js';
 
 const router = Router();
 
@@ -774,6 +775,31 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
     }
 
     db.prepare('UPDATE orcamentos SET kb_col = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?').run(kb_col, id);
+
+    // ═══ Webhook n8n: proposta_enviada (quando entra na coluna 'env') ═══
+    if (kb_col === 'env' && existing.kb_col !== 'env') {
+        try {
+            const cli = existing.cliente_id ? db.prepare('SELECT id, nome, tel, email FROM clientes WHERE id = ?').get(existing.cliente_id) : null;
+            let ambientes = null;
+            try { ambientes = JSON.parse(existing.mods_json || '{}').ambientes || null; } catch (_) {}
+            dispatchOutbound('proposta_enviada', {
+                proposta: {
+                    orc_id: existing.id,
+                    numero: existing.numero,
+                    cliente_id: existing.cliente_id,
+                    cliente_nome: cli?.nome || existing.cliente_nome,
+                    telefone: cli?.tel || '',
+                    email: cli?.email || '',
+                    ambiente: existing.ambiente,
+                    ambientes,
+                    valor_venda: existing.valor_venda,
+                    custo_material: existing.custo_material,
+                    enviada_em: new Date().toISOString(),
+                    user_id: req.user.id,
+                },
+            }).catch(() => {});
+        } catch (_) { /* fire-and-forget */ }
+    }
 
     // ═══ Cascata: arquivo/perdido → mover aditivos e versões junto ═══
     if (['arquivo', 'perdido'].includes(kb_col) && existing.tipo !== 'aditivo') {
