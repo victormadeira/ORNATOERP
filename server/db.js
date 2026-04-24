@@ -2404,6 +2404,7 @@ const migrations = [
   // ia_uso_log v2 — rastreamento de prompt caching Anthropic
   "ALTER TABLE ia_uso_log ADD COLUMN cache_write_tokens INTEGER DEFAULT 0",
   "ALTER TABLE ia_uso_log ADD COLUMN cache_read_tokens INTEGER DEFAULT 0",
+  "ALTER TABLE empresa_config ADD COLUMN portfolio_fotos TEXT DEFAULT '[]'",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

@@ -52,9 +52,23 @@ export async function processarFollowups() {
         if (!dest || dest.includes('@lid')) continue;
 
         // Texto personalizado
-        const nome = c.wa_name ? c.wa_name.split(' ')[0] : '';
+        // Usar dados do dossiê se disponível
+        const leadDados = JSON.parse(c.lead_dados || '{}');
+        const nome = leadDados.nome?.split(' ')[0] || (c.wa_name ? c.wa_name.split(' ')[0] : '');
+        const ambientes = Array.isArray(leadDados.ambientes) ? leadDados.ambientes : [];
+        const ambiente = ambientes[0] || '';
         const saudacao = sofia.saudacaoAtual();
-        const msg = `${saudacao}${nome ? ', ' + nome : ''}! Ficou alguma dúvida do nosso último contato? Se quiser, retomo de onde paramos. ✨`;
+
+        let msg;
+        if (ambiente && nome) {
+            msg = `${saudacao}, ${nome}! Lembro que você estava planejando ${ambiente.toLowerCase()} — ficou alguma dúvida? Se quiser, continuamos de onde paramos. ✨`;
+        } else if (ambiente) {
+            msg = `${saudacao}! Você estava pesquisando sobre ${ambiente.toLowerCase()} — ficou alguma dúvida? Pode retomar quando quiser. ✨`;
+        } else if (nome) {
+            msg = `${saudacao}, ${nome}! Ficou alguma dúvida do nosso último contato? Estou aqui se quiser continuar. ✨`;
+        } else {
+            msg = `${saudacao}! Ficou alguma dúvida do nosso último contato? Se quiser, retomo de onde paramos. ✨`;
+        }
 
         try {
             await evolution.sendText(dest, msg);
