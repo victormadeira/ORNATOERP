@@ -4,6 +4,7 @@ import { requireAuth, canSeeAll } from '../auth.js';
 import { randomBytes } from 'crypto';
 import { buildMateriaisOrcados } from './estoque.js';
 import { createNotification, logActivity } from '../services/notificacoes.js';
+import { sendCAPIEvent } from '../services/meta-capi.js';
 
 const router = Router();
 
@@ -968,6 +969,24 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
                 `Orçamento aprovado: ${label}`,
                 `${cliente} · ${orc?.ambiente || 'Projeto'}`,
                 id, 'orcamento', cliente, req.user.id);
+
+            // ── Meta CAPI: Purchase (server-side) ──────────────────────────
+            // Dispara quando o orçamento é movido para "ok" (venda fechada).
+            // Fire-and-forget — nunca bloqueia a resposta do kanban.
+            try {
+                const cliData = db.prepare('SELECT tel, email FROM clientes WHERE id = (SELECT cliente_id FROM orcamentos WHERE id = ?)').get(id);
+                sendCAPIEvent({
+                    eventName:  'Purchase',
+                    userData:   { phone: cliData?.tel || '', email: cliData?.email || '' },
+                    customData: {
+                        currency:     'BRL',
+                        value:        orc?.valor_venda || 0,
+                        content_name: orc?.ambiente || '',
+                    },
+                    sourceUrl: process.env.PUBLIC_URL || '',
+                    eventId:   `purchase_${id}`,
+                }).catch(() => {});
+            } catch (_) {}
         }
         if (projeto_criado) {
             createNotification('projeto_criado',

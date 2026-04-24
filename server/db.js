@@ -2246,6 +2246,14 @@ const migrations = [
   "CREATE INDEX IF NOT EXISTS idx_error_log_fingerprint ON error_log(fingerprint, last_seen)",
   "CREATE INDEX IF NOT EXISTS idx_error_log_last_seen ON error_log(last_seen DESC)",
   "CREATE INDEX IF NOT EXISTS idx_error_log_source_resolved ON error_log(source, resolved, last_seen DESC)",
+
+  // ═══ Portfolio — ambiente para filtro na página pública ═══
+  "ALTER TABLE portfolio ADD COLUMN ambiente TEXT DEFAULT ''",
+
+  // ═══ Meta Ads / Google Ads — Pixel + CAPI ═══
+  "ALTER TABLE empresa_config ADD COLUMN fb_pixel_id TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN google_ads_id TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN fb_access_token TEXT DEFAULT ''",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

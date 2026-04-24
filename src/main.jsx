@@ -21,6 +21,7 @@ const VerificacaoAssinatura = lazy(() => import('./pages/VerificacaoAssinatura')
 const ScanPeca3D            = lazy(() => import('./pages/ScanPeca3D'));
 const ProducaoCNCTV         = lazy(() => import('./pages/ProducaoCNCTV'));
 const ModoOperador          = lazy(() => import('./pages/ModoOperador'));
+const PortfolioPublico      = lazy(() => import('./pages/PortfolioPublico'));
 
 // Fallback leve — só um wrapper centralizado com spinner CSS
 const PublicFallback = () => (
@@ -84,6 +85,9 @@ const isLanding   = ['/contato', '/landing', '/landingpage', '/landingpage/'].in
 // Landing V2 (nova versão com diferenciais + portfolio por categoria + depoimentos com foto)
 const isLandingV2 = ['/lp2', '/lp2/'].includes(path);
 
+// Portfolio público — lookbook de projetos realizados
+const isPortfolio = ['/portfolioornato', '/portfolioornato/'].includes(path);
+
 // TV Corte CNC: /tv-corte
 const isTVCorte = path === '/tv-corte' || path === '/tv-corte/';
 
@@ -99,6 +103,7 @@ function renderRoute() {
     if (scanCodigo || isScanPage) return <ScanPeca3D codigo={scanCodigo} />;
     if (isLanding)              return <LandingPage />;
     if (isLandingV2)            return <LandingPageV2 />;
+    if (isPortfolio)            return <PortfolioPublico />;
     if (apresentacaoToken)      return <PropostaApresentacao token={apresentacaoToken} />;
     if (previewPropostaToken)   return <ProposalPublic token={previewPropostaToken} isPreview />;
     if (previewPortalToken)     return <PortalCliente token={previewPortalToken} isPreview />;

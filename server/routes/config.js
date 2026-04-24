@@ -120,6 +120,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         responsavel_legal_nome, responsavel_legal_cpf, assinatura_empresa_img,
         portal_mostrar_pagamento,
         clarity_project_id,
+        fb_pixel_id, google_ads_id, fb_access_token,
     } = req.body;
     db.prepare(`
     UPDATE empresa_config SET
@@ -156,6 +157,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
       responsavel_legal_nome=?, responsavel_legal_cpf=?, assinatura_empresa_img=?,
       portal_mostrar_pagamento=?,
       clarity_project_id=?,
+      fb_pixel_id=?, google_ads_id=?, fb_access_token=?,
       atualizado_em=CURRENT_TIMESTAMP
     WHERE id=1
   `).run(
@@ -222,6 +224,9 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         assinatura_empresa_img !== undefined ? assinatura_empresa_img : '',
         portal_mostrar_pagamento ?? 0,
         clarity_project_id !== undefined ? clarity_project_id : 'wed7zy3qnz',
+        fb_pixel_id !== undefined ? fb_pixel_id : '',
+        google_ads_id !== undefined ? google_ads_id : '',
+        fb_access_token !== undefined ? fb_access_token : '',
     );
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
     res.json(emp);

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth } from '../auth.js';
+import { sendCAPIEvent } from '../services/meta-capi.js';
 
 const router = Router();
 
@@ -136,6 +137,15 @@ router.post('/captura', (req, res) => {
                 });
             }
         } catch (_) {}
+
+        // ── Meta CAPI: Lead (server-side, imune a ad blockers e iOS 14+) ──
+        sendCAPIEvent({
+            eventName:  'Lead',
+            userData:   { phone: telefone, email: email || '' },
+            customData: { content_name: ambienteReal },
+            sourceUrl:  process.env.PUBLIC_URL || '',
+            eventId:    `lead_${orc.lastInsertRowid}`,
+        }).catch(() => {});
 
         // ── WhatsApp: boas-vindas ao lead + alerta ao dono ──
         try {

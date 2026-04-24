@@ -190,6 +190,9 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         landing_diferenciais_json: JSON.stringify(LANDING_DIFERENCIAIS_DEFAULT),
         landing_etapas_json: JSON.stringify(LANDING_ETAPAS_DEFAULT),
         clarity_project_id: 'wed7zy3qnz',
+        fb_pixel_id: '',
+        google_ads_id: '',
+        fb_access_token: '',
         centro_custo_json: '[]',
         centro_custo_dias_uteis: 22,
     });
@@ -241,7 +244,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [driveBackups, setDriveBackups] = useState([]);
     const [driveBackupLoading, setDriveBackupLoading] = useState(false);
     const [portfolio, setPortfolio] = useState([]);
-    const [portEdit, setPortEdit] = useState(null); // { titulo, designer, descricao, imagem } or null
+    const [portEdit, setPortEdit] = useState(null); // { titulo, designer, descricao, imagem, ambiente } or null
     const portImgRef = useRef();
     const [depoimentos, setDepoimentos] = useState([]);
     const [depEdit, setDepEdit] = useState(null); // { nome_cliente, texto, estrelas } or null
@@ -321,6 +324,9 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 landing_diferenciais_json: d.landing_diferenciais_json || JSON.stringify(LANDING_DIFERENCIAIS_DEFAULT),
                 landing_etapas_json: d.landing_etapas_json || JSON.stringify(LANDING_ETAPAS_DEFAULT),
                 clarity_project_id: d.clarity_project_id ?? 'wed7zy3qnz',
+                fb_pixel_id: d.fb_pixel_id || '',
+                google_ads_id: d.google_ads_id || '',
+                fb_access_token: d.fb_access_token || '',
                 centro_custo_json: d.centro_custo_json || '[]',
                 centro_custo_dias_uteis: d.centro_custo_dias_uteis ?? 22,
             });
@@ -505,6 +511,9 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 landing_diferenciais_json: emp.landing_diferenciais_json,
                 landing_etapas_json: emp.landing_etapas_json,
                 clarity_project_id: emp.clarity_project_id,
+                fb_pixel_id: emp.fb_pixel_id,
+                google_ads_id: emp.google_ads_id,
+                fb_access_token: emp.fb_access_token,
                 centro_custo_json: emp.centro_custo_json,
                 centro_custo_dias_uteis: emp.centro_custo_dias_uteis,
             });
@@ -3170,6 +3179,66 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 {emp.clarity_project_id ? ' ✓ Ativo.' : ' ✗ Desativado.'}
                             </p>
                         </div>
+
+                        <div className={Z.card + ' mt-4'}>
+                            <h3 className="font-semibold text-sm mb-1" style={{ color: 'var(--primary)' }}>Meta Ads + Google Ads</h3>
+                            <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
+                                Rastreamento client-side (Pixel) + server-side (CAPI) — cobertura máxima mesmo com iOS 14+ e ad blockers.{' '}
+                                <a href="https://business.facebook.com/events_manager" target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>
+                                    Gerenciador de Eventos
+                                </a>
+                            </p>
+                            <div className="flex flex-col gap-3">
+                                <div>
+                                    <label className={Z.lbl}>Meta Pixel ID</label>
+                                    <input
+                                        className={Z.inp}
+                                        value={emp.fb_pixel_id ?? ''}
+                                        onChange={e => setEmp({ ...emp, fb_pixel_id: e.target.value })}
+                                        disabled={!isGerente}
+                                        placeholder="ex: 1234567890123456"
+                                        style={{ fontFamily: 'monospace' }}
+                                    />
+                                    <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                        {emp.fb_pixel_id ? '✓ Pixel ativo na landing page.' : '✗ Pixel desativado.'}
+                                    </p>
+                                </div>
+                                <div>
+                                    <label className={Z.lbl}>Access Token (CAPI)</label>
+                                    <input
+                                        className={Z.inp}
+                                        value={emp.fb_access_token ?? ''}
+                                        onChange={e => setEmp({ ...emp, fb_access_token: e.target.value })}
+                                        disabled={!isGerente}
+                                        placeholder="Token de acesso — Gerenciador de Eventos → Configurações → CAPI"
+                                        style={{ fontFamily: 'monospace' }}
+                                        type="password"
+                                        autoComplete="off"
+                                    />
+                                    <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                        {emp.fb_access_token ? '✓ CAPI ativo — leads e vendas enviados server-side.' : '✗ CAPI desativado (só Pixel client-side).'}
+                                    </p>
+                                </div>
+                                <div>
+                                    <label className={Z.lbl}>Google Ads ID <span style={{ fontWeight: 400, fontSize: '10px' }}>(opcional)</span></label>
+                                    <input
+                                        className={Z.inp}
+                                        value={emp.google_ads_id ?? ''}
+                                        onChange={e => setEmp({ ...emp, google_ads_id: e.target.value })}
+                                        disabled={!isGerente}
+                                        placeholder="ex: AW-12345678/AbCdEfGhIjKlMnOp"
+                                        style={{ fontFamily: 'monospace' }}
+                                    />
+                                    <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                        Conversion Label (Conversões → Detalhes → ID do evento). Dispara no envio do formulário da landing.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="mt-3 p-2.5 rounded-lg text-[10.5px] leading-5" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                                <strong>Meta Lead Ads (opcional):</strong> para receber leads do formulário nativo do Meta diretamente no sistema, configure o webhook em{' '}
+                                <code>POST /api/leads/facebook</code> no Gerenciador de Formulários. Use o <em>Webhook Token</em> da aba WhatsApp como verify token.
+                            </div>
+                        </div>
                     </div>
 
                     <div>
@@ -3420,7 +3489,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                             </div>
                             {isGerente && !portEdit && (
                                 <button
-                                    onClick={() => setPortEdit({ titulo: '', designer: '', descricao: '', imagem: '' })}
+                                    onClick={() => setPortEdit({ titulo: '', designer: '', descricao: '', imagem: '', ambiente: '' })}
                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
                                     style={{ background: 'var(--primary)' }}
                                 >
@@ -3441,6 +3510,20 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         <label className={Z.lbl}>Designer / Responsável</label>
                                         <input className={Z.inp} value={portEdit.designer} onChange={e => setPortEdit({ ...portEdit, designer: e.target.value })} placeholder="Ex: Grace Dantas" />
                                     </div>
+                                </div>
+                                <div className="mb-3">
+                                    <label className={Z.lbl}>Ambiente / Espaço</label>
+                                    <select className={Z.inp} value={portEdit.ambiente || ''} onChange={e => setPortEdit({ ...portEdit, ambiente: e.target.value })}>
+                                        <option value="">— Selecione —</option>
+                                        <option value="Cozinha">Cozinha</option>
+                                        <option value="Closet / Dormitório">Closet / Dormitório</option>
+                                        <option value="Banheiro">Banheiro</option>
+                                        <option value="Home Office">Home Office</option>
+                                        <option value="Sala de Estar">Sala de Estar</option>
+                                        <option value="Área Gourmet">Área Gourmet</option>
+                                        <option value="Múltiplos Ambientes">Múltiplos Ambientes</option>
+                                        <option value="Outro">Outro</option>
+                                    </select>
                                 </div>
                                 <div className="mb-3">
                                     <label className={Z.lbl}>Descrição (opcional)</label>
@@ -3492,7 +3575,10 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         <img src={p.imagem} alt={p.titulo} className="w-20 h-14 rounded-lg object-cover shrink-0" />
                                         <div className="flex-1 min-w-0">
                                             <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{p.titulo || 'Sem título'}</div>
-                                            {p.designer && <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{p.designer}</div>}
+                                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                                {p.ambiente && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'var(--primary)', color: '#fff', opacity: 0.85 }}>{p.ambiente}</span>}
+                                                {p.designer && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{p.designer}</span>}
+                                            </div>
                                         </div>
                                         {isGerente && (
                                             <div className="flex items-center gap-1 shrink-0">
@@ -3532,9 +3618,10 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                             </div>
                         )}
 
-                        <div className="mt-4 p-3 rounded-lg text-xs" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
-                            Estas fotos aparecem na <strong>apresentação da proposta</strong> (link de experiência completa).
-                            Recomendamos de 3 a 6 projetos com fotos de alta qualidade.
+                        <div className="mt-4 p-3 rounded-lg text-xs leading-5" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                            Estas fotos aparecem na <strong>apresentação da proposta</strong> e na <strong>página pública de portfolio</strong>{' '}
+                            (<code style={{ fontSize: 10 }}>/portfolioornato</code>). Recomendamos de 6 a 12 projetos com fotos de alta qualidade.
+                            O campo <strong>Ambiente</strong> ativa o filtro por espaço na página pública.
                         </div>
                     </div>
                 </div>
