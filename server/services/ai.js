@@ -1129,15 +1129,18 @@ export async function callAI(messages, systemPrompt, options = {}) {
             const raw = result.response.text();
 
             // Parsear o JSON estruturado e reconstruir no formato esperado pelo sistema
+            // Remove markdown code fences que alguns modelos adicionam mesmo com responseMimeType=json
+            const rawClean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+
             let resposta = raw;
             let dossieStr = '<dossie>{}</dossie>';
             try {
-                const parsed = JSON.parse(raw);
+                const parsed = JSON.parse(rawClean);
                 resposta = parsed.resposta || raw;
                 const dossieObj = parsed.dossie || {};
                 dossieStr = `<dossie>${JSON.stringify(dossieObj)}</dossie>`;
-            } catch (_) {
-                // fallback: trata como texto puro se JSON inválido
+            } catch (parseErr) {
+                console.warn('[Gemini] JSON.parse falhou, usando texto puro. Erro:', parseErr.message, '| Raw (200):', rawClean.slice(0, 200));
             }
 
             const text = `${resposta}\n${dossieStr}`;
