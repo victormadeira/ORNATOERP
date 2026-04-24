@@ -1,9 +1,43 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import db from '../db.js';
 import { requireAuth } from '../auth.js';
 import { sendCAPIEvent } from '../services/meta-capi.js';
 
 const router = Router();
+
+// ═══════════════════════════════════════════════════════
+// Webhook outbound (n8n / Zapier / Make) — HMAC assinado
+// ═══════════════════════════════════════════════════════
+// Dispara em paralelo ao salvar o lead. Timeout 3s. Nao bloqueia a resposta
+// ao cliente — a resposta HTTP retorna antes do webhook completar.
+async function dispatchLeadWebhook(payload) {
+    const cfg = db.prepare('SELECT n8n_webhook_url, n8n_webhook_secret FROM empresa_config WHERE id = 1').get();
+    const url = (cfg?.n8n_webhook_url || '').trim();
+    if (!url) return; // integracao desligada
+
+    const body = JSON.stringify(payload);
+    const headers = { 'Content-Type': 'application/json', 'User-Agent': 'Ornato-ERP-Webhook/1' };
+    if (cfg.n8n_webhook_secret) {
+        const sig = crypto.createHmac('sha256', cfg.n8n_webhook_secret).update(body).digest('hex');
+        headers['X-Ornato-Signature'] = `sha256=${sig}`;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    try {
+        const r = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
+        if (!r.ok) {
+            db.prepare(`INSERT INTO automacoes_log (tipo, referencia_id, referencia_tipo, descricao, status)
+                        VALUES ('webhook_lead', ?, 'cliente', ?, 'falha')`).run(payload?.lead?.cliente_id || 0, `Webhook n8n retornou ${r.status}`);
+        }
+    } catch (err) {
+        db.prepare(`INSERT INTO automacoes_log (tipo, referencia_id, referencia_tipo, descricao, status)
+                    VALUES ('webhook_lead', ?, 'cliente', ?, 'falha')`).run(payload?.lead?.cliente_id || 0, `Webhook n8n: ${err.name === 'AbortError' ? 'timeout 3s' : err.message}`);
+    } finally {
+        clearTimeout(timeout);
+    }
+}
 
 // ═══════════════════════════════════════════════════════
 // GET /api/leads/config — dados públicos da empresa (sem auth)
@@ -154,6 +188,31 @@ router.post('/captura', (req, res) => {
             customData: { content_name: ambienteReal },
             sourceUrl:  process.env.PUBLIC_URL || '',
             eventId:    `lead_${orc.lastInsertRowid}`,
+        }).catch(() => {});
+
+        // ── Webhook outbound (n8n / Zapier / Make) ──
+        dispatchLeadWebhook({
+            event: 'lead_captado',
+            timestamp: new Date().toISOString(),
+            lead: {
+                cliente_id: cliente.id,
+                orc_id: orc.lastInsertRowid,
+                numero: numero,
+                nome, telefone, email: email || '',
+                ambiente: ambienteReal,
+                estagio: estagio || '',
+                bairro:  bairro  || '',
+                faixa_investimento: faixa_investimento || '',
+                mensagem: mensagem || '',
+            },
+            attrib: {
+                origem: origemParam || 'landing_page',
+                utm_source: utm_source || '', utm_medium: utm_medium || '',
+                utm_campaign: utm_campaign || '', utm_term: utm_term || '',
+                utm_content: utm_content || '',
+                gclid: gclid || '', fbclid: fbclid || '',
+                referrer: referrer || '',
+            },
         }).catch(() => {});
 
         // ── WhatsApp: boas-vindas ao lead + alerta ao dono ──

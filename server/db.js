@@ -2266,6 +2266,9 @@ const migrations = [
   "ALTER TABLE empresa_config ADD COLUMN portfolio_wa_mensagem TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN portfolio_footer_texto TEXT DEFAULT 'Marcenaria sob medida'",
   "ALTER TABLE empresa_config ADD COLUMN portfolio_cta_texto TEXT DEFAULT 'Solicitar projeto'",
+  // ═══ Integracoes externas — webhook outbound (n8n, Zapier, Make) ═══
+  "ALTER TABLE empresa_config ADD COLUMN n8n_webhook_url TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN n8n_webhook_secret TEXT DEFAULT ''",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

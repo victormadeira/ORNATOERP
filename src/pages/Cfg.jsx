@@ -193,6 +193,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         fb_pixel_id: '',
         google_ads_id: '',
         fb_access_token: '',
+        n8n_webhook_url: '',
+        n8n_webhook_secret: '',
         centro_custo_json: '[]',
         centro_custo_dias_uteis: 22,
     });
@@ -341,6 +343,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 fb_pixel_id: d.fb_pixel_id || '',
                 google_ads_id: d.google_ads_id || '',
                 fb_access_token: d.fb_access_token || '',
+                n8n_webhook_url: d.n8n_webhook_url || '',
+                n8n_webhook_secret: d.n8n_webhook_secret || '',
                 centro_custo_json: d.centro_custo_json || '[]',
                 centro_custo_dias_uteis: d.centro_custo_dias_uteis ?? 22,
             });
@@ -529,6 +533,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 fb_pixel_id: emp.fb_pixel_id,
                 google_ads_id: emp.google_ads_id,
                 fb_access_token: emp.fb_access_token,
+                n8n_webhook_url: emp.n8n_webhook_url,
+                n8n_webhook_secret: emp.n8n_webhook_secret,
                 centro_custo_json: emp.centro_custo_json,
                 centro_custo_dias_uteis: emp.centro_custo_dias_uteis,
             });
@@ -3252,6 +3258,50 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                             <div className="mt-3 p-2.5 rounded-lg text-[10.5px] leading-5" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
                                 <strong>Meta Lead Ads (opcional):</strong> para receber leads do formulário nativo do Meta diretamente no sistema, configure o webhook em{' '}
                                 <code>POST /api/leads/facebook</code> no Gerenciador de Formulários. Use o <em>Webhook Token</em> da aba WhatsApp como verify token.
+                            </div>
+                        </div>
+
+                        {/* ═══ Integrações externas (n8n / Zapier / Make) ═══ */}
+                        <div className={Z.card} style={{ marginTop: 20 }}>
+                            <h3 className="font-semibold text-sm mb-1" style={{ color: 'var(--primary)' }}>Integrações externas (n8n)</h3>
+                            <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
+                                Ornato dispara um POST JSON assinado (HMAC-SHA256) sempre que um lead é captado.
+                                Conecte n8n, Zapier ou Make para automatizar follow-up, planilhas, CRM, e-mail etc.
+                            </p>
+                            <div className="flex flex-col gap-3">
+                                <div>
+                                    <label className={Z.lbl}>URL do webhook</label>
+                                    <input
+                                        className={Z.inp}
+                                        value={emp.n8n_webhook_url ?? ''}
+                                        onChange={e => setEmp({ ...emp, n8n_webhook_url: e.target.value })}
+                                        disabled={!isGerente}
+                                        placeholder="https://n8n.seudominio.com/webhook/ornato-lead"
+                                        style={{ fontFamily: 'monospace' }}
+                                    />
+                                    <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                        {emp.n8n_webhook_url ? '✓ Webhook ativo — cada lead será enviado em paralelo.' : '✗ Integração desligada (vazio = sem disparo).'}
+                                    </p>
+                                </div>
+                                <div>
+                                    <label className={Z.lbl}>Secret (HMAC)</label>
+                                    <input
+                                        className={Z.inp}
+                                        value={emp.n8n_webhook_secret ?? ''}
+                                        onChange={e => setEmp({ ...emp, n8n_webhook_secret: e.target.value })}
+                                        disabled={!isGerente}
+                                        placeholder="Gere com: openssl rand -hex 32"
+                                        style={{ fontFamily: 'monospace' }}
+                                        type="password"
+                                        autoComplete="off"
+                                    />
+                                    <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                        Usado para assinar o header <code>X-Ornato-Signature: sha256=&lt;hmac&gt;</code>. No n8n, valide com um nó Crypto.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="mt-3 p-2.5 rounded-lg text-[10.5px] leading-5" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                                <strong>Payload:</strong> <code>{'{ event, timestamp, lead:{...}, attrib:{utm_*, gclid, fbclid, referrer} }'}</code>. Timeout 3s — se o n8n cair, o lead ainda é salvo normalmente no Ornato e a falha vai para <code>automacoes_log</code>.
                             </div>
                         </div>
                     </div>
