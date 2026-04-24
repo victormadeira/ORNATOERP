@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Z, Ic, Modal, PageHeader, TabBar, EmptyState } from '../ui';
+import { Z, Modal, PageHeader, TabBar, EmptyState } from '../ui';
 import api from '../api';
 import { useAuth } from '../auth';
 import {
-    Sparkles, Bot, MessageCircle, RefreshCw, Send, CheckCircle2,
-    XCircle, Phone, FileText, TrendingUp, BookOpen, Plus, Trash2, ToggleLeft, ToggleRight,
-    Megaphone, Instagram, Copy, Calendar, Edit3, Eye, Loader2, Check, Image, Type, Target
+    Sparkles, Bot, RefreshCw, Send, CheckCircle2,
+    XCircle, TrendingUp, BookOpen, Plus, Trash2, ToggleLeft, ToggleRight,
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════
@@ -33,28 +32,12 @@ export default function AssistenteIA({ notify }) {
 
     // Chat CRM
     const [pergunta, setPergunta] = useState('');
-    const [resposta, setResposta] = useState('');
     const [chatHistory, setChatHistory] = useState([]);
-
-    // Resumo
-    const [resumo, setResumo] = useState('');
 
     // Base de Conhecimento
     const [contextos, setContextos] = useState([]);
     const [showNovoCtx, setShowNovoCtx] = useState(false);
     const [novoCtx, setNovoCtx] = useState({ tipo: 'faq', titulo: '', conteudo: '' });
-
-    // Marketing / Conteúdo
-    const [mktConteudos, setMktConteudos] = useState([]);
-    const [mktLoading, setMktLoading] = useState(false);
-    const [mktGerado, setMktGerado] = useState('');
-    const [mktForm, setMktForm] = useState({ tipo: 'post_instagram', tema: '', tom: '', plataforma: 'instagram' });
-    const [mktGerando, setMktGerando] = useState(false);
-    const [mktEditId, setMktEditId] = useState(null);
-    const [mktEditData, setMktEditData] = useState({});
-    const [showSalvarGerado, setShowSalvarGerado] = useState(false);
-    const [salvarTitulo, setSalvarTitulo] = useState('');
-    const [copiedId, setCopiedId] = useState(null);
 
     // ═══ Carregar dados ═══
     const loadFollowups = useCallback(async () => {
@@ -71,18 +54,10 @@ export default function AssistenteIA({ notify }) {
         } catch { /* */ }
     }, []);
 
-    const loadMktConteudos = useCallback(async () => {
-        try {
-            const data = await api.get('/ia/marketing');
-            setMktConteudos(data);
-        } catch { /* */ }
-    }, []);
-
     useEffect(() => {
         loadFollowups();
         loadContextos();
-        loadMktConteudos();
-    }, [loadFollowups, loadContextos, loadMktConteudos]);
+    }, [loadFollowups, loadContextos]);
 
     // ═══ Gerar follow-ups ═══
     const gerarFollowups = async () => {
@@ -118,18 +93,6 @@ export default function AssistenteIA({ notify }) {
         } finally { setLoading(false); }
     };
 
-    // ═══ Resumo semanal ═══
-    const gerarResumo = async () => {
-        setLoading(true);
-        setResumo('');
-        try {
-            const r = await api.post('/ia/resumo');
-            setResumo(r.resumo);
-        } catch (e) {
-            setResumo('Erro: ' + (e.error || 'Falha ao gerar resumo'));
-        } finally { setLoading(false); }
-    };
-
     // ═══ CRUD Contexto ═══
     const salvarContexto = async () => {
         if (!novoCtx.tipo || !novoCtx.conteudo) return notify?.('Preencha tipo e conteúdo');
@@ -153,80 +116,11 @@ export default function AssistenteIA({ notify }) {
         notify?.('Removido');
     };
 
-    // ═══ Marketing: Gerar conteúdo ═══
-    const gerarConteudo = async () => {
-        if (!mktForm.tema.trim()) return notify?.('Informe o tema do conteúdo');
-        setMktGerando(true);
-        setMktGerado('');
-        try {
-            const r = await api.post('/ia/gerar-conteudo', mktForm);
-            setMktGerado(r.conteudo);
-        } catch (e) {
-            notify?.(e.error || 'Erro ao gerar conteúdo. Verifique a configuração da IA.');
-        } finally { setMktGerando(false); }
-    };
-
-    const salvarConteudoGerado = async () => {
-        if (!salvarTitulo.trim()) return notify?.('Informe um título');
-        try {
-            await api.post('/ia/marketing', {
-                titulo: salvarTitulo,
-                tipo: mktForm.tipo,
-                texto: mktGerado,
-                plataforma: mktForm.plataforma,
-                status: 'rascunho',
-            });
-            setShowSalvarGerado(false);
-            setSalvarTitulo('');
-            notify?.('Conteudo salvo!');
-            loadMktConteudos();
-        } catch (e) { notify?.(e.error || 'Erro ao salvar'); }
-    };
-
-    const updateMktConteudo = async (id) => {
-        try {
-            await api.put(`/ia/marketing/${id}`, mktEditData);
-            setMktEditId(null);
-            loadMktConteudos();
-            notify?.('Atualizado!');
-        } catch (e) { notify?.(e.error || 'Erro ao atualizar'); }
-    };
-
-    const deleteMktConteudo = async (id) => {
-        try {
-            await api.del(`/ia/marketing/${id}`);
-            loadMktConteudos();
-            notify?.('Removido');
-        } catch (e) { notify?.(e.error || 'Erro'); }
-    };
-
-    const copyToClipboard = (text, id) => {
-        navigator.clipboard.writeText(text).then(() => {
-            setCopiedId(id);
-            notify?.('Copiado!');
-            setTimeout(() => setCopiedId(null), 2000);
-        });
-    };
-
-    const MKT_TIPOS = {
-        post_instagram: { label: 'Post Instagram', icon: <Instagram size={14} />, color: '#E4405F' },
-        copy_anuncio: { label: 'Copy Anúncio', icon: <Target size={14} />, color: '#1877F2' },
-        descricao_projeto: { label: 'Descrição Projeto', icon: <Type size={14} />, color: 'var(--success)' },
-    };
-
-    const MKT_STATUS_COLORS = {
-        rascunho: { bg: 'var(--muted-bg)', color: 'var(--muted)', label: 'Rascunho' },
-        agendado: { bg: 'var(--info-bg)', color: 'var(--info)', label: 'Agendado' },
-        publicado: { bg: 'var(--success-bg)', color: 'var(--success)', label: 'Publicado' },
-    };
-
     // ═══ Tabs ═══
     const TABS = [
         { id: 'followups', label: 'Follow-ups', icon: TrendingUp },
         { id: 'chat', label: 'Consultar CRM', icon: Bot },
-        { id: 'resumo', label: 'Resumo Semanal', icon: FileText },
         { id: 'conhecimento', label: 'Base de Conhecimento', icon: BookOpen },
-        { id: 'conteudo', label: 'Conteúdo Marketing', icon: Megaphone },
     ];
 
     return (
@@ -391,44 +285,6 @@ export default function AssistenteIA({ notify }) {
                 </div>
             )}
 
-            {/* ═══ Tab: Resumo Semanal ═══ */}
-            {tab === 'resumo' && (
-                <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                        <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
-                            Resumo executivo gerado pela IA com base nos dados do CRM.
-                        </p>
-                        <button
-                            onClick={gerarResumo}
-                            disabled={loading}
-                            className={Z.btn}
-                            style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: loading ? 0.6 : 1 }}
-                        >
-                            {loading ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                            Gerar Resumo
-                        </button>
-                    </div>
-
-                    {resumo ? (
-                        <div className={Z.card} style={{
-                            padding: 24, borderLeft: '4px solid #8b5cf6',
-                        }}>
-                            <div style={{ fontSize: 10, fontWeight: 700, color: '#8b5cf6', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <Sparkles size={12} /> RESUMO SEMANAL — {new Date().toLocaleDateString('pt-BR')}
-                            </div>
-                            <div style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>
-                                {resumo}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className={Z.card} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
-                            <FileText size={40} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-                            <p style={{ fontSize: 14 }}>Clique em "Gerar Resumo" para a IA analisar seus dados.</p>
-                        </div>
-                    )}
-                </div>
-            )}
-
             {/* ═══ Tab: Base de Conhecimento ═══ */}
             {tab === 'conhecimento' && (
                 <div>
@@ -505,261 +361,6 @@ export default function AssistenteIA({ notify }) {
                                             </div>
                                         )}
                                     </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-
-            {/* ═══ Tab: Conteúdo Marketing ═══ */}
-            {tab === 'conteudo' && (
-                <div>
-                    {/* Gerador de Conteúdo */}
-                    <div className={Z.card} style={{ padding: 20, marginBottom: 20 }}>
-                        <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Sparkles size={16} style={{ color: '#8b5cf6' }} /> Gerador de Conteúdo com IA
-                        </h3>
-                        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
-                            A IA vai usar dados reais dos seus projetos para criar conteúdo personalizado.
-                        </p>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                            <div>
-                                <label className={Z.lbl}>Tipo de conteúdo</label>
-                                <select className={Z.inp} value={mktForm.tipo} onChange={e => setMktForm(f => ({ ...f, tipo: e.target.value }))}>
-                                    <option value="post_instagram">Post Instagram</option>
-                                    <option value="copy_anuncio">Copy para Anúncio</option>
-                                    <option value="descricao_projeto">Descrição de Projeto</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className={Z.lbl}>Plataforma</label>
-                                <select className={Z.inp} value={mktForm.plataforma} onChange={e => setMktForm(f => ({ ...f, plataforma: e.target.value }))}>
-                                    <option value="instagram">Instagram</option>
-                                    <option value="facebook">Facebook</option>
-                                    <option value="whatsapp">WhatsApp Status</option>
-                                    <option value="site">Site / Portfólio</option>
-                                    <option value="google_ads">Google Ads</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
-                            <div>
-                                <label className={Z.lbl}>Tema / Assunto *</label>
-                                <input
-                                    className={Z.inp}
-                                    placeholder="Ex: Cozinha moderna com ilha central, Closet planejado casal..."
-                                    value={mktForm.tema}
-                                    onChange={e => setMktForm(f => ({ ...f, tema: e.target.value }))}
-                                />
-                            </div>
-                            <div>
-                                <label className={Z.lbl}>Tom da mensagem</label>
-                                <select className={Z.inp} value={mktForm.tom} onChange={e => setMktForm(f => ({ ...f, tom: e.target.value }))}>
-                                    <option value="">Padrão</option>
-                                    <option value="profissional e sofisticado">Profissional / Sofisticado</option>
-                                    <option value="casual e amigável">Casual / Amigável</option>
-                                    <option value="persuasivo e direto">Persuasivo / Direto</option>
-                                    <option value="inspirador e emocional">Inspirador / Emocional</option>
-                                    <option value="técnico e detalhista">Técnico / Detalhista</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <button
-                            onClick={gerarConteudo}
-                            disabled={mktGerando || !mktForm.tema.trim()}
-                            className={Z.btn}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: 8,
-                                background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
-                                opacity: mktGerando || !mktForm.tema.trim() ? 0.6 : 1,
-                            }}
-                        >
-                            {mktGerando ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={14} />}
-                            {mktGerando ? 'Gerando...' : 'Gerar Conteúdo'}
-                        </button>
-                    </div>
-
-                    {/* Resultado gerado */}
-                    {mktGerado && (
-                        <div className={Z.card} style={{ padding: 20, marginBottom: 20, borderLeft: '4px solid #8b5cf6' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <Sparkles size={12} /> CONTEÚDO GERADO
-                                </div>
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                    <button
-                                        onClick={() => copyToClipboard(mktGerado, 'gerado')}
-                                        style={{
-                                            padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                                            background: copiedId === 'gerado' ? 'var(--success-bg)' : 'var(--bg-muted)',
-                                            color: copiedId === 'gerado' ? 'var(--success)' : 'var(--text-muted)',
-                                            border: `1px solid ${copiedId === 'gerado' ? 'var(--success-border)' : 'var(--border)'}`,
-                                            display: 'flex', alignItems: 'center', gap: 4,
-                                        }}
-                                    >
-                                        {copiedId === 'gerado' ? <Check size={12} /> : <Copy size={12} />}
-                                        {copiedId === 'gerado' ? 'Copiado!' : 'Copiar'}
-                                    </button>
-                                    <button
-                                        onClick={() => { setShowSalvarGerado(true); setSalvarTitulo(`${MKT_TIPOS[mktForm.tipo]?.label || 'Conteúdo'} — ${mktForm.tema.slice(0, 40)}`); }}
-                                        style={{
-                                            padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                                            background: '#8b5cf620', color: '#8b5cf6', border: '1px solid #8b5cf640',
-                                            display: 'flex', alignItems: 'center', gap: 4,
-                                        }}
-                                    >
-                                        <Plus size={12} /> Salvar no Calendário
-                                    </button>
-                                </div>
-                            </div>
-                            <div style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>
-                                {mktGerado}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Modal salvar gerado */}
-                    {showSalvarGerado && (
-                        <Modal title="Salvar Conteúdo" close={() => setShowSalvarGerado(false)} w={420}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                <div>
-                                    <label className={Z.lbl}>Título</label>
-                                    <input className={Z.inp} value={salvarTitulo} onChange={e => setSalvarTitulo(e.target.value)} placeholder="Título do conteúdo" />
-                                </div>
-                                <div>
-                                    <label className={Z.lbl}>Data de publicação (opcional)</label>
-                                    <input className={Z.inp} type="date" onChange={e => setMktForm(f => ({ ...f, data_publicar: e.target.value }))} />
-                                </div>
-                                <button onClick={salvarConteudoGerado} className={Z.btn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                                    <Plus size={14} /> Salvar
-                                </button>
-                            </div>
-                        </Modal>
-                    )}
-
-                    {/* Lista de conteúdos salvos */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 8 }}>
-                        <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <Calendar size={14} /> Conteúdos Salvos
-                            <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>({mktConteudos.length})</span>
-                        </h3>
-                    </div>
-
-                    {mktConteudos.length === 0 && (
-                        <EmptyState icon={Megaphone} title="Nenhum conteúdo salvo ainda" description="Gere conteúdo acima e salve no calendário." />
-                    )}
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {mktConteudos.map(c => {
-                            const tipoInfo = MKT_TIPOS[c.tipo] || { label: c.tipo, icon: <FileText size={14} />, color: 'var(--muted)' };
-                            const statusInfo = MKT_STATUS_COLORS[c.status] || MKT_STATUS_COLORS.rascunho;
-                            const isEditing = mktEditId === c.id;
-
-                            return (
-                                <div key={c.id} className={Z.card} style={{ padding: 16, borderLeft: `4px solid ${tipoInfo.color}` }}>
-                                    {isEditing ? (
-                                        /* Modo edição */
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                            <input className={Z.inp} value={mktEditData.titulo || ''} onChange={e => setMktEditData(d => ({ ...d, titulo: e.target.value }))} placeholder="Título" />
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                                                <select className={Z.inp} value={mktEditData.plataforma || ''} onChange={e => setMktEditData(d => ({ ...d, plataforma: e.target.value }))}>
-                                                    <option value="instagram">Instagram</option>
-                                                    <option value="facebook">Facebook</option>
-                                                    <option value="whatsapp">WhatsApp</option>
-                                                    <option value="site">Site</option>
-                                                    <option value="google_ads">Google Ads</option>
-                                                </select>
-                                                <select className={Z.inp} value={mktEditData.status || ''} onChange={e => setMktEditData(d => ({ ...d, status: e.target.value }))}>
-                                                    <option value="rascunho">Rascunho</option>
-                                                    <option value="agendado">Agendado</option>
-                                                    <option value="publicado">Publicado</option>
-                                                </select>
-                                                <input className={Z.inp} type="date" value={mktEditData.data_publicar || ''} onChange={e => setMktEditData(d => ({ ...d, data_publicar: e.target.value }))} />
-                                            </div>
-                                            <textarea className={Z.inp} rows={5} value={mktEditData.texto || ''} onChange={e => setMktEditData(d => ({ ...d, texto: e.target.value }))} />
-                                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                                                <button onClick={() => setMktEditId(null)} style={{ padding: '6px 12px', borderRadius: 6, cursor: 'pointer', background: 'var(--bg-muted)', color: 'var(--text-muted)', border: '1px solid var(--border)', fontSize: 12, fontWeight: 600 }}>
-                                                    Cancelar
-                                                </button>
-                                                <button onClick={() => updateMktConteudo(c.id)} className={Z.btn} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                                                    <Check size={12} /> Salvar
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        /* Modo visualização */
-                                        <div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                                                <div style={{ flex: 1 }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                                                        <span style={{
-                                                            fontSize: 10, padding: '2px 8px', borderRadius: 99,
-                                                            background: `${tipoInfo.color}18`, color: tipoInfo.color, fontWeight: 700,
-                                                            display: 'flex', alignItems: 'center', gap: 4,
-                                                        }}>
-                                                            {tipoInfo.icon} {tipoInfo.label}
-                                                        </span>
-                                                        <span style={{
-                                                            fontSize: 10, padding: '2px 8px', borderRadius: 99,
-                                                            background: statusInfo.bg, color: statusInfo.color, fontWeight: 700,
-                                                        }}>
-                                                            {statusInfo.label}
-                                                        </span>
-                                                        {c.plataforma && (
-                                                            <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'capitalize' }}>
-                                                                {c.plataforma.replace('_', ' ')}
-                                                            </span>
-                                                        )}
-                                                        {c.data_publicar && (
-                                                            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                                                                {new Date(c.data_publicar + 'T12:00').toLocaleDateString('pt-BR')}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
-                                                        {c.titulo}
-                                                    </div>
-                                                    <div style={{
-                                                        fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5,
-                                                        maxHeight: 100, overflow: 'hidden', whiteSpace: 'pre-wrap',
-                                                    }}>
-                                                        {c.texto}
-                                                    </div>
-                                                </div>
-                                                <div style={{ display: 'flex', gap: 4, flexShrink: 0, flexDirection: 'column' }}>
-                                                    <button
-                                                        onClick={() => copyToClipboard(c.texto, c.id)}
-                                                        title="Copiar texto"
-                                                        style={{
-                                                            padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: 'none',
-                                                            background: copiedId === c.id ? 'var(--success-bg)' : 'var(--bg-muted)',
-                                                            color: copiedId === c.id ? 'var(--success)' : 'var(--text-muted)',
-                                                        }}
-                                                    >
-                                                        {copiedId === c.id ? <Check size={13} /> : <Copy size={13} />}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => { setMktEditId(c.id); setMktEditData({ titulo: c.titulo, tipo: c.tipo, texto: c.texto, plataforma: c.plataforma, status: c.status, data_publicar: c.data_publicar || '' }); }}
-                                                        title="Editar"
-                                                        style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: 'none', background: 'var(--bg-muted)', color: 'var(--text-muted)' }}
-                                                    >
-                                                        <Edit3 size={13} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => deleteMktConteudo(c.id)}
-                                                        title="Excluir"
-                                                        style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: 'none', background: 'var(--danger-bg)', color: 'var(--danger)' }}
-                                                    >
-                                                        <Trash2 size={13} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
                             );
                         })}
