@@ -3487,15 +3487,27 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Fotos-vitrine que aparecem na apresentação para clientes</p>
                                 </div>
                             </div>
-                            {isGerente && !portEdit && (
-                                <button
-                                    onClick={() => setPortEdit({ titulo: '', designer: '', descricao: '', imagem: '', ambiente: '' })}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-                                    style={{ background: 'var(--primary)' }}
+                            <div className="flex items-center gap-2">
+                                <a
+                                    href="/portfolioornato"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                                    style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                                    title="Abrir página pública do portfolio"
                                 >
-                                    <Plus size={14} /> Adicionar
-                                </button>
-                            )}
+                                    <ExternalLink size={13} /> Ver página
+                                </a>
+                                {isGerente && !portEdit && (
+                                    <button
+                                        onClick={() => setPortEdit({ titulo: '', designer: '', descricao: '', imagem: '', ambiente: '' })}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                                        style={{ background: 'var(--primary)' }}
+                                    >
+                                        <Plus size={14} /> Adicionar
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         {/* Form add/edit */}
