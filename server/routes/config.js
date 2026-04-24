@@ -141,6 +141,23 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         fb_pixel_id, google_ads_id, fb_access_token,
         n8n_webhook_url, n8n_webhook_secret,
     } = req.body;
+
+    // Campos sensíveis: se vier valor mascarado (••••), manter o que está no banco
+    const isMasked = (v) => typeof v === 'string' && v.startsWith('••••');
+    const cur = db.prepare(`SELECT ia_api_key, wa_api_key, gdrive_client_secret,
+        fb_access_token, n8n_webhook_secret, gdrive_credentials,
+        wa_webhook_token, n8n_webhook_url FROM empresa_config WHERE id = 1`).get() || {};
+    const safe = (incoming, field) => isMasked(incoming) ? cur[field] : incoming;
+
+    const ia_api_key_s        = safe(ia_api_key,        'ia_api_key');
+    const wa_api_key_s        = safe(wa_api_key,        'wa_api_key');
+    const gdrive_client_secret_s = safe(gdrive_client_secret, 'gdrive_client_secret');
+    const fb_access_token_s   = safe(fb_access_token,   'fb_access_token');
+    const n8n_webhook_secret_s = safe(n8n_webhook_secret, 'n8n_webhook_secret');
+    const gdrive_credentials_s = safe(gdrive_credentials, 'gdrive_credentials');
+    const wa_webhook_token_s  = safe(wa_webhook_token,  'wa_webhook_token');
+    const n8n_webhook_url_s   = safe(n8n_webhook_url,   'n8n_webhook_url');
+
     db.prepare(`
     UPDATE empresa_config SET
       nome=?, cnpj=?, endereco=?, cidade=?, estado=?, cep=?,
@@ -192,12 +209,12 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         proposta_garantia !== undefined ? proposta_garantia : '',
         proposta_consideracoes !== undefined ? proposta_consideracoes : '',
         proposta_rodape !== undefined ? proposta_rodape : '',
-        gdrive_credentials !== undefined ? gdrive_credentials : '',
+        gdrive_credentials_s !== undefined ? gdrive_credentials_s : '',
         gdrive_folder_id !== undefined ? gdrive_folder_id : '',
         gdrive_client_id !== undefined ? gdrive_client_id : '',
-        gdrive_client_secret !== undefined ? gdrive_client_secret : '',
-        wa_instance_url || '', wa_instance_name || '', wa_api_key || '', wa_webhook_token || '', wa_owner_phone || '',
-        ia_provider || 'anthropic', ia_api_key || '', ia_model || 'claude-sonnet-4',
+        gdrive_client_secret_s !== undefined ? gdrive_client_secret_s : '',
+        wa_instance_url || '', wa_instance_name || '', wa_api_key_s || '', wa_webhook_token_s || '', wa_owner_phone || '',
+        ia_provider || 'anthropic', ia_api_key_s || '', ia_model || 'claude-sonnet-4',
         ia_system_prompt !== undefined ? ia_system_prompt : '', ia_temperatura ?? 0.7, ia_ativa ?? 0,
         ia_blocked_phones !== undefined ? ia_blocked_phones : '',
         ia_sugestoes_ativa ?? 1,
@@ -246,12 +263,26 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         clarity_project_id !== undefined ? clarity_project_id : 'wed7zy3qnz',
         fb_pixel_id !== undefined ? fb_pixel_id : '',
         google_ads_id !== undefined ? google_ads_id : '',
-        fb_access_token !== undefined ? fb_access_token : '',
-        n8n_webhook_url !== undefined ? n8n_webhook_url : '',
-        n8n_webhook_secret !== undefined ? n8n_webhook_secret : '',
+        fb_access_token_s !== undefined ? fb_access_token_s : '',
+        n8n_webhook_url_s !== undefined ? n8n_webhook_url_s : '',
+        n8n_webhook_secret_s !== undefined ? n8n_webhook_secret_s : '',
     );
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
-    res.json(emp);
+    // Mascarar campos sensíveis também na resposta do PUT
+    const SENSITIVE_FIELDS = [
+        'ia_api_key', 'wa_api_key', 'gdrive_client_secret',
+        'fb_access_token', 'n8n_webhook_secret', 'gdrive_credentials',
+        'wa_webhook_token', 'n8n_webhook_url',
+    ];
+    const safeEmp = { ...emp };
+    for (const field of SENSITIVE_FIELDS) {
+        if (safeEmp[field]) {
+            safeEmp[field] = safeEmp[field].length > 4
+                ? '••••' + safeEmp[field].slice(-4)
+                : '••••';
+        }
+    }
+    res.json(safeEmp);
 });
 
 // ═══════════════════════════════════════════════════════

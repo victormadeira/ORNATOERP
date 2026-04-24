@@ -1080,6 +1080,10 @@ export async function callAI(messages, systemPrompt, options = {}) {
         const geminiModel = genAI.getGenerativeModel({
             model: modelo,
             systemInstruction: systemPrompt,
+            generationConfig: {
+                temperature,
+                maxOutputTokens: maxTokens,
+            },
         });
         // Converter histórico para formato Gemini
         const history = messages.slice(0, -1).map(m => ({
