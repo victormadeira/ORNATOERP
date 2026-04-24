@@ -7,11 +7,21 @@ import db from '../db.js';
 import evolution from './evolution.js';
 import sofia from './sofia.js';
 
-// Idempotência: registra quais conversas já receberam follow-up
+// Idempotência: checa se já foi enviado follow-up após o último silêncio do cliente
+// Considera qualquer mensagem de saída da IA enviada depois da última entrada do cliente
 function jaReceberauFollowup(conversaId) {
-    const row = db.prepare(
-        "SELECT 1 FROM chat_mensagens WHERE conversa_id = ? AND remetente = 'ia' AND conteudo LIKE '%Ficou alguma d\u00favida%' LIMIT 1"
-    ).get(conversaId);
+    const row = db.prepare(`
+        SELECT 1 FROM chat_mensagens
+        WHERE conversa_id = ?
+          AND remetente = 'ia'
+          AND direcao = 'saida'
+          AND criado_em > (
+              SELECT MAX(criado_em) FROM chat_mensagens
+              WHERE conversa_id = ? AND direcao = 'entrada'
+          )
+          AND criado_em > datetime('now', '-7 days')
+        LIMIT 1
+    `).get(conversaId, conversaId);
     return !!row;
 }
 
@@ -51,23 +61,21 @@ export async function processarFollowups() {
         const dest = c.wa_jid || c.wa_phone;
         if (!dest || dest.includes('@lid')) continue;
 
-        // Texto personalizado
-        // Usar dados do dossiê se disponível
+        // Texto personalizado usando dossiê
         const leadDados = JSON.parse(c.lead_dados || '{}');
         const nome = leadDados.nome?.split(' ')[0] || (c.wa_name ? c.wa_name.split(' ')[0] : '');
         const ambientes = Array.isArray(leadDados.ambientes) ? leadDados.ambientes : [];
         const ambiente = ambientes[0] || '';
-        const saudacao = sofia.saudacaoAtual();
 
         let msg;
         if (ambiente && nome) {
-            msg = `${saudacao}, ${nome}! Lembro que você estava planejando ${ambiente.toLowerCase()} — ficou alguma dúvida? Se quiser, continuamos de onde paramos. ✨`;
+            msg = `Oi, ${nome}! 😊 Você passou por aqui pesquisando sobre ${ambiente.toLowerCase()} sob medida — avançou no projeto ou ainda tá na fase de pesquisa?`;
         } else if (ambiente) {
-            msg = `${saudacao}! Você estava pesquisando sobre ${ambiente.toLowerCase()} — ficou alguma dúvida? Pode retomar quando quiser. ✨`;
+            msg = `Oi! 😊 Você passou por aqui pesquisando sobre ${ambiente.toLowerCase()} sob medida — avançou no projeto ou ainda tá na fase de pesquisa?`;
         } else if (nome) {
-            msg = `${saudacao}, ${nome}! Ficou alguma dúvida do nosso último contato? Estou aqui se quiser continuar. ✨`;
+            msg = `Oi, ${nome}! 😊 Você esteve aqui no Studio Ornato outro dia — avançou no que estava planejando ou ainda tá pesquisando?`;
         } else {
-            msg = `${saudacao}! Ficou alguma dúvida do nosso último contato? Se quiser, retomo de onde paramos. ✨`;
+            msg = `Oi! 😊 Você entrou em contato com o Studio Ornato esses dias — avançou no projeto ou ainda tá na fase de pesquisa?`;
         }
 
         try {
