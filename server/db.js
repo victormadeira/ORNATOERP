@@ -2401,6 +2401,9 @@ const migrations = [
   "CREATE INDEX IF NOT EXISTS idx_gerente_rel_gerado ON gerente_relatorios(gerado_em DESC)",
   "CREATE INDEX IF NOT EXISTS idx_gerente_acoes_rel ON gerente_acoes(relatorio_id)",
   "CREATE INDEX IF NOT EXISTS idx_gerente_acoes_status ON gerente_acoes(status, prioridade)",
+  // ia_uso_log v2 — rastreamento de prompt caching Anthropic
+  "ALTER TABLE ia_uso_log ADD COLUMN cache_write_tokens INTEGER DEFAULT 0",
+  "ALTER TABLE ia_uso_log ADD COLUMN cache_read_tokens INTEGER DEFAULT 0",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

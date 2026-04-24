@@ -310,7 +310,13 @@ ${candidatos.map((c, i) => resumirLead(c, i + 1)).join('\n\n')}
         const r = await anthropic.messages.create({
             model: MODEL_DEFAULT,
             max_tokens: 3000,
-            system: SYSTEM_PROMPT,
+            system: [
+                {
+                    type: 'text',
+                    text: SYSTEM_PROMPT,
+                    cache_control: { type: 'ephemeral' },
+                },
+            ],
             messages: [{ role: 'user', content: contextoMetricas }],
             temperature: 0.3, // mais determinístico pra auditoria
         });

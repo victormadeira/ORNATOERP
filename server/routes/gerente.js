@@ -102,7 +102,7 @@ router.post('/acoes/:id/resolver', requireAuth, (req, res) => {
 // ───────────────────────────────────────────────────────
 // POST /api/gerente/rodar-agora — dispara manualmente (só gerente)
 // ───────────────────────────────────────────────────────
-router.post('/rodar-agora', requireAuth, requireRole('gerente'), async (req, res) => {
+router.post('/rodar-agora', requireAuth, requireRole('admin', 'gerente'), async (req, res) => {
     try {
         const r = await gerente.rodarAgora({ forcado: true });
         res.json(r);
