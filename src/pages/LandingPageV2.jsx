@@ -164,23 +164,62 @@ export default function LandingPageV2() {
             .then(r => r.json())
             .then(cfg => {
                 setConfig(cfg);
-                const title = cfg?.landing_titulo
-                    ? `${cfg.nome || 'Ornato'} — ${cfg.landing_titulo.slice(0, 60)}`
-                    : `${cfg?.nome || 'Ornato'} — Marcenaria sob medida`;
+                const nome = cfg?.nome || 'Studio Ornato';
+                const cidade = cfg?.cidade || 'São Luís';
+                const titleCurto = cfg?.landing_titulo
+                    ? cfg.landing_titulo.replace(/\.$/, '').slice(0, 70)
+                    : `Marcenaria sob medida em ${cidade}`;
+                const title = `${nome} — ${titleCurto}`;
+                const descricao = cfg?.landing_descricao
+                    || `Projetos de marcenaria sob medida de alto padrão em ${cidade}. Cozinhas, closets, home office e ambientes planejados.`;
+                const heroAbs = cfg?.landing_hero_imagem
+                    ? (cfg.landing_hero_imagem.startsWith('http') ? cfg.landing_hero_imagem : `${window.location.origin}${cfg.landing_hero_imagem}`)
+                    : '';
+                const urlAtual = window.location.origin + window.location.pathname;
+
                 document.title = title;
-                const setMeta = (name, content) => {
+
+                const setMeta = (attr, key, content) => {
                     if (!content) return;
-                    let tag = document.querySelector(`meta[name="${name}"], meta[property="${name}"]`);
-                    if (!tag) { tag = document.createElement('meta'); tag.setAttribute(name.startsWith('og:') ? 'property' : 'name', name); document.head.appendChild(tag); }
+                    let tag = document.querySelector(`meta[${attr}="${key}"]`);
+                    if (!tag) { tag = document.createElement('meta'); tag.setAttribute(attr, key); document.head.appendChild(tag); }
                     tag.setAttribute('content', content);
                 };
-                setMeta('description', cfg?.landing_descricao || 'Marcenaria sob medida de alto padrão');
-                setMeta('og:title', title);
-                setMeta('og:description', cfg?.landing_descricao || 'Marcenaria sob medida de alto padrão');
-                setMeta('og:type', 'website');
-                if (cfg?.landing_hero_imagem) setMeta('og:image', cfg.landing_hero_imagem);
+                setMeta('name', 'description', descricao);
+                setMeta('property', 'og:title', title);
+                setMeta('property', 'og:description', descricao);
+                setMeta('property', 'og:type', 'website');
+                setMeta('property', 'og:locale', 'pt_BR');
+                setMeta('property', 'og:site_name', nome);
+                setMeta('property', 'og:url', urlAtual);
+                if (heroAbs) {
+                    setMeta('property', 'og:image', heroAbs);
+                    setMeta('property', 'og:image:alt', `${nome} — projetos de marcenaria sob medida`);
+                    setMeta('name', 'twitter:image', heroAbs);
+                }
+                setMeta('name', 'twitter:card', 'summary_large_image');
+                setMeta('name', 'twitter:title', title);
+                setMeta('name', 'twitter:description', descricao);
+
+                let canon = document.querySelector('link[rel="canonical"]');
+                if (!canon) { canon = document.createElement('link'); canon.rel = 'canonical'; document.head.appendChild(canon); }
+                canon.href = urlAtual;
+
+                // Preload do hero — ajuda LCP quando a imagem for servida de domínio externo
+                if (heroAbs) {
+                    let pl = document.getElementById('lp-hero-preload');
+                    if (!pl) {
+                        pl = document.createElement('link');
+                        pl.id = 'lp-hero-preload';
+                        pl.rel = 'preload';
+                        pl.as = 'image';
+                        pl.fetchPriority = 'high';
+                        document.head.appendChild(pl);
+                    }
+                    pl.href = heroAbs;
+                }
             })
-            .catch(() => setConfig({ nome: 'Marcenaria Ornato' }));
+            .catch(() => setConfig({ nome: 'Studio Ornato' }));
 
         fetch('/api/portfolio').then(r => r.json()).then(d => setPortfolio(Array.isArray(d) ? d : [])).catch(() => setPortfolio([]));
         fetch('/api/landing/stats').then(r => r.json()).then(setStats).catch(() => setStats(null));
@@ -270,18 +309,38 @@ export default function LandingPageV2() {
 
     useEffect(() => {
         if (!config) return;
+        const cidade = config.cidade || 'São Luís';
+        const uf     = config.uf || 'MA';
+        const baseUrl = window.location.origin + window.location.pathname;
+        const heroAbs = config.landing_hero_imagem
+            ? (config.landing_hero_imagem.startsWith('http') ? config.landing_hero_imagem : `${window.location.origin}${config.landing_hero_imagem}`)
+            : '';
         const schema = {
-            '@context': 'https://schema.org', '@type': 'LocalBusiness',
-            name: config.nome || 'Marcenaria',
-            description: config.landing_descricao || 'Marcenaria sob medida de alto padrão',
+            '@context': 'https://schema.org',
+            '@type': ['LocalBusiness', 'HomeAndConstructionBusiness'],
+            '@id': `${baseUrl}#business`,
+            name: config.nome || 'Studio Ornato',
+            description: config.landing_descricao || `Projetos de marcenaria sob medida de alto padrão em ${cidade}. Cozinhas, closets, home office e ambientes planejados.`,
             telephone: config.telefone || undefined,
             email: config.email || undefined,
-            address: config.endereco ? {
-                '@type': 'PostalAddress', streetAddress: config.endereco,
-                addressLocality: config.cidade || '', addressCountry: 'BR',
-            } : undefined,
-            url: window.location.origin,
-            image: config.landing_hero_imagem || config.logo_sistema || undefined,
+            priceRange: config.landing_price_range || 'R$$$',
+            address: {
+                '@type': 'PostalAddress',
+                streetAddress: config.endereco || undefined,
+                addressLocality: cidade,
+                addressRegion: uf,
+                addressCountry: 'BR',
+            },
+            areaServed: [
+                { '@type': 'City', name: cidade, containedInPlace: { '@type': 'State', name: uf } },
+                ...(config.uf === 'MA' || !config.uf ? [
+                    { '@type': 'City', name: 'São José de Ribamar' },
+                    { '@type': 'City', name: 'Paço do Lumiar' },
+                ] : []),
+            ],
+            url: baseUrl,
+            image: heroAbs || config.logo_sistema || undefined,
+            logo: config.logo_sistema || undefined,
             sameAs: [
                 config.instagram ? `https://instagram.com/${config.instagram.replace(/^@/, '')}` : null,
                 config.facebook || null,
@@ -354,9 +413,37 @@ export default function LandingPageV2() {
     const heroCnt1 = useCountUp(stats?.projetos || 0, 1800, heroStatsVisible);
     const heroCnt2 = useCountUp(stats?.anos || 0, 1400, heroStatsVisible);
 
+    // Atribuição: captura UTMs + click IDs da URL. Se não houver na URL, tenta recuperar
+    // do sessionStorage (usuário pode abrir o popup em uma segunda página/rota interna).
+    // Persiste o primeiro snapshot para não sobrescrever depois de navegação interna.
     const utm = useMemo(() => {
         const params = new URLSearchParams(window.location.search);
-        return { utm_source: params.get('utm_source') || '', utm_medium: params.get('utm_medium') || '', utm_campaign: params.get('utm_campaign') || '' };
+        const fromUrl = {
+            utm_source:   params.get('utm_source')   || '',
+            utm_medium:   params.get('utm_medium')   || '',
+            utm_campaign: params.get('utm_campaign') || '',
+            utm_term:     params.get('utm_term')     || '',
+            utm_content:  params.get('utm_content')  || '',
+            gclid:        params.get('gclid')        || '',
+            fbclid:       params.get('fbclid')       || '',
+            referrer:     document.referrer         || '',
+        };
+        const hasAny = Object.values(fromUrl).some(Boolean);
+        if (hasAny) {
+            try { sessionStorage.setItem('lp_attrib', JSON.stringify(fromUrl)); } catch (_) {}
+            return fromUrl;
+        }
+        try {
+            const cached = JSON.parse(sessionStorage.getItem('lp_attrib') || '{}');
+            return {
+                utm_source: cached.utm_source || '', utm_medium: cached.utm_medium || '',
+                utm_campaign: cached.utm_campaign || '', utm_term: cached.utm_term || '',
+                utm_content: cached.utm_content || '', gclid: cached.gclid || '',
+                fbclid: cached.fbclid || '', referrer: cached.referrer || '',
+            };
+        } catch (_) {
+            return { utm_source: '', utm_medium: '', utm_campaign: '', utm_term: '', utm_content: '', gclid: '', fbclid: '', referrer: '' };
+        }
     }, []);
 
     const depoimentos = config ? parseJsonList(config?.landing_provas_json, [
@@ -449,7 +536,12 @@ export default function LandingPageV2() {
             }),
         }).catch(() => {});
         try { if (window.fbq) window.fbq('track', 'Lead', { content_category: form.ambiente || 'marcenaria' }); } catch (_) {}
-        try { if (window.gtag && config?.google_ads_id) window.gtag('event', 'conversion', { send_to: config.google_ads_id }); } catch (_) {}
+        try {
+            if (window.gtag) {
+                window.gtag('event', 'generate_lead', { form_source: 'landing_v2', ambiente: form.ambiente || '' });
+                if (config?.google_ads_id) window.gtag('event', 'conversion', { send_to: config.google_ads_id });
+            }
+        } catch (_) {}
         setTimeout(() => {
             window.open(waHrefPersonalizado, '_blank', 'noopener,noreferrer');
             setEnviado(true);
@@ -556,7 +648,15 @@ export default function LandingPageV2() {
                         <div className="lp-hero-image-side lp-animate-blur-in lp-delay-2">
                             {heroImage ? (
                                 <div className="lp-hero-image-wrapper lp-animate-float">
-                                    <img src={heroImage} alt={empNome} className="lp-hero-img" />
+                                    <img
+                                        src={heroImage}
+                                        alt={`${empNome} — marcenaria sob medida`}
+                                        className="lp-hero-img"
+                                        fetchpriority="high"
+                                        decoding="async"
+                                        width="900"
+                                        height="600"
+                                    />
                                 </div>
                             ) : (
                                 <div className="lp-hero-image-wrapper lp-animate-float" style={{ background: `linear-gradient(135deg, ${acc}15, ${acc}05)` }}>
@@ -889,7 +989,12 @@ export default function LandingPageV2() {
                                     }),
                                 }).catch(() => {});
                                 try { if (window.fbq) window.fbq('track', 'Lead', { content_category: 'popup' }); } catch (_) {}
-                                try { if (window.gtag && config?.google_ads_id) window.gtag('event', 'conversion', { send_to: config.google_ads_id }); } catch (_) {}
+                                try {
+                                    if (window.gtag) {
+                                        window.gtag('event', 'generate_lead', { form_source: 'landing_v2_popup' });
+                                        if (config?.google_ads_id) window.gtag('event', 'conversion', { send_to: config.google_ads_id });
+                                    }
+                                } catch (_) {}
                                 setTimeout(() => {
                                     const nome = popupForm.nome.trim();
                                     const msg = `Olá, ${empNome}! Vim pelo site. Meu nome é *${nome}*. Quero meu pré-briefing gratuito.`;

@@ -56,7 +56,8 @@ router.get('/stats', (req, res) => {
 // ═══════════════════════════════════════════════════════
 router.post('/captura', (req, res) => {
     const { nome, telefone, email, tipo_projeto, ambiente, faixa_investimento, mensagem,
-            utm_source, utm_medium, utm_campaign, origem: origemParam } = req.body;
+            utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+            gclid, fbclid, referrer, origem: origemParam } = req.body;
     // ambiente é o campo novo (dropdown "qual ambiente?"), tipo_projeto é compat legado
     const ambienteReal = ambiente || tipo_projeto || 'Consulta';
 
@@ -104,12 +105,17 @@ router.post('/captura', (req, res) => {
         const numero = `ORN-${ano}-${String(nextNum).padStart(5, '0')}`;
 
         // Criar orçamento como lead
+        // Atribuição extra (não persiste em colunas próprias — vai no obs pra virar texto consultável)
+        const utmExtra = [utm_term, utm_content].filter(Boolean).join('/');
+        const clickIds = [gclid ? `gclid=${gclid}` : '', fbclid ? `fbclid=${fbclid}` : ''].filter(Boolean).join(' ');
         const obsText = [
             ambienteReal !== 'Consulta' ? `Ambiente: ${ambienteReal}` : '',
             faixa_investimento ? `Faixa de investimento: ${faixa_investimento}` : '',
             mensagem ? `Mensagem: ${mensagem}` : '',
             `Origem: ${origemParam || 'Landing Page'}`,
-            utm_source ? `UTM: ${utm_source}/${utm_medium || ''}/${utm_campaign || ''}` : '',
+            utm_source ? `UTM: ${utm_source}/${utm_medium || ''}/${utm_campaign || ''}${utmExtra ? `/${utmExtra}` : ''}` : '',
+            clickIds || '',
+            referrer ? `Referrer: ${referrer}` : '',
         ].filter(Boolean).join('\n');
 
         const orc = db.prepare(`

@@ -4,11 +4,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ornato ERP</title>
-  <meta name="description"
-    content="Ornato — sistema completo de gestão para marcenaria — orçamentos, CRM, catálogo de módulos e precificação por markup divisor." />
-  <meta name="theme-color" content="#1379F0" />
+  <!--
+    Título/descrição priorizam o público externo (landing pública).
+    Para usuários logados no ERP, o React ajusta document.title dinamicamente após o boot.
+    Para bots de preview (WhatsApp/FB/Twitter/Google) que não executam JS, esses meta tags
+    aqui são a única fonte de verdade — por isso valem a landing.
+  -->
+  <title>Studio Ornato — Marcenaria sob medida em São Luís</title>
+  <meta name="description" content="Projetos de marcenaria sob medida de alto padrão em São Luís. Cozinhas, closets, home office e ambientes planejados — do briefing à instalação." />
+  <meta name="theme-color" content="#1A1614" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <!-- Open Graph (WhatsApp, Facebook) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="pt_BR" />
+  <meta property="og:site_name" content="Studio Ornato" />
+  <meta property="og:title" content="Studio Ornato — Marcenaria sob medida em São Luís" />
+  <meta property="og:description" content="Projetos sob medida de alto padrão. Do briefing à instalação, você acompanha cada decisão." />
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
