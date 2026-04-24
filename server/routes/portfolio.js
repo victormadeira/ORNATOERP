@@ -4,6 +4,41 @@ import { requireAuth, requireRole } from '../auth.js';
 
 const router = Router();
 
+// ═══════════════════════════════════════════════════════════════
+// CONFIG pública do Portfolio — desacoplada da landing/proposta
+// GET  /api/portfolio/config  — visual + textos do portfolio (sem auth)
+// PUT  /api/portfolio/config  — salvar config (admin/gerente)
+// ═══════════════════════════════════════════════════════════════
+router.get('/config', (req, res) => {
+    const row = db.prepare(`
+        SELECT nome, telefone, instagram, facebook,
+               logo_sistema, logo_header_path,
+               portfolio_ativo, portfolio_logo,
+               portfolio_tag, portfolio_titulo, portfolio_subtitulo,
+               portfolio_cor_fundo, portfolio_cor_destaque,
+               portfolio_wa_mensagem, portfolio_footer_texto, portfolio_cta_texto
+        FROM empresa_config WHERE id = 1
+    `).get();
+    res.json(row || {});
+});
+
+router.put('/config', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
+    const b = req.body || {};
+    const fields = [
+        'portfolio_ativo', 'portfolio_logo',
+        'portfolio_tag', 'portfolio_titulo', 'portfolio_subtitulo',
+        'portfolio_cor_fundo', 'portfolio_cor_destaque',
+        'portfolio_wa_mensagem', 'portfolio_footer_texto', 'portfolio_cta_texto',
+    ];
+    const setClause = fields.map(f => `${f} = ?`).join(', ');
+    const values = fields.map(f => {
+        if (f === 'portfolio_ativo') return b[f] === 0 || b[f] === false ? 0 : 1;
+        return b[f] ?? '';
+    });
+    db.prepare(`UPDATE empresa_config SET ${setClause} WHERE id = 1`).run(...values);
+    res.json({ ok: true });
+});
+
 // ── GET /api/portfolio — público (sem auth) ──────────────────────
 router.get('/', (req, res) => {
     const rows = db.prepare(

@@ -292,7 +292,7 @@ export default function PortfolioPublico() {
     useEffect(() => {
         Promise.all([
             fetch('/api/portfolio').then(r => r.json()).catch(() => []),
-            fetch('/api/landing/config').then(r => r.json()).catch(() => ({})),
+            fetch('/api/portfolio/config').then(r => r.json()).catch(() => ({})),
         ]).then(([port, emp]) => {
             setItems(Array.isArray(port) ? port : []);
             setEmpresa(emp || {});
@@ -316,16 +316,30 @@ export default function PortfolioPublico() {
         if (!tel) return '#';
         const dest = tel.startsWith('55') ? tel : `55${tel}`;
         const nome = empresa?.nome || 'Studio Ornato';
-        const msg = titulo
-            ? `Olá! Vi o projeto *${titulo}* no portfolio do ${nome} e gostaria de conversar sobre algo similar. 🪵`
-            : `Olá! Vi o portfolio do ${nome} e gostaria de solicitar um orçamento. 🪵`;
+        // Mensagem customizada do admin, ou padrão
+        const tpl = (empresa?.portfolio_wa_mensagem || '').trim();
+        let msg;
+        if (tpl) {
+            msg = tpl
+                .replace(/\{projeto\}/g, titulo || '')
+                .replace(/\{empresa\}/g, nome);
+        } else {
+            msg = titulo
+                ? `Olá! Vi o projeto *${titulo}* no portfolio do ${nome} e gostaria de conversar sobre algo similar. 🪵`
+                : `Olá! Vi o portfolio do ${nome} e gostaria de solicitar um orçamento. 🪵`;
+        }
         return `https://wa.me/${dest}?text=${encodeURIComponent(msg)}`;
     }, [empresa]);
 
-    const acc   = empresa?.landing_cor_destaque || '#C9A96E';
-    const fundo = empresa?.landing_cor_fundo    || '#1E1917';
-    const logo  = empresa?.logo_sistema || empresa?.logo_header_path || empresa?.landing_logo || null;
+    const acc   = empresa?.portfolio_cor_destaque || '#C9A96E';
+    const fundo = empresa?.portfolio_cor_fundo    || '#1E1917';
+    const logo  = empresa?.portfolio_logo || empresa?.logo_sistema || empresa?.logo_header_path || null;
     const nome  = empresa?.nome || 'Studio Ornato';
+    const tag         = empresa?.portfolio_tag || 'Nosso trabalho';
+    const titulo      = empresa?.portfolio_titulo || 'Projetos que transformam ambientes em experiências';
+    const subtitulo   = empresa?.portfolio_subtitulo || 'Marcenaria sob medida com acabamento premium.\nCada projeto, único — feito especialmente para você.';
+    const footerTxt   = empresa?.portfolio_footer_texto || 'Marcenaria sob medida';
+    const ctaTxt      = empresa?.portfolio_cta_texto || 'Solicitar projeto';
 
     // Filtros com itens
     const ambientesDisponiveis = [
@@ -354,18 +368,15 @@ export default function PortfolioPublico() {
                     className="pf-wa-btn"
                 >
                     <WaIcon className="pf-wa-icon" />
-                    <span>Solicitar projeto</span>
+                    <span>{ctaTxt}</span>
                 </a>
             </header>
 
             {/* ── Hero ───────────────────────────────────────────── */}
             <div className="pf-hero">
-                <div className="pf-hero-tag">Nosso trabalho</div>
-                <h1 className="pf-hero-title">Projetos que transformam<br />ambientes em experiências</h1>
-                <p className="pf-hero-sub">
-                    Marcenaria sob medida com acabamento premium.<br />
-                    Cada projeto, único — feito especialmente para você.
-                </p>
+                <div className="pf-hero-tag">{tag}</div>
+                <h1 className="pf-hero-title">{titulo}</h1>
+                <p className="pf-hero-sub" style={{ whiteSpace: 'pre-line' }}>{subtitulo}</p>
             </div>
 
             {/* ── Filtros ────────────────────────────────────────── */}
@@ -447,7 +458,7 @@ export default function PortfolioPublico() {
                         {' · '}
                     </>
                 )}
-                {nome} · Marcenaria sob medida
+                {nome}{footerTxt ? ` · ${footerTxt}` : ''}
             </footer>
 
             {/* ── Modal ──────────────────────────────────────────── */}

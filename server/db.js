@@ -2254,6 +2254,18 @@ const migrations = [
   "ALTER TABLE empresa_config ADD COLUMN fb_pixel_id TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN google_ads_id TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN fb_access_token TEXT DEFAULT ''",
+
+  // ═══ Portfolio Público (/portfolioornato) — config dedicada, desacoplada da landing/proposta ═══
+  "ALTER TABLE empresa_config ADD COLUMN portfolio_ativo INTEGER DEFAULT 1",
+  "ALTER TABLE empresa_config ADD COLUMN portfolio_logo TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN portfolio_tag TEXT DEFAULT 'Nosso trabalho'",
+  "ALTER TABLE empresa_config ADD COLUMN portfolio_titulo TEXT DEFAULT 'Projetos que transformam ambientes em experiências'",
+  "ALTER TABLE empresa_config ADD COLUMN portfolio_subtitulo TEXT DEFAULT 'Marcenaria sob medida com acabamento premium. Cada projeto, único — feito especialmente para você.'",
+  "ALTER TABLE empresa_config ADD COLUMN portfolio_cor_fundo TEXT DEFAULT '#1E1917'",
+  "ALTER TABLE empresa_config ADD COLUMN portfolio_cor_destaque TEXT DEFAULT '#C9A96E'",
+  "ALTER TABLE empresa_config ADD COLUMN portfolio_wa_mensagem TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN portfolio_footer_texto TEXT DEFAULT 'Marcenaria sob medida'",
+  "ALTER TABLE empresa_config ADD COLUMN portfolio_cta_texto TEXT DEFAULT 'Solicitar projeto'",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

@@ -4,7 +4,7 @@ import api from '../api';
 import { useAuth } from '../auth';
 import { applyPrimaryColor } from '../theme';
 import { DEFAULT_CONTRATO_TEMPLATE } from './ContratoHtml';
-import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle, Palette, ExternalLink } from 'lucide-react';
 
 const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
@@ -246,6 +246,20 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [portfolio, setPortfolio] = useState([]);
     const [portEdit, setPortEdit] = useState(null); // { titulo, designer, descricao, imagem, ambiente } or null
     const portImgRef = useRef();
+    // Config visual/texto da página pública /portfolioornato (desacoplada da landing)
+    const [portCfg, setPortCfg] = useState({
+        portfolio_ativo: 1,
+        portfolio_logo: '',
+        portfolio_tag: 'Nosso trabalho',
+        portfolio_titulo: 'Projetos que transformam ambientes em experiências',
+        portfolio_subtitulo: 'Marcenaria sob medida com acabamento premium.\nCada projeto, único — feito especialmente para você.',
+        portfolio_cor_fundo: '#1E1917',
+        portfolio_cor_destaque: '#C9A96E',
+        portfolio_wa_mensagem: '',
+        portfolio_footer_texto: 'Marcenaria sob medida',
+        portfolio_cta_texto: 'Solicitar projeto',
+    });
+    const [portCfgSaving, setPortCfgSaving] = useState(false);
     const [depoimentos, setDepoimentos] = useState([]);
     const [depEdit, setDepEdit] = useState(null); // { nome_cliente, texto, estrelas } or null
 
@@ -332,6 +346,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
             });
         }).catch(e => notify(e.error || 'Erro ao carregar configurações'));
         api.get('/portfolio').then(setPortfolio).catch(e => notify(e.error || 'Erro ao carregar portfolio'));
+        api.get('/portfolio/config').then(d => setPortCfg(prev => ({ ...prev, ...d }))).catch(() => {});
         api.get('/depoimentos').then(setDepoimentos).catch(() => {});
         api.get('/config/escalacao').then(d => setEscCfg({ ativa: d.ativa !== false, sla: d.sla || null })).catch(() => {});
         api.get('/ext/tokens').then(setExtTokens).catch(() => {});
@@ -3475,7 +3490,189 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
             {/* ─── Backup do Sistema ──────────────────────────── */}
             {/* ─── Portfolio ────────────────────────────────────── */}
             {activeSection === 'portfolio' && (
-                <div className="max-w-3xl">
+                <div className="max-w-3xl space-y-5">
+
+                    {/* ── Card 1: Aparência & textos da página pública ── */}
+                    <div className={Z.card}>
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
+                                    <Palette size={20} style={{ color: 'var(--primary)' }} />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Página Pública · Aparência & Textos</h3>
+                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                        Config exclusiva da <code style={{ fontSize: 10 }}>/portfolioornato</code> — independente da proposta e landing
+                                    </p>
+                                </div>
+                            </div>
+                            <label className="flex items-center gap-2 cursor-pointer select-none" title="Ativar/desativar página pública">
+                                <input
+                                    type="checkbox"
+                                    checked={portCfg.portfolio_ativo ? true : false}
+                                    onChange={e => setPortCfg({ ...portCfg, portfolio_ativo: e.target.checked ? 1 : 0 })}
+                                    disabled={!isGerente}
+                                />
+                                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Ativo</span>
+                            </label>
+                        </div>
+
+                        {/* Logo dedicado */}
+                        <div className="mb-4">
+                            <ImageUploader
+                                label="Logo do Portfolio (opcional)"
+                                image={portCfg.portfolio_logo}
+                                onChange={portfolio_logo => setPortCfg({ ...portCfg, portfolio_logo })}
+                                disabled={!isGerente}
+                                hint="Se vazio, usa Logo do Sistema → Logo da Empresa"
+                            />
+                        </div>
+
+                        {/* Hero textos */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                            <div>
+                                <label className={Z.lbl}>Tag superior</label>
+                                <input
+                                    className={Z.inp}
+                                    value={portCfg.portfolio_tag}
+                                    onChange={e => setPortCfg({ ...portCfg, portfolio_tag: e.target.value })}
+                                    placeholder="Nosso trabalho"
+                                    disabled={!isGerente}
+                                />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className={Z.lbl}>Título principal</label>
+                                <input
+                                    className={Z.inp}
+                                    value={portCfg.portfolio_titulo}
+                                    onChange={e => setPortCfg({ ...portCfg, portfolio_titulo: e.target.value })}
+                                    placeholder="Projetos que transformam ambientes em experiências"
+                                    disabled={!isGerente}
+                                />
+                            </div>
+                        </div>
+                        <div className="mb-4">
+                            <label className={Z.lbl}>Subtítulo (pode quebrar linha)</label>
+                            <textarea
+                                className={Z.inp}
+                                rows={2}
+                                value={portCfg.portfolio_subtitulo}
+                                onChange={e => setPortCfg({ ...portCfg, portfolio_subtitulo: e.target.value })}
+                                placeholder="Marcenaria sob medida com acabamento premium..."
+                                disabled={!isGerente}
+                            />
+                        </div>
+
+                        {/* Cores */}
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                            <div>
+                                <label className={Z.lbl}>Cor de fundo</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        value={portCfg.portfolio_cor_fundo || '#1E1917'}
+                                        onChange={e => setPortCfg({ ...portCfg, portfolio_cor_fundo: e.target.value })}
+                                        disabled={!isGerente}
+                                        style={{ width: 40, height: 38, border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', cursor: 'pointer' }}
+                                    />
+                                    <input
+                                        className={Z.inp}
+                                        value={portCfg.portfolio_cor_fundo}
+                                        onChange={e => setPortCfg({ ...portCfg, portfolio_cor_fundo: e.target.value })}
+                                        placeholder="#1E1917"
+                                        disabled={!isGerente}
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className={Z.lbl}>Cor de destaque</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        value={portCfg.portfolio_cor_destaque || '#C9A96E'}
+                                        onChange={e => setPortCfg({ ...portCfg, portfolio_cor_destaque: e.target.value })}
+                                        disabled={!isGerente}
+                                        style={{ width: 40, height: 38, border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', cursor: 'pointer' }}
+                                    />
+                                    <input
+                                        className={Z.inp}
+                                        value={portCfg.portfolio_cor_destaque}
+                                        onChange={e => setPortCfg({ ...portCfg, portfolio_cor_destaque: e.target.value })}
+                                        placeholder="#C9A96E"
+                                        disabled={!isGerente}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* CTA + footer */}
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                            <div>
+                                <label className={Z.lbl}>Texto do botão WhatsApp</label>
+                                <input
+                                    className={Z.inp}
+                                    value={portCfg.portfolio_cta_texto}
+                                    onChange={e => setPortCfg({ ...portCfg, portfolio_cta_texto: e.target.value })}
+                                    placeholder="Solicitar projeto"
+                                    disabled={!isGerente}
+                                />
+                            </div>
+                            <div>
+                                <label className={Z.lbl}>Frase do rodapé</label>
+                                <input
+                                    className={Z.inp}
+                                    value={portCfg.portfolio_footer_texto}
+                                    onChange={e => setPortCfg({ ...portCfg, portfolio_footer_texto: e.target.value })}
+                                    placeholder="Marcenaria sob medida"
+                                    disabled={!isGerente}
+                                />
+                            </div>
+                        </div>
+
+                        {/* WA template */}
+                        <div className="mb-4">
+                            <label className={Z.lbl}>
+                                Mensagem padrão do WhatsApp (opcional)
+                                <span className="font-normal ml-1" style={{ color: 'var(--text-muted)' }}>
+                                    — use <code style={{ fontSize: 10 }}>{'{projeto}'}</code> e <code style={{ fontSize: 10 }}>{'{empresa}'}</code>
+                                </span>
+                            </label>
+                            <textarea
+                                className={Z.inp}
+                                rows={3}
+                                value={portCfg.portfolio_wa_mensagem}
+                                onChange={e => setPortCfg({ ...portCfg, portfolio_wa_mensagem: e.target.value })}
+                                placeholder={"Olá! Vi o projeto *{projeto}* no portfolio da {empresa} e gostaria de conversar sobre algo similar."}
+                                disabled={!isGerente}
+                            />
+                        </div>
+
+                        {/* Save button */}
+                        {isGerente && (
+                            <div className="flex justify-end">
+                                <button
+                                    disabled={portCfgSaving}
+                                    onClick={async () => {
+                                        setPortCfgSaving(true);
+                                        try {
+                                            await api.put('/portfolio/config', portCfg);
+                                            notify?.('Configurações salvas!');
+                                        } catch (e) {
+                                            notify?.(e.error || 'Erro ao salvar');
+                                        } finally {
+                                            setPortCfgSaving(false);
+                                        }
+                                    }}
+                                    className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
+                                    style={{ background: 'var(--primary)', opacity: portCfgSaving ? 0.6 : 1 }}
+                                >
+                                    {portCfgSaving ? 'Salvando…' : 'Salvar aparência'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ── Card 2: Fotos do portfolio ── */}
                     <div className={Z.card}>
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-3">
@@ -3483,8 +3680,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     <Images size={20} style={{ color: 'var(--primary)' }} />
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Portfolio</h3>
-                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Fotos-vitrine que aparecem na apresentação para clientes</p>
+                                    <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Fotos do Portfolio</h3>
+                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Projetos exibidos na página pública e apresentação</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
