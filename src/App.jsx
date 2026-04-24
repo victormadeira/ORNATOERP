@@ -23,6 +23,7 @@ const Estoque = lazy(() => import('./pages/Estoque'));
 const ItemBuilder = lazy(() => import('./pages/ItemBuilder'));
 const Mensagens = lazy(() => import('./pages/Mensagens'));
 const AssistenteIA = lazy(() => import('./pages/AssistenteIA'));
+const GerenteRevisional = lazy(() => import('./pages/GerenteRevisional'));
 const Relatorios = lazy(() => import('./pages/Relatorios'));
 const Financeiro = lazy(() => import('./pages/Financeiro'));
 const ProducaoCNC = lazy(() => import('./pages/ProducaoCNC'));
@@ -524,6 +525,7 @@ export default function App() {
         { id: "funil", lb: "Funil de Leads", ic: Ic.Target },
         { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
+        { id: "gerente-revisional", lb: "Gerente Revisional IA", ic: Ic.Brain },
         { id: "relatorios", lb: "Relatorios", ic: Ic.PieChart },
         { id: "industrializacao", lb: "Ordens de Producao", ic: Ic.ClipList },
         { id: "cnc", lb: "Corte & CNC", ic: Ic.Scissors },
@@ -572,6 +574,7 @@ export default function App() {
         ]},
         { id: 'sistema', label: 'Sistema', icon: Ic.Cog, items: [
             { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
+        { id: "gerente-revisional", lb: "Gerente Revisional IA", ic: Ic.Brain },
             { id: "plugin_download", lb: "Plugin SketchUp", ic: Ic.Plug },
             { id: "cfg", lb: "Configurações", ic: Ic.Gear },
             ...(isAdmin ? [{ id: "users", lb: "Usuários", ic: Ic.Users }] : []),
@@ -611,6 +614,7 @@ export default function App() {
         { id: "gestao", lb: "Gestão Avançada", ic: Ic.BarChart },
         { id: "relatorios", lb: "Relatórios", ic: Ic.PieChart },
         { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
+        { id: "gerente-revisional", lb: "Gerente Revisional IA", ic: Ic.Brain },
         { id: "plugin_download", lb: "Plugin SketchUp", ic: Ic.Plug },
         { id: "cfg", lb: "Configurações", ic: Ic.Gear },
         ...(isAdmin ? [{ id: "users", lb: "Usuários", ic: Ic.Users }] : []),
@@ -653,6 +657,7 @@ export default function App() {
             case "financeiro": return <Financeiro notify={notify} user={user} nav={nav} />;
             case "whatsapp": return <Mensagens notify={notify} />;
             case "assistente": return <AssistenteIA notify={notify} />;
+            case "gerente-revisional": return <GerenteRevisional notify={notify} />;
             case "catalogo_itens": return <ItemBuilder notify={notify} />;
             case "relatorios": return <Relatorios notify={notify} />;
             case "plano_corte": return <PlanoCorte notify={notify} />;

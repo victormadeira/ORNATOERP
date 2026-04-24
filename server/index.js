@@ -59,7 +59,9 @@ import { iniciarSofiaProspeccao } from './services/sofia_prospeccao.js';
 import { iniciarHotSilentWatcher } from './services/hot_silent_watcher.js';
 import { iniciarInativosWatcher } from './services/inativos_watcher.js';
 import { iniciarAssinaturasWatcher } from './services/assinaturas_watcher.js';
+import { iniciarGerenteRevisional } from './services/gerente_revisional.js';
 import automacoesRoutes from './routes/automacoes.js';
+import gerenteRoutes from './routes/gerente.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -183,6 +185,7 @@ app.use('/api/montador', montadorRoutes);
 app.use('/api/pdf', pdfRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/ia', iaRoutes);
+app.use('/api/gerente', gerenteRoutes);
 app.use('/api/recursos', recursosRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/producao', producaoRoutes);
@@ -326,6 +329,8 @@ const server = app.listen(PORT, () => {
     iniciarInativosWatcher();
     // Assinaturas Watcher (lembrete automático de assinatura pendente — sem IA, template fixo)
     iniciarAssinaturasWatcher();
+    // Gerente Revisional IA (auditoria diária da operação comercial — Haiku 4.5, 07:30)
+    iniciarGerenteRevisional();
 });
 
 const wss = new WebSocketServer({ server, path: '/ws' });

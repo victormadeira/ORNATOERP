@@ -33,6 +33,7 @@ const MENU_SECTIONS = [
     ]},
     { label: 'Sistema', items: [
         { id: 'assistente',     label: 'Assistente IA',         desc: 'Chat e assistente inteligente' },
+        { id: 'gerente-revisional', label: 'Gerente Revisional IA', desc: 'Auditoria diária dos leads pela IA' },
         { id: 'cfg',            label: 'Configurações',         desc: 'Configurações e taxas do sistema' },
     ]},
 ];

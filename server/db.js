@@ -2361,6 +2361,46 @@ const migrations = [
   "ALTER TABLE assinatura_signatarios ADD COLUMN lembrete_2_em DATETIME",
   "ALTER TABLE assinatura_signatarios ADD COLUMN escalado_em DATETIME",
   "CREATE INDEX IF NOT EXISTS idx_assinatura_sig_status ON assinatura_signatarios(status, enviado_em)",
+
+  // ═══ Gerente Revisional IA — relatórios diários + ações sugeridas ═══
+  `CREATE TABLE IF NOT EXISTS gerente_relatorios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    gerado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    leads_analisados INTEGER DEFAULT 0,
+    acoes_urgentes INTEGER DEFAULT 0,
+    acoes_media INTEGER DEFAULT 0,
+    acoes_baixa INTEGER DEFAULT 0,
+    resumo TEXT DEFAULT '',
+    padroes_json TEXT DEFAULT '[]',
+    recomendacao TEXT DEFAULT '',
+    tokens_input INTEGER DEFAULT 0,
+    tokens_output INTEGER DEFAULT 0,
+    custo_usd REAL DEFAULT 0,
+    modelo TEXT DEFAULT '',
+    erro TEXT DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS gerente_acoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    relatorio_id INTEGER NOT NULL REFERENCES gerente_relatorios(id),
+    lead_id INTEGER REFERENCES leads(id),
+    conversa_id INTEGER REFERENCES chat_conversas(id),
+    cliente_id INTEGER REFERENCES clientes(id),
+    orc_id INTEGER REFERENCES orcamentos(id),
+    nome_alvo TEXT DEFAULT '',
+    prioridade TEXT DEFAULT 'media',
+    tipo_acao TEXT DEFAULT '',
+    diagnostico TEXT NOT NULL DEFAULT '',
+    acao_sugerida TEXT NOT NULL DEFAULT '',
+    mensagem_sugerida TEXT DEFAULT '',
+    status TEXT DEFAULT 'pendente',
+    resolvida_em DATETIME,
+    resolvida_por INTEGER REFERENCES users(id),
+    feedback TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_gerente_rel_gerado ON gerente_relatorios(gerado_em DESC)",
+  "CREATE INDEX IF NOT EXISTS idx_gerente_acoes_rel ON gerente_acoes(relatorio_id)",
+  "CREATE INDEX IF NOT EXISTS idx_gerente_acoes_status ON gerente_acoes(status, prioridade)",
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }

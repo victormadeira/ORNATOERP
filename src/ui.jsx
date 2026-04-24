@@ -15,7 +15,7 @@ import {
     Library, Cpu, FolderKanban, Wallet, ShieldCheck, Handshake,
     Factory, LineChart, Cog, Star, PieChart, FileSpreadsheet, Kanban,
     InboxIcon, PackageSearch, LayoutGrid, PenTool, Truck, ClipboardList as ClipList,
-    Monitor, ShoppingCart, Plug, Target
+    Monitor, ShoppingCart, Plug, Target, Brain
 } from 'lucide-react';
 
 export const Ic = {
@@ -81,6 +81,7 @@ export const Ic = {
     Warehouse: () => <Warehouse size={18} />,
     WhatsApp: () => <MessageCircle size={18} />,
     Sparkles: () => <Sparkles size={18} />,
+    Brain: () => <Brain size={18} />,
     Bot: () => <Bot size={14} />,
     Scissors: () => <Scissors size={18} />,
     Star: () => <Star size={12} />,
