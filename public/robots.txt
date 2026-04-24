@@ -1,0 +1,13 @@
+# Studio Ornato — robots.txt
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /painel/
+Disallow: /portal/
+Disallow: /assinar/
+Disallow: /aprovar/
+Disallow: /orcamento/
+Disallow: /orc/
+
+Sitemap: https://studioornato.com.br/sitemap.xml
