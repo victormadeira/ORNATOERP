@@ -629,8 +629,12 @@ export default function LandingPageV2() {
                 {/* Glass Nav */}
                 <nav className="lp-glass-nav lp-animate-fade-up">
                     <a href="#" className="lp-nav-brand">
-                        {(config?.landing_logo || config?.logo_sistema) ? (
-                            <img src={config?.landing_logo || config?.logo_sistema} alt={empNome} className="lp-nav-logo" />
+                        {(config?.landing_logo || config?.logo_sistema || config?.logo_header_path) ? (
+                            <img
+                                src={config?.landing_logo || config?.logo_sistema || config?.logo_header_path}
+                                alt={empNome}
+                                className="lp-nav-logo"
+                            />
                         ) : (
                             <span className="lp-nav-name">{empNome.toUpperCase()}</span>
                         )}
@@ -1422,6 +1426,8 @@ function buildCSS(acc) {
 
 .lp-carousel-stage {
   position:relative;
+  max-width:900px;
+  margin:0 auto;
   border-radius:1.4rem; overflow:hidden;
   background:#FAF7F2;
   box-shadow: 0 20px 60px rgba(26,22,20,0.08), 0 4px 16px rgba(26,22,20,0.05);
