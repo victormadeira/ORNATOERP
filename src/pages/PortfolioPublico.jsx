@@ -292,7 +292,7 @@ export default function PortfolioPublico() {
     useEffect(() => {
         Promise.all([
             fetch('/api/portfolio').then(r => r.json()).catch(() => []),
-            fetch('/api/leads/config').then(r => r.json()).catch(() => ({})),
+            fetch('/api/landing/config').then(r => r.json()).catch(() => ({})),
         ]).then(([port, emp]) => {
             setItems(Array.isArray(port) ? port : []);
             setEmpresa(emp || {});
