@@ -1239,6 +1239,11 @@ router.post('/simulate', requireAuth, async (req, res) => {
             contexto: 'simulate',
         });
 
+        // Log raw para diagnóstico do dossiê (temporário)
+        if (!response.includes('<dossie>')) {
+            console.warn('[Sofia/Simulate] AVISO: resposta sem bloco <dossie>. Raw:', response.slice(0, 500));
+        }
+
         // Extrair dossiê
         const { textoLimpo, dossie } = sofia.extrairDossie(response);
 
