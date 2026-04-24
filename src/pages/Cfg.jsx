@@ -2943,6 +2943,20 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                 <div className="flex items-center gap-2">
                                                     <Bot size={14} style={{ color: 'var(--primary)' }} />
                                                     <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Sofia (simulação)</span>
+                                                    {emp.ia_provider && (
+                                                        <span style={{
+                                                            fontSize: 10,
+                                                            padding: '1px 6px',
+                                                            borderRadius: 10,
+                                                            background: emp.ia_provider === 'gemini' ? '#e8f5e9' : emp.ia_provider === 'openai' ? '#e3f2fd' : '#f3e5f5',
+                                                            color: emp.ia_provider === 'gemini' ? '#2e7d32' : emp.ia_provider === 'openai' ? '#1565c0' : '#6a1b9a',
+                                                            border: `1px solid ${emp.ia_provider === 'gemini' ? '#a5d6a7' : emp.ia_provider === 'openai' ? '#90caf9' : '#ce93d8'}`,
+                                                            fontWeight: 600,
+                                                        }}>
+                                                            {emp.ia_provider === 'gemini' ? '✦ ' : emp.ia_provider === 'openai' ? '⊕ ' : '◆ '}
+                                                            {emp.ia_model || emp.ia_provider}
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <button onClick={simResetar} className="text-[10px] px-2 py-1 rounded hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
                                                     <Trash2 size={10} style={{ display: 'inline', marginRight: 3 }} /> Limpar
@@ -3108,7 +3122,22 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                             {/* ═══ Consumo / Gasto da IA ═══ */}
                             <div className="mt-5 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
                                 <div className="flex items-center justify-between mb-3">
-                                    <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>Consumo da IA</h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>Consumo da IA</h3>
+                                        {emp.ia_provider && (
+                                            <span style={{
+                                                fontSize: 10,
+                                                padding: '1px 7px',
+                                                borderRadius: 10,
+                                                background: emp.ia_provider === 'gemini' ? '#e8f5e9' : emp.ia_provider === 'openai' ? '#e3f2fd' : '#f3e5f5',
+                                                color: emp.ia_provider === 'gemini' ? '#2e7d32' : emp.ia_provider === 'openai' ? '#1565c0' : '#6a1b9a',
+                                                border: `1px solid ${emp.ia_provider === 'gemini' ? '#a5d6a7' : emp.ia_provider === 'openai' ? '#90caf9' : '#ce93d8'}`,
+                                                fontWeight: 600,
+                                            }}>
+                                                IA ativa: {emp.ia_model || emp.ia_provider}
+                                            </span>
+                                        )}
+                                    </div>
                                     <button onClick={loadIaUso} disabled={iaUsoLoading} className={Z.btn2} style={{ fontSize: 11 }}>
                                         <RefreshCw size={11} className={iaUsoLoading ? 'animate-spin' : ''} style={{ display: 'inline', marginRight: 4 }} />
                                         Atualizar
@@ -3139,6 +3168,46 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                             ))}
                                         </div>
 
+                                        {/* Detalhamento por modelo */}
+                                        {iaUso.porModelo?.length > 0 && (
+                                            <div className="mb-4">
+                                                <div className="text-[11px] font-semibold mb-2" style={{ color: 'var(--text-secondary)' }}>Gasto por modelo</div>
+                                                <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                                                    <table className="w-full text-[11px]">
+                                                        <thead style={{ background: 'var(--bg-muted)' }}>
+                                                            <tr>
+                                                                <th className="text-left px-2 py-1.5" style={{ color: 'var(--text-muted)' }}>Modelo</th>
+                                                                <th className="text-right px-2 py-1.5" style={{ color: 'var(--text-muted)' }}>Hoje</th>
+                                                                <th className="text-right px-2 py-1.5" style={{ color: 'var(--text-muted)' }}>Este mês</th>
+                                                                <th className="text-right px-2 py-1.5" style={{ color: 'var(--text-muted)' }}>Total</th>
+                                                                <th className="text-right px-2 py-1.5" style={{ color: 'var(--text-muted)' }}>Chamadas</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {iaUso.porModelo.map((r, i) => {
+                                                                const isAtivo = emp.ia_model && r.modelo === emp.ia_model;
+                                                                return (
+                                                                    <tr key={i} style={{
+                                                                        borderTop: '1px solid var(--border)',
+                                                                        background: isAtivo ? 'var(--primary-bg, rgba(19,121,240,0.04))' : 'transparent',
+                                                                    }}>
+                                                                        <td className="px-2 py-1.5 flex items-center gap-1.5">
+                                                                            <span style={{ color: 'var(--text-secondary)' }}>{(r.modelo || '').split('-').slice(0, 3).join('-')}</span>
+                                                                            {isAtivo && <span style={{ fontSize: 9, padding: '0 4px', borderRadius: 8, background: 'var(--primary)', color: '#fff', fontWeight: 700 }}>ativo</span>}
+                                                                        </td>
+                                                                        <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>${(r.custo_usd_hoje || 0).toFixed(4)}</td>
+                                                                        <td className="px-2 py-1.5 text-right font-semibold" style={{ color: isAtivo ? 'var(--primary)' : 'var(--text-primary)' }}>${(r.custo_usd_mes || 0).toFixed(4)}</td>
+                                                                        <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>${(r.custo_usd || 0).toFixed(4)}</td>
+                                                                        <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{r.chamadas}</td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {iaUso.recentes?.length > 0 && (
                                             <div>
                                                 <div className="text-[11px] font-semibold mb-2" style={{ color: 'var(--text-secondary)' }}>Últimas chamadas</div>
@@ -3154,17 +3223,23 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            {iaUso.recentes.map((r, i) => (
-                                                                <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
-                                                                    <td className="px-2 py-1.5" style={{ color: 'var(--text-secondary)' }}>
-                                                                        {new Date(r.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                                                                    </td>
-                                                                    <td className="px-2 py-1.5 truncate" style={{ color: 'var(--text-secondary)', maxWidth: 140 }}>{(r.modelo || '').split('-').slice(0, 3).join('-')}</td>
-                                                                    <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{(r.input_tokens || 0).toLocaleString('pt-BR')}</td>
-                                                                    <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{(r.output_tokens || 0).toLocaleString('pt-BR')}</td>
-                                                                    <td className="px-2 py-1.5 text-right font-semibold" style={{ color: 'var(--text-primary)' }}>${(r.custo_usd || 0).toFixed(5)}</td>
-                                                                </tr>
-                                                            ))}
+                                                            {iaUso.recentes.map((r, i) => {
+                                                                const isAtivo = emp.ia_model && r.modelo === emp.ia_model;
+                                                                return (
+                                                                    <tr key={i} style={{
+                                                                        borderTop: '1px solid var(--border)',
+                                                                        background: isAtivo ? 'var(--primary-bg, rgba(19,121,240,0.04))' : 'transparent',
+                                                                    }}>
+                                                                        <td className="px-2 py-1.5" style={{ color: 'var(--text-secondary)' }}>
+                                                                            {new Date(r.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                                                        </td>
+                                                                        <td className="px-2 py-1.5 truncate" style={{ color: isAtivo ? 'var(--primary)' : 'var(--text-secondary)', maxWidth: 140, fontWeight: isAtivo ? 600 : 400 }}>{(r.modelo || '').split('-').slice(0, 3).join('-')}</td>
+                                                                        <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{(r.input_tokens || 0).toLocaleString('pt-BR')}</td>
+                                                                        <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{(r.output_tokens || 0).toLocaleString('pt-BR')}</td>
+                                                                        <td className="px-2 py-1.5 text-right font-semibold" style={{ color: 'var(--text-primary)' }}>${(r.custo_usd || 0).toFixed(5)}</td>
+                                                                    </tr>
+                                                                );
+                                                            })}
                                                         </tbody>
                                                     </table>
                                                 </div>

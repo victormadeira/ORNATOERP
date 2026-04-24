@@ -803,7 +803,22 @@ router.get('/uso', requireAuth, (req, res) => {
             LIMIT 20
         `).all();
 
-        res.json({ total, hoje, mes, porDia, recentes });
+        // Agrupado por modelo — mes atual e total
+        const porModelo = db.prepare(`
+            SELECT
+                modelo,
+                COUNT(*) as chamadas,
+                COALESCE(SUM(input_tokens), 0) as input_tokens,
+                COALESCE(SUM(output_tokens), 0) as output_tokens,
+                COALESCE(SUM(custo_usd), 0) as custo_usd,
+                COALESCE(SUM(CASE WHEN strftime('%Y-%m', criado_em) = strftime('%Y-%m', 'now', 'localtime') THEN custo_usd ELSE 0 END), 0) as custo_usd_mes,
+                COALESCE(SUM(CASE WHEN date(criado_em) = date('now', 'localtime') THEN custo_usd ELSE 0 END), 0) as custo_usd_hoje
+            FROM ia_uso_log
+            GROUP BY modelo
+            ORDER BY custo_usd DESC
+        `).all();
+
+        res.json({ total, hoje, mes, porDia, recentes, porModelo });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
