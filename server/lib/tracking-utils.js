@@ -27,11 +27,14 @@ export function parseUA(ua) {
 }
 
 // Geolocalização por IP (ipinfo.io — 50k req/mês grátis)
-const IPINFO_TOKEN = process.env.IPINFO_TOKEN || 'f4a5ba70f05a1c';
+// Configure IPINFO_TOKEN no .env — sem token, geolocalização fica desabilitada silenciosamente
+const IPINFO_TOKEN = process.env.IPINFO_TOKEN || '';
 export async function geolocateIP(ip) {
     if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
         return { cidade: 'Local', estado: '', pais: '', lat: null, lon: null };
     }
+    // Sem token configurado, geolocalização fica desabilitada silenciosamente
+    if (!IPINFO_TOKEN) return { cidade: '', estado: '', pais: '', lat: null, lon: null };
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 3000);

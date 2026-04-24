@@ -80,7 +80,25 @@ router.get('/empresa/public', (req, res) => {
 // ═══════════════════════════════════════════════════════
 router.get('/empresa', requireAuth, (req, res) => {
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
-    res.json(emp || {});
+
+    // Campos sensíveis — mascarar antes de retornar (mostra apenas últimos 4 chars
+    // para o admin confirmar que o campo está preenchido, sem expor o valor real)
+    const SENSITIVE_FIELDS = [
+        'ia_api_key', 'wa_api_key', 'gdrive_client_secret',
+        'fb_access_token', 'n8n_webhook_secret', 'gdrive_credentials',
+        'wa_webhook_token', 'n8n_webhook_url',
+    ];
+
+    const safe = { ...emp };
+    for (const field of SENSITIVE_FIELDS) {
+        if (safe[field]) {
+            safe[field] = safe[field].length > 4
+                ? '••••' + safe[field].slice(-4)
+                : '••••';
+        }
+    }
+
+    res.json(safe || {});
 });
 
 // ═══════════════════════════════════════════════════════

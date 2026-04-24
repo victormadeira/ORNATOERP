@@ -2190,7 +2190,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                             value={emp.ia_provider}
                                             onChange={e => {
                                                 const prov = e.target.value;
-                                                const model = prov === 'anthropic' ? 'claude-sonnet-4' : 'gpt-4o';
+                                                const model = prov === 'anthropic' ? 'claude-sonnet-4' : prov === 'openai' ? 'gpt-4o' : 'gemini-2.0-flash';
                                                 setEmp({ ...emp, ia_provider: prov, ia_model: model });
                                             }}
                                             disabled={!isGerente}
@@ -2198,6 +2198,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         >
                                             <option value="anthropic">Anthropic (Claude)</option>
                                             <option value="openai">OpenAI (GPT)</option>
+                                            <option value="gemini">Google Gemini</option>
                                         </select>
                                     </div>
                                     <div>
@@ -2213,6 +2214,12 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                     <option value="claude-sonnet-4">Claude Sonnet 4</option>
                                                     <option value="claude-haiku-4">Claude Haiku 4</option>
                                                     <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (20250514)</option>
+                                                </>
+                                            ) : emp.ia_provider === 'gemini' ? (
+                                                <>
+                                                    <option value="gemini-2.0-flash">Gemini 2.0 Flash (recomendado)</option>
+                                                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                                                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
                                                 </>
                                             ) : (
                                                 <>
@@ -2232,7 +2239,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         value={emp.ia_api_key}
                                         onChange={e => setEmp({ ...emp, ia_api_key: e.target.value })}
                                         disabled={!isGerente}
-                                        placeholder={emp.ia_provider === 'anthropic' ? 'sk-ant-...' : 'sk-...'}
+                                        placeholder={emp.ia_provider === 'anthropic' ? 'sk-ant-...' : emp.ia_provider === 'gemini' ? 'AIza...' : 'sk-...'}
                                         className={Z.inp}
                                         style={{ fontFamily: 'monospace', fontSize: 12 }}
                                     />
@@ -3287,6 +3294,13 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     <div>
                                         <div className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>OpenAI</div>
                                         <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>GPT-4o, GPT-4o Mini, GPT-4.1</div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 p-2 rounded-lg" style={{ background: emp.ia_provider === 'gemini' ? 'var(--bg-muted)' : 'transparent', border: emp.ia_provider === 'gemini' ? '1px solid var(--border)' : '1px solid transparent' }}>
+                                    <Bot size={20} style={{ color: 'var(--text-secondary)' }} />
+                                    <div>
+                                        <div className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>Google Gemini</div>
+                                        <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Gemini 2.0 Flash, 1.5 Flash, 1.5 Pro</div>
                                     </div>
                                 </div>
                             </div>

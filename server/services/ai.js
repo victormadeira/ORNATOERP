@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import db from '../db.js';
 import sofia from './sofia.js';
 
@@ -1037,6 +1038,10 @@ const PRECOS_MTOK = {
     'gpt-4o':                      { in: 2.50, out: 10.00 },
     'gpt-4-turbo':                 { in: 10.00, out: 30.00 },
     'gpt-3.5-turbo':               { in: 0.50, out: 1.50 },
+    // Google Gemini
+    'gemini-2.0-flash':            { in: 0.10, out: 0.40 },
+    'gemini-1.5-flash':            { in: 0.075, out: 0.30 },
+    'gemini-1.5-pro':              { in: 1.25, out: 5.00 },
 };
 
 function calcularCusto(modelo, inputTokens, outputTokens, cacheWriteTokens = 0, cacheReadTokens = 0) {
@@ -1067,6 +1072,32 @@ export async function callAI(messages, systemPrompt, options = {}) {
     const temperature = options.temperature ?? cfg.ia_temperatura ?? 0.7;
     const maxTokens = options.maxTokens ?? 1024;
     const contexto = options.contexto || '';
+
+    // ── Gemini ──
+    if (cfg.ia_provider === 'gemini') {
+        const modelo = cfg.ia_model || 'gemini-2.0-flash';
+        const genAI = new GoogleGenerativeAI(cfg.ia_api_key);
+        const geminiModel = genAI.getGenerativeModel({
+            model: modelo,
+            systemInstruction: systemPrompt,
+        });
+        // Converter histórico para formato Gemini
+        const history = messages.slice(0, -1).map(m => ({
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.content }],
+        }));
+        const lastMsg = messages[messages.length - 1];
+        const chat = geminiModel.startChat({ history });
+        const result = await chat.sendMessage(lastMsg?.content || '');
+        const text = result.response.text();
+        // Gemini não expõe contagem de tokens de forma síncrona no SDK básico
+        // Estimativa: 1 token ≈ 4 chars
+        const estimateTokens = (str) => Math.ceil((str || '').length / 4);
+        const inputEst = messages.reduce((acc, m) => acc + estimateTokens(m.content), 0) + estimateTokens(systemPrompt);
+        const outputEst = estimateTokens(text);
+        logarUso('gemini', modelo, inputEst, outputEst, contexto);
+        return text;
+    }
 
     if (cfg.ia_provider === 'openai') {
         const modelo = cfg.ia_model || 'gpt-4o-mini';
