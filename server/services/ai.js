@@ -1529,7 +1529,7 @@ export async function processIncomingMessage(conversa, messageText) {
     // ═══ ANTI-ABUSO: gatilho explícito na mensagem ═══
     const abusoMotivo = sofia.detectarAbuso(messageText);
     if (abusoMotivo) {
-        bloquearIA(conversa.id, abusoMotivo, 60 * 24); // 24h
+        bloquearIA(conversa.id, abusoMotivo, 60 * 6); // 6h (era 24h)
         return null;
     }
 
@@ -1542,7 +1542,7 @@ export async function processIncomingMessage(conversa, messageText) {
     msgsParaFlood.push({ direcao: 'entrada', conteudo: messageText });
     const flood = sofia.detectarFlood(msgsParaFlood);
     if (flood.flood) {
-        bloquearIA(conversa.id, `flood:${flood.motivo}`, 60); // 1h
+        bloquearIA(conversa.id, `flood:${flood.motivo}`, 20); // 20 min (era 60)
         return null;
     }
 
@@ -1566,7 +1566,7 @@ export async function processIncomingMessage(conversa, messageText) {
         WHERE contexto = ? AND criado_em >= datetime('now', '-1 day')
     `).get(`conversa=${conversa.id}`);
     if ((tokensHoje?.total || 0) > sofia.BUDGET_TOKENS_CONVERSA_DIA) {
-        bloquearIA(conversa.id, `budget_estourado:${tokensHoje.total}tk`, 60 * 12);
+        bloquearIA(conversa.id, `budget_estourado:${tokensHoje.total}tk`, 60 * 3); // 3h (era 12h)
         return null;
     }
 

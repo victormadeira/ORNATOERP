@@ -640,14 +640,15 @@ export function verificarRateLimit(timestampsEntrada = []) {
     const agora = Date.now();
     const ts = timestampsEntrada.map(t => (t instanceof Date ? t.getTime() : new Date(t).getTime()));
 
+    // Limites ajustados: 25 msgs/15min (era 15) e cooldown reduzido para 15min (era 30)
     const ultimas15min = ts.filter(t => agora - t < 15 * 60 * 1000).length;
-    if (ultimas15min > 15) {
-        return { ok: false, motivo: 'rate_limit_15min', minutosCooldown: 30 };
+    if (ultimas15min > 25) {
+        return { ok: false, motivo: 'rate_limit_15min', minutosCooldown: 15 };
     }
 
     const ultimas24h = ts.filter(t => agora - t < 24 * 60 * 60 * 1000).length;
-    if (ultimas24h > 60) {
-        return { ok: false, motivo: 'rate_limit_24h', minutosCooldown: 60 * 12 };
+    if (ultimas24h > 80) {
+        return { ok: false, motivo: 'rate_limit_24h', minutosCooldown: 60 * 6 };
     }
 
     return { ok: true, motivo: null };

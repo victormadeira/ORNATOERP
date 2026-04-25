@@ -271,7 +271,9 @@ router.get('/conversas/:id/mensagens', requireAuth, requireConversaAccess(db), (
 // ═══════════════════════════════════════════════════════
 router.post('/conversas/:id/enviar', requireAuth, requireConversaAccess(db), async (req, res) => {
     const id = req.conversa.id;
-    const { conteudo, tipo } = req.body;
+    const { tipo } = req.body;
+    // Remove blocos <dossie>...</dossie> que porventura existam (dados internos da IA não devem vazar)
+    const conteudo = (req.body.conteudo || '').replace(/<dossie>[\s\S]*?<\/dossie>/gi, '').trim();
     if (!conteudo) return res.status(400).json({ error: 'Conteúdo obrigatório' });
 
     const conversa = req.conversa;
