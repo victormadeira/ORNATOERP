@@ -32,7 +32,7 @@ async function processar() {
         // Conversas candidatas: score alto, não bloqueadas, não abandonadas
         const conversas = db.prepare(`
             SELECT c.id as conv_id, c.cliente_id, c.wa_phone, c.lead_score,
-                   c.lead_qualificacao AS classificacao, c.status, c.tags, c.ultimo_msg_em,
+                   c.lead_qualificacao AS classificacao, c.status, c.tags_json AS tags, c.ultimo_msg_em,
                    c.lead_quente_disparado_em,
                    cli.nome, cli.tel, cli.email
               FROM chat_conversas c
