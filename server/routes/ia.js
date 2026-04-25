@@ -1223,8 +1223,8 @@ router.post('/simulate', requireAuth, async (req, res) => {
             contextoExtra += `\n\n═══ DADOS JÁ COLETADOS ═══\n${JSON.stringify(dossieAcum, null, 2)}`;
         }
 
-        // Buildar system prompt (pega customizado ou padrão)
-        const system = aiSvc.buildSystemPrompt(contextoExtra);
+        // Buildar system prompt com partes separadas (estático cacheável + dinâmico por chamada)
+        const system = aiSvc.buildSystemPromptParts(contextoExtra);
 
         // Montar histórico para callAI
         const aiMessages = (history || []).map(h => ({

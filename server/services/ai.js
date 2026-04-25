@@ -455,6 +455,11 @@ MENSAGEM DE HANDOFF NORMAL (lead planejando):
 FORA DO HORÁRIO HUMANO (fora Seg-Sex 7h30-17h30), acrescente:
 "Nosso atendimento humano funciona de segunda a sexta, das 7h30 às 17h30. Vou deixar tudo encaminhado pra retornarem no próximo horário útil. ✨"
 
+PROIBIDO NO HANDOFF:
+NUNCA liste os dados coletados de volta para o cliente (ex: "seu apartamento no Calhau, cozinha + quarto + closet, orçamento de 40 mil...").
+Isso soa robótico e desnecessário. O cliente já sabe o que disse.
+Use apenas a mensagem padrão de handoff acima — curta, elegante, sem recapitular nada.
+
 ═══ 20. BIBLIOTECA DE OBJEÇÕES ═══
 
 "Quanto custa?" (1ª vez):
@@ -1005,39 +1010,40 @@ export const SOFIA_DEFAULT_PROMPT = SOFIA_TRAINING;
 
 // ═══ Construir system prompt com contexto da empresa ═══
 function buildSystemPrompt(customInstructions = '') {
+    const { staticPart, dynamicPart } = buildSystemPromptParts(customInstructions);
+    return dynamicPart ? `${staticPart}\n\n${dynamicPart}` : staticPart;
+}
+
+// Retorna { staticPart, dynamicPart } separados para uso no prompt caching.
+// staticPart: SOFIA_TRAINING + dados empresa + contextos (raramente muda → cacheável)
+// dynamicPart: customInstructions (horário, dossiê, estado da conversa → muda a cada chamada)
+export function buildSystemPromptParts(customInstructions = '') {
     const empresa = db.prepare(
         'SELECT nome, telefone, email, site, endereco, cidade, estado FROM empresa_config WHERE id = 1'
     ).get();
     const contextos = getContextEntries();
 
-    // Se admin customizou o prompt completo (ia_system_prompt_full), usa ele como base
     const cfgFull = db.prepare('SELECT ia_system_prompt_full FROM empresa_config WHERE id = 1').get();
-    let system = (cfgFull?.ia_system_prompt_full && cfgFull.ia_system_prompt_full.trim().length > 100)
+    let staticPart = (cfgFull?.ia_system_prompt_full && cfgFull.ia_system_prompt_full.trim().length > 100)
         ? cfgFull.ia_system_prompt_full
         : SOFIA_TRAINING;
-    system += `\n\n═══ DADOS DA EMPRESA ═══`;
-    system += `\nNome: ${empresa?.nome || 'Studio Ornato'}`;
-    system += `\nTelefone: ${empresa?.telefone || ''}`;
-    system += `\nEmail: ${empresa?.email || ''}`;
-    system += `\nSite: ${empresa?.site || ''}`;
-    system += `\nEndereço: ${empresa?.endereco || ''}, ${empresa?.cidade || 'São Luís'}-${empresa?.estado || 'MA'}`;
+    staticPart += `\n\n═══ DADOS DA EMPRESA ═══`;
+    staticPart += `\nNome: ${empresa?.nome || 'Studio Ornato'}`;
+    staticPart += `\nTelefone: ${empresa?.telefone || ''}`;
+    staticPart += `\nEmail: ${empresa?.email || ''}`;
+    staticPart += `\nSite: ${empresa?.site || ''}`;
+    staticPart += `\nEndereço: ${empresa?.endereco || ''}, ${empresa?.cidade || 'São Luís'}-${empresa?.estado || 'MA'}`;
 
-    // Adicionar entradas de treinamento customizadas
     for (const ctx of contextos) {
-        system += `\n\n[${ctx.tipo.toUpperCase()}${ctx.titulo ? ': ' + ctx.titulo : ''}]\n${ctx.conteudo}`;
+        staticPart += `\n\n[${ctx.tipo.toUpperCase()}${ctx.titulo ? ': ' + ctx.titulo : ''}]\n${ctx.conteudo}`;
     }
 
-    // System prompt customizado do config (override do admin)
     const cfg = getConfig();
     if (cfg.ia_system_prompt) {
-        system += `\n\n═══ INSTRUÇÕES ADICIONAIS DO ADMIN ═══\n${cfg.ia_system_prompt}`;
+        staticPart += `\n\n═══ INSTRUÇÕES ADICIONAIS DO ADMIN ═══\n${cfg.ia_system_prompt}`;
     }
 
-    if (customInstructions) {
-        system += `\n\n${customInstructions}`;
-    }
-
-    return system;
+    return { staticPart, dynamicPart: customInstructions || '' };
 }
 
 // ═══ Tabela de preços por modelo (USD por 1M tokens) ═══
@@ -1087,9 +1093,20 @@ function logarUso(provider, modelo, inputTokens, outputTokens, contexto = '', ca
 }
 
 // ═══ Chamada unificada para IA (Anthropic ou OpenAI) ═══
+// systemPrompt: string completa OU { staticPart, dynamicPart } para prompt caching eficiente
 export async function callAI(messages, systemPrompt, options = {}) {
     const cfg = getConfig();
     if (!cfg.ia_api_key) throw new Error('API key da IA não configurada');
+
+    // Suporte a systemPrompt como objeto { staticPart, dynamicPart } para cache eficiente
+    let systemStatic, systemDynamic;
+    if (systemPrompt && typeof systemPrompt === 'object' && systemPrompt.staticPart !== undefined) {
+        systemStatic = systemPrompt.staticPart;
+        systemDynamic = systemPrompt.dynamicPart || '';
+    } else {
+        systemStatic = String(systemPrompt || '');
+        systemDynamic = '';
+    }
 
     const temperature = options.temperature ?? cfg.ia_temperatura ?? 0.7;
     const maxTokens = options.maxTokens ?? 1024;
@@ -1111,9 +1128,10 @@ export async function callAI(messages, systemPrompt, options = {}) {
             required: ['resposta', 'dossie'],
         };
 
+        const geminiFullPrompt = systemDynamic ? `${systemStatic}\n\n${systemDynamic}` : systemStatic;
         const geminiModel = genAI.getGenerativeModel({
             model: modelo,
-            systemInstruction: systemPrompt,
+            systemInstruction: geminiFullPrompt,
             generationConfig: {
                 temperature,
                 maxOutputTokens: maxTokens,
@@ -1149,7 +1167,7 @@ export async function callAI(messages, systemPrompt, options = {}) {
 
             const text = `${resposta}\n${dossieStr}`;
             const est = (str) => Math.ceil((str || '').length / 4);
-            logarUso('gemini', modelo, messages.reduce((a, m) => a + est(m.content), 0) + est(systemPrompt), est(text), contexto);
+            logarUso('gemini', modelo, messages.reduce((a, m) => a + est(m.content), 0) + est(geminiFullPrompt), est(text), contexto);
             return text;
         } catch (err) {
             const isOverload = err?.message?.includes('503') || err?.message?.includes('overloaded')
@@ -1185,7 +1203,7 @@ export async function callAI(messages, systemPrompt, options = {}) {
         const response = await openai.chat.completions.create({
             model: modelo,
             messages: [
-                { role: 'system', content: systemPrompt },
+                { role: 'system', content: systemDynamic ? `${systemStatic}\n\n${systemDynamic}` : systemStatic },
                 ...messages,
             ],
             temperature,
@@ -1202,15 +1220,16 @@ export async function callAI(messages, systemPrompt, options = {}) {
     const response = await anthropic.messages.create({
         model: modelo,
         max_tokens: maxTokens,
-        // Prompt caching: system como array com cache_control no último bloco
-        // Anthropic armazena o system prompt em cache por 5 min (ephemeral)
-        // Economiza ~90% no custo do system prompt em chamadas repetidas
+        // Prompt caching: bloco estático com cache_control (14k tokens do SOFIA_TRAINING)
+        // + bloco dinâmico sem cache (horário, dossiê, estado — muda a cada chamada)
+        // Economiza ~90% no custo do bloco estático em chamadas repetidas dentro de 5 min
         system: [
             {
                 type: 'text',
-                text: systemPrompt,
+                text: systemStatic,
                 cache_control: { type: 'ephemeral' },
             },
+            ...(systemDynamic ? [{ type: 'text', text: systemDynamic }] : []),
         ],
         messages: messages.map(m => ({
             role: m.role === 'assistant' ? 'assistant' : 'user',
@@ -1574,7 +1593,7 @@ export async function processIncomingMessage(conversa, messageText) {
         }
     }
 
-    const system = buildSystemPrompt(contextoExtra);
+    const system = buildSystemPromptParts(contextoExtra);
 
     const aiMessages = recentMsgs.map(m => ({
         role: m.direcao === 'entrada' ? 'user' : 'assistant',
