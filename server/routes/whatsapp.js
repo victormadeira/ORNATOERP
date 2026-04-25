@@ -504,8 +504,10 @@ router.put('/conversas/:id/ia-bloqueio', requireAuth, requireConversaAccess(db),
             'UPDATE chat_conversas SET ia_bloqueada = 1, ia_bloqueio_ate = ?, ia_bloqueio_motivo = ? WHERE id = ?'
         ).run(ate, motivo || 'manual', id);
     } else {
+        // Retomar: limpa bloqueio E garante status 'ia' para o webhook voltar a responder
+        // (status pode ter virado 'humano' durante a pausa por escalada ou resposta manual)
         db.prepare(
-            "UPDATE chat_conversas SET ia_bloqueada = 0, ia_bloqueio_ate = NULL, ia_bloqueio_motivo = '' WHERE id = ?"
+            "UPDATE chat_conversas SET ia_bloqueada = 0, ia_bloqueio_ate = NULL, ia_bloqueio_motivo = '', status = 'ia', abandonada = 0 WHERE id = ?"
         ).run(id);
     }
     const conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(id);
